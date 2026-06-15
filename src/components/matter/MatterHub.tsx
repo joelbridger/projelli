@@ -222,10 +222,10 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
     border: '1px solid var(--color-border)',
     borderRadius: 8,
     background: '#fff',
-    padding: '14px',
+    padding: 'var(--kp-card-pad)',
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 'var(--kp-stack-gap)',
   };
 
   const panelHeader: React.CSSProperties = {
@@ -285,7 +285,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
       {/* ── A. Header bar ─────────────────────────────────────────────── */}
       <div
         style={{
-          padding: '20px 24px 16px',
+          padding: 'var(--kp-surface-header-pad)',
           borderBottom: '1px solid var(--color-border)',
           background: '#fff',
         }}
@@ -407,7 +407,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
       {/* ── B. Ask hero ────────────────────────────────────────────────── */}
       <div
         style={{
-          padding: '16px 24px',
+          padding: 'var(--kp-surface-gap) var(--kp-gutter)',
           borderBottom: '1px solid var(--color-border)',
           background: 'rgba(10,37,64,0.02)',
         }}
@@ -545,8 +545,8 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
-          gap: 12,
-          padding: '16px 24px',
+          gap: 'var(--kp-stack-gap)',
+          padding: 'var(--kp-surface-gap) var(--kp-gutter)',
           borderBottom: '1px solid var(--color-border)',
         }}
       >
@@ -865,8 +865,8 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
-          gap: 12,
-          padding: '16px 24px 24px',
+          gap: 'var(--kp-stack-gap)',
+          padding: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-section-gap)',
         }}
       >
         {/* Documents */}

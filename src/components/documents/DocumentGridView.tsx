@@ -266,8 +266,8 @@ function FileCard({ node, isActive, onOpen, onMoveInto }: FileCardProps) {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 8,
-        padding: '16px 12px',
+        gap: 'var(--kp-space-xs)',
+        padding: 'var(--kp-space-md) var(--kp-space-sm)',
         borderRadius: 8,
         border: isDragOver && isFolder
           ? '2px dashed var(--kp-navy)'
@@ -330,9 +330,9 @@ function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '64px 24px',
+        padding: 'var(--kp-space-3xl) var(--kp-space-lg)',
         textAlign: 'center',
-        gap: 12,
+        gap: 'var(--kp-space-sm)',
       }}
     >
       <Folder
@@ -342,7 +342,7 @@ function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
           color: 'var(--kp-navy)',
           strokeWidth: 1.25,
           opacity: 0.25,
-          marginBottom: 4,
+          marginBottom: 'var(--kp-space-2xs)',
         }}
       />
       <div
@@ -373,8 +373,8 @@ function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
-          marginTop: 8,
+          gap: 'var(--kp-space-xs)',
+          marginTop: 'var(--kp-space-xs)',
           flexWrap: 'wrap',
           justifyContent: 'center',
         }}
@@ -385,7 +385,7 @@ function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
-            padding: '8px 16px',
+            padding: 'var(--kp-space-xs) var(--kp-space-md)',
             borderRadius: 6,
             fontSize: 13,
             fontWeight: 600,
@@ -408,7 +408,7 @@ function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
-            padding: '8px 16px',
+            padding: 'var(--kp-space-xs) var(--kp-space-md)',
             borderRadius: 6,
             fontSize: 13,
             fontWeight: 600,
@@ -704,8 +704,8 @@ export function DocumentGridView({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
-          padding: '12px 20px',
+          gap: 'var(--kp-space-xs)',
+          padding: 'var(--kp-space-sm) var(--kp-gutter)',
           borderBottom: '1px solid var(--color-border)',
           flexShrink: 0,
           flexWrap: 'wrap',
@@ -887,12 +887,12 @@ export function DocumentGridView({
       </div>
 
       {/* ── Content area ───────────────────────────────────────────────── */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 20px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--kp-surface-gap) var(--kp-gutter)' }}>
         {activeView === 'files' ? (
           <>
             {/* Breadcrumb row */}
             {breadcrumbs.length > 0 && (
-              <div style={{ marginBottom: 12 }}>
+              <div style={{ marginBottom: 'var(--kp-space-sm)' }}>
                 <Breadcrumb
                   segments={breadcrumbs}
                   onNavigate={(path) => {
@@ -911,7 +911,7 @@ export function DocumentGridView({
                 style={{
                   fontSize: 12,
                   color: 'var(--color-muted-foreground)',
-                  marginBottom: 12,
+                  marginBottom: 'var(--kp-space-sm)',
                 }}
               >
                 {fileTree.length === 0 ? 'No documents yet' : currentDirLabel()}
@@ -930,9 +930,9 @@ export function DocumentGridView({
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  padding: '48px 24px',
+                  padding: 'var(--kp-space-2xl) var(--kp-space-lg)',
                   textAlign: 'center',
-                  gap: 8,
+                  gap: 'var(--kp-space-xs)',
                 }}
               >
                 <Search
@@ -941,7 +941,7 @@ export function DocumentGridView({
                     height: 28,
                     color: 'var(--color-muted-foreground)',
                     strokeWidth: 1.5,
-                    marginBottom: 4,
+                    marginBottom: 'var(--kp-space-2xs)',
                   }}
                 />
                 <div
@@ -971,7 +971,7 @@ export function DocumentGridView({
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-                  gap: 10,
+                  gap: 'var(--kp-space-md)',
                 }}
               >
                 {filteredNodes.map((node) => (

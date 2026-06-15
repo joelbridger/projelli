@@ -419,12 +419,12 @@ function SourcePanel({
           border: '1px solid var(--color-border)',
           borderRadius: 10,
           background: 'var(--color-background)',
-          padding: 16,
+          padding: 'var(--kp-card-pad)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 8,
+          gap: 'var(--kp-space-xs)',
           minHeight: 160,
           color: 'var(--color-muted-foreground)',
           fontSize: 13,
@@ -492,7 +492,7 @@ function SourcePanel({
       </div>
 
       {/* Body */}
-      <div style={{ padding: 14 }}>
+      <div style={{ padding: 'var(--kp-card-pad)' }}>
         <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
           <FileText
             size={16}
@@ -518,7 +518,7 @@ function SourcePanel({
 
         <blockquote
           style={{
-            margin: '12px 0 0',
+            margin: 'var(--kp-space-sm) 0 0',
             padding: '10px 13px',
             borderLeft: '3px solid var(--kp-accent)',
             background: 'var(--color-secondary)',
@@ -536,7 +536,7 @@ function SourcePanel({
             type="button"
             onClick={() => { onOpenFile?.(cite.path ?? ''); }}
             style={{
-              marginTop: 12,
+              marginTop: 'var(--kp-space-sm)',
               width: '100%',
               display: 'inline-flex',
               alignItems: 'center',
@@ -595,12 +595,12 @@ function SampleBridgeCallout() {
       style={{
         display: 'flex',
         alignItems: 'flex-start',
-        gap: 12,
-        padding: '12px 14px',
+        gap: 'var(--kp-space-sm)',
+        padding: 'var(--kp-space-sm) var(--kp-space-md)',
         borderRadius: 9,
         border: '1px solid var(--color-border)',
         background: 'var(--color-secondary)',
-        marginTop: 8,
+        marginTop: 'var(--kp-space-xs)',
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -1169,7 +1169,7 @@ export function ReimaginedAsk({
       {/* Header */}
       <div
         style={{
-          padding: '24px 24px 16px',
+          padding: 'var(--kp-surface-header-pad)',
           borderBottom: '1px solid var(--color-border)',
           flexShrink: 0,
         }}
@@ -1222,7 +1222,7 @@ export function ReimaginedAsk({
           style={{
             display: 'flex',
             gap: 6,
-            padding: '8px 18px',
+            padding: 'var(--kp-space-xs) var(--kp-gutter)',
             overflowX: 'auto',
             flexShrink: 0,
             borderBottom: '1px solid var(--color-border)',
@@ -1281,10 +1281,10 @@ export function ReimaginedAsk({
         <div
           style={{
             overflowY: 'auto',
-            padding: '16px 18px 24px',
+            padding: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)',
             display: 'flex',
             flexDirection: 'column',
-            gap: 24,
+            gap: 'var(--kp-stack-gap)',
             minWidth: 0,
           }}
         >
@@ -1297,8 +1297,8 @@ export function ReimaginedAsk({
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 10,
-                padding: '40px 0',
+                gap: 'var(--kp-space-sm)',
+                padding: 'var(--kp-space-4xl) 0',
                 textAlign: 'center',
               }}
             >
@@ -1312,7 +1312,7 @@ export function ReimaginedAsk({
                   ? 'This is a sample matter. Click a question below and see a cited answer. Click any citation to read the exact passage.'
                   : 'Every answer cites the document and locator. Click any chip to read the exact passage.'}
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 6, maxWidth: 480 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--kp-space-xs)', justifyContent: 'center', marginTop: 'var(--kp-space-xs)', maxWidth: 480 }}>
                 {(activeMatter?.id === SAMPLE_MATTER_ID
                   ? (demoQuestions as unknown as string[])
                   : [
@@ -1359,7 +1359,7 @@ export function ReimaginedAsk({
                 <div
                   data-testid="recent-in-matter"
                   style={{
-                    marginTop: 8,
+                    marginTop: 'var(--kp-space-xs)',
                     width: '100%',
                     maxWidth: 380,
                     textAlign: 'left',
@@ -1372,12 +1372,12 @@ export function ReimaginedAsk({
                       letterSpacing: '0.11em',
                       textTransform: 'uppercase',
                       color: 'var(--color-muted-foreground)',
-                      marginBottom: 7,
+                      marginBottom: 'var(--kp-space-xs)',
                     }}
                   >
                     Recent in this matter
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-2xs)' }}>
                     {/* Fix #6: each item shows the date/time sub-label so similar-start sessions are distinguishable. */}
                     {matterRecentSessions.map(({ chatId: sid, label, dateLabel }) => (
                       <button
@@ -1495,7 +1495,7 @@ export function ReimaginedAsk({
           <div
             style={{
               borderLeft: '1px solid var(--color-border)',
-              padding: '16px 14px',
+              padding: 'var(--kp-surface-gap) var(--kp-card-pad)',
               overflowY: 'auto',
               background: 'var(--color-background)',
             }}
@@ -1512,7 +1512,7 @@ export function ReimaginedAsk({
             display: 'flex',
             gap: 8,
             alignItems: 'center',
-            padding: '9px 18px',
+            padding: 'var(--kp-space-xs) var(--kp-gutter)',
             fontSize: 12.5,
             color: 'var(--kp-direct)',
             background: 'var(--kp-direct-bg)',
@@ -1557,7 +1557,7 @@ export function ReimaginedAsk({
       {/* Composer */}
       <div
         style={{
-          padding: '10px 18px 16px',
+          padding: 'var(--kp-space-sm) var(--kp-gutter) var(--kp-space-md)',
           borderTop: '1px solid var(--color-border)',
           flexShrink: 0,
         }}
@@ -1717,13 +1717,13 @@ function TurnBlock({
   const selectedForThisTurn = isThisTurnSelected ? selected : null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>
       {/* User bubble */}
       <div
         style={{
           display: 'flex',
           alignItems: 'flex-start',
-          gap: 8,
+          gap: 'var(--kp-space-xs)',
         }}
       >
         <Quote
@@ -1749,7 +1749,7 @@ function TurnBlock({
           paddingLeft: 22,
           display: 'flex',
           flexDirection: 'column',
-          gap: 10,
+          gap: 'var(--kp-space-sm)',
         }}
       >
         {isStreaming && !turn.answer ? (

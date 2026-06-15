@@ -572,7 +572,7 @@ function AuditRow({ entry, onSelect }: AuditRowProps) {
         alignItems: 'center',
         gap: 0,
         width: '100%',
-        padding: '10px 20px',
+        padding: 'var(--kp-space-xs) var(--kp-space-md)',
         background: hovered ? 'rgba(10,37,64,0.02)' : 'transparent',
         borderLeft: 'none',
         borderRight: 'none',
@@ -719,7 +719,7 @@ function TableHeader() {
       style={{
         display: 'grid',
         gridTemplateColumns: '160px 1fr 120px 100px',
-        padding: '0 20px',
+        padding: '0 var(--kp-space-md)',
         borderBottom: '2px solid var(--color-border)',
         background: 'rgba(10,37,64,0.025)',
       }}
@@ -743,9 +743,9 @@ function AuditEmptyState() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '80px 24px',
+        padding: 'var(--kp-space-4xl) var(--kp-card-pad)',
         textAlign: 'center',
-        gap: 12,
+        gap: 'var(--kp-space-sm)',
       }}
     >
       <ShieldCheck
@@ -800,9 +800,9 @@ function AuditNoMatchState({ onClearFilters }: AuditNoMatchStateProps) {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '80px 24px',
+        padding: 'var(--kp-space-4xl) var(--kp-card-pad)',
         textAlign: 'center',
-        gap: 12,
+        gap: 'var(--kp-space-sm)',
       }}
     >
       <Search
@@ -925,11 +925,11 @@ function FilterPanel({
     <div
       data-testid="audit-filter-panel"
       style={{
-        padding: '12px 20px 14px',
+        padding: 'var(--kp-space-sm) var(--kp-gutter) var(--kp-space-md)',
         borderBottom: '1px solid var(--color-border)',
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
+        gap: 'var(--kp-space-sm)',
       }}
     >
       {/* Category chips */}
@@ -1257,7 +1257,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
       {/* Page header */}
       <div
         style={{
-          padding: '24px 24px 16px',
+          padding: 'var(--kp-surface-header-pad)',
           borderBottom: '1px solid var(--color-border)',
           flexShrink: 0,
         }}
@@ -1342,7 +1342,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
       {!encrypted && (
         <div
           style={{
-            padding: '6px 24px',
+            padding: 'var(--kp-space-xs) var(--kp-gutter)',
             fontSize: 11,
             color: 'var(--color-muted-foreground)',
             background: 'rgba(100,116,139,0.05)',
@@ -1362,7 +1362,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          padding: '10px 24px',
+          padding: 'var(--kp-space-xs) var(--kp-gutter)',
           borderBottom: showFilters ? 'none' : '1px solid var(--color-border)',
           flexShrink: 0,
         }}
@@ -1484,8 +1484,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
         {/* Table card */}
         <div
           style={{
-            margin: '0 24px 24px',
-            marginTop: 16,
+            margin: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)',
             border: '1px solid var(--color-border)',
             borderRadius: 8,
             background: '#fff',

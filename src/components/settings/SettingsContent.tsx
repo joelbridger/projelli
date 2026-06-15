@@ -493,7 +493,7 @@ function SubSection({
           aria-hidden="true"
         />
       </button>
-      <div id={`${id}-body`} hidden={!isOpen} aria-live="polite" className="pb-3">
+      <div id={`${id}-body`} hidden={!isOpen} aria-live="polite" className="pb-4">
         {children}
       </div>
     </div>
@@ -1127,11 +1127,11 @@ export function SettingsContent({
           variant === 'page' ? 'h-full w-full' : 'h-full'
         )}
       >
-        {/* Header / Search — pt-6 px-6 pb-4 == the standard '24px 24px 16px'
-            surface-header padding, so the Settings title sits at the same
-            height as every other tab. */}
+        {/* Header / Search — px-8 pt-6 pb-4 == 32px gutter × standard header pad,
+            so the Settings title sits at the same height as every other tab and
+            the horizontal rhythm matches --kp-gutter (32px). */}
         {variant === 'page' && (
-          <div className="shrink-0 border-b px-6 pt-6 pb-4">
+          <div className="shrink-0 border-b px-8 pt-6 pb-4">
             <SurfaceHeader
               Icon={Settings}
               title="Settings"
@@ -1140,7 +1140,7 @@ export function SettingsContent({
             />
           </div>
         )}
-        <div className="shrink-0 border-b px-4 py-3 flex items-center gap-3">
+        <div className="shrink-0 border-b px-8 py-4 flex items-center gap-3">
           {variant === 'modal' && (
             <h2 className="text-base font-semibold shrink-0">{t('settings.modal.title')}</h2>
           )}
@@ -1181,7 +1181,7 @@ export function SettingsContent({
         {/* Body: sidebar + content */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Section sidebar — 5 entries */}
-          <nav aria-label="Settings sections" className="w-48 shrink-0 border-r py-2 overflow-y-auto bg-muted/20">
+          <nav aria-label="Settings sections" className="w-48 shrink-0 border-r py-3 overflow-y-auto bg-muted/20">
             {SETTING_CATEGORIES.map((sec) => {
               const visible = visibleSections.has(sec.id);
               if (!visible) return null;
@@ -1193,7 +1193,7 @@ export function SettingsContent({
                   data-testid={`settings-category-${sec.id}`}
                   aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    'w-full flex items-center gap-2 text-left px-4 py-2 text-sm transition-colors',
+                    'w-full flex items-center gap-2 text-left px-6 py-2.5 text-sm transition-colors',
                     isActive
                       ? 'bg-background font-medium text-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
@@ -1220,7 +1220,7 @@ export function SettingsContent({
           <div
             ref={contentScrollRef}
             data-testid="settings-content-scroll"
-            className="flex-1 overflow-y-auto px-6 py-4"
+            className="flex-1 overflow-y-auto px-8 py-6"
           >
             {activeSection === 'workspace' ? (
               <WorkspaceSection {...sectionProps} />
@@ -1237,7 +1237,7 @@ export function SettingsContent({
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 border-t px-4 py-3 flex items-center justify-end gap-2">
+        <div className="shrink-0 border-t px-8 py-4 flex items-center justify-end gap-2">
           <Button
             data-testid="settings-export"
             variant="outline"

@@ -53,8 +53,8 @@ Cards use `var(--kp-card-pad)` inside and sit `var(--kp-gutter)` from the page e
 ## Rollout status
 
 - ✅ **Tokens defined** (`globals.css`).
-- ✅ **Matters** migrated as the reference implementation (fixed the flush empty-state; now uses the gutter + surface-gap + header tokens).
-- ⬜ **To do:** migrate the other six surfaces + their cards/panels/modals to the tokens (Search, Documents, Email, Workflows, Activity Log, Settings), and replace stray raw-px paddings (7/9/11/13px) with the nearest scale token. Done per-surface so each stays internally consistent.
+- ✅ **All surfaces migrated** to the tokens: Matters (reference), Search, Documents (+ grid/tree), Email, Workflows, Activity Log, Settings, and the MatterHub. Each uses `--kp-surface-header-pad` for its header, `--kp-gutter` (32px) for horizontal padding, `--kp-surface-gap` (24px) below the header divider, and `--kp-card-pad` inside cards. Stray raw-px layout values were replaced with the nearest scale token; load-bearing control internals (pill/button padding, icon gaps) were left as-is on purpose.
+- ⬜ **Future:** the navy left rail and the trust bar are intentionally denser and were left out of this pass; revisit if they should pick up the scale too.
 
 ## Type rhythm (companion rule)
 

@@ -219,11 +219,11 @@ function TemplateCard({
           ? '2px solid var(--kp-navy)'
           : '1px solid var(--color-border)',
         borderRadius: 8,
-        padding: '14px 16px',
+        padding: 'var(--kp-card-pad)',
         background: isFeatured ? 'rgba(10,37,64,0.03)' : '#fff',
         display: 'flex',
         flexDirection: 'column',
-        gap: 10,
+        gap: 'var(--kp-space-sm)',
         position: 'relative',
         transition: 'box-shadow 0.12s',
       }}
@@ -261,7 +261,7 @@ function TemplateCard({
             fontWeight: 700,
             color: 'var(--kp-navy)',
             lineHeight: 1.35,
-            marginBottom: 5,
+            marginBottom: 'var(--kp-space-2xs)',
             paddingRight: isFeatured ? 80 : 0,
           }}
         >
@@ -367,7 +367,7 @@ function CategorySection({
   return (
     <section
       data-testid={`associate-section-${config.key}`}
-      style={{ marginBottom: 28 }}
+      style={{ marginBottom: 'var(--kp-section-gap)' }}
     >
       {/* Section header */}
       <button
@@ -381,7 +381,7 @@ function CategorySection({
           background: 'none',
           border: 'none',
           cursor: 'pointer',
-          padding: '0 0 10px',
+          padding: '0 0 var(--kp-space-sm)',
           width: '100%',
           textAlign: 'left',
         }}
@@ -424,7 +424,7 @@ function CategorySection({
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-              gap: 12,
+              gap: 'var(--kp-space-md)',
             }}
           >
             {visible.map((t) => (
@@ -447,7 +447,7 @@ function CategorySection({
               data-testid={`associate-show-all-${config.key}`}
               onClick={() => { setShowAll(true); }}
               style={{
-                marginTop: 10,
+                marginTop: 'var(--kp-space-sm)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 5,
@@ -471,7 +471,7 @@ function CategorySection({
             <div
               data-testid={`associate-search-hidden-${config.key}`}
               style={{
-                marginTop: 10,
+                marginTop: 'var(--kp-space-sm)',
                 fontSize: 11,
                 color: 'var(--color-muted-foreground)',
                 lineHeight: 1.4,
@@ -708,7 +708,7 @@ export function ReimaginedAssociateHome({
       {/* ── Page header ─────────────────────────────────────────────── */}
       <div
         style={{
-          padding: '24px 24px 16px',
+          padding: 'var(--kp-surface-header-pad)',
           borderBottom: '1px solid var(--color-border)',
           flexShrink: 0,
         }}
@@ -809,7 +809,7 @@ export function ReimaginedAssociateHome({
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              marginTop: 14,
+              marginTop: 'var(--kp-stack-gap)',
               flexWrap: 'wrap',
             }}
           >
@@ -839,7 +839,7 @@ export function ReimaginedAssociateHome({
         <div
           data-testid="associate-trial-banner"
           style={{
-            margin: '12px 24px 0',
+            margin: 'var(--kp-space-sm) var(--kp-gutter) 0',
             padding: '10px 14px',
             borderRadius: 6,
             border: '1px solid #fbbf24',
@@ -860,7 +860,7 @@ export function ReimaginedAssociateHome({
           data-testid="associate-provider-error"
           role="alert"
           style={{
-            margin: '12px 24px 0',
+            margin: 'var(--kp-space-sm) var(--kp-gutter) 0',
             padding: '10px 14px',
             borderRadius: 6,
             border: '1px solid #fca5a5',
@@ -920,7 +920,7 @@ export function ReimaginedAssociateHome({
       <div
         style={{
           flex: 1,
-          padding: '24px 24px',
+          padding: 'var(--kp-surface-gap) var(--kp-gutter)',
           display: 'flex',
           flexDirection: 'column',
           gap: 0,
@@ -928,7 +928,7 @@ export function ReimaginedAssociateHome({
       >
         {/* Recent runs strip */}
         {recentRuns.length > 0 && (
-          <div style={{ marginBottom: 32 }}>
+          <div style={{ marginBottom: 'var(--kp-section-gap)' }}>
             <div
               style={{
                 fontSize: 11,

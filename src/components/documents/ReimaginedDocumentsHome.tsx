@@ -155,14 +155,14 @@ function TrustBanner({ onDismiss }: TrustBannerProps) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: 12,
-        padding: '10px 20px',
+        gap: 'var(--kp-space-sm)',
+        padding: 'var(--kp-space-xs) var(--kp-gutter)',
         background: '#eef4ff',
         borderBottom: '1px solid #c7d9f8',
         flexShrink: 0,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', flex: 1, minWidth: 0 }}>
         <div
           style={{
             width: 28,
@@ -380,7 +380,7 @@ function ViewToggle({ view, onChange }: ViewToggleProps) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
-        padding: '8px 20px',
+        padding: 'var(--kp-space-xs) var(--kp-gutter)',
         borderBottom: '1px solid var(--color-border)',
         flexShrink: 0,
         background: 'var(--color-background)',
@@ -635,7 +635,7 @@ export function ReimaginedDocumentsHome({
       }}
     >
       {/* Page header */}
-      <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
         <SurfaceHeader
           Icon={FolderTree}
           title="Documents"
@@ -745,8 +745,8 @@ export function ReimaginedDocumentsHome({
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 8,
-                      padding: '8px 12px',
+                      gap: 'var(--kp-space-xs)',
+                      padding: 'var(--kp-space-xs) var(--kp-gutter)',
                       borderBottom: '1px solid var(--color-border)',
                       flexShrink: 0,
                       flexWrap: 'wrap',

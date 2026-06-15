@@ -218,7 +218,7 @@ function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivilegeProp
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 width: '100%',
-                padding: '8px 12px',
+                padding: `var(--kp-space-xs) var(--kp-space-sm)`,
                 fontSize: 12,
                 fontWeight: privilege === status ? 600 : 400,
                 color: 'var(--color-foreground)',
@@ -295,7 +295,7 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
         overflow: 'hidden',
       }}
     >
-      <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+      <div style={{ padding: `var(--kp-space-2xs) var(--kp-space-xs)`, borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
         <input
           type="text"
           data-testid="matter-picker-search"
@@ -321,7 +321,7 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
         {fileError && (
           <div
             style={{
-              padding: '8px 12px',
+              padding: `var(--kp-space-xs) var(--kp-space-sm)`,
               fontSize: 11,
               color: '#b45309',
               borderBottom: '1px solid var(--color-border)',
@@ -337,7 +337,7 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
         {filteredMatters.length === 0 ? (
           <div
             style={{
-              padding: '12px 14px',
+              padding: `var(--kp-space-sm) var(--kp-space-sm)`,
               fontSize: 12,
               color: 'var(--color-muted-foreground)',
             }}
@@ -371,9 +371,9 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
+              gap: 'var(--kp-space-xs)',
               width: '100%',
-              padding: '8px 12px',
+              padding: `var(--kp-space-xs) var(--kp-space-sm)`,
               fontSize: 12,
               color: 'var(--color-foreground)',
               background: 'transparent',
@@ -448,7 +448,7 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
         overflow: 'hidden',
       }}
     >
-      <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+      <div style={{ padding: `var(--kp-space-2xs) var(--kp-space-xs)`, borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
         <input
           type="text"
           data-testid="bulk-matter-picker-search"
@@ -472,13 +472,13 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
       </div>
       <div style={{ overflowY: 'auto', flex: 1 }}>
         {fileError && (
-          <div style={{ padding: '8px 12px', fontSize: 11, color: '#b45309', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ padding: `var(--kp-space-xs) var(--kp-space-sm)`, fontSize: 11, color: '#b45309', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: 4 }}>
             <AlertTriangle style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
             {fileError}
           </div>
         )}
         {filteredMatters.length === 0 ? (
-          <div style={{ padding: '12px 14px', fontSize: 12, color: 'var(--color-muted-foreground)' }}>
+          <div style={{ padding: `var(--kp-space-sm) var(--kp-space-sm)`, fontSize: 12, color: 'var(--color-muted-foreground)' }}>
             {matters.length === 0 ? 'No matters yet' : 'No matching matters'}
           </div>
         ) : (
@@ -507,9 +507,9 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
+              gap: 'var(--kp-space-xs)',
               width: '100%',
-              padding: '8px 12px',
+              padding: `var(--kp-space-xs) var(--kp-space-sm)`,
               fontSize: 12,
               color: 'var(--color-foreground)',
               background: 'transparent',
@@ -595,7 +595,7 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
         display: 'flex',
         flexDirection: 'row',
         alignItems: 'flex-start',
-        padding: '11px 20px',
+        padding: `var(--kp-space-sm) var(--kp-space-md)`,
         borderBottom: '1px solid var(--color-border)',
         background: selected
           ? 'rgba(10,37,64,0.04)'
@@ -746,7 +746,7 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
               bottom: 10,
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
+              gap: 'var(--kp-space-2xs)',
             }}
             onClick={(e) => { e.stopPropagation(); }}
           >
@@ -876,12 +876,12 @@ function AskHitCard({ hit, rank, items }: AskHitCardProps) {
         display: 'block',
         width: '100%',
         textAlign: 'left',
-        padding: '12px 16px',
+        padding: `var(--kp-space-sm) var(--kp-space-md)`,
         borderRadius: 8,
         border: '1px solid var(--color-border)',
         background: '#fff',
         cursor: 'pointer',
-        marginBottom: 8,
+        marginBottom: 'var(--kp-space-xs)',
         transition: 'box-shadow 0.12s',
       }}
       onMouseEnter={(e) => {
@@ -982,9 +982,9 @@ function NoAccountsState({ onOpenSettings }: NoAccountsStateProps) {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '64px 24px',
+        padding: `var(--kp-space-3xl) var(--kp-gutter)`,
         textAlign: 'center',
-        gap: 12,
+        gap: 'var(--kp-space-sm)',
       }}
     >
       <Mail
@@ -1417,7 +1417,7 @@ export function ReimaginedEmailWorkspace({
       {/* Page header */}
       <div
         style={{
-          padding: '24px 24px 16px',
+          padding: 'var(--kp-surface-header-pad)',
           borderBottom: '1px solid var(--color-border)',
           flexShrink: 0,
         }}
@@ -1515,7 +1515,7 @@ export function ReimaginedEmailWorkspace({
             background: '#fff',
             overflow: 'hidden',
             boxShadow: searchFocused ? '0 0 0 2px rgba(10,37,64,0.12)' : '0 1px 4px rgba(0,0,0,0.06)',
-            marginBottom: 8,
+            marginBottom: 'var(--kp-space-xs)',
             transition: 'border-color 0.1s, box-shadow 0.1s',
           }}
         >
@@ -1621,7 +1621,7 @@ export function ReimaginedEmailWorkspace({
 
         {/* Filters toggle — only when accounts are loaded and in keyword mode */}
         {accountsLoaded && accounts.length > 0 && mode === 'keyword' && (
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 'var(--kp-space-sm)' }}>
             <button
               type="button"
               data-testid="filters-toggle"
@@ -1782,11 +1782,11 @@ export function ReimaginedEmailWorkspace({
               <div
                 data-testid="bulk-action-bar"
                 style={{
-                  margin: '0 24px 8px',
+                  margin: `var(--kp-space-md) var(--kp-gutter) var(--kp-space-xs)`,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
-                  padding: '8px 14px',
+                  padding: 'var(--kp-space-xs) var(--kp-space-sm)',
                   borderRadius: 6,
                   border: '1px solid rgba(10,37,64,0.18)',
                   background: 'rgba(10,37,64,0.04)',
@@ -1849,8 +1849,8 @@ export function ReimaginedEmailWorkspace({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: '40px 24px',
-                  gap: 8,
+                  padding: `var(--kp-space-2xl) var(--kp-gutter)`,
+                  gap: 'var(--kp-space-xs)',
                   color: 'var(--color-muted-foreground)',
                   fontSize: 13,
                 }}
@@ -1880,8 +1880,8 @@ export function ReimaginedEmailWorkspace({
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: '40px 24px',
-                  gap: 8,
+                  padding: `var(--kp-space-2xl) var(--kp-gutter)`,
+                  gap: 'var(--kp-space-xs)',
                   textAlign: 'center',
                 }}
               >
@@ -1933,8 +1933,8 @@ export function ReimaginedEmailWorkspace({
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: '48px 24px',
-                  gap: 8,
+                  padding: `var(--kp-space-2xl) var(--kp-gutter)`,
+                  gap: 'var(--kp-space-xs)',
                   textAlign: 'center',
                 }}
               >
@@ -1963,7 +1963,7 @@ export function ReimaginedEmailWorkspace({
             {!loading && !error && items.length > 0 && (
               <div
                 style={{
-                  margin: '0 24px 24px',
+                  margin: `var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)`,
                   border: '1px solid var(--color-border)',
                   borderRadius: 8,
                   background: '#fff',
@@ -1973,7 +1973,7 @@ export function ReimaginedEmailWorkspace({
                 <div
                   data-testid="result-count"
                   style={{
-                    padding: '7px 16px',
+                    padding: `var(--kp-space-2xs) var(--kp-space-md)`,
                     fontSize: 11,
                     color: 'var(--color-muted-foreground)',
                     borderBottom: '1px solid var(--color-border)',
@@ -1999,7 +1999,7 @@ export function ReimaginedEmailWorkspace({
                 {items.length < total && (
                   <div
                     style={{
-                      padding: '12px 20px',
+                      padding: `var(--kp-space-sm) var(--kp-space-md)`,
                       borderTop: '1px solid var(--color-border)',
                       display: 'flex',
                       alignItems: 'center',
@@ -2050,15 +2050,15 @@ export function ReimaginedEmailWorkspace({
 
         {/* Ask mode */}
         {accountsLoaded && accounts.length > 0 && mode === 'ask' && (
-          <div style={{ padding: '0 24px 24px' }}>
+          <div style={{ padding: `var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)` }}>
             {askLoading && (
               <div
                 data-testid="ask-loading"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  padding: '24px 0',
+                  gap: 'var(--kp-space-xs)',
+                  padding: `var(--kp-space-lg) 0`,
                   color: 'var(--color-muted-foreground)',
                   fontSize: 13,
                 }}
@@ -2083,7 +2083,7 @@ export function ReimaginedEmailWorkspace({
               <div
                 data-testid="ask-error"
                 style={{
-                  padding: '16px 0',
+                  padding: `var(--kp-space-md) 0`,
                   fontSize: 13,
                   color: '#b45309',
                   display: 'flex',
@@ -2104,8 +2104,8 @@ export function ReimaginedEmailWorkspace({
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  padding: '48px 24px 32px',
-                  gap: 12,
+                  padding: `var(--kp-space-2xl) 0 var(--kp-space-xl)`,
+                  gap: 'var(--kp-space-sm)',
                   textAlign: 'center',
                 }}
               >
@@ -2188,7 +2188,7 @@ export function ReimaginedEmailWorkspace({
               <div
                 data-testid="ask-no-results"
                 style={{
-                  padding: '24px 0',
+                  padding: `var(--kp-space-lg) 0`,
                   fontSize: 13,
                   color: 'var(--color-muted-foreground)',
                   textAlign: 'center',
@@ -2294,7 +2294,7 @@ export function ReimaginedEmailWorkspace({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '14px 18px 10px',
+                padding: `var(--kp-space-sm) var(--kp-card-pad) var(--kp-space-xs)`,
                 borderBottom: '1px solid var(--color-border)',
               }}
             >
@@ -2321,7 +2321,7 @@ export function ReimaginedEmailWorkspace({
             </div>
 
             {/* Modal body (scrollable) */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 18px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: `var(--kp-space-sm) var(--kp-card-pad) var(--kp-card-pad)`, display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-xs)' }}>
               {/* From selector */}
               {accounts.length === 0 ? (
                 <div data-testid="compose-no-accounts" style={{ fontSize: 12, color: 'var(--color-muted-foreground)', padding: '8px 0' }}>
@@ -2579,7 +2579,7 @@ export function ReimaginedEmailWorkspace({
             {/* Modal footer */}
             <div
               style={{
-                padding: '10px 18px',
+                padding: `var(--kp-space-xs) var(--kp-card-pad)`,
                 borderTop: '1px solid var(--color-border)',
                 display: 'flex',
                 justifyContent: 'flex-end',
