@@ -785,7 +785,7 @@ export function ReimaginedMattersHome() {
       }}
     >
       {/* Page header */}
-      <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid var(--color-border)' }}>
+      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)' }}>
         <SurfaceHeader
           Icon={Briefcase}
           title={entityLabel.Other}
@@ -829,7 +829,7 @@ export function ReimaginedMattersHome() {
       {showSearch && (
         <div
           style={{
-            padding: '12px 24px 0',
+            padding: 'var(--kp-surface-gap) var(--kp-gutter) 0',
           }}
         >
           <div
@@ -892,10 +892,13 @@ export function ReimaginedMattersHome() {
         </div>
       )}
 
-      {/* Table card */}
+      {/* Table card — top gap below the header (or below the search box) is never 0:
+          the surface gap keeps it off the divider line (internal <= external rule). */}
       <div
         style={{
-          margin: showSearch ? '12px 24px 24px' : '0 24px 24px',
+          margin: showSearch
+            ? 'var(--kp-space-md) var(--kp-gutter) var(--kp-gutter)'
+            : 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)',
           border: '1px solid var(--color-border)',
           borderRadius: 8,
           background: '#fff',

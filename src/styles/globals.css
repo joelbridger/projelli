@@ -44,6 +44,26 @@
   --kp-assured: #1b5e86; --kp-assured-bg: #e1eef6; --kp-assured-line: #8fbedb;
   --kp-danger: #b02a1f; --kp-danger-bg: #f6e2df;
 
+  /* ---- Spacing scale — 8-point grid (4px base unit). Use these tokens, never raw px. ---- */
+  --kp-space-2xs: 4px;   /* hairline gaps, icon-to-text */
+  --kp-space-xs:  8px;   /* tight inline gap */
+  --kp-space-sm:  12px;  /* small gap */
+  --kp-space-md:  16px;  /* default gap / compact padding */
+  --kp-space-lg:  24px;  /* comfortable padding / content gap */
+  --kp-space-xl:  32px;  /* generous padding / page gutter */
+  --kp-space-2xl: 48px;  /* large section break */
+  --kp-space-3xl: 64px;  /* hero / empty-state */
+  --kp-space-4xl: 80px;  /* extra-large */
+
+  /* ---- Semantic layout spacing — the recurring patterns. Generous by design (room to breathe).
+     Tune the whole app's rhythm from here; surfaces reference these, not raw numbers. ---- */
+  --kp-gutter: var(--kp-space-xl);                                          /* 32px — left/right padding of every full-page surface */
+  --kp-surface-header-pad: var(--kp-space-lg) var(--kp-gutter) var(--kp-space-md); /* 24px 32px 16px — the [icon] Title + description header block */
+  --kp-surface-gap: var(--kp-space-lg);                                     /* 24px — space between a surface's header divider and its content (never 0) */
+  --kp-card-pad: var(--kp-space-lg);                                        /* 24px — padding inside cards / panels */
+  --kp-section-gap: var(--kp-space-xl);                                     /* 32px — vertical space between major sections */
+  --kp-stack-gap: var(--kp-space-md);                                       /* 16px — vertical space between stacked, related items */
+
   /* Border radius */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
