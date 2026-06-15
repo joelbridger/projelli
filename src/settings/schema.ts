@@ -4,8 +4,8 @@
  * The Settings modal renders FROM this schema. Adding a new setting later
  * means adding one entry to `SETTINGS_SCHEMA` — no component changes needed.
  *
- * v3.1 — 20 flat categories collapsed into 5 elegant sections:
- *   workspace   | AI & Privacy   | Account   | Voice   | Advanced & Help
+ * v3.1 — 20 flat categories collapsed into 6 elegant sections:
+ *   workspace   | AI & Privacy   | Account   | Voice   | Advanced   | Help
  *
  * Legacy category ids (general, editor, files, ai, memory, privacy, license,
  * firm, costs, integrations, voice, shortcuts, marketplace, plugins, templates,
@@ -16,20 +16,21 @@
 
 export type SettingType = 'toggle' | 'select' | 'number' | 'text' | 'shortcut-display';
 
-/** The 5 canonical section ids used in the sidebar nav. */
-export type SectionCategory = 'workspace' | 'ai-privacy' | 'account' | 'voice' | 'advanced-help';
+/** The 6 canonical section ids used in the sidebar nav. */
+export type SectionCategory = 'workspace' | 'ai-privacy' | 'account' | 'voice' | 'advanced' | 'help';
 
 /**
- * SettingCategory includes both the 5 new section ids AND every legacy id so
+ * SettingCategory includes both the 6 new section ids AND every legacy id so
  * that callers that pass e.g. `initialCategory="ai"` still type-check.
  */
 export type SettingCategory =
-  // ── 5 canonical sections ──────────────────────────────────────────────
+  // ── 6 canonical sections ──────────────────────────────────────────────
   | 'workspace'
   | 'ai-privacy'
   | 'account'
   | 'voice'
-  | 'advanced-help'
+  | 'advanced'
+  | 'help'
   // ── legacy aliases (kept for deep-link compatibility) ─────────────────
   | 'general'
   | 'license'
@@ -45,7 +46,6 @@ export type SettingCategory =
   | 'marketplace'
   | 'plugins'
   | 'mobile'
-  | 'advanced'
   | 'updates'
   | 'onboarding'
   | 'privacy'
@@ -76,13 +76,14 @@ export interface SettingDefinition {
   action?: SettingAction;
 }
 
-/** The 5 nav sections shown in the sidebar. */
+/** The 6 nav sections shown in the sidebar. */
 export const SETTING_CATEGORIES: { id: SectionCategory; label: string }[] = [
-  { id: 'workspace',     label: 'Workspace' },
-  { id: 'ai-privacy',   label: 'AI & Privacy' },
-  { id: 'account',      label: 'Account' },
-  { id: 'voice',        label: 'Voice' },
-  { id: 'advanced-help', label: 'Advanced & Help' },
+  { id: 'workspace',   label: 'Workspace' },
+  { id: 'ai-privacy', label: 'AI & Privacy' },
+  { id: 'account',    label: 'Account' },
+  { id: 'voice',      label: 'Voice' },
+  { id: 'advanced',   label: 'Advanced' },
+  { id: 'help',       label: 'Help' },
 ];
 
 /**
@@ -106,21 +107,22 @@ export const CATEGORY_ALIAS_MAP: Readonly<Record<string, SectionCategory>> = {
   integrations: 'account',
   // Voice (unchanged)
   voice:        'voice',
-  // Advanced & Help
-  shortcuts:    'advanced-help',
-  marketplace:  'advanced-help',
-  plugins:      'advanced-help',
-  templates:    'advanced-help',
-  updates:      'advanced-help',
-  about:        'advanced-help',
-  mobile:       'advanced-help',
-  onboarding:   'advanced-help',
-  advanced:     'advanced-help',
+  // Advanced (Extensions, Updates, Advanced subsections)
+  marketplace:  'advanced',
+  plugins:      'advanced',
+  templates:    'advanced',
+  updates:      'advanced',
+  mobile:       'advanced',
+  // Help (Keyboard Shortcuts, Setup/onboarding, About subsections)
+  shortcuts:    'help',
+  about:        'help',
+  onboarding:   'help',
   // Canonical ids map to themselves
-  workspace:     'workspace',
-  'ai-privacy':  'ai-privacy',
-  account:       'account',
-  'advanced-help': 'advanced-help',
+  workspace:    'workspace',
+  'ai-privacy': 'ai-privacy',
+  account:      'account',
+  advanced:     'advanced',
+  help:         'help',
 };
 
 /**
@@ -505,10 +507,10 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     defaultValue: 'Ctrl+Shift+R',
   },
 
-  // ── Advanced & Help: Updates ──────────────────────────────────────────
+  // ── Advanced: Updates ─────────────────────────────────────────────────
   {
     key: 'autoUpdateCheck',
-    category: 'advanced-help',
+    category: 'advanced',
     label: 'Check for updates automatically',
     description: 'When enabled, Keepance checks GitHub Releases for new versions in the background and prompts you when one is available.',
     type: 'toggle',
@@ -516,7 +518,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'updateChannel',
-    category: 'advanced-help',
+    category: 'advanced',
     label: 'Update channel',
     description: 'Which release channel to follow. Beta is reserved for future use.',
     type: 'select',
@@ -527,7 +529,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'manualCheckNow',
-    category: 'advanced-help',
+    category: 'advanced',
     label: 'Check for updates now',
     description: 'Run the updater check immediately without waiting for the scheduled interval.',
     type: 'text', // rendered as action link
@@ -535,10 +537,10 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     action: { label: 'Check now', actionId: 'updater-check-now' },
   },
 
-  // ── Advanced & Help: Onboarding ───────────────────────────────────────
+  // ── Help: Setup / Onboarding ──────────────────────────────────────────
   {
     key: 'viewApiKeyTutorial',
-    category: 'advanced-help',
+    category: 'help',
     label: 'Account Key Setup Guide',
     description: 'Step-by-step guide to get an account key from Anthropic, OpenAI, or Google.',
     type: 'text',
@@ -547,7 +549,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'resetFeatureTour',
-    category: 'advanced-help',
+    category: 'help',
     label: 'Feature Tour',
     description: 'Replay the guided tour that introduces the Keepance workspace.',
     type: 'text',
@@ -555,10 +557,10 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     action: { label: 'Start tour', actionId: 'reset-feature-tour' },
   },
 
-  // ── Advanced & Help: About ────────────────────────────────────────────
+  // ── Help: About ───────────────────────────────────────────────────────
   {
     key: 'aboutWhatsNew',
-    category: 'advanced-help',
+    category: 'help',
     label: "What's new",
     description: 'See highlights from the most recent Keepance releases.',
     type: 'text',
@@ -567,7 +569,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'aboutWebsite',
-    category: 'advanced-help',
+    category: 'help',
     label: 'Website',
     description: 'Open keepance.com in your browser.',
     type: 'text',
@@ -576,7 +578,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'aboutGithub',
-    category: 'advanced-help',
+    category: 'help',
     label: 'GitHub',
     description: 'Browse the source, file an issue, or contribute on GitHub.',
     type: 'text',

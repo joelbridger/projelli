@@ -30,7 +30,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FolderOpen, FolderTree, FileText, X, Plus, Upload, ListTree, LayoutGrid } from 'lucide-react';
-import { IconButton, Callout, Button, SearchField, SurfaceToolbar, ToolbarSpacer } from '@/components/ui/kp';
+import { IconButton, Callout, Button, SearchField, SurfaceToolbar } from '@/components/ui/kp';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 import { useEditorStore } from '@/stores/editorStore';
 import { getFileIcon } from '@/utils/fileIcons';
@@ -537,8 +537,30 @@ export function ReimaginedDocumentsHome({
       {/* ── Files toolbar — shown above the tab strip when Files tab is active */}
       {showFilesGrid && (
         <SurfaceToolbar data-testid="documents-toolbar">
-          {/* Files / Trash toggle */}
           {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+
+          {/* 1. Action buttons — files view only */}
+          {activeView === 'files' && (
+            <>
+              <Button variant="primary" size="md" iconLeft={Plus} onClick={handleCreateDocument}>
+                New document
+              </Button>
+              <Button variant="secondary" size="md" iconLeft={Plus} onClick={handleCreateFolder}>
+                New folder
+              </Button>
+              <Button
+                variant="secondary"
+                size="md"
+                iconLeft={Upload}
+                data-testid="add-files-btn"
+                onClick={handleAddFiles}
+              >
+                Add files
+              </Button>
+            </>
+          )}
+
+          {/* 2. Toggles: Files/Trash (always shown) + Tree/Grid (files view only) */}
           <div
             className="kp-segmented kp-segmented--md"
             role="group"
@@ -585,68 +607,51 @@ export function ReimaginedDocumentsHome({
             </button>
           </div>
 
-          {/* Action buttons + search + view toggle — files view only */}
+          {/* Tree | Grid view toggle — files view only */}
           {activeView === 'files' && (
-            <>
-              <Button variant="primary" size="md" iconLeft={Plus} onClick={handleCreateDocument}>
-                New document
-              </Button>
-              <Button variant="secondary" size="md" iconLeft={Plus} onClick={handleCreateFolder}>
-                New folder
-              </Button>
-              <Button
-                variant="secondary"
-                size="md"
-                iconLeft={Upload}
-                data-testid="add-files-btn"
-                onClick={handleAddFiles}
+            <div
+              className="kp-segmented kp-segmented--md"
+              role="group"
+              aria-label="View"
+              data-testid="docs-view-toggle"
+              style={{ flex: 'none' }}
+            >
+              <button
+                type="button"
+                data-testid="docs-view-tree"
+                className={`kp-segmented__item${docsView === 'tree' ? ' is-active' : ''}`}
+                aria-pressed={docsView === 'tree'}
+                onClick={() => { handleSetDocsView('tree'); }}
               >
-                Add files
-              </Button>
-
-              <SearchField
-                data-testid="documents-search-field"
-                value={searchQuery}
-                onChange={setSearchQuery}
-                onClear={() => { setSearchQuery(''); }}
-                placeholder="Search files..."
-                size="md"
-                style={{ flex: 1, minWidth: 200, maxWidth: 420 }}
-              />
-
-              <ToolbarSpacer />
-
-              {/* Tree | Grid view toggle */}
-              <div
-                className="kp-segmented kp-segmented--md"
-                role="group"
-                aria-label="View"
-                data-testid="docs-view-toggle"
-                style={{ flex: 'none' }}
+                <ListTree size={12} strokeWidth={1.75} />
+                Tree
+              </button>
+              <button
+                type="button"
+                data-testid="docs-view-grid"
+                className={`kp-segmented__item${docsView === 'grid' ? ' is-active' : ''}`}
+                aria-pressed={docsView === 'grid'}
+                onClick={() => { handleSetDocsView('grid'); }}
               >
-                <button
-                  type="button"
-                  data-testid="docs-view-tree"
-                  className={`kp-segmented__item${docsView === 'tree' ? ' is-active' : ''}`}
-                  aria-pressed={docsView === 'tree'}
-                  onClick={() => { handleSetDocsView('tree'); }}
-                >
-                  <ListTree size={12} strokeWidth={1.75} />
-                  Tree
-                </button>
-                <button
-                  type="button"
-                  data-testid="docs-view-grid"
-                  className={`kp-segmented__item${docsView === 'grid' ? ' is-active' : ''}`}
-                  aria-pressed={docsView === 'grid'}
-                  onClick={() => { handleSetDocsView('grid'); }}
-                >
-                  <LayoutGrid size={12} strokeWidth={1.75} />
-                  Grid
-                </button>
-              </div>
-            </>
+                <LayoutGrid size={12} strokeWidth={1.75} />
+                Grid
+              </button>
+            </div>
           )}
+
+          {/* 4. Search — last, grows to fill, files view only */}
+          {activeView === 'files' && (
+            <SearchField
+              data-testid="documents-search-field"
+              value={searchQuery}
+              onChange={setSearchQuery}
+              onClear={() => { setSearchQuery(''); }}
+              placeholder="Search files..."
+              size="md"
+              style={{ flex: 1, minWidth: 240 }}
+            />
+          )}
+
           {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         </SurfaceToolbar>
       )}

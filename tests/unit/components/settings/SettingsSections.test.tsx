@@ -1,9 +1,9 @@
 /**
- * SettingsSections — unit tests for the 5-section Settings nav (v3.1).
+ * SettingsSections — unit tests for the 6-section Settings nav (v3.1).
  *
  * Covers:
- *   - Exactly 5 nav section buttons render (workspace / ai-privacy / account /
- *     voice / advanced-help).
+ *   - Exactly 6 nav section buttons render (workspace / ai-privacy / account /
+ *     voice / advanced / help).
  *   - Each section button carries the expected data-testid.
  *   - Every old category id (deep-link alias) routes to the correct section.
  *   - A representative control from each merged area is present in the correct
@@ -54,11 +54,12 @@ function expandSubsection(subheaderTestid: string) {
 describe('resolveSection / CATEGORY_ALIAS_MAP', () => {
   const cases: Array<[string, string]> = [
     // Canonical ids
-    ['workspace',     'workspace'],
-    ['ai-privacy',    'ai-privacy'],
-    ['account',       'account'],
-    ['voice',         'voice'],
-    ['advanced-help', 'advanced-help'],
+    ['workspace',  'workspace'],
+    ['ai-privacy', 'ai-privacy'],
+    ['account',    'account'],
+    ['voice',      'voice'],
+    ['advanced',   'advanced'],
+    ['help',       'help'],
     // Legacy workspace aliases
     ['general', 'workspace'],
     ['editor',  'workspace'],
@@ -74,16 +75,16 @@ describe('resolveSection / CATEGORY_ALIAS_MAP', () => {
     ['integrations', 'account'],
     // Legacy Voice alias
     ['voice', 'voice'],
-    // Legacy Advanced & Help aliases
-    ['shortcuts',  'advanced-help'],
-    ['marketplace','advanced-help'],
-    ['plugins',    'advanced-help'],
-    ['templates',  'advanced-help'],
-    ['updates',    'advanced-help'],
-    ['about',      'advanced-help'],
-    ['mobile',     'advanced-help'],
-    ['onboarding', 'advanced-help'],
-    ['advanced',   'advanced-help'],
+    // Legacy Advanced aliases
+    ['marketplace', 'advanced'],
+    ['plugins',     'advanced'],
+    ['templates',   'advanced'],
+    ['updates',     'advanced'],
+    ['mobile',      'advanced'],
+    // Legacy Help aliases
+    ['shortcuts',  'help'],
+    ['about',      'help'],
+    ['onboarding', 'help'],
   ];
 
   for (const [input, expected] of cases) {
@@ -92,14 +93,14 @@ describe('resolveSection / CATEGORY_ALIAS_MAP', () => {
     });
   }
 
-  it('CATEGORY_ALIAS_MAP covers all 20 legacy ids + 5 canonical ids', () => {
+  it('CATEGORY_ALIAS_MAP covers all 19 legacy ids + 6 canonical ids', () => {
     const legacy = [
       'general','editor','files','ai','memory','privacy',
       'license','firm','costs','integrations','voice',
       'shortcuts','marketplace','plugins','templates','updates',
-      'about','mobile','onboarding','advanced',
+      'about','mobile','onboarding',
     ];
-    const canonical = ['workspace','ai-privacy','account','voice','advanced-help'];
+    const canonical = ['workspace','ai-privacy','account','voice','advanced','help'];
     for (const id of [...legacy, ...canonical]) {
       expect(CATEGORY_ALIAS_MAP[id], `${id} missing from alias map`).toBeDefined();
     }
@@ -110,21 +111,22 @@ describe('resolveSection / CATEGORY_ALIAS_MAP', () => {
 // Nav renders exactly 5 section buttons
 // ---------------------------------------------------------------------------
 
-describe('SettingsModal nav — 5 sections', () => {
-  it('renders exactly 5 nav buttons', () => {
+describe('SettingsModal nav — 6 sections', () => {
+  it('renders exactly 6 nav buttons', () => {
     renderModal();
     const navBtns = screen
       .getAllByRole('button')
       .filter((b) => (b.getAttribute('data-testid') ?? '').startsWith('settings-category-'));
-    expect(navBtns).toHaveLength(5);
+    expect(navBtns).toHaveLength(6);
   });
 
   const sections: Array<{ id: string; label: string }> = [
-    { id: 'workspace',     label: 'Workspace' },
-    { id: 'ai-privacy',   label: 'AI & Privacy' },
-    { id: 'account',      label: 'Account' },
-    { id: 'voice',        label: 'Voice' },
-    { id: 'advanced-help', label: 'Advanced & Help' },
+    { id: 'workspace',  label: 'Workspace' },
+    { id: 'ai-privacy', label: 'AI & Privacy' },
+    { id: 'account',    label: 'Account' },
+    { id: 'voice',      label: 'Voice' },
+    { id: 'advanced',   label: 'Advanced' },
+    { id: 'help',       label: 'Help' },
   ];
 
   for (const { id, label } of sections) {
@@ -200,34 +202,34 @@ describe('SettingsModal deep-link aliases', () => {
     expect(screen.getByTestId('section-voice')).toBeInTheDocument();
   });
 
-  it('initialCategory="shortcuts" opens Advanced & Help', () => {
+  it('initialCategory="shortcuts" opens Help', () => {
     renderModal('shortcuts');
-    expect(screen.getByTestId('section-advanced-help')).toBeInTheDocument();
+    expect(screen.getByTestId('section-help')).toBeInTheDocument();
   });
 
-  it('initialCategory="marketplace" opens Advanced & Help', () => {
+  it('initialCategory="marketplace" opens Advanced', () => {
     renderModal('marketplace');
-    expect(screen.getByTestId('section-advanced-help')).toBeInTheDocument();
+    expect(screen.getByTestId('section-advanced')).toBeInTheDocument();
   });
 
-  it('initialCategory="updates" opens Advanced & Help', () => {
+  it('initialCategory="updates" opens Advanced', () => {
     renderModal('updates');
-    expect(screen.getByTestId('section-advanced-help')).toBeInTheDocument();
+    expect(screen.getByTestId('section-advanced')).toBeInTheDocument();
   });
 
-  it('initialCategory="about" opens Advanced & Help', () => {
+  it('initialCategory="about" opens Help', () => {
     renderModal('about');
-    expect(screen.getByTestId('section-advanced-help')).toBeInTheDocument();
+    expect(screen.getByTestId('section-help')).toBeInTheDocument();
   });
 
-  it('initialCategory="onboarding" opens Advanced & Help', () => {
+  it('initialCategory="onboarding" opens Help', () => {
     renderModal('onboarding');
-    expect(screen.getByTestId('section-advanced-help')).toBeInTheDocument();
+    expect(screen.getByTestId('section-help')).toBeInTheDocument();
   });
 
-  it('initialCategory="plugins" opens Advanced & Help', () => {
+  it('initialCategory="plugins" opens Advanced', () => {
     renderModal('plugins');
-    expect(screen.getByTestId('section-advanced-help')).toBeInTheDocument();
+    expect(screen.getByTestId('section-advanced')).toBeInTheDocument();
   });
 });
 
@@ -257,11 +259,16 @@ describe('SettingsModal section sub-headers', () => {
     expect(screen.getByTestId('subheader-connections')).toBeInTheDocument();
   });
 
-  it('Advanced & Help section has Shortcuts / Extensions / Updates / Setup / About sub-headers', () => {
-    renderModal('advanced-help');
-    expect(screen.getByTestId('subheader-shortcuts')).toBeInTheDocument();
+  it('Advanced section has Extensions / Updates / Advanced sub-headers', () => {
+    renderModal('advanced');
     expect(screen.getByTestId('subheader-extensions')).toBeInTheDocument();
     expect(screen.getByTestId('subheader-updates')).toBeInTheDocument();
+    expect(screen.getByTestId('subheader-advanced')).toBeInTheDocument();
+  });
+
+  it('Help section has Shortcuts / Setup / About sub-headers', () => {
+    renderModal('help');
+    expect(screen.getByTestId('subheader-shortcuts')).toBeInTheDocument();
     expect(screen.getByTestId('subheader-setup')).toBeInTheDocument();
     expect(screen.getByTestId('subheader-about')).toBeInTheDocument();
   });
@@ -321,14 +328,14 @@ describe('SettingsModal controls per section', () => {
     expect(screen.getByTestId('setting-ttsEnabled')).toBeInTheDocument();
   });
 
-  it('Advanced & Help: autoUpdateCheck toggle is present (from updates, after expanding)', () => {
-    renderModal('advanced-help');
+  it('Advanced: autoUpdateCheck toggle is present (from updates, after expanding)', () => {
+    renderModal('advanced');
     expandSubsection('subheader-updates');
     expect(screen.getByTestId('setting-autoUpdateCheck')).toBeInTheDocument();
   });
 
-  it('Advanced & Help: aboutWebsite action is present (from about, after expanding)', () => {
-    renderModal('advanced-help');
+  it('Help: aboutWebsite action is present (from about, after expanding)', () => {
+    renderModal('help');
     expandSubsection('subheader-about');
     expect(screen.getByTestId('setting-aboutWebsite')).toBeInTheDocument();
   });
@@ -451,7 +458,7 @@ describe('SettingsModal search expands matching sub-sections', () => {
 });
 
 // ---------------------------------------------------------------------------
-// No legacy category buttons in sidebar (only 5 canonical)
+// No legacy category buttons in sidebar (only 6 canonical)
 // ---------------------------------------------------------------------------
 
 describe('SettingsModal sidebar does not expose old category ids', () => {
@@ -459,7 +466,7 @@ describe('SettingsModal sidebar does not expose old category ids', () => {
     'general','editor','files','ai','memory','privacy',
     'license','firm','costs','integrations',
     'shortcuts','marketplace','plugins','templates','updates',
-    'about','mobile','onboarding','advanced',
+    'about','mobile','onboarding',
   ];
   for (const id of legacyIds) {
     it(`sidebar has no button data-testid="settings-category-${id}"`, () => {

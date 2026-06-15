@@ -47,7 +47,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
-import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout, SearchField, SurfaceToolbar, ToolbarSpacer } from '@/components/ui/kp';
+import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout, SearchField, SurfaceToolbar } from '@/components/ui/kp';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/types/workflow';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { prioritizeByProfession } from '@/modules/workflow/prioritizeByProfession';
@@ -662,7 +662,7 @@ export function ReimaginedAssociateHome({
         </div>
       )}
 
-      {/* ── Toolbar: practice chips (left) + search (right) ──────── */}
+      {/* ── Toolbar: filters (practice chips) then search last ──── */}
       <SurfaceToolbar data-testid="associate-toolbar">
         {presentCategories.length > 1 && (
           <div
@@ -691,7 +691,6 @@ export function ReimaginedAssociateHome({
             ))}
           </div>
         )}
-        <ToolbarSpacer />
         <SearchField
           data-testid="associate-search"
           value={query}
@@ -699,7 +698,7 @@ export function ReimaginedAssociateHome({
           onClear={() => { setQuery(''); }}
           placeholder="Search workflows..."
           size="md"
-          style={{ flex: '0 1 280px', minWidth: 200 }}
+          style={{ flex: 1, minWidth: 240 }}
         />
       </SurfaceToolbar>
 

@@ -1329,7 +1329,18 @@ export function ReimaginedEmailWorkspace({
           />
         )}
 
-        {/* 4. Search field — grows to fill remaining space */}
+        {/* 4. Filters toggle — keyword mode only, when accounts are loaded */}
+        {accountsLoaded && accounts.length > 0 && mode === 'keyword' && (
+          <FilterToggle
+            open={filtersVisible}
+            onToggle={() => { setFiltersVisible((v) => !v); }}
+            count={activeFilterCount}
+            label="Filters"
+            data-testid="filters-toggle"
+          />
+        )}
+
+        {/* 5. Search field — grows to fill remaining space, always last */}
         <SearchField
           size="md"
           icon={Search}
@@ -1349,17 +1360,6 @@ export function ReimaginedEmailWorkspace({
           data-testid="email-search-input"
           style={{ flex: 1, minWidth: 240 }}
         />
-
-        {/* 5. Filters toggle — keyword mode only, when accounts are loaded */}
-        {accountsLoaded && accounts.length > 0 && mode === 'keyword' && (
-          <FilterToggle
-            open={filtersVisible}
-            onToggle={() => { setFiltersVisible((v) => !v); }}
-            count={activeFilterCount}
-            label="Filters"
-            data-testid="filters-toggle"
-          />
-        )}
       </SurfaceToolbar>
 
       {/* Filter panel — full-width below toolbar, keyword mode only */}

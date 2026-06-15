@@ -26,7 +26,7 @@ import {
   ExternalLink, Quote, ShieldCheck, AlertTriangle, Loader2,
   MessageSquare, Plus, Save, X, Mail, FolderOpen,
 } from 'lucide-react';
-import { Button, Chip, Badge, Eyebrow, Card, EmptyState, SurfaceToolbar, ToolbarSpacer } from '@/components/ui/kp';
+import { Button, Chip, Badge, Eyebrow, Card, EmptyState, SurfaceToolbar, SearchField } from '@/components/ui/kp';
 import type { IconType } from '@/components/ui/kp';
 import { useActiveMatter, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -658,8 +658,6 @@ export function ReimaginedAsk({
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLInputElement>(null);
-  // Fix #7: track composer focus state for visible focus ring
-  const [composerFocused, setComposerFocused] = useState(false);
   // Fix #8: track the active provider name for EgressIndicator
   const [activeProvider, setActiveProvider] = useState<string>('anthropic');
 
@@ -1116,28 +1114,61 @@ export function ReimaginedAsk({
         />
       </div>
 
-      {/* Toolbar */}
+      {/* Toolbar: New search (button) -> scope (filters) -> search field + submit */}
+      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
       <SurfaceToolbar>
+        {turns.length > 0 && (
+          <Button variant="secondary" size="md" iconLeft={Plus} onClick={handleNewAsk}>
+            New search
+          </Button>
+        )}
         <ScopeToggle
           scope={askScope}
           onChange={setAskScope}
           hasMatter={!!activeMatter}
           isSample={isSampleMatterActive}
         />
-        <ToolbarSpacer />
-        {turns.length > 0 && (
-          <Button
-            variant="secondary"
-            size="sm"
-            iconLeft={Plus}
-            onClick={handleNewAsk}
-          >
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            New search
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-          </Button>
-        )}
+        <SearchField
+          ref={composerInputRef}
+          icon={Sparkles}
+          value={question}
+          onChange={(v) => { setQuestion(v); }}
+          onKeyDown={handleKeyDown}
+          placeholder={
+            askScope === 'email'
+              ? 'Search your imported email…'
+              : askScope === 'documents'
+                ? 'Search across your documents…'
+                : activeMatter
+                  ? `Search ${matterLabel(activeMatter)}…`
+                  : 'Search across all matters…'
+          }
+          disabled={isBusy}
+          aria-label="Search this matter"
+          data-testid="ask-composer-input"
+          size="md"
+          style={{ flex: 1, minWidth: 240 }}
+        />
+        <Button
+          variant="primary"
+          size="md"
+          onClick={() => void handleAsk()}
+          disabled={isBusy || !question.trim()}
+          loading={isBusy}
+          iconLeft={isBusy ? undefined : ArrowRight}
+          aria-label={status === 'retrieving' ? 'Searching your documents' : status === 'answering' ? 'Answering' : undefined}
+        >
+          <span role={isBusy ? 'status' : undefined}>
+            {status === 'retrieving' ? 'Searching…' : status === 'answering' ? 'Answering…' : 'Search'}
+          </span>
+        </Button>
       </SurfaceToolbar>
+      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+
+      {/* Egress indicator — where this search's AI request goes. */}
+      <div style={{ padding: 'var(--kp-space-xs) var(--kp-gutter)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+        <EgressIndicator provider={activeProvider} mode={getConfidentialityMode()} variant="full" />
+      </div>
 
       {/* Recent sessions chips */}
       {/* Fix #4: show whenever there is at least one session other than the current
@@ -1429,104 +1460,8 @@ export function ReimaginedAsk({
         </div>
       )}
 
-      {/* Composer */}
-      <div
-        style={{
-          padding: 'var(--kp-space-sm) var(--kp-gutter) var(--kp-space-md)',
-          borderTop: '1px solid var(--color-border)',
-          flexShrink: 0,
-        }}
-      >
-        {/* Fix #8: EgressIndicator above composer — shows where the AI request goes. */}
-        <EgressIndicator
-          provider={activeProvider}
-          mode={getConfidentialityMode()}
-          variant="full"
-          className="mb-2"
-        />
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '4px 6px 4px 13px',
-            /* Fix #7: visible focus ring on the wrapper when the input is focused. */
-            border: composerFocused ? '1.5px solid var(--kp-navy)' : '1.5px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-            background: 'var(--color-background)',
-            boxShadow: 'var(--kp-shadow-1)',
-            transition: 'border-color 0.15s',
-          }}
-        >
-          <Sparkles
-            size={17}
-            strokeWidth={1.75}
-            style={{ color: 'var(--kp-navy)', flex: 'none' }}
-          />
-          {/* Fix #7: outline:none is safe because the wrapper border provides the focus indicator. */}
-          <input
-            ref={composerInputRef}
-            value={question}
-            onChange={(e) => { setQuestion(e.target.value); }}
-            onKeyDown={handleKeyDown}
-            onFocus={() => { setComposerFocused(true); }}
-            onBlur={() => { setComposerFocused(false); }}
-            placeholder={
-              askScope === 'email'
-                ? 'Search your imported email…'
-                : askScope === 'documents'
-                  ? 'Search across your documents…'
-                  : activeMatter
-                    ? `Search ${matterLabel(activeMatter)}…`
-                    : 'Search across all matters…'
-            }
-            disabled={isBusy}
-            aria-label="Search this matter"
-            style={{
-              flex: 1,
-              border: 0,
-              outline: 'none',
-              background: 'transparent',
-              fontSize: 'var(--kp-font-sm)',
-              color: 'var(--color-foreground)',
-              padding: '9px 0',
-              fontFamily: 'var(--font-sans)',
-              minWidth: 0,
-            }}
-          />
-          {/* Fix #3: "New search" always reachable inline in composer when turns exist. */}
-          {turns.length > 0 && (
-            <Button
-              variant="secondary"
-              size="sm"
-              iconLeft={Plus}
-              onClick={handleNewAsk}
-              title="Start a new search"
-              style={{ flex: 'none' }}
-            >
-              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-              New search
-              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-            </Button>
-          )}
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => void handleAsk()}
-            disabled={isBusy || !question.trim()}
-            loading={isBusy}
-            iconLeft={isBusy ? undefined : ArrowRight}
-            style={{ flex: 'none' }}
-            aria-label={status === 'retrieving' ? 'Searching your documents' : status === 'answering' ? 'Answering' : undefined}
-          >
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            <span role={isBusy ? 'status' : undefined}>
-              {status === 'retrieving' ? 'Searching…' : status === 'answering' ? 'Answering…' : 'Search'}
-            </span>
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-          </Button>
-        </div>
-      </div>
+      {/* The composer moved into the toolbar above — the search field now sits
+          next to the scope pills (search-first, matching the other tabs). */}
     </div>
   );
 }

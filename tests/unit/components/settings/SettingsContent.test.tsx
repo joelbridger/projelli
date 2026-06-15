@@ -4,7 +4,7 @@
  * SettingsContent is the inner surface shared by the quick <SettingsModal>
  * (Dialog) and the full-page "Settings" nav tab. These tests exercise it
  * directly (no Dialog), covering:
- *   - The full-page variant renders the SurfaceHeader + 5-section nav + content + footer.
+ *   - The full-page variant renders the SurfaceHeader + 6-section nav + content + footer.
  *   - Deep-link aliases still resolve to the right section through the
  *     modal→content extraction (e.g. "ai" → AI & Privacy, "integrations" →
  *     Account).
@@ -30,7 +30,7 @@ afterEach(() => {
 });
 
 describe('SettingsContent — full-page variant', () => {
-  it('renders the SurfaceHeader, 5-section nav, content area, and footer (page variant)', () => {
+  it('renders the SurfaceHeader, 6-section nav, content area, and footer (page variant)', () => {
     render(<SettingsContent variant="page" />);
     // The shared content marker is present and tagged as the page variant.
     const content = screen.getByTestId('settings-content');
@@ -40,11 +40,11 @@ describe('SettingsContent — full-page variant', () => {
     // SurfaceHeader is rendered for the page variant.
     expect(screen.getByTestId('settings-surface-header')).toBeInTheDocument();
 
-    // All 5 nav buttons render.
+    // All 6 nav buttons render.
     const navBtns = screen
       .getAllByRole('button')
       .filter((b) => (b.getAttribute('data-testid') ?? '').startsWith('settings-category-'));
-    expect(navBtns).toHaveLength(5);
+    expect(navBtns).toHaveLength(6);
 
     // Footer Export / Import / Reset are present.
     expect(screen.getByTestId('settings-export')).toBeInTheDocument();
@@ -69,10 +69,10 @@ describe('SettingsContent — deep-link resolution survives the extraction', () 
     ['editor', 'section-workspace'],
     ['files', 'section-workspace'],
     ['voice', 'section-voice'],
-    ['shortcuts', 'section-advanced-help'],
-    ['marketplace', 'section-advanced-help'],
-    ['updates', 'section-advanced-help'],
-    ['about', 'section-advanced-help'],
+    ['shortcuts', 'section-help'],
+    ['marketplace', 'section-advanced'],
+    ['updates', 'section-advanced'],
+    ['about', 'section-help'],
   ];
 
   for (const [alias, sectionTestId] of cases) {

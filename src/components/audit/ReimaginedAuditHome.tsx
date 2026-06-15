@@ -70,7 +70,6 @@ import {
   EmptyState,
   SlidePanel,
   SurfaceToolbar,
-  ToolbarSpacer,
 } from '@/components/ui/kp';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -996,23 +995,6 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
 
       {/* Toolbar */}
       <SurfaceToolbar>
-        <SearchField
-          size="md"
-          style={{ flex: 1, minWidth: 200, maxWidth: 420 }}
-          value={searchQuery}
-          onChange={handleSearchChange}
-          onClear={() => { handleSearchChange(''); }}
-          placeholder="Search by action, resource, or actor..."
-          data-testid="audit-home-search"
-          aria-label="Search audit entries"
-        />
-        <ToolbarSpacer />
-        <FilterToggle
-          open={showFilters}
-          onToggle={() => { setShowFilters((v) => !v); }}
-          count={activeFilterCount}
-          data-testid="audit-home-filter-toggle"
-        />
         <Button
           variant="secondary"
           size="sm"
@@ -1041,6 +1023,22 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
           JSON
           {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         </Button>
+        <FilterToggle
+          open={showFilters}
+          onToggle={() => { setShowFilters((v) => !v); }}
+          count={activeFilterCount}
+          data-testid="audit-home-filter-toggle"
+        />
+        <SearchField
+          size="md"
+          style={{ flex: 1, minWidth: 240 }}
+          value={searchQuery}
+          onChange={handleSearchChange}
+          onClear={() => { handleSearchChange(''); }}
+          placeholder="Search by action, resource, or actor..."
+          data-testid="audit-home-search"
+          aria-label="Search audit entries"
+        />
       </SurfaceToolbar>
 
       {/* Content — filter panel, result-count note, table */}

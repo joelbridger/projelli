@@ -1,17 +1,17 @@
 /**
  * Settings nav update badge (Stream C1, Group VIII + Stream C4, Group VI).
  *
- * v3.1: Marketplace is now part of the "Advanced & Help" section (id:
- * advanced-help). The badge appears on the Advanced & Help nav row when the
- * SUM of templates + plugins updates is greater than zero. The legacy
- * `initialCategory="marketplace"` deep-link alias resolves to advanced-help.
+ * v3.1: Marketplace is now part of the "Advanced" section (id: advanced).
+ * The badge appears on the Advanced nav row when the SUM of templates + plugins
+ * updates is greater than zero. The legacy `initialCategory="marketplace"`
+ * deep-link alias resolves to advanced.
  *
  * What this guards:
  *   - Badge appears when EITHER count is > 0 and shows the sum.
  *   - Badge is absent when both counts are 0.
  *   - Updating either store mid-render re-shows the badge (subscription is live).
  *   - Sum behavior: 0+0 hidden, 0+3=3, 2+1=3, 4+5=9.
- *   - Badge renders on the Advanced & Help nav row (settings-category-advanced-help).
+ *   - Badge renders on the Advanced nav row (settings-category-advanced).
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -34,7 +34,7 @@ afterEach(() => {
 describe('SettingsModal — Marketplace nav update badge', () => {
   it('does not render the badge when both counts are 0', () => {
     render(
-      <SettingsModal open onOpenChange={() => {}} initialCategory="advanced-help" />,
+      <SettingsModal open onOpenChange={() => {}} initialCategory="advanced" />,
     );
     expect(
       screen.queryByTestId('settings-marketplace-update-badge'),
@@ -46,7 +46,7 @@ describe('SettingsModal — Marketplace nav update badge', () => {
       useTemplatesMarketplaceStore.getState().setUpdateCount(3);
     });
     render(
-      // Legacy alias "marketplace" resolves to "advanced-help"
+      // Legacy alias "marketplace" resolves to "advanced"
       <SettingsModal open onOpenChange={() => {}} initialCategory="marketplace" />,
     );
     const badge = screen.getByTestId('settings-marketplace-update-badge');
@@ -101,7 +101,7 @@ describe('SettingsModal — Marketplace nav update badge', () => {
       usePluginsMarketplaceStore.getState().setUpdateCount(1);
     });
     render(
-      <SettingsModal open onOpenChange={() => {}} initialCategory="advanced-help" />,
+      <SettingsModal open onOpenChange={() => {}} initialCategory="advanced" />,
     );
     expect(
       screen.getByTestId('settings-marketplace-update-badge'),
@@ -121,7 +121,7 @@ describe('SettingsModal — Marketplace nav update badge', () => {
       useTemplatesMarketplaceStore.getState().setUpdateCount(2);
     });
     render(
-      <SettingsModal open onOpenChange={() => {}} initialCategory="advanced-help" />,
+      <SettingsModal open onOpenChange={() => {}} initialCategory="advanced" />,
     );
     expect(
       screen.getByTestId('settings-marketplace-update-badge'),
@@ -135,17 +135,17 @@ describe('SettingsModal — Marketplace nav update badge', () => {
     ).toHaveTextContent('5');
   });
 
-  it('badge renders on the Advanced & Help nav row (not a separate Marketplace row)', () => {
+  it('badge renders on the Advanced nav row (not a separate Marketplace row)', () => {
     act(() => {
       useTemplatesMarketplaceStore.getState().setUpdateCount(5);
     });
     render(
-      <SettingsModal open onOpenChange={() => {}} initialCategory="advanced-help" />,
+      <SettingsModal open onOpenChange={() => {}} initialCategory="advanced" />,
     );
     const badges = screen.getAllByTestId('settings-marketplace-update-badge');
     expect(badges).toHaveLength(1);
-    // Badge lives on the Advanced & Help nav button (the canonical row)
-    const advancedBtn = screen.getByTestId('settings-category-advanced-help');
+    // Badge lives on the Advanced nav button (the canonical row)
+    const advancedBtn = screen.getByTestId('settings-category-advanced');
     expect(advancedBtn.contains(badges[0]!)).toBe(true);
   });
 });

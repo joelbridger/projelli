@@ -675,7 +675,7 @@ export function ReimaginedMattersHome() {
             placeholder={`Search ${entityLabel.other}...`}
             aria-label={`Search ${entityLabel.other}`}
             size="md"
-            style={{ flex: 1, minWidth: 200, maxWidth: 420 }}
+            style={{ flex: 1, minWidth: 240 }}
           />
         )}
       </SurfaceToolbar>

@@ -6,7 +6,7 @@
  *   - Full-page in the main window as the "Settings" nav tab (under Activity Log).
  *
  * Layout:
- *   Left sidebar  — 5-section nav (Workspace / AI & Privacy / Account / Voice / Advanced & Help)
+ *   Left sidebar  — 6-section nav (Workspace / AI & Privacy / Account / Voice / Advanced / Help)
  *   Right content — settings for the active section, grouped into COLLAPSIBLE
  *                   accordion sub-sections (one open at a time; first open by
  *                   default; a search match auto-expands the groups that match).
@@ -834,39 +834,18 @@ function VoiceSection(props: SectionProps) {
   );
 }
 
-function AdvancedHelpSection(props: SectionProps) {
-  const updatesKeys  = ['autoUpdateCheck', 'updateChannel', 'manualCheckNow'];
-  const onboardKeys  = ['viewApiKeyTutorial', 'resetFeatureTour'];
-  const aboutKeys    = ['aboutWhatsNew', 'aboutWebsite', 'aboutGithub'];
+function AdvancedSection(props: SectionProps) {
+  const updatesKeys = ['autoUpdateCheck', 'updateChannel', 'manualCheckNow'];
 
   const lowerQ = props.searchQuery.toLowerCase();
-  const anyShortcutMatch = !props.searchActive || SHORTCUTS.some(
-    (s) =>
-      s.label.toLowerCase().includes(lowerQ) ||
-      (s.description ?? '').toLowerCase().includes(lowerQ) ||
-      s.keys.some((k) => k.toLowerCase().includes(lowerQ))
-  );
-  // Extensions / Setup / Advanced have no schema keys; keep them reachable by
-  // keyword while searching, otherwise always available when not searching.
   const extMatch = !props.searchActive
     || ['extension', 'plugin', 'template', 'marketplace', 'model'].some((kw) => lowerQ.includes(kw));
-  const setupMatch = !props.searchActive
-    || anyMatch(onboardKeys, props)
-    || ['setup', 'onboard', 'tour', 'guide', 'checklist'].some((kw) => lowerQ.includes(kw));
   const advMatch = !props.searchActive
     || ['advanced', 'mobile', 'developer', 'debug', 'experimental'].some((kw) => lowerQ.includes(kw));
 
   return (
-    <div data-testid="section-advanced-help">
-      <AccordionSection ids={['adv-shortcuts', 'adv-extensions', 'adv-updates', 'adv-setup', 'adv-advanced', 'adv-about']} searchActive={props.searchActive}>
-        <SubSection
-          id="adv-shortcuts"
-          label="Keyboard Shortcuts"
-          testid="subheader-shortcuts"
-          containsMatch={anyShortcutMatch}
-        >
-          <ShortcutsSection searchQuery={props.searchQuery} />
-        </SubSection>
+    <div data-testid="section-advanced">
+      <AccordionSection ids={['adv-extensions', 'adv-updates', 'adv-advanced']} searchActive={props.searchActive}>
         <SubSection
           id="adv-extensions"
           label="Extensions"
@@ -886,6 +865,46 @@ function AdvancedHelpSection(props: SectionProps) {
           {renderRows(updatesKeys, props)}
         </SubSection>
         <SubSection
+          id="adv-advanced"
+          label="Advanced"
+          testid="subheader-advanced"
+          containsMatch={advMatch}
+        >
+          <AdvancedSettings />
+          <MobileSettings />
+        </SubSection>
+      </AccordionSection>
+    </div>
+  );
+}
+
+function HelpSection(props: SectionProps) {
+  const onboardKeys = ['viewApiKeyTutorial', 'resetFeatureTour'];
+  const aboutKeys   = ['aboutWhatsNew', 'aboutWebsite', 'aboutGithub'];
+
+  const lowerQ = props.searchQuery.toLowerCase();
+  const anyShortcutMatch = !props.searchActive || SHORTCUTS.some(
+    (s) =>
+      s.label.toLowerCase().includes(lowerQ) ||
+      (s.description ?? '').toLowerCase().includes(lowerQ) ||
+      s.keys.some((k) => k.toLowerCase().includes(lowerQ))
+  );
+  const setupMatch = !props.searchActive
+    || anyMatch(onboardKeys, props)
+    || ['setup', 'onboard', 'tour', 'guide', 'checklist'].some((kw) => lowerQ.includes(kw));
+
+  return (
+    <div data-testid="section-help">
+      <AccordionSection ids={['adv-shortcuts', 'adv-setup', 'adv-about']} searchActive={props.searchActive}>
+        <SubSection
+          id="adv-shortcuts"
+          label="Keyboard Shortcuts"
+          testid="subheader-shortcuts"
+          containsMatch={anyShortcutMatch}
+        >
+          <ShortcutsSection searchQuery={props.searchQuery} />
+        </SubSection>
+        <SubSection
           id="adv-setup"
           label="Setup"
           testid="subheader-setup"
@@ -900,15 +919,6 @@ function AdvancedHelpSection(props: SectionProps) {
             }}
           />
           {renderRows(onboardKeys, props)}
-        </SubSection>
-        <SubSection
-          id="adv-advanced"
-          label="Advanced"
-          testid="subheader-advanced"
-          containsMatch={advMatch}
-        >
-          <AdvancedSettings />
-          <MobileSettings />
         </SubSection>
         <SubSection
           id="adv-about"
@@ -1002,7 +1012,7 @@ export function SettingsContent({
   const visibleSections = useMemo<Set<SectionCategory>>(() => {
     // When no search: all sections visible
     if (!searchQuery.trim()) {
-      return new Set<SectionCategory>(['workspace', 'ai-privacy', 'account', 'voice', 'advanced-help']);
+      return new Set<SectionCategory>(['workspace', 'ai-privacy', 'account', 'voice', 'advanced', 'help']);
     }
     const sections = new Set<SectionCategory>();
     for (const def of SETTINGS_SCHEMA) {
@@ -1013,14 +1023,14 @@ export function SettingsContent({
       }
     }
     const lowerQ = searchQuery.toLowerCase();
-    // Shortcut text is not in SETTINGS_SCHEMA — include advanced-help if any shortcut matches
+    // Shortcut text is not in SETTINGS_SCHEMA — include help if any shortcut matches
     const anyShortcutMatch = SHORTCUTS.some(
       (s) =>
         s.label.toLowerCase().includes(lowerQ) ||
         (s.description ?? '').toLowerCase().includes(lowerQ) ||
         s.keys.some((k) => k.toLowerCase().includes(lowerQ))
     );
-    if (anyShortcutMatch) sections.add('advanced-help');
+    if (anyShortcutMatch) sections.add('help');
     // Always show account for cost/license/firm/integration keywords
     const accountKeywords = ['cost', 'usage', 'spend', 'budget', 'month', 'license', 'activate',
       'personal', 'professional', 'practice', 'paid', 'firm', 'seat',
@@ -1142,7 +1152,7 @@ export function SettingsContent({
                 onChange={(v) => { setSearchQuery(v); }}
                 onClear={() => { setSearchQuery(''); }}
                 size="md"
-                style={{ flex: 1, minWidth: 200, maxWidth: 420 }}
+                style={{ flex: 1, minWidth: 240 }}
               />
             </SurfaceToolbar>
           </>
@@ -1177,7 +1187,7 @@ export function SettingsContent({
               const visible = visibleSections.has(sec.id);
               if (!visible) return null;
               const isActive = activeSection === sec.id;
-              const showUpdateBadge = sec.id === 'advanced-help' && marketplaceUpdateCount > 0;
+              const showUpdateBadge = sec.id === 'advanced' && marketplaceUpdateCount > 0;
               return (
                 <button
                   key={sec.id}
@@ -1223,8 +1233,12 @@ export function SettingsContent({
               <AccountSection {...sectionProps} />
             ) : activeSection === 'voice' ? (
               <VoiceSection {...sectionProps} />
+            ) : activeSection === 'advanced' ? (
+              <AdvancedSection {...sectionProps} />
+            ) : activeSection === 'help' ? (
+              <HelpSection {...sectionProps} />
             ) : (
-              <AdvancedHelpSection {...sectionProps} />
+              <AdvancedSection {...sectionProps} />
             )}
           </div>
         </div>
