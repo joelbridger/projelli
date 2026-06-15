@@ -304,4 +304,4 @@
 /* entrance */
 @keyframes kp-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 .kp-rise { animation: kp-rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-@media (prefers-reduced-motion: reduce) { .kp-rise { animation: none; } .kp-egress--live .kp-egress-dot::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .kp-rise { animation: none; } .kp-egress--live .kp-egress-dot::after { animation: none; } .animate-spin { animation: none !important; } }

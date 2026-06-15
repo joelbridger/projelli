@@ -493,7 +493,7 @@ function SubSection({
           aria-hidden="true"
         />
       </button>
-      <div id={`${id}-body`} hidden={!isOpen} className="pb-3">
+      <div id={`${id}-body`} hidden={!isOpen} aria-live="polite" className="pb-3">
         {children}
       </div>
     </div>
@@ -1181,7 +1181,7 @@ export function SettingsContent({
         {/* Body: sidebar + content */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Section sidebar — 5 entries */}
-          <nav className="w-48 shrink-0 border-r py-2 overflow-y-auto bg-muted/20">
+          <nav aria-label="Settings sections" className="w-48 shrink-0 border-r py-2 overflow-y-auto bg-muted/20">
             {SETTING_CATEGORIES.map((sec) => {
               const visible = visibleSections.has(sec.id);
               if (!visible) return null;

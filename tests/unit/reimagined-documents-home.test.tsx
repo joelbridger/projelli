@@ -827,3 +827,121 @@ describe('ReimaginedDocumentsHome — documentsView landing (Fix 1)', () => {
     expect(screen.queryByTestId('documents-editor-pane')).toBeNull();
   });
 });
+
+// ── Fix 1: Tab strip keyboard accessibility ───────────────────────────────────
+
+describe('ReimaginedDocumentsHome — tab keyboard accessibility (Fix 1 a11y)', () => {
+  beforeEach(() => {
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
+    mockSetActiveTab.mockClear();
+    mockCloseTab.mockClear();
+  });
+
+  it('the tab strip has role="tablist"', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    const strip = screen.getByTestId('documents-tab-strip');
+    expect(strip.getAttribute('role')).toBe('tablist');
+  });
+
+  it('the Files tab has role="tab" and is focusable (rendered as button)', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    const strip = screen.getByTestId('documents-tab-strip');
+    const filesTab = Array.from(strip.querySelectorAll('[role="tab"]')).find(
+      (el) => el.textContent?.trim().startsWith('Files'),
+    );
+    expect(filesTab).toBeTruthy();
+    // Must be a button element (natively focusable)
+    expect(filesTab!.tagName).toBe('BUTTON');
+  });
+
+  it('pressing Enter on the Files tab activates it (returns to grid)', async () => {
+    // Start with the editor visible (active tab is a file).
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    await waitFor(() => {
+      expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
+    });
+
+    const strip = screen.getByTestId('documents-tab-strip');
+    const filesTab = Array.from(strip.querySelectorAll('[role="tab"]')).find(
+      (el) => el.textContent?.trim().startsWith('Files'),
+    ) as HTMLElement | undefined;
+    expect(filesTab).toBeTruthy();
+
+    fireEvent.keyDown(filesTab!, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('document-grid-view')).toBeTruthy();
+      expect(screen.queryByTestId('documents-editor-pane')).toBeNull();
+    });
+  });
+
+  it('pressing Space on the Files tab activates it (returns to grid)', async () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    await waitFor(() => {
+      expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
+    });
+
+    const strip = screen.getByTestId('documents-tab-strip');
+    const filesTab = Array.from(strip.querySelectorAll('[role="tab"]')).find(
+      (el) => el.textContent?.trim().startsWith('Files'),
+    ) as HTMLElement | undefined;
+    expect(filesTab).toBeTruthy();
+
+    fireEvent.keyDown(filesTab!, { key: ' ' });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('document-grid-view')).toBeTruthy();
+      expect(screen.queryByTestId('documents-editor-pane')).toBeNull();
+    });
+  });
+
+  it('each document tab has aria-selected reflecting whether it is active', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    const strip = screen.getByTestId('documents-tab-strip');
+    const allTabs = Array.from(strip.querySelectorAll('[role="tab"]'));
+    // At least one tab must have aria-selected
+    expect(allTabs.length).toBeGreaterThan(0);
+    const selected = allTabs.filter((el) => el.getAttribute('aria-selected') === 'true');
+    // Exactly one tab should be selected
+    expect(selected.length).toBe(1);
+  });
+});
+
+// ── Fix 2: Grid count with search query active ────────────────────────────────
+
+describe('DocumentGridView — grid count label (Fix 2)', () => {
+  beforeEach(() => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+  });
+
+  it('shows total count when no search is active', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    const label = screen.getByTestId('grid-dir-label');
+    // mockFileTree has 3 items: Contracts (folder), Brief.md, Evidence.pdf
+    expect(label.textContent).toMatch(/3 items/i);
+    expect(label.textContent).not.toContain(' of ');
+  });
+
+  it('shows "N of M items" when a search query narrows the results', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    const searchInput = screen.getByRole('textbox');
+    // Type a query that matches only "Brief.md" (1 of 3 items)
+    fireEvent.change(searchInput, { target: { value: 'brief' } });
+    const label = screen.getByTestId('grid-dir-label');
+    expect(label.textContent).toContain('1 of');
+    expect(label.textContent).toContain('3 items');
+  });
+
+  it('restores the plain total label when the search is cleared', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    const searchInput = screen.getByRole('textbox');
+    fireEvent.change(searchInput, { target: { value: 'brief' } });
+    // Now clear the search
+    fireEvent.change(searchInput, { target: { value: '' } });
+    const label = screen.getByTestId('grid-dir-label');
+    expect(label.textContent).not.toContain(' of ');
+    expect(label.textContent).toMatch(/3 items/i);
+  });
+});

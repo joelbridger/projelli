@@ -421,3 +421,199 @@ describe('MatterManagerDialog — B5 isolation affirmation + persistent badge', 
     expect(useMatterStore.getState().matters[0]!.privileged).toBe(false);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Search filtering
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ReimaginedMattersHome — search filtering', () => {
+  beforeEach(resetStore);
+
+  it('does not show the search box when there are <= 5 matters', () => {
+    for (let i = 0; i < 5; i++) {
+      useMatterStore.getState().createMatter({ name: `Matter ${String(i)}`, client: `Client ${String(i)}` });
+    }
+
+    render(<ReimaginedMattersHome />);
+
+    expect(screen.queryByTestId('matters-search-input')).not.toBeInTheDocument();
+  });
+
+  it('shows the search box when there are > 5 matters', () => {
+    for (let i = 0; i < 6; i++) {
+      useMatterStore.getState().createMatter({ name: `Matter ${String(i)}`, client: `Client ${String(i)}` });
+    }
+
+    render(<ReimaginedMattersHome />);
+
+    expect(screen.getByTestId('matters-search-input')).toBeInTheDocument();
+  });
+
+  it('filters matters by name (case-insensitive)', () => {
+    useMatterStore.getState().createMatter({ name: 'Alpha Corp', client: 'Alpha' });
+    useMatterStore.getState().createMatter({ name: 'Beta LLC', client: 'Beta' });
+    useMatterStore.getState().createMatter({ name: 'Gamma Inc', client: 'Gamma' });
+    useMatterStore.getState().createMatter({ name: 'Delta Partners', client: 'Delta' });
+    useMatterStore.getState().createMatter({ name: 'Epsilon Group', client: 'Epsilon' });
+    useMatterStore.getState().createMatter({ name: 'Zeta Holdings', client: 'Zeta' });
+
+    render(<ReimaginedMattersHome />);
+
+    const searchInput = screen.getByTestId('matters-search-input');
+    fireEvent.change(searchInput, { target: { value: 'beta' } });
+
+    // Beta LLC should be visible; others should not
+    expect(screen.queryAllByText(/Beta LLC/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Alpha Corp/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Gamma Inc/)).not.toBeInTheDocument();
+  });
+
+  it('filters matters by client name (case-insensitive)', () => {
+    useMatterStore.getState().createMatter({ name: 'Garcia v. Meridian', client: 'Roberto Garcia' });
+    useMatterStore.getState().createMatter({ name: 'Smith Tax Matter', client: 'John Smith' });
+    useMatterStore.getState().createMatter({ name: 'Acme Contract', client: 'Acme Corp' });
+    useMatterStore.getState().createMatter({ name: 'Beta IP', client: 'Beta Inc' });
+    useMatterStore.getState().createMatter({ name: 'Gamma Dispute', client: 'Gamma LLC' });
+    useMatterStore.getState().createMatter({ name: 'Delta Estate', client: 'Delta Family' });
+
+    render(<ReimaginedMattersHome />);
+
+    const searchInput = screen.getByTestId('matters-search-input');
+    fireEvent.change(searchInput, { target: { value: 'roberto' } });
+
+    // Only the Garcia matter matches on client name
+    expect(screen.queryAllByText(/Garcia v. Meridian/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Smith Tax Matter/)).not.toBeInTheDocument();
+  });
+
+  it('shows the no-results row when no matters match', () => {
+    for (let i = 0; i < 6; i++) {
+      useMatterStore.getState().createMatter({ name: `Matter ${String(i)}`, client: `Client ${String(i)}` });
+    }
+
+    render(<ReimaginedMattersHome />);
+
+    const searchInput = screen.getByTestId('matters-search-input');
+    fireEvent.change(searchInput, { target: { value: 'zzznomatch' } });
+
+    expect(screen.getByTestId('matters-no-search-results')).toBeInTheDocument();
+  });
+
+  it('restores all rows when search is cleared', () => {
+    useMatterStore.getState().createMatter({ name: 'Alpha Corp', client: 'Alpha' });
+    useMatterStore.getState().createMatter({ name: 'Beta LLC', client: 'Beta' });
+    useMatterStore.getState().createMatter({ name: 'Gamma Inc', client: 'Gamma' });
+    useMatterStore.getState().createMatter({ name: 'Delta Partners', client: 'Delta' });
+    useMatterStore.getState().createMatter({ name: 'Epsilon Group', client: 'Epsilon' });
+    useMatterStore.getState().createMatter({ name: 'Zeta Holdings', client: 'Zeta' });
+
+    render(<ReimaginedMattersHome />);
+
+    const searchInput = screen.getByTestId('matters-search-input');
+    // Filter down
+    fireEvent.change(searchInput, { target: { value: 'alpha' } });
+    expect(screen.queryByText(/Beta LLC/)).not.toBeInTheDocument();
+
+    // Clear
+    fireEvent.change(searchInput, { target: { value: '' } });
+    expect(screen.queryAllByText(/Beta LLC/i).length).toBeGreaterThan(0);
+    expect(screen.queryAllByText(/Gamma Inc/i).length).toBeGreaterThan(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sortable columns
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ReimaginedMattersHome — sortable columns', () => {
+  beforeEach(resetStore);
+
+  it('renders sort buttons for each column header', () => {
+    useMatterStore.getState().createMatter({ name: 'Alpha', client: 'Alpha' });
+
+    render(<ReimaginedMattersHome />);
+
+    // Column header buttons should be present (aria-label contains "Sort by")
+    const sortBtns = screen.getAllByRole('button', { name: /Sort by/i });
+    expect(sortBtns.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('sorts matters alphabetically by name (default, ascending)', () => {
+    useMatterStore.getState().createMatter({ name: 'Zeta v. Alpha', client: 'Zeta' });
+    useMatterStore.getState().createMatter({ name: 'Alpha v. Beta', client: 'Alpha' });
+    useMatterStore.getState().createMatter({ name: 'Mu v. Nu', client: 'Mu' });
+
+    render(<ReimaginedMattersHome />);
+
+    // All three row testids should be present
+    const matters = useMatterStore.getState().matters;
+    const ids = matters.map((m) => m.id);
+    for (const id of ids) {
+      expect(screen.getByTestId(`reimagined-matter-row-${id}`)).toBeInTheDocument();
+    }
+  });
+
+  it('clicking a column header toggles sort direction', () => {
+    useMatterStore.getState().createMatter({ name: 'Alpha', client: 'Alpha' });
+
+    render(<ReimaginedMattersHome />);
+
+    const nameSortBtn = screen.getByRole('button', { name: /Sort by Matter/i });
+    // Click once — should toggle to descending (was already asc by default)
+    fireEvent.click(nameSortBtn);
+    // The aria-label should now reflect descending
+    expect(nameSortBtn.getAttribute('aria-label')).toContain('descending');
+  });
+
+  it('clicking a different column header switches sort key to asc', () => {
+    useMatterStore.getState().createMatter({ name: 'Alpha', client: 'Alpha' });
+
+    render(<ReimaginedMattersHome />);
+
+    const createdSortBtn = screen.getByRole('button', { name: /Sort by Created/i });
+    fireEvent.click(createdSortBtn);
+    expect(createdSortBtn.getAttribute('aria-label')).toContain('ascending');
+  });
+
+  it('all sort column buttons are real <button> elements (keyboard-accessible)', () => {
+    useMatterStore.getState().createMatter({ name: 'Alpha', client: 'Alpha' });
+
+    render(<ReimaginedMattersHome />);
+
+    const sortBtns = screen.getAllByRole('button', { name: /Sort by/i });
+    for (const btn of sortBtns) {
+      expect(btn.tagName).toBe('BUTTON');
+      expect(btn.getAttribute('type')).toBe('button');
+      expect(btn.getAttribute('tabindex')).not.toBe('-1');
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GetStartedCard — create first matter step
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ReimaginedMattersHome — GetStartedCard create-matter step', () => {
+  beforeEach(resetStore);
+
+  it('shows the create-matter step when no matters exist', () => {
+    render(<ReimaginedMattersHome />);
+
+    // Empty state renders GetStartedCard
+    expect(screen.getByTestId('get-started-card')).toBeInTheDocument();
+    expect(screen.getByTestId('get-started-create-matter')).toBeInTheDocument();
+  });
+
+  it('dispatches keepance:open-matter-manager when create button is clicked', () => {
+    const events: Event[] = [];
+    const handler = (e: Event) => { events.push(e); };
+    window.addEventListener('keepance:open-matter-manager', handler);
+
+    render(<ReimaginedMattersHome />);
+
+    fireEvent.click(screen.getByTestId('get-started-create-matter'));
+    expect(events).toHaveLength(1);
+
+    window.removeEventListener('keepance:open-matter-manager', handler);
+  });
+});

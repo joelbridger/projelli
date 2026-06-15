@@ -115,6 +115,8 @@ function defaultProps(overrides = {}) {
 
 describe('ReimaginedAssociateHome (law persona)', () => {
   beforeEach(() => {
+    // Clear persisted UI state so tests don't bleed into each other.
+    localStorage.clear();
     // Profession = 'legal'; isLawExperience = true → only legal templates shown.
     vi.mocked(useProfessionStore).mockImplementation(
       (selector: (s: { profession: string }) => unknown) =>
@@ -314,6 +316,8 @@ describe('ReimaginedAssociateHome (law persona)', () => {
 
 describe('ReimaginedAssociateHome — practice-area filter chips (multi-category)', () => {
   beforeEach(() => {
+    // Clear persisted UI state so tests don't bleed into each other.
+    localStorage.clear();
     vi.mocked(useProfessionStore).mockImplementation(
       (selector: (s: { profession: string }) => unknown) =>
         selector({ profession: 'other' }),
@@ -422,5 +426,122 @@ describe('ReimaginedAssociateHome — practice-area filter chips (multi-category
     // Both legal and tax sections should be visible again.
     expect(screen.getByTestId('associate-section-legal')).toBeTruthy();
     expect(screen.getByTestId('associate-section-tax')).toBeTruthy();
+  });
+
+  // ── Search-narrowed category affordance ───────────────────────────────────
+
+  it('shows "N of M" count badge when search has narrowed a category', () => {
+    render(<ReimaginedAssociateHome {...multiProps()} />);
+
+    // Search for 'deposition' — matches only one of the two legal templates.
+    fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'deposition' } });
+
+    // The legal section should show "1 of 2" in its count badge.
+    const badge = screen.getByTestId('associate-section-count-legal');
+    expect(badge.textContent).toBe('(1 of 2)');
+  });
+
+  it('shows the search-hidden hint with a working Clear search link', () => {
+    render(<ReimaginedAssociateHome {...multiProps()} />);
+
+    // Search for 'deposition' — narrows legal from 2 to 1.
+    fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'deposition' } });
+
+    const hint = screen.getByTestId('associate-search-hidden-legal');
+    expect(hint.textContent).toContain('1 more hidden by search');
+
+    // Clicking the Clear search link inside the hint clears the query.
+    const clearLink = screen.getByTestId('associate-search-hidden-clear-legal');
+    fireEvent.click(clearLink);
+
+    // Both legal templates should now be visible again.
+    expect(screen.getByTestId('associate-card-deposition-contradiction-finder')).toBeTruthy();
+    expect(screen.getByTestId('associate-card-case-timeline-builder')).toBeTruthy();
+  });
+});
+
+// ── localStorage persistence tests ────────────────────────────────────────
+
+describe('ReimaginedAssociateHome — localStorage persistence', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.mocked(useProfessionStore).mockImplementation(
+      (selector: (s: { profession: string }) => unknown) =>
+        selector({ profession: 'other' }),
+    );
+    mockIsLawExperience.mockReturnValue(false);
+    mockTrialGate.mockReturnValue({
+      isLocked: false,
+      daysRemaining: 25,
+      isTrialExpired: false,
+      isActivated: true,
+      trialDays: 30,
+    });
+    mockUseActiveMatter.mockReturnValue(null);
+  });
+
+  function persistProps(overrides = {}) {
+    return {
+      onStartWorkflow: vi.fn(),
+      currentExecution: null,
+      runHistory: [] as RunRecord[],
+      providerError: null as ('needs-provider' | 'ollama-unreachable' | null),
+      onOpenSettings: vi.fn(),
+      onFocusExecutionTab: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  it('restores the active filter after a simulated remount', () => {
+    const { unmount } = render(<ReimaginedAssociateHome {...persistProps()} />);
+
+    // Select the "Legal Practice" filter chip.
+    fireEvent.click(screen.getByTestId('associate-filter-legal'));
+    // Confirm only legal section is visible.
+    expect(screen.getByTestId('associate-section-legal')).toBeTruthy();
+    expect(screen.queryByTestId('associate-section-tax')).toBeNull();
+
+    // Simulate a tab switch: unmount + remount (no localStorage.clear between).
+    unmount();
+    render(<ReimaginedAssociateHome {...persistProps()} />);
+
+    // After remount the legal filter should be restored from localStorage.
+    expect(screen.getByTestId('associate-section-legal')).toBeTruthy();
+    expect(screen.queryByTestId('associate-section-tax')).toBeNull();
+    // The Legal Practice chip should be active (aria role alone isn't enough; check
+    // that the tax section is absent and legal is present, which proves the filter held).
+  });
+
+  it('restores collapsed state after a simulated remount', () => {
+    const { unmount } = render(<ReimaginedAssociateHome {...persistProps()} />);
+
+    // Collapse the "Legal Practice" category.
+    fireEvent.click(screen.getByTestId('associate-section-toggle-legal'));
+    // The section exists but its cards should be gone (collapsed).
+    expect(screen.queryByTestId('associate-card-deposition-contradiction-finder')).toBeNull();
+
+    // Remount — no localStorage.clear, so state should persist.
+    unmount();
+    render(<ReimaginedAssociateHome {...persistProps()} />);
+
+    // Cards should still be hidden (collapsed restored from localStorage).
+    expect(screen.queryByTestId('associate-card-deposition-contradiction-finder')).toBeNull();
+    // The section header itself should still be present.
+    expect(screen.getByTestId('associate-section-legal')).toBeTruthy();
+  });
+
+  it('writes the filter to localStorage when changed', () => {
+    render(<ReimaginedAssociateHome {...persistProps()} />);
+    fireEvent.click(screen.getByTestId('associate-filter-tax'));
+
+    expect(localStorage.getItem('keepance:workflows-filter')).toBe('tax');
+  });
+
+  it('writes collapsed state to localStorage when a section is toggled', () => {
+    render(<ReimaginedAssociateHome {...persistProps()} />);
+    fireEvent.click(screen.getByTestId('associate-section-toggle-legal'));
+
+    const stored = JSON.parse(localStorage.getItem('keepance:workflows-collapsed') ?? '{}') as Record<string, boolean>;
+    expect(stored['legal']).toBe(true);
   });
 });

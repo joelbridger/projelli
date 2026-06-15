@@ -290,3 +290,45 @@ describe('SettingsContent — scroll resets on section change', () => {
     expect(scroller.scrollTop).toBe(0);
   });
 });
+
+describe('SettingsContent — a11y: section nav landmark label', () => {
+  it('the settings section nav has aria-label="Settings sections"', () => {
+    render(<SettingsContent variant="page" />);
+    const nav = screen.getByRole('navigation', { name: 'Settings sections' });
+    expect(nav).toBeInTheDocument();
+  });
+});
+
+describe('SettingsContent — a11y: accordion body aria-live', () => {
+  it('each accordion body container has aria-live="polite"', () => {
+    render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
+    // The workspace section renders at least three sub-section bodies.
+    // All must carry aria-live="polite" so screen readers announce new content.
+    const generalBody = document.getElementById('ws-general-body');
+    const editorBody  = document.getElementById('ws-editor-body');
+    const filesBody   = document.getElementById('ws-files-body');
+    expect(generalBody).toBeInTheDocument();
+    expect(generalBody?.getAttribute('aria-live')).toBe('polite');
+    expect(editorBody).toBeInTheDocument();
+    expect(editorBody?.getAttribute('aria-live')).toBe('polite');
+    expect(filesBody).toBeInTheDocument();
+    expect(filesBody?.getAttribute('aria-live')).toBe('polite');
+  });
+
+  it('accordion body keeps aria-live after open/close cycle', () => {
+    render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
+    const generalBtn = screen.getByTestId('subheader-general-heading');
+    const bodyId = generalBtn.getAttribute('aria-controls')!;
+
+    // Open
+    fireEvent.click(generalBtn);
+    const body = document.getElementById(bodyId)!;
+    expect(body).not.toHaveAttribute('hidden');
+    expect(body.getAttribute('aria-live')).toBe('polite');
+
+    // Close
+    fireEvent.click(generalBtn);
+    expect(body).toHaveAttribute('hidden');
+    expect(body.getAttribute('aria-live')).toBe('polite');
+  });
+});

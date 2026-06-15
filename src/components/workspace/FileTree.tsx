@@ -321,6 +321,47 @@ export function FileTree({
     }
   }, [selectedPaths, onDownload, fileTree]);
 
+  /**
+   * Resolve the folder parent for toolbar create-folder actions.
+   *
+   * When something is selected:
+   *   - selected node is a folder → use that folder's path
+   *   - selected node is a file   → use its parent directory path
+   * When nothing is selected, fall back to null (caller uses root).
+   *
+   * We look up the selection in `fileTree` only to distinguish folder vs file;
+   * the path itself encodes the parent via the last "/" separator for files.
+   */
+  const resolvedFolderParent = (() => {
+    if (!selectedPath) return null;
+    // Walk the flat+nested tree to find the selected node's type
+    const findNode = (nodes: typeof fileTree, target: string): (typeof fileTree)[number] | null => {
+      for (const n of nodes) {
+        if (n.path === target) return n;
+        if (n.children) {
+          const found = findNode(n.children, target);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    const node = findNode(fileTree, selectedPath);
+    if (!node) return null;
+    if (node.type === 'folder') return node.path;
+    // File: use the portion of the path before the last "/"
+    const lastSlash = node.path.lastIndexOf('/');
+    return lastSlash > 0 ? node.path.substring(0, lastSlash) : null;
+  })();
+
+  /** Handler for the toolbar "Folder" button that respects the current selection. */
+  const handleToolbarCreateFolder = useCallback(() => {
+    if (resolvedFolderParent && onCreateFolder) {
+      onCreateFolder(resolvedFolderParent);
+    } else {
+      onCreateFolderAtRoot?.();
+    }
+  }, [resolvedFolderParent, onCreateFolder, onCreateFolderAtRoot]);
+
   return (
     <div data-testid="file-tree" className="flex flex-col h-full">
       {/* Toolbar with create buttons */}
@@ -414,8 +455,8 @@ export function FileTree({
           variant="ghost"
           size="sm"
           className="h-7 px-2 text-xs"
-          onClick={onCreateFolderAtRoot}
-          title="New folder at root"
+          onClick={handleToolbarCreateFolder}
+          title={resolvedFolderParent ? `New folder in ${resolvedFolderParent.split('/').pop() ?? resolvedFolderParent}` : 'New folder at root'}
         >
           <FolderPlus className="h-3.5 w-3.5 mr-1" />
           Folder
@@ -516,6 +557,8 @@ export function FileTree({
         />
       ) : (
         <div
+          role="tree"
+          aria-label="Workspace files"
           className="py-2 min-h-[200px] flex-1 overflow-auto"
           onDragOver={handleRootDragOver}
           onDragLeave={handleRootDragLeave}
@@ -687,7 +730,8 @@ function FileTreeItem({
 
   const handleKeyDown = useCallback(
     async (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
         if (isFolder) {
           onToggle(node.path);
         } else {
