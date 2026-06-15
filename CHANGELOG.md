@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The Activity Log stops saying it's empty when it isn't.** Filtering the log to zero matches used to show "No activity logged yet" as if you had none; it now says "No activity matches your filters" with a way to clear them.
 - **Confusing AI and email error messages are now in plain English.** Raw codes like "401" or "insufficient_quota" are translated into what to actually do about them.
 - **A clearer message when a browser can't open a folder.** Picking a workspace folder from a browser needs a secure (https) connection, which the desktop app always has. The message used to wrongly tell Chrome users to "use Chrome"; it now explains the real reason and points to the desktop app or an https address.
+- **Everyone gets the redesigned app, not just lawyers.** The new matter-centric interface was only switching on for the legal profile, so tax, consulting, and advisory users were silently dropped to the old layout. It's now the default for every profession (which is what the multi-vertical work was built for); the legacy layout is still reachable as an escape hatch.
 
 ### Added
 - **A hub for each matter.** Click a matter and you get a command center for that case: a question box scoped to it, an at-a-glance of its open issues and deadlines, and panels for its documents, email, workflows, and activity that jump you straight in. The tool-first tabs stay for anyone who does not work in matters, so it fits tax and consulting work too.
