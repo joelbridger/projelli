@@ -54,6 +54,7 @@ import { useSetConfidentialityMode } from '@/hooks/useConfidentialityMode';
 import { openExternal } from '@/utils/openExternal';
 import { clearAiSetupDeferred } from '@/onboarding/aiSetupState';
 import type { KeyProvider } from '@/modules/models/KeychainService';
+import { useProfessionCopy } from '@/hooks/useProfessionCopy';
 
 /** Which screen of the AI-setup step the user is on. */
 type View = 'choose' | 'own-account' | 'local';
@@ -141,6 +142,7 @@ function ChooseView({
   onBack,
   onOpenDataMap,
 }: ChooseViewProps) {
+  const professionCopy = useProfessionCopy();
   return (
     <div className="space-y-6">
       <div>
@@ -178,7 +180,7 @@ function ChooseView({
           tone="text-sky-700 bg-sky-50"
           title="Connect your AI provider account"
           badge="Recommended when ready"
-          body="Connect your Claude, OpenAI, or Gemini account with a few clicks. We walk you through it step by step. Your AI usage goes straight to your provider. Most attorneys spend about $2 to $5 a month, billed by your AI provider, not us."
+          body={`Connect your Claude, OpenAI, or Gemini account with a few clicks. We walk you through it step by step. Your AI usage goes straight to your provider. ${professionCopy.estimatedCostDesc}`}
           onClick={onPickOwnAccount}
         />
         <PathCard
@@ -451,6 +453,7 @@ const OLLAMA_DOWNLOAD_URL = 'https://ollama.com/download';
 function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
   const setMode = useSetConfidentialityMode();
   const [status, setStatus] = useState<OllamaStatus>({ kind: 'checking' });
+  const professionCopy = useProfessionCopy();
 
   const check = () => {
     setStatus({ kind: 'checking' });
@@ -495,7 +498,7 @@ function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
         <p>
           This uses a free tool called <span className="font-medium">Ollama</span> that runs an AI model
           directly on your computer. It is the most private option, and a good fit
-          for your most sensitive client matters. Nothing ever leaves your machine.
+          for {professionCopy.sensitiveWorkDesc}. Nothing ever leaves your machine.
           The trade-off is that local models are usually less capable than Claude or GPT, and a fast computer helps.
         </p>
         <p className="text-muted-foreground">

@@ -37,6 +37,8 @@ import { useFirm } from '@/hooks/useFirm';
 import { writeSampleFiles, getSamplesForProfession } from '@/onboarding/samples';
 import { persistProfessionModelDefault, getModelForProfession } from '@/onboarding/professionModel';
 import { markAiSetupDeferred } from '@/onboarding/aiSetupState';
+import { useProfessionCopy } from '@/hooks/useProfessionCopy';
+import { useEntityLabel } from '@/hooks/useEntityLabel';
 import type { KeyProvider } from '@/modules/models/KeychainService';
 import type { ProviderId } from '@/components/onboarding/ProviderTutorialSteps';
 
@@ -301,9 +303,9 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
 
       <ul style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 32, listStyle: 'none', padding: 0 }}>
         {[
-          { title: 'Your files never leave your computer', body: 'Documents, matters, and client work stay local. No cloud upload, no Keepance content servers.' },
+          { title: 'Your files never leave your computer', body: 'Documents and client work stay local. No cloud upload, no Keepance content servers.' },
           { title: 'You own your AI connection', body: 'You connect your own AI account. Your work goes straight from your machine to your provider.' },
-          { title: 'Every answer is cited', body: 'Ask a question across your matters and Keepance shows you exactly which document each claim came from.' },
+          { title: 'Every answer is cited', body: 'Ask a question across your work and Keepance shows you exactly which document each claim came from.' },
         ].map(({ title, body }) => (
           <li key={title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <span style={{
@@ -646,6 +648,7 @@ interface FirmStepProps {
 
 function FirmStep({ onBack, onAdvance }: FirmStepProps) {
   const firm = useFirm();
+  const professionCopy = useProfessionCopy();
 
   let content: ReactNode;
 
@@ -700,7 +703,7 @@ function FirmStep({ onBack, onAdvance }: FirmStepProps) {
     <div data-testid="onboarding-step-firm">
       <Heading
         title="How do you practice?"
-        subtitle="Keepance works just as well for a solo attorney as it does for a full firm."
+        subtitle={professionCopy.soloOrTeamDesc}
       />
 
       <div style={{ marginBottom: 20 }}>{content}</div>
@@ -742,12 +745,13 @@ function getSampleLabel(profession: Profession | null): string {
 function DoneStep({ profession, populateSamples, onToggleSamples, isFinishing, aiConnected, onBack, onConfirm }: DoneStepProps) {
   const sampleCount = getSamplesForProfession(profession ?? 'other').length;
   const sampleLabel = getSampleLabel(profession);
+  const entityLabel = useEntityLabel();
 
   return (
     <div data-testid="onboarding-step-done">
       <Heading
         title="You are set up"
-        subtitle="Create your first matter to get started."
+        subtitle={`Create your first ${entityLabel.one} to get started.`}
       />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 28 }}>
@@ -790,7 +794,7 @@ function DoneStep({ profession, populateSamples, onToggleSamples, isFinishing, a
           disabled={isFinishing}
           data-testid="onboarding-done-confirm"
         >
-          {isFinishing ? 'Setting up...' : populateSamples ? 'Explore the sample matter' : 'Create your first matter'}
+          {isFinishing ? 'Setting up...' : populateSamples ? `Explore the sample ${entityLabel.one}` : `Create your first ${entityLabel.one}`}
         </GradientButton>
       </div>
     </div>
