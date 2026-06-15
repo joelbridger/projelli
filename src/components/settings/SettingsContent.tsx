@@ -384,6 +384,53 @@ function SettingRow({
 }
 
 // ---------------------------------------------------------------------------
+// Search index
+// ---------------------------------------------------------------------------
+
+/**
+ * Search keywords per accordion sub-section, so the cross-section search finds
+ * things that aren't plain SETTINGS_SCHEMA fields — the bespoke controls
+ * (LanguagePicker, PluginsSettings, MarketplaceTab, the setup/tour links, etc.).
+ * Without this, searching "language" or "plugin" misses the General language
+ * picker and the Extensions/plugins group entirely. The key is the SubSection
+ * `id`; `section` is the top-level category the group lives in.
+ */
+const SETTINGS_GROUP_SEARCH: Record<string, { section: SectionCategory; keywords: string[] }> = {
+  'ws-general':     { section: 'workspace',  keywords: ['general', 'language', 'locale', 'translation', 'interface language', 'app language', 'english', 'spanish', 'theme', 'appearance', 'dark mode', 'light mode', 'startup', 'update notification'] },
+  'ws-editor':      { section: 'workspace',  keywords: ['editor', 'font', 'font size', 'text size', 'word wrap', 'line numbers'] },
+  'ws-files':       { section: 'workspace',  keywords: ['files', 'workspace', 'auto save', 'autosave', 'file type', 'letterhead', 'trash', 'hidden files', 'folder'] },
+  'aip-ai':         { section: 'ai-privacy', keywords: ['model', 'models', 'provider', 'api key', 'anthropic', 'openai', 'claude', 'gpt', 'gemini', 'byok', 'language model'] },
+  'aip-memory':     { section: 'ai-privacy', keywords: ['memory', 'facts', 'remember', 'context', 'recall'] },
+  'aip-privacy':    { section: 'ai-privacy', keywords: ['privacy', 'telemetry', 'tracking', 'analytics', 'anonymous', 'opt out', 'confidential', 'privileged', 'egress', 'network', 'local only'] },
+  'voice-input':    { section: 'voice',      keywords: ['voice', 'microphone', 'speech to text', 'dictation', 'transcribe', 'transcription', 'push to talk'] },
+  'voice-tts':      { section: 'voice',      keywords: ['voice', 'text to speech', 'read aloud', 'narration', 'pronunciation', 'spoken language'] },
+  'adv-extensions': { section: 'advanced',   keywords: ['extension', 'extensions', 'plugin', 'plugins', 'marketplace', 'integration', 'integrations', 'connector', 'claude desktop', 'template model', 'add on', 'addon'] },
+  'adv-updates':    { section: 'advanced',   keywords: ['update', 'updates', 'version', 'upgrade', 'release', 'new version'] },
+  'adv-advanced':   { section: 'advanced',   keywords: ['advanced', 'developer', 'debug', 'diagnostics', 'reset', 'experimental'] },
+  'adv-shortcuts':  { section: 'help',       keywords: ['shortcut', 'shortcuts', 'keyboard', 'hotkey', 'hotkeys', 'keybinding'] },
+  'adv-setup':      { section: 'help',       keywords: ['setup', 'onboarding', 'tour', 'guide', 'tutorial', 'getting started', 'restart setup', 'walkthrough'] },
+  'adv-about':      { section: 'help',       keywords: ['about', 'legal', 'credits', 'licenses', 'acknowledgements'] },
+};
+
+/**
+ * Keyword match. Forward (keyword contains the query) handles partial typing
+ * ("plug" -> "plugin"). The reverse (query contains the keyword) is gated to
+ * keywords >= 4 chars so a short token like "ai" never matches inside "email".
+ */
+function kwMatches(keywords: string[], lowerQ: string): boolean {
+  if (!lowerQ) return false;
+  return keywords.some((k) => k.includes(lowerQ) || (k.length >= 4 && lowerQ.includes(k)));
+}
+
+/** True when a sub-section's own keywords or label match the query. */
+function groupKeywordMatch(subId: string, label: string, lowerQ: string): boolean {
+  if (!lowerQ) return false;
+  if (label.toLowerCase().includes(lowerQ)) return true;
+  const entry = SETTINGS_GROUP_SEARCH[subId];
+  return entry ? kwMatches(entry.keywords, lowerQ) : false;
+}
+
+// ---------------------------------------------------------------------------
 // Accordion sub-section
 // ---------------------------------------------------------------------------
 
@@ -401,6 +448,8 @@ interface AccordionCtx {
   open: (id: string) => void;
   /** When true, search is active — matching groups stay expanded regardless. */
   searchActive: boolean;
+  /** The live search query, so a group can match on its own keywords/label. */
+  searchQuery: string;
 }
 
 const AccordionContext = createContext<AccordionCtx | null>(null);
@@ -430,16 +479,22 @@ function SubSection({
 }) {
   const ctx = useContext(AccordionContext);
 
+  // A group matches the search if it has a matching schema control (containsMatch,
+  // passed by the parent) OR its own label/keywords match. The keyword fallback is
+  // what makes bespoke controls (language picker, plugins, setup links) findable.
+  const lowerQ = ctx?.searchQuery.toLowerCase().trim() ?? '';
+  const matches = containsMatch || groupKeywordMatch(id, label, lowerQ);
+
   // When searching, expansion is driven entirely by whether this group matches.
   // When not searching, the single-open accordion state governs it.
   const isOpen = ctx
     ? ctx.searchActive
-      ? containsMatch
+      ? matches
       : ctx.openId === id && ctx.openId !== ''
     : true;
 
   // While searching, hide groups that have no match so results stay scannable.
-  if (ctx && ctx.searchActive && !containsMatch) return null;
+  if (ctx && ctx.searchActive && !matches) return null;
 
   const headingTestId = testid ? `${testid}-heading` : undefined;
   const searchActive = ctx?.searchActive ?? false;
@@ -497,10 +552,12 @@ function SubSection({
 function AccordionSection({
   ids: _ids,
   searchActive,
+  searchQuery,
   children,
 }: {
   ids: string[];
   searchActive: boolean;
+  searchQuery: string;
   children: React.ReactNode;
 }) {
   // '' means all sub-sections are collapsed.
@@ -513,8 +570,8 @@ function AccordionSection({
   }, []);
 
   const ctx = useMemo<AccordionCtx>(
-    () => ({ openId, open, searchActive }),
-    [openId, open, searchActive]
+    () => ({ openId, open, searchActive, searchQuery }),
+    [openId, open, searchActive, searchQuery]
   );
 
   return (
@@ -679,7 +736,7 @@ function WorkspaceSection(props: SectionProps) {
 
   return (
     <div data-testid="section-workspace">
-      <AccordionSection ids={['ws-general', 'ws-editor', 'ws-files']} searchActive={props.searchActive}>
+      <AccordionSection ids={['ws-general', 'ws-editor', 'ws-files']} searchActive={props.searchActive} searchQuery={props.searchQuery}>
         <SubSection
           id="ws-general"
           label="General"
@@ -724,7 +781,7 @@ function AiPrivacySection(props: SectionProps) {
 
   return (
     <div data-testid="section-ai-privacy">
-      <AccordionSection ids={['aip-ai', 'aip-memory', 'aip-privacy']} searchActive={props.searchActive}>
+      <AccordionSection ids={['aip-ai', 'aip-memory', 'aip-privacy']} searchActive={props.searchActive} searchQuery={props.searchQuery}>
         <SubSection
           id="aip-ai"
           label="AI"
@@ -776,7 +833,7 @@ function VoiceSection(props: SectionProps) {
 
   return (
     <div data-testid="section-voice">
-      <AccordionSection ids={['voice-input', 'voice-tts']} searchActive={props.searchActive}>
+      <AccordionSection ids={['voice-input', 'voice-tts']} searchActive={props.searchActive} searchQuery={props.searchQuery}>
         <SubSection
           id="voice-input"
           label="Voice Input"
@@ -810,7 +867,7 @@ function AdvancedSection(props: SectionProps) {
 
   return (
     <div data-testid="section-advanced">
-      <AccordionSection ids={['adv-extensions', 'adv-updates', 'adv-advanced']} searchActive={props.searchActive}>
+      <AccordionSection ids={['adv-extensions', 'adv-updates', 'adv-advanced']} searchActive={props.searchActive} searchQuery={props.searchQuery}>
         <SubSection
           id="adv-extensions"
           label="Extensions"
@@ -860,7 +917,7 @@ function HelpSection(props: SectionProps) {
 
   return (
     <div data-testid="section-help">
-      <AccordionSection ids={['adv-shortcuts', 'adv-setup', 'adv-about']} searchActive={props.searchActive}>
+      <AccordionSection ids={['adv-shortcuts', 'adv-setup', 'adv-about']} searchActive={props.searchActive} searchQuery={props.searchQuery}>
         <SubSection
           id="adv-shortcuts"
           label="Keyboard Shortcuts"
@@ -973,40 +1030,59 @@ export function SettingsContent({
     );
   }, [searchQuery]);
 
-  // Which sections have at least one visible setting after filtering
-  const visibleSections = useMemo<Set<SectionCategory>>(() => {
-    // When no search: all sections visible
-    if (!searchQuery.trim()) {
-      return new Set<SectionCategory>(['workspace', 'ai-privacy', 'voice', 'advanced', 'help']);
-    }
-    const sections = new Set<SectionCategory>();
+  // Relevance score per top-level section. Strong matches (a field label/key, or
+  // a group's keyword/label) outrank a description-only hit, so "plug" lands on
+  // Extensions (keyword) rather than an AI field that merely mentions "plugins"
+  // in its description, and "language" lands on General rather than Voice.
+  const sectionScores = useMemo<Record<SectionCategory, number>>(() => {
+    const scores: Record<SectionCategory, number> = {
+      workspace: 0, 'ai-privacy': 0, voice: 0, advanced: 0, help: 0,
+    };
+    const lowerQ = searchQuery.toLowerCase().trim();
+    if (!lowerQ) return scores;
+    const bump = (sec: SectionCategory, v: number) => { if (v > scores[sec]) scores[sec] = v; };
     for (const def of SETTINGS_SCHEMA) {
-      if (filteredKeys.has(def.key)) {
-        // resolveSection handles both canonical and legacy ids
-        const sec = resolveSection(def.category);
-        sections.add(sec);
-      }
+      const sec = resolveSection(def.category);
+      if (def.label.toLowerCase().includes(lowerQ)) bump(sec, 3);
+      else if (def.key.toLowerCase().includes(lowerQ)) bump(sec, 2);
+      else if (def.description.toLowerCase().includes(lowerQ)) bump(sec, 1);
     }
-    const lowerQ = searchQuery.toLowerCase();
-    // Shortcut text is not in SETTINGS_SCHEMA — include help if any shortcut matches
-    const anyShortcutMatch = SHORTCUTS.some(
+    for (const [subId, entry] of Object.entries(SETTINGS_GROUP_SEARCH)) {
+      if (groupKeywordMatch(subId, '', lowerQ)) bump(entry.section, 3);
+    }
+    // Keyboard-shortcut labels live outside the schema; a hit shows Help.
+    const shortcutHit = SHORTCUTS.some(
       (s) =>
         s.label.toLowerCase().includes(lowerQ) ||
         (s.description ?? '').toLowerCase().includes(lowerQ) ||
         s.keys.some((k) => k.toLowerCase().includes(lowerQ))
     );
-    if (anyShortcutMatch) sections.add('help');
-    // Privacy keywords always show ai-privacy
-    const aiPrivacyKeywords = ['privacy', 'telemetry', 'tracking', 'data', 'anonymous', 'opt',
-      'memory', 'fact', 'pdf', 'ocr', 'confidential', 'privileged'];
-    if (aiPrivacyKeywords.some((k) => lowerQ.includes(k))) sections.add('ai-privacy');
-    return sections;
-  }, [filteredKeys, searchQuery]);
+    if (shortcutHit) bump('help', 2);
+    return scores;
+  }, [searchQuery]);
 
-  // Auto-switch to first visible section when search hides the current one
-  const effectiveSection = visibleSections.has(activeSection)
-    ? activeSection
-    : (SETTING_CATEGORIES.find((c) => visibleSections.has(c.id))?.id ?? 'workspace');
+  // Which sections have any match (score > 0).
+  const visibleSections = useMemo<Set<SectionCategory>>(() => {
+    if (!searchQuery.trim()) {
+      return new Set<SectionCategory>(['workspace', 'ai-privacy', 'voice', 'advanced', 'help']);
+    }
+    const sections = new Set<SectionCategory>();
+    (Object.keys(sectionScores) as SectionCategory[]).forEach((sec) => {
+      if (sectionScores[sec] > 0) sections.add(sec);
+    });
+    return sections;
+  }, [sectionScores, searchQuery]);
+
+  // While searching, jump to the strongest-matching section, but stay put if the
+  // current section is already a top match (so typing doesn't yank you around).
+  const effectiveSection: SectionCategory = (() => {
+    if (!searchActive) return activeSection;
+    const order: SectionCategory[] = ['workspace', 'ai-privacy', 'voice', 'advanced', 'help'];
+    const maxScore = Math.max(...order.map((s) => sectionScores[s]));
+    if (maxScore <= 0) return activeSection;
+    if (sectionScores[activeSection] === maxScore) return activeSection;
+    return order.find((s) => sectionScores[s] === maxScore) ?? activeSection;
+  })();
 
   if (effectiveSection !== activeSection) {
     queueMicrotask(() => { setActiveSection(effectiveSection); });

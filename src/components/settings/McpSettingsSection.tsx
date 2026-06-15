@@ -114,7 +114,7 @@ export function McpSettingsSection({
       )}
 
       <div
-        className={cn(privileged && 'opacity-50 pointer-events-none select-none')}
+        className={cn('space-y-4', privileged && 'opacity-50 pointer-events-none select-none')}
         aria-disabled={privileged}
       >
       <div

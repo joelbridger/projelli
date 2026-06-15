@@ -650,18 +650,6 @@ export function ReimaginedAssociateHome({
         />
       </div>
 
-      {/* Active-matter context badge — directly below the header, above the toolbar */}
-      {activeMatter !== null && (
-        <div
-          data-testid="associate-active-matter-chip"
-          style={{ padding: '4px var(--kp-gutter) 0' }}
-        >
-          <Badge variant="neutral" size="sm" icon={Briefcase}>
-            Running in: {matterLabel(activeMatter)}
-          </Badge>
-        </div>
-      )}
-
       {/* ── Toolbar: filters (practice chips) then search last ──── */}
       <SurfaceToolbar data-testid="associate-toolbar">
         {presentCategories.length > 1 && (
@@ -788,6 +776,18 @@ export function ReimaginedAssociateHome({
                 />
               ))}
             </Card>
+          </div>
+        )}
+
+        {/* Active-matter context — sits in the content, just above the groups */}
+        {activeMatter !== null && (
+          <div
+            data-testid="associate-active-matter-chip"
+            style={{ marginBottom: 'var(--kp-section-gap)' }}
+          >
+            <Badge variant="neutral" size="sm" icon={Briefcase}>
+              Running in: {matterLabel(activeMatter)}
+            </Badge>
           </div>
         )}
 

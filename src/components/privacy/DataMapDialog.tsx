@@ -22,7 +22,7 @@
  * effort. Disable the hardcoded-string rule for this file only.
  */
 /* eslint-disable keepance-i18n/no-hardcoded-string */
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import {
   Dialog,
@@ -47,6 +47,7 @@ import {
   ScanText,
   Server,
   Printer,
+  ChevronDown,
   X,
 } from 'lucide-react';
 
@@ -177,10 +178,14 @@ export function DataMapDialog({ open, onOpenChange }: DataMapDialogProps) {
       'body { font: 14px/1.6 -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #1a1a1a; max-width: 720px; margin: 40px auto; padding: 0 24px; }',
       'h1 { font-size: 22px; margin: 0 0 4px; }',
       '.sub { color: #555; margin: 0 0 28px; }',
-      '.row { margin: 0 0 22px; padding: 0 0 18px; border-bottom: 1px solid #e6e6e6; display: flex; gap: 12px; }',
+      '.row { margin: 0 0 22px; padding: 0 0 18px; border-bottom: 1px solid #e6e6e6; }',
       '.row:last-child { border-bottom: none; }',
-      '.row h2 { font-size: 15px; margin: 0 0 6px; }',
-      '.row p { margin: 0; }',
+      // Neutralize the collapse toggle button so the title prints as a heading.
+      '.row button { all: unset; display: block; width: 100%; }',
+      '.row h2 { font-size: 15px; margin: 0; }',
+      '.row p { margin: 6px 0 0; }',
+      // PRINT: reveal every collapsed section so the PDF captures the whole map.
+      '[hidden] { display: block !important; }',
       'svg { display: none; }',
       '.caveat { color: #6b5300; background: #fff8e6; border: 1px solid #f0d98a; border-radius: 6px; padding: 8px 12px; margin-top: 8px; font-size: 13px; }',
       '.foot { margin-top: 28px; color: #777; font-size: 12px; }',
@@ -284,6 +289,10 @@ export function DataMapContent({
   printableId?: string;
   variant?: 'accordion' | 'expanded';
 }) {
+  // Collapsible single-open state for the dialog (expanded) variant. First row
+  // open by default; -1 means all collapsed. Bodies stay mounted (hidden) so the
+  // print/PDF clone still captures every section.
+  const [openRow, setOpenRow] = useState<number>(0);
   return (
     <div id={printableId} data-testid="data-map-content">
       <h1 className="text-lg font-semibold mb-1">
@@ -337,20 +346,27 @@ export function DataMapContent({
           })}
         </Accordion>
       ) : (
+        // Collapsible, single-open. PRINT: the `.row` class + `.row h2` / `.row p`
+        // are required by handlePrint's CSS. Bodies are kept mounted (hidden when
+        // collapsed) and handlePrint force-shows [hidden], so the PDF still
+        // captures every section. Do not unmount collapsed bodies.
         <div className="space-y-0">
           {DATA_MAP_ROWS.map((row, i) => {
             const Icon = row.icon;
+            const isOpen = openRow === i;
             return (
-              // PRINT: the `.row` class is required by handlePrint's CSS selectors.
-              // `.row h2` styles the section title; `.row p` styles the body.
-              // Do not change these to spans or wrapper-less divs without
-              // updating the print CSS accordingly.
               <div
                 key={i}
                 data-testid="data-map-section"
-                className="row border-b border-border/60 last:border-b-0 py-3"
+                className="row border-b border-border/60 last:border-b-0 py-1"
               >
-                <div className="flex items-center gap-3 min-w-0 mb-2">
+                <button
+                  type="button"
+                  data-testid="data-map-section-trigger"
+                  aria-expanded={isOpen}
+                  onClick={() => { setOpenRow(isOpen ? -1 : i); }}
+                  className="w-full flex items-center gap-3 min-w-0 py-2.5 text-left"
+                >
                   <div
                     className={`shrink-0 h-7 w-7 rounded-md flex items-center justify-center ${row.tone}`}
                     aria-hidden
@@ -358,9 +374,14 @@ export function DataMapContent({
                     <Icon className="h-3.5 w-3.5" />
                   </div>
                   {/* PRINT: must be <h2> so `.row h2` in handlePrint CSS applies. */}
-                  <h2 className="text-sm font-semibold m-0">{row.title}</h2>
-                </div>
-                <div className="pl-10">
+                  <h2 className="text-sm font-semibold m-0 flex-1">{row.title}</h2>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    aria-hidden="true"
+                  />
+                </button>
+                {/* PRINT: kept mounted (hidden when collapsed); handlePrint reveals it. */}
+                <div hidden={!isOpen} className="pl-10 pb-2">
                   {/* PRINT: must be <p> so `.row p` in handlePrint CSS applies. */}
                   <p className="text-sm text-muted-foreground m-0">{row.body}</p>
                   {row.caveat && (
