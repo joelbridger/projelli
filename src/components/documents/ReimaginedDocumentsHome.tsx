@@ -29,7 +29,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FolderOpen, FolderTree, FileText, X, LayoutGrid, ListTree } from 'lucide-react';
+import { FolderOpen, FolderTree, FileText, X, LayoutGrid, ListTree, Upload } from 'lucide-react';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 import { useEditorStore } from '@/stores/editorStore';
 import { getFileIcon } from '@/utils/fileIcons';
@@ -73,6 +73,14 @@ export interface ReimaginedDocumentsHomeProps {
    * Must be rendered with hideTabBar=true (App.tsx wires this via the prop).
    */
   mainPanelContent: React.ReactNode;
+  /**
+   * Fix 1: which view to land on. This component UNMOUNTS/REMOUNTS on every tab
+   * switch, so App.tsx owns the intent (it persists across the remount) and we
+   * read it in the userOnFiles useState initializer on mount. 'browser' => the
+   * Files list (nav click, reveal-folder, matter launch); 'editor' => the open
+   * document (email/file open). Undefined preserves the legacy default.
+   */
+  documentsView?: 'browser' | 'editor';
   // Trash handlers
   trashItems: TrashedItem[];
   trashStats: TrashStats;
@@ -396,6 +404,7 @@ function ViewToggle({ view, onChange }: ViewToggleProps) {
 
 export function ReimaginedDocumentsHome({
   mainPanelContent,
+  documentsView,
   trashItems,
   trashStats,
   onRestore,
@@ -439,15 +448,23 @@ export function ReimaginedDocumentsHome({
   // When false, the active document tab in editorStore drives what is shown.
   // When a new real-file tab becomes active externally (email-open flow, grid
   // card click), we flip back to false via a ref — no setState inside an effect.
-  const [userOnFiles, setUserOnFiles] = useState(false);
+  // Initialize from documentsView on mount. Because this component remounts on
+  // every nav, the useState initializer is the reliable place to honor the
+  // intent: 'browser' => show the Files list; 'editor'/undefined => editor
+  // (legacy default when the prop is absent in tests/browser).
+  const initialOnFiles = documentsView === 'browser';
+  const [userOnFiles, setUserOnFiles] = useState(initialOnFiles);
   // Ref that shadows userOnFiles so we can read it synchronously in the effect
   // without capturing a stale closure.
-  const userOnFilesRef = useRef(false);
+  const userOnFilesRef = useRef(initialOnFiles);
 
   // Track the last real-file path the store told us about; when it changes
   // externally, flip userOnFiles off via a ref comparison (no setState in the
   // effect body — we apply it on the NEXT render via queueMicrotask).
-  const prevActivePathRef = useRef<string | null>(null);
+  // Seed with the mount-time active path so the effect does NOT treat the
+  // already-open tab as a "newly opened" file (which would yank a nav-click
+  // landing on the browser straight into the editor).
+  const prevActivePathRef = useRef<string | null>(activeTabPath ?? null);
 
   useEffect(() => {
     if (activeTabPath === null) return;
@@ -466,6 +483,26 @@ export function ReimaginedDocumentsHome({
       });
     }
   }, [activeTabPath, openTabs]);
+
+  // Fix 1 (while-mounted): the useState initializer already honors documentsView
+  // on mount (the common case, since this component remounts on every nav). This
+  // effect handles the rarer case where documentsView changes WHILE Documents is
+  // already mounted (e.g. an email opens while you're on the Files browser). It
+  // seeds prevDocumentsViewRef to the mount value so it does not re-fire for the
+  // mount itself, only for genuine changes.
+  const prevDocumentsViewRef = useRef<'browser' | 'editor' | undefined>(documentsView);
+  useEffect(() => {
+    if (documentsView === undefined) return;
+    if (documentsView === prevDocumentsViewRef.current) return;
+    prevDocumentsViewRef.current = documentsView;
+    const wantBrowser = documentsView === 'browser';
+    userOnFilesRef.current = wantBrowser;
+    // queueMicrotask to stay consistent with the external-tab-change effect
+    // above (same rule: no synchronous setState inside the effect body).
+    queueMicrotask(() => {
+      setUserOnFiles(wantBrowser);
+    });
+  }, [documentsView]);
 
   // ── Tab handlers ─────────────────────────────────────────────────────────
 
@@ -672,24 +709,62 @@ export function ReimaginedDocumentsHome({
               {docsView === 'tree' ? (
                 /* Vertical EXPANDING tree (reused as-is) with working drag-into-
                    folder DnD. It reads the workspace store directly. */
-                <div data-testid="documents-tree-view" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-                  <FileTree
-                    onFileOpen={onFileOpen}
-                    onCreateFile={onCreateFile}
-                    onCreateFolder={onCreateFolder}
-                    onRename={onRename}
-                    onDelete={onDelete}
-                    onMove={onMove}
-                    onDownload={onDownload}
-                    {...(onCreateDefaultDocument !== undefined ? { onCreateDefaultDocument } : {})}
-                    {...(onCreateMarkdownAtRoot !== undefined ? { onCreateMarkdownAtRoot } : {})}
-                    {...(onCreateTextFileAtRoot !== undefined ? { onCreateTextFileAtRoot } : {})}
-                    {...(onCreateRichTextFileAtRoot !== undefined ? { onCreateRichTextFileAtRoot } : {})}
-                    {...(onCreateFolderAtRoot !== undefined ? { onCreateFolderAtRoot } : {})}
-                    {...(onCreateDocxAtRoot !== undefined ? { onCreateDocxAtRoot } : {})}
-                    {...(onCreateWhiteboard !== undefined ? { onCreateWhiteboard } : {})}
-                    {...(onSetLetterheadTemplate !== undefined ? { onSetLetterheadTemplate } : {})}
-                  />
+                <div data-testid="documents-tree-view" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  {/* Fix 4: Add files toolbar for tree mode, mirrors grid mode. */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 12px',
+                      borderBottom: '1px solid var(--color-border)',
+                      flexShrink: 0,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      data-testid="tree-add-files-btn"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '5px 11px',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        background: '#fff',
+                        color: 'var(--kp-navy)',
+                        border: '1px solid var(--color-border)',
+                        cursor: 'pointer',
+                        fontFamily: 'Satoshi, sans-serif',
+                        whiteSpace: 'nowrap',
+                      }}
+                      onClick={handleAddFiles}
+                    >
+                      <Upload style={{ width: 13, height: 13, strokeWidth: 2 }} />
+                      Add files
+                    </button>
+                  </div>
+                  <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                    <FileTree
+                      onFileOpen={onFileOpen}
+                      onCreateFile={onCreateFile}
+                      onCreateFolder={onCreateFolder}
+                      onRename={onRename}
+                      onDelete={onDelete}
+                      onMove={onMove}
+                      onDownload={onDownload}
+                      {...(onCreateDefaultDocument !== undefined ? { onCreateDefaultDocument } : {})}
+                      {...(onCreateMarkdownAtRoot !== undefined ? { onCreateMarkdownAtRoot } : {})}
+                      {...(onCreateTextFileAtRoot !== undefined ? { onCreateTextFileAtRoot } : {})}
+                      {...(onCreateRichTextFileAtRoot !== undefined ? { onCreateRichTextFileAtRoot } : {})}
+                      {...(onCreateFolderAtRoot !== undefined ? { onCreateFolderAtRoot } : {})}
+                      {...(onCreateDocxAtRoot !== undefined ? { onCreateDocxAtRoot } : {})}
+                      {...(onCreateWhiteboard !== undefined ? { onCreateWhiteboard } : {})}
+                      {...(onSetLetterheadTemplate !== undefined ? { onSetLetterheadTemplate } : {})}
+                    />
+                  </div>
                 </div>
               ) : (
                 /* Folder-drill grid — shown when "Files" tab is active */

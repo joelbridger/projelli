@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Lock, ChevronRight, Sparkles, FileText, Mail, GitBranch, Clock, ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
+import { Briefcase, Lock, ChevronRight, Sparkles, FileText, Mail, GitBranch, Clock, ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
 import { useMatters, useActiveMatterPrivileged, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useAIChatStore } from '@/stores/aiChatStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
@@ -321,8 +321,12 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                 color: 'var(--kp-navy, #0a2540)',
                 fontFamily: 'Satoshi, sans-serif',
                 lineHeight: 1.2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
               }}
             >
+              <Briefcase style={{ width: 18, height: 18, color: 'var(--kp-navy, #0a2540)', strokeWidth: 1.75, flex: 'none' }} />
               {label}
             </h1>
             <div

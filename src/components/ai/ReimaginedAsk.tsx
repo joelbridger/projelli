@@ -1054,7 +1054,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
       {/* Header */}
       <div
         style={{
-          padding: '16px 18px 10px',
+          padding: '24px 24px 16px',
           borderBottom: '1px solid var(--color-border)',
           flexShrink: 0,
         }}
@@ -1192,7 +1192,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
                   ? 'This is a sample matter. Click a question below and see a cited answer. Click any citation to read the exact passage.'
                   : 'Every answer cites the document and locator. Click any chip to read the exact passage.'}
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 6 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 6, maxWidth: 480 }}>
                 {(activeMatter?.id === SAMPLE_MATTER_ID
                   ? (demoQuestions as unknown as string[])
                   : [
@@ -1225,6 +1225,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
                       cursor: 'pointer',
                       opacity: 0.7,
                       transition: 'opacity 0.12s, background 0.12s',
+                      whiteSpace: 'nowrap',
                     }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(14,60,110,0.06)'; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.7'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}

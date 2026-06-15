@@ -552,14 +552,22 @@ export function DocumentGridView({
 
   // ── File counts ─────────────────────────────────────────────────────────
 
-  const totalFileCount = (function count(nodes: FileNode[]): number {
-    let total = 0;
-    for (const n of nodes) {
-      if (n.type === 'file') total += 1;
-      else if (n.children) total += count(n.children);
+  // Fix 2: count items at the CURRENT directory level, not the whole tree.
+  // "1 folder", "3 items" etc., reflecting what is actually shown in the grid.
+  const currentDirCount = currentNodes.length;
+
+  function currentDirLabel(): string {
+    if (currentDirCount === 0) return 'No items';
+    const folderCount = currentNodes.filter((n) => n.type === 'folder').length;
+    const fileCount = currentNodes.filter((n) => n.type !== 'folder').length;
+    if (folderCount > 0 && fileCount === 0) {
+      return folderCount === 1 ? '1 folder' : `${String(folderCount)} folders`;
     }
-    return total;
-  })(fileTree);
+    if (fileCount > 0 && folderCount === 0) {
+      return fileCount === 1 ? '1 item' : `${String(fileCount)} items`;
+    }
+    return currentDirCount === 1 ? '1 item' : `${String(currentDirCount)} items`;
+  }
 
   const trashBadgeCount = trashStats.itemCount;
 
@@ -817,13 +825,16 @@ export function DocumentGridView({
               Add files
             </button>
 
-            {/* Spacer + search */}
+            {/* Spacer + search — Fix 3: flex:1 + minWidth:0 so it shrinks
+                and wraps cleanly when the toolbar is narrow. */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
                 marginLeft: 'auto',
+                flex: '1 1 auto',
+                minWidth: 0,
                 border: '1px solid var(--color-border)',
                 borderRadius: 6,
                 padding: '5px 10px',
@@ -850,7 +861,8 @@ export function DocumentGridView({
                   outline: 'none',
                   background: 'transparent',
                   color: 'var(--color-foreground)',
-                  width: 160,
+                  flex: 1,
+                  minWidth: 0,
                   fontFamily: 'Satoshi, sans-serif',
                 }}
               />
@@ -886,11 +898,7 @@ export function DocumentGridView({
                   marginBottom: 12,
                 }}
               >
-                {totalFileCount === 0
-                  ? 'No documents yet'
-                  : totalFileCount === 1
-                    ? '1 document'
-                    : `${String(totalFileCount)} documents`}
+                {fileTree.length === 0 ? 'No documents yet' : currentDirLabel()}
               </div>
             )}
 

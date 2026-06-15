@@ -493,11 +493,9 @@ function SubSection({
           aria-hidden="true"
         />
       </button>
-      {isOpen && (
-        <div id={`${id}-body`} className="pb-3">
-          {children}
-        </div>
-      )}
+      <div id={`${id}-body`} hidden={!isOpen} className="pb-3">
+        {children}
+      </div>
     </div>
   );
 }
@@ -1129,9 +1127,11 @@ export function SettingsContent({
           variant === 'page' ? 'h-full w-full' : 'h-full'
         )}
       >
-        {/* Header / Search */}
+        {/* Header / Search — pt-6 px-6 pb-4 == the standard '24px 24px 16px'
+            surface-header padding, so the Settings title sits at the same
+            height as every other tab. */}
         {variant === 'page' && (
-          <div className="shrink-0 border-b px-6 py-4">
+          <div className="shrink-0 border-b px-6 pt-6 pb-4">
             <SurfaceHeader
               Icon={Settings}
               title="Settings"
@@ -1191,13 +1191,14 @@ export function SettingsContent({
                 <button
                   key={sec.id}
                   data-testid={`settings-category-${sec.id}`}
+                  aria-current={isActive ? 'page' : undefined}
                   className={cn(
                     'w-full flex items-center gap-2 text-left px-4 py-2 text-sm transition-colors',
                     isActive
                       ? 'bg-background font-medium text-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   )}
-                  onClick={() => { setActiveSection(sec.id); }}
+                  onClick={(e) => { e.stopPropagation(); setActiveSection(sec.id); }}
                 >
                   <span className="flex-1 truncate">{sec.label}</span>
                   {showUpdateBadge && (

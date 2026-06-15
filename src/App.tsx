@@ -303,6 +303,14 @@ function App() {
   // F-509 — controlled sidebar collapse so the global Ctrl+B shortcut and the
   // command palette can drive the same collapse the chevron button does.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Fix 1: which view the Documents surface should land on. ReimaginedDocumentsHome
+  // UNMOUNTS/REMOUNTS on every tab switch, so a counter "reset signal" can't work
+  // (its refs reset on remount). Instead App owns the intent here (it persists
+  // across the remount) and ReimaginedDocumentsHome reads it in its useState
+  // initializer on mount. Clicking the Documents nav, revealing a folder, or
+  // launching a matter into Documents => 'browser' (the file list). Opening an
+  // email/file into the Documents area => 'editor' (that document).
+  const [documentsView, setDocumentsView] = useState<'browser' | 'editor'>('browser');
 
   // Shell-aware API key wizard — opened from reimagined shell CTAs.
   const [apiKeyWizardOpen, setApiKeyWizardOpen] = useState<boolean>(false);
@@ -1562,7 +1570,9 @@ function App() {
 
   // Handle revealing a folder in the Files tab
   const handleRevealInFolder = useCallback((_path: string) => {
-    // Switch to Files tab
+    // Switch to Files tab, landing on the file browser (we're revealing a folder,
+    // not opening a document).
+    setDocumentsView('browser');
     setSidebarActiveTab('files');
 
     // The folder expansion and selection is already handled by SearchPanel
@@ -1615,6 +1625,8 @@ function App() {
         type: 'email',
         meta: { mailSourceId: string },
       ) => {
+        // Opening an email shows it in the Documents area editor, not the browser.
+        setDocumentsView('editor');
         setSidebarActiveTab('files');
         openTab(id, label, content, type, meta);
       },
@@ -1656,6 +1668,8 @@ function App() {
         ? (detail.surface as AllowedSurface)
         : 'search';
       useMatterStore.getState().setActiveMatter(detail.matterId);
+      // Launching a matter into Documents lands on its file browser, not an editor.
+      if (surface === 'files') setDocumentsView('browser');
       setSidebarActiveTab(surface);
     };
     window.addEventListener('keepance:matter-launch', handler);
@@ -3314,7 +3328,8 @@ This file contains rules and guidelines for AI assistants in this workspace.
         label: 'Open Settings',
         shortcut: 'Ctrl+,',
         category: 'general',
-        action: () => setShowSettingsModal(true),
+        // Fix 5: no-op when Settings tab is already the active surface.
+        action: () => { if (sidebarActiveTab !== 'settings') setShowSettingsModal(true); },
       },
       {
         id: 'browser.open',
@@ -3362,7 +3377,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
     }
 
     return [...appCommands, ...pluginPaletteCommands, ...baseCommands];
-  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, pluginCommandsMap, installedPluginInstances]);
+  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, pluginCommandsMap, installedPluginInstances, sidebarActiveTab]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -3370,9 +3385,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
       const isMod = e.ctrlKey || e.metaKey;
 
       // Open Settings: Ctrl+,
+      // Fix 5: no-op if the Settings tab is already the active surface.
       if (isMod && e.key === ',') {
         e.preventDefault();
-        setShowSettingsModal(true);
+        if (sidebarActiveTab !== 'settings') {
+          setShowSettingsModal(true);
+        }
         return;
       }
 
@@ -3535,7 +3553,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, setFileTree, handleFileOpen, handleRestoreFromTrash, openAIAssistantTab]);
+  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, setFileTree, handleFileOpen, handleRestoreFromTrash, openAIAssistantTab, sidebarActiveTab]);
 
   // Show workspace selector if no workspace is open (unless in test mode).
   // Keepance 3.0: the rebuilt first-run wizard is the live first-run surface.
@@ -3699,7 +3717,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
             variant="ghost"
             size="sm"
             className="h-7 w-7 p-0"
-            onClick={() => setShowSettingsModal(true)}
+            onClick={() => {
+              // Fix 5: no-op when Settings tab is already the active surface.
+              if (sidebarActiveTab !== 'settings') {
+                setShowSettingsModal(true);
+              }
+            }}
             title="Settings (Ctrl+,)"
             aria-label="Open settings"
           >
@@ -3739,7 +3762,16 @@ This file contains rules and guidelines for AI assistants in this workspace.
         {/* Sidebar with file tree, workflows, research, and settings */}
         <AppShellNav
           activeTab={sidebarActiveTab}
-          onTabChange={setSidebarActiveTab as (tab: string) => void}
+          onTabChange={(tab: string) => {
+            // Fix 1: any click to 'files' in the spine nav lands on the Files
+            // browser, even if a document was the last thing open. This is the
+            // user clicking the nav (vs a file being opened programmatically),
+            // so it always means "show me my files".
+            if (tab === 'files') {
+              setDocumentsView('browser');
+            }
+            setSidebarActiveTab(tab as typeof sidebarActiveTab);
+          }}
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
           onOpenGridView={handleOpenGridView}
@@ -3891,6 +3923,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
           />
         ) : isReimaginedShell() && sidebarActiveTab === 'files' ? (
           <ReimaginedDocumentsHome
+            documentsView={documentsView}
             onFileOpen={handleFileOpen}
             onCreateFile={handleCreateFile}
             onCreateFolder={handleCreateFolder}
