@@ -72,3 +72,4 @@ scripts/recordings/
 
 # Local dev screenshot scripts (UI reimagining)
 .kp-*.mjs
+.certs/

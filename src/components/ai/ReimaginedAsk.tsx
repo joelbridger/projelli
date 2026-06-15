@@ -1598,15 +1598,15 @@ export function ReimaginedAsk({
             onBlur={() => { setComposerFocused(false); }}
             placeholder={
               askScope === 'email'
-                ? 'Ask anything about your imported email…'
+                ? 'Search your imported email…'
                 : askScope === 'documents'
-                  ? 'Ask anything across your documents…'
+                  ? 'Search across your documents…'
                   : activeMatter
-                    ? `Ask anything about ${matterLabel(activeMatter)}…`
-                    : 'Ask anything across all matters…'
+                    ? `Search ${matterLabel(activeMatter)}…`
+                    : 'Search across all matters…'
             }
             disabled={isBusy}
-            aria-label="Ask a question about this matter"
+            aria-label="Search this matter"
             style={{
               flex: 1,
               border: 0,

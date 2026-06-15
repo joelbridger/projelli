@@ -1265,7 +1265,7 @@ export function ReimaginedEmailWorkspace({
       return;
     }
     if (!isMemoryEnabled()) {
-      setAskError('Memory (RAG) is not enabled. Enable it in Settings to use Ask AI mode.');
+      setAskError('Memory (RAG) is not enabled. Enable it in Settings to use AI search.');
       return;
     }
 
@@ -1552,7 +1552,7 @@ export function ReimaginedEmailWorkspace({
                 }}
               >
                 { }
-                {m === 'keyword' ? 'Search' : 'Ask AI'}
+                {m === 'keyword' ? 'Keyword' : 'AI search'}
                 { }
               </button>
             ))}
@@ -1581,8 +1581,8 @@ export function ReimaginedEmailWorkspace({
             onBlur={() => { setSearchFocused(false); }}
             placeholder={
               mode === 'keyword'
-                ? 'Search email...'
-                : 'Ask about your email...'
+                ? 'Search email by keyword...'
+                : 'Search your email with AI...'
             }
             style={{
               flex: 1,
@@ -2119,7 +2119,7 @@ export function ReimaginedEmailWorkspace({
                     letterSpacing: '-0.01em',
                   }}
                 >
-                  Ask about your email
+                  Search your email
                 </div>
                 <div
                   style={{
@@ -2198,7 +2198,7 @@ export function ReimaginedEmailWorkspace({
                 {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                 {!isMemoryEnabled() ? (
                   <span>
-                    Ask AI needs memory enabled.{' '}
+                    AI search needs memory enabled.{' '}
                     <button
                       type="button"
                       onClick={() => {

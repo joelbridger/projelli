@@ -3,7 +3,7 @@
  * keepance.com. A drop-in alternative to <Sidebar> that reuses the exact same
  * content panels (matters, files, search, workflows, AI, audit, trash) but
  * leads with the attorney's jobs: Matters first, "Documents" for the file,
- * "Ask" for find-anything, "Associate" for the litigation workflows, and
+ * "Search" for find-anything, "Workflows" for the litigation workflows, and
  * "Your defense file" for the audit log. The binder spine of the case file.
  *
  * Rendered behind the ?shell=new flag while the matter-centric experience is

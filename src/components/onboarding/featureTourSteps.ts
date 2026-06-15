@@ -47,7 +47,7 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'email',
     title: 'Email lives here now',
-    body: 'Connect your Microsoft 365 or Gmail inbox and Keepance imports your matter-related emails, lets you search across them, and lets Ask cite them in answers. Your email stays encrypted on your machine; nothing is uploaded to Keepance servers.',
+    body: 'Connect your Microsoft 365 or Gmail inbox and Keepance imports your matter-related emails, lets you search across them, and cites them in your answers. Your email stays encrypted on your machine; nothing is uploaded to Keepance servers.',
     targetSelector: '[data-testid="spine-nav-email"]',
     placement: 'right',
   },

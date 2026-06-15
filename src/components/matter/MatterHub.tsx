@@ -438,7 +438,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
           <input
             type="text"
             data-testid="hub-ask-input"
-            placeholder={`Ask about this ${entityLabel.one}...`}
+            placeholder={`Search this ${entityLabel.one}...`}
             value={askQ}
             onChange={(e) => { setAskQ(e.target.value); }}
             onKeyDown={handleAskKeyDown}

@@ -476,7 +476,7 @@ describe('ReimaginedEmailWorkspace', () => {
     fireEvent.click(screen.getByTestId('mode-ask'));
 
     expect(screen.getByTestId('ask-empty-state')).toBeInTheDocument();
-    expect(screen.getByText('Ask about your email')).toBeInTheDocument();
+    expect(screen.getByText('Search your email')).toBeInTheDocument();
 
     // All three chips should render
     const chips = screen.getAllByTestId('ask-chip');

@@ -3879,7 +3879,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
           }
           workflowContent={
             <WorkflowPanel
-              {...(isReimaginedShell() ? { heading: 'Litigation Associate' } : {})}
+              {...(isReimaginedShell() ? { heading: 'Workflows' } : {})}
               onStartWorkflow={handleStartWorkflow}
               currentExecution={currentExecution}
               runHistory={runHistory}

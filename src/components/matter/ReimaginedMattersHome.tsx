@@ -473,7 +473,7 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
         <button
           type="button"
           data-testid={`matter-launch-ask-${matter.id}`}
-          aria-label={`Ask AI about ${label}`}
+          aria-label={`Search ${label}`}
           style={{
             ...quickActionBtn,
             background: hovered ? 'rgba(10,37,64,0.05)' : '#fff',
@@ -481,7 +481,7 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
           onClick={(e) => { launchSurface('search', e); }}
         >
           <MessageSquare style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
-          Ask
+          Search
         </button>
         <button
           type="button"

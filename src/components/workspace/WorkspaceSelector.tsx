@@ -227,7 +227,11 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         await openWorkspacePath(selectedPath as string);
       } else {
         if (!WebFSBackend.isSupported()) {
-          setError('File System Access API is not supported in this browser. Please use Chrome, Edge, or Opera.');
+          setError(
+            typeof window !== 'undefined' && window.isSecureContext === false
+              ? 'Opening a folder from a browser needs a secure (https) connection. The desktop app does this natively. To use it in a browser, open Keepance over https or on localhost.'
+              : 'This browser does not support opening folders. Please use Chrome, Edge, or Opera, or use the Keepance desktop app.',
+          );
           setIsLoading(false);
           return;
         }
@@ -288,7 +292,11 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         rootPath = selectedPath as string;
       } else {
         if (!WebFSBackend.isSupported()) {
-          setError('File System Access API is not supported in this browser. Please use Chrome, Edge, or Opera.');
+          setError(
+            typeof window !== 'undefined' && window.isSecureContext === false
+              ? 'Opening a folder from a browser needs a secure (https) connection. The desktop app does this natively. To use it in a browser, open Keepance over https or on localhost.'
+              : 'This browser does not support opening folders. Please use Chrome, Edge, or Opera, or use the Keepance desktop app.',
+          );
           setIsLoading(false);
           return;
         }

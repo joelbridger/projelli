@@ -2,10 +2,22 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Optional HTTPS for the dev server. The browser File System Access API
+// (workspace folder picker) only works in a secure context, so opening the
+// dev server over a plain-http Tailscale/LAN IP disables it. Set
+// KEEPANCE_DEV_HTTPS=1 and provide .certs/dev-{cert,key}.pem to serve over
+// https so the folder picker works when testing remotely. Off by default.
+const devCertPath = path.resolve(__dirname, '.certs/dev-cert.pem');
+const devKeyPath = path.resolve(__dirname, '.certs/dev-key.pem');
+const devHttps =
+  process.env['KEEPANCE_DEV_HTTPS'] === '1' && existsSync(devCertPath) && existsSync(devKeyPath)
+    ? { cert: readFileSync(devCertPath), key: readFileSync(devKeyPath) }
+    : undefined;
 
 // Read package.json once at config-load time so the in-app About panel
 // can show the same version the bundle was built with.
@@ -43,6 +55,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    ...(devHttps ? { https: devHttps } : {}),
     // For Tauri development
     watch: {
       ignored: ['**/src-tauri/**'],

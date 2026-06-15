@@ -100,7 +100,7 @@ export const PRICING_TIERS: readonly PricingTier[] = [
     featured: true,
     features: [
       'Everything in Solo',
-      'The litigation associate: deposition contradiction-finder, timelines, discovery triage, privilege-log drafter',
+      'The legal workflow library: deposition contradiction-finder, timelines, discovery triage, privilege-log drafter',
       'Version history',
       'All practice packs',
       'Priority support',

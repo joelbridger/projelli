@@ -205,12 +205,12 @@ describe('ReimaginedAsk', () => {
     fireEvent.change(input, { target: { value: 'Test question' } });
     // Find the submit button — after typing, it should be enabled
     const buttons = screen.getAllByRole('button');
-    const askBtn = buttons.find((b) => b.textContent?.includes('Ask') && !(b as HTMLButtonElement).disabled);
-    // If we found an enabled Ask button, clicking it should not throw
-    if (askBtn) {
-      expect(() => fireEvent.click(askBtn)).not.toThrow();
+    const searchBtn = buttons.find((b) => b.textContent?.includes('Search') && !(b as HTMLButtonElement).disabled);
+    // If we found an enabled Search button, clicking it should not throw
+    if (searchBtn) {
+      expect(() => fireEvent.click(searchBtn)).not.toThrow();
     } else {
-      // If disabled Ask button is all we found, that's still a valid state
+      // If a disabled Search button is all we found, that's still a valid state
       expect(input).toBeDefined();
     }
   });
