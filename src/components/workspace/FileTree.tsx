@@ -103,9 +103,7 @@ interface FileTreeProps {
    * changed in Settings). Used by the empty-state primary CTA.
    */
   onCreateDefaultDocument?: () => void;
-  onCreateMarkdownAtRoot?: () => void;
   onCreateTextFileAtRoot?: () => void;
-  onCreateRichTextFileAtRoot?: () => void;
   onCreateSourceFileAtRoot?: () => void;
   onCreateFolderAtRoot?: () => void;
   onUploadFiles?: (files: FileList, targetFolder?: string) => Promise<void>;
@@ -154,9 +152,7 @@ export function FileTree({
   onMove,
   onDownload,
   onCreateDefaultDocument,
-  onCreateMarkdownAtRoot,
   onCreateTextFileAtRoot,
-  onCreateRichTextFileAtRoot,
   onCreateSourceFileAtRoot,
   onCreateFolderAtRoot,
   onUploadFiles,
@@ -393,20 +389,9 @@ export function FileTree({
               </DropdownMenuItem>
             )}
             {onCreateDocxAtRoot && <DropdownMenuSeparator />}
-            <DropdownMenuItem
-              data-testid="new-file-type-markdown"
-              onClick={onCreateMarkdownAtRoot}
-            >
-              <FileText className="h-3.5 w-3.5 mr-2" />
-              Markdown (.md)
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={onCreateTextFileAtRoot}>
               <File className="h-3.5 w-3.5 mr-2" />
               {t('workspace.file-tree.new.plain-text')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onCreateRichTextFileAtRoot}>
-              <FileText className="h-3.5 w-3.5 mr-2 text-indigo-500" />
-              {t('workspace.file-tree.new.rich-text')}
             </DropdownMenuItem>
             {onCreatePptxAtRoot && (
               <DropdownMenuItem
@@ -548,9 +533,7 @@ export function FileTree({
           shortcut="Ctrl+N / Ctrl+P"
           {...(onCreateDefaultDocument
             ? { cta: { label: 'New document', onClick: onCreateDefaultDocument } }
-            : onCreateMarkdownAtRoot
-              ? { cta: { label: 'New Markdown file', onClick: onCreateMarkdownAtRoot } }
-              : {})}
+            : {})}
         />
       ) : (
         <div

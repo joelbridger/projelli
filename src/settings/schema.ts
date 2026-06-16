@@ -248,7 +248,6 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
       { value: 'docx', label: 'Word Document (.docx)' },
       { value: 'markdown', label: 'Markdown' },
       { value: 'plaintext', label: 'Plain Text' },
-      { value: 'richtext', label: 'Rich Text' },
     ],
   },
   {

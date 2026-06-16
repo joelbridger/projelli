@@ -13,11 +13,9 @@ import { AutoSaveIndicator } from '@/components/editor/AutoSaveIndicator';
 import { getFileIcon } from '@/utils/fileIcons';
 import { MarkdownEditor, type MarkdownEditorRef } from '@/components/editor/MarkdownEditor';
 import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
-import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { FormattingToolbar, type ToolbarFileType } from '@/components/editor/FormattingToolbar';
 import { SplitPane } from '@/components/editor/SplitPane';
 import { OutlinePanel } from '@/components/editor/OutlinePanel';
-import { BacklinksPanel } from '@/components/editor/BacklinksPanel';
 import { ImageViewer, VideoViewer, isImageFile, isVideoFile } from '@/components/media/MediaViewer';
 import { PDFViewer, isPDFFile, isSpreadsheetFile, isPresentationFile, isWordFile } from '@/components/media/PDFViewer';
 
@@ -36,9 +34,6 @@ const PresentationViewer = lazy(() =>
   import('@/components/media/PresentationViewer').then((m) => ({
     default: m.PresentationViewer,
   }))
-);
-const RtfEditor = lazy(() =>
-  import('@/components/media/RtfEditor').then((m) => ({ default: m.RtfEditor }))
 );
 import { SourceFileEditor } from '@/components/research/SourceFileEditor';
 import { AIChatViewer } from '@/components/ai/AIChatViewer';
@@ -70,7 +65,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FileText, List, Link2, PanelRightClose, FileType, X, History, Download, ChevronDown, Loader2, MoreHorizontal, Columns, Rows, Pencil } from 'lucide-react';
+import { FileText, List, PanelRightClose, FileType, X, History, Download, ChevronDown, Loader2, MoreHorizontal, Columns, Rows, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { saveFile } from '@/utils/saveFile';
 import { markdownToDocxBytes } from '@/utils/docx-io';
@@ -286,9 +281,7 @@ export function MainPanel({
     closeSplit,
     setSecondaryTab,
     showOutline,
-    showBacklinks,
     toggleOutline,
-    toggleBacklinks,
   } = useEditorStore();
 
   const activeTab = openTabs.find((t) => t.path === activeTabPath);
@@ -538,12 +531,6 @@ export function MainPanel({
     // In a real implementation, this would scroll the editor to the line
     console.log('Navigate to line:', lineNumber);
     // TODO: Implement scroll-to-line in MarkdownEditor
-  }, []);
-
-  const handleBacklinkClick = useCallback((path: string) => {
-    // In a real implementation, this would open the file
-    console.log('Open backlink:', path);
-    // The actual file opening would be handled by App.tsx
   }, []);
 
   // Check if a file is a text file that can be edited
@@ -862,8 +849,6 @@ export function MainPanel({
       // Check if it's a markdown or text file for formatting support
       // .txt files now get full formatting toolbar (bold, italic, headers, etc.)
       const isMarkdown = extension === 'md' || extension === 'markdown' || extension === 'txt' || !extension;
-      const isRtf = extension === 'rtf';
-      const isInternalRichText = extension === 'rt';
 
       if (isPreviewMode && isMarkdown && !isSecondary) {
         return (
@@ -874,33 +859,9 @@ export function MainPanel({
         );
       }
 
-      // `.rtf` goes through the dedicated RtfEditor (Phase 6) which parses
-      // the RTF bytes and round-trips through TipTap. The legacy path that
-      // routed `.rtf` here as though it were the internal `.rt` format
-      // meant users saw raw RTF markup instead of a rendered document.
-      if (isRtf) {
-        return (
-          <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
-            <RtfEditor
-              src={tab.content}
-              fileName={tab.name}
-              onContentChange={onContentChange}
-              onFirstEdit={() => writeBackupIfNeeded(tab.path)}
-            />
-          </Suspense>
-        );
-      }
-
-      // Keepance's internal `.rt` format (HTML-serialized TipTap state).
-      if (isInternalRichText) {
-        return (
-          <RichTextEditor
-            initialContent={tab.content}
-            onChange={onContentChange}
-            className="h-full"
-          />
-        );
-      }
+      // `.rtf` and `.rt` (internal rich text) are no longer supported editors.
+      // Fall through to MarkdownEditor for plain-text rendering of the raw
+      // content, which is the safest no-crash fallback.
 
       return (
         <MarkdownEditor
@@ -1034,7 +995,7 @@ export function MainPanel({
     );
   };
 
-  const showRightPanel = showOutline || showBacklinks || showVersionHistory;
+  const showRightPanel = showOutline || showVersionHistory;
 
   const handleRestoreVersion = useCallback(
     (content: string) => {
@@ -1266,13 +1227,6 @@ export function MainPanel({
                   <List className="h-3.5 w-3.5 mr-2" />
                   Toggle outline
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  data-testid="toolbar-overflow-backlinks"
-                  onClick={toggleBacklinks}
-                >
-                  <Link2 className="h-3.5 w-3.5 mr-2" />
-                  Toggle backlinks
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -1305,7 +1259,7 @@ export function MainPanel({
           <div className="w-64 border-l bg-muted/20 flex flex-col">
             <div className="flex items-center justify-between px-2 py-1 border-b">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                {showOutline ? 'Outline' : showBacklinks ? 'Backlinks' : 'Version History'}
+                {showOutline ? 'Outline' : 'Version History'}
               </span>
               <Button
                 variant="ghost"
@@ -1313,7 +1267,6 @@ export function MainPanel({
                 className="h-6 w-6 p-0"
                 onClick={() => {
                   if (showOutline) toggleOutline();
-                  if (showBacklinks) toggleBacklinks();
                   if (showVersionHistory) setShowVersionHistory(false);
                 }}
                 title="Close panel"
@@ -1327,12 +1280,6 @@ export function MainPanel({
                 <OutlinePanel
                   content={activeTab.content}
                   onHeadingClick={handleHeadingClick}
-                />
-              )}
-              {showBacklinks && activeTab && (
-                <BacklinksPanel
-                  backlinks={[]}
-                  onNavigate={handleBacklinkClick}
                 />
               )}
               {showVersionHistory && activeTab && (
@@ -1358,12 +1305,11 @@ export function MainPanel({
               )}
             </div>
             {/* Panel tabs at bottom */}
-            {(showOutline || showBacklinks || showVersionHistory) && (
+            {(showOutline || showVersionHistory) && (
               <div className="flex border-t">
                 <button
                   onClick={() => {
                     if (!showOutline) {
-                      if (showBacklinks) toggleBacklinks();
                       if (showVersionHistory) setShowVersionHistory(false);
                       toggleOutline();
                     }
@@ -1378,30 +1324,11 @@ export function MainPanel({
                   <List className="h-3 w-3 inline mr-1" />
                   Outline
                 </button>
-                <button
-                  onClick={() => {
-                    if (!showBacklinks) {
-                      if (showOutline) toggleOutline();
-                      if (showVersionHistory) setShowVersionHistory(false);
-                      toggleBacklinks();
-                    }
-                  }}
-                  className={cn(
-                    'flex-1 py-1.5 text-xs font-medium transition-colors border-l',
-                    showBacklinks
-                      ? 'bg-background text-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <Link2 className="h-3 w-3 inline mr-1" />
-                  Backlinks
-                </button>
                 {activeTab && shouldVersionFile(getFileExtension(activeTab.path)) && (
                   <button
                     onClick={() => {
                       if (!showVersionHistory) {
                         if (showOutline) toggleOutline();
-                        if (showBacklinks) toggleBacklinks();
                         setShowVersionHistory(true);
                       }
                     }}

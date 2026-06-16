@@ -66,16 +66,6 @@ test.describe('Keyboard shortcuts (L-138..L-147)', () => {
     expect(errors, 'console errors L-141').toHaveLength(0);
   });
 
-  // L-142: Toggle Backlinks Panel
-  test('L-142 Toggle backlinks panel shortcut does not crash', async ({ page, browserName: _b }, testInfo) => {
-    const getErrors = collectConsoleErrors(page);
-    await page.keyboard.press('Control+Shift+b');
-    await page.waitForTimeout(300);
-    await snap(page, testInfo, 'L-142-backlinks-panel');
-    const errors = getErrors();
-    expect(errors, 'console errors L-142').toHaveLength(0);
-  });
-
   // L-143: Ctrl+Shift+P — Command Palette
   test('L-143 Ctrl+Shift+P opens command palette', async ({ page, browserName: _b }, testInfo) => {
     const getErrors = collectConsoleErrors(page);
@@ -200,7 +190,6 @@ test.describe('Command palette commands (L-148..L-165)', () => {
       { ledger: 'L-149', term: 'save' },
       { ledger: 'L-150', term: 'close tab' },
       { ledger: 'L-151', term: 'outline' },
-      { ledger: 'L-152', term: 'backlinks' },
       { ledger: 'L-153', term: 'tab overflow' },
       { ledger: 'L-154', term: 'split' },
       { ledger: 'L-155', term: 'workspace' },

@@ -108,9 +108,7 @@ export interface ReimaginedDocumentsHomeProps {
    * the toolbar is fully functional. All are optional — when absent the
    * corresponding toolbar entry simply no-ops, exactly as FileTree allows.
    */
-  onCreateMarkdownAtRoot?: () => void;
   onCreateTextFileAtRoot?: () => void;
-  onCreateRichTextFileAtRoot?: () => void;
   onCreateFolderAtRoot?: () => void;
   onSetLetterheadTemplate?: (path: string) => void;
 }
@@ -310,9 +308,7 @@ export function ReimaginedDocumentsHome({
   onDownload,
   onCreateDefaultDocument,
   onCreateDocxAtRoot,
-  onCreateMarkdownAtRoot,
   onCreateTextFileAtRoot,
-  onCreateRichTextFileAtRoot,
   onCreateFolderAtRoot,
   onSetLetterheadTemplate,
 }: ReimaginedDocumentsHomeProps) {
@@ -766,9 +762,7 @@ export function ReimaginedDocumentsHome({
                 onMove={onMove}
                 onDownload={onDownload}
                 {...(onCreateDefaultDocument !== undefined ? { onCreateDefaultDocument } : {})}
-                {...(onCreateMarkdownAtRoot !== undefined ? { onCreateMarkdownAtRoot } : {})}
                 {...(onCreateTextFileAtRoot !== undefined ? { onCreateTextFileAtRoot } : {})}
-                {...(onCreateRichTextFileAtRoot !== undefined ? { onCreateRichTextFileAtRoot } : {})}
                 {...(onCreateFolderAtRoot !== undefined ? { onCreateFolderAtRoot } : {})}
                 {...(onCreateDocxAtRoot !== undefined ? { onCreateDocxAtRoot } : {})}
                 {...(onSetLetterheadTemplate !== undefined ? { onSetLetterheadTemplate } : {})}

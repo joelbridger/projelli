@@ -1,7 +1,7 @@
 /**
  * Editor toolbar overflow menu
  *
- * Secondary controls (Download, History, Split, Outline, Backlinks) are always
+ * Secondary controls (Download, History, Split, Outline) are always
  * inside the "…" overflow DropdownMenu in both wide and compact viewports.
  * Export is the only control that stays inline (markdown files only).
  *
@@ -40,14 +40,12 @@ test.describe('Editor toolbar overflow', () => {
     // Overflow trigger is visible in compact mode.
     await expect(page.getByTestId('toolbar-overflow')).toBeVisible();
 
-    // Outline and backlinks are now always in the overflow, never standalone buttons.
+    // Outline is now always in the overflow, never a standalone button.
     await expect(page.locator('[data-testid="toolbar-outline"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid="toolbar-backlinks"]')).toHaveCount(0);
 
     // Opening the overflow menu exposes the moved items.
     await hardClick(page.getByTestId('toolbar-overflow'));
     await expect(page.getByTestId('toolbar-overflow-outline')).toBeVisible();
-    await expect(page.getByTestId('toolbar-overflow-backlinks')).toBeVisible();
   });
 
   test('wide viewport still uses overflow for secondary controls', async ({ page }) => {
@@ -63,13 +61,11 @@ test.describe('Editor toolbar overflow', () => {
     // Overflow button is always present (unified overflow pattern).
     await expect(page.getByTestId('toolbar-overflow')).toBeVisible();
 
-    // Outline and backlinks are inside the overflow, not standalone.
+    // Outline is inside the overflow, not standalone.
     await expect(page.locator('[data-testid="toolbar-outline"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid="toolbar-backlinks"]')).toHaveCount(0);
 
     // Open the overflow to verify secondary items are accessible.
     await hardClick(page.getByTestId('toolbar-overflow'));
     await expect(page.getByTestId('toolbar-overflow-outline')).toBeVisible();
-    await expect(page.getByTestId('toolbar-overflow-backlinks')).toBeVisible();
   });
 });

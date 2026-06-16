@@ -1,8 +1,8 @@
 // WS-A / A5 — canonical default document format is Word (.docx).
 //
 // Keepance 3.0 made `.docx` the canonical document format, so creating a NEW
-// document defaults to `.docx` (the user can still pick Markdown / Plain Text /
-// Rich Text for notes). This locks the setting default + option set so the
+// document defaults to `.docx` (the user can still pick Markdown / Plain Text
+// for notes). This locks the setting default + option set so the
 // "New Document" action creates a `.docx` opened in the Word editor.
 
 import { describe, it, expect } from 'vitest';
@@ -26,7 +26,6 @@ describe('canonical default new-document type', () => {
     const values = def.options?.map((o) => o.value) ?? [];
     expect(values).toContain('markdown');
     expect(values).toContain('plaintext');
-    expect(values).toContain('richtext');
   });
 
   it('schema defaults map reflects the docx default', () => {
@@ -42,14 +41,12 @@ describe('canonical default new-document type', () => {
 
 // Mirrors the dispatch in App.tsx's handleCreateDefaultDocument so the routing
 // (default-type -> creator) is regression-locked without rendering all of App.
-function resolveCreator(kind: string): 'docx' | 'markdown' | 'plaintext' | 'richtext' {
+function resolveCreator(kind: string): 'docx' | 'markdown' | 'plaintext' {
   switch (kind) {
     case 'markdown':
       return 'markdown';
     case 'plaintext':
       return 'plaintext';
-    case 'richtext':
-      return 'richtext';
     case 'docx':
     default:
       return 'docx';
@@ -67,6 +64,5 @@ describe('new-document dispatch', () => {
   it('honors an explicit notes format', () => {
     expect(resolveCreator('markdown')).toBe('markdown');
     expect(resolveCreator('plaintext')).toBe('plaintext');
-    expect(resolveCreator('richtext')).toBe('richtext');
   });
 });

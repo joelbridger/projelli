@@ -44,7 +44,6 @@ interface PersistedTabState {
   splitDirection: 'horizontal' | 'vertical';
   secondaryTabPath: string | null;
   showOutline: boolean;
-  showBacklinks: boolean;
 }
 
 interface EditorState {
@@ -63,7 +62,6 @@ interface EditorState {
 
   // Side panels
   showOutline: boolean;
-  showBacklinks: boolean;
 
   // Pane layout
   layout: PaneLayout | null;
@@ -90,7 +88,6 @@ interface EditorState {
 
   // Panel actions
   toggleOutline: () => void;
-  toggleBacklinks: () => void;
 
   // Tab group actions
   createTabGroup: (name: string, tabPaths?: string[]) => string;
@@ -159,7 +156,6 @@ export const useEditorStore = create<EditorState>()(
 
   // Side panels
   showOutline: false,
-  showBacklinks: false,
 
   // UX-36: persisted tab overflow preference. Default: horizontal scroll.
   tabOverflow: (typeof localStorage !== 'undefined'
@@ -360,10 +356,6 @@ export const useEditorStore = create<EditorState>()(
     set((state) => ({ showOutline: !state.showOutline }));
   },
 
-  toggleBacklinks: () => {
-    set((state) => ({ showBacklinks: !state.showBacklinks }));
-  },
-
   // Tab group actions
   createTabGroup: (name, tabPaths = []) => {
     let newGroupId = '';
@@ -552,7 +544,6 @@ export const useEditorStore = create<EditorState>()(
       splitDirection: state.splitDirection,
       secondaryTabPath: state.secondaryTabPath,
       showOutline: state.showOutline,
-      showBacklinks: state.showBacklinks,
     };
     try {
       const json = JSON.stringify(persisted);
@@ -706,7 +697,6 @@ export const useEditorStore = create<EditorState>()(
       splitDirection: persisted.splitDirection,
       secondaryTabPath,
       showOutline: persisted.showOutline,
-      showBacklinks: persisted.showBacklinks,
     });
   },
 
@@ -720,7 +710,6 @@ export const useEditorStore = create<EditorState>()(
       splitDirection: 'horizontal',
       secondaryTabPath: null,
       showOutline: false,
-      showBacklinks: false,
       layout: null,
     });
   },
@@ -740,8 +729,7 @@ useEditorStore.subscribe((state, prevState) => {
     state.isSplit !== prevState.isSplit ||
     state.splitDirection !== prevState.splitDirection ||
     state.secondaryTabPath !== prevState.secondaryTabPath ||
-    state.showOutline !== prevState.showOutline ||
-    state.showBacklinks !== prevState.showBacklinks;
+    state.showOutline !== prevState.showOutline;
 
   if (!changed) {
     return;

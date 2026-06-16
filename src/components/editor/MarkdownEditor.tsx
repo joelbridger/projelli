@@ -11,18 +11,12 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { WordCountFooter } from './WordCountFooter';
 import {
-  createWikiLinkCompletionSource,
-  flattenFilesForWikiLinks,
-  type WikiLinkFileInfo,
-} from '@/modules/editor/wikiLinkAutocomplete';
-import {
   createSmartPasteExtension,
   processImageFile,
   type FetchUrlTitle,
   type WriteImage,
   type ShowToast,
 } from '@/modules/editor/smartPaste';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
 import {
   SCROLL_TO_PARAGRAPH_EVENT,
   consumePendingScroll,
@@ -122,7 +116,6 @@ const editorTheme = EditorView.theme({
 const createExtensions = (
   onChangeRef: React.MutableRefObject<((content: string) => void) | undefined>,
   onChangeMirrorRef: React.MutableRefObject<((content: string) => void) | undefined>,
-  getFilesRef: React.MutableRefObject<() => WikiLinkFileInfo[]>,
   smartPasteRefs: {
     fetchUrlTitle: React.MutableRefObject<FetchUrlTitle>;
     writeImage: React.MutableRefObject<WriteImage | undefined>;
@@ -134,10 +127,6 @@ const createExtensions = (
   selectionVersionBumpRef: React.MutableRefObject<(() => void) | undefined>,
   readOnly: boolean = false
 ) => {
-  // Q14 — wiki-link autocomplete source. Reads the workspace file list via a
-  // ref so the popup always shows the current file tree even after the user
-  // creates or deletes files without re-mounting the editor.
-  const wikiLinkSource = createWikiLinkCompletionSource(() => getFilesRef.current());
   // Q12 + Q13 — smart paste extension. All callbacks are resolved via
   // refs so the extension never re-creates when a parent hands us a new
   // lambda (e.g. App.tsx passing a fresh `writeImage` closure each
@@ -167,7 +156,7 @@ const createExtensions = (
     foldGutter(),
     bracketMatching(),
     closeBrackets(),
-    autocompletion({ override: [wikiLinkSource] }),
+    autocompletion(),
     highlightSelectionMatches(),
     syntaxHighlighting(defaultHighlightStyle),
     markdown({ base: markdownLanguage }),
@@ -225,15 +214,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     const containerRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
     const onChangeRef = useRef(onChange);
-    // Q14 — live workspace file list for wiki-link autocomplete. Kept behind
-    // a ref so file-tree changes don't trigger the editor remount effect.
-    const fileTree = useWorkspaceStore((s) => s.fileTree);
-    const getFilesRef = useRef<() => WikiLinkFileInfo[]>(() =>
-      flattenFilesForWikiLinks(fileTree)
-    );
-    useEffect(() => {
-      getFilesRef.current = () => flattenFilesForWikiLinks(fileTree);
-    }, [fileTree]);
 
     // Q12 + Q13 — smart paste callbacks behind refs so they stay fresh
     // without re-mounting the editor. Default `fetchUrlTitle` imports
@@ -394,7 +374,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
         extensions: createExtensions(
           onChangeRef,
           onChangeMirrorRef,
-          getFilesRef,
           {
             fetchUrlTitle: fetchUrlTitleRef,
             writeImage: writeImageRef,

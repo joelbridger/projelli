@@ -333,7 +333,7 @@ function App() {
     : theme;
 
   const { rootPath, setRootPath, setFileTree, recentWorkspaces, fileTree, expandedPaths, expandAllFolders, loadRecentWorkspaces } = useWorkspaceStore();
-  const { openFile, openTab, markSaved, openTabs, activeTabPath, closeTab, closeTabsByPath, toggleOutline, toggleBacklinks, splitPane, closeSplit, isSplit } = useEditorStore();
+  const { openFile, openTab, markSaved, openTabs, activeTabPath, closeTab, closeTabsByPath, toggleOutline, splitPane, closeSplit, isSplit } = useEditorStore();
   const { runHistory, completeRun } = useWorkflowStore();
 
   // M1 (v1.5) Memory: install the workspace RAG indexer once we know
@@ -1786,32 +1786,6 @@ function App() {
   }, []);
 
 
-  // Handle create markdown file in a target folder (defaults to docs folder).
-  // R6-1: `parentPath` lets the Documents grid create the file in the folder
-  // the user currently has open; when omitted it falls back to `<root>/docs`.
-  const handleCreateMarkdownAtRoot = useCallback(async (parentPath?: string) => {
-    if (!workspaceServiceRef.current || !rootPath) return;
-    const destDir = parentPath ?? `${rootPath}/docs`;
-    const name = await prompt('Enter file name (without extension):', '', {
-      title: 'Create Markdown File',
-      placeholder: 'my-document',
-      destinationPath: `${destDir}/`,
-      previewExtension: '.md',
-    });
-    if (!name) return;
-
-    const fileName = name.endsWith('.md') ? name : `${name}.md`;
-    const filePath = `${destDir}/${fileName}`;
-    try {
-      await workspaceServiceRef.current.writeFile(filePath, '# ' + name.replace(/\.md$/, '') + '\n\n');
-      const fileTree = await workspaceServiceRef.current.getFileTree();
-      setFileTree(fileTree);
-      await handleFileOpen(filePath, fileName);
-    } catch (error) {
-      console.error('Failed to create markdown file:', error);
-    }
-  }, [rootPath, setFileTree, handleFileOpen, prompt]);
-
   // Handle create plain text file in a target folder (defaults to docs folder).
   const handleCreateTextFileAtRoot = useCallback(async (parentPath?: string) => {
     if (!workspaceServiceRef.current || !rootPath) return;
@@ -1835,33 +1809,6 @@ function App() {
       console.error('Failed to create text file:', error);
     }
   }, [rootPath, setFileTree, handleFileOpen, prompt]);
-
-  // Handle create rich text file in a target folder (defaults to docs folder).
-  const handleCreateRichTextFileAtRoot = useCallback(async (parentPath?: string) => {
-    if (!workspaceServiceRef.current || !rootPath) return;
-    const destDir = parentPath ?? `${rootPath}/docs`;
-    const name = await prompt('Enter file name (without extension):', '', {
-      title: 'Create Rich Text File',
-      placeholder: 'my-document',
-      destinationPath: `${destDir}/`,
-      previewExtension: '.rt',
-    });
-    if (!name) return;
-
-    const fileName = name.endsWith('.rt') || name.endsWith('.rtf') ? name : `${name}.rt`;
-    const filePath = `${destDir}/${fileName}`;
-    try {
-      // Default to an empty paragraph so Tiptap has a valid starting state
-      await workspaceServiceRef.current.writeFile(filePath, '<p></p>');
-      const fileTree = await workspaceServiceRef.current.getFileTree();
-      setFileTree(fileTree);
-      await handleFileOpen(filePath, fileName);
-    } catch (error) {
-      console.error('Failed to create rich text file:', error);
-    }
-  }, [rootPath, setFileTree, handleFileOpen, prompt]);
-
-
 
   // VG-4c — pick a Word file as the firm letterhead template. Stores its path
   // in the `letterheadTemplatePath` setting; new documents and workflow
@@ -1944,14 +1891,8 @@ function App() {
       .getState()
       .getSetting<string>('defaultNewFileType');
     switch (kind) {
-      case 'markdown':
-        await handleCreateMarkdownAtRoot(parentPath);
-        break;
       case 'plaintext':
         await handleCreateTextFileAtRoot(parentPath);
-        break;
-      case 'richtext':
-        await handleCreateRichTextFileAtRoot(parentPath);
         break;
       case 'docx':
       default:
@@ -1960,9 +1901,7 @@ function App() {
         break;
     }
   }, [
-    handleCreateMarkdownAtRoot,
     handleCreateTextFileAtRoot,
-    handleCreateRichTextFileAtRoot,
     handleCreateDocxAtRoot,
   ]);
 
@@ -2793,13 +2732,6 @@ This file contains rules and guidelines for AI assistants in this workspace.
         action: toggleOutline,
       },
       {
-        id: 'view.backlinks',
-        label: 'Toggle Backlinks Panel',
-        shortcut: 'Ctrl+Shift+B',
-        category: 'view',
-        action: toggleBacklinks,
-      },
-      {
         // F-509 — discoverable home for the now-functional Ctrl+B toggle.
         id: 'view.sidebar',
         label: 'Toggle Sidebar',
@@ -2866,7 +2798,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
       },
     ];
     return [...appCommands, ...baseCommands];
-  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, sidebarActiveTab]);
+  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, sidebarActiveTab]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -2931,13 +2863,6 @@ This file contains rules and guidelines for AI assistants in this workspace.
       if (isMod && !e.shiftKey && e.key === 'b') {
         e.preventDefault();
         setSidebarCollapsed((v) => !v);
-        return;
-      }
-
-      // Toggle backlinks: Ctrl+Shift+B
-      if (isMod && e.shiftKey && e.key === 'b') {
-        e.preventDefault();
-        toggleBacklinks();
         return;
       }
 
@@ -3084,7 +3009,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, setFileTree, handleFileOpen, handleRestoreFromTrash, openAIAssistantTab, sidebarActiveTab, handleCreateDefaultDocument, setDocumentsView]);
+  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, isSplit, splitPane, closeSplit, setFileTree, handleFileOpen, handleRestoreFromTrash, openAIAssistantTab, sidebarActiveTab, handleCreateDefaultDocument, setDocumentsView]);
 
   // Show workspace selector if no workspace is open (unless in test mode).
   // Keepance 3.0: the rebuilt first-run wizard is the live first-run surface.
@@ -3367,9 +3292,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
             onDownload={handleDownload}
             onCreateDefaultDocument={handleCreateDefaultDocument}
             onCreateDocxAtRoot={handleCreateDocxAtRoot}
-            onCreateMarkdownAtRoot={handleCreateMarkdownAtRoot}
             onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
-            onCreateRichTextFileAtRoot={handleCreateRichTextFileAtRoot}
             onCreateFolderAtRoot={handleCreateFolderAtRoot}
             onSetLetterheadTemplate={handleSetLetterheadTemplate}
             trashItems={trashItems}

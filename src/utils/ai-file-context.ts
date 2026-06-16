@@ -26,8 +26,6 @@
 import { parseSpreadsheet, type SpreadsheetExtension, type SheetData } from './spreadsheet-io';
 import { extractDocxText } from './docx-io';
 import { extractPptxText } from './pptx-io';
-import { extractRtfText } from './rtf-io';
-
 /** Character cap before AI-bound text is truncated. ~50k Claude tokens. */
 export const MAX_EXTRACTED_CHARS = 200_000;
 
@@ -38,7 +36,6 @@ export type ExtractedSourceKind =
   | 'spreadsheet'
   | 'docx'
   | 'pptx'
-  | 'rtf'
   | 'text';
 
 export interface ExtractedContext {
@@ -129,10 +126,9 @@ export async function extractForAI(
       rawText = content;
       sourceKind = 'text';
     } else if (ext === 'rtf') {
-      // Real RTF file — decode via the dedicated parser so control words
-      // and `\uNNNN` escapes don't leak into the AI prompt.
-      rawText = await extractRtfText(content);
-      sourceKind = 'rtf';
+      // RTF files contain binary control words; return null so the AI
+      // context path doesn't emit raw escape sequences.
+      return null;
     } else if (ext === 'rt') {
       // Keepance's internal `.rt` format — HTML-serialized TipTap state.
       // Strip tags with a minimal regex so we don't pull in a DOM parser.

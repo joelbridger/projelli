@@ -2,10 +2,9 @@
  * Plain-text word count footer (UX-30).
  *
  * Shared between MarkdownEditor and PlainTextEditor so the two CodeMirror-based
- * editors get the same footer as the TipTap editors (DocxEditor, RtfEditor,
- * RichTextEditor).
+ * editors get the same footer as the DocxEditor.
  *
- * Styling mirrors the TipTap WordCountFooter exactly:
+ * Styling mirrors the DocxEditor WordCountFooter exactly:
  *   right-aligned · 11px · muted-foreground · tabular-nums · top border
  *
  * Test hook: `data-testid="editor-word-count"` — same id all editors use.
