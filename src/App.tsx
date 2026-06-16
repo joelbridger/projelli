@@ -13,6 +13,7 @@ import { useWorkspaceLifecycle } from '@/app/lifecycle/useWorkspaceLifecycle';
 import { useKeyboardShortcuts } from '@/app/commands/useKeyboardShortcuts';
 import { useAppCommands } from '@/app/commands/useAppCommands';
 import { useDialogManager } from '@/app/dialogs/useDialogManager';
+import { useFileOperations } from '@/app/fileOps/useFileOperations';
 import { useTranslation } from 'react-i18next';
 import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
 
@@ -116,9 +117,6 @@ import {
 import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/utils/file-utils';
 import { writeDroppedFiles } from '@/utils/fileDrop';
 import { requestScrollToParagraph } from '@/utils/scrollToParagraph';
-import {
-  dataUrlToArrayBuffer,
-} from '@/utils/spreadsheet-io';
 import { createBlankDocx, docxBytesToDataUrl } from '@/utils/docx-io';
 
 import { useTrash } from '@/hooks/useTrash';
@@ -1180,261 +1178,29 @@ function App() {
     });
   }, [activeMatterId, sidebarActiveTab, activeTabPath]);
 
-  // UX-35: shared writer that routes binary file extensions (.docx, .xlsx,
-  // .pptx, .rtf, etc.) through writeFileBinary using the bytes decoded
-  // from the editor's data-URL content. The Save path (handleSaveFile)
-  // and the autosave interval both call into this so the two can't drift.
-  //
-  // Why this matters: DocxEditor (and the other binary-format editors)
-  // pushes tab content as a `data:...base64,...` string. The previous
-  // writeFile(path, content) path stored that string literally as UTF-8
-  // text on disk, which destroyed the actual .docx/.xlsx bytes —
-  // re-opening the file produced JSZip's "can't find end of central
-  // directory" error because the on-disk bytes were a base64 text blob
-  // instead of a zip archive.
-  const writeTabContent = useCallback(
-    async (path: string, content: string): Promise<void> => {
-      const service = workspaceServiceRef.current;
-      if (!service) return;
-      if (isBinaryFile(path) && content.startsWith('data:')) {
-        // Strip the data-URL prefix and decode bytes back to an ArrayBuffer
-        // so the on-disk file is the actual binary format, not the text
-        // encoding of it.
-        const buffer = dataUrlToArrayBuffer(content);
-        await service.writeFileBinary(path, buffer);
-      } else {
-        await service.writeFile(path, content);
-      }
-    },
-    []
-  );
-
-  // Handle file save
-  const handleSaveFile = useCallback(
-    async (path: string, content: string) => {
-      if (!workspaceServiceRef.current) return;
-
-      try {
-        await writeTabContent(path, content);
-        markSaved(path);
-
-        // Refresh file tree
-        const fileTree = await workspaceServiceRef.current.getFileTree();
-        setFileTree(fileTree);
-
-        // UX-26: keep the content index current so the next search sees
-        // the just-saved text. Binary writes skip this path — the index
-        // builder re-extracts via extractForAI anyway on a full rebuild.
-        if (!isBinaryFile(path)) {
-          const name = path.split('/').pop() ?? path;
-          contentIndex.upsert({ id: path, path, name, content });
-        }
-      } catch (error) {
-        console.error('Failed to save file:', error);
-      }
-    },
-    [markSaved, setFileTree, contentIndex, writeTabContent]
-  );
-
-  // Handle create new file
-  const handleCreateFile = useCallback(
-    async (parentPath: string) => {
-      const name = await prompt('Enter file name:', '', {
-        title: 'Create File',
-        placeholder: 'myfile.txt',
-        // UX-15: show the user which folder they're creating into. For
-        // subfolder-right-click-create this is the most useful info.
-        destinationPath: `${parentPath}/`,
-      });
-      if (!name || !workspaceServiceRef.current) return;
-
-      const filePath = `${parentPath}/${name}`;
-      try {
-        await workspaceServiceRef.current.writeFile(filePath, '');
-        const fileTree = await workspaceServiceRef.current.getFileTree();
-        setFileTree(fileTree);
-        await handleFileOpen(filePath, name);
-      } catch (error) {
-        console.error('Failed to create file:', error);
-        window.alert("I couldn't create that. Try a different name.");
-      }
-    },
-    [setFileTree, handleFileOpen, prompt]
-  );
-
-  // Handle create new folder
-  const handleCreateFolder = useCallback(
-    async (parentPath: string) => {
-      const name = await prompt('Enter folder name:', '', {
-        title: 'Create Folder',
-        placeholder: 'my-folder',
-        // UX-15: also show destination for folder creation.
-        destinationPath: `${parentPath}/`,
-      });
-      if (!name || !workspaceServiceRef.current) return;
-
-      const folderPath = `${parentPath}/${name}`;
-      try {
-        await workspaceServiceRef.current.mkdir(folderPath);
-        const fileTree = await workspaceServiceRef.current.getFileTree();
-        setFileTree(fileTree);
-
-        // Auto-expand the newly created folder
-        const { expandedPaths, setExpandedPaths } = useWorkspaceStore.getState();
-        const newExpanded = new Set(expandedPaths);
-        newExpanded.add(folderPath);
-        setExpandedPaths(newExpanded);
-      } catch (error) {
-        console.error('Failed to create folder:', error);
-        window.alert("I couldn't create that. Try a different name.");
-      }
-    },
-    [setFileTree, prompt]
-  );
-
-  // Handle rename (prompts user)
-  const handleRename = useCallback(
-    async (path: string) => {
-      const currentName = path.split('/').pop() ?? '';
-      const newName = await prompt('Enter new name:', currentName, {
-        title: 'Rename',
-      });
-      if (!newName || newName === currentName || !workspaceServiceRef.current) return;
-
-      try {
-        await workspaceServiceRef.current.rename(path, newName);
-        const fileTree = await workspaceServiceRef.current.getFileTree();
-        setFileTree(fileTree);
-
-        // UX-16: record the rename so Ctrl+Z can revert it within the
-        // session. We store the full old/new absolute paths so undo can
-        // call `rename(newPath, oldName)` without re-deriving anything.
-        const parent = path.substring(0, path.lastIndexOf('/'));
-        const newPath = `${parent}/${newName}`;
-        renameHistoryRef.current.push({ fromPath: path, toPath: newPath });
-        // UX-29: track the kind of action so Ctrl+Z can undo the most
-        // recent destructive change (either rename OR delete), not just
-        // the most recent rename.
-        undoStackRef.current.push('rename');
-      } catch (error) {
-        console.error('Failed to rename:', error);
-        window.alert("I couldn't rename that file. Make sure it isn't open in another app, then try again.");
-      }
-    },
-    [setFileTree, prompt]
-  );
-
-  // Handle rename with provided name (for tab double-click)
-  const handleRenameWithName = useCallback(
-    async (path: string, newName: string) => {
-      if (!workspaceServiceRef.current) return;
-      const currentName = path.split('/').pop() ?? '';
-      if (newName === currentName) return;
-
-      try {
-        await workspaceServiceRef.current.rename(path, newName);
-        const fileTree = await workspaceServiceRef.current.getFileTree();
-        setFileTree(fileTree);
-
-        // Update the tab name in the editor store
-        const oldPath = path;
-        const newPath = path.substring(0, path.lastIndexOf('/') + 1) + newName;
-
-        // Close old tab and open new one with same content if it was open.
-        // Preserve the tab's group membership across the close/reopen so
-        // renaming from the Tab Group Manager modal (or the dropdown) does
-        // not drop the tab out of its group.
-        const tab = openTabs.find(t => t.path === oldPath);
-        if (tab) {
-          const preservedGroupId = tab.groupId;
-          closeTab(oldPath);
-          await handleFileOpen(newPath, newName);
-          if (preservedGroupId) {
-            useEditorStore.getState().moveTabToGroup(newPath, preservedGroupId);
-          }
-        }
-
-        // UX-16: track the rename for session-level Ctrl+Z undo.
-        renameHistoryRef.current.push({ fromPath: oldPath, toPath: newPath });
-        // UX-29: push onto the combined undo stack so Ctrl+Z knows which
-        // stack to pop.
-        undoStackRef.current.push('rename');
-      } catch (error) {
-        console.error('Failed to rename:', error);
-        window.alert("I couldn't rename that file. Make sure it isn't open in another app, then try again.");
-      }
-    },
-    [setFileTree, openTabs, closeTab, handleFileOpen]
-  );
-
-
-  // Handle download file
-  const handleDownload = useCallback(
-    async (path: string, name: string) => {
-      if (!workspaceServiceRef.current) return;
-
-      try {
-        const content = await workspaceServiceRef.current.readFile(path);
-
-        // Use cross-platform saveFile utility (works in both browser and Tauri)
-        await saveFile(content, {
-          suggestedName: name,
-          types: [
-            {
-              description: 'Text Files',
-              accept: {
-                'text/plain': ['.txt', '.md', '.markdown', '.json'],
-              },
-            },
-          ],
-        });
-      } catch (error) {
-        // User cancelled or error occurred
-        if (error instanceof Error && error.name !== 'AbortError') {
-          console.error('Failed to download file:', error);
-        }
-      }
-    },
-    []
-  );
-
-
-  // Handle move (drag and drop)
-  // Refresh file tree (for AI file changes)
-  const refreshFileTree = useCallback(async () => {
-    if (!workspaceServiceRef.current) return;
-    try {
-      const fileTree = await workspaceServiceRef.current.getFileTree();
-      setFileTree(fileTree);
-
-      // Update watcher snapshot to prevent false positives
-      if (fileSystemWatcherRef.current) {
-        await fileSystemWatcherRef.current.updateSnapshot(async () => {
-          return createFileTreeSnapshot(fileTree);
-        });
-      }
-    } catch (error) {
-      console.error('Failed to refresh file tree:', error);
-    }
-  }, [setFileTree]);
-
-  const handleMove = useCallback(
-    async (sourcePath: string, targetPath: string) => {
-      if (!workspaceServiceRef.current) return;
-
-      try {
-        const sourceName = sourcePath.split('/').pop() ?? '';
-        const newPath = `${targetPath}/${sourceName}`;
-        await workspaceServiceRef.current.move(sourcePath, newPath);
-        const fileTree = await workspaceServiceRef.current.getFileTree();
-        setFileTree(fileTree);
-      } catch (error) {
-        console.error('Failed to move:', error);
-        window.alert("I couldn't move that. Try again.");
-      }
-    },
-    [setFileTree]
-  );
+  const {
+    writeTabContent,
+    handleSaveFile,
+    handleCreateFile,
+    handleCreateFolder,
+    handleRename,
+    handleRenameWithName,
+    handleDownload,
+    refreshFileTree,
+    handleMove,
+  } = useFileOperations({
+    workspaceServiceRef,
+    fileSystemWatcherRef,
+    handleFileOpen,
+    prompt,
+    setFileTree,
+    markSaved,
+    contentIndex,
+    openTabs,
+    closeTab,
+    renameHistoryRef,
+    undoStackRef,
+  });
 
 
 
