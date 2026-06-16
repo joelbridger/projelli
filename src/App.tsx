@@ -10,6 +10,7 @@ import { useGlobalEventBus, type AppSurface } from '@/app/lifecycle/useGlobalEve
 import { useAutosave } from '@/app/lifecycle/useAutosave';
 import { useKeyboardShortcuts } from '@/app/commands/useKeyboardShortcuts';
 import { useAppCommands } from '@/app/commands/useAppCommands';
+import { useDialogManager } from '@/app/dialogs/useDialogManager';
 import { useTranslation } from 'react-i18next';
 import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
 
@@ -154,25 +155,23 @@ function App() {
 
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE && !IS_DEMO_MODE);
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
-  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const {
+    showCommandPalette, setShowCommandPalette,
+    showShortcutsOverlay, setShowShortcutsOverlay,
+    showQuickOpen, setShowQuickOpen,
+    showAudioRecorder, setShowAudioRecorder,
+    showSettingsModal, setShowSettingsModal,
+    settingsInitialCategory,
+    openSettings,
+    accountWindowOpen, setAccountWindowOpen,
+    matterManagerOpen, setMatterManagerOpen,
+    showWhatsNewModalDirect, setShowWhatsNewModalDirect,
+    apiKeyWizardOpen, setApiKeyWizardOpen,
+  } = useDialogManager();
   // Shared contract — "Ask from the matter hub prefills Search".
   // MatterHub dispatches a keepance:matter-launch event with surface='search'
   // and a question string; App sets this state; ReimaginedAsk consumes it.
   const [askPrefill, setAskPrefill] = useState<{ question: string; autoSubmit?: boolean } | null>(null);
-  const [showShortcutsOverlay, setShowShortcutsOverlay] = useState(false);
-  const [showQuickOpen, setShowQuickOpen] = useState(false);
-  const [showAudioRecorder, setShowAudioRecorder] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [accountWindowOpen, setAccountWindowOpen] = useState(false);
-  // Which Settings category to show on next open. Reset to undefined so a
-  // later open without a category falls back to the modal's own default.
-  const [settingsInitialCategory, setSettingsInitialCategory] =
-    useState<import('@/settings/schema').SettingCategory | undefined>(undefined);
-  // Helper: open Settings, optionally deep-linked to a category.
-  const openSettings = useCallback((category?: import('@/settings/schema').SettingCategory) => {
-    setSettingsInitialCategory(category);
-    setShowSettingsModal(true);
-  }, []);
   const [tourOpen, setTourOpen] = useState(false);
   const featureTour = useFeatureTour();
 
@@ -228,11 +227,6 @@ function App() {
     const timeoutId = setTimeout(() => setTourOpen(true), 800);
     return () => clearTimeout(timeoutId);
   }, [FORCE_TOUR, featureTour.shouldAutoShow, showFirstRun]);
-  // Direct trigger for the WhatsNew changelog modal from outside the
-  // WhatsNewLayer (e.g. the Settings → About → "What's new" action).
-  // The local hook in WhatsNewLayer still owns the toast + first-run
-  // logic; this flag layers on top of it.
-  const [showWhatsNewModalDirect, setShowWhatsNewModalDirect] = useState(false);
   const workspaceServiceRef = useRef<WorkspaceService | null>(null);
   const fileSystemWatcherRef = useRef<FileSystemWatcher | null>(null);
 
@@ -258,9 +252,6 @@ function App() {
   const [interviewResolver, setInterviewResolver] = useState<((answers: Record<string, string>) => void) | null>(null);
   const [interviewRejecter, setInterviewRejecter] = useState<((error: Error) => void) | null>(null);
   const [showInterviewDialog, setShowInterviewDialog] = useState(false);
-  // Bug 1: MatterManagerDialog open state — driven by the
-  // 'keepance:open-matter-manager' custom event from ReimaginedMattersHome.
-  const [matterManagerOpen, setMatterManagerOpen] = useState(false);
   // Active `.workflow` file path for the live execution. Used by the
   // sidebar "Current Execution" link and by debounced write-back so the
   // file on disk stays in sync with the running engine.
@@ -285,10 +276,6 @@ function App() {
   // launching a matter into Documents => 'browser' (the file list). Opening an
   // email/file into the Documents area => 'editor' (that document).
   const [documentsView, setDocumentsView] = useState<'browser' | 'editor'>('browser');
-
-  // Shell-aware API key wizard — opened from reimagined shell CTAs.
-  const [apiKeyWizardOpen, setApiKeyWizardOpen] = useState<boolean>(false);
-
 
   const handleRequestApiKeySetup = useCallback(() => {
     setApiKeyWizardOpen(true);
