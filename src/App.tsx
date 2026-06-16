@@ -3316,14 +3316,20 @@ This file contains rules and guidelines for AI assistants in this workspace.
           <ReimaginedAsk
             onSaveToDocument={async (content) => {
               if (!workspaceServiceRef.current || !rootPath) return;
+              // Word-first: AI answers save as a real .docx (not markdown).
               const { deriveFilenameFromMessage, resolveUniqueName } = await import('@/utils/fileDrop');
-              const desired = deriveFilenameFromMessage(content);
-              const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, desired);
+              const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/utils/docx-io');
+              const firmName = (() => { try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; } })();
+              const base = deriveFilenameFromMessage(content).replace(/\.(md|markdown|txt)$/i, '');
+              const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
               const path = `${rootPath}/${finalName}`;
-              await workspaceServiceRef.current.writeFile(path, `${content}\n`);
+              const bytes = await markdownToDocxBytes(content, finalName, { firmName });
+              const buffer = new ArrayBuffer(bytes.byteLength);
+              new Uint8Array(buffer).set(bytes);
+              await workspaceServiceRef.current.writeFileBinary(path, buffer);
               const tree = await workspaceServiceRef.current.getFileTree();
               setFileTree(tree);
-              await handleFileOpen(path, finalName);
+              openFile(path, finalName, docxBytesToDataUrl(bytes));
             }}
             prefillRequest={askPrefill}
             onPrefillConsumed={() => setAskPrefill(null)}
@@ -3332,13 +3338,20 @@ This file contains rules and guidelines for AI assistants in this workspace.
           <ReimaginedEmailWorkspace
             onSaveToWorkspace={async (content, suggestedName) => {
               if (!workspaceServiceRef.current || !rootPath) return;
+              // Word-first: saved email content becomes a real .docx.
               const { resolveUniqueName } = await import('@/utils/fileDrop');
-              const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, suggestedName);
+              const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/utils/docx-io');
+              const firmName = (() => { try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; } })();
+              const base = suggestedName.replace(/\.(md|markdown|txt)$/i, '');
+              const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
               const path = `${rootPath}/${finalName}`;
-              await workspaceServiceRef.current.writeFile(path, `${content}\n`);
+              const bytes = await markdownToDocxBytes(content, finalName, { firmName });
+              const buffer = new ArrayBuffer(bytes.byteLength);
+              new Uint8Array(buffer).set(bytes);
+              await workspaceServiceRef.current.writeFileBinary(path, buffer);
               const tree = await workspaceServiceRef.current.getFileTree();
               setFileTree(tree);
-              await handleFileOpen(path, finalName);
+              openFile(path, finalName, docxBytesToDataUrl(bytes));
             }}
             onOpenSettings={() => openSettings('ai')}
           />
