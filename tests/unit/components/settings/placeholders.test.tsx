@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MobileSettings } from '@/components/settings/MobileSettings';
-import { PluginsSettings } from '@/components/settings/PluginsSettings';
 import { AdvancedSettings } from '@/components/settings/AdvancedSettings';
 
 describe('Placeholder settings pages', () => {
@@ -11,10 +10,6 @@ describe('Placeholder settings pages', () => {
     expect(screen.getByTestId('mobile-tab-icloud')).toBeInTheDocument();
   });
 
-  it('PluginsSettings renders (shows the installed-plugins list element)', () => {
-    render(<PluginsSettings />);
-    expect(screen.getByTestId('plugins-installed-list')).toBeInTheDocument();
-  });
 
   it('AdvancedSettings renders (shows its description paragraph)', () => {
     render(<AdvancedSettings />);

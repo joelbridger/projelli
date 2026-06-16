@@ -1,7 +1,7 @@
 /**
  * sweep/misc-surfaces.spec.ts
  * Campaign Phase 5 — L-191..L-222
- * Egress indicators, MCP gate, plugins panel, onboarding, updater,
+ * Egress indicators, MCP gate, onboarding, updater,
  * additional surfaces (whiteboard, audio, version history, split pane,
  * Ollama/voice/advanced/mobile/template model/memory settings)
  * + i18n smoke (F-002), accessibility scan, light-theme check
@@ -115,93 +115,12 @@ test.describe('MCP gate (L-194..L-196)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// O: Plugins Panel (L-197..L-202)
+// O: Templates Marketplace (L-202)
 // ---------------------------------------------------------------------------
-test.describe('Plugins panel (L-197..L-202)', () => {
+test.describe('Templates marketplace (L-202)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
-  });
-
-  test('L-197 plugins sidebar panel (conditional)', async ({ page, browserName: _b }, testInfo) => {
-    const getErrors = collectConsoleErrors(page);
-    const pluginsTab = page.getByTestId('sidebar-tab-plugins');
-    const tabVisible = await pluginsTab.isVisible({ timeout: 2000 }).catch(() => false);
-    if (tabVisible) {
-      await hardClick(pluginsTab);
-      await snap(page, testInfo, 'L-197-plugins-sidebar-panel');
-      const overflow = await horizontalOverflow(page);
-      expect(overflow, 'overflow L-197').toHaveLength(0);
-    } else {
-      await snap(page, testInfo, 'L-197-plugins-sidebar-absent');
-    }
-    const errors = getErrors();
-    expect(errors, 'console errors L-197').toHaveLength(0);
-  });
-
-  test('L-198 plugins settings tab', async ({ page, browserName: _b }, testInfo) => {
-    const getErrors = collectConsoleErrors(page);
-    const opened = await openSettingsCategory(page, 'plugins');
-    if (opened) {
-      await snap(page, testInfo, 'L-198-plugins-settings-tab');
-      const overflow = await horizontalOverflow(page);
-      expect(overflow, 'overflow L-198').toHaveLength(0);
-    } else {
-      await snap(page, testInfo, 'L-198-plugins-settings-no-cat');
-    }
-    const errors = getErrors();
-    expect(errors, 'console errors L-198').toHaveLength(0);
-    await page.keyboard.press('Escape');
-  });
-
-  test('L-199 plugin consent dialog: conditional on install', async ({ page, browserName: _b }, testInfo) => {
-    const getErrors = collectConsoleErrors(page);
-    const opened = await openSettingsCategory(page, 'marketplace');
-    if (opened) {
-      const marketplaceTab = page.getByTestId('marketplace-tab');
-      const tabVisible = await marketplaceTab.isVisible({ timeout: 3000 }).catch(() => false);
-      if (tabVisible) {
-        // Switch to plugins subtab
-        const pluginsSubtab = page.getByTestId('marketplace-subtab-plugins');
-        const subtabVisible = await pluginsSubtab.isVisible({ timeout: 2000 }).catch(() => false);
-        if (subtabVisible) {
-          await hardClick(pluginsSubtab);
-          await snap(page, testInfo, 'L-199-plugins-catalog');
-        }
-      }
-    }
-    await snap(page, testInfo, 'L-199-plugin-consent-checked');
-    const errors = getErrors();
-    expect(errors, 'console errors L-199').toHaveLength(0);
-    await page.keyboard.press('Escape');
-  });
-
-  test('L-200 plugin detail view: conditional on installed plugin', async ({ page, browserName: _b }, testInfo) => {
-    const getErrors = collectConsoleErrors(page);
-    const opened = await openSettingsCategory(page, 'marketplace');
-    if (opened) {
-      const marketplaceTab = page.getByTestId('marketplace-tab');
-      const tabVisible = await marketplaceTab.isVisible({ timeout: 3000 }).catch(() => false);
-      if (tabVisible) {
-        await snap(page, testInfo, 'L-200-plugin-detail-marketplace');
-      }
-    }
-    await snap(page, testInfo, 'L-200-plugin-detail-checked');
-    const errors = getErrors();
-    expect(errors, 'console errors L-200').toHaveLength(0);
-    await page.keyboard.press('Escape');
-  });
-
-  test('L-201 installed plugins list renders', async ({ page, browserName: _b }, testInfo) => {
-    const getErrors = collectConsoleErrors(page);
-    const opened = await openSettingsCategory(page, 'plugins');
-    if (opened) {
-      await snap(page, testInfo, 'L-201-installed-plugins-list');
-    }
-    await snap(page, testInfo, 'L-201-installed-plugins-checked');
-    const errors = getErrors();
-    expect(errors, 'console errors L-201').toHaveLength(0);
-    await page.keyboard.press('Escape');
   });
 
   test('L-202 installed templates list renders', async ({ page, browserName: _b }, testInfo) => {
@@ -211,13 +130,7 @@ test.describe('Plugins panel (L-197..L-202)', () => {
       const marketplaceTab = page.getByTestId('marketplace-tab');
       const tabVisible = await marketplaceTab.isVisible({ timeout: 3000 }).catch(() => false);
       if (tabVisible) {
-        // Switch to templates subtab
-        const templatesSubtab = page.getByTestId('marketplace-subtab-templates');
-        const subtabVisible = await templatesSubtab.isVisible({ timeout: 2000 }).catch(() => false);
-        if (subtabVisible) {
-          await hardClick(templatesSubtab);
-          await snap(page, testInfo, 'L-202-installed-templates-list');
-        }
+        await snap(page, testInfo, 'L-202-installed-templates-list');
       }
     }
     await snap(page, testInfo, 'L-202-installed-templates-checked');
@@ -226,6 +139,7 @@ test.describe('Plugins panel (L-197..L-202)', () => {
     await page.keyboard.press('Escape');
   });
 });
+
 
 // ---------------------------------------------------------------------------
 // P: Additional Surfaces (L-203..L-222)

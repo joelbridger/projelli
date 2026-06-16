@@ -24,11 +24,8 @@ import {
   Search,
   Bot,
   LayoutGrid,
-  Puzzle,
   Briefcase,
 } from 'lucide-react';
-import { PluginSidebarPanels } from '@/components/plugins/PluginSidebarPanels';
-import { usePluginRegistryStore } from '@/stores/pluginRegistryStore';
 import { useProfessionStore, isLawExperience } from '@/stores/professionStore';
 
 export interface SidebarProps {
@@ -56,7 +53,7 @@ export interface SidebarProps {
   className?: string;
 }
 
-type SidebarTab = 'files' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins' | 'matters';
+type SidebarTab = 'files' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'matters';
 
 export function Sidebar({
   fileTreeContent,
@@ -87,12 +84,6 @@ export function Sidebar({
   };
   const [internalActiveTab, setInternalActiveTab] = useState<SidebarTab>('files');
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-
-  // Show the Plugins tab only when at least one plugin has contributed a
-  // panel. Keeps the sidebar uncluttered for users without plugins.
-  const hasPluginPanels = usePluginRegistryStore(
-    (state) => state.sidebar.length > 0,
-  );
 
   // Law-first: hide the founder-era Research + Whiteboard surfaces for the
   // legal experience (and the default). Non-law packs may still see them.
@@ -132,9 +123,6 @@ export function Sidebar({
         ]),
     { id: 'audit', Icon: History, label: t('layout.sidebar.tabs.audit') },
     { id: 'trash', Icon: Trash2, label: t('layout.sidebar.tabs.trash') },
-    ...(hasPluginPanels
-      ? [{ id: 'plugins' as const, Icon: Puzzle, label: t('layout.sidebar.tabs.plugins') }]
-      : []),
   ];
 
   const focusTabByIndex = (index: number) => {
@@ -330,7 +318,6 @@ export function Sidebar({
           {activeTab === 'whiteboard' && whiteboardContent}
           {activeTab === 'audit' && auditContent}
           {activeTab === 'trash' && trashContent}
-          {activeTab === 'plugins' && <PluginSidebarPanels />}
         </div>
       )}
     </div>

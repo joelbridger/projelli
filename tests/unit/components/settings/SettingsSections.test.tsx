@@ -77,7 +77,6 @@ describe('resolveSection / CATEGORY_ALIAS_MAP', () => {
     ['voice', 'voice'],
     // Legacy Advanced aliases
     ['marketplace', 'advanced'],
-    ['plugins',     'advanced'],
     ['templates',   'advanced'],
     ['updates',     'advanced'],
     ['mobile',      'advanced'],
@@ -97,7 +96,7 @@ describe('resolveSection / CATEGORY_ALIAS_MAP', () => {
     const legacy = [
       'general','editor','files','ai','memory','privacy',
       'license','firm','costs','integrations','voice',
-      'shortcuts','marketplace','plugins','templates','updates',
+      'shortcuts','marketplace','templates','updates',
       'about','mobile','onboarding',
     ];
     // 'account' is a legacy alias in the map (not a canonical section), so
@@ -229,10 +228,6 @@ describe('SettingsModal deep-link aliases', () => {
     expect(screen.getByTestId('section-help')).toBeInTheDocument();
   });
 
-  it('initialCategory="plugins" opens Advanced', () => {
-    renderModal('plugins');
-    expect(screen.getByTestId('section-advanced')).toBeInTheDocument();
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -461,7 +456,7 @@ describe('SettingsModal sidebar does not expose old category ids', () => {
     'account',
     'general','editor','files','ai','memory','privacy',
     'license','firm','costs','integrations',
-    'shortcuts','marketplace','plugins','templates','updates',
+    'shortcuts','marketplace','templates','updates',
     'about','mobile','onboarding',
   ];
   for (const id of legacyIds) {

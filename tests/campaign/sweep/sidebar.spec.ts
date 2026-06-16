@@ -41,23 +41,6 @@ test.describe('Sidebar tabs (L-001..L-010)', () => {
     });
   }
 
-  test('L-009 plugins tab is either visible or absent (conditional)', async ({ page, browserName: _b }, testInfo) => {
-    const getErrors = collectConsoleErrors(page);
-    const pluginsTab = page.getByTestId('sidebar-tab-plugins');
-    const isVisible = await pluginsTab.isVisible().catch(() => false);
-    // Conditional: only shown when plugin panels exist. Both states are valid.
-    if (isVisible) {
-      await hardClick(pluginsTab);
-      await snap(page, testInfo, 'L-009-sidebar-tab-plugins-visible');
-    } else {
-      await snap(page, testInfo, 'L-009-sidebar-tab-plugins-absent');
-    }
-    const overflow = await horizontalOverflow(page);
-    expect(overflow, 'overflow on L-009').toHaveLength(0);
-    const errors = getErrors();
-    expect(errors, 'console errors on L-009').toHaveLength(0);
-  });
-
   test('L-010 sidebar collapse/expand toggle', async ({ page, browserName: _b }, testInfo) => {
     const getErrors = collectConsoleErrors(page);
     const collapseBtn = page.getByTestId('sidebar-collapse-button');

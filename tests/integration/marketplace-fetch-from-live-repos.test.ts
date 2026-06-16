@@ -2,8 +2,8 @@
  * Live-network integration test for the seed catalog (Stream C6 Group VI,
  * Task 6.1).
  *
- * Hits the actual `keepance/community-templates` and `keepance/community-plugins`
- * repos on raw.githubusercontent.com and verifies the end-to-end shape:
+ * Hits the actual `keepance/community-templates` repo on raw.githubusercontent.com
+ * and verifies the end-to-end shape:
  *
  *   1. catalog.json fetches with HTTP 200 and parses as CatalogEntry[].
  *   2. Each entry has the fields the in-app marketplace UI requires
@@ -13,7 +13,7 @@
  *      tampered repo).
  *   4. The corresponding manifest.json fetches and validates against the
  *      vendored Zod schema the in-app installer uses (templates schema for
- *      community-templates, plugins schema for community-plugins).
+ *      templates schema for community-templates).
  *
  * Gated behind `LIVE_NETWORK_OK=1` so CI does not hit GitHub on every push;
  * Jameson runs it manually after the seed catalog is live or after merging
@@ -26,16 +26,12 @@
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import { validateTemplateManifest } from '@/modules/marketplace/manifestValidator';
-import { validatePluginManifest } from '@/modules/plugins/PluginManifestSchema';
 import type { CatalogEntry } from '@/types/marketplace';
 
 const LIVE_OK = process.env.LIVE_NETWORK_OK === '1';
 
 const TEMPLATES_CATALOG_URL =
   'https://raw.githubusercontent.com/keepance/community-templates/main/catalog.json';
-const PLUGINS_CATALOG_URL =
-  'https://raw.githubusercontent.com/keepance/community-plugins/main/catalog.json';
-
 function assertCatalogShape(catalog: unknown): asserts catalog is CatalogEntry[] {
   expect(Array.isArray(catalog)).toBe(true);
   const arr = catalog as unknown[];
@@ -90,26 +86,6 @@ describe.skipIf(!LIVE_OK)('marketplace fetch from live community repos', () => {
     }
   }, 30_000);
 
-  it('fetches the live community-plugins catalog with the expected shape', async () => {
-    const res = await fetch(PLUGINS_CATALOG_URL);
-    expect(res.ok).toBe(true);
-    expect(res.status).toBe(200);
-
-    const catalog = (await res.json()) as unknown;
-    assertCatalogShape(catalog);
-    expect(catalog.length).toBeGreaterThanOrEqual(4);
-
-    for (const entry of catalog) {
-      expect(entry.installUrl).toMatch(
-        /^https:\/\/raw\.githubusercontent\.com\/keepance\/community-plugins\/main\/entries\//,
-      );
-      expect(entry.installUrl).toMatch(/tarball\.tar\.gz$/);
-      expect(entry.manifestUrl).toMatch(
-        /^https:\/\/raw\.githubusercontent\.com\/keepance\/community-plugins\/main\/entries\//,
-      );
-      expect(entry.manifestUrl).toMatch(/manifest\.json$/);
-    }
-  }, 30_000);
 
   it('downloads one real template tarball and confirms its SHA-256 matches the catalog checksum', async () => {
     const res = await fetch(TEMPLATES_CATALOG_URL);
@@ -122,16 +98,6 @@ describe.skipIf(!LIVE_OK)('marketplace fetch from live community repos', () => {
     expect(actual).toBe(entry.checksum);
   }, 60_000);
 
-  it('downloads one real plugin tarball and confirms its SHA-256 matches the catalog checksum', async () => {
-    const res = await fetch(PLUGINS_CATALOG_URL);
-    const catalog = (await res.json()) as CatalogEntry[];
-    const entry = catalog[0];
-    expect(entry).toBeDefined();
-    if (!entry) return;
-
-    const actual = await sha256OfUrl(entry.installUrl);
-    expect(actual).toBe(entry.checksum);
-  }, 60_000);
 
   it('fetches a real template manifest.json and validates it against the in-app Zod schema', async () => {
     const res = await fetch(TEMPLATES_CATALOG_URL);
@@ -148,27 +114,6 @@ describe.skipIf(!LIVE_OK)('marketplace fetch from live community repos', () => {
     if (!result.ok) {
       throw new Error(
         `Template manifest validation failed for ${entry.id}: ${result.errors.join(', ')}`,
-      );
-    }
-    expect(result.manifest.id).toBe(entry.id);
-    expect(result.manifest.version).toBe(entry.version);
-  }, 60_000);
-
-  it('fetches a real plugin manifest.json and validates it against the in-app Zod schema', async () => {
-    const res = await fetch(PLUGINS_CATALOG_URL);
-    const catalog = (await res.json()) as CatalogEntry[];
-    const entry = catalog[0];
-    expect(entry).toBeDefined();
-    if (!entry) return;
-
-    const manifestRes = await fetch(entry.manifestUrl);
-    expect(manifestRes.ok).toBe(true);
-    const raw = (await manifestRes.json()) as unknown;
-
-    const result = validatePluginManifest(raw);
-    if (!result.ok) {
-      throw new Error(
-        `Plugin manifest validation failed for ${entry.id}: ${result.errors.join(', ')}`,
       );
     }
     expect(result.manifest.id).toBe(entry.id);

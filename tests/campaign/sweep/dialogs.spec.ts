@@ -203,25 +203,6 @@ test.describe('Dialogs and modals (L-044..L-059)', () => {
     expect(errors, 'console errors L-051').toHaveLength(0);
   });
 
-  // L-052: PluginConsentDialog — conditional on installing a plugin
-  test('L-052 PluginConsentDialog area visible in marketplace settings', async ({ page, browserName: _b }, testInfo) => {
-    const getErrors = collectConsoleErrors(page);
-    await openSettings(page);
-    const marketplaceCat = page.getByTestId('settings-category-marketplace');
-    const catVisible = await marketplaceCat.isVisible({ timeout: 3000 }).catch(() => false);
-    if (catVisible) {
-      await hardClick(marketplaceCat);
-      const marketplaceTab = page.getByTestId('marketplace-tab');
-      const tabVisible = await marketplaceTab.isVisible({ timeout: 3000 }).catch(() => false);
-      if (tabVisible) {
-        await snap(page, testInfo, 'L-052-plugin-consent-marketplace');
-      }
-    }
-    await snap(page, testInfo, 'L-052-plugin-consent-checked');
-    const errors = getErrors();
-    expect(errors, 'console errors L-052').toHaveLength(0);
-    await page.keyboard.press('Escape');
-  });
 
   // L-053: UpdateReleaseNotesModal
   test('L-053 UpdateReleaseNotesModal area via updater settings', async ({ page, browserName: _b }, testInfo) => {

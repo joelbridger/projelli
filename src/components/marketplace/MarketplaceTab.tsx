@@ -1,67 +1,27 @@
 /**
  * MarketplaceTab — container for Settings → Marketplace.
  *
- * Hosts a two-tab strip: `Templates` and `Plugins`. Both are active as of
- * Stream C4. The active subtab's MarketplaceService drives the offline
- * banner so users see cache state for the catalog they are looking at.
+ * Shows the Templates catalog. The Plugins subtab has been removed as part of
+ * the 3.0 product repositioning (law-practice focus).
  */
 
-import { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTemplatesMarketplace } from '@/hooks/useTemplatesMarketplace';
-import { usePluginsMarketplace } from '@/hooks/usePluginsMarketplace';
 import { MarketplaceOfflineBanner } from './MarketplaceOfflineBanner';
 import { TemplatesTab } from './TemplatesTab';
-import { PluginsTab } from './PluginsTab';
-
-type MarketplaceSubtab = 'templates' | 'plugins';
 
 export function MarketplaceTab() {
-  const [subtab, setSubtab] = useState<MarketplaceSubtab>('templates');
   const templates = useTemplatesMarketplace();
-  const plugins = usePluginsMarketplace();
-
-  // Banner reflects the active subtab's cache state. We pull both hooks so
-  // we don't conditionally call hooks based on `subtab`.
-  const activeService = subtab === 'plugins' ? plugins.service : templates.service;
-  const activeCacheStatus =
-    subtab === 'plugins' ? plugins.cacheStatus : templates.cacheStatus;
-  const activeSetCacheStatus =
-    subtab === 'plugins' ? plugins.setCacheStatus : templates.setCacheStatus;
 
   return (
     <div className="space-y-4" data-testid="marketplace-tab">
-      <Tabs
-        value={subtab}
-        onValueChange={(v) => {
-          setSubtab(v as MarketplaceSubtab);
-        }}
-        className="space-y-4"
-      >
-        <TabsList data-testid="marketplace-subtab-list">
-          <TabsTrigger value="templates" data-testid="marketplace-subtab-templates">
-            Templates
-          </TabsTrigger>
-          <TabsTrigger value="plugins" data-testid="marketplace-subtab-plugins">
-            Plugins
-          </TabsTrigger>
-        </TabsList>
-
-        <MarketplaceOfflineBanner
-          service={activeService}
-          cacheStatus={activeCacheStatus}
-          onRefreshed={activeSetCacheStatus}
-        />
-
-        <TabsContent value="templates" data-testid="marketplace-subtab-content-templates">
-          <TemplatesTab />
-        </TabsContent>
-
-        <TabsContent value="plugins" data-testid="marketplace-subtab-content-plugins">
-          <PluginsTab />
-        </TabsContent>
-      </Tabs>
+      <MarketplaceOfflineBanner
+        service={templates.service}
+        cacheStatus={templates.cacheStatus}
+        onRefreshed={templates.setCacheStatus}
+      />
+      <div data-testid="marketplace-subtab-content-templates">
+        <TemplatesTab />
+      </div>
     </div>
   );
 }
-

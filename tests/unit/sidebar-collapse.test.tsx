@@ -17,7 +17,6 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { usePluginRegistryStore } from '@/stores/pluginRegistryStore';
 
 // The collapsed sidebar renders Radix tooltips on its tab icons, which need a
 // TooltipProvider ancestor (mounted at App root in main.tsx). Wrap every render
@@ -30,18 +29,9 @@ function renderSidebar(props: ComponentProps<typeof Sidebar> = {}) {
   );
 }
 
-function resetRegistry() {
-  usePluginRegistryStore.setState({
-    commands: new Map(),
-    toolbar: [],
-    sidebar: [],
-    settingsPages: [],
-  });
-}
 
 afterEach(() => {
   cleanup();
-  resetRegistry();
 });
 
 describe('Sidebar collapse (F-509)', () => {

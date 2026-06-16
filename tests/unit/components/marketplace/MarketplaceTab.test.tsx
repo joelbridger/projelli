@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import { MarketplaceTab } from '@/components/marketplace/MarketplaceTab';
 import { useTemplatesMarketplaceStore } from '@/stores/templatesMarketplaceStore';
-import { usePluginsMarketplaceStore } from '@/stores/pluginsMarketplaceStore';
 import type { MarketplaceService } from '@/modules/marketplace';
 
 // Minimal stub matching the surface MarketplaceTab + the offline banner read.
@@ -28,11 +27,6 @@ function resetStores() {
     cacheStatus: 'fresh',
     updateCount: 0,
   });
-  usePluginsMarketplaceStore.setState({
-    service: null,
-    cacheStatus: 'fresh',
-    updateCount: 0,
-  });
 }
 
 describe('MarketplaceTab', () => {
@@ -45,33 +39,14 @@ describe('MarketplaceTab', () => {
     resetStores();
   });
 
-  it('renders Templates and Plugins subtab triggers', () => {
+  it('renders the marketplace tab container', () => {
     render(<MarketplaceTab />);
-    expect(screen.getByTestId('marketplace-subtab-templates')).toBeInTheDocument();
-    expect(screen.getByTestId('marketplace-subtab-plugins')).toBeInTheDocument();
+    expect(screen.getByTestId('marketplace-tab')).toBeInTheDocument();
   });
 
-  it('Templates subtab is selected by default and shows the placeholder', () => {
+  it('shows the templates content area', () => {
     render(<MarketplaceTab />);
-    const templatesTrigger = screen.getByTestId('marketplace-subtab-templates');
-    expect(templatesTrigger.getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByTestId('templates-tab-empty')).toBeInTheDocument();
-  });
-
-  it('Plugins subtab is enabled (Stream C4)', () => {
-    render(<MarketplaceTab />);
-    const pluginsTrigger = screen.getByTestId('marketplace-subtab-plugins');
-    expect(pluginsTrigger).not.toBeDisabled();
-    expect(pluginsTrigger.getAttribute('aria-disabled')).not.toBe('true');
-  });
-
-  it('switches to the plugins subtab when its trigger is clicked', () => {
-    render(<MarketplaceTab />);
-    const pluginsTrigger = screen.getByTestId('marketplace-subtab-plugins');
-    fireEvent.click(pluginsTrigger);
-    expect(pluginsTrigger.getAttribute('aria-selected')).toBe('true');
-    // Without a workspace-bound plugins service, the empty-state is shown.
-    expect(screen.getByTestId('plugins-tab-empty')).toBeInTheDocument();
+    expect(screen.getByTestId('marketplace-subtab-content-templates')).toBeInTheDocument();
   });
 
   it('renders the offline banner when cacheStatus is stale', () => {
@@ -101,18 +76,11 @@ describe('MarketplaceTab', () => {
     expect(screen.queryByTestId('marketplace-offline-banner')).not.toBeInTheDocument();
   });
 
-  it('preserves the selected subtab across remounts via internal state', () => {
-    // The Templates subtab stays the default through unmount/remount because
-    // the placeholder is the only enabled subtab. The contract here is that
-    // remounting does not throw and lands the user back on Templates.
+  it('remounts without errors and shows the templates area', () => {
     const { unmount } = render(<MarketplaceTab />);
-    expect(screen.getByTestId('marketplace-subtab-templates').getAttribute('aria-selected')).toBe(
-      'true',
-    );
+    expect(screen.getByTestId('marketplace-subtab-content-templates')).toBeInTheDocument();
     unmount();
     render(<MarketplaceTab />);
-    expect(screen.getByTestId('marketplace-subtab-templates').getAttribute('aria-selected')).toBe(
-      'true',
-    );
+    expect(screen.getByTestId('marketplace-subtab-content-templates')).toBeInTheDocument();
   });
 });

@@ -59,9 +59,7 @@ import { ConfidentialityModeSettings } from '@/components/settings/Confidentiali
 import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
 import { MarketplaceTab } from '@/components/marketplace/MarketplaceTab';
 import { useTemplateUpdateCount } from '@/hooks/useTemplatesMarketplace';
-import { usePluginUpdateCount } from '@/hooks/usePluginsMarketplace';
 import { MobileSettings } from '@/components/settings/MobileSettings';
-import { PluginsSettings } from '@/components/settings/PluginsSettings';
 import { AdvancedSettings } from '@/components/settings/AdvancedSettings';
 import { VoiceSettingsSection } from '@/components/settings/VoiceSettingsSection';
 import { LanguagePicker } from '@/components/settings/LanguagePicker';
@@ -391,9 +389,9 @@ function SettingRow({
 /**
  * Search keywords per accordion sub-section, so the cross-section search finds
  * things that aren't plain SETTINGS_SCHEMA fields — the bespoke controls
- * (LanguagePicker, PluginsSettings, MarketplaceTab, the setup/tour links, etc.).
- * Without this, searching "language" or "plugin" misses the General language
- * picker and the Extensions/plugins group entirely. The key is the SubSection
+ * (LanguagePicker, MarketplaceTab, the setup/tour links, etc.).
+ * Without this, searching "language" misses the General language
+ * picker and the Extensions/templates group entirely. The key is the SubSection
  * `id`; `section` is the top-level category the group lives in.
  */
 const SETTINGS_GROUP_SEARCH: Record<string, { section: SectionCategory; keywords: string[] }> = {
@@ -846,10 +844,6 @@ function AdvancedSection(props: SectionProps) {
               <MarketplaceTab />
             </div>
             <div className="space-y-3 border-t border-border/50 pt-6">
-              <Eyebrow primary>Installed plugins</Eyebrow>
-              <PluginsSettings />
-            </div>
-            <div className="space-y-3 border-t border-border/50 pt-6">
               <Eyebrow primary>Per-workflow AI model</Eyebrow>
               <TemplateModelSettings templates={props.templates ?? []} />
             </div>
@@ -957,8 +951,7 @@ export function SettingsContent({
   const [activeSection, setActiveSection] = useState<SectionCategory>(resolveInitial(initialCategory));
 
   const templateUpdateCount = useTemplateUpdateCount();
-  const pluginUpdateCount = usePluginUpdateCount();
-  const marketplaceUpdateCount = templateUpdateCount + pluginUpdateCount;
+  const marketplaceUpdateCount = templateUpdateCount;
   const [searchQuery, setSearchQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);

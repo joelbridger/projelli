@@ -1,16 +1,15 @@
 /**
- * Settings nav update badge (Stream C1, Group VIII + Stream C4, Group VI).
+ * Settings nav update badge (Stream C1, Group VIII).
  *
  * v3.1: Marketplace is now part of the "Advanced" section (id: advanced).
- * The badge appears on the Advanced nav row when the SUM of templates + plugins
- * updates is greater than zero. The legacy `initialCategory="marketplace"`
+ * The badge appears on the Advanced nav row when the templates update count
+ * is greater than zero. The legacy `initialCategory="marketplace"`
  * deep-link alias resolves to advanced.
  *
  * What this guards:
- *   - Badge appears when EITHER count is > 0 and shows the sum.
- *   - Badge is absent when both counts are 0.
- *   - Updating either store mid-render re-shows the badge (subscription is live).
- *   - Sum behavior: 0+0 hidden, 0+3=3, 2+1=3, 4+5=9.
+ *   - Badge appears when count is > 0.
+ *   - Badge is absent when count is 0.
+ *   - Updating the store mid-render re-shows the badge (subscription is live).
  *   - Badge renders on the Advanced nav row (settings-category-advanced).
  */
 
@@ -18,21 +17,18 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { useTemplatesMarketplaceStore } from '@/stores/templatesMarketplaceStore';
-import { usePluginsMarketplaceStore } from '@/stores/pluginsMarketplaceStore';
 
 beforeEach(() => {
   useTemplatesMarketplaceStore.getState().clearMarketplace();
-  usePluginsMarketplaceStore.getState().clear();
 });
 
 afterEach(() => {
   cleanup();
   useTemplatesMarketplaceStore.getState().clearMarketplace();
-  usePluginsMarketplaceStore.getState().clear();
 });
 
 describe('SettingsModal — Marketplace nav update badge', () => {
-  it('does not render the badge when both counts are 0', () => {
+  it('does not render the badge when count is 0', () => {
     render(
       <SettingsModal open onOpenChange={() => {}} initialCategory="advanced" />,
     );
@@ -41,7 +37,7 @@ describe('SettingsModal — Marketplace nav update badge', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('renders the badge with the templates count when only templates have updates', () => {
+  it('renders the badge with the templates count when templates have updates', () => {
     act(() => {
       useTemplatesMarketplaceStore.getState().setUpdateCount(3);
     });
@@ -58,47 +54,9 @@ describe('SettingsModal — Marketplace nav update badge', () => {
     );
   });
 
-  it('renders the badge with the plugins count when only plugins have updates', () => {
-    act(() => {
-      usePluginsMarketplaceStore.getState().setUpdateCount(3);
-    });
-    render(
-      <SettingsModal open onOpenChange={() => {}} initialCategory="marketplace" />,
-    );
-    const badge = screen.getByTestId('settings-marketplace-update-badge');
-    expect(badge).toHaveTextContent('3');
-    expect(badge.getAttribute('data-count')).toBe('3');
-  });
-
-  it('sums templates + plugins counts (2 + 1 = 3)', () => {
+  it('hides the badge again when count drops to 0', () => {
     act(() => {
       useTemplatesMarketplaceStore.getState().setUpdateCount(2);
-      usePluginsMarketplaceStore.getState().setUpdateCount(1);
-    });
-    render(
-      <SettingsModal open onOpenChange={() => {}} initialCategory="marketplace" />,
-    );
-    const badge = screen.getByTestId('settings-marketplace-update-badge');
-    expect(badge).toHaveTextContent('3');
-    expect(badge.getAttribute('data-count')).toBe('3');
-  });
-
-  it('sums templates + plugins counts (4 + 5 = 9)', () => {
-    act(() => {
-      useTemplatesMarketplaceStore.getState().setUpdateCount(4);
-      usePluginsMarketplaceStore.getState().setUpdateCount(5);
-    });
-    render(
-      <SettingsModal open onOpenChange={() => {}} initialCategory="marketplace" />,
-    );
-    const badge = screen.getByTestId('settings-marketplace-update-badge');
-    expect(badge).toHaveTextContent('9');
-  });
-
-  it('hides the badge again when both counts drop to 0', () => {
-    act(() => {
-      useTemplatesMarketplaceStore.getState().setUpdateCount(2);
-      usePluginsMarketplaceStore.getState().setUpdateCount(1);
     });
     render(
       <SettingsModal open onOpenChange={() => {}} initialCategory="advanced" />,
@@ -109,14 +67,13 @@ describe('SettingsModal — Marketplace nav update badge', () => {
 
     act(() => {
       useTemplatesMarketplaceStore.getState().setUpdateCount(0);
-      usePluginsMarketplaceStore.getState().setUpdateCount(0);
     });
     expect(
       screen.queryByTestId('settings-marketplace-update-badge'),
     ).not.toBeInTheDocument();
   });
 
-  it('updates the badge when only one of the two counts changes', () => {
+  it('badge updates when the templates count changes', () => {
     act(() => {
       useTemplatesMarketplaceStore.getState().setUpdateCount(2);
     });
@@ -128,7 +85,7 @@ describe('SettingsModal — Marketplace nav update badge', () => {
     ).toHaveTextContent('2');
 
     act(() => {
-      usePluginsMarketplaceStore.getState().setUpdateCount(3);
+      useTemplatesMarketplaceStore.getState().setUpdateCount(5);
     });
     expect(
       screen.getByTestId('settings-marketplace-update-badge'),

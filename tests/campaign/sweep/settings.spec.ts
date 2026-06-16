@@ -22,7 +22,6 @@ const CATEGORIES = [
   { id: 'templates',           ledger: 'L-021' },
   { id: 'integrations',        ledger: 'L-022' },
   { id: 'marketplace',         ledger: 'L-023' },
-  { id: 'plugins',             ledger: 'L-024' },
   { id: 'mobile',              ledger: 'L-025' },
   { id: 'advanced',            ledger: 'L-026' },
   { id: 'updates',             ledger: 'L-027' },

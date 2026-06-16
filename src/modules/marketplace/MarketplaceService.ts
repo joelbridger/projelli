@@ -30,9 +30,8 @@ export type ManifestValidator<M extends ValidatedMarketplaceManifest = Validated
 ) => ManifestValidatorResult<M>;
 
 /**
- * Lifecycle hooks for emitting audit events. PluginsMarketplaceService
- * supplies plugin_* events; the default emits template_* events to preserve
- * the C1/C2 contract.
+ * Lifecycle hooks for emitting audit events. The default emits template_*
+ * events to preserve the C1/C2 templates-marketplace contract.
  */
 export interface MarketplaceAuditEmitter {
   installSucceeded: (audit: AuditService, payload: InstallAuditPayload) => void;
@@ -77,14 +76,12 @@ export interface MarketplaceServiceOptions {
   auditService?: AuditService;
   /**
    * Manifest validator. Defaults to `validateTemplateManifest` to preserve
-   * the C1 templates pipeline. PluginsMarketplaceService supplies
-   * `validatePluginManifest` for plugin manifests.
+   * the C1 templates pipeline.
    */
   validator?: ManifestValidator;
   /**
    * Audit emitter. Defaults to emitting template_* events so existing
-   * templates wiring is unchanged. Plugin marketplaces supply an emitter that
-   * fires plugin_installed / plugin_uninstalled / plugin_install_failed.
+   * templates wiring is unchanged.
    */
   auditEmitter?: MarketplaceAuditEmitter;
 }

@@ -49,7 +49,6 @@ export type SettingCategory =
   | 'templates'
   | 'integrations'
   | 'marketplace'
-  | 'plugins'
   | 'mobile'
   | 'updates'
   | 'onboarding'
@@ -118,7 +117,6 @@ export const CATEGORY_ALIAS_MAP: Readonly<Record<string, SectionCategory>> = {
   voice:        'voice',
   // Advanced (Extensions, Updates, Advanced subsections)
   marketplace:  'advanced',
-  plugins:      'advanced',
   templates:    'advanced',
   updates:      'advanced',
   mobile:       'advanced',

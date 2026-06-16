@@ -15,7 +15,6 @@ import { MarkdownEditor, type MarkdownEditorRef } from '@/components/editor/Mark
 import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { FormattingToolbar, type ToolbarFileType } from '@/components/editor/FormattingToolbar';
-import { PluginToolbarButtons } from '@/components/plugins/PluginToolbarButtons';
 import { SplitPane } from '@/components/editor/SplitPane';
 import { OutlinePanel } from '@/components/editor/OutlinePanel';
 import { BacklinksPanel } from '@/components/editor/BacklinksPanel';
@@ -252,15 +251,6 @@ interface MainPanelProps {
   /** Called when the user clicks "Open AI Settings" in the provider-error UI. */
   onOpenSettings?: () => void;
   /**
-   * Stream C3 — emits whenever the focused CodeMirror EditorView ref changes
-   * (file open / close, tab switch, primary editor remount). The receiver
-   * (App.tsx) routes this into the PluginManager's `setActiveEditor` so
-   * plugins always see the editor the user is currently looking at.
-   */
-  onActiveEditorChange?: (
-    ref: React.MutableRefObject<MarkdownEditorRef | null> | null,
-  ) => void;
-  /**
    * R4: when true, the built-in TabBar is hidden so the parent (the unified
    * Documents tab strip in ReimaginedDocumentsHome) can act as the sole tab
    * strip. Without this the Documents surface would show two tab bars.
@@ -290,7 +280,6 @@ export function MainPanel({
   onWorkflowExportPptx,
   workflowProviderError,
   onOpenSettings,
-  onActiveEditorChange,
   hideTabBar = false,
 }: MainPanelProps = {}) {
   const { t } = useTranslation();
@@ -317,20 +306,6 @@ export function MainPanel({
   const primaryEditorRef = useRef<MarkdownEditorRef>(null);
   const secondaryEditorRef = useRef<MarkdownEditorRef>(null);
 
-  // Stream C3 — notify App.tsx whenever the active editor surface changes
-  // so the PluginManager can re-point its editor accessor. Fires on tab
-  // switches and when the editor mounts / unmounts (active path null = no
-  // editor available). The ref itself is stable; what's changing is the
-  // EditorView attached underneath, which `buildPluginEditorHandle` reads
-  // lazily on every plugin call.
-  useEffect(() => {
-    if (!onActiveEditorChange) return;
-    if (activeTabPath) {
-      onActiveEditorChange(primaryEditorRef);
-    } else {
-      onActiveEditorChange(null);
-    }
-  }, [activeTabPath, onActiveEditorChange]);
 
   // Preview mode state - default to false due to WYSIWYG usability issues
   // (cursor placement broken, Enter creates hashtags instead of line breaks)
@@ -1240,12 +1215,6 @@ export function MainPanel({
             </DropdownMenu>
           )}
 
-          {/*
-            PLUGIN TOOLBAR — buttons contributed by installed plugins. Renders
-            nothing when there are no plugin contributions, so the layout for
-            users without plugins is unchanged.
-          */}
-          <PluginToolbarButtons />
 
           {/*
             UNIFIED OVERFLOW — single "…" button holds secondary controls
