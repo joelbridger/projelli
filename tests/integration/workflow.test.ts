@@ -12,7 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WorkflowEngine, type InterviewHandler, type FileOperations, type ProgressHandler } from '@/modules/workflow/WorkflowEngine';
 import { MockProvider, createMockProvider } from '@/modules/models/MockProvider';
-import { NewBusinessKickoff } from '@/modules/workflow/templates/NewBusinessKickoff';
+import { ClientIntakeSynthesizer } from '@/modules/workflow/templates/legal/ClientIntakeSynthesizer';
 import type { RunRecord, RunRecordStatus } from '@/types/workflow';
 
 describe('Workflow Integration Tests', () => {
@@ -40,16 +40,14 @@ describe('Workflow Integration Tests', () => {
       }),
     };
 
-    // Set up interview handler with mock answers
+    // Set up interview handler with mock answers matching ClientIntakeSynthesizer questions
     interviewHandler = vi.fn(async () => ({
-      problem: 'Solo founders waste time on disorganized business planning',
-      solution: 'An AI-assisted local workspace for business documents',
-      targetCustomer: 'Solo founders starting tech businesses',
-      uniqueValue: 'Local-first, privacy-focused, AI-assisted planning',
-      channels: 'Product Hunt, indie hackers community, content marketing',
-      revenueModel: 'Lifetime license at $99, premium features at $199',
-      competitors: 'Notion, Obsidian, spreadsheets',
-      stage: 'Idea',
+      clientName: 'Robert Tran',
+      matterType: 'Civil litigation',
+      howTheyFoundYou: 'Referral from existing client',
+      intakeNotes: 'Client called about dispute with former business partner. Partner withdrew $80k from company account.',
+      matterComplexity: 'Moderate',
+      potentialConflicts: '',
     }));
 
     // Track progress calls
@@ -59,7 +57,7 @@ describe('Workflow Integration Tests', () => {
     });
   });
 
-  describe('NewBusinessKickoff Workflow', () => {
+  describe('ClientIntakeSynthesizer Workflow', () => {
     it('executes complete workflow and generates all documents', async () => {
       const engine = new WorkflowEngine(
         mockProvider,
@@ -68,31 +66,30 @@ describe('Workflow Integration Tests', () => {
         progressHandler
       );
 
-      const runRecord = await engine.execute(NewBusinessKickoff);
+      const runRecord = await engine.execute(ClientIntakeSynthesizer);
 
       // Verify run record structure
       expect(runRecord).toBeDefined();
       expect(runRecord.run_id).toBeTruthy();
-      expect(runRecord.workflow).toBe('new-business-kickoff');
+      expect(runRecord.workflow).toBe('legal-client-intake-synthesizer');
       expect(runRecord.status).toBe('completed');
       expect(runRecord.start_time).toBeTruthy();
       expect(runRecord.end_time).toBeTruthy();
 
-      // Verify files were created
-      expect(fileSystem.has('VISION.md')).toBe(true);
-      expect(fileSystem.has('PRD.md')).toBe(true);
-      expect(fileSystem.has('LEAN_CANVAS.md')).toBe(true);
+      // Verify files were created. The test harness only supplies writeFile
+      // (no writeFileBinary), so the engine falls back to a .md sibling.
+      expect(fileSystem.has('CLIENT_INTAKE_PACKAGE.md')).toBe(true);
 
       // Verify file operations were called correctly
-      expect(fileOps.writeFile).toHaveBeenCalledTimes(3);
+      expect(fileOps.writeFile).toHaveBeenCalledTimes(1);
 
       // Verify interview handler was called
       expect(interviewHandler).toHaveBeenCalledTimes(1);
       expect(interviewHandler).toHaveBeenCalledWith(
         'interview',
         expect.arrayContaining([
-          expect.objectContaining({ id: 'problem' }),
-          expect.objectContaining({ id: 'solution' }),
+          expect.objectContaining({ id: 'clientName' }),
+          expect.objectContaining({ id: 'matterType' }),
         ])
       );
     });
@@ -105,17 +102,16 @@ describe('Workflow Integration Tests', () => {
         progressHandler
       );
 
-      const runRecord = await engine.execute(NewBusinessKickoff);
+      const runRecord = await engine.execute(ClientIntakeSynthesizer);
 
       // Verify inputs are captured
-      expect(runRecord.inputs).toHaveProperty('problem');
-      expect(runRecord.inputs).toHaveProperty('solution');
-      expect(runRecord.inputs).toHaveProperty('targetCustomer');
+      expect(runRecord.inputs).toHaveProperty('clientName');
+      expect(runRecord.inputs).toHaveProperty('matterType');
+      expect(runRecord.inputs).toHaveProperty('intakeNotes');
 
-      // Verify outputs are captured
-      expect(runRecord.outputs).toHaveProperty('generate-vision_file', 'VISION.md');
-      expect(runRecord.outputs).toHaveProperty('generate-prd_file', 'PRD.md');
-      expect(runRecord.outputs).toHaveProperty('generate-lean-canvas_file', 'LEAN_CANVAS.md');
+      // Verify outputs are captured. The step id is 'generate-intake-package'
+      // so the engine records the key as 'generate-intake-package_file'.
+      expect(runRecord.outputs).toHaveProperty('generate-intake-package_file', 'CLIENT_INTAKE_PACKAGE.docx');
     });
 
     it('records tool calls for all AI interactions', async () => {
@@ -126,10 +122,10 @@ describe('Workflow Integration Tests', () => {
         progressHandler
       );
 
-      const runRecord = await engine.execute(NewBusinessKickoff);
+      const runRecord = await engine.execute(ClientIntakeSynthesizer);
 
-      // Should have 3 tool calls (one per generate step)
-      expect(runRecord.tool_calls).toHaveLength(3);
+      // Should have 1 tool call (one generate step)
+      expect(runRecord.tool_calls).toHaveLength(1);
 
       // Verify tool call structure
       for (const toolCall of runRecord.tool_calls) {
@@ -151,17 +147,15 @@ describe('Workflow Integration Tests', () => {
         progressHandler
       );
 
-      await engine.execute(NewBusinessKickoff);
+      await engine.execute(ClientIntakeSynthesizer);
 
       // Should have progress updates for each step (started + completed)
-      expect(progressHandler).toHaveBeenCalledTimes(8); // 4 steps * 2 events
+      expect(progressHandler).toHaveBeenCalledTimes(4); // 2 steps * 2 events
 
       // Verify correct step order
       const startedSteps = progressCalls.filter((c) => c.status === 'started');
-      expect(startedSteps[0]?.stepName).toBe('Business Interview');
-      expect(startedSteps[1]?.stepName).toBe('Generate Vision Document');
-      expect(startedSteps[2]?.stepName).toBe('Generate PRD');
-      expect(startedSteps[3]?.stepName).toBe('Generate Lean Canvas');
+      expect(startedSteps[0]?.stepName).toBe('Intake Call Information');
+      expect(startedSteps[1]?.stepName).toBe('Generate Intake Package');
     });
 
     it('interpolates template variables correctly', async () => {
@@ -172,11 +166,11 @@ describe('Workflow Integration Tests', () => {
         progressHandler
       );
 
-      await engine.execute(NewBusinessKickoff);
+      await engine.execute(ClientIntakeSynthesizer);
 
       // The provider should have received prompts with interpolated values
       const lastPrompt = mockProvider.getLastPrompt();
-      expect(lastPrompt).toContain('Solo founders');
+      expect(lastPrompt).toContain('Robert Tran');
     });
   });
 
@@ -199,7 +193,7 @@ describe('Workflow Integration Tests', () => {
         progressHandler
       );
 
-      const runRecord = await engine.execute(NewBusinessKickoff);
+      const runRecord = await engine.execute(ClientIntakeSynthesizer);
 
       // Should complete with failed status
       expect(runRecord.status).toBe('failed');
@@ -225,7 +219,7 @@ describe('Workflow Integration Tests', () => {
         progressHandler
       );
 
-      const runRecord = await engine.execute(NewBusinessKickoff);
+      const runRecord = await engine.execute(ClientIntakeSynthesizer);
 
       expect(runRecord.status).toBe('failed');
     });
@@ -242,7 +236,7 @@ describe('Workflow Integration Tests', () => {
         progressHandler
       );
 
-      const runRecord = await engine.execute(NewBusinessKickoff);
+      const runRecord = await engine.execute(ClientIntakeSynthesizer);
 
       expect(runRecord.status).toBe('failed');
       expect(cancellingInterviewHandler).toHaveBeenCalled();
@@ -268,7 +262,7 @@ describe('Workflow Integration Tests', () => {
         trackingProgressHandler
       );
 
-      const runRecord = await engine.execute(NewBusinessKickoff);
+      const runRecord = await engine.execute(ClientIntakeSynthesizer);
 
       // Verify we captured progress events during execution
       expect(capturedStates.length).toBeGreaterThan(0);
@@ -276,8 +270,8 @@ describe('Workflow Integration Tests', () => {
       // Verify each step had started and completed events
       const startedEvents = capturedStates.filter((s) => s.status === 'started');
       const completedEvents = capturedStates.filter((s) => s.status === 'completed');
-      expect(startedEvents.length).toBe(4); // 4 steps
-      expect(completedEvents.length).toBe(4);
+      expect(startedEvents.length).toBe(2); // 2 steps
+      expect(completedEvents.length).toBe(2);
 
       // After workflow completes, execution is null or completed
       expect(runRecord.status).toBe('completed');
@@ -293,7 +287,7 @@ describe('Workflow Integration Tests', () => {
         progressHandler
       );
 
-      const runRecord = await engine.execute(NewBusinessKickoff);
+      const runRecord = await engine.execute(ClientIntakeSynthesizer);
 
       expect(runRecord.model).toBe('mock-model');
     });
@@ -306,9 +300,9 @@ describe('Workflow Integration Tests', () => {
         progressHandler
       );
 
-      const runRecord = await engine.execute(NewBusinessKickoff);
+      const runRecord = await engine.execute(ClientIntakeSynthesizer);
 
-      expect(runRecord.workflow).toBe(NewBusinessKickoff.id);
+      expect(runRecord.workflow).toBe(ClientIntakeSynthesizer.id);
     });
   });
 
@@ -323,7 +317,7 @@ describe('Workflow Integration Tests', () => {
         progressHandler
       );
 
-      const runRecord = await engine.execute(NewBusinessKickoff);
+      const runRecord = await engine.execute(ClientIntakeSynthesizer);
 
       const afterEnd = new Date();
 

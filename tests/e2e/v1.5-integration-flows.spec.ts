@@ -7,7 +7,7 @@
  * use, so any UI rename that breaks a flag spec will also break the
  * relevant integration flow here.
  *
- *   1. Founder flow: Settings → add fact → Workflows → run CompetitorAnalysis
+ *   1. Founder flow: Settings → add fact → Workflows → run ClientIntakeSynthesizer
  *      (template exists, picker opens). The real run needs a live provider
  *      which the harness doesn't have, so we stop at "interview renders".
  *
@@ -40,11 +40,11 @@ test.describe('v1.5 multi-feature integration flows', () => {
     await waitForTestModeLoad(page);
   });
 
-  test('founder flow: Settings → add fact → Workflows → CompetitorAnalysis picker opens', async ({
+  test('founder flow: Settings → add fact → Workflows → ClientIntakeSynthesizer picker opens', async ({
     page,
   }) => {
-    // Step 1: open Settings and add a fact that represents "my business
-    // context" — the sort of durable memory a founder would seed before
+    // Step 1: open Settings and add a fact that represents "my practice
+    // context" — the sort of durable memory an attorney would seed before
     // running a workflow.
     await hardClick(page.getByTestId('settings-gear'));
     await hardClick(page.getByTestId('settings-category-memory'));
@@ -64,12 +64,12 @@ test.describe('v1.5 multi-feature integration flows', () => {
     await expect(openFullView).toBeVisible();
     await hardClick(openFullView);
 
-    // Step 4: Verify the CompetitorAnalysis template exists in the modal
-    // — this is the workflow the founder-flow description targets.
-    const competitorCard = page.getByTestId(
-      'workflow-modal-card-competitor-analysis'
+    // Step 4: Verify the ClientIntakeSynthesizer template exists in the modal
+    // — this is the legal workflow the practice flow description targets.
+    const intakeCard = page.getByTestId(
+      'workflow-modal-card-legal-client-intake-synthesizer'
     );
-    await expect(competitorCard).toBeVisible({ timeout: 5_000 });
+    await expect(intakeCard).toBeVisible({ timeout: 5_000 });
 
     // Step 5: Close the modal cleanly with Escape. The marker fact should
     // still be in Settings (no "whole-app remount" side effects).
