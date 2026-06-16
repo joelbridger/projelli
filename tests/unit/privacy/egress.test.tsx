@@ -25,7 +25,6 @@ import {
 } from '@/modules/privacy/egress';
 import { EgressIndicator } from '@/components/privacy/EgressIndicator';
 import { DataMapDialog } from '@/components/privacy/DataMapDialog';
-import { AIAssistantPane } from '@/components/ai/AIAssistantPane';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { ConfidentialityMode } from '@/modules/privacy/egress';
 
@@ -158,45 +157,7 @@ describe('EgressIndicator', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. Local-only mode constrains the model picker
-// ---------------------------------------------------------------------------
-
-describe('AIAssistantPane confidentiality constraint', () => {
-  const baseProps = {
-    apiKeys: [
-      { provider: 'anthropic' as const, key: 'sk-ant-test', isValid: true },
-      { provider: 'openai' as const, key: 'sk-test', isValid: true },
-      { provider: 'google' as const, key: 'AIzatest', isValid: true },
-    ],
-    chatFiles: [],
-    onSaveApiKey: () => {},
-    onDeleteApiKey: () => {},
-    onCreateNewChat: () => {},
-    onOpenChat: () => {},
-    onDeleteChat: () => {},
-  };
-
-  it('Direct mode: cloud new-chat buttons are enabled (keys present)', () => {
-    setMode('direct');
-    render(<AIAssistantPane {...baseProps} />);
-    expect((screen.getByTestId('new-chat-anthropic') as HTMLButtonElement).disabled).toBe(false);
-    expect((screen.getByTestId('new-chat-openai') as HTMLButtonElement).disabled).toBe(false);
-    expect((screen.getByTestId('new-chat-google') as HTMLButtonElement).disabled).toBe(false);
-    expect(screen.queryByTestId('local-only-cloud-disabled-note')).toBeNull();
-  });
-
-  it('Local-only mode: every cloud new-chat button is disabled + explanation shown', () => {
-    setMode('local-only');
-    render(<AIAssistantPane {...baseProps} />);
-    expect((screen.getByTestId('new-chat-anthropic') as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByTestId('new-chat-openai') as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByTestId('new-chat-google') as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByTestId('local-only-cloud-disabled-note').textContent).toMatch(/nothing leaves your machine/i);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 4. The data map content is accurate
+// 3. The data map content is accurate
 // ---------------------------------------------------------------------------
 
 describe('DataMapDialog', () => {

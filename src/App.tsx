@@ -8,7 +8,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
-import { FileTree } from '@/components/workspace/FileTree';
+
 import { AppShellNav } from '@/components/layout/AppShellNav';
 import { ReimaginedTrustBar } from '@/components/layout/ReimaginedTrustBar';
 import { ReimaginedMattersHome } from '@/components/matter/ReimaginedMattersHome';
@@ -20,16 +20,12 @@ import { ReimaginedAuditHome } from '@/components/audit/ReimaginedAuditHome';
 import { MainPanel } from '@/components/layout/MainPanel';
 import { StatusBar } from '@/components/layout/StatusBar';
 import { McpApprovalGate } from '@/components/settings/McpApprovalGate';
-import { WorkflowPanel } from '@/components/workflow/WorkflowPanel';
+
 import { InterviewForm } from '@/components/workflow/InterviewForm';
 import { CommandPalette, getDefaultCommands, type PaletteCommand } from '@/components/common/CommandPalette';
 import { ShortcutsOverlay } from '@/components/ShortcutsOverlay';
 import { QuickOpen } from '@/components/QuickOpen';
-import { SourceCardPanel } from '@/components/research/SourceCardPanel';
-import { SearchPanel } from '@/components/search/SearchPanel';
-import { AuditLog } from '@/components/common/AuditLog';
-import { TrashPanel } from '@/components/common/TrashPanel';
-import { AIAssistantPane } from '@/components/ai/AIAssistantPane';
+
 import { ProjectManager } from '@/components/workspace/ProjectManager';
 import { AudioRecorderModal } from '@/components/audio/AudioRecorderModal';
 import { Button } from '@/components/ui/button';
@@ -65,7 +61,7 @@ import { createFSBackend } from '@/modules/workspace/BackendFactory';
 import { createWebFSBackend } from '@/modules/workspace/WebFSBackend';
 import type { WorkflowTemplate, WorkflowExecution, InterviewQuestion } from '@/types/workflow';
 import type { TrashedItem } from '@/modules/history/TrashService';
-import type { SourceCard } from '@/types/research';
+
 import type { AuditEntry, AuditScope } from '@/types/audit';
 import { AuditService, auditEventToEntry } from '@/modules/audit/AuditService';
 import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
@@ -73,7 +69,7 @@ import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { MemoryService } from '@/modules/memory/MemoryService';
 import { getActiveScope, getOrCreateSampleMatter, useMatterStore } from '@/stores/matterStore';
 import { useMatterUiStore, isWorkingSurface } from '@/stores/matterUiStore';
-import { MattersSidebarPanel } from '@/components/matter/MattersSidebarPanel';
+
 import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
 import { ragVerifyCitation, type RetrievalScope } from '@/utils/tauri-commands';
 import {
@@ -105,7 +101,7 @@ import { OllamaProvider, detectOllama, OLLAMA_DEFAULT_MODEL } from '@/modules/mo
 import { modeRestrictsToLocal } from '@/modules/privacy/egress';
 import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
 import { FileSystemWatcher, createFileTreeSnapshot } from '@/modules/workspace/FileSystemWatcher';
-import { resolveWorkspacePath } from '@/modules/workspace/pathResolve';
+
 import {
   Dialog,
   DialogContent,
@@ -117,12 +113,10 @@ import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/utils/file-ut
 import { writeDroppedFiles } from '@/utils/fileDrop';
 import { requestScrollToParagraph } from '@/utils/scrollToParagraph';
 import {
-  createBlankSpreadsheet,
-  spreadsheetBytesToDataUrl,
   dataUrlToArrayBuffer,
 } from '@/utils/spreadsheet-io';
 import { createBlankDocx, docxBytesToDataUrl } from '@/utils/docx-io';
-import { createBlankPptx, pptxBytesToDataUrl } from '@/utils/pptx-io';
+
 import { useTrash } from '@/hooks/useTrash';
 import { useSourceCards } from '@/hooks/useSourceCards';
 import { useAIChatFiles } from '@/hooks/useAIChatFiles';
@@ -291,12 +285,6 @@ function App() {
   // Shell-aware API key wizard — opened from reimagined shell CTAs.
   const [apiKeyWizardOpen, setApiKeyWizardOpen] = useState<boolean>(false);
 
-  // UX-04 onboarding: one-shot "open Keys sub-tab" instruction passed to
-  // AIAssistantPane. Set when the onboarding card's CTA fires, cleared by
-  // the pane via onRequestedTabApplied.
-  const [aiAssistantRequestedTab, setAiAssistantRequestedTab] = useState<
-    'chats' | 'keys' | 'settings' | undefined
-  >(undefined);
 
   const handleRequestApiKeySetup = useCallback(() => {
     setApiKeyWizardOpen(true);
@@ -385,14 +373,14 @@ function App() {
   useMailSync({ onMailChunk: handleMailChunk });
 
   // API key management
-  const { apiKeys, handleSaveApiKey: rawSaveApiKey, handleDeleteApiKey: rawDeleteApiKey } = useApiKeys();
+  const { apiKeys, handleSaveApiKey: rawSaveApiKey } = useApiKeys();
 
   // Model list auto-fetching
   const validKeyEntries = useMemo(
     () => apiKeys.filter(k => k.isValid).map(k => ({ provider: k.provider, key: k.key })),
     [apiKeys]
   );
-  const { models: modelLists, refreshProvider, clearProvider } = useModelList(validKeyEntries);
+  const { refreshProvider } = useModelList(validKeyEntries);
 
   // Wrap API key handlers to also update model lists
   const handleSaveApiKey = useCallback(
@@ -403,13 +391,6 @@ function App() {
     [rawSaveApiKey, refreshProvider]
   );
 
-  const handleDeleteApiKey = useCallback(
-    (provider: 'anthropic' | 'openai' | 'google') => {
-      rawDeleteApiKey(provider);
-      clearProvider(provider);
-    },
-    [rawDeleteApiKey, clearProvider]
-  );
 
   // Shared KeychainService for the first-run wizard's "connect an AI" step.
   // This is the same secure-storage path ApiKeySettings/ApiKeyWizard use
@@ -1032,13 +1013,8 @@ function App() {
 
   // Source card management (must be defined before handleWorkspaceSelected)
   const {
-    sourceCards,
     setSourceCards,
     loadSourceCards,
-    handleOpenSourceFile,
-    handleCreateSourceCard,
-    handleUpdateSourceCard,
-    handleDeleteSourceCard,
   } = useSourceCards({ rootPath, workspaceServiceRef, handleFileOpen });
 
   // Handle delete (moves to trash instead of permanent delete) - must be defined before useAIChatFiles
@@ -1146,12 +1122,8 @@ function App() {
 
   // AI Chat Files Management (must be defined after handleDelete and handleFileOpen)
   const {
-    chatFiles,
     setChatFiles,
     loadChatFiles,
-    handleCreateNewChat,
-    handleOpenChat,
-    handleDeleteChat,
   } = useAIChatFiles({ rootPath, workspaceServiceRef, handleFileOpen, handleDelete });
 
   // Handle workspace selection
@@ -1373,16 +1345,6 @@ function App() {
     return () => { cancelled = true; };
   }, [IS_DEMO_MODE, rootPath, handleWorkspaceSelected]);
 
-  // Handle revealing a folder in the Files tab
-  const handleRevealInFolder = useCallback((_path: string) => {
-    // Switch to Files tab, landing on the file browser (we're revealing a folder,
-    // not opening a document).
-    setDocumentsView('browser');
-    setSidebarActiveTab('files');
-
-    // The folder expansion and selection is already handled by SearchPanel
-    // Just need to ensure the tab switch happens
-  }, []);
 
   // Handle opening browser tab
   const handleOpenBrowserTab = useCallback(
@@ -1823,25 +1785,6 @@ function App() {
     setAuditEntries((prev) => [merged, ...prev]);
   }, []);
 
-  // Handle create file at root
-  const handleCreateFileAtRoot = useCallback(async () => {
-    if (!workspaceServiceRef.current || !rootPath) return;
-    const name = await prompt('Enter file name:', '', {
-      title: 'Create File',
-      placeholder: 'myfile.txt',
-    });
-    if (!name) return;
-
-    const filePath = `${rootPath}/${name}`;
-    try {
-      await workspaceServiceRef.current.writeFile(filePath, '');
-      const fileTree = await workspaceServiceRef.current.getFileTree();
-      setFileTree(fileTree);
-      await handleFileOpen(filePath, name);
-    } catch (error) {
-      console.error('Failed to create file:', error);
-    }
-  }, [rootPath, setFileTree, handleFileOpen, prompt]);
 
   // Handle create markdown file in a target folder (defaults to docs folder).
   // R6-1: `parentPath` lets the Documents grid create the file in the folder
@@ -1918,64 +1861,7 @@ function App() {
     }
   }, [rootPath, setFileTree, handleFileOpen, prompt]);
 
-  // Handle create blank spreadsheet file at root (goes to docs folder)
-  const handleCreateSpreadsheetAtRoot = useCallback(async () => {
-    if (!workspaceServiceRef.current || !rootPath) return;
-    const name = await prompt('Enter file name (without extension):', '', {
-      title: 'Create Spreadsheet',
-      placeholder: 'my-sheet',
-      destinationPath: `${rootPath}/docs/`,
-      previewExtension: '.xlsx',
-    });
-    if (!name) return;
 
-    const fileName = name.endsWith('.xlsx') ? name : `${name}.xlsx`;
-    const filePath = `${rootPath}/docs/${fileName}`;
-    try {
-      const bytes = createBlankSpreadsheet('xlsx');
-      // ArrayBuffer copy so callers don't hold onto the typed array view.
-      const buffer = new ArrayBuffer(bytes.byteLength);
-      new Uint8Array(buffer).set(bytes);
-      await workspaceServiceRef.current.writeFileBinary(filePath, buffer);
-      const fileTree = await workspaceServiceRef.current.getFileTree();
-      setFileTree(fileTree);
-      // Open tab with the data URL (matches the shape MainPanel expects for
-      // binary document types).
-      const dataUrl = spreadsheetBytesToDataUrl(bytes, 'xlsx');
-      openFile(filePath, fileName, dataUrl);
-    } catch (error) {
-      console.error('Failed to create spreadsheet:', error);
-    }
-  }, [rootPath, setFileTree, openFile, prompt]);
-
-  // Handle create blank CSV file at root (goes to docs folder)
-  const handleCreateCsvAtRoot = useCallback(async () => {
-    if (!workspaceServiceRef.current || !rootPath) return;
-    const name = await prompt('Enter file name (without extension):', '', {
-      title: 'Create CSV File',
-      placeholder: 'my-data',
-      destinationPath: `${rootPath}/docs/`,
-      previewExtension: '.csv',
-    });
-    if (!name) return;
-
-    const fileName = name.endsWith('.csv') ? name : `${name}.csv`;
-    const filePath = `${rootPath}/docs/${fileName}`;
-    try {
-      const bytes = createBlankSpreadsheet('csv');
-      // CSV is text but we use the binary write path so both tabs and disk
-      // see exactly the same bytes.
-      const buffer = new ArrayBuffer(bytes.byteLength);
-      new Uint8Array(buffer).set(bytes);
-      await workspaceServiceRef.current.writeFileBinary(filePath, buffer);
-      const fileTree = await workspaceServiceRef.current.getFileTree();
-      setFileTree(fileTree);
-      const dataUrl = spreadsheetBytesToDataUrl(bytes, 'csv');
-      openFile(filePath, fileName, dataUrl);
-    } catch (error) {
-      console.error('Failed to create CSV file:', error);
-    }
-  }, [rootPath, setFileTree, openFile, prompt]);
 
   // VG-4c — pick a Word file as the firm letterhead template. Stores its path
   // in the `letterheadTemplatePath` setting; new documents and workflow
@@ -2080,77 +1966,7 @@ function App() {
     handleCreateDocxAtRoot,
   ]);
 
-  // Handle create blank .pptx file at root (goes to docs folder)
-  const handleCreatePptxAtRoot = useCallback(async () => {
-    if (!workspaceServiceRef.current || !rootPath) return;
-    const name = await prompt('Enter file name (without extension):', '', {
-      title: 'Create PowerPoint Presentation',
-      placeholder: 'my-deck',
-      destinationPath: `${rootPath}/docs/`,
-      previewExtension: '.pptx',
-    });
-    if (!name) return;
 
-    const fileName = name.endsWith('.pptx') ? name : `${name}.pptx`;
-    const filePath = `${rootPath}/docs/${fileName}`;
-    try {
-      const bytes = await createBlankPptx();
-      const buffer = new ArrayBuffer(bytes.byteLength);
-      new Uint8Array(buffer).set(bytes);
-      await workspaceServiceRef.current.writeFileBinary(filePath, buffer);
-      const fileTree = await workspaceServiceRef.current.getFileTree();
-      setFileTree(fileTree);
-      const dataUrl = pptxBytesToDataUrl(bytes);
-      openFile(filePath, fileName, dataUrl);
-    } catch (error) {
-      console.error('Failed to create PowerPoint presentation:', error);
-    }
-  }, [rootPath, setFileTree, openFile, prompt]);
-
-  // Handle create source file in Research folder
-  const handleCreateSourceFileAtRoot = useCallback(async () => {
-    if (!workspaceServiceRef.current || !rootPath) return;
-    const title = await prompt('Enter source title:', '', {
-      title: 'Create Source File',
-      placeholder: 'Source Title',
-    });
-    if (!title) return;
-
-    // Create filename from exact title + .source extension
-    const filename = `${title}.source`;
-    const filePath = `${rootPath}/Research/${filename}`;
-
-    // Create initial source structure
-    const newSourceCard: SourceCard = {
-      id: `src_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-      url: '',
-      title: title,
-      date_accessed: new Date().toISOString().split('T')[0]!,
-      quote_or_snippet: '',
-      claim_supported: '',
-      reliability_notes: '',
-    };
-
-    try {
-      // Ensure Research folder exists
-      const researchPath = `${rootPath}/Research`;
-      const researchExists = await workspaceServiceRef.current.exists(researchPath);
-      if (!researchExists) {
-        await workspaceServiceRef.current.mkdir(researchPath);
-      }
-
-      // Create the source file
-      await workspaceServiceRef.current.writeFile(filePath, JSON.stringify(newSourceCard, null, 2));
-      const fileTree = await workspaceServiceRef.current.getFileTree();
-      setFileTree(fileTree);
-      await handleFileOpen(filePath, filename);
-
-      // Add to sources state
-      setSourceCards(prev => [...prev, newSourceCard]);
-    } catch (error) {
-      console.error('Failed to create source file:', error);
-    }
-  }, [rootPath, setFileTree, handleFileOpen, prompt]);
 
   // Handle create folder at root
   const handleCreateFolderAtRoot = useCallback(async () => {
@@ -2177,16 +1993,6 @@ function App() {
     }
   }, [rootPath, setFileTree, prompt]);
 
-  // Handle open grid view
-  const handleOpenGridView = useCallback(() => {
-    // Open a special "Files" tab with grid view
-    openFile('__grid_view__', 'Files', '');
-  }, [openFile]);
-
-  // Handle create audio file
-  const handleCreateAudioAtRoot = useCallback(() => {
-    setShowAudioRecorder(true);
-  }, []);
 
   // Handle save audio recording
   const handleSaveAudioRecording = useCallback(
@@ -2217,52 +2023,6 @@ function App() {
     [rootPath, setFileTree, handleFileOpen]
   );
 
-  // Handle file upload
-  const handleUploadFiles = useCallback(
-    async (files: FileList, targetFolder?: string) => {
-      if (!workspaceServiceRef.current || !rootPath) return;
-
-      // Use targetFolder if provided, otherwise upload to root.
-      // Always resolve to an absolute path: when targetFolder is a
-      // workspace-relative folder (e.g. "docs"), the constructed filePath would
-      // be relative ("docs/file.docx").  Native Tauri commands (docx_open, etc.)
-      // receive paths via invoke() and call std::fs::read(path) directly —
-      // a relative path resolves against the Rust process CWD, not the
-      // workspace root, causing "os error 3" on Windows.
-      const uploadPath = resolveWorkspacePath(rootPath, targetFolder || rootPath);
-
-      for (const file of Array.from(files)) {
-        const filePath = `${uploadPath}/${file.name}`;
-        try {
-          if (isBinaryFile(file.name)) {
-            // Read as array buffer and write as binary
-            const buffer = await file.arrayBuffer();
-            await workspaceServiceRef.current.writeFileBinary(filePath, buffer);
-          } else {
-            // Read as text and write as string
-            const content = await file.text();
-            await workspaceServiceRef.current.writeFile(filePath, content);
-          }
-        } catch (error) {
-          console.error(`Failed to upload ${file.name}:`, error);
-        }
-      }
-
-      // Refresh file tree after uploads
-      const fileTree = await workspaceServiceRef.current.getFileTree();
-      setFileTree(fileTree);
-
-      // UX-33: open the last uploaded file so the user sees it immediately.
-      // Pass the absolute path so native commands (docx_open, etc.) can read it.
-      const uploaded = Array.from(files);
-      if (uploaded.length > 0) {
-        const last = uploaded[uploaded.length - 1]!;
-        const lastPath = `${uploadPath}/${last.name}`;
-        await handleFileOpen(lastPath, last.name);
-      }
-    },
-    [rootPath, setFileTree, handleFileOpen]
-  );
 
   // UX-19: Global drag-and-drop upload. Handles files dropped anywhere on
   // the window. Target folder resolves to the nearest `data-folder-path`
@@ -2305,62 +2065,6 @@ function App() {
     enabled: !!rootPath && !showWorkspaceSelector,
   });
 
-  // UX-28: handle a drag-and-drop of an AI chat message from AIChatViewer
-  // onto the file tree. Folder drops create a new .md file; file drops
-  // append the content to the existing file with a `---` separator so
-  // markdown readers still render both halves. Opens the resulting file
-  // in a tab either way.
-  const handleDropAIMessage = useCallback(
-    async (opts: { content: string; targetFolder: string; existingFilePath?: string }) => {
-      const service = workspaceServiceRef.current;
-      if (!service) return;
-      try {
-        if (opts.existingFilePath) {
-          // Append. Read the current text (best-effort — fall back to
-          // empty if the read fails, e.g. binary file) and tack on a
-          // separator + the new content.
-          let existing = '';
-          try {
-            existing = await service.readFile(opts.existingFilePath);
-          } catch {
-            existing = '';
-          }
-          const trimmedExisting = existing.replace(/\s+$/, '');
-          const appended = trimmedExisting
-            ? `${trimmedExisting}\n\n---\n\n${opts.content}\n`
-            : `${opts.content}\n`;
-          await service.writeFile(opts.existingFilePath, appended);
-          const tree = await service.getFileTree();
-          setFileTree(tree);
-          await handleFileOpen(
-            opts.existingFilePath,
-            opts.existingFilePath.split('/').pop() ?? 'file'
-          );
-          return;
-        }
-
-        // New-file path: derive a filename from the message, resolve
-        // against existing entries in the target folder to avoid collision.
-        const { deriveFilenameFromMessage, resolveUniqueName } = await import(
-          '@/utils/fileDrop'
-        );
-        const desired = deriveFilenameFromMessage(opts.content);
-        const finalName = await resolveUniqueName(
-          service,
-          opts.targetFolder,
-          desired
-        );
-        const path = `${opts.targetFolder}/${finalName}`;
-        await service.writeFile(path, `${opts.content}\n`);
-        const tree = await service.getFileTree();
-        setFileTree(tree);
-        await handleFileOpen(path, finalName);
-      } catch (err) {
-        console.error('[App] AI message drop failed:', err);
-      }
-    },
-    [setFileTree, handleFileOpen]
-  );
 
   // Handle starting a workflow
   const handleStartWorkflow = useCallback(
@@ -3592,10 +3296,10 @@ This file contains rules and guidelines for AI assistants in this workspace.
         <AppShellNav
           activeTab={sidebarActiveTab}
           onTabChange={(tab: string) => {
-            // Fix 1: any click to 'files' in the spine nav lands on the Files
-            // browser, even if a document was the last thing open. This is the
-            // user clicking the nav (vs a file being opened programmatically),
-            // so it always means "show me my files".
+            // Any click to 'files' in the spine nav lands on the Files browser,
+            // even if a document was the last thing open. This is the user
+            // clicking the nav (vs a file being opened programmatically), so it
+            // always means "show me my files".
             if (tab === 'files') {
               setDocumentsView('browser');
             }
@@ -3603,110 +3307,6 @@ This file contains rules and guidelines for AI assistants in this workspace.
           }}
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
-          onOpenGridView={handleOpenGridView}
-          fileTreeContent={
-            <FileTree
-              onFileOpen={handleFileOpen}
-              onCreateFile={handleCreateFile}
-              onCreateFolder={handleCreateFolder}
-              onRename={handleRename}
-              onDelete={handleDelete}
-              onMove={handleMove}
-              onDownload={handleDownload}
-              onCreateFileAtRoot={handleCreateFileAtRoot}
-              onCreateDefaultDocument={handleCreateDefaultDocument}
-              onCreateMarkdownAtRoot={handleCreateMarkdownAtRoot}
-              onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
-              onCreateRichTextFileAtRoot={handleCreateRichTextFileAtRoot}
-              onCreateSpreadsheetAtRoot={handleCreateSpreadsheetAtRoot}
-              onCreateCsvAtRoot={handleCreateCsvAtRoot}
-              onCreateDocxAtRoot={handleCreateDocxAtRoot}
-              onCreatePptxAtRoot={handleCreatePptxAtRoot}
-              onSetLetterheadTemplate={handleSetLetterheadTemplate}
-              onCreateSourceFileAtRoot={handleCreateSourceFileAtRoot}
-              onCreateFolderAtRoot={handleCreateFolderAtRoot}
-              onUploadFiles={handleUploadFiles}
-              onOpenGridView={handleOpenGridView}
-              onCreateAudioAtRoot={handleCreateAudioAtRoot}
-              onConfirm={confirm}
-              onDropAIMessage={handleDropAIMessage}
-            />
-          }
-          searchContent={
-            <SearchPanel
-              onFileSelect={handleFileOpen}
-              onRevealInFolder={handleRevealInFolder}
-              onContentSearch={contentIndex.search}
-            />
-          }
-          workflowContent={
-            <WorkflowPanel
-              heading="Workflows"
-              onStartWorkflow={handleStartWorkflow}
-              currentExecution={currentExecution}
-              runHistory={runHistory}
-              // F-502 — surface a blocked run right where the user clicked
-              // Run (no folder/tab exists yet for the execution-tab banner).
-              providerError={workflowProviderError}
-              onOpenSettings={() => openSettings('ai')}
-              onFocusExecutionTab={() => {
-                // Prefer the tracked active workflow file path (live run);
-                // fall back to scanning open tabs for any `.workflow` file
-                // so we still focus a recently-completed run if its tab is
-                // open but the live state has cleared.
-                const target =
-                  activeWorkflowFilePath ??
-                  openTabs.find((t) => isWorkflowFilePath(t.path))?.path ??
-                  null;
-                if (target) {
-                  useEditorStore.getState().setActiveTab(target);
-                }
-              }}
-            />
-          }
-          aiAssistantContent={
-            <AIAssistantPane
-              apiKeys={apiKeys}
-              chatFiles={chatFiles}
-              modelLists={modelLists}
-              onSaveApiKey={handleSaveApiKey}
-              onDeleteApiKey={handleDeleteApiKey}
-              onCreateNewChat={handleCreateNewChat}
-              onOpenChat={handleOpenChat}
-              onDeleteChat={handleDeleteChat}
-              onOpenAIRules={handleOpenAIRules}
-              requestedTab={aiAssistantRequestedTab}
-              onRequestedTabApplied={() => setAiAssistantRequestedTab(undefined)}
-            />
-          }
-          researchContent={
-            <SourceCardPanel
-              cards={sourceCards}
-              onCreateCard={handleCreateSourceCard}
-              onUpdateCard={handleUpdateSourceCard}
-              onDeleteCard={handleDeleteSourceCard}
-              onOpenFile={handleOpenSourceFile}
-            />
-          }
-          auditContent={
-            <AuditLog
-              entries={auditEntries}
-            />
-          }
-          trashContent={
-            <TrashPanel
-              items={trashItems}
-              stats={trashStats}
-              onRestore={handleRestoreFromTrash}
-              onPermanentDelete={handlePermanentDelete}
-              onEmptyTrash={handleEmptyTrash}
-              retentionPeriod={trashRetentionPeriod}
-              customRetentionDays={trashCustomRetentionDays}
-              onRetentionChange={handleTrashRetentionChange}
-            />
-          }
-          mattersContent={<MattersSidebarPanel />}
-          emailContent={null}
         />
 
         {/* Main editor panel, or a full-page reimagined surface (matters/Ask/Email). */}

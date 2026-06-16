@@ -106,7 +106,6 @@ vi.mock('@/modules/models/OllamaProvider', () => {
 vi.mock('@/components/ai/ChatCostChip', () => ({ ChatCostChip: () => null }));
 
 import { AIChatViewer } from '@/components/ai/AIChatViewer';
-import { AIAssistantPane } from '@/components/ai/AIAssistantPane';
 import type { AIChatFile } from '@/types/ai';
 import { useAIChatStore } from '@/stores/aiChatStore';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -293,86 +292,7 @@ describe('Ollama streaming + abort', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. Local-only restricts the picker to Ollama and defaults to it.
-// ---------------------------------------------------------------------------
-describe('AIAssistantPane Local-only model picker', () => {
-  const baseProps = {
-    apiKeys: [
-      { provider: 'anthropic' as const, key: 'sk-ant', isValid: true },
-      { provider: 'openai' as const, key: 'sk-oa', isValid: true },
-      { provider: 'google' as const, key: 'AIza', isValid: true },
-    ],
-    chatFiles: [],
-    onSaveApiKey: () => {},
-    onDeleteApiKey: () => {},
-    onOpenChat: () => {},
-    onDeleteChat: () => {},
-  };
-
-  it('shows ONLY local (Ollama) models and offers a local new-chat; cloud buttons disabled', async () => {
-    setMode('local-only');
-    const onCreateNewChat = vi.fn();
-    const onDetectOllama = vi.fn(async () => ({ reachable: true, models: ['llama3.2:3b', 'mistral'] }));
-
-    render(
-      <AIAssistantPane
-        {...baseProps}
-        onCreateNewChat={onCreateNewChat}
-        onDetectOllama={onDetectOllama}
-      />,
-    );
-
-    // The local model picker appears and is populated with the discovered models.
-    await waitFor(() => expect(screen.getByTestId('model-select-ollama')).toBeTruthy());
-    const select = screen.getByTestId('model-select-ollama') as HTMLSelectElement;
-    const optionValues = Array.from(select.options).map((o) => o.value);
-    expect(optionValues).toEqual(['llama3.2:3b', 'mistral']);
-    // Defaults to the first discovered model.
-    expect(select.value).toBe('llama3.2:3b');
-
-    // Cloud new-chat buttons are all disabled in Local-only.
-    expect((screen.getByTestId('new-chat-anthropic') as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByTestId('new-chat-openai') as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByTestId('new-chat-google') as HTMLButtonElement).disabled).toBe(true);
-
-    // The Ollama new-chat button creates an 'ollama' chat defaulting to the model.
-    const localBtn = screen.getByTestId('new-chat-ollama') as HTMLButtonElement;
-    expect(localBtn.disabled).toBe(false);
-    act(() => fireEvent.click(localBtn));
-    expect(onCreateNewChat).toHaveBeenCalledWith('ollama', 'llama3.2:3b');
-  });
-
-  it('when Ollama is unavailable, the local new-chat is disabled with a clear hint (no cloud chat possible)', async () => {
-    setMode('local-only');
-    const onCreateNewChat = vi.fn();
-    const onDetectOllama = vi.fn(async () => ({ reachable: false, models: [] }));
-
-    render(
-      <AIAssistantPane
-        {...baseProps}
-        onCreateNewChat={onCreateNewChat}
-        onDetectOllama={onDetectOllama}
-      />,
-    );
-
-    await waitFor(() => expect(screen.getByTestId('local-only-ollama-unavailable')).toBeTruthy());
-    expect((screen.getByTestId('new-chat-ollama') as HTMLButtonElement).disabled).toBe(true);
-    // Cloud is still disabled — so no chat at all can start, which is correct:
-    // Local-only must never silently fall back to the cloud.
-    expect((screen.getByTestId('new-chat-anthropic') as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it('Direct mode does NOT show the local picker (cloud default unchanged)', () => {
-    setMode('direct');
-    render(<AIAssistantPane {...baseProps} onCreateNewChat={() => {}} />);
-    expect(screen.queryByTestId('model-select-ollama')).toBeNull();
-    expect(screen.queryByTestId('new-chat-ollama')).toBeNull();
-    expect((screen.getByTestId('new-chat-anthropic') as HTMLButtonElement).disabled).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 5. providerFactory — local construction + no fallthrough.
+// 4. providerFactory — local construction + no fallthrough.
 // ---------------------------------------------------------------------------
 describe('providerFactory local construction', () => {
   it('constructs the local OllamaProvider for "ollama" (no key needed)', () => {

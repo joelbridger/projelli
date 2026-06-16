@@ -1,1 +1,0 @@
-export { SearchPanel } from './SearchPanel';
