@@ -43,217 +43,23 @@ import {
 } from '@/modules/memory/workspaceCommand';
 import type { WorkspaceSource } from '@/types/ai';
 import type { RagHit, RetrievalScope } from '@/utils/tauri-commands';
-import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
-import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
-import { GeminiProvider } from '@/modules/models/GeminiProvider';
-import { OllamaProvider } from '@/modules/models/OllamaProvider';
 import { KeychainService } from '@/modules/models/KeychainService';
-import type { Provider } from '@/modules/models/Provider';
 import { cn } from '@/lib/utils';
 import { useAIChatStore } from '@/stores/aiChatStore';
 import type { ChatMessage } from '@/types/ai';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 import { EgressIndicator } from '@/components/privacy/EgressIndicator';
 import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
-
-/* -------------------------------------------------------------------------- */
-/* Types                                                                       */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Which slice of the user's data to search.
- * - 'this-matter'  search only within the active matter (same as today's default)
- * - 'all-matters'  cross-matter (same as today's no-active-matter default)
- * - 'email'        restrict to mail: sourceId / sourceType === 'mail' chunks
- * - 'documents'    restrict to non-mail chunks (files, PDFs, transcripts, etc.)
- */
-export type AskScope = 'this-matter' | 'all-matters' | 'email' | 'documents';
-
-interface AnswerCitation {
-  /** 1-based chip number as it appears in the answer text {n}. */
-  n: number;
-  /** Human-readable label (basename + locator/section). */
-  label: string;
-  /** Raw passage text from the retrieved chunk. */
-  excerpt: string;
-  /** Full workspace-relative path; null if resolution failed. */
-  path: string | null;
-  /** Locator string for the source (page, section, etc.). */
-  locator: string;
-  /** Whether the source was returned from the verified RAG store. */
-  verified: boolean;
-}
-
-interface AskTurn {
-  question: string;
-  answer: string;
-  citations: AnswerCitation[];
-  sources: WorkspaceSource[];
-  isStreaming?: boolean;
-  error?: string;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Helpers                                                                     */
-/* -------------------------------------------------------------------------- */
-
-function sourceLocator(s: WorkspaceSource): string {
-  if (s.sourceType === 'transcript' && s.locator) return `Tr. ${s.locator}`;
-  if (s.pageNumber != null) {
-    const base = citationBasename(s.path);
-    if (s.sourceType === 'pdf') return `${base} p. ${String(s.pageNumber)}`;
-    if (s.sourceType === 'xlsx') return `${base} sheet ${String(s.pageNumber)}`;
-    if (s.sourceType === 'pptx') return `${base} slide ${String(s.pageNumber)}`;
-  }
-  return `${citationBasename(s.path)} §${String(s.paragraphIndex)}`;
-}
-
-/**
- * Returns true when the user has at least one valid cloud API key
- * (Anthropic, OpenAI, or Google). Ollama is not considered a cloud key.
- * This mirrors the priority order in buildProviderAsync but returns a boolean
- * synchronously-from-localStorage so the demo branch can short-circuit before
- * any async work.
- */
-async function hasCloudKey(): Promise<boolean> {
-  const kc = new KeychainService('localStorage');
-  const anthropicKey = await kc.getKey('anthropic');
-  if (anthropicKey?.trim()) return true;
-  const openaiKey = await kc.getKey('openai');
-  if (openaiKey?.trim()) return true;
-  const googleKey = await kc.getKey('google');
-  if (googleKey?.trim()) return true;
-  return false;
-}
-
-async function buildProviderAsync(): Promise<Provider> {
-  const kc = new KeychainService('localStorage');
-  const anthropicKey = await kc.getKey('anthropic');
-  if (anthropicKey?.trim()) {
-    return new ClaudeProvider({ apiKey: anthropicKey.trim() });
-  }
-  const openaiKey = await kc.getKey('openai');
-  if (openaiKey?.trim()) {
-    return new OpenAIProvider({ apiKey: openaiKey.trim() });
-  }
-  const googleKey = await kc.getKey('google');
-  if (googleKey?.trim()) {
-    return new GeminiProvider({ apiKey: googleKey.trim() });
-  }
-  return new OllamaProvider({});
-}
-
-/**
- * Maps raw provider error messages to plain-language user-facing text.
- * Fix #4: prevents leaking "401 Unauthorized" / quota strings into the UI.
- */
-/* eslint-disable keepance-i18n/no-hardcoded-string */
-function friendlyErrorMessage(raw: string): string {
-  const lower = raw.toLowerCase();
-  if (
-    lower.includes('401') ||
-    lower.includes('unauthorized') ||
-    lower.includes('invalid_api_key') ||
-    lower.includes('authentication')
-  ) {
-    return 'Your AI key was rejected. Check it in Settings.';
-  }
-  if (
-    lower.includes('429') ||
-    lower.includes('quota') ||
-    lower.includes('rate') ||
-    lower.includes('overloaded')
-  ) {
-    return 'Your AI provider is over its usage limit right now. Wait a moment and try again.';
-  }
-  if (
-    lower.includes('context_length') ||
-    lower.includes('too large') ||
-    lower.includes('maximum context')
-  ) {
-    return 'That question is too long for this model. Try a shorter one.';
-  }
-  return "I couldn't reach your AI provider. Try again, or check your key in Settings.";
-}
-/* eslint-enable keepance-i18n/no-hardcoded-string */
-
-/** Build conversation history block for system prompt (last N turns). */
-function buildHistoryBlock(turns: AskTurn[], maxTurns = 6): string {
-  if (turns.length === 0) return '';
-  const recent = turns.slice(-maxTurns);
-  const lines: string[] = ['Conversation so far (last exchanges):'];
-  for (const t of recent) {
-    lines.push(`Q: ${t.question}`);
-    lines.push(`A: ${t.answer}`);
-  }
-  lines.push('\nNow answer the new question below, citing sources with [filename paragraph N] as before.');
-  return lines.join('\n');
-}
-
-/** Reconstruct AskTurn[] from persisted ChatMessage pairs (user+assistant). */
-function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
-  const turns: AskTurn[] = [];
-  let i = 0;
-  // Fix #3: iterate i < messages.length (not length - 1) so a trailing lone
-  // user message (e.g. crash mid-stream) is not silently dropped.
-  while (i < messages.length) {
-    const userMsg = messages[i];
-    const assistantMsg = messages[i + 1];
-    if (userMsg && assistantMsg && userMsg.role === 'user' && assistantMsg.role === 'assistant') {
-      if (assistantMsg.askCitations && assistantMsg.askCitations.length > 0) {
-        // Citations were persisted: keep the {n} markers so chips render, and
-        // restore the full citation + source data. This is the path that makes
-        // reloaded/navigated answers keep their clickable chips and source panel.
-        turns.push({
-          question: userMsg.content,
-          answer: assistantMsg.content,
-          citations: assistantMsg.askCitations,
-          sources: assistantMsg.askSources ?? [],
-        });
-      } else {
-        // Legacy messages (pre-fix) have no persisted citations. Strip the {n}
-        // markers so raw tokens don't appear in plain-text restored prose.
-        turns.push({
-          question: userMsg.content,
-          answer: assistantMsg.content.replace(/\s*\{\d+\}/g, ''),
-          citations: [],
-          sources: [],
-        });
-      }
-      i += 2;
-    } else if (userMsg && userMsg.role === 'user' && (!assistantMsg || assistantMsg.role !== 'assistant')) {
-      // Trailing lone user message (orphaned, no matching assistant reply).
-      // Render as a pending turn with an empty answer instead of dropping it.
-      turns.push({
-        question: userMsg.content,
-        answer: '',
-        citations: [],
-        sources: [],
-      });
-      i += 1;
-    } else {
-      i += 1;
-    }
-  }
-  return turns;
-}
-
-/** Returns true for a hit that came from imported email. */
-function isMailHit(hit: RagHit): boolean {
-  return hit.sourceType === 'mail' || hit.path.startsWith('mail:') || (hit.sourceId?.startsWith('mail:') ?? false);
-}
-
-/**
- * Filter retrieved hits according to the user-selected scope.
- * 'this-matter' and 'all-matters' keep all hits (retrieval scope is already
- * correct from the Tauri-level query). 'email' keeps only mail: chunks;
- * 'documents' keeps only non-mail chunks.
- */
-function filterHitsByScope(hits: RagHit[], scope: AskScope): RagHit[] {
-  if (scope === 'email') return hits.filter(isMailHit);
-  if (scope === 'documents') return hits.filter((h) => !isMailHit(h));
-  return hits;
-}
+import type { AskScope, AnswerCitation, AskTurn } from './askHelpers';
+import {
+  sourceLocator,
+  hasCloudKey,
+  buildProviderAsync,
+  friendlyErrorMessage,
+  buildHistoryBlock,
+  reconstructTurns,
+  filterHitsByScope,
+} from './askHelpers';
 
 /* -------------------------------------------------------------------------- */
 /* ScopeToggle — compact segmented pill control                                */
