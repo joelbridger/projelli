@@ -19,22 +19,15 @@ import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
 
 import { AppShellNav } from '@/components/layout/AppShellNav';
 import { ReimaginedTrustBar } from '@/components/layout/ReimaginedTrustBar';
-import { ReimaginedMattersHome } from '@/components/matter/ReimaginedMattersHome';
-import { ReimaginedAsk } from '@/components/ai/ReimaginedAsk';
-import { ReimaginedEmailWorkspace } from '@/components/mail/ReimaginedEmailWorkspace';
-import { ReimaginedDocumentsHome } from '@/components/documents/ReimaginedDocumentsHome';
-import { ReimaginedAssociateHome } from '@/components/workflow/ReimaginedAssociateHome';
-import { ReimaginedAuditHome } from '@/components/audit/ReimaginedAuditHome';
-import { MainPanel } from '@/components/layout/MainPanel';
 import { StatusBar } from '@/components/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
+import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
 
 import { ProjectManager } from '@/components/workspace/ProjectManager';
 import { Button } from '@/components/ui/button';
 import { Command, Moon, Monitor, Sun, Settings } from 'lucide-react';
 import { manualUpdateCheck } from '@/components/updater/UpdateManager';
 import { openExternal } from '@/utils/openExternal';
-import { SettingsContent } from '@/components/settings/SettingsContent';
 import { TrialBanner } from '@/components/trial';
 import { hasCompletedOnboarding } from '@/components/onboarding';
 import { GuidedOnboarding } from '@/components/onboarding/GuidedOnboarding';
@@ -60,7 +53,6 @@ import type { TrashedItem } from '@/modules/history/TrashService';
 import type { AuditEntry, AuditScope } from '@/types/audit';
 import { AuditService, auditEventToEntry } from '@/modules/audit/AuditService';
 import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
-import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { MemoryService } from '@/modules/memory/MemoryService';
 import { getActiveScope, getOrCreateSampleMatter, useMatterStore } from '@/stores/matterStore';
 import { useMatterUiStore, isWorkingSurface } from '@/stores/matterUiStore';
@@ -97,7 +89,6 @@ import { FileSystemWatcher, createFileTreeSnapshot } from '@/modules/workspace/F
 
 import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/utils/file-utils';
 import { writeDroppedFiles } from '@/utils/fileDrop';
-import { requestScrollToParagraph } from '@/utils/scrollToParagraph';
 
 
 import { useTrash } from '@/hooks/useTrash';
@@ -2190,197 +2181,59 @@ This file contains rules and guidelines for AI assistants in this workspace.
         />
 
         {/* Main editor panel, or a full-page reimagined surface (matters/Ask/Email). */}
-        {sidebarActiveTab ==='matters' ? (
-          <ReimaginedMattersHome />
-        ) : sidebarActiveTab ==='search' ? (
-          <ReimaginedAsk
-            onSaveToDocument={async (content) => {
-              if (!workspaceServiceRef.current || !rootPath) return;
-              // Word-first: AI answers save as a real .docx (not markdown).
-              const { deriveFilenameFromMessage, resolveUniqueName } = await import('@/utils/fileDrop');
-              const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/utils/docx-io');
-              const firmName = (() => { try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; } })();
-              const base = deriveFilenameFromMessage(content).replace(/\.(md|markdown|txt)$/i, '');
-              const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
-              const path = `${rootPath}/${finalName}`;
-              const bytes = await markdownToDocxBytes(content, finalName, { firmName });
-              const buffer = new ArrayBuffer(bytes.byteLength);
-              new Uint8Array(buffer).set(bytes);
-              await workspaceServiceRef.current.writeFileBinary(path, buffer);
-              const tree = await workspaceServiceRef.current.getFileTree();
-              setFileTree(tree);
-              openFile(path, finalName, docxBytesToDataUrl(bytes));
-            }}
-            prefillRequest={askPrefill}
-            onPrefillConsumed={() => setAskPrefill(null)}
-          />
-        ) : sidebarActiveTab ==='email' ? (
-          <ReimaginedEmailWorkspace
-            onSaveToWorkspace={async (content, suggestedName) => {
-              if (!workspaceServiceRef.current || !rootPath) return;
-              // Word-first: saved email content becomes a real .docx.
-              const { resolveUniqueName } = await import('@/utils/fileDrop');
-              const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/utils/docx-io');
-              const firmName = (() => { try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; } })();
-              const base = suggestedName.replace(/\.(md|markdown|txt)$/i, '');
-              const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
-              const path = `${rootPath}/${finalName}`;
-              const bytes = await markdownToDocxBytes(content, finalName, { firmName });
-              const buffer = new ArrayBuffer(bytes.byteLength);
-              new Uint8Array(buffer).set(bytes);
-              await workspaceServiceRef.current.writeFileBinary(path, buffer);
-              const tree = await workspaceServiceRef.current.getFileTree();
-              setFileTree(tree);
-              openFile(path, finalName, docxBytesToDataUrl(bytes));
-            }}
-            onOpenSettings={() => openSettings('ai')}
-          />
-        ) : sidebarActiveTab ==='files' ? (
-          <ReimaginedDocumentsHome
-            documentsView={documentsView}
-            onFileOpen={handleFileOpen}
-            onCreateFile={handleCreateFile}
-            onCreateFolder={handleCreateFolder}
-            onRename={handleRename}
-            onDelete={handleDelete}
-            onMove={handleMove}
-            onDownload={handleDownload}
-            onCreateDefaultDocument={handleCreateDefaultDocument}
-            onCreateDocxAtRoot={handleCreateDocxAtRoot}
-            onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
-            onCreateFolderAtRoot={handleCreateFolderAtRoot}
-            onSetLetterheadTemplate={handleSetLetterheadTemplate}
-            trashItems={trashItems}
-            trashStats={trashStats}
-            onRestore={handleRestoreFromTrash}
-            onPermanentDelete={handlePermanentDelete}
-            onEmptyTrash={handleEmptyTrash}
-            retentionPeriod={trashRetentionPeriod}
-            customRetentionDays={trashCustomRetentionDays}
-            onRetentionChange={handleTrashRetentionChange}
-            mainPanelContent={
-              <MainPanel
-                onFileOpen={handleFileOpen}
-                onMove={handleMove}
-                onRename={handleRenameWithName}
-                onDownload={handleDownload}
-                apiKeys={apiKeys}
-                workspaceServiceRef={workspaceServiceRef}
-                {...(rootPath ? { rootPath } : {})}
-                onFileTreeChange={refreshFileTree}
-                onAuditLog={addAuditEntry}
-                onOpenFileAtPath={async (p, paragraphIndex, snippet) => {
-                  if (!rootPath) return;
-                  const absPath = p.startsWith(rootPath)
-                    ? p
-                    : `${rootPath}/${p}`.replace(/\/+/g, '/');
-                  const name = absPath.split('/').pop() ?? absPath;
-                  await handleFileOpen(absPath, name);
-                  if (typeof paragraphIndex === 'number') {
-                    requestScrollToParagraph({
-                      path: absPath,
-                      paragraphIndex,
-                      ...(snippet ? { snippet } : {}),
-                    });
-                  }
-                }}
-                onRequestApiKeySetup={handleRequestApiKeySetup}
-                workflowExecution={currentExecution}
-                workflowTemplate={activeWorkflowTemplate}
-                workflowInterviewQuestions={showInterviewDialog ? null : interviewQuestions}
-                onWorkflowInterviewSubmit={handleInterviewSubmit}
-                onWorkflowCancel={handleInterviewCancel}
-                onWorkflowSaveAsFile={handleWorkflowSaveAsFile}
-                onWorkflowExportDocx={handleWorkflowExportDocx}
-                onWorkflowExportPptx={handleWorkflowExportPptx}
-                workflowProviderError={workflowProviderError}
-                onOpenSettings={() => openSettings('ai')}
-                hideTabBar={true}
-              />
-            }
-          />
-        ) : sidebarActiveTab ==='workflows' ? (
-          <ReimaginedAssociateHome
-            onStartWorkflow={handleStartWorkflow}
-            currentExecution={currentExecution}
-            runHistory={runHistory}
-            providerError={workflowProviderError}
-            onOpenSettings={() => openSettings('ai')}
-            onFocusExecutionTab={() => {
-              const target =
-                activeWorkflowFilePath ??
-                openTabs.find((t) => isWorkflowFilePath(t.path))?.path ??
-                null;
-              if (target) {
-                useEditorStore.getState().setActiveTab(target);
-              }
-            }}
-          />
-        ) : sidebarActiveTab ==='audit' ? (
-          <ReimaginedAuditHome entries={auditEntries} />
-        ) : sidebarActiveTab ==='settings' ? (
-          // Full-page Settings surface — the SAME content as the quick modal
-          // (5-section nav, search, accordion sub-sections, Export/Import/Reset),
-          // rendered in the main window instead of a dialog. The gear / Ctrl+,
-          // modal still works for quick, deep-linked access.
-          <div className="flex-1 min-w-0 min-h-0 flex flex-col" data-testid="settings-page">
-            <SettingsContent
-              variant="page"
-              auditEntries={auditEntries}
-              templates={loadAllTemplates()}
-              onAction={handleSettingsAction}
-              onRestartOnboarding={handleSettingsRestartOnboarding}
-            />
-          </div>
-        ) : (
-        <MainPanel
-          onFileOpen={handleFileOpen}
-          onMove={handleMove}
-          onRename={handleRenameWithName}
-          onDownload={handleDownload}
-          apiKeys={apiKeys}
-          workspaceServiceRef={workspaceServiceRef}
-          {...(rootPath ? { rootPath } : {})}
-          onFileTreeChange={refreshFileTree}
-          onAuditLog={addAuditEntry}
-          // M2 — Citations in AI responses navigate through here. We
-          // resolve the retrieval path (workspace-relative) to the full
-          // workspace path, then reuse the existing file-open pipeline.
-          // F-504: the cited chunk's text (`snippet`) is carried through
-          // so the editor can bring the exact passage on screen by search
-          // (the paragraph index is a CHUNK index, only good for an
-          // approximate fallback).
-          onOpenFileAtPath={async (p, paragraphIndex, snippet) => {
-            if (!rootPath) return;
-            const absPath = p.startsWith(rootPath)
-              ? p
-              : `${rootPath}/${p}`.replace(/\/+/g, '/');
-            const name = absPath.split('/').pop() ?? absPath;
-            await handleFileOpen(absPath, name);
-            // F-504 — editor scroll request. requestScrollToParagraph both
-            // dispatches the event (already-mounted editors) and stashes a
-            // pending slot the freshly-mounted editor consumes (mount race).
-            if (typeof paragraphIndex === 'number') {
-              requestScrollToParagraph({
-                path: absPath,
-                paragraphIndex,
-                ...(snippet ? { snippet } : {}),
-              });
-            }
-          }}
-          onRequestApiKeySetup={handleRequestApiKeySetup}
-          workflowExecution={currentExecution}
-          workflowTemplate={activeWorkflowTemplate}
-          workflowInterviewQuestions={showInterviewDialog ? null : interviewQuestions}
-          onWorkflowInterviewSubmit={handleInterviewSubmit}
-          onWorkflowCancel={handleInterviewCancel}
-          onWorkflowSaveAsFile={handleWorkflowSaveAsFile}
-          onWorkflowExportDocx={handleWorkflowExportDocx}
-          onWorkflowExportPptx={handleWorkflowExportPptx}
+        <AppSurfaceRouter
+          sidebarActiveTab={sidebarActiveTab}
+          askPrefill={askPrefill}
+          setAskPrefill={setAskPrefill}
+          documentsView={documentsView}
+          currentExecution={currentExecution}
+          activeWorkflowTemplate={activeWorkflowTemplate}
+          showInterviewDialog={showInterviewDialog}
+          interviewQuestions={interviewQuestions}
           workflowProviderError={workflowProviderError}
-          onOpenSettings={() => openSettings('ai')}
+          runHistory={runHistory}
+          auditEntries={auditEntries}
+          apiKeys={apiKeys}
+          rootPath={rootPath}
+          trashItems={trashItems}
+          trashStats={trashStats}
+          trashRetentionPeriod={trashRetentionPeriod}
+          trashCustomRetentionDays={trashCustomRetentionDays}
+          activeWorkflowFilePath={activeWorkflowFilePath}
+          openTabs={openTabs}
+          workspaceServiceRef={workspaceServiceRef}
+          setFileTree={setFileTree}
+          openFile={openFile}
+          openSettings={openSettings}
+          handleFileOpen={handleFileOpen}
+          handleCreateFile={handleCreateFile}
+          handleCreateFolder={handleCreateFolder}
+          handleRename={handleRename}
+          handleRenameWithName={handleRenameWithName}
+          handleDelete={handleDelete}
+          handleMove={handleMove}
+          handleDownload={handleDownload}
+          handleCreateDefaultDocument={handleCreateDefaultDocument}
+          handleCreateDocxAtRoot={handleCreateDocxAtRoot}
+          handleCreateTextFileAtRoot={handleCreateTextFileAtRoot}
+          handleCreateFolderAtRoot={handleCreateFolderAtRoot}
+          handleSetLetterheadTemplate={handleSetLetterheadTemplate}
+          handleRestoreFromTrash={handleRestoreFromTrash}
+          handlePermanentDelete={handlePermanentDelete}
+          handleEmptyTrash={handleEmptyTrash}
+          handleTrashRetentionChange={handleTrashRetentionChange}
+          refreshFileTree={refreshFileTree}
+          addAuditEntry={addAuditEntry}
+          handleRequestApiKeySetup={handleRequestApiKeySetup}
+          handleInterviewSubmit={handleInterviewSubmit}
+          handleInterviewCancel={handleInterviewCancel}
+          handleWorkflowSaveAsFile={handleWorkflowSaveAsFile}
+          handleWorkflowExportDocx={handleWorkflowExportDocx}
+          handleWorkflowExportPptx={handleWorkflowExportPptx}
+          handleStartWorkflow={handleStartWorkflow}
+          handleSettingsAction={handleSettingsAction}
+          handleSettingsRestartOnboarding={handleSettingsRestartOnboarding}
         />
-        )}
       </div>
 
       {/* Status bar. showFileContext=true only on the Documents/editor surface
