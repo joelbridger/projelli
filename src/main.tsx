@@ -39,15 +39,6 @@ bootstrapLocale().catch(() => {
 });
 
 async function bootstrap() {
-  // UI reimagining prototype (isolated): /?reimagined renders the new
-  // matter-centric shell with mock data. The production app is untouched.
-  const reimaginedParams = new URLSearchParams(window.location.search);
-  if (reimaginedParams.has('reimagined')) {
-    const { mountReimagined } = await import('./reimagined/mount');
-    mountReimagined(rootElement as HTMLElement);
-    return;
-  }
-
   if (import.meta.env['VITE_MARKETING_CAPTURE'] === '1') {
     const { mountMarketingCaptureBridge } = await import('./dev/marketing-capture-bridge');
     mountMarketingCaptureBridge();
