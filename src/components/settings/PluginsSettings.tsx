@@ -29,15 +29,7 @@ export function PluginsSettings() {
 
   return (
     <div className="space-y-6" data-testid="plugins-settings">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">{t('settings.plugins.title')}</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t('settings.plugins.description')}
-        </p>
-      </div>
-
       <section data-testid="plugins-installed-list">
-        <h3 className="text-sm font-semibold mb-2">{t('settings.plugins.installed-heading')}</h3>
         {installed.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {t('settings.plugins.empty')}
@@ -98,7 +90,7 @@ export function PluginsSettings() {
                       ? 'bg-accent text-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
                   )}
-                  onClick={() => setActivePageId(page.id)}
+                  onClick={() => { setActivePageId(page.id); }}
                 >
                   {page.title}
                 </button>

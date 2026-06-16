@@ -1,13 +1,13 @@
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 import { useRef, useState } from 'react';
-import { Upload, User, Building2, X, ChevronDown } from 'lucide-react';
+import { Upload, User, Building2, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Button, IconButton, Eyebrow } from '@/components/ui/kp';
+import { Button, IconButton } from '@/components/ui/kp';
 import { useProfileStore } from '@/stores/profileStore';
 import { useFirm } from '@/hooks/useFirm';
 import { readImageAsDataUrl } from '@/utils/imageUpload';
@@ -28,75 +28,12 @@ interface AccountWindowProps {
   auditEntries?: AuditEntry[];
 }
 
-/**
- * A collapsible account section. The window holds a lot (license, firm, usage,
- * every connection), so sections collapse to one-open-at-a-time and the body
- * is hidden (not unmounted) so each section keeps its state while closed.
- */
-function CollapsibleSection({
-  id,
-  label,
-  open,
-  onToggle,
-  children,
-}: {
-  id: string;
-  label: string;
-  open: boolean;
-  onToggle: (id: string) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <section
-      data-testid={`account-section-${id}`}
-      style={{ borderBottom: '1px solid var(--color-border)' }}
-    >
-      <button
-        type="button"
-        onClick={() => { onToggle(id); }}
-        aria-expanded={open}
-        aria-controls={`account-section-body-${id}`}
-        data-testid={`account-section-toggle-${id}`}
-        style={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 'var(--kp-space-sm)',
-          padding: 'var(--kp-space-md) 0',
-          border: 0,
-          background: 'transparent',
-          cursor: 'pointer',
-          textAlign: 'left',
-        }}
-      >
-        <Eyebrow>{label}</Eyebrow>
-        <ChevronDown
-          size={16}
-          strokeWidth={2}
-          style={{
-            flex: 'none',
-            color: 'var(--color-muted-foreground)',
-            transition: 'transform var(--kp-duration-fast) var(--kp-ease-standard)',
-            transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
-          }}
-        />
-      </button>
-      <div
-        id={`account-section-body-${id}`}
-        hidden={!open}
-        style={{
-          display: open ? 'flex' : 'none',
-          flexDirection: 'column',
-          gap: 'var(--kp-space-md)',
-          paddingBottom: 'var(--kp-space-lg)',
-        }}
-      >
-        {children}
-      </div>
-    </section>
-  );
-}
+const ACCOUNT_TABS = [
+  { id: 'account', label: 'Account' },
+  { id: 'firm', label: 'Firm' },
+  { id: 'usage', label: 'Usage' },
+  { id: 'connections', label: 'Connections' },
+] as const;
 
 /**
  * AccountWindow — opened from the rail's account identity. Holds the profile /
@@ -109,9 +46,10 @@ export function AccountWindow({ open, onOpenChange, auditEntries }: AccountWindo
   const isFirm = isSignedIn;
   const profile = useProfileStore();
   const fileRef = useRef<HTMLInputElement>(null);
-  // One section open at a time; License is the most useful, so open it first.
-  const [openId, setOpenId] = useState<string>('account');
-  const toggle = (id: string) => { setOpenId((prev) => (prev === id ? '' : id)); };
+  // Horizontal tabs, collapsed by default: no tab selected on open, so the
+  // window shows just the profile and the tab row. Clicking a tab opens it;
+  // clicking the active tab collapses back to nothing.
+  const [activeTab, setActiveTab] = useState<string>('');
 
   const name = isFirm ? profile.firmName : profile.soloName;
   const image = isFirm ? profile.firmLogo : profile.soloAvatar;
@@ -216,33 +154,89 @@ export function AccountWindow({ open, onOpenChange, auditEntries }: AccountWindo
           <IconButton icon={X} label="Close" variant="ghost" size="sm" onClick={() => { onOpenChange(false); }} />
         </div>
 
-        {/* Account content (moved out of Settings). Collapsible, one open at a
-            time, so the window opens compact instead of one long scroll. */}
-        <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            overflowY: 'auto',
-            padding: '0 var(--kp-gutter)',
-          }}
-        >
-          <CollapsibleSection id="account" label="Account" open={openId === 'account'} onToggle={toggle}>
-            <LicenseSettings />
-          </CollapsibleSection>
-          <CollapsibleSection id="firm" label="Firm" open={openId === 'firm'} onToggle={toggle}>
-            <FirmSignIn />
-            <FirmAdminConsole />
-          </CollapsibleSection>
-          <CollapsibleSection id="usage" label="Usage" open={openId === 'usage'} onToggle={toggle}>
-            <CostMetrics entries={auditEntries ?? []} />
-          </CollapsibleSection>
-          <CollapsibleSection id="connections" label="Connections" open={openId === 'connections'} onToggle={toggle}>
-            <MailConnect />
-            <MailImapConnect />
-            <MailGmailConnect />
-            <McpSettingsSection />
-            <OllamaSettingsSection />
-          </CollapsibleSection>
+        {/* Account content (moved out of Settings) as horizontal tabs, collapsed
+            by default so the window opens compact. */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div
+            role="tablist"
+            aria-label="Account sections"
+            style={{
+              display: 'flex',
+              gap: 'var(--kp-space-xs)',
+              padding: '0 var(--kp-gutter)',
+              borderBottom: '1px solid var(--color-border)',
+              flexShrink: 0,
+            }}
+          >
+            {ACCOUNT_TABS.map((tab) => {
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  data-testid={`account-tab-${tab.id}`}
+                  onClick={() => { setActiveTab((prev) => (prev === tab.id ? '' : tab.id)); }}
+                  style={{
+                    appearance: 'none',
+                    border: 0,
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    padding: 'var(--kp-space-sm) var(--kp-space-md)',
+                    fontSize: 'var(--kp-font-sm)',
+                    fontWeight: active ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-medium)',
+                    color: active ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+                    borderBottom: active ? '2px solid var(--kp-navy)' : '2px solid transparent',
+                    marginBottom: -1,
+                    fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              padding: 'var(--kp-surface-gap) var(--kp-gutter)',
+            }}
+          >
+            {activeTab === '' && (
+              <p
+                data-testid="account-tab-empty"
+                style={{
+                  fontSize: 'var(--kp-font-sm)',
+                  color: 'var(--color-muted-foreground)',
+                  textAlign: 'center',
+                  padding: '44px 0',
+                }}
+              >
+                Choose a section above to manage it.
+              </p>
+            )}
+            {activeTab === 'account' && <LicenseSettings />}
+            {activeTab === 'firm' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-lg)' }}>
+                <FirmSignIn />
+                <FirmAdminConsole />
+              </div>
+            )}
+            {activeTab === 'usage' && <CostMetrics entries={auditEntries ?? []} />}
+            {activeTab === 'connections' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-lg)' }}>
+                <MailConnect />
+                <MailImapConnect />
+                <MailGmailConnect />
+                <McpSettingsSection />
+                <OllamaSettingsSection />
+              </div>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -115,8 +115,7 @@ export function MemoryFactsSettings({
       className="mt-6 pt-4 border-t border-border/50"
     >
       <div className="mb-3">
-        <h3 className="text-sm font-semibold">{t('settings.memory-facts.title')}</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <p className="text-xs text-muted-foreground">
           <Trans
             i18nKey="settings.memory-facts.description"
             components={{

@@ -115,12 +115,9 @@ export function MobileSettingsPage() {
 
   return (
     <div className="space-y-6" data-testid="mobile-settings-page">
-      <header>
-        <h2 className="text-2xl font-semibold tracking-tight">{t('settings.mobile-page.title')}</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t('settings.mobile-page.description')}
-        </p>
-      </header>
+      <p className="text-sm text-muted-foreground">
+        {t('settings.mobile-page.description')}
+      </p>
 
       <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
         <strong className="text-foreground">{t('settings.mobile-page.heads-up-label')}</strong>{' '}

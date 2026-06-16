@@ -24,9 +24,8 @@ afterEach(() => {
 });
 
 describe('MobileSettingsPage', () => {
-  it('renders the page heading and all four provider tab triggers', () => {
+  it('renders all four provider tab triggers', () => {
     render(<MobileSettingsPage />);
-    expect(screen.getByRole('heading', { name: /mobile/i })).toBeInTheDocument();
     expect(screen.getByTestId('mobile-tab-icloud')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-tab-dropbox')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-tab-syncthing')).toBeInTheDocument();

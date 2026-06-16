@@ -26,12 +26,9 @@ export function PrivacySettings() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">{t('settings.privacy.title')}</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t('settings.privacy.description')}
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        {t('settings.privacy.description')}
+      </p>
 
       {/* WS-C — the data map: a plain-English, printable account of where data
           goes, reachable from Privacy (and from Settings → AI). */}

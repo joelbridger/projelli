@@ -30,8 +30,9 @@ import {
   useEffect,
   useRef,
   useMemo,
-  createContext,
-  useContext,
+  Children,
+  isValidElement,
+  type ReactElement,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Input } from '@/components/ui/input';
@@ -435,119 +436,38 @@ function groupKeywordMatch(subId: string, label: string, lowerQ: string): boolea
 // ---------------------------------------------------------------------------
 
 /**
- * Per-section accordion context. Each top-level section owns one of these so
- * that at most one sub-section is open at a time. All sub-sections are
- * collapsed by default; a search match forces matching groups open. Clicking
- * the already-open header collapses it (zero-open is valid).
+ * SubSection — one settings group. Its header label is rendered by the parent
+ * AccordionSection as a horizontal tab; this component just renders the group's
+ * content when its tab is active. `id` / `label` / `containsMatch` are read by
+ * the parent (via child inspection) to build the tab strip and decide search
+ * matches; they are not used in this component's own render.
  */
-interface AccordionCtx {
-  /** Currently open sub-section id, or '' when all are collapsed. */
-  openId: string;
-  /** Toggle a sub-section. Opening a closed one (also closes any currently
-   *  open one). Clicking the already-open one collapses it to none. */
-  open: (id: string) => void;
-  /** When true, search is active — matching groups stay expanded regardless. */
-  searchActive: boolean;
-  /** The live search query, so a group can match on its own keywords/label. */
-  searchQuery: string;
-}
-
-const AccordionContext = createContext<AccordionCtx | null>(null);
-
-/**
- * SubSection — a collapsible accordion item. Replaces the old always-visible
- * <SubHeader>. The header keeps the SubHeader test id so existing assertions
- * on `subheader-*` continue to pass; the body unmounts when collapsed.
- *
- * `containsMatch` (search): while a search is active, this group expands iff it
- * has a matching control, and groups with no match are hidden so results stay
- * scannable.
- */
-function SubSection({
-  id,
-  label,
-  testid,
-  containsMatch = true,
-  children,
-}: {
+interface SubSectionProps {
   id: string;
   label: string;
   testid?: string;
-  /** False when a search is active and this group has no matching control. */
+  /** False when a search is active and this group has no matching schema control. */
   containsMatch?: boolean;
   children: React.ReactNode;
-}) {
-  const ctx = useContext(AccordionContext);
+}
 
-  // A group matches the search if it has a matching schema control (containsMatch,
-  // passed by the parent) OR its own label/keywords match. The keyword fallback is
-  // what makes bespoke controls (language picker, plugins, setup links) findable.
-  const lowerQ = ctx?.searchQuery.toLowerCase().trim() ?? '';
-  const matches = containsMatch || groupKeywordMatch(id, label, lowerQ);
-
-  // When searching, expansion is driven entirely by whether this group matches.
-  // When not searching, the single-open accordion state governs it.
-  const isOpen = ctx
-    ? ctx.searchActive
-      ? matches
-      : ctx.openId === id && ctx.openId !== ''
-    : true;
-
-  // While searching, hide groups that have no match so results stay scannable.
-  if (ctx && ctx.searchActive && !matches) return null;
-
-  const headingTestId = testid ? `${testid}-heading` : undefined;
-  const searchActive = ctx?.searchActive ?? false;
-
+function SubSection({ testid, children }: SubSectionProps) {
   return (
-    <div
-      data-testid={testid ? `subsection-${testid.replace(/^subheader-/, '')}` : undefined}
-      className="border-b border-border/40 last:border-b-0"
-    >
-      <button
-        type="button"
-        {...(headingTestId ? { 'data-testid': headingTestId } : {})}
-        aria-expanded={isOpen}
-        aria-controls={`${id}-body`}
-        disabled={searchActive}
-        onClick={() => { ctx?.open(id); }}
-        className={cn(
-          'w-full flex items-center justify-between gap-2 py-3 text-left group',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm',
-          searchActive ? 'cursor-default' : 'cursor-pointer'
-        )}
-      >
-        {/* The h3 keeps the original testid so `subheader-*` selectors resolve. */}
-        <h3
-          data-testid={testid}
-          className="text-xs font-semibold text-muted-foreground uppercase tracking-wide group-hover:text-foreground transition-colors"
-        >
-          {label}
-        </h3>
-        <ChevronDown
-          className={cn(
-            'h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform',
-            isOpen ? 'rotate-180' : 'rotate-0'
-          )}
-          aria-hidden="true"
-        />
-      </button>
-      <div id={`${id}-body`} hidden={!isOpen} aria-live="polite" className="pb-4">
-        {children}
-      </div>
+    <div data-testid={testid ? `subsection-${testid.replace(/^subheader-/, '')}` : undefined}>
+      {children}
     </div>
   );
 }
 
 /**
- * AccordionSection — wraps a top-level section's sub-sections, owning the
- * "at most one open at a time / all collapsed by default" state. Because a
- * different section component mounts when the user switches top-level
- * sections, the open sub-section naturally resets to none on every section
- * change.
- *
- * `ids` lists the sub-section ids in render order (unused beyond
- * documentation now that none is default-open, kept for clarity).
+ * AccordionSection — despite the legacy name, renders a top-level section's
+ * sub-sections as a row of horizontal tabs with one content panel below,
+ * instead of an accordion. It reads each SubSection child's props
+ * (id / label / testid / containsMatch) to build the tab strip. The first tab
+ * is selected by default; while a search is active it jumps to the first
+ * matching tab and dims the non-matching ones. The tab button keeps the
+ * `${testid}-heading` test id (and an inner `${testid}` on the label) so the
+ * existing `subheader-*` selectors still resolve.
  */
 function AccordionSection({
   ids: _ids,
@@ -560,22 +480,67 @@ function AccordionSection({
   searchQuery: string;
   children: React.ReactNode;
 }) {
-  // '' means all sub-sections are collapsed.
-  const [openId, setOpenId] = useState<string>('');
-
-  const open = useCallback((id: string) => {
-    // Toggle: clicking the open sub-section collapses it; clicking a closed
-    // one opens it (and implicitly closes any currently open one via state).
-    setOpenId((prev) => (prev === id ? '' : id));
-  }, []);
-
-  const ctx = useMemo<AccordionCtx>(
-    () => ({ openId, open, searchActive, searchQuery }),
-    [openId, open, searchActive, searchQuery]
+  const items = useMemo(
+    () =>
+      Children.toArray(children)
+        .filter(isValidElement)
+        .map((child) => {
+          const p = (child as ReactElement<SubSectionProps>).props;
+          return {
+            id: p.id,
+            label: p.label,
+            testid: p.testid,
+            containsMatch: p.containsMatch ?? true,
+            node: child,
+          };
+        }),
+    [children]
   );
 
+  const [activeId, setActiveId] = useState<string>(items[0]?.id ?? '');
+
+  const lowerQ = searchQuery.toLowerCase().trim();
+  const isMatch = (it: { id: string; label: string; containsMatch: boolean }): boolean =>
+    it.containsMatch || groupKeywordMatch(it.id, it.label, lowerQ);
+
+  // While searching, show the first matching tab; otherwise keep the user's
+  // selection (falling back to the first tab if it no longer exists).
+  const firstMatchId = searchActive ? items.find(isMatch)?.id : undefined;
+  const effectiveActive =
+    firstMatchId ?? (items.some((i) => i.id === activeId) ? activeId : items[0]?.id ?? '');
+  const activeItem = items.find((i) => i.id === effectiveActive);
+
   return (
-    <AccordionContext.Provider value={ctx}>{children}</AccordionContext.Provider>
+    <div>
+      <div role="tablist" className="flex flex-wrap gap-1 border-b border-border/60 mb-5">
+        {items.map((it) => {
+          const active = it.id === effectiveActive;
+          const dim = searchActive && !isMatch(it);
+          return (
+            <button
+              key={it.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              {...(it.testid ? { 'data-testid': `${it.testid}-heading` } : {})}
+              onClick={() => { setActiveId(it.id); }}
+              className={cn(
+                'px-3 py-2 -mb-px border-b-2 transition-colors',
+                'text-xs font-semibold uppercase tracking-wide',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-t-sm',
+                active
+                  ? 'border-[var(--kp-navy)] text-[var(--kp-navy)]'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+                dim && 'opacity-40'
+              )}
+            >
+              <span {...(it.testid ? { 'data-testid': it.testid } : {})}>{it.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div>{activeItem?.node}</div>
+    </div>
   );
 }
 
@@ -874,9 +839,22 @@ function AdvancedSection(props: SectionProps) {
           testid="subheader-extensions"
           containsMatch={extMatch}
         >
-          <MarketplaceTab />
-          <PluginsSettings />
-          <TemplateModelSettings templates={props.templates ?? []} />
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          <div className="space-y-8">
+            <div className="space-y-3">
+              <Eyebrow primary>Browse and install</Eyebrow>
+              <MarketplaceTab />
+            </div>
+            <div className="space-y-3 border-t border-border/50 pt-6">
+              <Eyebrow primary>Installed plugins</Eyebrow>
+              <PluginsSettings />
+            </div>
+            <div className="space-y-3 border-t border-border/50 pt-6">
+              <Eyebrow primary>Per-workflow AI model</Eyebrow>
+              <TemplateModelSettings templates={props.templates ?? []} />
+            </div>
+          </div>
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         </SubSection>
         <SubSection
           id="adv-updates"

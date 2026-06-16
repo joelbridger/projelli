@@ -8,10 +8,10 @@
  * inline CTA is a shortcut into that flow per spec, not a one-click install.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, ImageOff } from 'lucide-react';
+import { Download, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CatalogEntry } from '@/types/marketplace';
 
@@ -32,6 +32,7 @@ export function TemplateCatalogCard({
   onSelect,
 }: TemplateCatalogCardProps) {
   const screenshot = entry.screenshots?.[0];
+  const [imgFailed, setImgFailed] = useState(false);
 
   const handleSelect = useCallback(() => {
     onSelect(entry.id);
@@ -73,15 +74,18 @@ export function TemplateCatalogCard({
         data-testid={`template-catalog-card-${entry.id}-screenshot`}
         className="aspect-video w-full bg-muted flex items-center justify-center overflow-hidden"
       >
-        {screenshot ? (
+        {screenshot && !imgFailed ? (
           <img
             src={screenshot}
             alt=""
             className="h-full w-full object-cover"
             loading="lazy"
+            onError={() => { setImgFailed(true); }}
           />
         ) : (
-          <ImageOff className="h-8 w-8 text-muted-foreground/50" aria-hidden="true" />
+          <div className="flex h-full w-full items-center justify-center rounded-sm border border-border/40 bg-muted">
+            <FileText className="h-8 w-8 text-muted-foreground/40" aria-hidden="true" />
+          </div>
         )}
       </div>
 

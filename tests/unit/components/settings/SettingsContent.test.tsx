@@ -7,17 +7,15 @@
  *   - The full-page variant renders the SurfaceHeader + 5-section nav + content + footer.
  *   - Deep-link aliases still resolve to the right section through the
  *     modal→content extraction (e.g. "ai" → AI & Privacy, "general" → Workspace).
- *   - Accordion: ALL sub-sections collapsed by default.
- *   - Accordion: clicking a closed header opens it (one at a time).
- *   - Accordion: clicking the open header collapses it (zero-open is valid).
- *   - Accordion: opening one closes others within the same section.
- *   - Accordion: switching top-level sections resets to all-collapsed.
- *   - Accordion body: always present in the DOM (hidden attribute, not unmounted),
- *     so aria-controls associations remain valid while collapsed.
+ *   - Tab strip: first sub-tab's content panel IS in the DOM; others are NOT.
+ *   - Tab strip: clicking a non-active tab activates it; prior panel leaves the DOM.
+ *   - Tab strip: switching top-level sections resets to that section's first tab.
+ *   - Tab a11y: role="tab" and aria-selected on each tab button.
  *   - aria-current: the active section nav button has aria-current="page"; others
  *     have no aria-current attribute.
  *   - Scroll-reset: the content scroll container returns to top when the
  *     active top-level section changes.
+ *   - Search: typing a query auto-selects the first matching tab (its panel appears).
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
@@ -125,153 +123,128 @@ describe('SettingsContent — aria-current on section nav buttons', () => {
   });
 });
 
-describe('SettingsContent — accordion body always in DOM (hidden, not unmounted)', () => {
-  it('collapsed sub-section body is in the DOM with hidden attribute', () => {
+describe('SettingsContent — tab strip default state', () => {
+  it('first sub-tab (General) content panel IS in the DOM by default', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
-    // The "General" sub-section accordion button has aria-controls="ws-general-body".
-    // Even while collapsed, that element must exist so the aria association is valid.
-    const generalBtn = screen.getByTestId('subheader-general-heading');
-    const controlsId = generalBtn.getAttribute('aria-controls');
-    expect(controlsId).toBe('ws-general-body');
-    const body = document.getElementById(controlsId!);
-    expect(body).toBeInTheDocument();
-    expect(body).toHaveAttribute('hidden');
+    // First tab in Workspace is General — its subsection-general panel should be present.
+    expect(screen.getByTestId('subsection-general')).toBeInTheDocument();
   });
 
-  it('opening a sub-section removes the hidden attribute from its body', () => {
+  it('non-first sub-tab (Editor) content panel is NOT in the DOM by default', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
-    const generalBtn = screen.getByTestId('subheader-general-heading');
-    const bodyId = generalBtn.getAttribute('aria-controls')!;
-    const body = document.getElementById(bodyId)!;
-
-    // Collapsed: hidden present.
-    expect(body).toHaveAttribute('hidden');
-
-    fireEvent.click(generalBtn);
-
-    // Expanded: hidden removed.
-    expect(body).not.toHaveAttribute('hidden');
+    // Editor is the second tab — it starts inactive and its panel is unmounted.
+    expect(screen.queryByTestId('subsection-editor')).not.toBeInTheDocument();
   });
 
-  it('collapsing an open sub-section restores the hidden attribute', () => {
+  it('non-first sub-tab (Files) content panel is NOT in the DOM by default', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
-    const generalBtn = screen.getByTestId('subheader-general-heading');
-    const bodyId = generalBtn.getAttribute('aria-controls')!;
-    const body = document.getElementById(bodyId)!;
-
-    // Open it first.
-    fireEvent.click(generalBtn);
-    expect(body).not.toHaveAttribute('hidden');
-
-    // Collapse it.
-    fireEvent.click(generalBtn);
-    expect(body).toHaveAttribute('hidden');
-    // The body element itself is still in the DOM.
-    expect(body).toBeInTheDocument();
+    expect(screen.queryByTestId('subsection-files')).not.toBeInTheDocument();
   });
 });
 
-describe('SettingsContent — accordion all-collapsed by default', () => {
-  it('workspace section starts with ALL sub-section bodies hidden', () => {
-    render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
-    // section is rendered but no sub-section body is visible
-    expect(screen.getByTestId('section-workspace')).toBeInTheDocument();
-
-    // Bodies are in the DOM but hidden — content inside should not be visible.
-    // We check via the hidden attribute on the body wrapper.
-    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
-    expect(document.getElementById('ws-editor-body')).toHaveAttribute('hidden');
-    expect(document.getElementById('ws-files-body')).toHaveAttribute('hidden');
-  });
-
-  it('all sub-section headers report aria-expanded=false by default', () => {
+describe('SettingsContent — tab strip aria attributes', () => {
+  it('first tab (General) has aria-selected="true"; others have aria-selected="false"', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
     const generalBtn = screen.getByTestId('subheader-general-heading');
     const editorBtn = screen.getByTestId('subheader-editor-heading');
     const filesBtn = screen.getByTestId('subheader-files-heading');
-    expect(generalBtn.getAttribute('aria-expanded')).toBe('false');
-    expect(editorBtn.getAttribute('aria-expanded')).toBe('false');
-    expect(filesBtn.getAttribute('aria-expanded')).toBe('false');
+    expect(generalBtn.getAttribute('aria-selected')).toBe('true');
+    expect(editorBtn.getAttribute('aria-selected')).toBe('false');
+    expect(filesBtn.getAttribute('aria-selected')).toBe('false');
+  });
+
+  it('all sub-section tab buttons have role="tab"', () => {
+    render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
+    const generalBtn = screen.getByTestId('subheader-general-heading');
+    const editorBtn = screen.getByTestId('subheader-editor-heading');
+    const filesBtn = screen.getByTestId('subheader-files-heading');
+    expect(generalBtn.getAttribute('role')).toBe('tab');
+    expect(editorBtn.getAttribute('role')).toBe('tab');
+    expect(filesBtn.getAttribute('role')).toBe('tab');
   });
 });
 
-describe('SettingsContent — accordion toggle behavior', () => {
-  it('clicking a collapsed sub-section header opens it (body no longer hidden)', () => {
+describe('SettingsContent — tab strip click behavior', () => {
+  it('clicking the Editor tab activates it: subsection-editor appears, subsection-general disappears', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
-    // All collapsed initially.
-    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
+    // General is active by default.
+    expect(screen.getByTestId('subsection-general')).toBeInTheDocument();
+    expect(screen.queryByTestId('subsection-editor')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('subheader-general-heading'));
+    fireEvent.click(screen.getByTestId('subheader-editor-heading'));
 
-    // General is now open: hidden removed, aria-expanded true.
-    expect(document.getElementById('ws-general-body')).not.toHaveAttribute('hidden');
-    expect(screen.getByTestId('subheader-general-heading').getAttribute('aria-expanded')).toBe('true');
-    // The setting inside is now accessible.
-    expect(screen.getByTestId('setting-theme')).toBeInTheDocument();
+    // Editor now active.
+    expect(screen.getByTestId('subsection-editor')).toBeInTheDocument();
+    // General now inactive and removed from DOM.
+    expect(screen.queryByTestId('subsection-general')).not.toBeInTheDocument();
+    // Editor tab is now aria-selected=true.
+    expect(screen.getByTestId('subheader-editor-heading').getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByTestId('subheader-general-heading').getAttribute('aria-selected')).toBe('false');
   });
 
-  it('clicking the currently open sub-section header collapses it (hidden restored)', () => {
+  it('clicking the Files tab makes it active; setting-defaultNewFileType appears', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
 
-    // Open General.
-    fireEvent.click(screen.getByTestId('subheader-general-heading'));
-    expect(document.getElementById('ws-general-body')).not.toHaveAttribute('hidden');
-
-    // Click it again — should collapse.
-    fireEvent.click(screen.getByTestId('subheader-general-heading'));
-    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
-    expect(screen.getByTestId('subheader-general-heading').getAttribute('aria-expanded')).toBe('false');
-  });
-
-  it('opening a second sub-section hides the first (one at a time)', () => {
-    render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
-
-    // Open General.
-    fireEvent.click(screen.getByTestId('subheader-general-heading'));
-    expect(document.getElementById('ws-general-body')).not.toHaveAttribute('hidden');
-
-    // Open Files — General should become hidden again.
     fireEvent.click(screen.getByTestId('subheader-files-heading'));
-    expect(document.getElementById('ws-files-body')).not.toHaveAttribute('hidden');
-    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
-    // setting-defaultNewFileType visible (Files open); setting-theme hidden (General closed).
+
+    // Files panel is now in the DOM.
+    expect(screen.getByTestId('subsection-files')).toBeInTheDocument();
     expect(screen.getByTestId('setting-defaultNewFileType')).toBeInTheDocument();
+    // General panel is gone.
+    expect(screen.queryByTestId('subsection-general')).not.toBeInTheDocument();
   });
 });
 
-describe('SettingsContent — accordion resets on section switch', () => {
-  it('switching top-level sections resets to all-collapsed', () => {
+describe('SettingsContent — tab strip resets on section switch', () => {
+  it('switching top-level sections resets to the new section\'s first tab', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
 
-    // Open a sub-section in workspace.
-    fireEvent.click(screen.getByTestId('subheader-general-heading'));
-    expect(document.getElementById('ws-general-body')).not.toHaveAttribute('hidden');
+    // Click Editor tab in Workspace.
+    fireEvent.click(screen.getByTestId('subheader-editor-heading'));
+    expect(screen.getByTestId('subsection-editor')).toBeInTheDocument();
 
     // Switch to AI & Privacy.
     fireEvent.click(screen.getByTestId('settings-category-ai-privacy'));
     expect(screen.getByTestId('section-ai-privacy')).toBeInTheDocument();
 
-    // The AI sub-section headers should all be collapsed.
-    expect(screen.getByTestId('subheader-ai-heading').getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByTestId('subheader-memory-heading').getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByTestId('subheader-privacy-heading').getAttribute('aria-expanded')).toBe('false');
+    // The first tab in AI & Privacy (AI) should be active.
+    expect(screen.getByTestId('subheader-ai-heading').getAttribute('aria-selected')).toBe('true');
+    // Its content panel should be in the DOM.
+    expect(screen.getByTestId('subsection-ai')).toBeInTheDocument();
+    // The second and third tabs (Memory, Privacy) should not have their panels in the DOM.
+    expect(screen.queryByTestId('subsection-memory')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('subsection-privacy')).not.toBeInTheDocument();
   });
 });
 
-describe('SettingsContent — search still expands matching sub-sections', () => {
-  it('typing a query removes hidden from sub-sections that contain a match', () => {
+describe('SettingsContent — search auto-selects matching tab', () => {
+  it('typing a query that matches a non-first sub-section auto-selects that tab', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
 
-    // All collapsed initially.
-    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
+    // Editor is not the active tab by default (General is first).
+    expect(screen.queryByTestId('subsection-editor')).not.toBeInTheDocument();
 
-    // Search for "theme" — it lives in the General sub-section.
+    // Search for "auto save" — it lives in the Editor sub-section (non-first).
+    fireEvent.change(screen.getByTestId('settings-search'), {
+      target: { value: 'auto save' },
+    });
+
+    // The Editor tab's content panel should now be in the DOM (auto-selected by search).
+    expect(screen.getByTestId('subsection-editor')).toBeInTheDocument();
+    expect(screen.getByTestId('setting-autoSave')).toBeInTheDocument();
+  });
+
+  it('typing a query matching the first sub-section keeps its panel in the DOM', () => {
+    render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
+
+    // General is active by default; search for "theme" (in General).
     fireEvent.change(screen.getByTestId('settings-search'), {
       target: { value: 'theme' },
     });
 
-    // The matching setting should now be visible (body not hidden).
+    // The matching setting should be accessible.
     expect(screen.getByTestId('setting-theme')).toBeInTheDocument();
+    expect(screen.getByTestId('subsection-general')).toBeInTheDocument();
   });
 });
 
@@ -300,36 +273,26 @@ describe('SettingsContent — a11y: section nav landmark label', () => {
   });
 });
 
-describe('SettingsContent — a11y: accordion body aria-live', () => {
-  it('each accordion body container has aria-live="polite"', () => {
+describe('SettingsContent — a11y: tab strip role and aria-selected', () => {
+  it('the tab container has role="tablist"', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
-    // The workspace section renders at least three sub-section bodies.
-    // All must carry aria-live="polite" so screen readers announce new content.
-    const generalBody = document.getElementById('ws-general-body');
-    const editorBody  = document.getElementById('ws-editor-body');
-    const filesBody   = document.getElementById('ws-files-body');
-    expect(generalBody).toBeInTheDocument();
-    expect(generalBody?.getAttribute('aria-live')).toBe('polite');
-    expect(editorBody).toBeInTheDocument();
-    expect(editorBody?.getAttribute('aria-live')).toBe('polite');
-    expect(filesBody).toBeInTheDocument();
-    expect(filesBody?.getAttribute('aria-live')).toBe('polite');
+    const tablist = screen.getAllByRole('tablist');
+    // At least one tablist renders for the active section.
+    expect(tablist.length).toBeGreaterThan(0);
   });
 
-  it('accordion body keeps aria-live after open/close cycle', () => {
+  it('switching tabs updates aria-selected correctly', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
     const generalBtn = screen.getByTestId('subheader-general-heading');
-    const bodyId = generalBtn.getAttribute('aria-controls')!;
+    const editorBtn = screen.getByTestId('subheader-editor-heading');
 
-    // Open
-    fireEvent.click(generalBtn);
-    const body = document.getElementById(bodyId)!;
-    expect(body).not.toHaveAttribute('hidden');
-    expect(body.getAttribute('aria-live')).toBe('polite');
+    // General starts active.
+    expect(generalBtn.getAttribute('aria-selected')).toBe('true');
+    expect(editorBtn.getAttribute('aria-selected')).toBe('false');
 
-    // Close
-    fireEvent.click(generalBtn);
-    expect(body).toHaveAttribute('hidden');
-    expect(body.getAttribute('aria-live')).toBe('polite');
+    // Click Editor.
+    fireEvent.click(editorBtn);
+    expect(editorBtn.getAttribute('aria-selected')).toBe('true');
+    expect(generalBtn.getAttribute('aria-selected')).toBe('false');
   });
 });

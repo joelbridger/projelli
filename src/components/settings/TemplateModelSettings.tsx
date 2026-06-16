@@ -1,11 +1,9 @@
 /**
  * Q8 — Templates category panel for the Settings modal.
  *
- * Renders a table of every known template (built-ins + any user templates)
- * and lets the user pin a provider+model override per template. Overrides
- * are persisted to `settingsStore` under the `templateModelOverrides` key.
- *
- * Leaving a row unset means "use the template's built-in default, or the
+ * Compact redesign: shows only templates that currently HAVE an override set.
+ * A single "add" dropdown lets users pin any un-overridden template.
+ * Leaving a template unset means "use the template's built-in default, or the
  * global default when the template doesn't specify one". See
  * `resolveTemplateModel` for the full precedence rules.
  */
@@ -159,6 +157,33 @@ export function TemplateModelSettings({ templates }: TemplateModelSettingsProps)
     [updateOverride]
   );
 
+  // Templates that currently have an override — the visible rows.
+  const pinnedTemplates = useMemo(
+    () => templates.filter((tpl) => overrides[tpl.id] !== undefined),
+    [templates, overrides]
+  );
+
+  // Templates that do NOT yet have an override — candidates for the add dropdown.
+  const unpinnedTemplates = useMemo(
+    () => templates.filter((tpl) => overrides[tpl.id] === undefined),
+    [templates, overrides]
+  );
+
+  // Seed a new override when the user picks a template from the add dropdown.
+  const handleAddTemplate = useCallback(
+    (templateId: string) => {
+      if (!templateId) return;
+      const tpl = templates.find((t) => t.id === templateId);
+      if (!tpl) return;
+      const provider: TemplateProviderId = tpl.defaultProvider ?? 'claude';
+      updateOverride(templateId, {
+        provider,
+        model: tpl.defaultModel ?? firstModelFor(provider),
+      });
+    },
+    [templates, updateOverride, firstModelFor]
+  );
+
   if (templates.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4 text-center">
@@ -168,98 +193,119 @@ export function TemplateModelSettings({ templates }: TemplateModelSettingsProps)
   }
 
   return (
-    <div data-testid="template-model-settings" className="space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold">{t('settings.template-models.title')}</h3>
-        <p className="text-xs text-muted-foreground mt-1">
-          {t('settings.template-models.description')}
+    <div data-testid="template-model-settings" className="space-y-3">
+      {/* Pinned override rows — only shown when at least one override exists */}
+      {pinnedTemplates.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+          Your workflows use your default AI. Pin a specific model to any workflow below.
         </p>
-      </div>
-
-      <div className="divide-y divide-border/50 rounded-md border">
-        {templates.map((tpl) => {
-          const override = overrides[tpl.id];
-          const activeProvider: TemplateProviderId =
-            override?.provider ?? tpl.defaultProvider ?? 'claude';
-          const activeModel = override?.model ?? tpl.defaultModel ?? '';
-          const modelOptions = modelOptionsFor(activeProvider);
-          return (
-            <div
-              key={tpl.id}
-              data-testid={`settings-template-model-row-${tpl.id}`}
-              className="flex items-center justify-between gap-3 px-3 py-2"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <Label className="text-sm font-medium truncate">
-                    {tpl.name}
-                  </Label>
-                  {tpl.isUser && (
-                    <span
-                      data-testid={`settings-template-user-badge-${tpl.id}`}
-                      className="text-[10px] font-medium uppercase tracking-wide bg-primary/10 text-primary px-1.5 py-0.5 rounded"
-                    >
-                      Custom
-                    </span>
-                  )}
+      ) : (
+        <div className="divide-y divide-border/50 rounded-md border">
+          {pinnedTemplates.map((tpl) => {
+            const override = overrides[tpl.id];
+            // override is guaranteed to exist here; satisfy noUncheckedIndexedAccess
+            const activeProvider: TemplateProviderId =
+              override?.provider ?? tpl.defaultProvider ?? 'claude';
+            const activeModel = override?.model ?? tpl.defaultModel ?? '';
+            const modelOptions = modelOptionsFor(activeProvider);
+            return (
+              <div
+                key={tpl.id}
+                data-testid={`settings-template-model-row-${tpl.id}`}
+                className="flex items-center justify-between gap-3 px-3 py-2"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-sm font-medium truncate">
+                      {tpl.name}
+                    </Label>
+                    {tpl.isUser && (
+                      <span
+                        data-testid={`settings-template-user-badge-${tpl.id}`}
+                        className="text-[10px] font-medium uppercase tracking-wide bg-primary/10 text-primary px-1.5 py-0.5 rounded"
+                      >
+                        Custom
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {`Override: ${PROVIDER_LABEL[activeProvider]} - ${activeModel}`}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground truncate">
-                  {override
-                    ? `Override: ${PROVIDER_LABEL[activeProvider]} - ${activeModel}`
-                    : tpl.defaultProvider
-                      ? `Template default: ${PROVIDER_LABEL[tpl.defaultProvider]} - ${tpl.defaultModel ?? ''}`
-                      : 'Uses your global default'}
-                </p>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <select
-                  data-testid={`settings-template-provider-${tpl.id}`}
-                  value={activeProvider}
-                  onChange={(e) =>
-                    handleProviderChange(
-                      tpl.id,
-                      e.target.value as TemplateProviderId
-                    )
-                  }
-                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                >
-                  {(Object.keys(PROVIDER_LABEL) as TemplateProviderId[]).map(
-                    (p) => (
-                      <option key={p} value={p}>
-                        {PROVIDER_LABEL[p]}
+                <div className="flex items-center gap-1 shrink-0">
+                  <select
+                    data-testid={`settings-template-provider-${tpl.id}`}
+                    value={activeProvider}
+                    onChange={(e) =>
+                      handleProviderChange(
+                        tpl.id,
+                        e.target.value as TemplateProviderId
+                      )
+                    }
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  >
+                    {(Object.keys(PROVIDER_LABEL) as TemplateProviderId[]).map(
+                      (p) => (
+                        <option key={p} value={p}>
+                          {PROVIDER_LABEL[p]}
+                        </option>
+                      )
+                    )}
+                  </select>
+                  <select
+                    data-testid={`settings-template-model-${tpl.id}`}
+                    value={activeModel || modelOptions[0]?.value || ''}
+                    onChange={(e) => handleModelChange(tpl.id, e.target.value)}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs min-w-[140px]"
+                  >
+                    {modelOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
                       </option>
-                    )
-                  )}
-                </select>
-                <select
-                  data-testid={`settings-template-model-${tpl.id}`}
-                  value={activeModel || modelOptions[0]?.value || ''}
-                  onChange={(e) => handleModelChange(tpl.id, e.target.value)}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-xs min-w-[140px]"
-                >
-                  {modelOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  data-testid={`settings-template-clear-${tpl.id}`}
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  onClick={() => handleClear(tpl.id)}
-                  aria-label={`Clear override for ${tpl.name}`}
-                  disabled={!override}
-                  title={override ? 'Clear override' : 'No override set'}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
+                    ))}
+                  </select>
+                  <Button
+                    data-testid={`settings-template-clear-${tpl.id}`}
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => handleClear(tpl.id)}
+                    aria-label={`Clear override for ${tpl.name}`}
+                    title="Remove pin — workflow will use your default AI"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add dropdown — only shown when there are still templates to pin */}
+      {unpinnedTemplates.length > 0 && (
+        <select
+          data-testid="template-model-add"
+          value=""
+          onChange={(e) => {
+            handleAddTemplate(e.target.value);
+            // Reset the select back to placeholder after selection
+            e.target.value = '';
+          }}
+          className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-muted-foreground"
+        >
+          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+          <option value="" disabled>
+            Pin a model to a workflow...
+          </option>
+          {unpinnedTemplates.map((tpl) => (
+            <option key={tpl.id} value={tpl.id}>
+              {tpl.name}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }

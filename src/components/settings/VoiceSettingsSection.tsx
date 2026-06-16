@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { Trans } from 'react-i18next';
 import { CheckCircle2, AlertCircle, Mic, MicOff } from 'lucide-react';
 import { isVoiceSidecarAvailable } from '@/modules/voice/voiceStatus';
 import { VoiceOutputSettingsSection } from '@/components/tts/VoiceOutputSettingsSection';
@@ -56,7 +56,6 @@ export function VoiceSettingsSection({
   ttsEnabled = false,
   onProbeTts,
 }: VoiceSettingsSectionProps = {}): React.ReactElement {
-  const { t } = useTranslation();
   const [sidecar, setSidecar] = useState<SidecarStatus>('checking');
   const [mic, setMic] = useState<MicStatus>('unknown');
 
@@ -99,7 +98,6 @@ export function VoiceSettingsSection({
   return (
     <>
       <div className="mb-6">
-        <h3 className="text-base font-semibold mb-1">{t('settings.voice.title')}</h3>
         <p className="text-xs text-muted-foreground mb-3">
           <Trans
             i18nKey="settings.voice.description"

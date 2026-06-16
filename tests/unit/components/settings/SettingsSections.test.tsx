@@ -37,9 +37,9 @@ function renderModal(initialCategory?: string) {
 }
 
 /**
- * Expand an accordion sub-section by clicking its header. All sub-section
- * bodies are collapsed by default, so any control must be revealed before
- * asserting on it. The clickable header carries the testid
+ * Activate a tab sub-section by clicking its tab button. The first tab is
+ * active by default, so clicking any non-first tab is required before asserting
+ * on controls it contains. The tab button carries the testid
  * `${subheaderTestid}-heading`.
  */
 function expandSubsection(subheaderTestid: string) {
@@ -336,107 +336,107 @@ describe('SettingsModal controls per section', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Accordion sub-sections (R71): all collapsed by default; toggle-to-collapse;
-// one open at a time when opening; section switch resets to all-collapsed.
+// Tab sub-sections: first tab active by default; clicking switches panels;
+// section switch resets to first tab of new section.
 // ---------------------------------------------------------------------------
 
-describe('SettingsModal accordion sub-sections', () => {
-  it('ALL sub-sections are collapsed by default (Workspace: General/Editor/Files all closed)', () => {
+describe('SettingsModal tab sub-sections', () => {
+  it('first tab (General) panel is in the DOM by default; Editor and Files panels are not', () => {
     renderModal('workspace');
-    // Bodies are always in the DOM but hidden when collapsed.
-    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
-    expect(document.getElementById('ws-editor-body')).toHaveAttribute('hidden');
-    expect(document.getElementById('ws-files-body')).toHaveAttribute('hidden');
-    // Every sub-section HEADER still renders.
+    // First tab content is present.
+    expect(screen.getByTestId('subsection-general')).toBeInTheDocument();
+    // Non-first tabs are unmounted (not hidden, completely absent).
+    expect(screen.queryByTestId('subsection-editor')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('subsection-files')).not.toBeInTheDocument();
+    // All tab buttons still render.
     expect(screen.getByTestId('subheader-general')).toBeInTheDocument();
     expect(screen.getByTestId('subheader-editor')).toBeInTheDocument();
     expect(screen.getByTestId('subheader-files')).toBeInTheDocument();
   });
 
-  it('expanding a sub-section reveals its body (hidden removed)', () => {
+  it('clicking the Editor tab reveals its panel and hides General', () => {
     renderModal('workspace');
-    expect(document.getElementById('ws-editor-body')).toHaveAttribute('hidden');
+    expect(screen.queryByTestId('subsection-editor')).not.toBeInTheDocument();
     expandSubsection('subheader-editor');
-    expect(document.getElementById('ws-editor-body')).not.toHaveAttribute('hidden');
+    expect(screen.getByTestId('subsection-editor')).toBeInTheDocument();
     expect(screen.getByTestId('setting-autoSave')).toBeInTheDocument();
+    // General panel is now gone.
+    expect(screen.queryByTestId('subsection-general')).not.toBeInTheDocument();
   });
 
-  it('opening a second sub-section collapses the first (only one open at a time)', () => {
+  it('clicking Files tab shows Files panel; General and Editor panels are absent', () => {
     renderModal('workspace');
-    // Open General first.
-    expandSubsection('subheader-general');
-    expect(document.getElementById('ws-general-body')).not.toHaveAttribute('hidden');
-    // Open Files → General must close (hidden restored).
     expandSubsection('subheader-files');
-    expect(document.getElementById('ws-files-body')).not.toHaveAttribute('hidden');
-    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
-    // Editor stays closed throughout.
-    expect(document.getElementById('ws-editor-body')).toHaveAttribute('hidden');
-    // Content in open section is accessible; content in others is in DOM but hidden.
+    expect(screen.getByTestId('subsection-files')).toBeInTheDocument();
+    expect(screen.queryByTestId('subsection-general')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('subsection-editor')).not.toBeInTheDocument();
+    // Content in the active Files tab is accessible.
     expect(screen.getByTestId('setting-defaultNewFileType')).toBeInTheDocument();
   });
 
-  it('all sub-section headers report aria-expanded=false by default', () => {
+  it('first tab button has aria-selected="true"; others have aria-selected="false"', () => {
     renderModal('workspace');
     expect(
-      screen.getByTestId('subheader-general-heading').getAttribute('aria-expanded'),
+      screen.getByTestId('subheader-general-heading').getAttribute('aria-selected'),
+    ).toBe('true');
+    expect(
+      screen.getByTestId('subheader-editor-heading').getAttribute('aria-selected'),
     ).toBe('false');
     expect(
-      screen.getByTestId('subheader-editor-heading').getAttribute('aria-expanded'),
+      screen.getByTestId('subheader-files-heading').getAttribute('aria-selected'),
     ).toBe('false');
   });
 
-  it('clicking the already-open header collapses it (zero-open is valid)', () => {
+  it('clicking a tab updates aria-selected', () => {
     renderModal('workspace');
-    // Open General.
-    expandSubsection('subheader-general');
-    expect(document.getElementById('ws-general-body')).not.toHaveAttribute('hidden');
-    // Click the open one again — it should collapse (hidden restored).
-    expandSubsection('subheader-general');
-    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
+    expandSubsection('subheader-editor');
     expect(
-      screen.getByTestId('subheader-general-heading').getAttribute('aria-expanded'),
+      screen.getByTestId('subheader-editor-heading').getAttribute('aria-selected'),
+    ).toBe('true');
+    expect(
+      screen.getByTestId('subheader-general-heading').getAttribute('aria-selected'),
     ).toBe('false');
-    // Body element is still in the DOM (always-rendered pattern).
-    expect(document.getElementById('ws-general-body')).toBeInTheDocument();
   });
 
-  it('switching top-level sections resets to all-collapsed for the new section', () => {
+  it('switching top-level sections resets to the first tab of the new section', () => {
     renderModal('workspace');
-    // Open a sub-section in Workspace.
+    // Activate a non-first tab in Workspace.
     expandSubsection('subheader-files');
-    expect(document.getElementById('ws-files-body')).not.toHaveAttribute('hidden');
-    // Switch to AI & Privacy → ALL sub-sections should be collapsed.
+    expect(screen.getByTestId('subsection-files')).toBeInTheDocument();
+    // Switch to AI & Privacy → first tab (AI) should be active.
     fireEvent.click(screen.getByTestId('settings-category-ai-privacy'));
-    expect(document.getElementById('aip-ai-body')).toHaveAttribute('hidden'); // AI collapsed
-    expect(document.getElementById('aip-memory-body')).toHaveAttribute('hidden'); // Memory collapsed
-    // Headers should still render.
+    expect(screen.getByTestId('subsection-ai')).toBeInTheDocument();
+    expect(screen.queryByTestId('subsection-memory')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('subsection-privacy')).not.toBeInTheDocument();
+    // First tab button for AI & Privacy is selected.
+    expect(screen.getByTestId('subheader-ai-heading').getAttribute('aria-selected')).toBe('true');
+    // AI header tab is present.
     expect(screen.getByTestId('subheader-ai')).toBeInTheDocument();
-    // Switch back to Workspace → sections reset to collapsed.
+    // Switch back to Workspace → resets to first tab (General).
     fireEvent.click(screen.getByTestId('settings-category-workspace'));
-    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
-    expect(document.getElementById('ws-files-body')).toHaveAttribute('hidden');
+    expect(screen.getByTestId('subsection-general')).toBeInTheDocument();
+    expect(screen.queryByTestId('subsection-files')).not.toBeInTheDocument();
   });
 });
 
 // ---------------------------------------------------------------------------
-// Search reveals matching controls regardless of accordion state (R62.2).
+// Search auto-selects the matching tab (R62.2).
 // ---------------------------------------------------------------------------
 
-describe('SettingsModal search expands matching sub-sections', () => {
-  it('a search match in a non-first sub-section is revealed even though it is collapsed by default', () => {
+describe('SettingsModal search selects matching tab', () => {
+  it('a search match in a non-first tab auto-selects that tab and shows its panel', () => {
     renderModal('workspace');
-    // "Auto Save" lives in the Editor group (non-first, collapsed by default).
-    expect(document.getElementById('ws-editor-body')).toHaveAttribute('hidden');
+    // Editor is not the active tab by default (General is first).
+    expect(screen.queryByTestId('subsection-editor')).not.toBeInTheDocument();
     fireEvent.change(screen.getByTestId('settings-search'), {
       target: { value: 'auto save' },
     });
-    // Now revealed by the search expansion (hidden removed from Editor body).
-    expect(document.getElementById('ws-editor-body')).not.toHaveAttribute('hidden');
+    // The Editor tab is now auto-selected and its panel is in the DOM.
+    expect(screen.getByTestId('subsection-editor')).toBeInTheDocument();
     expect(screen.getByTestId('setting-autoSave')).toBeInTheDocument();
   });
 
-  it('clearing the search restores the default accordion (all collapsed)', () => {
+  it('clearing the search restores the default first-tab selection', () => {
     renderModal('workspace');
     fireEvent.change(screen.getByTestId('settings-search'), {
       target: { value: 'auto save' },
@@ -445,9 +445,9 @@ describe('SettingsModal search expands matching sub-sections', () => {
     fireEvent.change(screen.getByTestId('settings-search'), {
       target: { value: '' },
     });
-    // Back to default: all sub-sections collapsed (hidden restored).
-    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
-    expect(document.getElementById('ws-editor-body')).toHaveAttribute('hidden');
+    // Back to default: General tab is active, Editor panel is gone.
+    expect(screen.getByTestId('subsection-general')).toBeInTheDocument();
+    expect(screen.queryByTestId('subsection-editor')).not.toBeInTheDocument();
   });
 });
 
