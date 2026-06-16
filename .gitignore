@@ -73,3 +73,8 @@ scripts/recordings/
 # Local dev screenshot scripts (UI reimagining)
 .kp-*.mjs
 .certs/
+
+# Marketing capture tooling artifacts (regenerable)
+scripts/marketing-capture/node_modules/
+scripts/marketing-capture/output/
+scripts/marketing-capture/dist/

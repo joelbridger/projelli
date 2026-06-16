@@ -132,8 +132,8 @@
                     ┌───────────────┴───────────────┐
                     ▼                               ▼
 ┌───────────────────────────────┐   ┌───────────────────────────────────────┐
-│     FILESYSTEM BACKEND        │   │         SQLITE DATABASE               │
-│   Web FS API │ Tauri FS       │   │  RunRecords │ SourceCards │ AuditLog  │
+│ FILES - your documents        │   │ LOCAL STATE + SPECIALIZED STORES      │
+│   WebFS / Tauri FS backends   │   │  Zustand+localStorage · LanceDB(RAG)  │
 └───────────────────────────────┘   └───────────────────────────────────────┘
 ```
 
@@ -144,13 +144,17 @@
 | **Frontend** | React 18 + TypeScript 5 + Vite 5 | Strict mode enabled |
 | **State** | Zustand | No providers needed, works outside React |
 | **UI Components** | shadcn/ui + Radix + Tailwind CSS 3 | Accessible, customizable |
-| **Editor** | CodeMirror 6 | Obsidian-proven, extensible |
+| **Editor** | In-house OOXML (.docx) engine + TipTap | Word-native is primary: tracked changes + AI redline. (Legacy CodeMirror/markdown is being removed in the 3.0 reorg.) |
 | **Desktop** | Tauri 2 | Small binary, native security model |
-| **Database** | SQLite (sql.js for browser, native for Tauri) | RunRecords, indexes, audit log |
-| **Search** | FlexSearch | Extensible to embeddings later |
-| **Diagrams** | Mermaid | Markdown-embeddable |
+| **Persistence** | Flat files (WebFS / Tauri FS) for documents; Zustand + `localStorage` for app state | **NO sql.js.** RunRecords are `.workflow` files; SourceCards are `.source` files. |
+| **Search** | minisearch (full-text) + fuse.js (fuzzy / quick-open) | **NO FlexSearch.** Semantic RAG = LanceDB + fastembed (e5-small), native Rust, stored under `~/.keepance`. |
+| **Audit / mail store** | SQLCipher + rusqlite (Tauri only) | Append-only encrypted audit log; mail-import metadata. Not a general app DB. |
+| **Vault** | AES-256-GCM flat files (`keepance-vault` crate) | Encrypted workspace; keys in OS keychain. |
+| **Diagrams** | Mermaid | (Legacy; tied to the markdown preview being removed.) |
 | **API Key Storage** | OS Keychain (Tauri) → Encrypted file fallback |
 | **Testing** | Vitest + React Testing Library | Vite-native |
+
+> **⚠️ Structure reconciliation (in progress, 2026-06-16).** The data-layer rows above are corrected to reality. The ASCII diagram's module/tool boxes and the **"Key Files" / "Directory Structure"** sections further down still describe the PRE-reorg layout. The codebase is being migrated to a **feature-first structure** — `src/{app,features,platform,ui,lib}` — and the authoritative map will live in **`ARCHITECTURE.md`** once the reorg completes. Until then, trust the code over those sections.
 
 ---
 
