@@ -16,7 +16,6 @@ import {
   FileText,
   Film,
   Image,
-  Layout,
   Link,
   Music,
   Presentation,
@@ -91,7 +90,6 @@ const ICON_MAP: Record<string, FileIconInfo> = {
   // Keepance-specific
   source:   { Icon: Link,         color: 'text-cyan-500',    label: 'Source' },
   aichat:   { Icon: Sparkles,     color: 'text-fuchsia-500', label: 'AI Chat' },
-  whiteboard: { Icon: Layout,     color: 'text-sky-500',     label: 'Whiteboard' },
   workflow: { Icon: Workflow,     color: 'text-amber-500',   label: 'Workflow Run' },
 };
 

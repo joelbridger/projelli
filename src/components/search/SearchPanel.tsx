@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, FileText, FolderOpen, MessageSquare, PenTool, X, FolderTree, Filter } from 'lucide-react';
+import { Search, FileText, FolderOpen, MessageSquare, X, FolderTree, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,7 +23,7 @@ import type { ContentSearchResult } from '@/modules/search/ContentIndex';
 interface SearchResult {
   path: string;
   name: string;
-  type: 'file' | 'folder' | 'chat' | 'whiteboard';
+  type: 'file' | 'folder' | 'chat';
   preview?: string;
   matches: number;
   /** UX-26: the snippet of content around the first match. Only set when
@@ -65,8 +65,6 @@ function searchFileTree(
         const ext = node.name.split('.').pop()?.toLowerCase();
         if (ext === 'aichat') {
           type = 'chat';
-        } else if (ext === 'whiteboard') {
-          type = 'whiteboard';
         }
       }
 
@@ -121,14 +119,12 @@ function getResultIcon(type: SearchResult['type']) {
       return <FolderOpen className="h-4 w-4 text-blue-500" />;
     case 'chat':
       return <MessageSquare className="h-4 w-4 text-green-500" />;
-    case 'whiteboard':
-      return <PenTool className="h-4 w-4 text-purple-500" />;
     default:
       return <FileText className="h-4 w-4 text-muted-foreground" />;
   }
 }
 
-type FileTypeFilter = 'all' | 'markdown' | 'text' | 'image' | 'video' | 'audio' | 'whiteboard' | 'chat' | 'source' | 'json';
+type FileTypeFilter = 'all' | 'markdown' | 'text' | 'image' | 'video' | 'audio' | 'chat' | 'source' | 'json';
 
 const FILE_TYPE_FILTERS: { value: FileTypeFilter; label: string; extensions: string[] }[] = [
   { value: 'all', label: 'All Files', extensions: [] },
@@ -137,7 +133,6 @@ const FILE_TYPE_FILTERS: { value: FileTypeFilter; label: string; extensions: str
   { value: 'image', label: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'] },
   { value: 'video', label: 'Videos', extensions: ['mp4', 'webm', 'mov', 'avi'] },
   { value: 'audio', label: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'm4a'] },
-  { value: 'whiteboard', label: 'Whiteboards', extensions: ['whiteboard'] },
   { value: 'chat', label: 'AI Chats', extensions: ['aichat'] },
   { value: 'source', label: 'Sources', extensions: ['source'] },
   { value: 'json', label: 'JSON', extensions: ['json'] },
@@ -179,7 +174,6 @@ export function SearchPanel({ onFileSelect, onRevealInFolder, onContentSearch, c
         const ext = hit.name.split('.').pop()?.toLowerCase();
         let type: SearchResult['type'] = 'file';
         if (ext === 'aichat') type = 'chat';
-        else if (ext === 'whiteboard') type = 'whiteboard';
         contentMatches.push({
           path: hit.path,
           name: hit.name,
@@ -338,7 +332,7 @@ export function SearchPanel({ onFileSelect, onRevealInFolder, onContentSearch, c
             panelName="search"
             icon={Search}
             title="Search your workspace"
-            description="Find files, folders, AI chats, and whiteboards by name. Filter by file type above to narrow results."
+            description="Find files, folders, and AI chats by name. Filter by file type above to narrow results."
           />
         )}
 

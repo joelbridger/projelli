@@ -15,7 +15,6 @@ import {
   FilePlus,
   FolderPlus,
   Upload,
-  PenTool,
   Download,
   BookOpen,
   Mic,
@@ -110,8 +109,6 @@ interface FileTreeProps {
   onCreateSourceFileAtRoot?: () => void;
   onCreateFolderAtRoot?: () => void;
   onUploadFiles?: (files: FileList, targetFolder?: string) => Promise<void>;
-  onCreateWhiteboard?: (parentPath: string) => void;
-  onCreateWhiteboardAtRoot?: () => void;
   onOpenGridView?: () => void;
   onCreateAudioAtRoot?: () => void;
   onCreateSpreadsheetAtRoot?: () => void;
@@ -163,8 +160,6 @@ export function FileTree({
   onCreateSourceFileAtRoot,
   onCreateFolderAtRoot,
   onUploadFiles,
-  onCreateWhiteboard,
-  onCreateWhiteboardAtRoot,
   onCreateAudioAtRoot,
   onCreateSpreadsheetAtRoot,
   onCreateCsvAtRoot,
@@ -445,10 +440,6 @@ export function FileTree({
               <BookOpen className="h-3.5 w-3.5 mr-2" />
               Source (.source)
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={onCreateWhiteboardAtRoot}>
-              <PenTool className="h-3.5 w-3.5 mr-2" />
-              Whiteboard
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={onCreateAudioAtRoot}>
               <Mic className="h-3.5 w-3.5 mr-2" />
               {t('workspace.file-tree.new.audio-file')}
@@ -475,7 +466,7 @@ export function FileTree({
               const input = document.createElement('input');
               input.type = 'file';
               input.multiple = true;
-              input.accept = 'image/*,video/*,.md,.txt,.json,.pdf,.whiteboard';
+              input.accept = 'image/*,video/*,.md,.txt,.json,.pdf';
               input.onchange = (e) => {
                 const files = (e.target as HTMLInputElement).files;
                 if (files && files.length > 0) {
@@ -594,7 +585,6 @@ export function FileTree({
               onDelete={onDelete}
               onMove={onMove}
               onDownload={onDownload}
-              onCreateWhiteboard={onCreateWhiteboard}
               onSetLetterheadTemplate={onSetLetterheadTemplate}
               dragOverPath={dragOverPath}
               setDragOverPath={setDragOverPath}
@@ -644,7 +634,6 @@ interface FileTreeItemProps {
   onDelete: ((path: string) => void) | undefined;
   onMove: ((sourcePath: string, targetPath: string) => Promise<void>) | undefined;
   onDownload: ((path: string, name: string) => void) | undefined;
-  onCreateWhiteboard: ((parentPath: string) => void) | undefined;
   onSetLetterheadTemplate: ((path: string) => void) | undefined;
   dragOverPath: string | null;
   setDragOverPath: (path: string | null) => void;
@@ -676,7 +665,6 @@ function FileTreeItem({
   onDelete,
   onMove,
   onDownload,
-  onCreateWhiteboard,
   onSetLetterheadTemplate,
   dragOverPath,
   setDragOverPath,
@@ -976,9 +964,6 @@ function FileTreeItem({
                   <DropdownMenuItem onClick={() => { onCreateFolder?.(node.path); setIsMenuOpen(false); }}>
                     New Folder
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { onCreateWhiteboard?.(node.path); setIsMenuOpen(false); }}>
-                    New Whiteboard
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                 </>
               )}
@@ -1048,7 +1033,6 @@ function FileTreeItem({
               onDelete={onDelete}
               onMove={onMove}
               onDownload={onDownload}
-              onCreateWhiteboard={onCreateWhiteboard}
               onSetLetterheadTemplate={onSetLetterheadTemplate}
               dragOverPath={dragOverPath}
               setDragOverPath={setDragOverPath}

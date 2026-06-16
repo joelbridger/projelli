@@ -1,5 +1,5 @@
 // Sidebar Component
-// Contains file tree, workflow panel, research, whiteboard, and other tools
+// Contains file tree, workflow panel, research, and other tools
 // Settings have been moved to the AI Assistant pane on the right
 
 import { useRef, useState } from 'react';
@@ -20,7 +20,6 @@ import {
   BookOpen,
   History,
   Trash2,
-  PenTool,
   Search,
   Bot,
   LayoutGrid,
@@ -36,7 +35,6 @@ export interface SidebarProps {
   researchContent?: React.ReactNode;
   auditContent?: React.ReactNode;
   trashContent?: React.ReactNode;
-  whiteboardContent?: React.ReactNode;
   mattersContent?: React.ReactNode;
   activeTab?: SidebarTab; // Controlled active tab
   onTabChange?: (tab: SidebarTab) => void; // Tab change callback
@@ -53,7 +51,7 @@ export interface SidebarProps {
   className?: string;
 }
 
-type SidebarTab = 'files' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'matters';
+type SidebarTab = 'files' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'audit' | 'trash' | 'matters';
 
 export function Sidebar({
   fileTreeContent,
@@ -63,7 +61,6 @@ export function Sidebar({
   researchContent,
   auditContent,
   trashContent,
-  whiteboardContent,
   mattersContent,
   activeTab: controlledActiveTab,
   onTabChange,
@@ -85,8 +82,8 @@ export function Sidebar({
   const [internalActiveTab, setInternalActiveTab] = useState<SidebarTab>('files');
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  // Law-first: hide the founder-era Research + Whiteboard surfaces for the
-  // legal experience (and the default). Non-law packs may still see them.
+  // Law-first: hide the founder-era Research surface for the legal experience
+  // (and the default). Non-law packs may still see it.
   const profession = useProfessionStore((s) => s.profession);
   const lawExp = isLawExperience(profession);
 
@@ -119,7 +116,6 @@ export function Sidebar({
       ? []
       : [
           { id: 'research' as const, Icon: BookOpen, label: t('layout.sidebar.tabs.research') },
-          { id: 'whiteboard' as const, Icon: PenTool, label: t('layout.sidebar.tabs.whiteboard') },
         ]),
     { id: 'audit', Icon: History, label: t('layout.sidebar.tabs.audit') },
     { id: 'trash', Icon: Trash2, label: t('layout.sidebar.tabs.trash') },
@@ -234,7 +230,7 @@ export function Sidebar({
                 'justify-start h-8 rounded-none',
                 isCollapsed ? 'w-10 px-0 justify-center' : 'w-full px-3',
                 // UX-11: force inactive tabs to muted foreground so any leftover
-                // color on a specific icon (e.g. a PenTool whiteboard accent)
+                // color on a specific icon (e.g. an accent on one icon)
                 // can't stick. Active tab gets `text-foreground` from the
                 // `secondary` Button variant.
                 !isActive && 'text-muted-foreground'
@@ -315,7 +311,6 @@ export function Sidebar({
           {activeTab === 'workflows' && workflowContent}
           {activeTab === 'ai-assistant' && aiAssistantContent}
           {activeTab === 'research' && researchContent}
-          {activeTab === 'whiteboard' && whiteboardContent}
           {activeTab === 'audit' && auditContent}
           {activeTab === 'trash' && trashContent}
         </div>

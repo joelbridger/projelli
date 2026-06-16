@@ -376,19 +376,18 @@ export function useLicense() {
  * specified feature.
  *
  * New pricing model: every paid tier (personal / professional / practice)
- * gets the FULL app — editor, all providers, whiteboard, audio, research,
+ * gets the FULL app — editor, all providers, audio, research,
  * multi-model comparison, and commercial use. The only paid differentiators
  * are which profession PACK you get (see `hasPack`) and seat count, neither
  * of which is a per-feature flag. So every feature simply reduces to
  * `tier !== 'free'`. (Trial users have tier 'free' but get full access via
  * the separate `useTrial` gate, which is checked at the call site.)
  */
-export function tierHasFeature(tier: LicenseTier, feature: 'multi-provider' | 'all-templates' | 'unlimited-workspaces' | 'whiteboard' | 'audio' | 'research-citations' | 'multi-model-comparison' | 'commercial-use'): boolean {
+export function tierHasFeature(tier: LicenseTier, feature: 'multi-provider' | 'all-templates' | 'unlimited-workspaces' | 'audio' | 'research-citations' | 'multi-model-comparison' | 'commercial-use'): boolean {
   switch (feature) {
     case 'multi-provider':
     case 'all-templates':
     case 'unlimited-workspaces':
-    case 'whiteboard':
     case 'audio':
     case 'research-citations':
     case 'multi-model-comparison':

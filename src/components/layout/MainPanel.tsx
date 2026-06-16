@@ -40,7 +40,6 @@ const PresentationViewer = lazy(() =>
 const RtfEditor = lazy(() =>
   import('@/components/media/RtfEditor').then((m) => ({ default: m.RtfEditor }))
 );
-import { Whiteboard } from '@/components/whiteboard/Whiteboard';
 import { SourceFileEditor } from '@/components/research/SourceFileEditor';
 import { AIChatViewer } from '@/components/ai/AIChatViewer';
 import { FileGridView } from '@/components/workspace/FileGridView';
@@ -83,13 +82,6 @@ import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
 import { modeRestrictsToLocal } from '@/modules/privacy/egress';
 import { detectOllama } from '@/modules/models/OllamaProvider';
 
-/**
- * Check if a file is a whiteboard file
- */
-function isWhiteboardFile(extension: string | undefined): boolean {
-  if (!extension) return false;
-  return extension.toLowerCase() === 'whiteboard';
-}
 
 /**
  * Check if a file is an audio file
@@ -116,7 +108,7 @@ function shouldVersionFile(extension: string | undefined): boolean {
   const ext = extension.toLowerCase();
   // Version text-based editable files + the canonical `.docx` document format
   // (WS-A / A5 — binary-safe, on-disk snapshots for `.docx`).
-  return ext === 'md' || ext === 'txt' || ext === 'json' || ext === 'source' || ext === 'aichat' || ext === 'whiteboard' || ext === 'docx';
+  return ext === 'md' || ext === 'txt' || ext === 'json' || ext === 'source' || ext === 'aichat' || ext === 'docx';
 }
 
 /** True when version history for this file lives on disk (binary-safe). */
@@ -557,7 +549,7 @@ export function MainPanel({
   // Check if a file is a text file that can be edited
   const isTextFile = (extension: string | undefined): boolean => {
     if (!extension) return true; // No extension = likely text
-    const nonTextExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'mp4', 'webm', 'mov', 'avi', 'mkv', 'ogg', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'rar', '7z', 'tar', 'gz', 'whiteboard', 'aichat'];
+    const nonTextExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'mp4', 'webm', 'mov', 'avi', 'mkv', 'ogg', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'rar', '7z', 'tar', 'gz', 'aichat'];
     return !nonTextExtensions.includes(extension.toLowerCase());
   };
 
@@ -609,7 +601,6 @@ export function MainPanel({
     const isSpreadsheet = isSpreadsheetFile(extension);
     const isPresentation = isPresentationFile(extension);
     const isWord = isWordFile(extension);
-    const isWhiteboard = isWhiteboardFile(extension);
     const isText = isTextFile(extension);
     const editorRef = isSecondary ? secondaryEditorRef : primaryEditorRef;
 
@@ -784,17 +775,6 @@ export function MainPanel({
             </div>
           );
         }
-      }
-      if (isWhiteboard) {
-        return (
-          <Whiteboard
-            initialData={tab.content}
-            onSave={async (data) => {
-              onContentChange(data);
-            }}
-            className="h-full"
-          />
-        );
       }
       if (isImage) {
         return <ImageViewer src={tab.content} alt={tab.name} />;

@@ -1,6 +1,6 @@
 // Reusable empty-state component for sidebar panels
 //
-// Used across Files, Search, AI Audit, Trash, and Whiteboard panels to give
+// Used across Files, Search, AI, Audit, and Trash panels to give
 // each empty panel a consistent shape: icon, title, description, optional
 // CTA, and optional keyboard-shortcut hint.
 //

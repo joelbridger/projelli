@@ -13,7 +13,6 @@ const FEATURES = [
   'multi-provider',
   'all-templates',
   'unlimited-workspaces',
-  'whiteboard',
   'audio',
   'research-citations',
   'multi-model-comparison',

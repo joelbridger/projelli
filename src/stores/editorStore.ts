@@ -13,7 +13,7 @@ interface OpenTab {
   // MainPanel doesn't work here because the tab has no file on disk.
   // 'email' is the Keepance 3.0 read-only mail viewer (no file on disk; the
   // message id rides in `metadata.mailSourceId`).
-  type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' | 'workflow-execution' | 'email';
+  type?: 'file' | 'browser' | 'ai-assistant' | 'workflow-execution' | 'email';
   metadata?: {
     url?: string; // For browser tabs
     favicon?: string; // For browser tabs
@@ -74,7 +74,7 @@ interface EditorState {
 
   // Actions
   openFile: (path: string, name: string, content: string) => void;
-  openTab: (path: string, name: string, content: string, type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' | 'workflow-execution' | 'email', metadata?: { url?: string; favicon?: string; mailSourceId?: string }) => void;
+  openTab: (path: string, name: string, content: string, type?: 'file' | 'browser' | 'ai-assistant' | 'workflow-execution' | 'email', metadata?: { url?: string; favicon?: string; mailSourceId?: string }) => void;
   closeTab: (path: string) => void;
   closeTabsByPath: (path: string) => void; // Close all tabs for a deleted file
   setActiveTab: (path: string) => void;
@@ -641,21 +641,6 @@ export const useEditorStore = create<EditorState>()(
         // type='workflow-execution' fall through to the regular file-
         // reading branch below so their JSON content is rehydrated.
         if (tab.type === 'workflow-execution' && tab.path.startsWith('__workflow_exec_')) {
-          continue;
-        }
-
-        // Whiteboard tabs - read content from disk
-        if (tab.type === 'whiteboard') {
-          const content = await readFile(tab.path);
-          restoredTabs.push({
-            path: tab.path,
-            name: tab.name,
-            content,
-            isDirty: false,
-            groupId: tab.groupId ?? null,
-            type: 'whiteboard',
-            ...(meta ? { metadata: meta } : {}),
-          });
           continue;
         }
 

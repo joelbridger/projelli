@@ -31,7 +31,6 @@ import { SearchPanel } from '@/components/search/SearchPanel';
 import { AuditLog } from '@/components/common/AuditLog';
 import { TrashPanel } from '@/components/common/TrashPanel';
 import { AIAssistantPane } from '@/components/ai/AIAssistantPane';
-import { WhiteboardManager } from '@/components/whiteboard/WhiteboardManager';
 import { ProjectManager } from '@/components/workspace/ProjectManager';
 import { AudioRecorderModal } from '@/components/audio/AudioRecorderModal';
 import { Button } from '@/components/ui/button';
@@ -274,7 +273,7 @@ function App() {
   const [workflowProviderError, setWorkflowProviderError] = useState<'needs-provider' | 'ollama-unreachable' | null>(null);
 
   // Sidebar state
-  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'matters' | 'search' | 'email' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'settings' | 'trash'>('files');
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'matters' | 'search' | 'email' | 'workflows' | 'ai-assistant' | 'research' | 'audit' | 'settings' | 'trash'>('files');
   // Per-matter UI memory (matterUiStore): subscribe to the active matter so we
   // can save + restore each matter's last working surface and focused document.
   const activeMatterId = useMatterStore((s) => s.activeMatterId);
@@ -989,23 +988,6 @@ function App() {
     };
   }, []);
 
-  // Derive whiteboard files from file tree
-  const whiteboardFiles = useMemo(() => {
-    const findWhiteboards = (nodes: typeof fileTree): Array<{ path: string; name: string }> => {
-      const result: Array<{ path: string; name: string }> = [];
-      for (const node of nodes) {
-        if (node.type === 'file' && node.name.endsWith('.whiteboard')) {
-          result.push({ path: node.path, name: node.name });
-        }
-        if (node.children) {
-          result.push(...findWhiteboards(node.children));
-        }
-      }
-      return result;
-    };
-    return findWhiteboards(fileTree);
-  }, [fileTree]);
-
   // Handle file open (must be defined before useSourceCards)
   const handleFileOpen = useCallback(
     async (path: string, name: string) => {
@@ -1254,17 +1236,6 @@ function App() {
         await service.mkdir(docsPath);
         console.log('Created docs folder');
         isNewWorkspace = true;
-      }
-
-      // Create whiteboards folder (skipped in the law-first experience)
-      if (!isLawExperience()) {
-        const whiteboardsPath = `${newRootPath}/whiteboards`;
-        const whiteboardsExists = await service.exists(whiteboardsPath);
-        if (!whiteboardsExists) {
-          await service.mkdir(whiteboardsPath);
-          console.log('Created whiteboards folder');
-          isNewWorkspace = true;
-        }
       }
 
       // Create AI Chats folder
@@ -2211,52 +2182,6 @@ function App() {
       console.error('Failed to create folder:', error);
     }
   }, [rootPath, setFileTree, prompt]);
-
-  // Handle create whiteboard
-  const handleCreateWhiteboard = useCallback(
-    async (parentPath: string) => {
-      const name = await prompt('Enter whiteboard name:', 'My Whiteboard', {
-        title: 'Create Whiteboard',
-      });
-      if (!name || !workspaceServiceRef.current) return;
-
-      // Add .whiteboard extension if not present
-      const fileName = name.endsWith('.whiteboard') ? name : `${name}.whiteboard`;
-      const filePath = `${parentPath}/${fileName}`;
-      try {
-        // Create empty whiteboard (empty JSON array for elements)
-        await workspaceServiceRef.current.writeFile(filePath, '[]');
-        const fileTree = await workspaceServiceRef.current.getFileTree();
-        setFileTree(fileTree);
-        await handleFileOpen(filePath, fileName);
-      } catch (error) {
-        console.error('Failed to create whiteboard:', error);
-      }
-    },
-    [setFileTree, handleFileOpen, prompt]
-  );
-
-  // Handle create whiteboard at root (goes to whiteboards folder)
-  const handleCreateWhiteboardAtRoot = useCallback(async () => {
-    if (!workspaceServiceRef.current || !rootPath) return;
-    const name = await prompt('Enter whiteboard name:', 'My Whiteboard', {
-      title: 'Create Whiteboard',
-    });
-    if (!name) return;
-
-    // Add .whiteboard extension if not present
-    const fileName = name.endsWith('.whiteboard') ? name : `${name}.whiteboard`;
-    const filePath = `${rootPath}/whiteboards/${fileName}`;
-    try {
-      // Create empty whiteboard (empty JSON array for elements)
-      await workspaceServiceRef.current.writeFile(filePath, '[]');
-      const fileTree = await workspaceServiceRef.current.getFileTree();
-      setFileTree(fileTree);
-      await handleFileOpen(filePath, fileName);
-    } catch (error) {
-      console.error('Failed to create whiteboard:', error);
-    }
-  }, [rootPath, setFileTree, handleFileOpen, prompt]);
 
   // Handle open grid view
   const handleOpenGridView = useCallback(() => {
@@ -3712,8 +3637,6 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onCreateSourceFileAtRoot={handleCreateSourceFileAtRoot}
               onCreateFolderAtRoot={handleCreateFolderAtRoot}
               onUploadFiles={handleUploadFiles}
-              onCreateWhiteboard={handleCreateWhiteboard}
-              onCreateWhiteboardAtRoot={handleCreateWhiteboardAtRoot}
               onOpenGridView={handleOpenGridView}
               onCreateAudioAtRoot={handleCreateAudioAtRoot}
               onConfirm={confirm}
@@ -3793,14 +3716,6 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onRetentionChange={handleTrashRetentionChange}
             />
           }
-          whiteboardContent={
-            <WhiteboardManager
-              whiteboards={whiteboardFiles}
-              onCreateWhiteboard={handleCreateWhiteboardAtRoot}
-              onOpenWhiteboard={handleFileOpen}
-              onDeleteWhiteboard={handleDelete}
-            />
-          }
           mattersContent={<MattersSidebarPanel />}
           emailContent={null}
         />
@@ -3854,7 +3769,6 @@ This file contains rules and guidelines for AI assistants in this workspace.
             onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
             onCreateRichTextFileAtRoot={handleCreateRichTextFileAtRoot}
             onCreateFolderAtRoot={handleCreateFolderAtRoot}
-            onCreateWhiteboard={handleCreateWhiteboard}
             onSetLetterheadTemplate={handleSetLetterheadTemplate}
             trashItems={trashItems}
             trashStats={trashStats}

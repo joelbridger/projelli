@@ -112,13 +112,12 @@ export interface ReimaginedDocumentsHomeProps {
   onCreateTextFileAtRoot?: () => void;
   onCreateRichTextFileAtRoot?: () => void;
   onCreateFolderAtRoot?: () => void;
-  onCreateWhiteboard?: (parentPath: string) => void;
   onSetLetterheadTemplate?: (path: string) => void;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-const REAL_FILE_TYPES = new Set(['file', 'browser', 'whiteboard', 'email']);
+const REAL_FILE_TYPES = new Set(['file', 'browser', 'email']);
 
 function isRealFileTab(type: string): boolean {
   return REAL_FILE_TYPES.has(type);
@@ -315,7 +314,6 @@ export function ReimaginedDocumentsHome({
   onCreateTextFileAtRoot,
   onCreateRichTextFileAtRoot,
   onCreateFolderAtRoot,
-  onCreateWhiteboard,
   onSetLetterheadTemplate,
 }: ReimaginedDocumentsHomeProps) {
   const activeTabPath = useEditorStore((s) => s.activeTabPath);
@@ -773,7 +771,6 @@ export function ReimaginedDocumentsHome({
                 {...(onCreateRichTextFileAtRoot !== undefined ? { onCreateRichTextFileAtRoot } : {})}
                 {...(onCreateFolderAtRoot !== undefined ? { onCreateFolderAtRoot } : {})}
                 {...(onCreateDocxAtRoot !== undefined ? { onCreateDocxAtRoot } : {})}
-                {...(onCreateWhiteboard !== undefined ? { onCreateWhiteboard } : {})}
                 {...(onSetLetterheadTemplate !== undefined ? { onSetLetterheadTemplate } : {})}
               />
             }
