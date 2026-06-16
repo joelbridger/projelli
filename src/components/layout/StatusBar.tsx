@@ -6,18 +6,15 @@ import { useTranslation } from 'react-i18next';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { cn } from '@/lib/utils';
-import { FolderOpen, File, Edit, ChevronRight, Bug, Briefcase, Globe, ShieldOff } from 'lucide-react';
+import { FolderOpen, File, Edit, ChevronRight, Bug, ShieldOff } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-// WS-B/C: active-matter (confidentiality scope) indicator.
 import { useActiveMatter } from '@/stores/matterStore';
-import { matterLabel } from '@/modules/memory/matterResolver';
 import { BugReportDialog } from '@/components/common/BugReportDialog';
-import { isReimaginedShell } from '@/lib/reimaginedShell';
 import { TrialStatusChip } from '@/components/trial';
 import { useTrial } from '@/hooks/useTrial';
 import { useLicense } from '@/hooks/useLicense';
@@ -386,34 +383,6 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
             <span className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse" aria-hidden />
             {t('privacy.egress.sending')}
           </span>
-        )}
-
-        {/* WS-B/C: active-matter scope indicator. Hidden in the reimagined shell
-            because the TrustBar already shows matter + egress in the top bar —
-            rendering it a second time here is pure duplication. */}
-        {!isReimaginedShell() && (
-          <div
-            data-testid="status-bar-matter"
-            data-scope={activeMatter ? 'matter' : 'allMatters'}
-            className={cn(
-              'flex items-center gap-1 max-w-[200px]',
-              activeMatter ? 'text-primary' : 'text-amber-700',
-            )}
-            title={
-              activeMatter
-                ? t('matter.scope.active-title', { name: matterLabel(activeMatter) })
-                : t('matter.scope.all-matters-title')
-            }
-          >
-            {activeMatter ? (
-              <Briefcase className="h-3 w-3 shrink-0" />
-            ) : (
-              <Globe className="h-3 w-3 shrink-0" />
-            )}
-            <span className="truncate">
-              {activeMatter ? matterLabel(activeMatter) : t('matter.scope.all-matters')}
-            </span>
-          </div>
         )}
 
         {/* Bug report: icon-only to minimise visual noise. */}

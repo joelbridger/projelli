@@ -17,7 +17,6 @@ import { ReimaginedEmailWorkspace } from '@/components/mail/ReimaginedEmailWorks
 import { ReimaginedDocumentsHome } from '@/components/documents/ReimaginedDocumentsHome';
 import { ReimaginedAssociateHome } from '@/components/workflow/ReimaginedAssociateHome';
 import { ReimaginedAuditHome } from '@/components/audit/ReimaginedAuditHome';
-import { isReimaginedShell } from '@/lib/reimaginedShell';
 import { MainPanel } from '@/components/layout/MainPanel';
 import { StatusBar } from '@/components/layout/StatusBar';
 import { McpApprovalGate } from '@/components/settings/McpApprovalGate';
@@ -300,12 +299,7 @@ function App() {
   >(undefined);
 
   const handleRequestApiKeySetup = useCallback(() => {
-    if (isReimaginedShell()) {
-      setApiKeyWizardOpen(true);
-    } else {
-      setSidebarActiveTab('ai-assistant');
-      setAiAssistantRequestedTab('keys');
-    }
+    setApiKeyWizardOpen(true);
   }, []);
 
   // Audit log state
@@ -3458,12 +3452,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
   // for updates, Open website, …) behaves identically in either surface.
   const handleSettingsAction = (actionId: string) => {
     if (actionId === 'open-ai-keys') {
-      if (isReimaginedShell()) {
-        setApiKeyWizardOpen(true);
-      } else {
-        setSidebarActiveTab('ai-assistant');
-        setAiAssistantRequestedTab('keys');
-      }
+      setApiKeyWizardOpen(true);
     } else if (actionId === 'open-api-key-tutorial') {
       setApiKeyWizardOpen(true);
     } else if (actionId === 'open-ai-rules') {
@@ -3594,8 +3583,8 @@ This file contains rules and guidelines for AI assistants in this workspace.
           Otherwise null and zero layout. */}
       <TrialBanner onActivate={() => openSettings('license')} />
 
-      {/* Reimagined shell: the hero Trust Bar (elevated egress + matter scope). */}
-      {isReimaginedShell() && <ReimaginedTrustBar />}
+      {/* The hero Trust Bar (elevated egress + matter scope). */}
+      <ReimaginedTrustBar />
 
       {/* Main content area */}
       <div id="main-content" className="flex-1 flex overflow-hidden">
@@ -3652,7 +3641,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
           }
           workflowContent={
             <WorkflowPanel
-              {...(isReimaginedShell() ? { heading: 'Workflows' } : {})}
+              heading="Workflows"
               onStartWorkflow={handleStartWorkflow}
               currentExecution={currentExecution}
               runHistory={runHistory}
@@ -3721,9 +3710,9 @@ This file contains rules and guidelines for AI assistants in this workspace.
         />
 
         {/* Main editor panel, or a full-page reimagined surface (matters/Ask/Email). */}
-        {isReimaginedShell() && sidebarActiveTab === 'matters' ? (
+        {sidebarActiveTab ==='matters' ? (
           <ReimaginedMattersHome />
-        ) : isReimaginedShell() && sidebarActiveTab === 'search' ? (
+        ) : sidebarActiveTab ==='search' ? (
           <ReimaginedAsk
             onSaveToDocument={async (content) => {
               if (!workspaceServiceRef.current || !rootPath) return;
@@ -3739,7 +3728,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
             prefillRequest={askPrefill}
             onPrefillConsumed={() => setAskPrefill(null)}
           />
-        ) : isReimaginedShell() && sidebarActiveTab === 'email' ? (
+        ) : sidebarActiveTab ==='email' ? (
           <ReimaginedEmailWorkspace
             onSaveToWorkspace={async (content, suggestedName) => {
               if (!workspaceServiceRef.current || !rootPath) return;
@@ -3753,7 +3742,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
             }}
             onOpenSettings={() => openSettings('ai')}
           />
-        ) : isReimaginedShell() && sidebarActiveTab === 'files' ? (
+        ) : sidebarActiveTab ==='files' ? (
           <ReimaginedDocumentsHome
             documentsView={documentsView}
             onFileOpen={handleFileOpen}
@@ -3819,7 +3808,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
               />
             }
           />
-        ) : isReimaginedShell() && sidebarActiveTab === 'workflows' ? (
+        ) : sidebarActiveTab ==='workflows' ? (
           <ReimaginedAssociateHome
             onStartWorkflow={handleStartWorkflow}
             currentExecution={currentExecution}
@@ -3836,9 +3825,9 @@ This file contains rules and guidelines for AI assistants in this workspace.
               }
             }}
           />
-        ) : isReimaginedShell() && sidebarActiveTab === 'audit' ? (
+        ) : sidebarActiveTab ==='audit' ? (
           <ReimaginedAuditHome entries={auditEntries} />
-        ) : isReimaginedShell() && sidebarActiveTab === 'settings' ? (
+        ) : sidebarActiveTab ==='settings' ? (
           // Full-page Settings surface — the SAME content as the quick modal
           // (5-section nav, search, accordion sub-sections, Export/Import/Reset),
           // rendered in the main window instead of a dialog. The gear / Ctrl+,
