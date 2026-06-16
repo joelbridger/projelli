@@ -113,6 +113,7 @@ import type { AuditEntry } from '@/types/audit';
 import type { CoeditSession } from '@/modules/coedit/coeditSession';
 import * as Y from 'yjs';
 import { editRunText, addTrackedInsertion, addTrackedDeletion, resolveRevision } from '@/modules/coedit/docCrdt';
+import { structuredCloneSafe, extractLooseText, type RedlineSummary } from './docxEditorHelpers';
 
 const SAVE_DEBOUNCE_MS = 1200;
 
@@ -179,14 +180,6 @@ type LoadState =
   | { status: 'ready'; doc: DocumentJson }
   | { status: 'error'; message: string }
   | { status: 'unsupported' };
-
-/** A human summary of the last AI redline, shown in the results panel. */
-interface RedlineSummary {
-  instruction: string;
-  applied: number;
-  skipped: number;
-  items: { applied: boolean; reason: string; op: string; error?: string }[];
-}
 
 export function DocxEditor({
   filePath,
@@ -2155,46 +2148,6 @@ function DocxEditorMessage({
       <p className="max-w-sm text-xs">{message}</p>
     </div>
   );
-}
-
-// ===========================================================================
-// Pure helpers
-// ===========================================================================
-
-/** structuredClone with a JSON fallback for older runtimes / jsdom. */
-function structuredCloneSafe<T>(value: T): T {
-  if (typeof structuredClone === 'function') {
-    try {
-      return structuredClone(value);
-    } catch {
-      /* fall through */
-    }
-  }
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
-/**
- * Pull human-readable text out of a small OOXML fragment by concatenating
- * `<w:t>...</w:t>` runs. Purely for display of preserved inlines (hyperlinks,
- * fields). Returns '' if none. Never throws; never used for structure.
- */
-function extractLooseText(xml: string): string {
-  let out = '';
-  const re = /<(?:\w+:)?t(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?t>/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(xml)) !== null) {
-    out += decodeXmlEntities(m[1] ?? '');
-  }
-  return out;
-}
-
-function decodeXmlEntities(s: string): string {
-  return s
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&');
 }
 
 export default DocxEditor;
