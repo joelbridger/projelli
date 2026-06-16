@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useGlobalEventBus, type AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import { useTranslation } from 'react-i18next';
 import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
 
@@ -266,7 +267,7 @@ function App() {
   const [workflowProviderError, setWorkflowProviderError] = useState<'needs-provider' | 'ollama-unreachable' | null>(null);
 
   // Sidebar state
-  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'matters' | 'search' | 'email' | 'workflows' | 'ai-assistant' | 'research' | 'audit' | 'settings' | 'trash'>('files');
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<AppSurface>('files');
   // Per-matter UI memory (matterUiStore): subscribe to the active matter so we
   // can save + restore each matter's last working surface and focused document.
   const activeMatterId = useMatterStore((s) => s.activeMatterId);
@@ -1401,39 +1402,16 @@ function App() {
     ),
   );
 
-  // Bug 1 fix: listen for the 'keepance:open-matter-manager' custom event
-  // dispatched by the "New matter" buttons in ReimaginedMattersHome and open
-  // MatterManagerDialog (the canonical folder-picking + creation dialog).
-  useEffect(() => {
-    const handler = () => { setMatterManagerOpen(true); };
-    window.addEventListener('keepance:open-matter-manager', handler);
-    return () => { window.removeEventListener('keepance:open-matter-manager', handler); };
-  }, []);
-
-  // F5: listen for 'keepance:open-settings' dispatched by GetStartedCard in
-  // ReimaginedMattersHome. Opens Settings deep-linked to the given category.
-  // Account-related categories now live in the Account window, so redirect there.
-  useEffect(() => {
-    const ACCOUNT_CATEGORIES = new Set(['account', 'license', 'firm', 'costs', 'integrations']);
-    const handler = (e: Event) => {
-      const category = (e as CustomEvent<{ category?: import('@/settings/schema').SettingCategory }>)
-        .detail?.category;
-      if (category && ACCOUNT_CATEGORIES.has(category)) {
-        setAccountWindowOpen(true);
-        return;
-      }
-      openSettings(category);
-    };
-    window.addEventListener('keepance:open-settings', handler);
-    return () => { window.removeEventListener('keepance:open-settings', handler); };
-  }, [openSettings]);
-
-  // Open the Account window when the rail's account identity is clicked.
-  useEffect(() => {
-    const handler = () => { setAccountWindowOpen(true); };
-    window.addEventListener('keepance:open-account', handler);
-    return () => { window.removeEventListener('keepance:open-account', handler); };
-  }, []);
+  // Shell-wide `keepance:*` CustomEvent wiring (matter manager, settings,
+  // account, matter launch). See src/app/lifecycle/useGlobalEventBus.ts.
+  useGlobalEventBus({
+    onOpenMatterManager: () => setMatterManagerOpen(true),
+    onOpenAccount: () => setAccountWindowOpen(true),
+    openSettings,
+    setSidebarActiveTab,
+    setDocumentsView,
+    setAskPrefill,
+  });
 
   // Per-matter UI memory: as the user works inside a matter, keep its snapshot
   // (last working surface + focused document) up to date, so returning to the
@@ -1447,57 +1425,6 @@ function App() {
       activeTabPath: sidebarActiveTab === 'files' ? (activeTabPath ?? null) : null,
     });
   }, [activeMatterId, sidebarActiveTab, activeTabPath]);
-
-  // Wave F — listen for 'keepance:matter-launch'. Quick-action buttons pass an
-  // explicit surface (search = Ask, files = Documents, email) and jump there.
-  // Selecting a matter to RETURN to it (e.g. the navy rail) passes no surface,
-  // so we restore that matter's remembered working surface + focused document.
-  useEffect(() => {
-    const ALLOWED_SURFACES = new Set(['search', 'files', 'email', 'workflows', 'audit'] as const);
-    type AllowedSurface = 'search' | 'files' | 'email' | 'workflows' | 'audit';
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ matterId?: string; surface?: string; question?: string } | null>).detail;
-      if (!detail?.matterId) return;
-      const matterId = detail.matterId;
-      const hasExplicitSurface = ALLOWED_SURFACES.has(detail.surface as AllowedSurface);
-      useMatterStore.getState().setActiveMatter(matterId);
-
-      if (hasExplicitSurface) {
-        const surface = detail.surface as AllowedSurface;
-        // Launching a matter into Documents lands on its file browser, not an editor.
-        if (surface === 'files') setDocumentsView('browser');
-        setSidebarActiveTab(surface);
-        // Prefill ReimaginedAsk when the caller includes a question and the
-        // destination surface is Search (Ask).
-        if (surface === 'search' && detail.question) {
-          setAskPrefill({ question: detail.question, autoSubmit: true });
-        }
-        return;
-      }
-
-      // No explicit surface: restore the matter's remembered view (its last
-      // working surface + the document it had focused), or its hub on first visit.
-      const snap = useMatterUiStore.getState().getSnapshot(matterId);
-      if (!snap) {
-        setSidebarActiveTab('matters');
-        return;
-      }
-      if (snap.surface === 'files' && snap.activeTabPath) {
-        const tabs = useEditorStore.getState().openTabs;
-        if (tabs.some((t) => t.path === snap.activeTabPath)) {
-          useEditorStore.getState().setActiveTab(snap.activeTabPath);
-          setDocumentsView('editor');
-        } else {
-          setDocumentsView('browser');
-        }
-      } else if (snap.surface === 'files') {
-        setDocumentsView('browser');
-      }
-      setSidebarActiveTab(snap.surface);
-    };
-    window.addEventListener('keepance:matter-launch', handler);
-    return () => { window.removeEventListener('keepance:matter-launch', handler); };
-  }, []);
 
   // UX-35: shared writer that routes binary file extensions (.docx, .xlsx,
   // .pptx, .rtf, etc.) through writeFileBinary using the bytes decoded
