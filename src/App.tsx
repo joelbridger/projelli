@@ -15,7 +15,6 @@ import { useAppCommands } from '@/app/commands/useAppCommands';
 import { useDialogManager } from '@/app/dialogs/useDialogManager';
 import { useFileOperations } from '@/app/fileOps/useFileOperations';
 import { useDocumentCreation } from '@/app/fileOps/useDocumentCreation';
-import { useTranslation } from 'react-i18next';
 import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
 
 import { AppShellNav } from '@/components/layout/AppShellNav';
@@ -28,37 +27,26 @@ import { ReimaginedAssociateHome } from '@/components/workflow/ReimaginedAssocia
 import { ReimaginedAuditHome } from '@/components/audit/ReimaginedAuditHome';
 import { MainPanel } from '@/components/layout/MainPanel';
 import { StatusBar } from '@/components/layout/StatusBar';
-import { McpApprovalGate } from '@/components/settings/McpApprovalGate';
-
-import { InterviewForm } from '@/components/workflow/InterviewForm';
-import { CommandPalette } from '@/components/common/CommandPalette';
-import { ShortcutsOverlay } from '@/components/ShortcutsOverlay';
-import { QuickOpen } from '@/components/QuickOpen';
+import { AppDialogs } from '@/app/shell/AppDialogs';
 
 import { ProjectManager } from '@/components/workspace/ProjectManager';
-import { AudioRecorderModal } from '@/components/audio/AudioRecorderModal';
 import { Button } from '@/components/ui/button';
 import { Command, Moon, Monitor, Sun, Settings } from 'lucide-react';
-import { WhatsNewToast, WhatsNewModal, useWhatsNew } from '@/components/WhatsNew';
-import { UpdateManager, manualUpdateCheck } from '@/components/updater/UpdateManager';
+import { manualUpdateCheck } from '@/components/updater/UpdateManager';
 import { openExternal } from '@/utils/openExternal';
-import { SettingsModal } from '@/components/settings/SettingsModal';
-import { AccountWindow } from '@/components/account/AccountWindow';
 import { SettingsContent } from '@/components/settings/SettingsContent';
 import { TrialBanner } from '@/components/trial';
 import { hasCompletedOnboarding } from '@/components/onboarding';
 import { GuidedOnboarding } from '@/components/onboarding/GuidedOnboarding';
-import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
 import { createKeychainService } from '@/modules/models/KeychainService';
 import { sendEvent } from '@/utils/telemetry';
-import { FeatureTour } from '@/components/onboarding/FeatureTour';
 import { useFeatureTour } from '@/hooks/useFeatureTour';
 import { useSettingsStore } from '@/stores/settingsStore';
 // M1 (v1.5) Memory: workspace RAG indexer + status UI.
 import { ModelDownloadCard } from '@/components/memory/ModelDownloadCard';
 import { RagProgressBanner } from '@/components/memory/RagProgressBanner';
 import { useMemoryWiring } from '@/hooks/useMemoryWiring';
-import { GlobalDropOverlay, useGlobalFileDrop } from '@/components/common/GlobalDropOverlay';
+import { useGlobalFileDrop } from '@/components/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { saveFile } from '@/utils/saveFile';
 import { useEditorStore } from '@/stores/editorStore';
@@ -77,7 +65,6 @@ import { MemoryService } from '@/modules/memory/MemoryService';
 import { getActiveScope, getOrCreateSampleMatter, useMatterStore } from '@/stores/matterStore';
 import { useMatterUiStore, isWorkingSurface } from '@/stores/matterUiStore';
 
-import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
 import { ragVerifyCitation, type RetrievalScope } from '@/utils/tauri-commands';
 import {
   TemplateMetadataReader,
@@ -108,13 +95,6 @@ import { modeRestrictsToLocal } from '@/modules/privacy/egress';
 import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
 import { FileSystemWatcher, createFileTreeSnapshot } from '@/modules/workspace/FileSystemWatcher';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/utils/file-utils';
 import { writeDroppedFiles } from '@/utils/fileDrop';
 import { requestScrollToParagraph } from '@/utils/scrollToParagraph';
@@ -134,10 +114,8 @@ import { useMailSync } from '@/hooks/useMailSync';
 import { useOpenEmailListener } from '@/hooks/useOpenEmailListener';
 import type { MailIndexChunk } from '@/utils/mail-commands';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
-import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { usePromptDialog } from '@/hooks/usePromptDialog';
-import { PromptDialog } from '@/components/common/PromptDialog';
-import { useUndoToast, UndoToastRenderer } from '@/components/common/UndoToast';
+import { useUndoToast } from '@/components/common/UndoToast';
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
@@ -149,8 +127,6 @@ const IS_DEMO_MODE =
   (window as unknown as { __keepanceDemo?: boolean }).__keepanceDemo === true;
 
 function App() {
-  const { t } = useTranslation();
-
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE && !IS_DEMO_MODE);
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
   const {
@@ -2415,161 +2391,51 @@ This file contains rules and guidelines for AI assistants in this workspace.
         showFileContext={sidebarActiveTab === 'files'}
       />
 
-      {/* MCP write-approval gate. Polls for sidecar write requests and renders
-          the approval modal. In Privileged Matter Mode it auto-denies every MCP
-          write and records each block in the audit log. */}
-      <McpApprovalGate
-        onAuditEvent={(event) => addAuditEntry(auditEventToEntry(event))}
-      />
-
-      {/* Bug 1: MatterManagerDialog — opened by 'keepance:open-matter-manager'
-          events from the "New matter" buttons in ReimaginedMattersHome. */}
-      <MatterManagerDialog open={matterManagerOpen} onOpenChange={setMatterManagerOpen} />
-
-      {/* Interview Dialog */}
-      <Dialog open={showInterviewDialog} onOpenChange={setShowInterviewDialog}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('app.interview.title')}</DialogTitle>
-            <DialogDescription>
-              {t('app.interview.description')}
-            </DialogDescription>
-          </DialogHeader>
-          {interviewQuestions && (
-            <InterviewForm
-              questions={interviewQuestions}
-              onSubmit={handleInterviewSubmit}
-              onCancel={handleInterviewCancel}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Command Palette */}
-      <CommandPalette
-        open={showCommandPalette}
-        onOpenChange={setShowCommandPalette}
+      <AppDialogs
+        addAuditEntry={addAuditEntry}
+        matterManagerOpen={matterManagerOpen}
+        setMatterManagerOpen={setMatterManagerOpen}
+        showInterviewDialog={showInterviewDialog}
+        setShowInterviewDialog={setShowInterviewDialog}
+        interviewQuestions={interviewQuestions}
+        handleInterviewSubmit={handleInterviewSubmit}
+        handleInterviewCancel={handleInterviewCancel}
+        showCommandPalette={showCommandPalette}
+        setShowCommandPalette={setShowCommandPalette}
         commands={commands}
-      />
-
-      {/* Settings Modal — the quick, deep-linkable surface (gear / Ctrl+, /
-          command palette). The same content also lives full-page as the
-          Settings nav tab; both share handleSettingsAction. */}
-      <SettingsModal
-        open={showSettingsModal}
-        onOpenChange={setShowSettingsModal}
+        showSettingsModal={showSettingsModal}
+        setShowSettingsModal={setShowSettingsModal}
         auditEntries={auditEntries}
-        templates={loadAllTemplates()}
-        {...(settingsInitialCategory ? { initialCategory: settingsInitialCategory } : {})}
-        onAction={handleSettingsAction}
-        onRestartOnboarding={handleSettingsRestartOnboarding}
-      />
-
-      {/* Account / firm window — opened from the rail's account identity. */}
-      <AccountWindow
-        open={accountWindowOpen}
-        onOpenChange={setAccountWindowOpen}
-        auditEntries={auditEntries}
-      />
-
-      {/* Keepance 3.0: rebuilt first-run wizard — the live first-run surface.
-          Built above as `firstRunOverlay` so it also renders over the
-          WorkspaceSelector branch (where first run usually happens). */}
-      {firstRunOverlay}
-
-      {/* v1.6: 5-step Feature Tour (auto-shows on first launch) */}
-      <FeatureTour
-        open={tourOpen && !showFirstRun}
-        onClose={() => setTourOpen(false)}
-        onComplete={() => {
-          featureTour.complete();
-          setTourOpen(false);
-        }}
-        onSkip={() => {
-          featureTour.skipForNow();
-          setTourOpen(false);
-        }}
-      />
-
-      {/* Shell-aware API key wizard — opened from reimagined shell CTAs */}
-      <ApiKeyWizard
-        open={apiKeyWizardOpen}
-        onOpenChange={setApiKeyWizardOpen}
-        onSaveKey={(provider, key) => {
-          void handleSaveOnboardingApiKey(
-            provider as Parameters<typeof handleSaveOnboardingApiKey>[0],
-            key
-          );
-        }}
-      />
-
-      {/* Keyboard Shortcuts Overlay (UX-10) */}
-      <ShortcutsOverlay
-        open={showShortcutsOverlay}
-        onOpenChange={setShowShortcutsOverlay}
-      />
-
-      {/* UX-27: Quick-open fuzzy file switcher (Ctrl+P) */}
-      <QuickOpen
-        open={showQuickOpen}
-        onOpenChange={setShowQuickOpen}
+        settingsInitialCategory={settingsInitialCategory}
+        handleSettingsAction={handleSettingsAction}
+        handleSettingsRestartOnboarding={handleSettingsRestartOnboarding}
+        accountWindowOpen={accountWindowOpen}
+        setAccountWindowOpen={setAccountWindowOpen}
+        firstRunOverlay={firstRunOverlay}
+        tourOpen={tourOpen}
+        showFirstRun={showFirstRun}
+        setTourOpen={setTourOpen}
+        featureTour={featureTour}
+        apiKeyWizardOpen={apiKeyWizardOpen}
+        setApiKeyWizardOpen={setApiKeyWizardOpen}
+        handleSaveOnboardingApiKey={handleSaveOnboardingApiKey}
+        showShortcutsOverlay={showShortcutsOverlay}
+        setShowShortcutsOverlay={setShowShortcutsOverlay}
+        showQuickOpen={showQuickOpen}
+        setShowQuickOpen={setShowQuickOpen}
         fileTree={fileTree}
-        onFileOpen={handleFileOpen}
+        handleFileOpen={handleFileOpen}
+        showAudioRecorder={showAudioRecorder}
+        setShowAudioRecorder={setShowAudioRecorder}
+        handleSaveAudioRecording={handleSaveAudioRecording}
+        confirmDialogProps={confirmDialogProps}
+        promptDialogProps={promptDialogProps}
+        undoToast={undoToast}
+        isFileDragging={isFileDragging}
+        showWhatsNewModalDirect={showWhatsNewModalDirect}
+        setShowWhatsNewModalDirect={setShowWhatsNewModalDirect}
       />
-
-      {/* Audio Recorder Modal */}
-      <AudioRecorderModal
-        isOpen={showAudioRecorder}
-        onClose={() => setShowAudioRecorder(false)}
-        onSave={handleSaveAudioRecording}
-      />
-
-      {/* Confirmation Dialog */}
-      <ConfirmDialog {...confirmDialogProps} />
-
-      {/* Prompt Dialog */}
-      <PromptDialog {...promptDialogProps} />
-
-      {/* UX-16: Undo toast for destructive actions */}
-      <UndoToastRenderer controller={undoToast} />
-
-      {/* UX-19: Global drop overlay. Visible while files are dragged over the window. */}
-      <GlobalDropOverlay visible={isFileDragging} />
-
-      {/* UX-20: What's new toast + changelog modal */}
-      <WhatsNewLayer />
-
-      {/* Manually-triggered version of the changelog modal, opened from
-          Settings → About so users can revisit release notes anytime. */}
-      <WhatsNewModal
-        open={showWhatsNewModalDirect}
-        onOpenChange={setShowWhatsNewModalDirect}
-      />
-
-      {/* Auto-updater banner + scheduled background checks. No-op outside
-          Tauri so the browser / test mode never sees it. */}
-      <UpdateManager />
     </div>
-  );
-}
-
-/**
- * UX-20: local wrapper so we can call the hook inside a component tree that
- * doesn't already subscribe to the app's other state. Mounted once near the
- * UndoToastRenderer.
- */
-function WhatsNewLayer() {
-  const { toastOpen, modalOpen, version, openModal, dismissToast, closeModal } = useWhatsNew();
-  return (
-    <>
-      <WhatsNewToast
-        open={toastOpen}
-        version={version}
-        onOpenModal={openModal}
-        onDismiss={dismissToast}
-      />
-      <WhatsNewModal open={modalOpen} onOpenChange={closeModal} />
-    </>
   );
 }
 
