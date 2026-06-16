@@ -7,6 +7,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useGlobalEventBus, type AppSurface } from '@/app/lifecycle/useGlobalEventBus';
+import { useAutosave } from '@/app/lifecycle/useAutosave';
 import { useTranslation } from 'react-i18next';
 import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
 
@@ -2589,28 +2590,10 @@ This file contains rules and guidelines for AI assistants in this workspace.
   }, [rootPath, handleFileOpen, refreshFileTree]);
 
 
-  // Autosave dirty tabs every 2 seconds. UX-35: routes through
-  // writeTabContent so binary formats (.docx/.xlsx/.pptx/.rtf) decode
-  // their data-URL content back to bytes before hitting disk — otherwise
-  // re-opening the file gave "can't find end of central directory".
-  useEffect(() => {
-    const autosaveInterval = setInterval(async () => {
-      if (!workspaceServiceRef.current) return;
-
-      for (const tab of openTabs) {
-        if (tab.isDirty) {
-          try {
-            await writeTabContent(tab.path, tab.content);
-            markSaved(tab.path);
-          } catch (error) {
-            console.error('Autosave failed for:', tab.path, error);
-          }
-        }
-      }
-    }, 2000);
-
-    return () => clearInterval(autosaveInterval);
-  }, [openTabs, markSaved, writeTabContent]);
+  // Autosave dirty tabs every 2 seconds. See src/app/lifecycle/useAutosave.ts.
+  // Routes through writeTabContent so binary formats (.docx/.xlsx/.pptx) decode
+  // their data-URL content back to bytes before hitting disk.
+  useAutosave(openTabs, writeTabContent, markSaved, workspaceServiceRef);
 
 
   // Build command palette commands
