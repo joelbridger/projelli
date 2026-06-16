@@ -8,6 +8,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useGlobalEventBus, type AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import { useAutosave } from '@/app/lifecycle/useAutosave';
+import { useThemeManager } from '@/app/lifecycle/useThemeManager';
 import { useKeyboardShortcuts } from '@/app/commands/useKeyboardShortcuts';
 import { useAppCommands } from '@/app/commands/useAppCommands';
 import { useDialogManager } from '@/app/dialogs/useDialogManager';
@@ -284,44 +285,7 @@ function App() {
   // Audit log state
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
 
-  // UX-25: Theme state — 3 values: 'light' | 'dark' | 'system'.
-  // 'system' follows the OS prefers-color-scheme media query.
-  // Now reads from settingsStore as the canonical source. The local
-  // `theme` / `setTheme` pair wraps the store so existing callers
-  // keep working without refactoring every `setTheme` call.
-  const settingsTheme = useSettingsStore((s) => s.getSetting<string>('theme')) as 'light' | 'dark' | 'system';
-  const theme = (settingsTheme === 'light' || settingsTheme === 'dark' || settingsTheme === 'system')
-    ? settingsTheme
-    : 'system';
-  const setTheme = useCallback((valueOrFn: 'light' | 'dark' | 'system' | ((prev: 'light' | 'dark' | 'system') => 'light' | 'dark' | 'system')) => {
-    const next = typeof valueOrFn === 'function' ? valueOrFn(theme) : valueOrFn;
-    useSettingsStore.getState().setSetting('theme', next);
-  }, [theme]);
-
-  // Effective theme derived from `theme` + prefers-color-scheme. We listen
-  // to the media query so that a user in 'system' mode gets instant sync
-  // when they change their OS setting mid-session.
-  const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return false;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mql = window.matchMedia('(prefers-color-scheme: dark)');
-    const onChange = (e: MediaQueryListEvent) => setSystemPrefersDark(e.matches);
-    // Safari < 14 uses addListener; modern browsers use addEventListener.
-    if (mql.addEventListener) {
-      mql.addEventListener('change', onChange);
-      return () => mql.removeEventListener('change', onChange);
-    } else {
-      mql.addListener(onChange);
-      return () => mql.removeListener(onChange);
-    }
-  }, []);
-
-  const effectiveTheme: 'light' | 'dark' = theme === 'system'
-    ? (systemPrefersDark ? 'dark' : 'light')
-    : theme;
+  const { theme, setTheme, effectiveTheme } = useThemeManager();
 
   const { rootPath, setRootPath, setFileTree, recentWorkspaces, fileTree, expandedPaths, expandAllFolders, loadRecentWorkspaces } = useWorkspaceStore();
   const { openFile, openTab, markSaved, openTabs, activeTabPath, closeTab, closeTabsByPath, toggleOutline, splitPane, closeSplit, isSplit } = useEditorStore();
@@ -886,19 +850,6 @@ function App() {
       }
     }
   }, [IS_TEST_MODE, rootPath, setRootPath, openFile]);
-
-  // UX-25: Theme — apply effective theme (light/dark) as class and persist
-  // the user's *preference* (which may be 'system'). The effective theme
-  // can be different from the preference if the user is in 'system' mode.
-  useEffect(() => {
-    const htmlElement = document.documentElement;
-    if (effectiveTheme === 'dark') {
-      htmlElement.classList.add('dark');
-    } else {
-      htmlElement.classList.remove('dark');
-    }
-    localStorage.setItem('theme', theme);
-  }, [theme, effectiveTheme]);
 
   // Load recent workspaces from localStorage on mount
   useEffect(() => {
