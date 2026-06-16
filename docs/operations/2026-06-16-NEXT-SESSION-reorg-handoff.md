@@ -6,6 +6,23 @@
 > product (it had accreted sediment from the "projelli" notes-app and the general
 > "AI workspace" eras).
 
+## LATEST UPDATE (2026-06-16, continued session) — 3 more giant components split
+
+Continuing the giant-component safe-tier splits with the proven Explore-map →
+sed-carve-verbatim → typecheck+vitest+commit-per-extraction loop. **DONE this
+session (every moved symbol verified BYTE-VERBATIM via extract-by-name diff vs the
+pre-split git rev; gates green per commit; all pushed):**
+
+- **DocxEditor 2200 → 1209** → `docxEditorHelpers.ts` (3 helpers + RedlineSummary type), `DocxDocumentView.tsx` (7-component render tree + DocxEditorMessage), `DocxReviewPane.tsx` (ReviewPane/RevisionRow/CommentCard), `DocxRedlineControls.tsx` (ReviewingToggle/RedlineComposer/RedlineSummaryPanel). 4 commits. 18/18 symbols verbatim.
+- **SpreadsheetViewer 1533 → 233** → `spreadsheetViewerHelpers.ts` (constants + CellPos/MergeMaps + model-edit helpers), `SpreadsheetChrome.tsx` (FormulaBar/SelectionSummary/EditToolbar/SheetTabsBar), `SheetGrid.tsx` (SheetGrid/SheetRow/Cell cluster), `SpreadsheetStates.tsx` (Skeleton/Error). 4 commits. all symbols verbatim.
+- **MainPanel 1589 → 1259** → `mainPanelHelpers.ts` (file-type predicates + downloadFileWithDialog), `MainPanelDocFallbacks.tsx` (DocLoadingFallback/DocLegacyFallback). 2 commits. The big `renderEditorPane` (danger-zone, closes over ~30 parent locals) intentionally LEFT in place.
+
+**HEAD: b5438f5** (local==origin). Gates unchanged: `npm run typecheck` 0, `npx vitest run` 3124 passed / 3 skipped (267 files).
+
+**REMAINING giant components:** TabBar (1376), SettingsContent (1297), ReimaginedAuditHome (1210), MatterManagerDialog (1198). Then the deferred risky atomic moves (AIChatViewer `handleSendMessage`, ReimaginedAsk `handleAsk`+effects), then Phase 4 (matter-store merge + feature-folder migration), Phase 5 (docs/i18n).
+
+**Verbatim-check technique (reuse it):** `git show <pre-split-rev>:<file>` vs the new files, extract each moved symbol by name (awk on `^(export )?(function|interface|const) NAME`), strip the added `export `, `diff`. All must match. Single-line `const` needs a direct grep-diff (the awk over-grabs them). This caught one off-by-one (a missing interface closing brace) before it shipped.
+
 ## TL;DR
 
 The reorg is **~80% done**. The entire *subtraction* half (Phases 0–2) is
