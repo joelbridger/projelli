@@ -15,7 +15,7 @@
 import { useState } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Button } from '@/ui/button';
-import { useUpdaterStore } from '@/stores/updaterStore';
+import { useUpdaterStore } from '@/platform/updater/updaterStore';
 import { Download, RefreshCw, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UpdateReleaseNotesModal } from './UpdateReleaseNotesModal';

@@ -21,7 +21,7 @@ import {
   useMatterStore,
   resolveMatterIdForPath,
   getActiveScope,
-} from '@/stores/matterStore';
+} from '@/platform/matter/matterStore';
 
 const ROOT = '/home/lawyer/Keepance';
 

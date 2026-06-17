@@ -1280,7 +1280,7 @@ export async function applyLetterheadIfConfigured(bytes: Uint8Array): Promise<Ui
   const { isTauri } = await import('@tauri-apps/api/core');
   if (!isTauri()) return bytes;
 
-  const { useSettingsStore } = await import('@/stores/settingsStore');
+  const { useSettingsStore } = await import('@/platform/settings/settingsStore');
   const templatePath = useSettingsStore
     .getState()
     .getSetting<string>('letterheadTemplatePath');
@@ -1289,7 +1289,7 @@ export async function applyLetterheadIfConfigured(bytes: Uint8Array): Promise<Ui
   try {
     // Resolve a workspace-relative template path to absolute (mirrors the
     // docx command wrappers), then read its bytes via the Tauri fs plugin.
-    const { useWorkspaceStore } = await import('@/stores/workspaceStore');
+    const { useWorkspaceStore } = await import('@/platform/fs/workspaceStore');
     const { resolveWorkspacePath } = await import('@/platform/fs/pathResolve');
     const rootPath = useWorkspaceStore.getState().rootPath;
     const absoluteTemplatePath = rootPath

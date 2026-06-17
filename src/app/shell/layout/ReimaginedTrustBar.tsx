@@ -17,7 +17,7 @@
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 import { useState, useMemo } from 'react';
 import { Briefcase, Globe, Map as MapIcon, Info } from 'lucide-react';
-import { useActiveMatter } from '@/stores/matterStore';
+import { useActiveMatter } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';

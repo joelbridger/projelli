@@ -43,11 +43,11 @@ import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import type { Matter, MatterScope } from '@/types/matter';
 import { resolveMatterId, findMatter } from '@/platform/rag/matterResolver';
-import { getProfession } from '@/stores/professionStore';
+import { getProfession } from '@/platform/profile/professionStore';
 import { getSampleMatterName } from '@/onboarding/samples/sampleMatterDemo';
-import type { MatterUiSnapshot } from '@/stores/matterUiStore';
-import type { MatterAtAGlanceEntry } from '@/stores/matterAtAGlanceStore';
-import type { MatterSyncStatus } from '@/stores/matterSyncStore';
+import type { MatterUiSnapshot } from '@/platform/matter/matterUiStore';
+import type { MatterAtAGlanceEntry } from '@/platform/matter/matterAtAGlanceStore';
+import type { MatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import type { MatterAtAGlanceResult } from '@/features/matters/logic/matterAtAGlance';
 
 /**

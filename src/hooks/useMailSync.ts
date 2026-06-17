@@ -10,7 +10,7 @@ import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { isTauri } from '@tauri-apps/api/core';
 import { MAIL_SYNC_EVENT, MAIL_INDEX_CHUNK_EVENT, type MailSyncProgress, type MailIndexChunk } from '@/utils/mail-commands';
-import { useMailStore } from '@/stores/mailStore';
+import { useMailStore } from '@/features/email/mailStore';
 
 interface UseMailSyncOptions {
   onMailChunk?: (chunk: MailIndexChunk) => void;

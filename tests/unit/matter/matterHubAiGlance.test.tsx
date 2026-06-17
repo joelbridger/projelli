@@ -10,8 +10,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react';
-import { useMatterStore, SAMPLE_MATTER_ID } from '@/stores/matterStore';
-import { useMatterAtAGlanceStore } from '@/stores/matterAtAGlanceStore';
+import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
+import { useMatterAtAGlanceStore } from '@/platform/matter/matterAtAGlanceStore';
 
 // Hoist mock functions so vi.mock factories can reference them
 const { mockGenerate, mockHasCloudKey } = vi.hoisted(() => ({
@@ -54,7 +54,7 @@ vi.mock('@/hooks/useFirm', () => ({
 }));
 
 // ── Workspace store ───────────────────────────────────────────────────────────
-vi.mock('@/stores/workspaceStore', () => ({
+vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: (sel: (s: { rootPath: string | null; fileTree: unknown[] }) => unknown) =>
     sel({ rootPath: '/workspace', fileTree: [] }),
 }));
@@ -89,7 +89,7 @@ vi.mock('@/platform/providers/fetchUtils', () => ({
 }));
 
 // ── AI Chat Store ─────────────────────────────────────────────────────────────
-vi.mock('@/stores/aiChatStore', () => ({
+vi.mock('@/platform/state/aiChatStore', () => ({
   useAIChatStore: (sel: (s: { sessions: Record<string, unknown> }) => unknown) =>
     sel({ sessions: {} }),
 }));

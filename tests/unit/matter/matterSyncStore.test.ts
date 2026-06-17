@@ -10,8 +10,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   useMatterSyncStore,
-} from '@/stores/matterSyncStore';
-import type { MatterSyncStatus } from '@/stores/matterSyncStore';
+} from '@/platform/matter/matterSyncStore';
+import type { MatterSyncStatus } from '@/platform/matter/matterSyncStore';
 
 function resetStore() {
   useMatterSyncStore.setState({ statusByMatterId: {} });

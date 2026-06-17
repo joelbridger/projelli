@@ -46,7 +46,7 @@ vi.mock('@/platform/providers/fetchUtils', () => ({
   getCorsSafeFetch: async () => fetchMock as unknown as typeof fetch,
 }));
 
-import { useFirmStore, selectFirmEntitlement } from '@/stores/firmStore';
+import { useFirmStore, selectFirmEntitlement } from '@/platform/firm/firmStore';
 
 // ── Mint a real EdDSA seat token (the wire format the client verifies offline).
 function b64url(buf: Buffer | Uint8Array): string {

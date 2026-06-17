@@ -31,7 +31,7 @@ import {
   PROFESSION_PROVIDER_STORAGE_KEY,
 } from '@/onboarding/professionModel';
 import { DEFAULT_ANTHROPIC_PAID } from '@/utils/defaultModel';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 
 beforeEach(() => {
   vi.clearAllMocks();

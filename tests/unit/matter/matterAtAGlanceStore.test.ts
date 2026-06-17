@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useMatterAtAGlanceStore } from '@/stores/matterAtAGlanceStore';
+import { useMatterAtAGlanceStore } from '@/platform/matter/matterAtAGlanceStore';
 import type { MatterAtAGlanceResult } from '@/features/matters/logic/matterAtAGlance';
 
 const sampleResult: MatterAtAGlanceResult = {

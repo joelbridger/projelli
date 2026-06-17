@@ -22,7 +22,7 @@ const mockStoreState = {
   clearError: vi.fn(),
 };
 
-vi.mock('@/stores/vaultStore', () => ({
+vi.mock('@/platform/firm/vaultStore', () => ({
   useVaultStore: (selector?: (s: typeof mockStoreState) => unknown) => {
     if (typeof selector === 'function') return selector(mockStoreState);
     return mockStoreState;

@@ -12,7 +12,7 @@
  * current matter, forcing a new generation.
  */
 
-import { useMatterStore } from '@/stores/matterStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import type { MatterAtAGlanceResult } from '@/features/matters/logic/matterAtAGlance';
 
 export interface MatterAtAGlanceEntry {

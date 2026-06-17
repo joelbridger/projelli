@@ -67,7 +67,7 @@
  * Privileged / Work Product) that must remain legal-specific regardless of the
  * user's profession setting.
  */
-import { useProfessionStore, getProfession } from '@/stores/professionStore';
+import { useProfessionStore, getProfession } from '@/platform/profile/professionStore';
 import type { Profession } from '@/onboarding/professionModel';
 
 export interface ProfessionCopy {

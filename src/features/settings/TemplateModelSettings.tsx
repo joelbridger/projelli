@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { Label } from '@/ui/label';
 import { Button } from '@/ui/button';
 import { X } from 'lucide-react';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import type { WorkflowTemplate, TemplateProviderId } from '@/types/workflow';
 import {
   TEMPLATE_MODEL_OVERRIDES_KEY,

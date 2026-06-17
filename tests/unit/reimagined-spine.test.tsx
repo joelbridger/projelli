@@ -5,7 +5,7 @@ import { ReimaginedSpine } from '@/app/shell/layout/ReimaginedSpine';
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
-vi.mock('@/stores/matterStore', () => ({
+vi.mock('@/platform/matter/matterStore', () => ({
   useMatters: () => [],
   useActiveMatterId: () => null,
   useMatterStore: (selector: (s: { setActiveMatter: () => void }) => unknown) =>

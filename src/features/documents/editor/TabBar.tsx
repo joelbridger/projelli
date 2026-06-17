@@ -25,8 +25,8 @@ import {
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { cn } from '@/lib/utils';
-import { useEditorStore } from '@/stores/editorStore';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useEditorStore } from '@/platform/state/editorStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { TabGroupManager } from './TabGroupManager';
 import { removeExtension, pathToTestId, getTabIcon, AIContextChip } from './tabBarHelpers';
 

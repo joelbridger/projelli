@@ -670,7 +670,7 @@ export const useEditorStore = create<EditorState>()(
     }
 
     // Guard against race condition: check rootPath still matches
-    const { useWorkspaceStore } = await import('./workspaceStore');
+    const { useWorkspaceStore } = await import('@/platform/fs/workspaceStore');
     if (useWorkspaceStore.getState().rootPath !== rootPath) {
       return;
     }
@@ -743,7 +743,7 @@ useEditorStore.subscribe((state, prevState) => {
 
   saveTimeout = setTimeout(async () => {
     try {
-      const { useWorkspaceStore } = await import('./workspaceStore');
+      const { useWorkspaceStore } = await import('@/platform/fs/workspaceStore');
       const rootPath = useWorkspaceStore.getState().rootPath;
       console.log(`[TabPersist] Auto-save firing, rootPath: ${rootPath}`);
       if (rootPath) {

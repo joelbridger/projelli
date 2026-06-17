@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useMatterUiStore, isWorkingSurface } from '@/stores/matterUiStore';
+import { useMatterUiStore, isWorkingSurface } from '@/platform/matter/matterUiStore';
 
 describe('matterUiStore — per-matter UI memory', () => {
   beforeEach(() => {

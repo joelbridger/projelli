@@ -6,7 +6,7 @@ import { Copy, ShieldX, Trash2 } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
-import { useFirmStore } from '@/stores/firmStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import { publishMatterKeyToMembers } from '@/platform/firm/matterKeyService';
 import type { MatterMembersResponse } from '@/platform/firm/contract';
 import { generateTempPassword, audit } from './matterManagerDialogHelpers';

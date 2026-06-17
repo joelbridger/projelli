@@ -17,7 +17,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/ui/dialog';
-import { useEditorStore } from '@/stores/editorStore';
+import { useEditorStore } from '@/platform/state/editorStore';
 
 interface TabGroupManagerProps {
   open: boolean;

@@ -39,7 +39,7 @@ import {
   PenLine,
 } from 'lucide-react';
 import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, SurfaceToolbar } from '@/ui/kp';
-import { useActiveMatter } from '@/stores/matterStore';
+import { useActiveMatter } from '@/platform/matter/matterStore';
 import {
   mailListMessages,
   mailConnectedAccounts,

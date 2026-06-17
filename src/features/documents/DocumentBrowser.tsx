@@ -13,8 +13,8 @@ import {
   ChevronRight,
   Search,
 } from 'lucide-react';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { useEditorStore } from '@/stores/editorStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useEditorStore } from '@/platform/state/editorStore';
 import { TrashPanel } from '@/features/documents/TrashPanel';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';

@@ -33,13 +33,13 @@ vi.mock('@/utils/mail-commands', () => ({
   mailSend: vi.fn(),
 }));
 
-vi.mock('@/stores/matterStore', () => ({
+vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: vi.fn(),
   useMatters: vi.fn(),
   useMatterStore: vi.fn(),
 }));
 
-vi.mock('@/stores/privilegeStore', () => ({
+vi.mock('@/platform/firm/privilegeStore', () => ({
   usePrivilegeStore: vi.fn(),
   usePrivilegeForSource: vi.fn(),
 }));
@@ -63,8 +63,8 @@ import {
   mailRetagMessageMatter,
   mailSend,
 } from '@/utils/mail-commands';
-import { useActiveMatter, useMatters } from '@/stores/matterStore';
-import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
+import { useActiveMatter, useMatters } from '@/platform/matter/matterStore';
+import { usePrivilegeStore, usePrivilegeForSource } from '@/platform/firm/privilegeStore';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { ReimaginedEmailWorkspace } from '@/features/email/ReimaginedEmailWorkspace';
 

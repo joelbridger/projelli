@@ -13,7 +13,7 @@
  * beyond an optional `now` override for deterministic tests.
  */
 
-import { useTodayCost, useLast7DaysCost, useThisMonthCost } from '@/stores/aiChatStore';
+import { useTodayCost, useLast7DaysCost, useThisMonthCost } from '@/platform/state/aiChatStore';
 import { formatCostLong } from '@/features/ask/ChatCostChip';
 import { cn } from '@/lib/utils';
 

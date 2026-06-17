@@ -51,9 +51,9 @@ import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout, SearchField, S
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/types/workflow';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
-import { useProfessionStore, isLawExperience } from '@/stores/professionStore';
+import { useProfessionStore, isLawExperience } from '@/platform/profile/professionStore';
 import { useTrialGate } from '@/hooks/useTrial';
-import { useActiveMatter } from '@/stores/matterStore';
+import { useActiveMatter } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 
 // ── Prop interface (kept identical to original) ────────────────────────────

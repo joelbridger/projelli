@@ -19,8 +19,8 @@ import {
 } from '@/platform/privacy/egress';
 import { ConfidentialityModeSettings } from '@/features/settings/ConfidentialityModeSettings';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
-import { useSettingsStore } from '@/stores/settingsStore';
-import { useFirmStore } from '@/stores/firmStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
 
 beforeEach(() => {
   useSettingsStore.setState({ values: {} });

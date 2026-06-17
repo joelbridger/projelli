@@ -10,7 +10,7 @@
  * no behavior change.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 
 /** The user's stored theme preference — may be 'system' to follow the OS. */
 export type ThemePreference = 'light' | 'dark' | 'system';

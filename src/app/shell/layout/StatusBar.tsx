@@ -3,8 +3,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { useEditorStore } from '@/stores/editorStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useEditorStore } from '@/platform/state/editorStore';
 import { cn } from '@/lib/utils';
 import { FolderOpen, File, Edit, ChevronRight, Bug, ShieldOff } from 'lucide-react';
 import {
@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
-import { useActiveMatter } from '@/stores/matterStore';
+import { useActiveMatter } from '@/platform/matter/matterStore';
 import { BugReportDialog } from '@/app/shell/common/BugReportDialog';
 import { TrialStatusChip } from '@/features/account/trial';
 import { useTrial } from '@/hooks/useTrial';

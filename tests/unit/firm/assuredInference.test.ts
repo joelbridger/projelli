@@ -109,7 +109,7 @@ describe('resolveAssuredRoute (policy gate)', () => {
     vi.doMock('@/hooks/useConfidentialityMode', () => ({
       getConfidentialityMode: () => 'assured',
     }));
-    vi.doMock('@/stores/firmStore', () => ({
+    vi.doMock('@/platform/firm/firmStore', () => ({
       getFirmAccessToken: () => 'ACCESS',
       getFirmSeatToken: () => 'SEAT',
       getAssuredProviders: () => ['anthropic'],
@@ -130,7 +130,7 @@ describe('resolveAssuredRoute (policy gate)', () => {
     vi.doMock('@/hooks/useConfidentialityMode', () => ({
       getConfidentialityMode: () => 'direct',
     }));
-    vi.doMock('@/stores/firmStore', () => ({
+    vi.doMock('@/platform/firm/firmStore', () => ({
       getFirmAccessToken: () => 'ACCESS',
       getFirmSeatToken: () => 'SEAT',
       getAssuredProviders: () => ['anthropic'],

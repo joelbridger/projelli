@@ -1,5 +1,5 @@
 // Store exports
-export { useWorkspaceStore } from './workspaceStore';
-export { useEditorStore } from './editorStore';
+export { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+export { useEditorStore } from '@/platform/state/editorStore';
 export { useWorkflowStore } from '@/features/workflows/workflowStore';
-export { useSettingsStore } from './settingsStore';
+export { useSettingsStore } from '@/platform/settings/settingsStore';

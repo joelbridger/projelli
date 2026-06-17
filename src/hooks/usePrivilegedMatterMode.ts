@@ -13,11 +13,11 @@
  * network gate, the MCP auto-deny path).
  */
 
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import {
   useActiveMatterPrivileged,
   isActiveMatterPrivileged,
-} from '@/stores/matterStore';
+} from '@/platform/matter/matterStore';
 import { useConfidentialityMode, getConfidentialityMode } from '@/hooks/useConfidentialityMode';
 import {
   PRIVILEGED_MATTER_MODE_SETTING_KEY,

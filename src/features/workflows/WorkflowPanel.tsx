@@ -50,10 +50,10 @@ import {
 } from '@/features/workflows/engine/userTemplates';
 import { ChainBuilderModal } from './ChainBuilderModal';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
-import { useProfessionStore, isLawExperience } from '@/stores/professionStore';
+import { useProfessionStore, isLawExperience } from '@/platform/profile/professionStore';
 import { useTrialGate } from '@/hooks/useTrial';
 import { useTemplatesMarketplace } from '@/features/workflows/useTemplatesMarketplace';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import {
   TEMPLATE_PROVENANCE_LABELS,
   type TemplateProvenance,

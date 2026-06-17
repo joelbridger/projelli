@@ -66,7 +66,7 @@ const mockFileTree: FileNode[] = [
 ];
 
 // Workspace store mock — default: has a workspace with files
-vi.mock('@/stores/workspaceStore', () => ({
+vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: (selector: (s: object) => unknown) =>
     selector({
       fileTree: mockFileTree,
@@ -80,7 +80,7 @@ let mockOpenTabs: Array<{ path: string; name: string; type?: string; isDirty?: b
 const mockSetActiveTab = vi.fn();
 const mockCloseTab = vi.fn();
 
-vi.mock('@/stores/editorStore', () => ({
+vi.mock('@/platform/state/editorStore', () => ({
   useEditorStore: (selector: (s: object) => unknown) =>
     selector({
       activeTabPath: mockActiveTabPath,

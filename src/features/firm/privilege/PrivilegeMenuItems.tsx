@@ -23,7 +23,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/ui/dropdown-menu';
-import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
+import { usePrivilegeStore, usePrivilegeForSource } from '@/platform/firm/privilegeStore';
 import {
   ALL_PRIVILEGE_STATUSES,
   privilegeLabel,

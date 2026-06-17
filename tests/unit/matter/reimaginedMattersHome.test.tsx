@@ -14,7 +14,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { useMatterStore, SAMPLE_MATTER_ID } from '@/stores/matterStore';
+import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 
 // ── Mail commands (async probes used by GetStartedCard) ───────────────────────
 vi.mock('@/utils/mail-commands', () => ({
@@ -54,7 +54,7 @@ vi.mock('@/hooks/useFirm', () => ({
 }));
 
 // ── Workspace store (empty tree) ───────────────────────────────────────────────
-vi.mock('@/stores/workspaceStore', () => ({
+vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: (sel: (s: { rootPath: string | null; fileTree: unknown[] }) => unknown) =>
     sel({ rootPath: null, fileTree: [] }),
 }));

@@ -7,11 +7,11 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useActiveMatter, SAMPLE_MATTER_ID } from '@/stores/matterStore';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useActiveMatter, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { getDemoAnswerForWorkspace, getDemoQuestions } from '@/onboarding/samples/sampleMatterDemo';
-import { useProfessionStore } from '@/stores/professionStore';
+import { useProfessionStore } from '@/platform/profile/professionStore';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import {
   DEFAULT_WORKSPACE_TOP_K,
@@ -23,7 +23,7 @@ import {
 import type { WorkspaceSource } from '@/types/ai';
 import type { RagHit, RetrievalScope } from '@/utils/tauri-commands';
 import { KeychainService } from '@/platform/providers/KeychainService';
-import { useAIChatStore } from '@/stores/aiChatStore';
+import { useAIChatStore } from '@/platform/state/aiChatStore';
 import type { ChatMessage } from '@/types/ai';
 import type { AskScope, AnswerCitation, AskTurn } from './askHelpers';
 import {

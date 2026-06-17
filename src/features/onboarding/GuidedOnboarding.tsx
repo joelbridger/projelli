@@ -22,7 +22,7 @@
 import { useState, useRef, type ReactNode } from 'react';
 import { Button } from '@/ui/button';
 import { Check, Upload, User, Building2 } from 'lucide-react';
-import { useProfileStore } from '@/stores/profileStore';
+import { useProfileStore } from '@/platform/profile/profileStore';
 import { readImageAsDataUrl } from '@/utils/imageUpload';
 
 import { OnboardingStepFrame, type StepInfo } from './OnboardingStepFrame';

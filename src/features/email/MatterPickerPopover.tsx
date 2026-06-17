@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Loader2, FolderInput } from 'lucide-react';
 import { SearchField, Dropdown } from '@/ui/kp';
-import { useMatters } from '@/stores/matterStore';
+import { useMatters } from '@/platform/matter/matterStore';
 import {
   mailRetagMessageMatter,
   mailRetagFolderMatter,

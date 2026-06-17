@@ -47,7 +47,7 @@ import {
   type SectionCategory,
   type SettingDefinition,
 } from '@/settings/schema';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import {
   isLimitExceedingCapability,
   getMaxContextTokens,

@@ -37,7 +37,7 @@ import {
   changedPrivilegeSources,
   useMemoryWiring,
 } from '@/hooks/useMemoryWiring';
-import { usePrivilegeStore } from '@/stores/privilegeStore';
+import { usePrivilegeStore } from '@/platform/firm/privilegeStore';
 
 describe('changedPrivilegeSources (pure diff)', () => {
   it('detects added, value-changed, and cleared sources', () => {

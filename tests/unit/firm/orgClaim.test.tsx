@@ -48,7 +48,7 @@ vi.mock('@/platform/providers/fetchUtils', () => ({
 }));
 
 // ── Import AFTER mocks (store has side effects on import) ─────────────────────
-import { useFirmStore } from '@/stores/firmStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import { FirmSignIn } from '@/features/firm/FirmSignIn';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

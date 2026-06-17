@@ -7,8 +7,8 @@
  * scope, or from the hook's own state directly).
  */
 import { useState, useCallback } from 'react';
-import { useSettingsStore } from '@/stores/settingsStore';
-import { useEditorStore } from '@/stores/editorStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { useEditorStore } from '@/platform/state/editorStore';
 import { saveFile } from '@/utils/saveFile';
 import {
   resolveTemplateModel,
@@ -30,7 +30,7 @@ import { OllamaProvider, detectOllama, OLLAMA_DEFAULT_MODEL } from '@/platform/p
 import { modeRestrictsToLocal } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
 import { MemoryService } from '@/platform/rag/MemoryService';
-import { getActiveScope } from '@/stores/matterStore';
+import { getActiveScope } from '@/platform/matter/matterStore';
 import { ragVerifyCitation, type RetrievalScope } from '@/utils/tauri-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import type { AuditEntry, AuditScope } from '@/types/audit';

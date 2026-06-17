@@ -38,7 +38,7 @@ import {
   usePrivilegedMatterMode,
   useSetPrivilegedMatterMode,
 } from '@/hooks/usePrivilegedMatterMode';
-import { useFirmStore } from '@/stores/firmStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
 
 interface ModeCard {
   mode: ConfidentialityMode;

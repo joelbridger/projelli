@@ -107,8 +107,8 @@ vi.mock('@/features/ask/ChatCostChip', () => ({ ChatCostChip: () => null }));
 
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import type { AIChatFile } from '@/types/ai';
-import { useAIChatStore } from '@/stores/aiChatStore';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useAIChatStore } from '@/platform/state/aiChatStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import {
   CONFIDENTIALITY_MODE_SETTING_KEY,
   type ConfidentialityMode,

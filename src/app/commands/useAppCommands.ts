@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { getDefaultCommands, type PaletteCommand } from '@/app/shell/common/CommandPalette';
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import type { PromptOptions } from '@/hooks/usePromptDialog';
-import { useEditorStore } from '@/stores/editorStore';
+import { useEditorStore } from '@/platform/state/editorStore';
 
 type OpenTab = ReturnType<typeof useEditorStore.getState>['openTabs'][number];
 

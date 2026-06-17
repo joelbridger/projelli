@@ -68,8 +68,8 @@ vi.mock('@/features/ask/ChatCostChip', () => ({ ChatCostChip: () => null }));
 
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import type { AIChatFile } from '@/types/ai';
-import { useAIChatStore } from '@/stores/aiChatStore';
-import { useMatterStore } from '@/stores/matterStore';
+import { useAIChatStore } from '@/platform/state/aiChatStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 
 const chat: AIChatFile = {
   id: 'wsbc-scope-test',

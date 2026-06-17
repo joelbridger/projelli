@@ -28,10 +28,10 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
-import { useMatterSyncStatus } from '@/stores/matterSyncStore';
+import { useMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
+import { useMatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import type { MatterSyncStatus } from '@/stores/matterSyncStore';
+import type { MatterSyncStatus } from '@/platform/matter/matterSyncStore';
 
 export interface MatterScopeSelectorProps {
   /** Opens the matter manager dialog so the user can create/map matters. */

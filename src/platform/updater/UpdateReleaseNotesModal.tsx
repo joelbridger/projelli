@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog';
-import { useUpdaterStore } from '@/stores/updaterStore';
+import { useUpdaterStore } from '@/platform/updater/updaterStore';
 import { Sparkles } from 'lucide-react';
 
 export interface UpdateReleaseNotesModalProps {

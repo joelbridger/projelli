@@ -34,7 +34,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { yCollab } from 'y-codemirror.next';
 import type { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
 import type { Matter } from '@/types/matter';
-import { useMatterSyncStatus } from '@/stores/matterSyncStore';
+import { useMatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import { cn } from '@/lib/utils';
 
 /** How often (ms) we debounce-write the disk mirror. */

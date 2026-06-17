@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { mailIsConnected, mailBeginLogin, mailPollLogin, mailSyncAll, mailCancelSync, mailFdeStatus, type DeviceCodePrompt } from '@/utils/mail-commands';
 import { useMailSync } from '@/hooks/useMailSync';
-import { useMailStore } from '@/stores/mailStore';
-import { getMatters } from '@/stores/matterStore';
+import { useMailStore } from '@/features/email/mailStore';
+import { getMatters } from '@/platform/matter/matterStore';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 
 export function MailConnect() {

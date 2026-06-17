@@ -17,10 +17,10 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useMatterStore } from '@/stores/matterStore';
-import { useMatterUiStore } from '@/stores/matterUiStore';
-import { useMatterAtAGlanceStore } from '@/stores/matterAtAGlanceStore';
-import { useMatterSyncStore } from '@/stores/matterSyncStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import { useMatterUiStore } from '@/platform/matter/matterUiStore';
+import { useMatterAtAGlanceStore } from '@/platform/matter/matterAtAGlanceStore';
+import { useMatterSyncStore } from '@/platform/matter/matterSyncStore';
 
 const MATTERS_KEY = 'keepance:matters';
 const UI_KEY = 'keepance:matter-ui-snapshots';

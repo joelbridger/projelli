@@ -18,8 +18,8 @@
  */
 
 import { useEffect } from 'react';
-import { useUpdaterStore } from '@/stores/updaterStore';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useUpdaterStore } from '@/platform/updater/updaterStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { UpdateBanner } from './UpdateBanner';
 
 const INITIAL_DELAY_MS = 30_000;

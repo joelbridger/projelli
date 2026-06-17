@@ -12,7 +12,7 @@
  * renders as nothing. The sync client (Task 4) sets statuses via setStatus().
  */
 
-import { useMatterStore } from '@/stores/matterStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 
 export type MatterSyncStatus =
   | 'idle'

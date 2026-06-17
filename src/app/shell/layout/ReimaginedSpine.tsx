@@ -14,7 +14,7 @@ import {
   Briefcase, FolderTree, Sparkles, ListChecks, ShieldCheck, Mail, Settings,
   ChevronLeft, ChevronRight, type LucideIcon,
 } from 'lucide-react';
-import { useMatters, useActiveMatterId } from '@/stores/matterStore';
+import { useMatters, useActiveMatterId } from '@/platform/matter/matterStore';
 import { AccountIdentity } from './AccountIdentity';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/hooks/useEntityLabel';

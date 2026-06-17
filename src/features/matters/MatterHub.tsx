@@ -10,11 +10,11 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Briefcase, Lock, ChevronRight, Sparkles, FileText, Mail, GitBranch, Clock, ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
-import { useMatters, useActiveMatterPrivileged, SAMPLE_MATTER_ID } from '@/stores/matterStore';
-import { useAIChatStore } from '@/stores/aiChatStore';
+import { useMatters, useActiveMatterPrivileged, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
+import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
-import { useMatterAtAGlanceStore } from '@/stores/matterAtAGlanceStore';
+import { useMatterAtAGlanceStore } from '@/platform/matter/matterAtAGlanceStore';
 import {
   generateMatterAtAGlance,
   hasCloudKeyForGlance,

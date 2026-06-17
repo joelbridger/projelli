@@ -14,9 +14,9 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { useMatterStore } from '@/stores/matterStore';
-import { useFirmStore } from '@/stores/firmStore';
-import { useMatterSyncStore } from '@/stores/matterSyncStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
+import { useMatterSyncStore } from '@/platform/matter/matterSyncStore';
 import en from '@/locales/en.json';
 import es from '@/locales/es.json';
 import de from '@/locales/de.json';
@@ -83,7 +83,7 @@ vi.mock('@/utils/mail-commands', () => ({
 }));
 
 // ── Mock workspace store ──────────────────────────────────────────────────────
-vi.mock('@/stores/workspaceStore', () => ({
+vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: (sel: (s: { rootPath: string | null; fileTree: unknown[] }) => unknown) =>
     sel({ rootPath: null, fileTree: [] }),
 }));

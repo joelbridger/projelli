@@ -8,7 +8,7 @@ import {
   DialogDescription,
 } from '@/ui/dialog';
 import { Button, IconButton } from '@/ui/kp';
-import { useProfileStore } from '@/stores/profileStore';
+import { useProfileStore } from '@/platform/profile/profileStore';
 import { useFirm } from '@/hooks/useFirm';
 import { readImageAsDataUrl } from '@/utils/imageUpload';
 import type { AuditEntry } from '@/types/audit';

@@ -8,7 +8,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { usePrivilegeStore } from '@/stores/privilegeStore';
+import { usePrivilegeStore } from '@/platform/firm/privilegeStore';
 import {
   resolvePrivilege,
   normalizeSourceId,

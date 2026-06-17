@@ -34,7 +34,7 @@ import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { createDemoProvider } from '@/web-demo/demoAIProvider';
 import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/platform/providers/fetchUtils';
 import { FILE_ACCESS_TOOLS } from '@/platform/tools/fileAccessTools';
-import type { useActiveMatter } from '@/stores/matterStore';
+import type { useActiveMatter } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import type { RetrievalScope } from '@/utils/tauri-commands';
 import type { ExtractedContext } from '@/utils/ai-file-context';
@@ -56,7 +56,7 @@ import {
 } from '@/platform/rag/workspaceCommand';
 import { buildFactsMemoryBlock } from '@/platform/rag/FactsService';
 import { snapshotFactsForInjection } from '@/platform/rag/factsSingleton';
-import type { ChatSession, ChatCostEntry } from '@/stores/aiChatStore';
+import type { ChatSession, ChatCostEntry } from '@/platform/state/aiChatStore';
 // buildOpenFilesPromptBlock + refusalKeyForReason stay exported from AIChatViewer
 // (external importers: useTestModeWorkspace, refusal-key.test). The deferred,
 // hoisted-function usage below makes this back-import cycle-safe.

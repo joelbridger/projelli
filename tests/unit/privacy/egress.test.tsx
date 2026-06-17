@@ -25,7 +25,7 @@ import {
 } from '@/platform/privacy/egress';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import type { ConfidentialityMode } from '@/platform/privacy/egress';
 
 function setMode(mode: ConfidentialityMode) {

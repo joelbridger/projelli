@@ -13,13 +13,13 @@ const SAMPLE_MATTER_ID = 'matter_sample_garcia_v_meridian';
 // Mutable so individual tests can override the active matter
 let mockActiveMatter: { id: string; name: string; isSample?: boolean } | null = null;
 
-vi.mock('@/stores/matterStore', () => ({
+vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: () => mockActiveMatter,
   SAMPLE_MATTER_ID: 'matter_sample_garcia_v_meridian',
 }));
 
 let mockRootPath: string | null = null;
-vi.mock('@/stores/workspaceStore', () => ({
+vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: (selector: (s: { rootPath: string | null }) => unknown) =>
     selector({ rootPath: mockRootPath }),
 }));
@@ -60,7 +60,7 @@ vi.mock('@/onboarding/samples/sampleMatterDemo', () => ({
   ],
 }));
 
-vi.mock('@/stores/professionStore', () => ({
+vi.mock('@/platform/profile/professionStore', () => ({
   useProfessionStore: (selector: (s: { profession: string }) => unknown) =>
     selector({ profession: mockProfession }),
   getProfession: () => mockProfession,
@@ -110,7 +110,7 @@ import { getDemoAnswerForWorkspace } from '@/onboarding/samples/sampleMatterDemo
 // that are safe at hoist time (the module-level `mock*` vars are declared
 // with `const` above, but they are initialised before the factory runs
 // because Vitest processes the hoisted factory lazily on first import).
-vi.mock('@/stores/aiChatStore', () => {
+vi.mock('@/platform/state/aiChatStore', () => {
   const hook = (selector: (s: unknown) => unknown) =>
     selector({ initSession: mockInitSession, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, sessions: mockSessions });
   hook.getState = () => ({ initSession: mockInitSession, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, sessions: mockSessions });

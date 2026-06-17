@@ -71,9 +71,9 @@ vi.mock('@/features/ask/ChatCostChip', () => ({ ChatCostChip: () => null }));
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import type { AIChatFile } from '@/types/ai';
 import type { AuditEntry } from '@/types/audit';
-import { useAIChatStore } from '@/stores/aiChatStore';
-import { useMatterStore } from '@/stores/matterStore';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useAIChatStore } from '@/platform/state/aiChatStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 
 type LoggedEntry = Omit<AuditEntry, 'id' | 'timestamp'>;

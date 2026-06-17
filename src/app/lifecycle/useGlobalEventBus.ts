@@ -10,9 +10,9 @@
  */
 import { useEffect, useRef } from 'react';
 import type { SettingCategory } from '@/settings/schema';
-import { useMatterStore } from '@/stores/matterStore';
-import { useMatterUiStore } from '@/stores/matterUiStore';
-import { useEditorStore } from '@/stores/editorStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import { useMatterUiStore } from '@/platform/matter/matterUiStore';
+import { useEditorStore } from '@/platform/state/editorStore';
 
 /** The shell's left-nav surfaces (the `sidebarActiveTab` union). */
 export type AppSurface =

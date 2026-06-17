@@ -6,10 +6,10 @@
  * inside the body and in the dependency array.
  */
 import { useEffect } from 'react';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { useEditorStore } from '@/stores/editorStore';
-import { useFileBackupStore } from '@/stores/fileBackupStore';
-import { useFileContextStore } from '@/stores/fileContextStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useEditorStore } from '@/platform/state/editorStore';
+import { useFileBackupStore } from '@/platform/fs/fileBackupStore';
+import { useFileContextStore } from '@/platform/state/fileContextStore';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import { buildOpenFilesPromptBlock } from '@/features/ask/AIChatViewer';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';

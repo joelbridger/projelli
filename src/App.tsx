@@ -41,8 +41,8 @@ import { ModelDownloadCard } from '@/platform/rag/ui/ModelDownloadCard';
 import { RagProgressBanner } from '@/platform/rag/ui/RagProgressBanner';
 import { useMemoryWiring } from '@/hooks/useMemoryWiring';
 import { useGlobalFileDrop } from '@/app/shell/common/GlobalDropOverlay';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { useEditorStore } from '@/stores/editorStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useEditorStore } from '@/platform/state/editorStore';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
@@ -50,8 +50,8 @@ import type { TrashedItem } from '@/platform/history/TrashService';
 
 import type { AuditEntry } from '@/types/audit';
 import { AuditService } from '@/platform/audit/AuditService';
-import { getOrCreateSampleMatter, useMatterStore } from '@/stores/matterStore';
-import { useMatterUiStore, isWorkingSurface } from '@/stores/matterUiStore';
+import { getOrCreateSampleMatter, useMatterStore } from '@/platform/matter/matterStore';
+import { useMatterUiStore, isWorkingSurface } from '@/platform/matter/matterUiStore';
 
 import {
   TemplateMetadataReader,

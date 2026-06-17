@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock professionStore so getProfession() is controllable without localStorage.
 let mockedProfession = 'legal';
-vi.mock('@/stores/professionStore', () => ({
+vi.mock('@/platform/profile/professionStore', () => ({
   useProfessionStore: (selector: (s: { profession: string }) => unknown) =>
     selector({ profession: mockedProfession }),
   getProfession: () => mockedProfession,

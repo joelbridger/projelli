@@ -19,7 +19,7 @@
  * Internal Matter type, ids, store names, and SAMPLE_MATTER_ID are NEVER
  * changed by this hook; only the visible words adapt.
  */
-import { useProfessionStore, getProfession } from '@/stores/professionStore';
+import { useProfessionStore, getProfession } from '@/platform/profile/professionStore';
 import type { Profession } from '@/onboarding/professionModel';
 
 export interface EntityLabel {

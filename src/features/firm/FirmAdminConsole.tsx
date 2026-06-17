@@ -41,7 +41,7 @@ import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { cn } from '@/lib/utils';
 import { useFirm } from '@/hooks/useFirm';
-import { useFirmStore } from '@/stores/firmStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import {
   publishMatterKeyToMembers,
   autoRepublishHeldMatterKeys,

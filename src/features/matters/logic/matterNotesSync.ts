@@ -20,8 +20,8 @@ import { clearMatterKey, storeMatterKey } from '@/platform/firm/firmKeychain';
 import { getOrCreateDeviceKeypair } from '@/platform/firm/deviceKeys';
 import { unwrapMatterKey } from '@/platform/firm/keyWrap';
 import { FirmApiError } from '@/platform/firm/FirmApiClient';
-import { useMatterSyncStore } from '@/stores/matterSyncStore';
-import { useFirmStore } from '@/stores/firmStore';
+import { useMatterSyncStore } from '@/platform/matter/matterSyncStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
 
 /** One resolved client per local matter id (post-construction). */
 const clientCache = new Map<string, MatterSyncClient>();

@@ -87,7 +87,7 @@ vi.mock('@/platform/firm/FirmApiClient', () => ({
   FirmApiError: MockFirmApiError,
 }));
 
-vi.mock('@/stores/firmStore', () => ({
+vi.mock('@/platform/firm/firmStore', () => ({
   useFirmStore: {
     getState: () => ({
       seatToken: 'seat-token-test',
@@ -105,7 +105,7 @@ vi.mock('@/platform/firm/matterKeyService', () => ({
   obtainMatterKey: vi.fn(async () => 'b64-mock-key-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='),
 }));
 
-vi.mock('@/stores/matterSyncStore', () => ({
+vi.mock('@/platform/matter/matterSyncStore', () => ({
   useMatterSyncStore: {
     getState: () => ({
       setStatus: vi.fn(),

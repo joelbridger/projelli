@@ -21,7 +21,7 @@ import type {
   DocxResolveAction,
 } from '@/types/docx';
 import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 
 /**
  * Resolve `path` to an absolute path using the workspace root from the store.

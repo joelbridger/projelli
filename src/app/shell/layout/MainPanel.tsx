@@ -52,12 +52,12 @@ import {
 } from '@/features/workflows/engine/workflowFile';
 import { getVersionService } from '@/features/documents/versioning/VersionService';
 import { getBinaryVersionService } from '@/features/documents/versioning';
-import { useEditorStore } from '@/stores/editorStore';
+import { useEditorStore } from '@/platform/state/editorStore';
 import {
   useFileBackupStore,
   computeBackupPath,
   formatBackupTimestamp,
-} from '@/stores/fileBackupStore';
+} from '@/platform/fs/fileBackupStore';
 import { Button } from '@/ui/button';
 import {
   DropdownMenu,

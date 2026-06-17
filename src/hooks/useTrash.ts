@@ -6,8 +6,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
-import { useEditorStore } from '@/stores/editorStore';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useEditorStore } from '@/platform/state/editorStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 
 const TRASH_METADATA_FILE = '.trash/metadata.json';
 

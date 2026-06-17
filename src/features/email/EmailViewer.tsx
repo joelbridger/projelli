@@ -43,8 +43,8 @@ import {
   mailSend,
   type MailView,
 } from '@/utils/mail-commands';
-import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
-import { useMatters } from '@/stores/matterStore';
+import { usePrivilegeStore, usePrivilegeForSource } from '@/platform/firm/privilegeStore';
+import { useMatters } from '@/platform/matter/matterStore';
 import {
   ALL_PRIVILEGE_STATUSES,
   isPrivileged,

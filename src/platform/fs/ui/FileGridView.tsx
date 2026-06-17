@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/types/workspace';
 import {
   Folder,

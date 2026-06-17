@@ -17,7 +17,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 // --- Seed the workspace store with a known rootPath ---
 // We import the real store and set the rootPath before importing docx-commands,
 // so toAbsoluteDocxPath() picks it up at call time.
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 
 import { invoke } from '@tauri-apps/api/core';
 import { docxOpen, docxSave } from '@/utils/docx-commands';

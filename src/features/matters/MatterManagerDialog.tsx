@@ -46,12 +46,12 @@ import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { cn } from '@/lib/utils';
-import { useMatters, useMatterStore, SAMPLE_MATTER_ID } from '@/stores/matterStore';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useMatters, useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { mailConnectedAccounts, type ConnectedAccount } from '@/utils/mail-commands';
 import { mailFolderKey } from '@/platform/rag/matterResolver';
 import { useFirm } from '@/hooks/useFirm';
-import { useFirmStore } from '@/stores/firmStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import {
   getOrCreateMatterKey,
   publishMatterKeyToMembers,

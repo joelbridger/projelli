@@ -13,7 +13,7 @@
  * they had focused there. When the user jumps away to another matter and comes
  * back, App restores this snapshot so they land right where they left off.
  */
-import { useMatterStore } from '@/stores/matterStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 
 /** The surfaces worth remembering per matter (a real working context). */
 export type MatterWorkingSurface = 'search' | 'files' | 'email' | 'workflows' | 'audit';

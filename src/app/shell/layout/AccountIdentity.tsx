@@ -1,5 +1,5 @@
 import { Building2, User, ChevronRight } from 'lucide-react';
-import { useProfileStore } from '@/stores/profileStore';
+import { useProfileStore } from '@/platform/profile/profileStore';
 import { useFirm } from '@/hooks/useFirm';
 
 function initials(name: string): string {

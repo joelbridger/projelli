@@ -16,7 +16,7 @@
  * No UI wiring lives here. This is data only.
  */
 
-import { getProfession } from '@/stores/professionStore';
+import { getProfession } from '@/platform/profile/professionStore';
 import type { Profession } from '@/onboarding/professionModel';
 
 // ─────────────────────────────────────────────────────────────────────────────

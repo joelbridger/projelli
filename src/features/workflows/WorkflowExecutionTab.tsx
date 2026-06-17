@@ -31,7 +31,7 @@ import type {
 } from '@/types/workflow';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { cn } from '@/lib/utils';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/types/workspace';
 
 // ---------------------------------------------------------------------------

@@ -29,7 +29,7 @@ import { ScopeToggle } from './ScopeToggle';
 import { SourcePanel } from './SourcePanel';
 import { SampleBridgeCallout } from './SampleBridgeCallout';
 import { TurnBlock } from './TurnBlock';
-import { SAMPLE_MATTER_ID } from '@/stores/matterStore';
+import { SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';

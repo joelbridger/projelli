@@ -21,7 +21,7 @@ import { SettingsContent } from '@/features/settings/SettingsContent';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { requestScrollToParagraph } from '@/utils/scrollToParagraph';
 import { isWorkflowFilePath } from '@/features/workflows/engine/workflowFile';
-import { useEditorStore } from '@/stores/editorStore';
+import { useEditorStore } from '@/platform/state/editorStore';
 
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import type { WorkflowExecution, WorkflowTemplate, InterviewQuestion, RunRecord } from '@/types/workflow';

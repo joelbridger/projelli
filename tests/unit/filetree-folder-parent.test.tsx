@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 
 import { FileTree } from '@/platform/fs/ui/FileTree';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/types/workspace';
 
 // Tree shape: Client > Matter (folder) > brief.docx

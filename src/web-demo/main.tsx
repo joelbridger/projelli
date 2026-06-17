@@ -23,7 +23,7 @@ import { TooltipProvider } from '@/ui/tooltip';
 import '../styles/globals.css';
 import i18n from '../i18n';
 import { detectLocale } from '../lib/locale-detect';
-import { useSettingsStore } from '../stores/settingsStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { seedWebDemoWorkspace } from './WebDemoSeeder';
 import { DemoModeBanner } from './DemoModeBanner';
 import { DemoLimitGate } from './DemoLimitGate';

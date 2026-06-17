@@ -13,8 +13,8 @@
  * Contract: `export function openMatterNotes(localMatterId: string): void`
  */
 
-import { useEditorStore } from '@/stores/editorStore';
-import { useMatterStore } from '@/stores/matterStore';
+import { useEditorStore } from '@/platform/state/editorStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import i18n from '@/i18n';
 
 /**

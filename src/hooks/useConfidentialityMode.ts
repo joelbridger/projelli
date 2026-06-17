@@ -8,7 +8,7 @@
  * and the model picker all agree on the same value.
  */
 
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import {
   type ConfidentialityMode,
   CONFIDENTIALITY_MODE_SETTING_KEY,

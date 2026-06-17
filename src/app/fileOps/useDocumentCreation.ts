@@ -7,9 +7,9 @@
  * changed (they now come from the options object instead of App's local scope).
  */
 import React, { useCallback } from 'react';
-import { useSettingsStore } from '@/stores/settingsStore';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { useEditorStore } from '@/stores/editorStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useEditorStore } from '@/platform/state/editorStore';
 import { createBlankDocx, docxBytesToDataUrl } from '@/utils/docx-io';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileNode } from '@/types/workspace';

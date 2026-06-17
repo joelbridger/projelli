@@ -16,7 +16,7 @@ import {
   useAIChatStore,
   todayKey,
   keyDaysAgo,
-} from '@/stores/aiChatStore';
+} from '@/platform/state/aiChatStore';
 
 function resetStore() {
   useAIChatStore.setState({ sessions: {}, dailyCosts: {} });

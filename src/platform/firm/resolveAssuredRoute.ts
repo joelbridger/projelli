@@ -19,7 +19,7 @@ import {
   getFirmAccessToken,
   getFirmSeatToken,
   getAssuredProviders,
-} from '@/stores/firmStore';
+} from '@/platform/firm/firmStore';
 import type { AssuredRoute } from './assuredInference';
 import type { AssuredProvider } from './contract';
 

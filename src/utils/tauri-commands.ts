@@ -12,7 +12,7 @@
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 
 /**
  * Resolve `path` to an absolute workspace path using the active workspace root.

@@ -16,7 +16,7 @@ import {
   selectIsFirmSignedIn,
   selectHasActiveFirmSeat,
   type FirmOrg,
-} from '@/stores/firmStore';
+} from '@/platform/firm/firmStore';
 import type { Entitlement } from '@/platform/licensing/entitlements';
 import type { AssuredProvider } from '@/platform/firm/contract';
 

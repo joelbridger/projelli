@@ -10,10 +10,10 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useMatterStore } from '@/stores/matterStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import { ensureMatterSync, getMatterSyncClient } from '@/features/matters/logic/matterNotesSync';
 import { MatterNotesEditor } from '@/features/matters/MatterNotesEditor';
-import { useMatterSyncStatus } from '@/stores/matterSyncStore';
+import { useMatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import type { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
 
 interface MatterNotesEditorWrapperProps {

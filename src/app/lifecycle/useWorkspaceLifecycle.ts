@@ -6,15 +6,15 @@
  * changed (they now come from the options object instead of App's local scope).
  */
 import { useCallback } from 'react';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { useEditorStore } from '@/stores/editorStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useEditorStore } from '@/platform/state/editorStore';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import {
   createTemplatesMarketplaceService,
   TemplateMetadataReader,
   type MarketplaceService,
 } from '@/features/workflows/marketplace/svc';
-import { isLawExperience } from '@/stores/professionStore';
+import { isLawExperience } from '@/platform/profile/professionStore';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createFSBackend } from '@/platform/fs/BackendFactory';
 import { AuditService } from '@/platform/audit/AuditService';

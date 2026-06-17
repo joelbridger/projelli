@@ -32,7 +32,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FolderOpen, FolderTree, FileText, X, Plus, Upload, ListTree, LayoutGrid } from 'lucide-react';
 import { IconButton, Callout, Button, SearchField, SurfaceToolbar } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { useEditorStore } from '@/stores/editorStore';
+import { useEditorStore } from '@/platform/state/editorStore';
 import { getFileIcon } from '@/utils/fileIcons';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';

@@ -26,7 +26,7 @@ import {
   useChatCost,
   useTodayCost,
   type TodayCostSummary,
-} from '@/stores/aiChatStore';
+} from '@/platform/state/aiChatStore';
 import { cn } from '@/lib/utils';
 
 export interface ChatCostChipProps {

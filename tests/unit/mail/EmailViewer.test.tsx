@@ -26,14 +26,14 @@ vi.mock('@/utils/mail-commands', () => ({
   get mailSend() { return mockMailSend; },
 }));
 
-vi.mock('@/stores/matterStore', () => ({
+vi.mock('@/platform/matter/matterStore', () => ({
   useMatters: vi.fn(() => [
     { id: 'm1', name: 'Acme v. Beta', client: 'Acme', folderPaths: [], createdAt: '' },
   ]),
   useActiveMatter: vi.fn(() => null),
 }));
 
-vi.mock('@/stores/privilegeStore', () => ({
+vi.mock('@/platform/firm/privilegeStore', () => ({
   usePrivilegeStore: vi.fn(() => vi.fn()),
   usePrivilegeForSource: vi.fn(() => 'none'),
 }));

@@ -18,7 +18,7 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { useVaultStore } from '@/stores/vaultStore';
+import { useVaultStore } from '@/platform/firm/vaultStore';
 import { RecoveryPhraseCeremony } from './RecoveryPhraseCeremony';
 import { Button } from '@/ui/button';
 import { Loader2, ShieldCheck, Lock, KeyRound } from 'lucide-react';

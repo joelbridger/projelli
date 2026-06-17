@@ -18,7 +18,7 @@
  */
 
 import { useEffect } from 'react';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import {
   isPdfIndexingEnabled,
   MemoryService,
@@ -28,7 +28,7 @@ import {
   setPdfIndexingEnabledReader,
   setPrivilegeResolver,
 } from '@/platform/rag/MemoryService';
-import { getMatters, resolveMatterIdForPath, useMatterStore } from '@/stores/matterStore';
+import { getMatters, resolveMatterIdForPath, useMatterStore } from '@/platform/matter/matterStore';
 import {
   buildMailMatterMap,
   isPathInFolder,
@@ -39,7 +39,7 @@ import { mailBackfillRag, mailRetagFolderMatter } from '@/utils/mail-commands';
 import {
   resolvePrivilegeForSource,
   usePrivilegeStore,
-} from '@/stores/privilegeStore';
+} from '@/platform/firm/privilegeStore';
 import type { PrivilegeMap } from '@/platform/rag/privilegeResolver';
 import { createFactsService, type FactsStorage } from '@/platform/rag/FactsService';
 import {
@@ -55,7 +55,7 @@ import {
   type WorkspaceChangeEvent,
 } from '@/utils/tauri-commands';
 import { mailSetWorkspace } from '@/utils/mail-commands';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/types/workspace';
 
 /** Build a FactsStorage adapter from a WorkspaceService-shaped object. */

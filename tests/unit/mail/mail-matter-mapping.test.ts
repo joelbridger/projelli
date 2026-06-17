@@ -15,7 +15,7 @@ import {
   buildMailMatterMap,
 } from '@/platform/rag/matterResolver';
 import { UNASSIGNED_MATTER_ID, type Matter } from '@/types/matter';
-import { useMatterStore } from '@/stores/matterStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 
 function matter(id: string, mailFolderPaths: string[]): Matter {
   return { id, name: id, client: '', folderPaths: [], mailFolderPaths, createdAt: '' };

@@ -58,7 +58,7 @@ vi.mock('@/features/workflows/engine/userTemplates', () => ({
 
 // Profession store: use vi.fn() so we can override per describe block.
 const mockIsLawExperience = vi.fn((profession: string) => profession === 'legal');
-vi.mock('@/stores/professionStore', () => ({
+vi.mock('@/platform/profile/professionStore', () => ({
   useProfessionStore: vi.fn((selector: (s: { profession: string }) => unknown) =>
     selector({ profession: 'legal' })),
   isLawExperience: (profession: string) => mockIsLawExperience(profession),
@@ -78,7 +78,7 @@ vi.mock('@/hooks/useTrial', () => ({
 
 // Matter store: useActiveMatter returns null by default (no active matter).
 const mockUseActiveMatter = vi.fn(() => null);
-vi.mock('@/stores/matterStore', () => ({
+vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: () => mockUseActiveMatter(),
 }));
 
@@ -95,7 +95,7 @@ vi.mock('@/platform/rag/matterResolver', () => ({
 // ── Import component and mocked store AFTER mocks are set up ─────────────────
 
 import { ReimaginedAssociateHome } from '@/features/workflows/ReimaginedAssociateHome';
-import { useProfessionStore } from '@/stores/professionStore';
+import { useProfessionStore } from '@/platform/profile/professionStore';
 
 // ── Shared props factory ────────────────────────────────────────────────────
 

@@ -9,10 +9,10 @@
  * MUST NOT be imported in production builds. main.tsx gates the import on
  * import.meta.env.VITE_MARKETING_CAPTURE.
  */
-import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { useEditorStore } from '@/stores/editorStore';
-import { useAIChatStore } from '@/stores/aiChatStore';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useEditorStore } from '@/platform/state/editorStore';
+import { useAIChatStore } from '@/platform/state/aiChatStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
 
 export interface SeedPayload {

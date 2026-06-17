@@ -62,7 +62,7 @@ vi.mock('@/platform/providers/fetchUtils', () => ({
   getCorsSafeFetch: async () => fetchMock as unknown as typeof fetch,
 }));
 
-import { useFirmStore } from '@/stores/firmStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
 
 // Canned org returned by /auth/me
 const ME_RESPONSE = {

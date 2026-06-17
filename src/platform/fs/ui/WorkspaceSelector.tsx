@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { WebFSBackend, createWebFSBackend } from '@/platform/fs/WebFSBackend';
 import { WorkspaceService, createWorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactory';

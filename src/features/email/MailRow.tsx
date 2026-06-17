@@ -10,7 +10,7 @@ import {
   CheckSquare,
 } from 'lucide-react';
 import { Button, Badge } from '@/ui/kp';
-import { usePrivilegeForSource } from '@/stores/privilegeStore';
+import { usePrivilegeForSource } from '@/platform/firm/privilegeStore';
 import { mailGetMessage, type MailListItem } from '@/utils/mail-commands';
 import { isPrivileged } from '@/types/privilege';
 import { formatRelativeDate, slugify } from './emailWorkspaceHelpers';

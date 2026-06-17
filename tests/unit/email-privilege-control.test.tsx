@@ -29,7 +29,7 @@ vi.mock('@/utils/mail-commands', () => ({
 }));
 
 import { EmailViewer } from '@/features/email/EmailViewer';
-import { usePrivilegeStore } from '@/stores/privilegeStore';
+import { usePrivilegeStore } from '@/platform/firm/privilegeStore';
 import type { MailView } from '@/utils/mail-commands';
 
 function sampleMessage(overrides: Partial<MailView> = {}): MailView {

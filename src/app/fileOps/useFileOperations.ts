@@ -7,8 +7,8 @@
  * changed (they now come from the options object instead of App's local scope).
  */
 import { useCallback } from 'react';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { useEditorStore } from '@/stores/editorStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useEditorStore } from '@/platform/state/editorStore';
 import { saveFile } from '@/utils/saveFile';
 import { isBinaryFile } from '@/utils/file-utils';
 import { dataUrlToArrayBuffer } from '@/utils/spreadsheet-io';

@@ -43,7 +43,7 @@ vi.mock('@/platform/providers/GeminiProvider', () => ({
 
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import type { AIChatFile } from '@/types/ai';
-import { useAIChatStore } from '@/stores/aiChatStore';
+import { useAIChatStore } from '@/platform/state/aiChatStore';
 import {
   SCROLL_TO_PARAGRAPH_EVENT,
   approximateChunkOffset,

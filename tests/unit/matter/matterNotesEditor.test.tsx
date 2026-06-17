@@ -19,9 +19,9 @@ import { render, screen, act, waitFor } from '@testing-library/react';
 import * as Y from 'yjs';
 import type { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
 import type { Matter } from '@/types/matter';
-import { useMatterSyncStore } from '@/stores/matterSyncStore';
-import { useMatterStore } from '@/stores/matterStore';
-import { useEditorStore } from '@/stores/editorStore';
+import { useMatterSyncStore } from '@/platform/matter/matterSyncStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import { useEditorStore } from '@/platform/state/editorStore';
 import en from '@/locales/en.json';
 import es from '@/locales/es.json';
 import de from '@/locales/de.json';
@@ -46,7 +46,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 // ── Mock firmStore so we don't need real tokens ──────────────────────────────
-vi.mock('@/stores/firmStore', () => ({
+vi.mock('@/platform/firm/firmStore', () => ({
   useFirmStore: {
     getState: vi.fn(() => ({
       seatToken: 'test-seat-token',

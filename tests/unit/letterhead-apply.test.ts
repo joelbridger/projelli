@@ -16,13 +16,13 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 const getSettingMock = vi.fn();
-vi.mock('@/stores/settingsStore', () => ({
+vi.mock('@/platform/settings/settingsStore', () => ({
   useSettingsStore: {
     getState: () => ({ getSetting: getSettingMock }),
   },
 }));
 
-vi.mock('@/stores/workspaceStore', () => ({
+vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: {
     getState: () => ({ rootPath: '/ws' }),
   },

@@ -16,8 +16,8 @@
 
 import { useEffect, useRef } from 'react';
 
-import { useEditorStore } from '@/stores/editorStore';
-import { useFileContextStore } from '@/stores/fileContextStore';
+import { useEditorStore } from '@/platform/state/editorStore';
+import { useFileContextStore } from '@/platform/state/fileContextStore';
 import { extractForAI } from '@/utils/ai-file-context';
 
 const DEBOUNCE_MS = 300;

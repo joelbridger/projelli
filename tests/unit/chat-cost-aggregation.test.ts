@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { useAIChatStore, todayKey } from '@/stores/aiChatStore';
+import { useAIChatStore, todayKey } from '@/platform/state/aiChatStore';
 
 function resetStore() {
   useAIChatStore.setState({ sessions: {}, dailyCosts: {} });

@@ -6,7 +6,7 @@
 import { Globe, MessageSquare, Sparkles, EyeOff, Mail } from 'lucide-react';
 import { getFileIcon } from '@/utils/fileIcons';
 import { cn } from '@/lib/utils';
-import { useFileContextStore } from '@/stores/fileContextStore';
+import { useFileContextStore } from '@/platform/state/fileContextStore';
 
 // Helper function to remove file extension from name
 export const removeExtension = (filename: string): string => {

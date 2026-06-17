@@ -4,7 +4,7 @@
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FileNode } from '@/types/workspace';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import {
   ChevronRight,
   ChevronDown,
@@ -41,7 +41,7 @@ import { isAbsolutePath } from '@/platform/fs/pathResolve';
 import { cn } from '@/lib/utils';
 import { PrivilegeMenuItems } from '@/features/firm/privilege/PrivilegeMenuItems';
 import { PrivilegeIndicator } from '@/features/firm/privilege/PrivilegeIndicator';
-import { usePrivilegeForSource } from '@/stores/privilegeStore';
+import { usePrivilegeForSource } from '@/platform/firm/privilegeStore';
 
 /**
  * Resolve a workspace-relative `selectedPath` to an absolute path suitable for

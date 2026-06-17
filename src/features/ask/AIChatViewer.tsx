@@ -26,17 +26,17 @@ import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
 import { isAssuredProvider } from '@/platform/firm/resolveAssuredRoute';
-import { useFirmStore } from '@/stores/firmStore';
-import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder } from '@/stores/aiChatStore';
-import { useActiveMatter } from '@/stores/matterStore';
-import { useIncludePrivileged, usePrivilegeStore } from '@/stores/privilegeStore';
+import { useFirmStore } from '@/platform/firm/firmStore';
+import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder } from '@/platform/state/aiChatStore';
+import { useActiveMatter } from '@/platform/matter/matterStore';
+import { useIncludePrivileged, usePrivilegeStore } from '@/platform/firm/privilegeStore';
 import { MatterScopeSelector } from '@/features/matters/MatterScopeSelector';
 import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 // F-121 (VG-5b) — explains privilege exclusion next to its toggle, with a
 // "see it work" check that runs the user's own question against their index.
 import { PrivilegeExclusionExplainer } from '@/features/ask/PrivilegeExclusionExplainer';
 import { MODEL_NOT_READY, type RetrievalScope } from '@/utils/tauri-commands';
-import { useFileContextStore } from '@/stores/fileContextStore';
+import { useFileContextStore } from '@/platform/state/fileContextStore';
 import type { ExtractedContext } from '@/utils/ai-file-context';
 import { filterByScope } from '@/utils/client-boundary';
 import { ChatCostChip } from '@/features/ask/ChatCostChip';
@@ -45,7 +45,7 @@ import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { ContextMeterBar } from '@/features/ask/chat/ContextMeterBar';
 import { CompressedSegmentMarker } from '@/features/ask/chat/CompressedSegmentMarker';
 import { CompressionConfirmModal } from '@/features/ask/chat/CompressionConfirmModal';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useTrialGate } from '@/hooks/useTrial';
 import {
   renderMessageWithWorkspaceChip,
