@@ -17,7 +17,7 @@ import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
 import { InterviewForm } from '@/components/workflow/InterviewForm';
 import { CommandPalette, type PaletteCommand } from '@/components/common/CommandPalette';
 import { SettingsModal } from '@/components/settings/SettingsModal';
-import { AccountWindow } from '@/components/account/AccountWindow';
+import { AccountWindow } from '@/features/account/AccountWindow';
 import { FeatureTour } from '@/components/onboarding/FeatureTour';
 import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
 import { ShortcutsOverlay } from '@/components/ShortcutsOverlay';

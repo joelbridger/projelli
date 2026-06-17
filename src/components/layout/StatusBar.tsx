@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useActiveMatter } from '@/stores/matterStore';
 import { BugReportDialog } from '@/components/common/BugReportDialog';
-import { TrialStatusChip } from '@/components/trial';
+import { TrialStatusChip } from '@/features/account/trial';
 import { useTrial } from '@/hooks/useTrial';
 import { useLicense } from '@/hooks/useLicense';
 // Privileged Matter Mode: persistent badge stating network extensions are off.

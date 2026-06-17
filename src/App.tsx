@@ -30,7 +30,7 @@ import { Button } from '@/components/ui/button';
 import { Command, Moon, Monitor, Sun, Settings } from 'lucide-react';
 import { manualUpdateCheck } from '@/components/updater/UpdateManager';
 import { openExternal } from '@/utils/openExternal';
-import { TrialBanner } from '@/components/trial';
+import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/components/onboarding';
 import { GuidedOnboarding } from '@/components/onboarding/GuidedOnboarding';
 import { createKeychainService } from '@/modules/models/KeychainService';
