@@ -60,7 +60,7 @@
     <h1>Keepance vs Tana.</h1>
 
     <div class="verdict">
-      <p>Tana is a cloud outliner built around supertags, fields, and structured nodes. It's powerful, polished, and beloved by people who think in graphs. Keepance is a local-first Markdown workspace with profession-specific practice packs for attorneys, CPAs, and consultants. A professional might love either one; they're different shapes for different brains. The honest split: Tana for "I want to build a knowledge graph and query it." Keepance for "I want my confidential client content as files I own."</p>
+      <p>Tana is a cloud outliner built around supertags, fields, and structured nodes. It's powerful, polished, and beloved by people who think in graphs. Keepance is a local-first Word-native workspace with profession-specific practice packs for attorneys, CPAs, and consultants. A professional might love either one; they're different shapes for different brains. The honest split: Tana for "I want to build a knowledge graph and query it." Keepance for "I want my confidential client work in real .docx files I own, with matter-scoped AI recall."</p>
     </div>
 
     <h2>The TL;DR table</h2>
@@ -72,7 +72,7 @@
         <tr><td>Pricing</td><td>$10/mo Plus, $14/mo Pro (annual)</td><td>$948/yr (Professional) + your AI provider's API</td></tr>
         <tr><td>Where your prompts go</td><td>Through Tana's servers to the AI model</td><td>Direct from your machine to the AI provider (Anthropic/OpenAI/Google). Keepance is not in the path.</td></tr>
         <tr><td>What's stored on a vendor's server</td><td>Your notes and graph structure (Tana's cloud is the source of truth)</td><td>Nothing. No documents, no prompts, no API key on Keepance servers.</td></tr>
-        <tr><td>Data model</td><td>Outliner with supertags, fields, queries</td><td>Files with frontmatter, wiki-links</td></tr>
+        <tr><td>Data model</td><td>Outliner with supertags, fields, queries</td><td>Word-native .docx + plain-text utility files</td></tr>
         <tr><td>AI</td><td>Built-in AI commands</td><td>BYOK Claude / OpenAI / Gemini / Ollama</td></tr>
         <tr><td>Profession-specific practice packs</td><td><span class="pill no">No (templates exist but generic)</span></td><td>50+ built-in templates across legal, tax, consulting, and advisory practices</td></tr>
         <tr><td>Image attachments in AI</td><td><span class="pill yes">Yes</span></td><td><span class="pill yes">Paste, drag, paperclip per provider</span></td></tr>
@@ -80,9 +80,9 @@
         <tr><td>PDFs in workspace search</td><td><span class="pill no">No</span></td><td><span class="pill yes">Toggle in Memory settings</span></td></tr>
         <tr><td>Long-context [Compress]</td><td><span class="pill no">No</span></td><td><span class="pill yes">Yes</span></td></tr>
         <tr><td>Read aloud (TTS), local</td><td><span class="pill no">No</span></td><td>Local <a href="https://github.com/rhasspy/piper" target="_blank" rel="noopener">Piper</a> sidecar</td></tr>
-        <tr><td>Plugin / extension model</td><td><span class="pill no">No</span></td><td><a href="/docs/plugins/">Sandboxed Web Worker plugins</a></td></tr>
+        <tr><td>Plugin / extension model</td><td><span class="pill no">No</span></td><td><span class="pill no">No plugin ecosystem</span></td></tr>
         <tr><td>UI languages</td><td>English</td><td>English, Espanol, Deutsch</td></tr>
-        <tr><td>Wiki-links / backlinks</td><td><span class="pill yes">Yes (deep)</span></td><td><span class="pill yes">Yes</span></td></tr>
+        <tr><td>Wiki-links / backlinks</td><td><span class="pill yes">Yes (deep)</span></td><td><span class="pill no">No</span></td></tr>
         <tr><td>Query language</td><td><span class="pill yes">Powerful structured queries</span></td><td><span class="pill no">Full-text search only</span></td></tr>
         <tr><td>Mobile</td><td><span class="pill yes">iOS, Android</span></td><td><span class="pill maybe"><a href="/docs/mobile-access/">Read via cloud-sync workaround</a></span></td></tr>
         <tr><td>Multi-device sync</td><td>Built-in cloud</td><td>BYO via Dropbox / iCloud / Syncthing</td></tr>
@@ -108,13 +108,13 @@
 
     <h3>4. Simplicity for documents that aren't graphs</h3>
 
-    <p>Tana's outliner-plus-supertags model rewards a specific working style. If you're writing engagement letters and matter memos more than building knowledge graphs, the data model is overhead. Keepance's flat-Markdown model fits document-shaped work more naturally.</p>
+    <p>Tana's outliner-plus-supertags model rewards a specific working style. If you're writing engagement letters and matter memos more than building knowledge graphs, the data model is overhead. Keepance's Word-native model fits document-shaped professional work more naturally.</p>
 
     <h2>Where Tana wins</h2>
 
     <h3>1. Structured queries over your knowledge graph</h3>
 
-    <p>Tana's signature feature is the ability to define a "supertag" (e.g., #person, #project, #meeting) and then query across all instances ("show me all #project where #status = 'active' and #owner = me"). This is a real superpower for users who think in structured data. Keepance has no equivalent; full-text search only.</p>
+    <p>Tana's signature feature is the ability to define a "supertag" (e.g., #person, #project, #meeting) and then query across all instances ("show me all #project where #status = 'active' and #owner = me"). This is a real superpower for users who think in structured data. Keepance has no graph view or structured query; it focuses on document-shaped work with matter-scoped cited recall over your full archive.</p>
 
     <h3>2. Networked-thinking polish</h3>
 
@@ -149,7 +149,7 @@
       <li>The export contains your nodes converted to nested bullet lists in Markdown</li>
       <li>Drop into a new Keepance workspace folder</li>
       <li>Tana's supertag fields will appear as inline tags or YAML frontmatter (depending on export options); Keepance treats both as searchable text</li>
-      <li>Wiki-links convert mostly cleanly</li>
+      <li>Tana's Markdown text content imports cleanly; Tana-specific supertag fields will appear as plain text</li>
     </ol>
 
     <p>The biggest adjustment: you lose the structured-query feature. If your Tana workflow depends heavily on supertag queries, Keepance will feel less expressive. If your Tana workflow is mostly outlining + AI assistance, the migration is straightforward and you'll barely notice.</p>

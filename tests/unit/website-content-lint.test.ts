@@ -57,16 +57,8 @@ const TARGETS = [
   'docs/mobile-access/dropbox.html',
   'docs/mobile-access/syncthing.html',
   'docs/mobile-access/google-drive.html',
-  // Stream C5 (v2.0) — plugin developer experience docs.
-  'docs/plugins/index.html',
-  'docs/plugins/getting-started.html',
-  'docs/plugins/manifest-reference.html',
-  'docs/plugins/permissions.html',
-  'docs/plugins/api-reference.html',
-  'docs/plugins/publishing.html',
-  'docs/plugins/examples.html',
-  // Stream C6 (v2.0) — marketplace submission docs.
-  'docs/marketplace-submissions.html',
+  // (docs/plugins/* and docs/marketplace-submissions.html were removed in the
+  // 3.0 reorg — the plugin marketplace was cut; WS1 deleted the dead pages.)
 ];
 
 const BANNED_WORDS = [

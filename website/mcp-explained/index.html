@@ -289,15 +289,13 @@
 
     <p>For the technically-minded: Keepance uses the official Anthropic MCP SDK. Server config is exposed in Settings → AI → MCP Servers. Each server runs as a separate subprocess that Keepance manages.</p>
 
-    <h2>MCP and Keepance's plugin system are complementary</h2>
+    <h2>MCP and Keepance's built-in AI are complementary</h2>
 
-    <p>One question that comes up a lot, especially after the v2.0 release: doesn't Keepance's new plugin system compete with MCP? Honestly no, they solve different problems and we shipped both on purpose.</p>
+    <p>One question that comes up a lot: does MCP make Keepance's built-in AI redundant? No. They operate at different layers.</p>
 
     <p>MCP exposes external data sources <em>to</em> AI agents. Your filesystem, your GitHub, your Postgres become AI-readable surfaces, and any compatible client (Claude Desktop, Cursor, Keepance) can connect. The protocol is the bridge from outside-data to inside-AI.</p>
 
-    <p>Keepance's plugin system goes the other direction. Plugins extend Keepance itself: a Word Counter sidebar, a Translator that runs on the current selection, a Mermaid Preview pane, a Pomodoro timer, anything else community devs ship. They live in a Web Worker sandbox with a manifest-declared permission model and run in your app, not in a separate AI agent.</p>
-
-    <p>So a typical v2.0 setup uses both. MCP servers connect Claude / OpenAI / Gemini to your data when chatting. Plugins shape the editor surface around how you actually work. The plugin developer docs are at <a href="/docs/plugins/">keepance.com/docs/plugins/</a>, with a manifest reference, permission catalog, full PluginAPI types, and a publishing guide.</p>
+    <p>Keepance's built-in AI goes the other direction. It acts on your workspace directly: drafting documents, running profession-specific workflow templates, applying cited recall across your matters. Keepance's profession packs for legal, tax, consulting, and advisory work run locally and produce real files in your folder, no external server needed.</p>
 
     <h2>Should you care about MCP?</h2>
 

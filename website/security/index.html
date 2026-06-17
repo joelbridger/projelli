@@ -262,9 +262,6 @@
 
   <p>Keys are never written to application config files in plaintext, never logged, and never included in any diagnostic or crash report. If you delete the app, the key remains in your keychain under your control and must be removed from there if you want it gone.</p>
 
-  <h2>Plugin security</h2>
-
-  <p>Keepance's plugin runtime runs each plugin in a sandboxed Web Worker with a manifest-declared permission model. There are six permissions: <code>workspace:read</code>, <code>workspace:write</code>, <code>editor:selection</code>, <code>editor:write</code>, <code>ai:invoke</code>, and <code>network</code>. You see the requested permissions in plain language before installing any plugin. Every plugin action appears in the audit log. The <code>ai:invoke</code> permission uses your BYOK key, so a plugin cannot route your prompts to a server other than your chosen provider. Full details at <a href="/docs/plugins/permissions">/docs/plugins/permissions</a>.</p>
 
   <h2>What we don't have yet</h2>
 

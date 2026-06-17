@@ -21,7 +21,7 @@
   { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [
     { "@type": "Question", "name": "Is Reflect a good Notion alternative?", "acceptedAnswer": { "@type": "Answer", "text": "Reflect is closer to Roam Research or Logseq in shape, with strong networked-thinking features. It's not really a Notion alternative; Notion is a team workspace, Reflect is single-user notes with AI." } },
     { "@type": "Question", "name": "Does Reflect work offline?", "acceptedAnswer": { "@type": "Answer", "text": "Reflect has cached offline access for reading existing notes, but it's a cloud-first app. Editing while offline syncs once you reconnect, and the cloud is the source of truth." } },
-    { "@type": "Question", "name": "Can I migrate from Reflect to Keepance?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Reflect supports Markdown export. Drop the exported folder into a Keepance workspace and you're done. Wiki-links convert mostly cleanly, since Reflect uses [[link]] syntax similar to Keepance's." } },
+    { "@type": "Question", "name": "Can I migrate from Reflect to Keepance?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Reflect supports Markdown export. Drop the exported folder into a Keepance workspace and you're done. The plain text and Markdown content imports cleanly; Reflect's [[wiki-link]] syntax will appear as plain text since Keepance does not have a wiki-link feature." } },
     { "@type": "Question", "name": "What does Reflect cost?", "acceptedAnswer": { "@type": "Answer", "text": "Reflect is $15/month or $144/year. AI is bundled into the subscription. Keepance is Solo $468/yr, Professional $948/yr, or Firm $1,548/seat/yr (min 3 seats), plus your own AI provider's API costs (typically $5-15/month)." } }
   ] }
   </script>
@@ -84,7 +84,7 @@
         <tr><td>Where your prompts go</td><td>Through Reflect's servers</td><td>Direct from your machine to the AI provider (Anthropic/OpenAI/Google)</td></tr>
         <tr><td>What's stored on a vendor's server</td><td>Your notes (encrypted at rest on Reflect's infrastructure)</td><td>Nothing. No documents, no prompts, no API key on Keepance servers</td></tr>
         <tr><td>AI model</td><td>Whatever Reflect provides (currently Claude + others)</td><td>Bring your own Claude / OpenAI / Gemini key</td></tr>
-        <tr><td>Wiki-links / backlinks</td><td><span class="pill yes">Yes (excellent)</span></td><td><span class="pill yes">Yes</span></td></tr>
+        <tr><td>Wiki-links / backlinks</td><td><span class="pill yes">Yes (excellent)</span></td><td><span class="pill no">No</span></td></tr>
         <tr><td>Daily notes</td><td><span class="pill yes">Yes (default flow)</span></td><td><span class="pill yes">Yes (template)</span></td></tr>
         <tr><td>Profession-specific practice packs</td><td><span class="pill no">No</span></td><td>50+ built-in templates across legal, tax, consulting, and advisory practices</td></tr>
         <tr><td>Image attachments in AI chat</td><td><span class="pill maybe">Limited</span></td><td><span class="pill yes">Paste, drag, paperclip per provider</span></td></tr>
@@ -92,7 +92,7 @@
         <tr><td>PDFs in workspace search</td><td><span class="pill no">No</span></td><td><span class="pill yes">Toggle in Memory settings</span></td></tr>
         <tr><td>Long-context [Compress]</td><td><span class="pill no">No</span></td><td><span class="pill yes">Yes</span></td></tr>
         <tr><td>Read aloud (TTS), local</td><td><span class="pill no">No</span></td><td>Local <a href="https://github.com/rhasspy/piper" target="_blank" rel="noopener">Piper</a> sidecar</td></tr>
-        <tr><td>Plugin / extension model</td><td><span class="pill no">No</span></td><td><a href="/docs/plugins/">Sandboxed plugins</a> + 4 day-one</td></tr>
+        <tr><td>Plugin / extension model</td><td><span class="pill no">No</span></td><td><span class="pill no">No plugin ecosystem</span></td></tr>
         <tr><td>UI languages</td><td>English</td><td>English, Espanol, Deutsch</td></tr>
         <tr><td>Audio recording + transcription</td><td><span class="pill yes">Yes</span></td><td><span class="pill yes">Yes (waveform editor + transcript)</span></td></tr>
         <tr><td>Cloud sync</td><td><span class="pill yes">Built-in</span></td><td><span class="pill maybe">BYO via Dropbox / iCloud / <a href="/docs/mobile-access/">Syncthing</a></span></td></tr>
@@ -137,7 +137,7 @@
 
     <h3>3. Networked-thinking polish</h3>
 
-    <p>Reflect's networked-thinking experience (graph view, related notes surfacing, "today's insights") is mature and elegant. Keepance has the building blocks (wiki-links, backlinks, search) but the experience is closer to Obsidian's understated style than Reflect's polished AI-curated feed.</p>
+    <p>Reflect's networked-thinking experience (graph view, related notes surfacing, "today's insights") is mature and elegant. Keepance focuses on document-shaped professional work and matter-scoped cited recall rather than graph-based networked thinking.</p>
 
     <h3>4. Audio note workflow</h3>
 
@@ -163,11 +163,11 @@
       <li>In Reflect, go to Settings → Export → Markdown</li>
       <li>Download the .zip and unzip it into a folder</li>
       <li>That folder is now a valid Keepance workspace; open Keepance and point it at the folder</li>
-      <li>Reflect's `[[wiki-link]]` syntax is the same as Keepance's; backlinks should resolve</li>
-      <li>Get an Anthropic / OpenAI / Gemini API key, paste into Keepance, start chatting</li>
+      <li>Reflect's `[[wiki-link]]` text will appear as plain text in Keepance; Keepance does not resolve wiki-link syntax</li>
+      <li>Get an Anthropic / OpenAI / Gemini API key, paste into Keepance, start chatting against your imported archive</li>
     </ol>
 
-    <p>This is the cleanest migration of any vs-page; Reflect's Markdown export and wiki-link syntax are directly compatible with Keepance's.</p>
+    <p>Reflect's Markdown export imports cleanly into Keepance. The plain-text content, YAML frontmatter, and file structure all carry over. Wiki-link syntax appears as literal text since Keepance does not have a backlinks feature.</p>
 
     <h2>Frequently asked questions</h2>
 
@@ -182,7 +182,7 @@
       </details>
       <details>
         <summary>Can I migrate from Reflect to Keepance?</summary>
-        <p>Yes. Reflect supports Markdown export. Drop the exported folder into a Keepance workspace and you're done. Wiki-links convert mostly cleanly, since Reflect uses [[link]] syntax similar to Keepance's.</p>
+        <p>Yes. Reflect supports Markdown export. Drop the exported folder into a Keepance workspace and you're done. The plain text content imports cleanly; Reflect's [[wiki-link]] syntax will appear as plain text since Keepance does not have a wiki-link feature.</p>
       </details>
       <details>
         <summary>What does Reflect cost?</summary>

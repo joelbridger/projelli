@@ -92,9 +92,9 @@
         <tr><td>PDFs as searchable workspace context</td><td><span class="pill no">Per-project only</span></td><td><span class="pill yes">Toggle in Memory settings, indexed in LanceDB</span></td></tr>
         <tr><td>Long-context [Compress] when you overflow</td><td><span class="pill no">Hard fail</span></td><td><span class="pill yes">Auto-trigger or manual button</span></td></tr>
         <tr><td>Read aloud (TTS), local</td><td><span class="pill no">No</span></td><td>Local <a href="https://github.com/rhasspy/piper" target="_blank" rel="noopener">Piper</a> sidecar</td></tr>
-        <tr><td>Plugin / extension model</td><td><span class="pill no">No</span></td><td><a href="/docs/plugins/">Sandboxed Web Worker plugins</a></td></tr>
+        <tr><td>Plugin / extension model</td><td><span class="pill no">No</span></td><td><span class="pill no">No plugin ecosystem</span></td></tr>
         <tr><td>Searchable across conversations</td><td><span class="pill maybe">Within a single project</span></td><td><span class="pill yes">Full-text across the entire workspace</span></td></tr>
-        <tr><td>Wiki-links between conversations</td><td><span class="pill no">No</span></td><td><span class="pill yes">Yes ([[wiki-link]] syntax)</span></td></tr>
+        <tr><td>Matter-scoped cited recall</td><td><span class="pill no">No (per-project only)</span></td><td><span class="pill yes">Yes (cited answers across all matter docs)</span></td></tr>
         <tr><td>Profession-specific workflow packs</td><td><span class="pill no">No</span></td><td>50+ built-in templates</td></tr>
         <tr><td>UI languages</td><td>Many (web)</td><td>English, Espanol, Deutsch</td></tr>
         <tr><td>Offline editing</td><td><span class="pill no">No</span></td><td><span class="pill yes">Yes (AI calls need network)</span></td></tr>
@@ -124,9 +124,9 @@
 
     <p>Every Keepance conversation is a real Markdown file in a real folder. Back it up with your other client files, include it in a litigation hold, or open it in any text editor five years from now. Claude Projects exports as a JSON dump tied to Anthropic's account. If the account closes or the product changes, the export path is your only lifeline. For professionals with document retention obligations, Keepance's format is already compliant with how you store everything else.</p>
 
-    <h3>5. Wiki-links and backlinks across conversations</h3>
+    <h3>5. Matter-scoped cited recall across the full archive</h3>
 
-    <p>Keepance treats each conversation as a Markdown note that can be wiki-linked from other notes (`[[Client Interview - Smith Matter]]`). Backlinks panel shows every conversation that referenced this one. Claude Projects has no equivalent; conversations within a project are siblings without explicit links.</p>
+    <p>Keepance's matter-scoped recall lets you ask a question and get cited answers drawn from across every document and email in a matter. You can verify each citation against the source. Claude Projects stores conversations per project, but has no equivalent cross-document citation layer; you cannot ask a question and see exactly which source document each piece of an answer came from.</p>
 
     <h2>Where Claude Projects wins</h2>
 

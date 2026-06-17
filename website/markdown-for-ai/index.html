@@ -72,12 +72,12 @@
     <p class="meta">Updated 2026-04-27 · 9 min read</p>
 
     <div class="summary">
-      <p><strong>The short version.</strong> Most AI tools store your chats in their proprietary database. Markdown stores them as files you can open with any text editor, grep across, version-control, back up, and read in 20 years. For attorneys, CPAs, and consultants building a confidential client archive, Markdown is the right format for one reason: it's the format that survives any tool and keeps control in your hands. This page walks through why that matters more for AI than for any prior knowledge-work category, and how the "chat-as-files" pattern actually works in practice.</p>
+      <p><strong>The short version.</strong> Most AI tools store your chats in their proprietary database. Plain, open file formats store them as files you can grep across, version-control, back up, and read in 20 years. For attorneys, CPAs, and consultants building a confidential client archive, open formats are the right choice for one reason: they survive any tool and keep control in your hands. In Keepance, Word (.docx) is the primary professional editing format; Markdown and plain text are for utility files like notes, configs, and AI conversation logs. This page walks through why portable, open formats matter more for AI than for any prior knowledge-work category.</p>
     </div>
 
     <p>Every product decision about AI tools has a question hiding in it: where does the conversation go? In ChatGPT, it goes to OpenAI's database. In Claude.ai, to Anthropic's. In Notion AI, to Notion's. In Reflect, Mem.ai, Tana, into each of their respective clouds.</p>
 
-    <p>In Keepance, every conversation goes to a Markdown file in a folder you picked. That's it. No database, no cloud account, no proprietary format. The conversation is text on your hard drive, the same format text has been in for forty years.</p>
+    <p>In Keepance, AI conversation logs go to a structured text file in a folder you picked. Professional documents are saved as real .docx files you can open in Microsoft Word. No database, no cloud account, no proprietary lock-in. Your work stays on your hard drive in open formats.</p>
 
     <p>I'm going to walk through why this matters specifically for AI conversations (not just for general note-taking), what the technical shape looks like, and what you can do with a Markdown archive that you can't do with any chat-database equivalent. For attorneys, this connects directly to the privilege question: a conversation stored in a vendor's database is accessible to that vendor. A conversation stored as a Markdown file on your machine is not.</p>
 
@@ -158,23 +158,19 @@ grep -ril "client intake" ~/keepance-workspace/ | head</code></pre>
 
     <p>Tools like FlexSearch, MiniSearch, Meilisearch, or even SQLite's FTS5 can index a folder of Markdown files in a few minutes. Once indexed, you can do typo-tolerant fuzzy search across the entire archive, with snippets and ranking. Keepance ships this built-in. Anyone can build it on top of a Markdown folder; almost nobody can on top of a chat database.</p>
 
-    <h3>3. Wiki-link between conversations</h3>
-
-    <p>The <code>[[Customer Interview - Acme Corp]]</code> syntax in Keepance, Obsidian, Logseq, and others creates a backlink graph across conversations. You can ask "what conversations referenced this customer's name?" and find them. With a chat database, every conversation is a sibling of every other; no graph, no relationships beyond timestamps.</p>
-
-    <h3>4. Version control it</h3>
+    <h3>3. Version control it</h3>
 
     <p>Drop your workspace in a git repository. Now every edit is tracked, every conversation has a history, you can see what you changed your mind about. Some attorneys and consultants treat their project workspace as a private git repo with branches per major matter or engagement. You can't do this with a vendor's chat database.</p>
 
-    <h3>5. Sync it any way you want</h3>
+    <h3>4. Sync it any way you want</h3>
 
     <p>Dropbox, iCloud, Syncthing, USB stick, scp, rsync, B2, S3, plain old file copy. The sync mechanism is your choice. Cloud AI tools' built-in sync is convenient but it's the only sync available; if their service is down, your laptop and tablet are out of sync.</p>
 
-    <h3>6. Let any other tool read it</h3>
+    <h3>5. Let any other tool read it</h3>
 
     <p>Want to feed your archive to a different AI as research context? Just point that other AI at the folder. Want to publish a curated subset as a public blog? Push the relevant Markdown files to a Hugo or Eleventy or Jekyll site. Want to query the archive with grep, with a custom script, with Spotlight, with another LLM? It all just works because the data is text in files.</p>
 
-    <h3>7. Outlive the tool that created it</h3>
+    <h3>6. Outlive the tool that created it</h3>
 
     <p>This is the underrated benefit. If Keepance the company disappears tomorrow, your conversations are still on your hard drive in a format any text-aware tool can read. If ChatGPT or Notion or Mem.ai disappears tomorrow, your archive depends on whatever you exported before the shutdown notice. Most users never export until it's too late.</p>
 
@@ -189,19 +185,19 @@ grep -ril "client intake" ~/keepance-workspace/ | head</code></pre>
       <li><strong>Standard Markdown extensions:</strong> tables, code blocks, fenced syntax highlighting, links</li>
     </ul>
 
-    <p>The file is renderable in any Markdown viewer. Most text editors will syntax-highlight it. The frontmatter is parseable by any YAML library. Backlinks (`[[wiki-link]]`) are detectable by simple regex.</p>
+    <p>The file is renderable in any Markdown viewer. Most text editors will syntax-highlight it. The frontmatter is parseable by any YAML library.</p>
 
-    <p>For folders that contain a mix of conversations, workflow runs, whiteboards, and source notes, Keepance uses different extensions:</p>
+    <p>For folders that contain a mix of conversations, workflow runs, documents, and source notes, Keepance uses different extensions:</p>
 
     <ul>
       <li><code>.aichat</code> for AI conversations</li>
       <li><code>.workflow</code> for run records (also Markdown with structured metadata)</li>
-      <li><code>.whiteboard</code> for canvas drawings (JSON with embedded SVG)</li>
       <li><code>.source</code> for research source cards</li>
-      <li><code>.md</code> for plain Markdown notes</li>
+      <li><code>.md</code> / <code>.txt</code> for plain-text utility notes</li>
+      <li><code>.docx</code> for Word-native documents (the primary professional editing format)</li>
     </ul>
 
-    <p>All are plain text or near-plain-text. The whiteboard format is JSON because canvas drawings are inherently structured, but it's still a single file you can read and version-control.</p>
+    <p>All text-based formats are plain text or near-plain-text. The .docx format is standard Office Open XML, readable by Microsoft Word, LibreOffice, and any OOXML-compatible tool.</p>
 
     <h2>What v2.0 added on top of the Markdown layer</h2>
 
@@ -209,7 +205,6 @@ grep -ril "client intake" ~/keepance-workspace/ | head</code></pre>
 
     <ul>
       <li><strong>PDF RAG indexes Markdown alongside PDFs.</strong> Flip on "Include PDFs in workspace index" in Settings -> Memory and the AI gets searchable context across both your <code>.md</code> notes and the PDFs sitting next to them. Embeddings live in your workspace folder (LanceDB + a 384-dim multilingual model). Nothing leaves the machine for indexing.</li>
-      <li><strong>Plugins read and write your Markdown via declarative permissions.</strong> A plugin asks for <code>workspace:read</code> or <code>workspace:write</code> in its manifest, you see the request in plain language, and approving it scopes the plugin to your workspace folder. Browse the catalog at <a href="https://github.com/keepance/community-plugins" target="_blank" rel="noopener">github.com/keepance/community-plugins</a>. Permission reference at <a href="/docs/plugins/permissions">/docs/plugins/permissions</a>.</li>
       <li><strong>Templates marketplace ships <code>.md</code> template files.</strong> Community templates from <a href="https://github.com/keepance/community-templates" target="_blank" rel="noopener">github.com/keepance/community-templates</a> install as Markdown into your workspace. Same format as the 50+ built-in templates across legal, tax, consulting, and advisor packs. You can edit, fork, or publish your own back. The full v2.0 announce is at <a href="/blog/keepance-v2-announce/">/blog/keepance-v2-announce/</a>.</li>
     </ul>
 
@@ -266,8 +261,8 @@ grep -ril "client intake" ~/keepance-workspace/ | head</code></pre>
     </div>
 
     <div class="cta-card">
-      <h3>An AI workspace where every chat is a file</h3>
-      <p>Keepance saves every Claude / OpenAI / Gemini conversation as a real Markdown file in a folder you pick. Your client files stay on your machine. Free 30-day trial. Solo $468/yr. Professional $948/yr with practice pack.</p>
+      <h3>An AI workspace where your work stays on your machine</h3>
+      <p>Keepance saves professional documents as real .docx files and AI conversation logs as plain text in a folder you pick. Your client files stay on your machine. Free 30-day trial. Solo $468/yr. Professional $948/yr with practice pack.</p>
       <a href="/#pricing" class="cta-btn">Get Keepance</a>
     </div>
   </div>

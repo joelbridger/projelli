@@ -80,14 +80,14 @@
         <tr><td>Long-context [Compress]</td><td><span class="pill no">No</span></td><td><span class="pill yes">Yes</span></td></tr>
         <tr><td>Read aloud (TTS), local</td><td><span class="pill maybe">Plugin</span></td><td>Local <a href="https://github.com/rhasspy/piper" target="_blank" rel="noopener">Piper</a> sidecar bundled</td></tr>
         <tr><td>UI languages</td><td>20+ via community</td><td>English, Espanol, Deutsch</td></tr>
-        <tr><td>Wiki-links / backlinks</td><td><span class="pill yes">Yes (deep)</span></td><td><span class="pill yes">Yes</span></td></tr>
+        <tr><td>Wiki-links / backlinks</td><td><span class="pill yes">Yes (deep)</span></td><td><span class="pill no">No</span></td></tr>
         <tr><td>Daily journal</td><td><span class="pill yes">Yes (default flow)</span></td><td><span class="pill yes">Yes (template)</span></td></tr>
-        <tr><td>Graph view</td><td><span class="pill yes">Yes</span></td><td><span class="pill no">No (backlinks panel only)</span></td></tr>
+        <tr><td>Graph view</td><td><span class="pill yes">Yes</span></td><td><span class="pill no">No</span></td></tr>
         <tr><td>Mobile</td><td><span class="pill yes">iOS, Android (open source)</span></td><td><span class="pill maybe"><a href="/docs/mobile-access/">Read via cloud-sync workaround</a></span></td></tr>
         <tr><td>Document workflows (DOCX, XLSX)</td><td><span class="pill no">No</span></td><td><span class="pill yes">Read/write .docx, .xlsx, .pptx, .pdf</span></td></tr>
         <tr><td>Audio recording + transcription</td><td><span class="pill maybe">Plugin</span></td><td><span class="pill yes">Built-in</span></td></tr>
-        <tr><td>Whiteboard / canvas</td><td><span class="pill yes">Built-in (Whiteboards)</span></td><td><span class="pill yes">Built-in</span></td></tr>
-        <tr><td>Plugin ecosystem</td><td><span class="pill yes">Hundreds of community plugins</span></td><td>v2.0: <a href="/docs/plugins/">sandboxed runtime</a> + 4 day-one plugins</td></tr>
+        <tr><td>Whiteboard / canvas</td><td><span class="pill no">No</span></td><td><span class="pill yes">Built-in</span></td></tr>
+        <tr><td>Plugin ecosystem</td><td><span class="pill yes">Hundreds of community plugins</span></td><td><span class="pill no">No plugin ecosystem</span></td></tr>
       </tbody>
     </table>
 
@@ -113,9 +113,9 @@
 
     <p>If your professional workflow includes editing a Word doc, working in an Excel spreadsheet, or annotating a PDF contract, Keepance handles these natively. Logseq is text-only without plugins.</p>
 
-    <h3>6. Polish over plugin assembly</h3>
+    <h3>6. Built-in profession packs over plugin assembly</h3>
 
-    <p>Logseq's "assemble your own stack" approach gives flexibility but requires assembly work. Keepance ships a coherent product where AI, practice packs, search, audio, whiteboard, document handling all work together without configuration.</p>
+    <p>Logseq's "assemble your own stack" approach gives flexibility but requires assembly work. Keepance ships profession packs for legal, tax, consulting, and advisory work built directly into the product. There's no plugin to find, install, or maintain to get practice-specific templates.</p>
 
     <h2>Where Logseq wins</h2>
 
@@ -137,11 +137,11 @@
 
     <h3>5. Larger plugin ecosystem</h3>
 
-    <p>Hundreds of community plugins extend Logseq into specific domains. Keepance's <a href="/docs/plugins/">plugin runtime</a> shipped in v2.0 with four day-one entries (word counter, translator, pomodoro, mermaid preview) in <a href="https://github.com/keepance/community-plugins" target="_blank" rel="noopener">a public MIT-licensed catalog</a>. Real, but young. If your existing Logseq workflow leans heavily on plugins, you'll have a much wider library there.</p>
+    <p>Hundreds of community plugins extend Logseq into specific domains. Keepance does not have a plugin ecosystem. Keepance's differentiation is built-in profession packs for legal, tax, consulting, and advisory work rather than a plugin model. If your existing Logseq workflow leans heavily on plugins, you'll have a much wider library there.</p>
 
     <h3>6. Graph view</h3>
 
-    <p>Logseq's interactive graph visualization of your knowledge graph is a real feature for users who want it. Keepance has backlinks panel but no graph.</p>
+    <p>Logseq's interactive graph visualization of your knowledge graph is a real feature for users who want it. Keepance does not have a graph view or backlinks panel; it focuses on document-shaped professional work rather than networked-thinking features.</p>
 
     <h2>When each is the right choice</h2>
 
@@ -169,8 +169,8 @@
     <ol>
       <li>Logseq's data is already Markdown + EDN. The Markdown files in your Logseq graph are directly readable by Keepance.</li>
       <li>Open Keepance and pick your Logseq graph folder as the workspace.</li>
-      <li>Logseq's `[[wiki-link]]` syntax is compatible with Keepance's. Backlinks resolve.</li>
-      <li>Logseq-specific features (block references via `((id))`, properties, queries) won't render in Keepance; the data is preserved as text in the file.</li>
+      <li>Logseq's `[[wiki-link]]` text syntax will appear as plain text in Keepance files; Keepance does not resolve or navigate wiki-link syntax.</li>
+      <li>Logseq-specific features (block references via `((id))`, properties, queries, graph view) won't render in Keepance; the data is preserved as text in the file.</li>
       <li>Get a Claude / OpenAI / Gemini API key, paste into Keepance, start chatting against your imported archive.</li>
     </ol>
 

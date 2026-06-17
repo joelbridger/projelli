@@ -396,9 +396,8 @@
       <li><strong>Every AI conversation produces a `.aichat` file</strong> in that folder. Open it in any text editor; it's structured Markdown with a YAML frontmatter.</li>
       <li><strong>You bring your own API key</strong> for Anthropic, OpenAI, or Google. The keys live in your OS keychain. AI requests go directly from your machine to the provider, never through Keepance.</li>
       <li><strong>Profession-specific workflow templates</strong> are built in for legal, tax, and consulting work. Each template runs against your own files, on your own machine.</li>
-      <li><strong>Wiki-links, backlinks, full-text search, version history</strong> all work locally. Everything indexes from the same folder structure.</li>
+      <li><strong>Full-text search, version history, and matter-scoped cited recall</strong> all work locally. Everything indexes from the same folder structure.</li>
       <li><strong>Local-first confidentiality by design</strong>. Documents and API keys stay on your machine; prompts go straight to the AI provider, never through Keepance servers. Solo $468/yr, Professional $948/yr (+ one profession pack), Firm $1,548/seat/yr (min 3 seats). Sold via LemonSqueezy.</li>
-      <li><strong>Plugins are sandboxed and run locally</strong>. The v2.0 plugin runtime is a Web Worker on your machine with a manifest-declared permission model. Same local-first story: a plugin can't call home, can't read files outside its declared scope, can't make AI calls without your <code>ai:invoke</code> consent. Browse them in Settings -> Marketplace -> Plugins. Catalog at <a href="https://github.com/keepance/community-plugins" target="_blank" rel="noopener">github.com/keepance/community-plugins</a>.</li>
       <li><strong>Read aloud is local</strong>. Click "Read aloud" on any AI message and a local Piper TTS sidecar reads it back. No cloud TTS service. The voice ships inside the app bundle.</li>
       <li><strong>Multilingual UI is local too</strong>. The interface ships in English, Spanish, and German. The locale files are inside the app bundle; switching language doesn't make a network call.</li>
     </ul>

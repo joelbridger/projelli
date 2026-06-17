@@ -358,8 +358,8 @@
           <div class="tl-stop done">
             <span class="tl-quarter">May 2026</span>
             <span class="tl-dot"></span>
-            <div class="tl-title">Read aloud, plugins, templates marketplace</div>
-            <div class="tl-sub">Local Piper TTS, sandboxed plugin runtime, 4 example plugins, community templates and plugins on GitHub</div>
+            <div class="tl-title">Read aloud, templates marketplace</div>
+            <div class="tl-sub">Local Piper TTS, community templates marketplace on GitHub</div>
           </div>
           <div class="tl-stop done">
             <span class="tl-quarter">May 2026</span>
@@ -425,14 +425,6 @@
           <div class="item-body">
             <h3>Read aloud (text-to-speech)</h3>
             <p>"Read aloud" button on AI responses via bundled <a href="https://github.com/rhasspy/piper">Piper</a> sidecar (local TTS, no cloud, no API). Useful for hands-free workflows and accessibility.</p>
-            <p class="when">Shipped May 2026</p>
-          </div>
-        </div>
-        <div class="item">
-          <span class="item-status shipped">Live</span>
-          <div class="item-body">
-            <h3>Plugin system (sandboxed runtime + marketplace)</h3>
-            <p>Plugins run in a sandboxed Web Worker with a manifest-declared permission model (workspace read/write, editor selection, AI invoke, network). Plugin contributions appear in the toolbar, sidebar, command palette, and settings. Crash-isolated, with [Restart] when something goes sideways. Four day-one plugins live in the marketplace: <strong>Word Counter</strong>, <strong>Translator</strong>, <strong>Pomodoro</strong>, <strong>Mermaid Preview</strong>. <a href="/docs/plugins/">Developer docs</a>, scaffolder (<code>npx create-keepance-plugin</code>), and a typed <a href="https://www.npmjs.com/package/@keepance/plugin-api">@keepance/plugin-api</a> are live.</p>
             <p class="when">Shipped May 2026</p>
           </div>
         </div>
@@ -553,7 +545,7 @@
           <span class="item-status flight">Building</span>
           <div class="item-body">
             <h3>Mobile reader (iOS, then Android)</h3>
-            <p>A dedicated <a href="https://v2.tauri.app/start/prerequisites/#mobile-targets">Tauri 2</a> mobile reader for browsing your Keepance workspace from iPhone, iPad, and Android. Read-only first (browse, search, tap through wiki-links), edit later. The desktop app stays where the AI work happens.</p>
+            <p>A dedicated <a href="https://v2.tauri.app/start/prerequisites/#mobile-targets">Tauri 2</a> mobile reader for browsing your Keepance workspace from iPhone, iPad, and Android. Read-only first (browse, search, open documents), edit later. The desktop app stays where the AI work happens.</p>
             <p>Currently blocked on Apple Developer signup. The reading workflow already works today via <a href="/docs/mobile-access/">iCloud Drive, Dropbox, Syncthing, or Google Drive</a>, the dedicated app is a polish layer on top.</p>
             <p class="when">Blocked on Apple Developer signup, then TestFlight beta</p>
           </div>
@@ -613,7 +605,7 @@
 
       <div class="poll" data-poll-id="next-major-feature-v3">
         <h3>What should I build after the mobile reader?</h3>
-        <div class="poll-sub">The May 2026 release shipped multimodal, PDF chat, RAG, [Compress], read-aloud, plugins, templates marketplace, browser demo, and Spanish + German. Mobile reader is in flight. After that, here's what's on the candidate list. Pick one. You can change your vote anytime.</div>
+        <div class="poll-sub">The May 2026 release shipped multimodal, PDF chat, RAG, [Compress], read-aloud, templates marketplace, browser demo, and Spanish + German. Mobile reader is in flight. After that, here's what's on the candidate list. Pick one. You can change your vote anytime.</div>
         <div class="poll-options">
           <button class="poll-option" data-option-id="notion-obsidian-importers">
             <div class="fill"></div>
@@ -626,10 +618,6 @@
           <button class="poll-option" data-option-id="more-languages">
             <div class="fill"></div>
             <div class="row"><span class="label">More languages (French, Portuguese, Japanese, Mandarin, etc.)</span><span class="pct">-</span></div>
-          </button>
-          <button class="poll-option" data-option-id="more-plugins">
-            <div class="fill"></div>
-            <div class="row"><span class="label">More official plugins (charts, citations, calendar, focus mode)</span><span class="pct">-</span></div>
           </button>
           <button class="poll-option" data-option-id="audio-input-files">
             <div class="fill"></div>

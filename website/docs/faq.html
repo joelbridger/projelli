@@ -47,13 +47,13 @@
 
     <details>
       <summary>What is Keepance?</summary>
-      <p>Keepance is a desktop app that combines a Markdown editor with an AI chat interface. Every AI conversation produces real Markdown files in a real folder on your computer. You can paste an image into chat and the AI will look at it. You can drop a PDF in and ask questions about it. You can have the AI read its replies aloud. You can install community plugins to extend the editor. It's built for attorneys, CPAs, consultants, and other professionals who can't put their client work in the cloud. The same architecture works for anyone who wants their AI workspace to stay on their machine.</p>
+      <p>Keepance is the private intelligence layer for a law practice. It combines a Word-native document editor (real .docx files with tracked changes and AI redline) with matter-scoped cited recall across your documents and email. Every AI answer is cited and can be saved as a real .docx you own. You can paste an image into chat and the AI will look at it. You can drop a PDF in and ask questions about it. You can have the AI read its replies aloud. Plain-text and Markdown are supported for utility files like notes and configs, but the primary editing format is Word-compatible .docx. It's built for attorneys, CPAs, consultants, and other professionals who can't put their client work in the cloud.</p>
     </details>
 
     <details>
       <summary>How is this different from Notion or Obsidian?</summary>
       <p><strong>vs Notion:</strong> Notion is cloud-only, your data lives on Notion's servers and you pay them for the privilege. Notion's AI features are bolted on top, not native to the document model. Keepance is local-first (your files live on your hard drive) and AI is the primary input method, not an add-on.</p>
-      <p><strong>vs Obsidian:</strong> Obsidian is also local-first, but its AI features come from community plugins that are inconsistent and often charge separately. Keepance has AI native, with four providers built in (Claude, OpenAI, Gemini, Ollama), a workflow template system, multimodal input (images + PDFs), local RAG over your files, and its own sandboxed plugin runtime if you actually want to extend the editor.</p>
+      <p><strong>vs Obsidian:</strong> Obsidian is also local-first, but its AI features come from community plugins that are inconsistent and often charge separately. Keepance has AI native, with four providers built in (Claude, OpenAI, Gemini, Ollama), a workflow template system, multimodal input (images + PDFs), local RAG over your files, and a workflow template system with profession packs for law, tax, consulting, and advisory work.</p>
       <p><strong>vs ChatGPT:</strong> ChatGPT throws conversations away. Keepance persists every conversation as editable Markdown files you own, and lets you bring whichever model you actually like.</p>
     </details>
 
@@ -116,7 +116,7 @@
 
     <details>
       <summary>What if Keepance shuts down? Do I lose my work?</summary>
-      <p>No. Because everything is plain Markdown in a regular folder on your hard drive, you can keep using your files in any other Markdown editor (Obsidian, Notion, VS Code, even Notepad) forever. The Software might stop getting updates, but your data is yours.</p>
+      <p>No. Your documents are real .docx and plain-text files in a regular folder on your hard drive. You can open .docx files in Microsoft Word, LibreOffice, or any other Word-compatible editor. Plain-text files work in any text editor. The software might stop getting updates, but your data is yours.</p>
     </details>
 
     <h2>AI providers</h2>
@@ -164,13 +164,7 @@
       <p>Yes. Click "Read aloud" on any AI message. Audio is synthesized by a bundled <a href="https://github.com/rhasspy/piper">Piper</a> sidecar that runs locally, so no audio data is sent to the cloud. Useful when I'm pacing around the kitchen and don't want to read 800 words off a screen.</p>
     </details>
 
-    <h2>Plugins, templates, and the marketplace</h2>
-
-    <details>
-      <summary>Does it support plugins?</summary>
-      <p>Yes. There's a sandboxed Web Worker plugin runtime with a manifest-declared permission model (six permissions covering workspace read/write, editor selection, AI invocation, and network). Plugins can add toolbar buttons, sidebar panels, command-palette actions, and editor commands. Four plugins ship in the day-one marketplace: <strong>Word Counter</strong>, <strong>Translator</strong>, <strong>Pomodoro</strong>, and <strong>Mermaid Preview</strong>. If a plugin crashes, it's isolated, you click [Restart] and keep working.</p>
-      <p>If you want to write your own, see the developer docs at <a href="/docs/plugins/">/docs/plugins/</a>. There's a <code>npx create-keepance-plugin &lt;name&gt;</code> scaffolder, a typed <a href="https://www.npmjs.com/package/@keepance/plugin-api">@keepance/plugin-api</a> package, and seven docs pages covering manifest, permissions, API, publishing, examples.</p>
-    </details>
+    <h2>Templates and the marketplace</h2>
 
     <details>
       <summary>How do I install a community template?</summary>
@@ -178,8 +172,8 @@
     </details>
 
     <details>
-      <summary>Can I publish my own template or plugin?</summary>
-      <p>Yes. Both marketplaces are open submission via GitHub PR. Submission docs at <a href="/docs/marketplace-submissions">/docs/marketplace-submissions</a>.</p>
+      <summary>Can I publish my own template?</summary>
+      <p>Yes. The templates marketplace is open submission via GitHub PR at <a href="https://github.com/keepance/community-templates">github.com/keepance/community-templates</a>. Fork the repo, add your template folder under <code>entries/</code> with a manifest and the template files, and open a pull request.</p>
     </details>
 
     <h2>Trying it without downloading</h2>
@@ -234,7 +228,7 @@
 
     <details>
       <summary>Will there be a Keepance mobile app?</summary>
-      <p>A dedicated Keepance mobile reader is in beta and will land in the v2.0 cycle. It'll focus on read access first (browsing, searching, and tapping through wiki-links on the phone), with editing as a follow-up once we've gotten read right. Until that ships, the supported way to access your workspace on a phone is the cloud sync workaround documented in the <a href="/docs/mobile-access/">Mobile access guide</a>: point Keepance at a folder inside iCloud Drive, Dropbox, Syncthing, or Google Drive, then open the same folder on your phone in the matching app. It works today on every iPhone and Android with no extra install.</p>
+      <p>A dedicated Keepance mobile reader is planned. It'll focus on read access first (browsing and searching your workspace files on the phone), with editing as a follow-up. Until that ships, the supported way to access your workspace on a phone is the cloud sync workaround documented in the <a href="/docs/mobile-access/">Mobile access guide</a>: point Keepance at a folder inside iCloud Drive, Dropbox, Syncthing, or Google Drive, then open the same folder on your phone in the matching app. It works today on every iPhone and Android with no extra install.</p>
     </details>
 
     <details>

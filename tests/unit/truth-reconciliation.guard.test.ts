@@ -28,6 +28,20 @@ const RETIRED = [
   /founding[^.]{0,40}\$99\s*\/\s*yr/i,
 ];
 
+// Features removed in the 3.0 pivot that must never be advertised as current on
+// a live surface (these exact phrasings have zero benign use). Locks the WS1
+// removed-feature cleanup so it can't silently regress.
+const REMOVED_FEATURES = [
+  /plugin marketplace/i,
+  /plugin runtime/i,
+  /day-one plugins/i,
+  /Built-in \(Whiteboards?\)/i,
+  /use the whiteboard/i,
+  /create-keepance-plugin/i,
+  /community-plugins/i,
+  /\.whiteboard\b/,
+];
+
 function htmlFiles(dir: string, acc: string[] = []): string[] {
   for (const e of readdirSync(dir)) {
     const p = path.join(dir, e);
@@ -64,5 +78,14 @@ describe('WS1 truth guard', () => {
     const txt = readFileSync(path.join(ROOT, 'README.md'), 'utf8');
     expect(txt).toMatch(/\$468/);
     expect(/\$49\s*(one-time|once)/i.test(txt)).toBe(false);
+  });
+
+  it('no live surface advertises a removed 3.0 feature (plugin marketplace, whiteboard, etc.)', () => {
+    const hits: string[] = [];
+    for (const f of surfaces) {
+      const txt = readFileSync(f, 'utf8');
+      for (const re of REMOVED_FEATURES) if (re.test(txt)) hits.push(`${path.relative(ROOT, f)} :: ${re}`);
+    }
+    expect(hits, `\nRemoved-feature claims still live:\n${hits.join('\n')}\n`).toEqual([]);
   });
 });
