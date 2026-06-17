@@ -41,6 +41,12 @@ export interface AnswerCitation {
   /** Whether the source was returned from the verified RAG store. */
   verified: boolean;
   /**
+   * WS3: paragraph index for the chunk — passed to `onOpenFileAtPath` so
+   * the editor can scroll directly to the cited passage on chip click.
+   * Absent on pre-3.0 citations (undefined = use paragraph 0).
+   */
+  paragraphIndex?: number;
+  /**
    * WS3: content-addressed chunk id — passed to `ragVerifyCitation` for
    * on-demand source verification. Absent on pre-3.0 citations.
    */
