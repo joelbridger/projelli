@@ -39,8 +39,8 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { AI_MESSAGE_MIME } from '@/utils/fileDrop';
 import { isAbsolutePath } from '@/modules/workspace/pathResolve';
 import { cn } from '@/lib/utils';
-import { PrivilegeMenuItems } from '@/components/privilege/PrivilegeMenuItems';
-import { PrivilegeIndicator } from '@/components/privilege/PrivilegeIndicator';
+import { PrivilegeMenuItems } from '@/features/firm/privilege/PrivilegeMenuItems';
+import { PrivilegeIndicator } from '@/features/firm/privilege/PrivilegeIndicator';
 import { usePrivilegeForSource } from '@/stores/privilegeStore';
 
 /**

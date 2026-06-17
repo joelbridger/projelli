@@ -49,7 +49,7 @@ vi.mock('@/modules/models/fetchUtils', () => ({
 
 // ── Import AFTER mocks (store has side effects on import) ─────────────────────
 import { useFirmStore } from '@/stores/firmStore';
-import { FirmSignIn } from '@/components/firm/FirmSignIn';
+import { FirmSignIn } from '@/features/firm/FirmSignIn';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

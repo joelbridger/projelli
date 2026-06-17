@@ -45,11 +45,11 @@ vi.mock('@/components/settings/MailImapConnect', () => ({
   MailImapConnect: () => <div data-testid="mail-imap-connect-stub">MailImapConnect</div>,
 }));
 
-vi.mock('@/components/firm/FirmAdminConsole', () => ({
+vi.mock('@/features/firm/FirmAdminConsole', () => ({
   FirmAdminConsole: () => <div data-testid="firm-admin-console-stub">FirmAdminConsole</div>,
 }));
 
-vi.mock('@/components/firm/FirmSignIn', () => ({
+vi.mock('@/features/firm/FirmSignIn', () => ({
   FirmSignIn: () => <div data-testid="firm-sign-in-stub">FirmSignIn</div>,
 }));
 

@@ -36,7 +36,7 @@
  *   - All selectors use data-testid (page.getByTestId()) where possible.
  *   - For FirmSignIn fields that already have testids (firm-email, firm-password,
  *     firm-signin-submit, firm-license-key, firm-activate-submit) we use those
- *     directly. See src/components/firm/FirmSignIn.tsx.
+ *     directly. See src/features/firm/FirmSignIn.tsx.
  *   - This spec runs in the `en` project only (locale-stable selectors).
  *
  * Timing:

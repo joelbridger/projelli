@@ -40,8 +40,8 @@ vi.mock('@/modules/vault/vaultClient', () => ({
 }));
 
 // Import components AFTER mocks are established.
-import { VaultLockedPrompt } from '@/components/vault/VaultLockedPrompt';
-import { VaultEscapeHatchDialog } from '@/components/vault/VaultEscapeHatchDialog';
+import { VaultLockedPrompt } from '@/features/firm/vault/VaultLockedPrompt';
+import { VaultEscapeHatchDialog } from '@/features/firm/vault/VaultEscapeHatchDialog';
 
 const WORKSPACE = '/home/user/test-workspace';
 const VALID_PHRASE = Array.from({ length: 24 }, (_, i) => `word${i + 1}`).join(' ');

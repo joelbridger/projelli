@@ -44,7 +44,7 @@ vi.mock('@/modules/models/fetchUtils', () => ({
 
 // ── Import AFTER mocks ─────────────────────────────────────────────────────────
 import { useFirmStore } from '@/stores/firmStore';
-import { FirmAdminConsole } from '@/components/firm/FirmAdminConsole';
+import { FirmAdminConsole } from '@/features/firm/FirmAdminConsole';
 
 // ── SSO mock helpers ───────────────────────────────────────────────────────────
 

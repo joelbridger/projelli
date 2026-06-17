@@ -6,7 +6,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
-import { PrivilegeIndicator } from '@/components/privilege/PrivilegeIndicator';
+import { PrivilegeIndicator } from '@/features/firm/privilege/PrivilegeIndicator';
 
 describe('PrivilegeIndicator', () => {
   afterEach(cleanup);

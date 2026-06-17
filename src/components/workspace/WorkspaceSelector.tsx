@@ -14,8 +14,8 @@ import { DEFAULT_WORKSPACE_FOLDERS } from '@/modules/workspace/types';
 import { openExternal } from '@/utils/openExternal';
 import { KeepanceLogo } from '@/components/brand/KeepanceLogo';
 import { GradientGlow } from '@/components/brand/GradientGlow';
-import { VaultLockedPrompt } from '@/components/vault/VaultLockedPrompt';
-import { VaultEscapeHatchDialog } from '@/components/vault/VaultEscapeHatchDialog';
+import { VaultLockedPrompt } from '@/features/firm/vault/VaultLockedPrompt';
+import { VaultEscapeHatchDialog } from '@/features/firm/vault/VaultEscapeHatchDialog';
 import {
   FolderOpen,
   FolderPlus,

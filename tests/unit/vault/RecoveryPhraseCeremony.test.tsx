@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { RecoveryPhraseCeremony } from '@/components/vault/RecoveryPhraseCeremony';
+import { RecoveryPhraseCeremony } from '@/features/firm/vault/RecoveryPhraseCeremony';
 
 const PHRASE_24 = Array.from({ length: 24 }, (_, i) => `word${i + 1}`).join(' ');
 
