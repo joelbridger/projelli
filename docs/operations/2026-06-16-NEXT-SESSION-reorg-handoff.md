@@ -6,6 +6,42 @@
 > product (it had accreted sediment from the "projelli" notes-app and the general
 > "AI workspace" eras).
 
+## LATEST UPDATE (2026-06-17, session 2) — Phase 4a store merge DONE; feature migration is NEXT (fresh) ✅
+
+**HEAD `076a789`** (local==origin, tree clean). This session landed, on top of the giant-component splits:
+
+| Commit | What |
+|---|---|
+| `f154c9e` | `ReimaginedAsk` logic → `useAsk` fat-hook (928→455; pure render) |
+| `3317577` | `AIChatViewer` send+compress → `useChatSending` (2307→1343) |
+| `f56801e` | docs: record the atomic moves |
+| `076a789` | **Phase 4a: 4 matter stores → 1** (multi-key persist adapter + hydration contract) |
+
+**Gates green throughout:** `npm run typecheck` 0; `npx vitest run` **3132 passed / 3 skipped** (268 files; +8 from the new hydration test).
+
+### Phase 4a matter-store merge — DONE (commit `076a789`)
+- `matterUiStore` + `matterSyncStore` + `matterAtAGlanceStore` merged into `useMatterStore` as 4 slices (`matters` / `snapshots` / `cache` / `statusByMatterId`).
+- **Multi-key `storage` adapter** (`multiKeyMatterStorage` in `src/stores/matterStore.ts`) preserves all 3 legacy localStorage keys byte-compatibly: read reassembles from `keepance:matters` (+ runs the v1→v4 matters migrate), `keepance:matter-ui-snapshots`, `keepance:matter-at-a-glance`; write splits state back into the same 3 keys in their legacy `{state,version}` envelope. The sync slice is ephemeral (omitted from `partialize`, never written).
+- The 3 sibling files are now thin **alias shims** (`useMatterUiStore`/`useMatterSyncStore`/`useMatterAtAGlanceStore` → `useMatterStore`) that keep their types + pure helpers, so all ~53 importers are unchanged. The feature migration folds them away later.
+- **Data-safety contract:** `tests/unit/matter/matterStoreMerge.test.ts` (hydrate from each legacy key, v1 migration, all-3-together, fresh defaults, writes-preserve-3-keys, ephemeral-sync-never-persisted).
+- **profile+profession deliberately NOT merged** (judgment call): `professionStore` uses *manual* localStorage on the onboarding-shared key `keepance_profession`, so folding it into the zustand/persist `profileStore` would entangle two persistence mechanisms + risk the shared onboarding contract — messier, not cleaner. Left as two focused stores. (A real merge would need its own dual-mechanism adapter for a −1 store — not worth it.)
+
+### ⏭️ WHAT'S NEXT — the feature-folder migration (Phase 4b–e), THE big one, fresh-session work
+Largest + most disruptive remaining step (~547 `src` ts/tsx files). **Groundwork done this session — use it:**
+- **Current shape is LAYER-based:** `src/components/` (**33 subdirs**), `src/modules/*`, `src/stores/` (20), `src/hooks/` (29), `src/utils/` (29), `src/types/` (14), `src/lib/` (4), `src/app/` (the Phase-3 shell).
+- **Target (plan):** `src/{app,features,platform,ui,lib}`. Each feature *gathers* its files from the multiple current layer-dirs (e.g. Email = `components/mail/` + mail bits of `components/chat/` + `stores/mailStore` + `utils/mail-commands` + mail types).
+- **Existing aliases live in 3 files — update all 3:** `tsconfig.json`, `vite.config.ts`, `vitest.config.ts` (currently `@/*`, `@/components/*`, `@/modules/*`, `@/stores/*`, `@/hooks/*`, `@/types/*`, `@/utils/*`, `@/lib/*`, `@/tools/*`).
+- **Approach (plan §4b–4e):** add `@/app`/`@/features`/`@/platform`/`@/ui` aliases (keep the old ones as shims so nothing breaks at once) → move ONE feature per commit, smallest first (email → audit → workflows → ask → documents → matters → firm → settings), then platform modules → **codemod the imports, never hand-edit** → `typecheck` + full `vitest` green between each → drop the `Reimagined` prefix per surface once there's no legacy twin. A bad move = a 1-feature revert, not a 547-file untangle.
+- **Delegation:** the per-feature move + import-codemod is mechanical → safe to delegate to **Sonnet subagents** with a tight spec, but **verify centrally** (`git diff --stat` + your own `tsc` + `vitest` + confirm `git rev-parse HEAD` actually advanced — a subagent fabricated a report earlier; trust artifacts, not prose).
+
+### Then Phase 5 — finalize (after the migration)
+Rewrite `CLAUDE.md` Directory-Structure/Key-Files/Architecture sections to the new tree; add `ARCHITECTURE.md` (5-layer DAG `lib ← ui ← platform ← features ← app`, "features never import features"); i18n sweep (orphaned whiteboard/markdown keys + the license-unlocks string); final `projelli`/`Reimagined`/stale-string sweep; remove the back-compat alias shims + the matter-store alias shims.
+
+### Optional safe-tier leftover
+`SettingsContent` (1120) can still go under 800 via the same safe-tier extraction (SettingRow / SubSection / AccordionSection / ShortcutsSection / section-renderers) — low-risk, off the critical path.
+
+---
+
 ## LATEST UPDATE (2026-06-17, continued) — BOTH deferred atomic moves DONE ✅
 
 The two risky deferred fat-hook moves (item 1 below) are **DONE, byte-verbatim, gates green, pushed.** **HEAD: `3317577`** (local==origin).
