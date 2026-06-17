@@ -65,14 +65,14 @@ vi.mock('@/stores/professionStore', () => ({
     selector({ profession: mockProfession }),
   getProfession: () => mockProfession,
 }));
-vi.mock('@/modules/memory/matterResolver', () => ({
+vi.mock('@/platform/rag/matterResolver', () => ({
   matterLabel: (m: unknown) => String(m),
 }));
-vi.mock('@/modules/memory/MemoryService', () => ({
+vi.mock('@/platform/rag/MemoryService', () => ({
   MemoryService: { retrieve: vi.fn().mockResolvedValue([]) },
   isMemoryEnabled: () => false,
 }));
-vi.mock('@/modules/memory/workspaceCommand', () => ({
+vi.mock('@/platform/rag/workspaceCommand', () => ({
   DEFAULT_WORKSPACE_TOP_K: 5,
   buildWorkspaceContextBlock: () => '',
   citationBasename: (p: string) => p,
@@ -80,22 +80,22 @@ vi.mock('@/modules/memory/workspaceCommand', () => ({
   resolveCitationPath: () => null,
 }));
 const mockGetKey = vi.fn().mockResolvedValue(null);
-vi.mock('@/modules/models/KeychainService', () => ({
+vi.mock('@/platform/providers/KeychainService', () => ({
   // Must use `function` (not an arrow) so `new KeychainService(...)` works.
   KeychainService: vi.fn().mockImplementation(function () {
     return { getKey: mockGetKey };
   }),
 }));
-vi.mock('@/modules/models/OllamaProvider', () => ({
+vi.mock('@/platform/providers/OllamaProvider', () => ({
   OllamaProvider: vi.fn().mockImplementation(() => ({
     sendMessage: vi.fn().mockResolvedValue({ content: 'Mock answer' }),
     getMetadata: vi.fn().mockReturnValue({ provider: 'ollama', model: 'test' }),
   })),
 }));
-vi.mock('@/modules/models/ClaudeProvider', () => ({ ClaudeProvider: vi.fn() }));
-vi.mock('@/modules/models/OpenAIProvider', () => ({ OpenAIProvider: vi.fn() }));
-vi.mock('@/modules/models/GeminiProvider', () => ({ GeminiProvider: vi.fn() }));
-vi.mock('@/components/privacy/EgressIndicator', () => ({
+vi.mock('@/platform/providers/ClaudeProvider', () => ({ ClaudeProvider: vi.fn() }));
+vi.mock('@/platform/providers/OpenAIProvider', () => ({ OpenAIProvider: vi.fn() }));
+vi.mock('@/platform/providers/GeminiProvider', () => ({ GeminiProvider: vi.fn() }));
+vi.mock('@/platform/privacy/ui/EgressIndicator', () => ({
   EgressIndicator: () => null,
 }));
 vi.mock('@/hooks/useConfidentialityMode', () => ({
@@ -598,7 +598,7 @@ describe('ReimaginedAsk', () => {
     // The MemoryService mock is already set up at the top of the file.
     // Here we configure retrieve to return mixed hits and verify the component
     // invokes retrieve when the Email scope is selected.
-    const { MemoryService: MS } = await import('@/modules/memory/MemoryService');
+    const { MemoryService: MS } = await import('@/platform/rag/MemoryService');
 
     const mailHit = { path: 'mail:abc123', chunkText: 'email body', score: 0.9, paragraphIndex: 0, sourceType: 'mail' as const };
     const docHit  = { path: '/workspace/brief.docx', chunkText: 'doc body', score: 0.8, paragraphIndex: 1, sourceType: 'docx' as const };
@@ -623,7 +623,7 @@ describe('ReimaginedAsk', () => {
   });
 
   it('filterHitsByScope keeps only non-mail hits for documents scope', async () => {
-    const { MemoryService: MS2 } = await import('@/modules/memory/MemoryService');
+    const { MemoryService: MS2 } = await import('@/platform/rag/MemoryService');
     const mailHit2 = { path: 'mail:abc456', chunkText: 'email body 2', score: 0.85, paragraphIndex: 0, sourceType: 'mail' as const };
     const docHit2  = { path: '/workspace/contract.pdf', chunkText: 'clause text', score: 0.9, paragraphIndex: 2, sourceType: 'pdf' as const };
 

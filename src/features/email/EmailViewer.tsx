@@ -51,13 +51,13 @@ import {
   type Privilege,
 } from '@/types/privilege';
 import { deriveFilenameFromMessage } from '@/utils/fileDrop';
-import { createKeychainService } from '@/modules/models/KeychainService';
-import { createClaudeProvider } from '@/modules/models/ClaudeProvider';
-import { createOpenAIProvider } from '@/modules/models/OpenAIProvider';
-import { createGeminiProvider } from '@/modules/models/GeminiProvider';
-import { OllamaProvider } from '@/modules/models/OllamaProvider';
-import type { Provider } from '@/modules/models/Provider';
-import { matterLabel } from '@/modules/memory/matterResolver';
+import { createKeychainService } from '@/platform/providers/KeychainService';
+import { createClaudeProvider } from '@/platform/providers/ClaudeProvider';
+import { createOpenAIProvider } from '@/platform/providers/OpenAIProvider';
+import { createGeminiProvider } from '@/platform/providers/GeminiProvider';
+import { OllamaProvider } from '@/platform/providers/OllamaProvider';
+import type { Provider } from '@/platform/providers/Provider';
+import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
 
 export interface EmailViewerProps {

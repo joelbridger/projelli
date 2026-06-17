@@ -19,8 +19,8 @@ vi.mock('@/utils/openExternal', () => ({
 }));
 
 // Keep the local-path detection deterministic; this flow test doesn't drive it.
-vi.mock('@/modules/models/OllamaProvider', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/modules/models/OllamaProvider')>();
+vi.mock('@/platform/providers/OllamaProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/providers/OllamaProvider')>();
   return { ...actual, detectOllama: vi.fn(async () => ({ reachable: false, models: [] })) };
 });
 

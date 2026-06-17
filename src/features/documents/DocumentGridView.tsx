@@ -27,7 +27,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { TrashPanel } from '@/features/documents/TrashPanel';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
-import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
+import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { FileNode } from '@/types/workspace';
 
 // ── Icon helpers ───────────────────────────────────────────────────────────

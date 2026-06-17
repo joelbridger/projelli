@@ -49,11 +49,11 @@ import {
   PROVIDER_TUTORIALS,
   type ProviderId,
 } from '@/features/onboarding/ProviderTutorialSteps';
-import { detectOllama } from '@/modules/models/OllamaProvider';
+import { detectOllama } from '@/platform/providers/OllamaProvider';
 import { useSetConfidentialityMode } from '@/hooks/useConfidentialityMode';
 import { openExternal } from '@/utils/openExternal';
 import { clearAiSetupDeferred } from '@/features/onboarding/aiSetupState';
-import type { KeyProvider } from '@/modules/models/KeychainService';
+import type { KeyProvider } from '@/platform/providers/KeychainService';
 import { useProfessionCopy } from '@/features/onboarding/useProfessionCopy';
 
 /** Which screen of the AI-setup step the user is on. */

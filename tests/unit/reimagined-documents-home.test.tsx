@@ -23,7 +23,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReimaginedDocumentsHome, type ReimaginedDocumentsHomeProps } from '@/features/documents/ReimaginedDocumentsHome';
 import type { FileNode } from '@/types/workspace';
-import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
+import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 
 // ── Store mocks ────────────────────────────────────────────────────────────
 
@@ -111,7 +111,7 @@ vi.mock('@/features/documents/TrashPanel', () => ({
 // by its own suite + the campaign filetree sweep; here we only need to confirm
 // the Tree | Grid toggle mounts it and hands it the move handler. The stub
 // exposes a button that invokes onMove so we can assert wiring if needed.
-vi.mock('@/components/workspace/FileTree', () => ({
+vi.mock('@/platform/fs/ui/FileTree', () => ({
   FileTree: ({
     onMove,
   }: {

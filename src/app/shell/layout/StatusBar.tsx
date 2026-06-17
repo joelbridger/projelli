@@ -21,7 +21,7 @@ import { useLicense } from '@/hooks/useLicense';
 // Privileged Matter Mode: persistent badge stating network extensions are off.
 import { usePrivilegedMatterMode } from '@/hooks/usePrivilegedMatterMode';
 // F-120 (VG-5a): live pulse while a provider request is actually in flight.
-import { useEgressActivityStore } from '@/modules/privacy/egressActivity';
+import { useEgressActivityStore } from '@/platform/privacy/egressActivity';
 import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
 
 /**

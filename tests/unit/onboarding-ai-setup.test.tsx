@@ -29,8 +29,8 @@ vi.mock('@/utils/openExternal', () => ({
 // The "Test this key" button calls validateApiKeyLive. Mock it so we control
 // the success/failure outcome without a network call.
 const mockValidate = vi.fn();
-vi.mock('@/modules/models/apiKeyValidation', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/modules/models/apiKeyValidation')>();
+vi.mock('@/platform/providers/apiKeyValidation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/providers/apiKeyValidation')>();
   return {
     ...actual,
     validateApiKeyLive: (...args: unknown[]) => mockValidate(...args),
@@ -40,8 +40,8 @@ vi.mock('@/modules/models/apiKeyValidation', async (importOriginal) => {
 // detectOllama drives the local path. Default to "reachable with a model";
 // individual tests override.
 const mockDetectOllama = vi.fn(async () => ({ reachable: true, models: ['llama3.2:3b'] }));
-vi.mock('@/modules/models/OllamaProvider', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/modules/models/OllamaProvider')>();
+vi.mock('@/platform/providers/OllamaProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/providers/OllamaProvider')>();
   return {
     ...actual,
     detectOllama: (...args: unknown[]) => mockDetectOllama(...args),
@@ -61,7 +61,7 @@ import { DEFAULT_ANTHROPIC_PAID } from '@/utils/defaultModel';
 import { useSettingsStore } from '@/stores/settingsStore';
 import {
   CONFIDENTIALITY_MODE_SETTING_KEY,
-} from '@/modules/privacy/egress';
+} from '@/platform/privacy/egress';
 
 beforeEach(() => {
   vi.clearAllMocks();

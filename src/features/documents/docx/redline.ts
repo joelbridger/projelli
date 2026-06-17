@@ -29,7 +29,7 @@ import type {
   DocxAiEdit,
   DocxParagraph,
 } from '@/types/docx';
-import type { OutputSchema, Provider } from '@/modules/models/Provider';
+import type { OutputSchema, Provider } from '@/platform/providers/Provider';
 
 /** Author string stamped on AI redline revisions (matches the engine default). */
 export const REDLINE_AUTHOR = 'Keepance AI';

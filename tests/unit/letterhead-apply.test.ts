@@ -28,7 +28,7 @@ vi.mock('@/stores/workspaceStore', () => ({
   },
 }));
 
-vi.mock('@/modules/workspace/pathResolve', () => ({
+vi.mock('@/platform/fs/pathResolve', () => ({
   resolveWorkspacePath: (root: string, p: string) =>
     p.startsWith('/') ? p : `${root}/${p}`,
 }));

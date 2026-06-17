@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Provider, ProviderContentBlock } from '@/modules/models/Provider';
+import type { Provider, ProviderContentBlock } from '@/platform/providers/Provider';
 import type { ChatAttachment } from '@/types/ai';
 
 describe('Provider interface extension', () => {

@@ -16,7 +16,7 @@
 // so the orchestration layer can attribute failure to the right phase.
 
 import { invoke } from '@tauri-apps/api/core';
-import type { FSBackend } from '@/modules/workspace/types';
+import type { FSBackend } from '@/platform/fs/types';
 
 export interface DownloadProgress {
   /** Bytes downloaded so far. */

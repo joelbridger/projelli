@@ -21,7 +21,7 @@
  *   must NOT rely on meta.id being non-empty from the CRDT.
  */
 import { describe, it, expect } from 'vitest';
-import { documentJsonToYDoc, yDocToDocumentJson } from '@/modules/coedit/docCrdt';
+import { documentJsonToYDoc, yDocToDocumentJson } from '@/platform/firm/coedit/docCrdt';
 import type { DocumentJson, DocxParagraph, DocxInlineInsertion, DocxInlineDeletion } from '@/types/docx';
 
 // ---------------------------------------------------------------------------

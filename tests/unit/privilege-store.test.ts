@@ -12,7 +12,7 @@ import { usePrivilegeStore } from '@/stores/privilegeStore';
 import {
   resolvePrivilege,
   normalizeSourceId,
-} from '@/modules/memory/privilegeResolver';
+} from '@/platform/rag/privilegeResolver';
 import { isPrivileged } from '@/types/privilege';
 
 function resetStore() {

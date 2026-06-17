@@ -49,16 +49,16 @@ import { cn } from '@/lib/utils';
 import { useMatters, useMatterStore, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { mailConnectedAccounts, type ConnectedAccount } from '@/utils/mail-commands';
-import { mailFolderKey } from '@/modules/memory/matterResolver';
+import { mailFolderKey } from '@/platform/rag/matterResolver';
 import { useFirm } from '@/hooks/useFirm';
 import { useFirmStore } from '@/stores/firmStore';
 import {
   getOrCreateMatterKey,
   publishMatterKeyToMembers,
   obtainMatterKey,
-} from '@/modules/firm/matterKeyService';
-import { registerDevice } from '@/modules/firm/deviceKeys';
-import type { MatterMineSummary } from '@/modules/firm/contract';
+} from '@/platform/firm/matterKeyService';
+import { registerDevice } from '@/platform/firm/deviceKeys';
+import type { MatterMineSummary } from '@/platform/firm/contract';
 import { openMatterNotes } from '@/features/matters/logic/openMatterNotes';
 import { stopMatterSync } from '@/features/matters/logic/matterNotesSync';
 import { useEntityLabel } from '@/hooks/useEntityLabel';

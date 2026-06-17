@@ -12,7 +12,7 @@ import { Textarea } from '@/ui/textarea';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { Bug, Loader2 } from 'lucide-react';
-import { getCorsSafeFetch } from '@/modules/models/fetchUtils';
+import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
 import { openExternal } from '@/utils/openExternal';
 
 const BUG_REPORT_URL = 'https://keepance.com/api/forms/keepance/bug-report';

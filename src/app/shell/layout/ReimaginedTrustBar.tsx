@@ -18,10 +18,10 @@
 import { useState, useMemo } from 'react';
 import { Briefcase, Globe, Map as MapIcon, Info } from 'lucide-react';
 import { useActiveMatter } from '@/stores/matterStore';
-import { matterLabel } from '@/modules/memory/matterResolver';
+import { matterLabel } from '@/platform/rag/matterResolver';
 import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
-import { EgressIndicator } from '@/components/privacy/EgressIndicator';
-import { DataMapDialog } from '@/components/privacy/DataMapDialog';
+import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
+import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import {
   Tooltip,
   TooltipContent,
@@ -29,7 +29,7 @@ import {
 } from '@/ui/tooltip';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
-import type { EgressProvider } from '@/modules/privacy/egress';
+import type { EgressProvider } from '@/platform/privacy/egress';
 
 /**
  * Derive the active AI provider for the egress pill.

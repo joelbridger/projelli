@@ -7,8 +7,8 @@ import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { useFirmStore } from '@/stores/firmStore';
-import { publishMatterKeyToMembers } from '@/modules/firm/matterKeyService';
-import type { MatterMembersResponse } from '@/modules/firm/contract';
+import { publishMatterKeyToMembers } from '@/platform/firm/matterKeyService';
+import type { MatterMembersResponse } from '@/platform/firm/contract';
 import { generateTempPassword, audit } from './matterManagerDialogHelpers';
 
 export interface MemberRosterProps {

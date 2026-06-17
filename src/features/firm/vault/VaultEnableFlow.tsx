@@ -22,7 +22,7 @@ import { useVaultStore } from '@/stores/vaultStore';
 import { RecoveryPhraseCeremony } from './RecoveryPhraseCeremony';
 import { Button } from '@/ui/button';
 import { Loader2, ShieldCheck, Lock, KeyRound } from 'lucide-react';
-import type { AdminDevice } from '@/modules/vault/vaultClient';
+import type { AdminDevice } from '@/platform/firm/vault/vaultClient';
 
 interface VaultEnableFlowProps {
   workspace: string;

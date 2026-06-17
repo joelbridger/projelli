@@ -41,20 +41,20 @@ vi.mock('@tauri-apps/api/core', () => ({
 // ── Mock CORS-safe fetch — the FirmApiClient stubs calls made via publishMatterKeyToMembers
 // / obtainMatterKey won't use it (we mock the FirmApiClient methods directly instead).
 const fetchMock = vi.fn();
-vi.mock('@/modules/models/fetchUtils', () => ({
+vi.mock('@/platform/providers/fetchUtils', () => ({
   getCorsSafeFetch: async () => fetchMock as unknown as typeof fetch,
 }));
 
-import { FirmApiClient, FirmApiError } from '@/modules/firm/FirmApiClient';
+import { FirmApiClient, FirmApiError } from '@/platform/firm/FirmApiClient';
 import {
   publishMatterKeyToMembers,
   obtainMatterKey,
   deviceSetFingerprint,
   autoRepublishHeldMatterKeys,
-} from '@/modules/firm/matterKeyService';
-import { storeMatterKey, loadMatterKey } from '@/modules/firm/firmKeychain';
-import { getOrCreateDeviceKeypair, _resetDeviceCache } from '@/modules/firm/deviceKeys';
-import { generateMatterKey } from '@/modules/firm/matterCrypto';
+} from '@/platform/firm/matterKeyService';
+import { storeMatterKey, loadMatterKey } from '@/platform/firm/firmKeychain';
+import { getOrCreateDeviceKeypair, _resetDeviceCache } from '@/platform/firm/deviceKeys';
+import { generateMatterKey } from '@/platform/firm/matterCrypto';
 
 // ── Helpers to generate ECDH P-256 key pairs for test "member devices"
 async function generateMemberKeyPair(): Promise<{ publicJwk: JsonWebKey; privateJwk: JsonWebKey }> {
@@ -251,7 +251,7 @@ describe('obtainMatterKey', () => {
     const matterKeyB64 = await generateMatterKey();
 
     // Import wrapMatterKey to create the wrapped blob as the server would have stored it
-    const { wrapMatterKey } = await import('@/modules/firm/keyWrap');
+    const { wrapMatterKey } = await import('@/platform/firm/keyWrap');
     const wrappedKeyB64 = await wrapMatterKey(matterKeyB64, publicJwk, 2);
 
     const client = mockClient();

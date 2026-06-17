@@ -13,7 +13,7 @@ import { WordCountFooter } from './WordCountFooter';
 import { InlineChatAnchor } from './InlineChatAnchor';
 import { StreamingDiffOverlay } from './StreamingDiffOverlay';
 import { codeMirrorAdapter, useInlineAiEdit } from './useInlineAiEdit';
-import type { Provider } from '@/modules/models/Provider';
+import type { Provider } from '@/platform/providers/Provider';
 
 interface PlainTextEditorProps {
   initialContent: string;

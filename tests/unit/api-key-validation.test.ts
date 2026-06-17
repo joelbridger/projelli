@@ -16,7 +16,7 @@ import {
   validateApiKeyLive,
   type ValidationProvider,
   type ValidationOutcome,
-} from '@/modules/models/apiKeyValidation';
+} from '@/platform/providers/apiKeyValidation';
 
 // ---------------------------------------------------------------------------
 // 1. checkKeyFormat — pure, no I/O

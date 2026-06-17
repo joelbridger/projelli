@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AttachmentService } from '@/features/ask/attachments/AttachmentService';
-import type { FSBackend } from '@/modules/workspace/types';
+import type { FSBackend } from '@/platform/fs/types';
 
 // FSBackend uses readBinary/writeBinary with ArrayBuffer (not readBytes/writeBytes with Uint8Array).
 // The mock stores Uint8Array internally and converts at the boundary.

@@ -25,7 +25,7 @@ import {
   addTrackedInsertion,
   addTrackedDeletion,
   resolveRevision,
-} from '@/modules/coedit/docCrdt';
+} from '@/platform/firm/coedit/docCrdt';
 import type { DocumentJson, DocxParagraph } from '@/types/docx';
 
 // ---------------------------------------------------------------------------

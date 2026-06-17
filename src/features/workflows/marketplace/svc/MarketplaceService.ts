@@ -1,7 +1,7 @@
-import type { FSBackend } from '@/modules/workspace/types';
+import type { FSBackend } from '@/platform/fs/types';
 import type { CatalogEntry, InstalledEntry, UpdateInfo, TemplateProvenance } from '@/features/workflows/types/marketplace';
 import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
-import { AuditService } from '@/modules/audit/AuditService';
+import { AuditService } from '@/platform/audit/AuditService';
 import {
   downloadTarball,
   verifyChecksum,

@@ -1290,7 +1290,7 @@ export async function applyLetterheadIfConfigured(bytes: Uint8Array): Promise<Ui
     // Resolve a workspace-relative template path to absolute (mirrors the
     // docx command wrappers), then read its bytes via the Tauri fs plugin.
     const { useWorkspaceStore } = await import('@/stores/workspaceStore');
-    const { resolveWorkspacePath } = await import('@/modules/workspace/pathResolve');
+    const { resolveWorkspacePath } = await import('@/platform/fs/pathResolve');
     const rootPath = useWorkspaceStore.getState().rootPath;
     const absoluteTemplatePath = rootPath
       ? resolveWorkspacePath(rootPath, templatePath)

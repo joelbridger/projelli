@@ -15,7 +15,7 @@ import type { AuditEntry } from '@/types/audit';
 import { LicenseSettings } from '@/features/settings/LicenseSettings';
 import { FirmSignIn } from '@/features/firm/FirmSignIn';
 import { FirmAdminConsole } from '@/features/firm/FirmAdminConsole';
-import { CostMetrics } from '@/components/analysis/CostMetrics';
+import { CostMetrics } from '@/platform/analysis/ui/CostMetrics';
 import { MailConnect } from '@/features/settings/MailConnect';
 import { MailImapConnect } from '@/features/settings/MailImapConnect';
 import { MailGmailConnect } from '@/features/settings/MailGmailConnect';

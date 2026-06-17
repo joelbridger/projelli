@@ -31,7 +31,7 @@ import {
   type TrialContext,
   type Entitlement,
   type EntitledTier,
-} from '@/modules/licensing/entitlements';
+} from '@/platform/licensing/entitlements';
 
 // A stable "now" well after the 3.0 launch for most cases.
 const NOW = new Date('2026-09-01T12:00:00.000Z');

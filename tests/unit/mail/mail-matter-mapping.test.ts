@@ -13,7 +13,7 @@ import {
   parseMailFolderKey,
   resolveMailMatter,
   buildMailMatterMap,
-} from '@/modules/memory/matterResolver';
+} from '@/platform/rag/matterResolver';
 import { UNASSIGNED_MATTER_ID, type Matter } from '@/types/matter';
 import { useMatterStore } from '@/stores/matterStore';
 

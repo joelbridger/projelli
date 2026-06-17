@@ -26,7 +26,7 @@ import {
   normalizeSourceId,
   resolvePrivilege,
   type PrivilegeMap,
-} from '@/modules/memory/privilegeResolver';
+} from '@/platform/rag/privilegeResolver';
 import {
   DEFAULT_PRIVILEGE,
   isPrivileged,

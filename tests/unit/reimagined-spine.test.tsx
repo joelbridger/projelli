@@ -11,7 +11,7 @@ vi.mock('@/stores/matterStore', () => ({
   useMatterStore: (selector: (s: { setActiveMatter: () => void }) => unknown) =>
     selector({ setActiveMatter: vi.fn() }),
 }));
-vi.mock('@/modules/memory/matterResolver', () => ({
+vi.mock('@/platform/rag/matterResolver', () => ({
   matterLabel: (m: unknown) => String(m),
 }));
 

@@ -3,7 +3,7 @@ import {
   isVisionModel,
   getSuggestedVisionModel,
   SUPPORTED_IMAGE_MIMES,
-} from '@/modules/models/vision-capability';
+} from '@/platform/providers/vision-capability';
 
 describe('isVisionModel', () => {
   // Claude vision models

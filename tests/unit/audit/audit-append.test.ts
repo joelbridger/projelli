@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { AuditService, auditEventToEntry } from '@/modules/audit/AuditService';
+import { AuditService, auditEventToEntry } from '@/platform/audit/AuditService';
 
 describe('AuditService.append accepts v2.0 events', () => {
   let svc: AuditService;

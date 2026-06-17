@@ -37,7 +37,7 @@ import {
   resetPdfIndexingEnabledReader,
   setMemoryEnabledReader,
   setPdfIndexingEnabledReader,
-} from '@/modules/memory/MemoryService';
+} from '@/platform/rag/MemoryService';
 
 describe('isPdfIndexingEnabled', () => {
   afterEach(() => {

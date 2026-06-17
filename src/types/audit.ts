@@ -2,7 +2,7 @@
 
 // The egress event mirrors the egress source of truth. `egress.ts` is a pure,
 // dependency-free module, so importing its types here is safe (no cycle).
-import type { ConfidentialityMode, EgressDestination } from '@/modules/privacy/egress';
+import type { ConfidentialityMode, EgressDestination } from '@/platform/privacy/egress';
 
 /**
  * Types of audit actions

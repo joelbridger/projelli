@@ -20,9 +20,9 @@ import {
   markRejected,
   runExtraction,
   shouldRunExtraction,
-} from '@/modules/memory/factsExtraction';
+} from '@/platform/rag/factsExtraction';
 import type { ChatMessage } from '@/types/ai';
-import type { Provider, ProviderMetadata } from '@/modules/models/Provider';
+import type { Provider, ProviderMetadata } from '@/platform/providers/Provider';
 
 function makeProvider(
   behavior: (prompt: string) => Promise<unknown> | unknown,

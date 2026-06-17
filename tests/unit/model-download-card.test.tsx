@@ -11,7 +11,7 @@
  */
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { ModelDownloadCard } from '@/components/memory/ModelDownloadCard';
+import { ModelDownloadCard } from '@/platform/rag/ui/ModelDownloadCard';
 
 const MB = 1024 * 1024;
 

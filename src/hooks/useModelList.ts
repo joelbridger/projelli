@@ -2,14 +2,14 @@
 // Fetches model lists for providers with valid API keys on mount/change
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { ProviderType } from '@/modules/models/fetchUtils';
+import type { ProviderType } from '@/platform/providers/fetchUtils';
 import {
   type ModelInfo,
   getModels,
   refreshModels,
   clearModelCache,
   getDefaultModels,
-} from '@/modules/models/ModelListService';
+} from '@/platform/providers/ModelListService';
 
 interface ApiKeyEntry {
   provider: ProviderType;

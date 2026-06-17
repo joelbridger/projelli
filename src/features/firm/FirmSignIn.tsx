@@ -31,7 +31,7 @@ import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { cn } from '@/lib/utils';
 import { useFirm } from '@/hooks/useFirm';
-import type { SeatLimitExceededResponse } from '@/modules/firm/contract';
+import type { SeatLimitExceededResponse } from '@/platform/firm/contract';
 
 type Panel = 'signin' | 'claim';
 

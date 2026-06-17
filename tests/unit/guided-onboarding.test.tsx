@@ -53,7 +53,7 @@ vi.mock('@/features/firm/FirmSignIn', () => ({
   FirmSignIn: () => <div data-testid="firm-sign-in-stub">FirmSignIn</div>,
 }));
 
-vi.mock('@/components/privacy/DataMapDialog', () => ({
+vi.mock('@/platform/privacy/ui/DataMapDialog', () => ({
   DataMapContent: ({ variant }: { variant: string }) => (
     <div data-testid="data-map-content-stub" data-variant={variant}>DataMapContent</div>
   ),

@@ -9,14 +9,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { MockProvider } from '@/modules/models/MockProvider';
+import { MockProvider } from '@/platform/providers/MockProvider';
 import {
   runMultiInterviewSynthesis,
   splitPastedTranscripts,
   type MultiInterviewSynthesisResult,
   type TranscriptInput,
   type TranscriptSummary,
-} from '@/modules/analysis/MultiInterviewSynthesis';
+} from '@/platform/analysis/MultiInterviewSynthesis';
 
 function synthesisResultFixture(): MultiInterviewSynthesisResult {
   return {

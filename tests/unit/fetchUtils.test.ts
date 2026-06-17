@@ -1,6 +1,6 @@
 // Unit tests for safeJsonParse — the Tauri HTTP plugin trailing-byte fix
 import { describe, it, expect } from 'vitest';
-import { safeJsonParse, ApiResponseParseError } from '@/modules/models/fetchUtils';
+import { safeJsonParse, ApiResponseParseError } from '@/platform/providers/fetchUtils';
 
 function makeResponse(body: string): Response {
   return new Response(body, {

@@ -22,8 +22,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 import * as tauriCore from '@tauri-apps/api/core';
 import { MarketplaceService } from '@/features/workflows/marketplace/svc/MarketplaceService';
-import { AuditService } from '@/modules/audit/AuditService';
-import type { FSBackend } from '@/modules/workspace/types';
+import { AuditService } from '@/platform/audit/AuditService';
+import type { FSBackend } from '@/platform/fs/types';
 import type { CatalogEntry } from '@/features/workflows/types/marketplace';
 import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
 

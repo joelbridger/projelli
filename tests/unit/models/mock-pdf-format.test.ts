@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { MockProvider } from '@/modules/models/MockProvider';
+import { MockProvider } from '@/platform/providers/MockProvider';
 import type { ChatAttachment } from '@/types/ai';
 
 vi.mock('@/lib/pdf-extract', () => ({

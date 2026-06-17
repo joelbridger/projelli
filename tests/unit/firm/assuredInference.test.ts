@@ -16,8 +16,8 @@ import {
   buildAssuredRequest,
   applyAssuredRoute,
   type AssuredRoute,
-} from '@/modules/firm/assuredInference';
-import { resolveEgress } from '@/modules/privacy/egress';
+} from '@/platform/firm/assuredInference';
+import { resolveEgress } from '@/platform/privacy/egress';
 
 const route: AssuredRoute = {
   provider: 'anthropic',
@@ -114,7 +114,7 @@ describe('resolveAssuredRoute (policy gate)', () => {
       getFirmSeatToken: () => 'SEAT',
       getAssuredProviders: () => ['anthropic'],
     }));
-    const { resolveAssuredRoute } = await import('@/modules/firm/resolveAssuredRoute');
+    const { resolveAssuredRoute } = await import('@/platform/firm/resolveAssuredRoute');
     const r = resolveAssuredRoute('anthropic', 'm1');
     expect(r).toBeDefined();
     expect(r?.accessToken).toBe('ACCESS');
@@ -135,7 +135,7 @@ describe('resolveAssuredRoute (policy gate)', () => {
       getFirmSeatToken: () => 'SEAT',
       getAssuredProviders: () => ['anthropic'],
     }));
-    const { resolveAssuredRoute } = await import('@/modules/firm/resolveAssuredRoute');
+    const { resolveAssuredRoute } = await import('@/platform/firm/resolveAssuredRoute');
     expect(resolveAssuredRoute('anthropic', 'm1')).toBeUndefined();
   });
 });

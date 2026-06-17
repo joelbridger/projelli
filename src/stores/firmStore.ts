@@ -21,20 +21,20 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { FirmApiClient, FirmApiError, type TokenSource } from '@/modules/firm/FirmApiClient';
-import { getFirmApiBase } from '@/modules/firm/firmConfig';
-import { verifySeatToken } from '@/modules/firm/seatToken';
+import { FirmApiClient, FirmApiError, type TokenSource } from '@/platform/firm/FirmApiClient';
+import { getFirmApiBase } from '@/platform/firm/firmConfig';
+import { verifySeatToken } from '@/platform/firm/seatToken';
 import {
   storeAuthTokens,
   storeSeatToken,
   loadFirmTokens,
   clearUserSecrets,
-} from '@/modules/firm/firmKeychain';
+} from '@/platform/firm/firmKeychain';
 import {
   decideFirmEntitlement,
   type FirmSeatState,
-} from '@/modules/firm/firmEntitlement';
-import type { Entitlement } from '@/modules/licensing/entitlements';
+} from '@/platform/firm/firmEntitlement';
+import type { Entitlement } from '@/platform/licensing/entitlements';
 import type {
   LoginResponse,
   PublicUser,
@@ -43,7 +43,7 @@ import type {
   SeatLimitExceededResponse,
   AssuredProvider,
   OrgClaimResponse,
-} from '@/modules/firm/contract';
+} from '@/platform/firm/contract';
 
 /** Stable per-machine id, shared with the licensing hook's convention. */
 const MACHINE_ID_KEY = 'keepance_machine_id';

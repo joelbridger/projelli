@@ -38,7 +38,7 @@ vi.mock('@/stores/privilegeStore', () => ({
   usePrivilegeForSource: vi.fn(() => 'none'),
 }));
 
-vi.mock('@/modules/memory/matterResolver', () => ({
+vi.mock('@/platform/rag/matterResolver', () => ({
   matterLabel: vi.fn((m: { name: string }) => m.name),
 }));
 
@@ -48,11 +48,11 @@ vi.mock('react-i18next', () => ({
 }));
 
 // Stub provider building so Draft with AI doesn't hit real APIs
-vi.mock('@/modules/models/KeychainService', () => ({
+vi.mock('@/platform/providers/KeychainService', () => ({
   createKeychainService: vi.fn(() => ({ getKey: vi.fn(async () => null) })),
 }));
 
-vi.mock('@/modules/models/OllamaProvider', () => ({
+vi.mock('@/platform/providers/OllamaProvider', () => ({
   OllamaProvider: vi.fn().mockImplementation(() => ({
     sendMessage: vi.fn(async () => ({ content: 'Draft reply here.' })),
   })),

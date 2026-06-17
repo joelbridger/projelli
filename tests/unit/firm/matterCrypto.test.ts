@@ -11,7 +11,7 @@ import {
   importMatterKey,
   encryptUpdate,
   decryptUpdate,
-} from '@/modules/firm/matterCrypto';
+} from '@/platform/firm/matterCrypto';
 
 const enc = (s: string) => new TextEncoder().encode(s);
 const dec = (b: Uint8Array) => new TextDecoder().decode(b);

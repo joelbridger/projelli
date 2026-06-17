@@ -11,8 +11,8 @@ import {
   buildFactsMemoryBlock,
   injectFactsMemory,
   type Fact,
-} from '@/modules/memory/FactsService';
-import { buildWorkspaceContextBlock } from '@/modules/memory/workspaceCommand';
+} from '@/platform/rag/FactsService';
+import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
 
 const FACTS: Fact[] = [
   {

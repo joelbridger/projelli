@@ -42,7 +42,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 // ── Mock the CORS-safe fetch the FirmApiClient uses. Driven per-test.
 const fetchMock = vi.fn();
-vi.mock('@/modules/models/fetchUtils', () => ({
+vi.mock('@/platform/providers/fetchUtils', () => ({
   getCorsSafeFetch: async () => fetchMock as unknown as typeof fetch,
 }));
 

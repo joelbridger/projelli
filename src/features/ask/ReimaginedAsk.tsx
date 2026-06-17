@@ -30,10 +30,10 @@ import { SourcePanel } from './SourcePanel';
 import { SampleBridgeCallout } from './SampleBridgeCallout';
 import { TurnBlock } from './TurnBlock';
 import { SAMPLE_MATTER_ID } from '@/stores/matterStore';
-import { matterLabel } from '@/modules/memory/matterResolver';
-import { isMemoryEnabled } from '@/modules/memory/MemoryService';
+import { matterLabel } from '@/platform/rag/matterResolver';
+import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { EgressIndicator } from '@/components/privacy/EgressIndicator';
+import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
 import { useAsk, type UseAskProps } from './useAsk';
 

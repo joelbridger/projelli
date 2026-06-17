@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useMatters, useActiveMatterId } from '@/stores/matterStore';
 import { AccountIdentity } from './AccountIdentity';
-import { matterLabel } from '@/modules/memory/matterResolver';
+import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
 

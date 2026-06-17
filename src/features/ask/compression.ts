@@ -11,7 +11,7 @@
  */
 
 import type { ChatMessage } from '@/types/ai';
-import type { Provider } from '@/modules/models/Provider';
+import type { Provider } from '@/platform/providers/Provider';
 
 /** Approximate 4 chars per token. Good enough for meter + batching. */
 export function estimateTokens(text: string): number {

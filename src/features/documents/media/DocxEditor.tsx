@@ -68,7 +68,7 @@ import {
   docxSave,
   isDocxEngineAvailable,
 } from '@/utils/docx-commands';
-import { createProvider, isLocalProviderId, type ChatProviderId } from '@/modules/models/providerFactory';
+import { createProvider, isLocalProviderId, type ChatProviderId } from '@/platform/providers/providerFactory';
 import { useTrialGate } from '@/hooks/useTrial';
 import {
   REDLINE_AUTHOR,
@@ -91,9 +91,9 @@ import type {
   GroupedRevision,
 } from '@/types/docx';
 import type { AuditEntry } from '@/types/audit';
-import type { CoeditSession } from '@/modules/coedit/coeditSession';
+import type { CoeditSession } from '@/platform/firm/coedit/coeditSession';
 import * as Y from 'yjs';
-import { editRunText, addTrackedInsertion, addTrackedDeletion, resolveRevision } from '@/modules/coedit/docCrdt';
+import { editRunText, addTrackedInsertion, addTrackedDeletion, resolveRevision } from '@/platform/firm/coedit/docCrdt';
 import { structuredCloneSafe, type RedlineSummary } from './docxEditorHelpers';
 import { DocumentBody, DocxEditorMessage } from './DocxDocumentView';
 import { ReviewPane } from './DocxReviewPane';

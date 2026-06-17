@@ -40,7 +40,7 @@ import {
   setPrivilegeResolver,
   resetPrivilegeResolver,
   resolvePrivilegeForPath,
-} from '@/modules/memory/MemoryService';
+} from '@/platform/rag/MemoryService';
 
 describe('MemoryService carries privilege + default-excludes it', () => {
   beforeEach(() => {

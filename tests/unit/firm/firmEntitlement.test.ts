@@ -8,8 +8,8 @@ import { describe, it, expect } from 'vitest';
 import {
   decideFirmEntitlement,
   type FirmSeatState,
-} from '@/modules/firm/firmEntitlement';
-import { OFFLINE_GRACE_DAYS } from '@/modules/licensing/entitlements';
+} from '@/platform/firm/firmEntitlement';
+import { OFFLINE_GRACE_DAYS } from '@/platform/licensing/entitlements';
 
 const NOW = new Date('2026-09-01T12:00:00.000Z');
 const day = (n: number) => n * 24 * 60 * 60 * 1000;

@@ -22,7 +22,7 @@
  * the Provider interface contract.
  */
 
-import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
+import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import type {
   Provider,
   ProviderResponse,
@@ -30,7 +30,7 @@ import type {
   SendOptions,
   StructuredOutputOptions,
   ProviderContentBlock,
-} from '@/modules/models/Provider';
+} from '@/platform/providers/Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getDemoSessionToken, resetDemoSessionToken } from './demoSessionToken';
 

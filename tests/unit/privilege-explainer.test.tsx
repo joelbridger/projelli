@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { summarizePrivilegeDiff } from '@/modules/memory/privilegeDiff';
+import { summarizePrivilegeDiff } from '@/platform/rag/privilegeDiff';
 import { PrivilegeExclusionExplainer } from '@/features/ask/PrivilegeExclusionExplainer';
 import type { RetrievalScope } from '@/utils/tauri-commands';
 

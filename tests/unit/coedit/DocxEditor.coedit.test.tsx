@@ -14,9 +14,9 @@ import * as Y from 'yjs';
 import {
   documentJsonToYDoc,
   yDocToDocumentJson,
-} from '@/modules/coedit/docCrdt';
+} from '@/platform/firm/coedit/docCrdt';
 import type { DocumentJson } from '@/types/docx';
-import type { CoeditSession } from '@/modules/coedit/coeditSession';
+import type { CoeditSession } from '@/platform/firm/coedit/coeditSession';
 
 // --- Tauri mock (same as DocxEditor.test.tsx) ---
 const invokeMock = vi.fn();
@@ -30,8 +30,8 @@ const editRunTextMock = vi.fn();
 const addTrackedInsertionMock = vi.fn();
 const addTrackedDeletionMock = vi.fn();
 const resolveRevisionMock = vi.fn();
-vi.mock('@/modules/coedit/docCrdt', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/modules/coedit/docCrdt')>();
+vi.mock('@/platform/firm/coedit/docCrdt', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/firm/coedit/docCrdt')>();
   return {
     ...actual,
     editRunText: (...args: unknown[]) => editRunTextMock(...args),
@@ -46,7 +46,7 @@ vi.mock('@/features/documents/docx/redline', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/features/documents/docx/redline')>();
   return { ...actual, requestRedlineEdits: vi.fn() };
 });
-vi.mock('@/modules/models/providerFactory', () => ({
+vi.mock('@/platform/providers/providerFactory', () => ({
   createProvider: vi.fn(() => ({ structuredOutput: vi.fn() })),
   isLocalProviderId: (provider: string) => provider === 'ollama',
 }));

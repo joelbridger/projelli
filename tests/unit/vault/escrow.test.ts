@@ -29,8 +29,8 @@ vi.mock('@tauri-apps/api/core', () => ({
   isTauri: () => true,
 }));
 
-import { wrapMatterKey, unwrapMatterKey } from '@/modules/firm/keyWrap';
-import { getOrCreateDeviceKeypair, _resetDeviceCache } from '@/modules/firm/deviceKeys';
+import { wrapMatterKey, unwrapMatterKey } from '@/platform/firm/keyWrap';
+import { getOrCreateDeviceKeypair, _resetDeviceCache } from '@/platform/firm/deviceKeys';
 
 describe('vault escrow reuses keyWrap', () => {
   beforeEach(() => {

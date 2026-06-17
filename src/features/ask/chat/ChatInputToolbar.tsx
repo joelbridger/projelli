@@ -25,8 +25,8 @@ import {
   SUPPORTED_IMAGE_MIMES,
   MAX_ATTACHMENT_BYTES,
   getSuggestedVisionModel,
-} from '@/modules/models/vision-capability';
-import { SUPPORTED_PDF_MIME } from '@/modules/models/pdf-capability';
+} from '@/platform/providers/vision-capability';
+import { SUPPORTED_PDF_MIME } from '@/platform/providers/pdf-capability';
 import type { ChatAttachment } from '@/types/ai';
 
 export interface ChatInputToolbarProps {

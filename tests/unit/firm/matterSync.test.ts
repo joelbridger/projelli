@@ -15,9 +15,9 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import * as Y from 'yjs';
-import { MatterSyncClient, type WebSocketLike } from '@/modules/firm/MatterSyncClient';
-import { generateMatterKey } from '@/modules/firm/matterCrypto';
-import type { PushUpdateResponse, PullUpdatesResponse } from '@/modules/firm/contract';
+import { MatterSyncClient, type WebSocketLike } from '@/platform/firm/MatterSyncClient';
+import { generateMatterKey } from '@/platform/firm/matterCrypto';
+import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
 
 // firmConfig.getMatterSyncSocketUrl is called by the client but we inject a
 // socket factory, so the URL itself is unused by the fake. No network.
@@ -128,7 +128,7 @@ function fakeClient(relay: FakeRelay) {
       ticket: `tkt_${Math.random().toString(36).slice(2)}`,
       expires_in_ms: 30_000,
     })),
-  } as unknown as import('@/modules/firm/FirmApiClient').FirmApiClient;
+  } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 }
 
 /** Wait until a predicate holds or time out (no real timers needed). */
@@ -243,7 +243,7 @@ function fakeDocClient(relay: FakeDocRelay, docId: string) {
       ticket: `tkt_${Math.random().toString(36).slice(2)}`,
       expires_in_ms: 30_000,
     })),
-  } as unknown as import('@/modules/firm/FirmApiClient').FirmApiClient;
+  } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 }
 
 describe('MatterSyncClient doc_id partitioning', () => {

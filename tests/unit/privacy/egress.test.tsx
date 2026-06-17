@@ -22,11 +22,11 @@ import {
   resolveEgress,
   CONFIDENTIALITY_MODE_SETTING_KEY,
   DEFAULT_CONFIDENTIALITY_MODE,
-} from '@/modules/privacy/egress';
-import { EgressIndicator } from '@/components/privacy/EgressIndicator';
-import { DataMapDialog } from '@/components/privacy/DataMapDialog';
+} from '@/platform/privacy/egress';
+import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
+import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import { useSettingsStore } from '@/stores/settingsStore';
-import type { ConfidentialityMode } from '@/modules/privacy/egress';
+import type { ConfidentialityMode } from '@/platform/privacy/egress';
 
 function setMode(mode: ConfidentialityMode) {
   useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, mode);

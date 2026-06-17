@@ -1,7 +1,7 @@
 /**
  * vaultClient.test.ts
  *
- * Unit tests for src/modules/vault/vaultClient.ts.
+ * Unit tests for src/platform/firm/vault/vaultClient.ts.
  *
  * Strategy:
  *   - Mock @tauri-apps/api/core (invoke + isTauri) so we can assert the exact
@@ -23,7 +23,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 const wrapMatterKeyMock = vi.fn(async (_vmkB64: string, _pub: JsonWebKey, _epoch: number) => {
   return 'wrapped-vmk-blob-b64';
 });
-vi.mock('@/modules/firm/keyWrap', () => ({
+vi.mock('@/platform/firm/keyWrap', () => ({
   wrapMatterKey: (...a: unknown[]) => wrapMatterKeyMock(...(a as [string, JsonWebKey, number])),
 }));
 
@@ -40,7 +40,7 @@ import {
   vaultDecryptAll,
   vaultDisable,
   provisionEscrow,
-} from '@/modules/vault/vaultClient';
+} from '@/platform/firm/vault/vaultClient';
 
 // ── Shared setup ─────────────────────────────────────────────────────────────
 const WORKSPACE = '/home/user/test-workspace';

@@ -24,8 +24,8 @@ import {
   runContradictionAnalysis,
   type RetrievedChunk,
 } from '@/features/workflows/engine/legalAnalysis';
-import { createMockProvider } from '@/modules/models/MockProvider';
-import type { Provider } from '@/modules/models/Provider';
+import { createMockProvider } from '@/platform/providers/MockProvider';
+import type { Provider } from '@/platform/providers/Provider';
 import type { AnalyzeStepConfig } from '@/types/workflow';
 import type { RetrievalScope } from '@/utils/tauri-commands';
 

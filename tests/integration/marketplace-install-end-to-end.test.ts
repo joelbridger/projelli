@@ -31,9 +31,9 @@ import {
   COMMUNITY_TEMPLATE_ID_PREFIX,
 } from '@/features/workflows/marketplace/svc/TemplateMetadataReader';
 import { WorkflowEngine, type FileOperations, type InterviewHandler } from '@/features/workflows/engine/WorkflowEngine';
-import { createMockProvider } from '@/modules/models/MockProvider';
-import { AuditService } from '@/modules/audit/AuditService';
-import type { FSBackend } from '@/modules/workspace/types';
+import { createMockProvider } from '@/platform/providers/MockProvider';
+import { AuditService } from '@/platform/audit/AuditService';
+import type { FSBackend } from '@/platform/fs/types';
 import type { CatalogEntry } from '@/features/workflows/types/marketplace';
 import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
 import type { WorkflowTemplate } from '@/types/workflow';

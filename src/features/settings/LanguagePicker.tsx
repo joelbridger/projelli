@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { Label } from '@/ui/label';
 import i18n from '@/i18n';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { AuditService } from '@/modules/audit/AuditService';
+import { AuditService } from '@/platform/audit/AuditService';
 
 type SupportedLocale = 'en' | 'es' | 'de';
 

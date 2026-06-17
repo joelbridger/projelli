@@ -17,10 +17,10 @@ import {
   Trash2,
   ExternalLink,
 } from 'lucide-react';
-import type { KeyProvider, StoredKey } from '@/modules/models/KeychainService';
+import type { KeyProvider, StoredKey } from '@/platform/providers/KeychainService';
 import { ApiKeyExplainer } from '@/features/onboarding/ApiKeyExplainer';
 import { ApiKeyTester } from '@/features/onboarding/ApiKeyTester';
-import type { ValidationProvider } from '@/modules/models/apiKeyValidation';
+import type { ValidationProvider } from '@/platform/providers/apiKeyValidation';
 
 interface ApiKeySettingsProps {
   keychainService: {

@@ -66,25 +66,25 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 // ── AuditService ──────────────────────────────────────────────────────────────
-vi.mock('@/modules/audit/AuditService', () => ({
+vi.mock('@/platform/audit/AuditService', () => ({
   AuditService: class { append() {} },
   isAuditEncrypted: () => false,
 }));
 
 // ── Firm key services ─────────────────────────────────────────────────────────
-vi.mock('@/modules/firm/matterKeyService', () => ({
+vi.mock('@/platform/firm/matterKeyService', () => ({
   getOrCreateMatterKey: async () => 'key',
   publishMatterKeyToMembers: async () => ({ published: 0, skippedWalled: 0 }),
   obtainMatterKey: async () => null,
 }));
 
-vi.mock('@/modules/firm/deviceKeys', () => ({
+vi.mock('@/platform/firm/deviceKeys', () => ({
   registerDevice: async () => undefined,
   _resetDeviceCache: () => undefined,
   getOrCreateDeviceKeypair: async () => ({ deviceId: 'test', publicJwk: {} }),
 }));
 
-vi.mock('@/modules/models/fetchUtils', () => ({
+vi.mock('@/platform/providers/fetchUtils', () => ({
   getCorsSafeFetch: async () => vi.fn(),
 }));
 
@@ -95,7 +95,7 @@ vi.mock('@/stores/aiChatStore', () => ({
 }));
 
 // ── MemoryService ─────────────────────────────────────────────────────────────
-vi.mock('@/modules/memory/MemoryService', () => ({
+vi.mock('@/platform/rag/MemoryService', () => ({
   MemoryService: {
     retrieve: vi.fn(async () => []),
   },

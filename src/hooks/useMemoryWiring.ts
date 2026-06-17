@@ -27,26 +27,26 @@ import {
   setMatterResolver,
   setPdfIndexingEnabledReader,
   setPrivilegeResolver,
-} from '@/modules/memory/MemoryService';
+} from '@/platform/rag/MemoryService';
 import { getMatters, resolveMatterIdForPath, useMatterStore } from '@/stores/matterStore';
 import {
   buildMailMatterMap,
   isPathInFolder,
   parseMailFolderKey,
-} from '@/modules/memory/matterResolver';
+} from '@/platform/rag/matterResolver';
 import { UNASSIGNED_MATTER_ID } from '@/types/matter';
 import { mailBackfillRag, mailRetagFolderMatter } from '@/utils/mail-commands';
 import {
   resolvePrivilegeForSource,
   usePrivilegeStore,
 } from '@/stores/privilegeStore';
-import type { PrivilegeMap } from '@/modules/memory/privilegeResolver';
-import { createFactsService, type FactsStorage } from '@/modules/memory/FactsService';
+import type { PrivilegeMap } from '@/platform/rag/privilegeResolver';
+import { createFactsService, type FactsStorage } from '@/platform/rag/FactsService';
 import {
   setFactsService,
   setFactsInjectionReader,
   setFactsAutoAcceptReader,
-} from '@/modules/memory/factsSingleton';
+} from '@/platform/rag/factsSingleton';
 import {
   MODEL_DOWNLOAD_EVENT,
   modelStatus,

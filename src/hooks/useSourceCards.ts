@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { WorkspaceService } from '@/modules/workspace/WorkspaceService';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { SourceCard } from '@/features/ask/types/research';
 
 interface UseSourceCardsOptions {

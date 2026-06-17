@@ -21,7 +21,7 @@ import {
   parseWorkspaceCommand,
   resolveCitationPath,
   stripWorkspaceCommand,
-} from '@/modules/memory/workspaceCommand';
+} from '@/platform/rag/workspaceCommand';
 import type { RagHit } from '@/utils/tauri-commands';
 
 describe('parseWorkspaceCommand', () => {

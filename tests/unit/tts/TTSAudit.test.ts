@@ -28,7 +28,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 // the factory and export it through a module-scoped reference object.
 const auditSpy = { append: vi.fn() };
 
-vi.mock('@/modules/audit/AuditService', () => {
+vi.mock('@/platform/audit/AuditService', () => {
   // AuditService is a class; use a regular function constructor so that
   // `new AuditService()` works correctly in the module under test.
   function AuditService() {

@@ -11,9 +11,9 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { AttachmentService } from '@/features/ask/attachments/AttachmentService';
-import { MockProvider } from '@/modules/models/MockProvider';
-import type { FSBackend } from '@/modules/workspace/types';
-import type { AttachmentBytes } from '@/modules/models/Provider';
+import { MockProvider } from '@/platform/providers/MockProvider';
+import type { FSBackend } from '@/platform/fs/types';
+import type { AttachmentBytes } from '@/platform/providers/Provider';
 
 // Minimal PNG bytes
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);

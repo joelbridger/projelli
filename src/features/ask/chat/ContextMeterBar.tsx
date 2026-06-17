@@ -11,7 +11,7 @@
 
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import { formatContextSize } from '@/modules/models/context-limits';
+import { formatContextSize } from '@/platform/providers/context-limits';
 import { formatCostShort } from '@/features/ask/ChatCostChip';
 
 export interface ContextMeterBarProps {

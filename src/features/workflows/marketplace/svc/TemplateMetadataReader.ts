@@ -7,11 +7,11 @@
 // during read/parse are reported as audit events (`template_install_failed`)
 // + console warnings; the engine just sees a shorter list rather than crashing.
 
-import type { FSBackend } from '@/modules/workspace/types';
+import type { FSBackend } from '@/platform/fs/types';
 import type { WorkflowTemplate, InterviewQuestion } from '@/types/workflow';
 import type { InstalledEntry } from '@/features/workflows/types/marketplace';
 import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
-import { AuditService } from '@/modules/audit/AuditService';
+import { AuditService } from '@/platform/audit/AuditService';
 import { validateTemplateManifest } from './manifestValidator';
 import type { MarketplaceService } from './MarketplaceService';
 

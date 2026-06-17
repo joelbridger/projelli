@@ -40,7 +40,7 @@ import {
   setMatterResolver,
   resetMatterResolver,
   resolveMatterForPath,
-} from '@/modules/memory/MemoryService';
+} from '@/platform/rag/MemoryService';
 
 describe('MemoryService indexing carries matter id', () => {
   beforeEach(() => {

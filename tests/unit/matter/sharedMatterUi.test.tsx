@@ -41,12 +41,12 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 // ── Mock CORS-safe fetch ─────────────────────────────────────────────────────
 const fetchMock = vi.fn();
-vi.mock('@/modules/models/fetchUtils', () => ({
+vi.mock('@/platform/providers/fetchUtils', () => ({
   getCorsSafeFetch: async () => fetchMock as unknown as typeof fetch,
 }));
 
 // ── Mock AuditService so it doesn't blow up on audit.append calls ────────────
-vi.mock('@/modules/audit/AuditService', () => ({
+vi.mock('@/platform/audit/AuditService', () => ({
   AuditService: class {
     append() { /* noop */ }
   },
@@ -97,13 +97,13 @@ const mockPublishMatterKeyToMembers = vi.fn<
 const mockObtainMatterKey = vi.fn<[unknown, string], Promise<string | null>>();
 const mockRegisterDevice = vi.fn<[unknown], Promise<void>>();
 
-vi.mock('@/modules/firm/matterKeyService', () => ({
+vi.mock('@/platform/firm/matterKeyService', () => ({
   getOrCreateMatterKey: (...args: [string]) => mockGetOrCreateMatterKey(...args),
   publishMatterKeyToMembers: (...args: [unknown, string, number]) => mockPublishMatterKeyToMembers(...args),
   obtainMatterKey: (...args: [unknown, string]) => mockObtainMatterKey(...args),
 }));
 
-vi.mock('@/modules/firm/deviceKeys', () => ({
+vi.mock('@/platform/firm/deviceKeys', () => ({
   registerDevice: (...args: [unknown]) => mockRegisterDevice(...args),
   _resetDeviceCache: () => undefined,
   getOrCreateDeviceKeypair: async () => ({ deviceId: 'test-device-id', publicJwk: {} }),

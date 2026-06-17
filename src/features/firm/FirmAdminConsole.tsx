@@ -45,8 +45,8 @@ import { useFirmStore } from '@/stores/firmStore';
 import {
   publishMatterKeyToMembers,
   autoRepublishHeldMatterKeys,
-} from '@/modules/firm/matterKeyService';
-import { AuditService } from '@/modules/audit/AuditService';
+} from '@/platform/firm/matterKeyService';
+import { AuditService } from '@/platform/audit/AuditService';
 import type {
   FirmMatter,
   MatterMembersResponse,
@@ -56,8 +56,8 @@ import type {
   OrgUserEntry,
   SsoConfigView,
   IdpProvider,
-} from '@/modules/firm/contract';
-import type { SsoConfigSetRequest } from '@/modules/firm/contract';
+} from '@/platform/firm/contract';
+import type { SsoConfigSetRequest } from '@/platform/firm/contract';
 
 const audit = new AuditService('firm');
 

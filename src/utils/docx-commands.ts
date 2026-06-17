@@ -20,7 +20,7 @@ import type {
   DocxAuthorRevisionsResult,
   DocxResolveAction,
 } from '@/types/docx';
-import { resolveWorkspacePath } from '@/modules/workspace/pathResolve';
+import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 /**

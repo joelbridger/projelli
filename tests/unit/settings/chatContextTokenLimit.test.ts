@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isLimitExceedingCapability, getMaxContextTokens } from '@/modules/models/context-limits';
+import { isLimitExceedingCapability, getMaxContextTokens } from '@/platform/providers/context-limits';
 
 describe('chatContextTokenLimit capability warning logic', () => {
   it('does not warn when 200K limit with Sonnet (200K cap)', () => {

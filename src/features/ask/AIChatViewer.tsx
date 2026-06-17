@@ -8,8 +8,8 @@ import { useTranslation } from 'react-i18next';
 import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, AlertTriangle, Briefcase, Globe, ShieldAlert } from 'lucide-react';
 import { ChatInputToolbar } from '@/features/ask/chat/ChatInputToolbar';
 import { AttachmentService } from '@/features/ask/attachments/AttachmentService';
-import { SUPPORTED_IMAGE_MIMES, MAX_ATTACHMENT_BYTES, isVisionModel } from '@/modules/models/vision-capability';
-import { SUPPORTED_PDF_MIME, getPdfMode } from '@/modules/models/pdf-capability';
+import { SUPPORTED_IMAGE_MIMES, MAX_ATTACHMENT_BYTES, isVisionModel } from '@/platform/providers/vision-capability';
+import { SUPPORTED_PDF_MIME, getPdfMode } from '@/platform/providers/pdf-capability';
 import { extractPdfText, type PdfExtractionResult } from '@/lib/pdf-extract';
 import { PdfModeChip } from '@/features/ask/chat/PdfModeChip';
 import { PdfPreviewBeforeSend } from '@/features/ask/chat/PdfPreviewBeforeSend';
@@ -19,13 +19,13 @@ import { Textarea } from '@/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { AIChatFile } from '@/types/ai';
 import type { AuditEntry } from '@/types/audit';
-import type { Provider } from '@/modules/models/Provider';
-import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
-import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
-import { GeminiProvider } from '@/modules/models/GeminiProvider';
-import { OllamaProvider } from '@/modules/models/OllamaProvider';
-import { isLocalProviderId } from '@/modules/models/providerFactory';
-import { isAssuredProvider } from '@/modules/firm/resolveAssuredRoute';
+import type { Provider } from '@/platform/providers/Provider';
+import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
+import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
+import { GeminiProvider } from '@/platform/providers/GeminiProvider';
+import { OllamaProvider } from '@/platform/providers/OllamaProvider';
+import { isLocalProviderId } from '@/platform/providers/providerFactory';
+import { isAssuredProvider } from '@/platform/firm/resolveAssuredRoute';
 import { useFirmStore } from '@/stores/firmStore';
 import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder } from '@/stores/aiChatStore';
 import { useActiveMatter } from '@/stores/matterStore';
@@ -41,7 +41,7 @@ import type { ExtractedContext } from '@/utils/ai-file-context';
 import { filterByScope } from '@/utils/client-boundary';
 import { ChatCostChip } from '@/features/ask/ChatCostChip';
 import { AIContextIndicator } from '@/features/ask/AIContextIndicator';
-import { EgressIndicator } from '@/components/privacy/EgressIndicator';
+import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { ContextMeterBar } from '@/features/ask/chat/ContextMeterBar';
 import { CompressedSegmentMarker } from '@/features/ask/chat/CompressedSegmentMarker';
 import { CompressionConfirmModal } from '@/features/ask/chat/CompressionConfirmModal';
@@ -55,7 +55,7 @@ import {
 import {
   getFactsService,
   isFactsAutoAcceptEnabled,
-} from '@/modules/memory/factsSingleton';
+} from '@/platform/rag/factsSingleton';
 import {
   runExtraction,
   shouldRunExtraction,
@@ -65,7 +65,7 @@ import {
   makeInitialState,
   type ChatExtractionState,
   type ProposedFact,
-} from '@/modules/memory/factsExtraction';
+} from '@/platform/rag/factsExtraction';
 
 /**
  * Pick the refusal i18n key for a failed workspace retrieval. The

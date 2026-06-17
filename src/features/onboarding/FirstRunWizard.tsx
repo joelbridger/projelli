@@ -35,10 +35,10 @@ import { Button } from '@/ui/button';
 import { writeSampleFiles, getSamplesForProfession } from '@/onboarding/samples';
 import { AiSetupStep } from '@/features/onboarding/AiSetupStep';
 import { DiskEncryptionGuidance } from '@/features/onboarding/DiskEncryptionGuidance';
-import { DataMapDialog, DataMapContent } from '@/components/privacy/DataMapDialog';
+import { DataMapDialog, DataMapContent } from '@/platform/privacy/ui/DataMapDialog';
 import { persistProfessionModelDefault, getModelForProfession } from '@/onboarding/professionModel';
 import { markAiSetupDeferred } from '@/features/onboarding/aiSetupState';
-import type { KeyProvider } from '@/modules/models/KeychainService';
+import type { KeyProvider } from '@/platform/providers/KeychainService';
 import type { ProviderId } from '@/features/onboarding/ProviderTutorialSteps';
 
 const STORAGE_KEY = 'keepance_onboarding_complete';

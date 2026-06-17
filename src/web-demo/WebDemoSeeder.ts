@@ -20,7 +20,7 @@
 import sampleWorkspaceLegal from './sample-workspace.json';
 import sampleWorkspaceTax from './sample-workspace-tax.json';
 import sampleWorkspaceConsulting from './sample-workspace-consulting.json';
-import { WebFSBackend } from '@/modules/workspace/WebFSBackend';
+import { WebFSBackend } from '@/platform/fs/WebFSBackend';
 
 const SEED_FLAG_KEY = '__keepance_demo_seeded';
 const SEED_VERSION_KEY = '__keepance_demo_seed_version';

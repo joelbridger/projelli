@@ -6,7 +6,7 @@
 // @tauri-apps/api/core, guard every call site.
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import type { MailMatterMapEntry } from '@/modules/memory/matterResolver';
+import type { MailMatterMapEntry } from '@/platform/rag/matterResolver';
 
 export interface DeviceCodePrompt { userCode: string; verificationUri: string; deviceCode: string; intervalSecs: number; expiresInSecs: number; }
 

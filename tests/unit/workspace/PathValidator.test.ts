@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { PathValidator } from '@/modules/workspace/PathValidator';
-import { SecurityError } from '@/modules/workspace/types';
+import { PathValidator } from '@/platform/fs/PathValidator';
+import { SecurityError } from '@/platform/fs/types';
 
 describe('PathValidator', () => {
   let validator: PathValidator;

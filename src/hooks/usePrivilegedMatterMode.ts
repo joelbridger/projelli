@@ -24,7 +24,7 @@ import {
   DEFAULT_PRIVILEGED_MATTER_MODE,
   resolvePrivilegedMatterMode,
   type PrivilegedMatterModeTrigger,
-} from '@/modules/privacy/privilegedMatterMode';
+} from '@/platform/privacy/privilegedMatterMode';
 
 function coerceManual(value: unknown): boolean {
   return typeof value === 'boolean' ? value : DEFAULT_PRIVILEGED_MATTER_MODE;

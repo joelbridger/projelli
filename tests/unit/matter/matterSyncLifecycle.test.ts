@@ -53,21 +53,21 @@ const { startMock, stopMock, rotateMock, MockMatterSyncClient, getLastCallbacks 
   return { startMock, stopMock, rotateMock, MockMatterSyncClient, getLastCallbacks };
 });
 
-vi.mock('@/modules/firm/MatterSyncClient', () => ({
+vi.mock('@/platform/firm/MatterSyncClient', () => ({
   MatterSyncClient: MockMatterSyncClient,
 }));
 
-vi.mock('@/modules/firm/firmKeychain', () => ({
+vi.mock('@/platform/firm/firmKeychain', () => ({
   loadMatterKey: vi.fn(async () => 'b64-mock-key-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='),
   storeMatterKey: vi.fn(async () => undefined),
   clearMatterKey: vi.fn(async () => undefined),
 }));
 
-vi.mock('@/modules/firm/deviceKeys', () => ({
+vi.mock('@/platform/firm/deviceKeys', () => ({
   getOrCreateDeviceKeypair: vi.fn(async () => ({ deviceId: 'device-test', publicJwk: {} })),
 }));
 
-vi.mock('@/modules/firm/keyWrap', () => ({
+vi.mock('@/platform/firm/keyWrap', () => ({
   unwrapMatterKey: vi.fn(async () => 'new-b64-mock-key-BBB='),
 }));
 
@@ -83,7 +83,7 @@ const { MockFirmApiError } = vi.hoisted(() => {
   return { MockFirmApiError };
 });
 
-vi.mock('@/modules/firm/FirmApiClient', () => ({
+vi.mock('@/platform/firm/FirmApiClient', () => ({
   FirmApiError: MockFirmApiError,
 }));
 
@@ -101,7 +101,7 @@ vi.mock('@/stores/firmStore', () => ({
   },
 }));
 
-vi.mock('@/modules/firm/matterKeyService', () => ({
+vi.mock('@/platform/firm/matterKeyService', () => ({
   obtainMatterKey: vi.fn(async () => 'b64-mock-key-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='),
 }));
 
@@ -130,7 +130,7 @@ import {
   stopAll,
   getMatterSyncClient,
 } from '@/features/matters/logic/matterNotesSync';
-import { clearMatterKey } from '@/modules/firm/firmKeychain';
+import { clearMatterKey } from '@/platform/firm/firmKeychain';
 import type { Matter } from '@/types/matter';
 
 function makeMatter(overrides?: Partial<Matter>): Matter {
@@ -239,7 +239,7 @@ describe('matterNotesSync lifecycle', () => {
     // fetchMatterKeys throws 403, simulating the walled-user path.
     // obtainMatterKey succeeds for the initial ensureMatterSync but returns null
     // on the retry (after clearMatterKey, key is gone).
-    const { obtainMatterKey } = await import('@/modules/firm/matterKeyService');
+    const { obtainMatterKey } = await import('@/platform/firm/matterKeyService');
     vi.mocked(obtainMatterKey)
       .mockResolvedValueOnce('b64-mock-key-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=') // initial call
       .mockResolvedValueOnce(null); // retry after 403 clears the key

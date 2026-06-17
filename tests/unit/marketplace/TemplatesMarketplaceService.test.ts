@@ -12,8 +12,8 @@ import {
   createTemplatesMarketplaceService,
   TEMPLATES_REPO_URL,
 } from '@/features/workflows/marketplace/svc/TemplatesMarketplaceService';
-import { AuditService } from '@/modules/audit/AuditService';
-import type { FSBackend } from '@/modules/workspace/types';
+import { AuditService } from '@/platform/audit/AuditService';
+import type { FSBackend } from '@/platform/fs/types';
 import type { CatalogEntry, InstalledEntry } from '@/features/workflows/types/marketplace';
 import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
 

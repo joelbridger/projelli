@@ -38,7 +38,7 @@ import {
 import { openExternal } from '@/utils/openExternal';
 import { ExternalLink, Eye, EyeOff, Check, AlertCircle, ArrowLeft, ArrowRight, RefreshCw, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { detectOllama } from '@/modules/models/OllamaProvider';
+import { detectOllama } from '@/platform/providers/OllamaProvider';
 import { PROVIDER_TUTORIALS, ProviderTutorialList, type ProviderId } from './ProviderTutorialSteps';
 
 export type WizardProvider = 'anthropic' | 'openai' | 'google' | 'ollama';

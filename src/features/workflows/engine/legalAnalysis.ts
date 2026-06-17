@@ -18,7 +18,7 @@
  * site (see `App.tsx` / `WorkflowEngine`).
  */
 
-import type { Provider, OutputSchema } from '@/modules/models/Provider';
+import type { Provider, OutputSchema } from '@/platform/providers/Provider';
 import type {
   AnalyzeStepConfig,
   ContradictionAnalysisResult,

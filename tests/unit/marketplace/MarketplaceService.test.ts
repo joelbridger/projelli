@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MarketplaceService } from '@/features/workflows/marketplace/svc/MarketplaceService';
-import type { FSBackend } from '@/modules/workspace/types';
+import type { FSBackend } from '@/platform/fs/types';
 import type { CatalogEntry } from '@/features/workflows/types/marketplace';
 
 function makeFs() {

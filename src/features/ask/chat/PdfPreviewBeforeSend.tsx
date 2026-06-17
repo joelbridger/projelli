@@ -13,7 +13,7 @@
 import { useTranslation } from 'react-i18next';
 import { Lock, ScanLine, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { PdfMode } from '@/modules/models/pdf-capability';
+import type { PdfMode } from '@/platform/providers/pdf-capability';
 
 const MAX_PREVIEW_CHARS = 200;
 

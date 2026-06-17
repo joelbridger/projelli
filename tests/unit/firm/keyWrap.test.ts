@@ -32,8 +32,8 @@ vi.mock('@tauri-apps/api/core', () => ({
   isTauri: () => true,
 }));
 
-import { wrapMatterKey, unwrapMatterKey, WrongEpochError, TamperedError } from '@/modules/firm/keyWrap';
-import { getOrCreateDeviceKeypair, _resetDeviceCache } from '@/modules/firm/deviceKeys';
+import { wrapMatterKey, unwrapMatterKey, WrongEpochError, TamperedError } from '@/platform/firm/keyWrap';
+import { getOrCreateDeviceKeypair, _resetDeviceCache } from '@/platform/firm/deviceKeys';
 
 /** Generate a random base64 matter key (32 raw bytes = AES-256). */
 async function randomMatterKeyB64(): Promise<string> {

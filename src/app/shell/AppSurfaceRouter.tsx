@@ -27,10 +27,10 @@ import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import type { WorkflowExecution, WorkflowTemplate, InterviewQuestion, RunRecord } from '@/types/workflow';
 import type { AuditEntry } from '@/types/audit';
 import type { APIKey } from '@/types';
-import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
+import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { FileNode } from '@/types/workspace';
 import type { SettingCategory } from '@/settings/schema';
-import type { WorkspaceService } from '@/modules/workspace/WorkspaceService';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 
 export interface AppSurfaceRouterProps {

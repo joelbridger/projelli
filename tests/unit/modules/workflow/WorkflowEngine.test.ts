@@ -11,7 +11,7 @@ import {
   type InterviewHandler,
   type FileOperations,
 } from '@/features/workflows/engine/WorkflowEngine';
-import { createMockProvider } from '@/modules/models/MockProvider';
+import { createMockProvider } from '@/platform/providers/MockProvider';
 import type { WorkflowTemplate } from '@/types/workflow';
 
 function makeTemplate(id: string, overrides: Partial<WorkflowTemplate> = {}): WorkflowTemplate {

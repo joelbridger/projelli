@@ -29,7 +29,7 @@ vi.mock('@/features/documents/docx/redline', async (importOriginal) => {
     requestRedlineEdits: (...args: unknown[]) => requestRedlineEditsMock(...args),
   };
 });
-vi.mock('@/modules/models/providerFactory', () => ({
+vi.mock('@/platform/providers/providerFactory', () => ({
   createProvider: vi.fn(() => ({ structuredOutput: vi.fn() })),
   // WS-C honesty — DocxEditor now imports this to decide if the redline is
   // local (Ollama, keyless) vs cloud. These tests use the default cloud

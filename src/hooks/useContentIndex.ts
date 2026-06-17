@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type MiniSearch from 'minisearch';
-import type { WorkspaceService } from '@/modules/workspace/WorkspaceService';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileNode } from '@/types/workspace';
 import {
   buildWorkspaceIndex,
@@ -27,7 +27,7 @@ import {
   removeDocument,
   type ContentIndexDocument,
   type ContentSearchResult,
-} from '@/modules/search/ContentIndex';
+} from '@/platform/search/ContentIndex';
 
 interface UseContentIndexOptions {
   rootPath: string | null;

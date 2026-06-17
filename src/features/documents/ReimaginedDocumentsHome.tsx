@@ -34,10 +34,10 @@ import { IconButton, Callout, Button, SearchField, SurfaceToolbar } from '@/ui/k
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { useEditorStore } from '@/stores/editorStore';
 import { getFileIcon } from '@/utils/fileIcons';
-import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
+import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';
-import { FileTree } from '@/components/workspace/FileTree';
+import { FileTree } from '@/platform/fs/ui/FileTree';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 

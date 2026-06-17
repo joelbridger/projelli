@@ -11,11 +11,11 @@
 
 import { describe, it, expect } from 'vitest';
 import * as Y from 'yjs';
-import { MatterDocSyncClient } from '@/modules/coedit/MatterDocSyncClient';
-import { documentJsonToYDoc, yDocToDocumentJson, editRunText } from '@/modules/coedit/docCrdt';
-import { generateMatterKey, importMatterKey } from '@/modules/firm/matterCrypto';
-import type { PushUpdateResponse, PullUpdatesResponse } from '@/modules/firm/contract';
-import type { WebSocketLike } from '@/modules/firm/MatterSyncClient';
+import { MatterDocSyncClient } from '@/platform/firm/coedit/MatterDocSyncClient';
+import { documentJsonToYDoc, yDocToDocumentJson, editRunText } from '@/platform/firm/coedit/docCrdt';
+import { generateMatterKey, importMatterKey } from '@/platform/firm/matterCrypto';
+import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
+import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
 import type { DocumentJson, DocxParagraph } from '@/types/docx';
 
 // ---------------------------------------------------------------------------
@@ -138,7 +138,7 @@ function fakeClient(relay: FakeDocRelay, docId: string) {
       ticket: `tkt_${Math.random().toString(36).slice(2)}`,
       expires_in_ms: 30_000,
     }),
-  } as unknown as import('@/modules/firm/FirmApiClient').FirmApiClient;
+  } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 }
 
 async function until(pred: () => boolean, tries = 60): Promise<void> {

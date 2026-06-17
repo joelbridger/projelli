@@ -11,8 +11,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   useEgressActivityStore,
   instrumentEgressFetch,
-} from '@/modules/privacy/egressActivity';
-import { getCorsSafeFetch } from '@/modules/models/fetchUtils';
+} from '@/platform/privacy/egressActivity';
+import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
 
 /** A promise whose settlement the test controls. */
 function deferred<T>() {

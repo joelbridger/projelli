@@ -32,7 +32,7 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { yCollab } from 'y-codemirror.next';
-import type { MatterSyncClient } from '@/modules/firm/MatterSyncClient';
+import type { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
 import type { Matter } from '@/types/matter';
 import { useMatterSyncStatus } from '@/stores/matterSyncStore';
 import { cn } from '@/lib/utils';

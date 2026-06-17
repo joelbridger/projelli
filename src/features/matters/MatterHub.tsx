@@ -12,14 +12,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Briefcase, Lock, ChevronRight, Sparkles, FileText, Mail, GitBranch, Clock, ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
 import { useMatters, useActiveMatterPrivileged, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useAIChatStore } from '@/stores/aiChatStore';
-import { matterLabel } from '@/modules/memory/matterResolver';
+import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
 import { useMatterAtAGlanceStore } from '@/stores/matterAtAGlanceStore';
 import {
   generateMatterAtAGlance,
   hasCloudKeyForGlance,
 } from '@/features/matters/logic/matterAtAGlance';
-import { isMemoryEnabled } from '@/modules/memory/MemoryService';
+import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import type { MatterAtAGlanceResult } from '@/features/matters/logic/matterAtAGlance';
 import { Button, IconButton, SearchField, Chip, Badge, Eyebrow, Card } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';

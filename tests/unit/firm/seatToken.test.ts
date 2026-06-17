@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { generateKeyPairSync, sign as edSign, type KeyObject } from 'node:crypto';
-import { verifySeatToken, decodeSeatTokenUnsafe } from '@/modules/firm/seatToken';
+import { verifySeatToken, decodeSeatTokenUnsafe } from '@/platform/firm/seatToken';
 
 function b64url(buf: Buffer | Uint8Array): string {
   return Buffer.from(buf)

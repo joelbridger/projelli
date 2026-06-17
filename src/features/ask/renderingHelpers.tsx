@@ -6,7 +6,7 @@ import { Sparkles, AlertTriangle, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import i18n from '@/i18n';
 import { OCR_LOW_CONFIDENCE } from '@/utils/tauri-commands';
-import { parseCitations, resolveCitationPath } from '@/modules/memory/workspaceCommand';
+import { parseCitations, resolveCitationPath } from '@/platform/rag/workspaceCommand';
 import type { AIChatFile, WorkspaceSource } from '@/types/ai';
 
 /**

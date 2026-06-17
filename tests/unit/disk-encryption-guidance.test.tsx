@@ -24,8 +24,8 @@ vi.mock('@/utils/openExternal', () => ({
 
 // Keep the AI step's local-path detection deterministic; these tests never
 // drive past the data step.
-vi.mock('@/modules/models/OllamaProvider', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/modules/models/OllamaProvider')>();
+vi.mock('@/platform/providers/OllamaProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/providers/OllamaProvider')>();
   return { ...actual, detectOllama: vi.fn(async () => ({ reachable: false, models: [] })) };
 });
 
@@ -34,7 +34,7 @@ import {
   detectDesktopPlatform,
 } from '@/features/onboarding/DiskEncryptionGuidance';
 import { FirstRunWizard } from '@/features/onboarding/FirstRunWizard';
-import { DataMapContent, DATA_MAP_ROWS } from '@/components/privacy/DataMapDialog';
+import { DataMapContent, DATA_MAP_ROWS } from '@/platform/privacy/ui/DataMapDialog';
 
 const UA = {
   windows:

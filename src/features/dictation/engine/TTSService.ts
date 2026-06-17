@@ -17,7 +17,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { VOICE_CATALOG, type VoiceEntry } from '@/features/dictation/engine/voiceCatalog';
 import type { TTSAudioPlayer } from '@/features/dictation/engine/TTSAudioPlayer';
-import { AuditService } from '@/modules/audit/AuditService';
+import { AuditService } from '@/platform/audit/AuditService';
 
 // Module-level AuditService instance for TTS events.
 // Uses 'tts' as the workspace ID so entries are persisted under a dedicated key.

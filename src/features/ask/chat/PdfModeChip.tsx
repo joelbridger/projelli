@@ -9,7 +9,7 @@
  */
 import { FileText, FileSearch } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { PdfMode } from '@/modules/models/pdf-capability';
+import type { PdfMode } from '@/platform/providers/pdf-capability';
 
 export interface PdfModeChipProps {
   mode: PdfMode;

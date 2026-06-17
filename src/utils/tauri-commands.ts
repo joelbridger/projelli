@@ -11,7 +11,7 @@
 // through the same code path the rest of the Tauri API uses.
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { resolveWorkspacePath } from '@/modules/workspace/pathResolve';
+import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 /**

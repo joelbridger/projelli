@@ -36,8 +36,8 @@ vi.mock('@/utils/openExternal', () => ({
 }));
 
 // Keep Ollama detection deterministic; these tests don't drive the local path.
-vi.mock('@/modules/models/OllamaProvider', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/modules/models/OllamaProvider')>();
+vi.mock('@/platform/providers/OllamaProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/providers/OllamaProvider')>();
   return { ...actual, detectOllama: vi.fn(async () => ({ reachable: false, models: [] })) };
 });
 
@@ -45,7 +45,7 @@ vi.mock('@/modules/models/OllamaProvider', async (importOriginal) => {
 // keychain. `createKeychainService()` is what App calls; we return a stub whose
 // setKey is a spy shared across the test via the module-level `setKeySpy`.
 const setKeySpy = vi.fn(async () => {});
-vi.mock('@/modules/models/KeychainService', () => ({
+vi.mock('@/platform/providers/KeychainService', () => ({
   createKeychainService: () => ({
     setKey: setKeySpy,
     getKey: vi.fn(async () => null),

@@ -24,7 +24,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: mocks.invoke,
 }));
 
-import { AuditService, isAuditEncrypted } from '@/modules/audit/AuditService';
+import { AuditService, isAuditEncrypted } from '@/platform/audit/AuditService';
 import type { AuditEvent } from '@/types/audit';
 
 describe('AuditService persistence (browser, localStorage)', () => {

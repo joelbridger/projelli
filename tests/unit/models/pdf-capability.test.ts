@@ -3,7 +3,7 @@ import {
   supportsNativePdf,
   getPdfMode,
   SUPPORTED_PDF_MIME,
-} from '@/modules/models/pdf-capability';
+} from '@/platform/providers/pdf-capability';
 
 describe('supportsNativePdf', () => {
   // Claude - native PDF support on Sonnet and Opus families.

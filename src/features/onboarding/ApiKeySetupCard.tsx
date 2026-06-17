@@ -21,7 +21,7 @@ import { Card, CardContent } from '@/ui/card';
 import { Key, X, ArrowRight, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ApiKeyWizard, type WizardProvider } from './ApiKeyWizard';
-import type { KeyProvider } from '@/modules/models/KeychainService';
+import type { KeyProvider } from '@/platform/providers/KeychainService';
 
 const DISMISS_STORAGE_KEY = 'keepance:apiKeyCardDismissed';
 

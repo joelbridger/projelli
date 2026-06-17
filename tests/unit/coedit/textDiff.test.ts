@@ -1,7 +1,7 @@
 // tests/unit/coedit/textDiff.test.ts
 import { describe, it, expect } from 'vitest';
 import * as Y from 'yjs';
-import { applyTextDiff } from '@/modules/coedit/textDiff';
+import { applyTextDiff } from '@/platform/firm/coedit/textDiff';
 
 function run(oldText: string, newText: string): string {
   const doc = new Y.Doc();

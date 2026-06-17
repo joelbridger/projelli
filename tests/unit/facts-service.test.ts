@@ -24,7 +24,7 @@ import {
   type FactsServiceApi,
   type FactsStorage,
   type MemoryFacts,
-} from '@/modules/memory/FactsService';
+} from '@/platform/rag/FactsService';
 
 /** Minimal in-memory storage mock with ordering tracking. */
 function makeStorageMock() {

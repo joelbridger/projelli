@@ -28,7 +28,7 @@ import {
   DialogFooter,
 } from '@/ui/dialog';
 import { Button } from '@/ui/button';
-import { vaultDecryptAll, vaultDisable } from '@/modules/vault/vaultClient';
+import { vaultDecryptAll, vaultDisable } from '@/platform/firm/vault/vaultClient';
 
 interface VaultEscapeHatchDialogProps {
   open: boolean;

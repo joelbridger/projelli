@@ -10,11 +10,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the fetch the FirmApiClient uses; capture every call.
 const fetchMock = vi.fn();
-vi.mock('@/modules/models/fetchUtils', () => ({
+vi.mock('@/platform/providers/fetchUtils', () => ({
   getCorsSafeFetch: async () => fetchMock as unknown as typeof fetch,
 }));
 
-import { FirmApiClient, type TokenSource } from '@/modules/firm/FirmApiClient';
+import { FirmApiClient, type TokenSource } from '@/platform/firm/FirmApiClient';
 
 function jsonResponse(status: number, body: unknown): Response {
   return {

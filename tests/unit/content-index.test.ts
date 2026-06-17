@@ -12,7 +12,7 @@ import {
   searchIndex,
   upsertDocument,
   removeDocument,
-} from '../../src/modules/search/ContentIndex';
+} from '../../src/platform/search/ContentIndex';
 
 function seed() {
   const index = createIndex();

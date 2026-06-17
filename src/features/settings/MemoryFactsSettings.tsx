@@ -25,8 +25,8 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Trash2, Plus } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
-import { getFactsService } from '@/modules/memory/factsSingleton';
-import type { Fact } from '@/modules/memory/FactsService';
+import { getFactsService } from '@/platform/rag/factsSingleton';
+import type { Fact } from '@/platform/rag/FactsService';
 
 export interface MemoryFactsSettingsProps {
   /** Optional override for tests — passes in a static fact list so

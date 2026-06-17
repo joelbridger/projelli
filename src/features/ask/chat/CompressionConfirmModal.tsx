@@ -23,7 +23,7 @@ import {
   DialogFooter,
 } from '@/ui/dialog';
 import { Button } from '@/ui/button';
-import { formatContextSize } from '@/modules/models/context-limits';
+import { formatContextSize } from '@/platform/providers/context-limits';
 
 export interface CompressionConfirmModalProps {
   open: boolean;

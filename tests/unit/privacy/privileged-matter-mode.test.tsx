@@ -22,14 +22,14 @@ import {
   resolvePrivilegedMatterMode,
   PRIVILEGED_MATTER_BLOCK_REASON,
   PRIVILEGED_MATTER_MODE_SETTING_KEY,
-} from '@/modules/privacy/privilegedMatterMode';
+} from '@/platform/privacy/privilegedMatterMode';
 import {
   usePrivilegedMatterMode,
   getPrivilegedMatterModeActive,
 } from '@/hooks/usePrivilegedMatterMode';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useMatterStore } from '@/stores/matterStore';
-import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/modules/privacy/egress';
+import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 import { McpApprovalModal } from '@/features/settings/McpApprovalModal';
 import type { McpPendingApproval } from '@/utils/tauri-commands';
 import { StatusBar } from '@/app/shell/layout/StatusBar';

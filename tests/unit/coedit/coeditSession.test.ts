@@ -14,12 +14,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as Y from 'yjs';
-import { openCoeditSession, closeCoeditSession, type CoeditSessionOptions } from '@/modules/coedit/coeditSession';
-import { documentJsonToYDoc, yDocToDocumentJson, editRunText } from '@/modules/coedit/docCrdt';
-import { generateMatterKey } from '@/modules/firm/matterCrypto';
+import { openCoeditSession, closeCoeditSession, type CoeditSessionOptions } from '@/platform/firm/coedit/coeditSession';
+import { documentJsonToYDoc, yDocToDocumentJson, editRunText } from '@/platform/firm/coedit/docCrdt';
+import { generateMatterKey } from '@/platform/firm/matterCrypto';
 import type { DocumentJson, DocxParagraph } from '@/types/docx';
-import type { WebSocketLike } from '@/modules/firm/MatterSyncClient';
-import type { PushUpdateResponse, PullUpdatesResponse } from '@/modules/firm/contract';
+import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
+import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -126,7 +126,7 @@ class FakeDocRelay {
 
   /** Pre-load relay with state from a Y.Doc (simulates prior sync). */
   async preload(keyB64: string, docId: string, doc: Y.Doc): Promise<void> {
-    const { encryptUpdate, importMatterKey } = await import('@/modules/firm/matterCrypto');
+    const { encryptUpdate, importMatterKey } = await import('@/platform/firm/matterCrypto');
     const cryptoKey = await importMatterKey(keyB64);
     const update = Y.encodeStateAsUpdate(doc);
     const ciphertext_b64 = await encryptUpdate(cryptoKey, update, 1);
@@ -156,7 +156,7 @@ function fakeClient(relay: FakeDocRelay, docId: string) {
       ticket: `tkt_${Math.random().toString(36).slice(2)}`,
       expires_in_ms: 30_000,
     }),
-  } as unknown as import('@/modules/firm/FirmApiClient').FirmApiClient;
+  } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 }
 
 async function until(pred: () => boolean, tries = 80): Promise<void> {

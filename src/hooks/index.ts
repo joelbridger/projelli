@@ -41,4 +41,4 @@ export {
   type Entitlement,
   type EntitlementState,
   type LicenseRecord,
-} from '@/modules/licensing';
+} from '@/platform/licensing';

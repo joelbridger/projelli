@@ -12,14 +12,14 @@
  * ReimaginedAsk.tsx.
  */
 
-import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
-import { buildWorkspaceContextBlock } from '@/modules/memory/workspaceCommand';
-import { KeychainService } from '@/modules/models/KeychainService';
-import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
-import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
-import { GeminiProvider } from '@/modules/models/GeminiProvider';
-import { OllamaProvider } from '@/modules/models/OllamaProvider';
-import type { Provider } from '@/modules/models/Provider';
+import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
+import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
+import { KeychainService } from '@/platform/providers/KeychainService';
+import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
+import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
+import { GeminiProvider } from '@/platform/providers/GeminiProvider';
+import { OllamaProvider } from '@/platform/providers/OllamaProvider';
+import type { Provider } from '@/platform/providers/Provider';
 import type { RagHit, RetrievalScope } from '@/utils/tauri-commands';
 
 // Re-export types consumed by callers so they don't need to reach into

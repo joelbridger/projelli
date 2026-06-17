@@ -54,7 +54,7 @@ import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeBy
 import { useProfessionStore, isLawExperience } from '@/stores/professionStore';
 import { useTrialGate } from '@/hooks/useTrial';
 import { useActiveMatter } from '@/stores/matterStore';
-import { matterLabel } from '@/modules/memory/matterResolver';
+import { matterLabel } from '@/platform/rag/matterResolver';
 
 // ── Prop interface (kept identical to original) ────────────────────────────
 

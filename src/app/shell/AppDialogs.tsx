@@ -20,15 +20,15 @@ import { SettingsModal } from '@/features/settings/SettingsModal';
 import { AccountWindow } from '@/features/account/AccountWindow';
 import { FeatureTour } from '@/features/onboarding/FeatureTour';
 import { ApiKeyWizard } from '@/features/onboarding/ApiKeyWizard';
-import { ShortcutsOverlay } from '@/components/ShortcutsOverlay';
-import { QuickOpen } from '@/components/QuickOpen';
+import { ShortcutsOverlay } from '@/app/shell/ShortcutsOverlay';
+import { QuickOpen } from '@/app/shell/QuickOpen';
 import { AudioRecorderModal } from '@/features/dictation/audio/AudioRecorderModal';
 import { ConfirmDialog, type ConfirmDialogProps } from '@/ui/ConfirmDialog';
 import { PromptDialog, type PromptDialogProps } from '@/app/shell/common/PromptDialog';
 import { UndoToastRenderer, type UndoToastController } from '@/app/shell/common/UndoToast';
 import { GlobalDropOverlay } from '@/app/shell/common/GlobalDropOverlay';
-import { WhatsNewToast, WhatsNewModal, useWhatsNew } from '@/components/WhatsNew';
-import { UpdateManager } from '@/components/updater/UpdateManager';
+import { WhatsNewToast, WhatsNewModal, useWhatsNew } from '@/app/shell/WhatsNew';
+import { UpdateManager } from '@/platform/updater/UpdateManager';
 import { type WizardProvider } from '@/features/onboarding/ApiKeyWizard';
 
 import {
@@ -40,7 +40,7 @@ import {
 } from '@/ui/dialog';
 
 import type { AuditEntry, AuditEvent } from '@/types/audit';
-import { auditEventToEntry } from '@/modules/audit/AuditService';
+import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import type { InterviewQuestion } from '@/types/workflow';
 import type { FileNode } from '@/types/workspace';

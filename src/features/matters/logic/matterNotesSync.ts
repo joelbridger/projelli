@@ -14,12 +14,12 @@
  */
 
 import type { Matter } from '@/types/matter';
-import { MatterSyncClient } from '@/modules/firm/MatterSyncClient';
-import { obtainMatterKey } from '@/modules/firm/matterKeyService';
-import { clearMatterKey, storeMatterKey } from '@/modules/firm/firmKeychain';
-import { getOrCreateDeviceKeypair } from '@/modules/firm/deviceKeys';
-import { unwrapMatterKey } from '@/modules/firm/keyWrap';
-import { FirmApiError } from '@/modules/firm/FirmApiClient';
+import { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
+import { obtainMatterKey } from '@/platform/firm/matterKeyService';
+import { clearMatterKey, storeMatterKey } from '@/platform/firm/firmKeychain';
+import { getOrCreateDeviceKeypair } from '@/platform/firm/deviceKeys';
+import { unwrapMatterKey } from '@/platform/firm/keyWrap';
+import { FirmApiError } from '@/platform/firm/FirmApiClient';
 import { useMatterSyncStore } from '@/stores/matterSyncStore';
 import { useFirmStore } from '@/stores/firmStore';
 

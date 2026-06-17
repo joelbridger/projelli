@@ -23,7 +23,7 @@ import {
   HardDrive,
   Settings,
 } from 'lucide-react';
-import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
+import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import { EmptyState } from '@/ui/EmptyState';
 
 export type TrashRetentionPeriod = 'never' | 7 | 30 | 90 | 'custom';

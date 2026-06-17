@@ -52,7 +52,7 @@ import {
   isLimitExceedingCapability,
   getMaxContextTokens,
   formatContextSize,
-} from '@/modules/models/context-limits';
+} from '@/platform/providers/context-limits';
 import { TemplateModelSettings } from '@/features/settings/TemplateModelSettings';
 import { PrivacySettings } from '@/features/settings/PrivacySettings';
 import { ConfidentialityModeSettings } from '@/features/settings/ConfidentialityModeSettings';

@@ -4,7 +4,7 @@ import {
   getTier2Warning,
   isLimitExceedingCapability,
   formatContextSize,
-} from '@/modules/models/context-limits';
+} from '@/platform/providers/context-limits';
 
 describe('getMaxContextTokens', () => {
   it('returns 200K for known Claude Sonnet model', () => {

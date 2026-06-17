@@ -25,8 +25,8 @@ const mem = vi.hoisted(() => ({
   indexPdfFile: vi.fn(),
 }));
 
-vi.mock('@/modules/memory/MemoryService', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/modules/memory/MemoryService')>();
+vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/rag/MemoryService')>();
   return {
     ...actual,
     MemoryService: { ...actual.MemoryService, ...mem },

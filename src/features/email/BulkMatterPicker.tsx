@@ -3,7 +3,7 @@ import { AlertTriangle, Loader2, FolderInput } from 'lucide-react';
 import { SearchField, Dropdown } from '@/ui/kp';
 import { useMatters } from '@/stores/matterStore';
 import { mailRetagMessageMatter } from '@/utils/mail-commands';
-import { matterLabel } from '@/modules/memory/matterResolver';
+import { matterLabel } from '@/platform/rag/matterResolver';
 
 // ── BulkMatterPicker ───────────────────────────────────────────────────────
 

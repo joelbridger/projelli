@@ -46,7 +46,7 @@ const mocks = vi.hoisted(() => ({
   ollamaStreamingEnabled: { value: false },
 }));
 
-vi.mock('@/modules/models/ClaudeProvider', () => ({
+vi.mock('@/platform/providers/ClaudeProvider', () => ({
   ClaudeProvider: class {
     constructor(cfg: unknown) { mocks.claudeCtor(cfg); }
     setTools() {}
@@ -55,7 +55,7 @@ vi.mock('@/modules/models/ClaudeProvider', () => ({
     getMetadata() { return { model: 'claude-stub' }; }
   },
 }));
-vi.mock('@/modules/models/OpenAIProvider', () => ({
+vi.mock('@/platform/providers/OpenAIProvider', () => ({
   OpenAIProvider: class {
     constructor(cfg: unknown) { mocks.openaiCtor(cfg); }
     setTools() {}
@@ -64,7 +64,7 @@ vi.mock('@/modules/models/OpenAIProvider', () => ({
     getMetadata() { return { model: 'openai-stub' }; }
   },
 }));
-vi.mock('@/modules/models/GeminiProvider', () => ({
+vi.mock('@/platform/providers/GeminiProvider', () => ({
   GeminiProvider: class {
     constructor(cfg: unknown) { mocks.geminiCtor(cfg); }
     setTools() {}
@@ -77,7 +77,7 @@ vi.mock('@/modules/models/GeminiProvider', () => ({
 // The OllamaProvider mock is what we want the local chat to route to. We also
 // re-export the module-scope helpers (detectOllama etc.) that AIAssistantPane /
 // providerFactory import, so they keep working under the mock.
-vi.mock('@/modules/models/OllamaProvider', () => {
+vi.mock('@/platform/providers/OllamaProvider', () => {
   class OllamaProvider {
     constructor(cfg: unknown) { mocks.ollamaCtor(cfg); }
     setTools() {}
@@ -112,8 +112,8 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import {
   CONFIDENTIALITY_MODE_SETTING_KEY,
   type ConfidentialityMode,
-} from '@/modules/privacy/egress';
-import { createProvider, isLocalProviderId } from '@/modules/models/providerFactory';
+} from '@/platform/privacy/egress';
+import { createProvider, isLocalProviderId } from '@/platform/providers/providerFactory';
 
 function ollamaChat(): AIChatFile {
   return {

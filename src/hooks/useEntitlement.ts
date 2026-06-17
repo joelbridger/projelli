@@ -2,7 +2,7 @@
  * useEntitlement — the single React hook the app uses to ask "what may this
  * user do right now?". It composes the license state (`useLicense`) and the
  * trial state (`useTrial`) and runs them through the PURE `decideEntitlement`
- * decision in `@/modules/licensing`.
+ * decision in `@/platform/licensing`.
  *
  * Why a thin wrapper: all the real logic lives in the pure, exhaustively-tested
  * `decideEntitlement` function. This hook just gathers reactive inputs and
@@ -24,7 +24,7 @@ import {
   toLicenseRecord,
   type Entitlement,
   type TrialContext,
-} from '@/modules/licensing';
+} from '@/platform/licensing';
 
 /**
  * Reactive entitlement for the current user. Recomputed whenever the license

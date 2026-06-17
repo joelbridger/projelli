@@ -44,12 +44,12 @@ vi.mock('@/stores/privilegeStore', () => ({
   usePrivilegeForSource: vi.fn(),
 }));
 
-vi.mock('@/modules/memory/MemoryService', () => ({
+vi.mock('@/platform/rag/MemoryService', () => ({
   MemoryService: { retrieve: vi.fn() },
   isMemoryEnabled: vi.fn(),
 }));
 
-vi.mock('@/modules/memory/matterResolver', () => ({
+vi.mock('@/platform/rag/matterResolver', () => ({
   matterLabel: vi.fn((m: { name: string }) => m.name),
 }));
 
@@ -65,7 +65,7 @@ import {
 } from '@/utils/mail-commands';
 import { useActiveMatter, useMatters } from '@/stores/matterStore';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
-import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
+import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { ReimaginedEmailWorkspace } from '@/features/email/ReimaginedEmailWorkspace';
 
 // ── Fixture data ────────────────────────────────────────────────────────────

@@ -30,7 +30,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
 import { useMatterSyncStatus } from '@/stores/matterSyncStore';
-import { matterLabel } from '@/modules/memory/matterResolver';
+import { matterLabel } from '@/platform/rag/matterResolver';
 import type { MatterSyncStatus } from '@/stores/matterSyncStore';
 
 export interface MatterScopeSelectorProps {

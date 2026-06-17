@@ -15,11 +15,11 @@ import {
   type MarketplaceService,
 } from '@/features/workflows/marketplace/svc';
 import { isLawExperience } from '@/stores/professionStore';
-import { createWorkspaceService, type WorkspaceService } from '@/modules/workspace/WorkspaceService';
-import { createFSBackend } from '@/modules/workspace/BackendFactory';
-import { AuditService } from '@/modules/audit/AuditService';
+import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
+import { createFSBackend } from '@/platform/fs/BackendFactory';
+import { AuditService } from '@/platform/audit/AuditService';
 import type { AuditEntry } from '@/types/audit';
-import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
+import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { SourceCard } from '@/features/ask/types/research';
 import type { AIChatFile } from '@/types/ai';
 

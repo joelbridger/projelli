@@ -15,7 +15,7 @@ import {
   findMatter,
   isPathInFolder,
   matterLabel,
-} from '@/modules/memory/matterResolver';
+} from '@/platform/rag/matterResolver';
 import { UNASSIGNED_MATTER_ID, type Matter } from '@/types/matter';
 import {
   useMatterStore,

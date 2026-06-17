@@ -3,7 +3,7 @@ import { mailIsConnected, mailBeginLogin, mailPollLogin, mailSyncAll, mailCancel
 import { useMailSync } from '@/hooks/useMailSync';
 import { useMailStore } from '@/stores/mailStore';
 import { getMatters } from '@/stores/matterStore';
-import { buildMailMatterMap } from '@/modules/memory/matterResolver';
+import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 
 export function MailConnect() {
   useMailSync();

@@ -3,15 +3,15 @@
  * ReimaginedAsk.tsx. No React, no side-effects; safe to import anywhere.
  */
 
-import { citationBasename } from '@/modules/memory/workspaceCommand';
+import { citationBasename } from '@/platform/rag/workspaceCommand';
 import type { WorkspaceSource } from '@/types/ai';
 import type { RagHit } from '@/utils/tauri-commands';
-import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
-import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
-import { GeminiProvider } from '@/modules/models/GeminiProvider';
-import { OllamaProvider } from '@/modules/models/OllamaProvider';
-import { KeychainService } from '@/modules/models/KeychainService';
-import type { Provider } from '@/modules/models/Provider';
+import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
+import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
+import { GeminiProvider } from '@/platform/providers/GeminiProvider';
+import { OllamaProvider } from '@/platform/providers/OllamaProvider';
+import { KeychainService } from '@/platform/providers/KeychainService';
+import type { Provider } from '@/platform/providers/Provider';
 import type { ChatMessage } from '@/types/ai';
 
 /* -------------------------------------------------------------------------- */

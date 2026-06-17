@@ -16,7 +16,7 @@ import {
   parseNdjsonChunk,
   formatOllamaDisplayName,
   OLLAMA_DEFAULT_MODEL,
-} from '@/modules/models/OllamaProvider';
+} from '@/platform/providers/OllamaProvider';
 
 describe('OllamaProvider (Q7)', () => {
   describe('getMetadata', () => {

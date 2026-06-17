@@ -22,7 +22,7 @@ const { mockSendMessage } = vi.hoisted(() => ({
 }));
 
 // ── MemoryService mock ───────────────────────────────────────────────────────
-vi.mock('@/modules/memory/MemoryService', () => ({
+vi.mock('@/platform/rag/MemoryService', () => ({
   MemoryService: {
     retrieve: vi.fn(async () => []),
   },
@@ -30,14 +30,14 @@ vi.mock('@/modules/memory/MemoryService', () => ({
 }));
 
 // ── workspaceCommand mock ─────────────────────────────────────────────────────
-vi.mock('@/modules/memory/workspaceCommand', () => ({
+vi.mock('@/platform/rag/workspaceCommand', () => ({
   buildWorkspaceContextBlock: vi.fn((hits: unknown[]) =>
     hits.length === 0 ? '' : '<workspace_context>mock context</workspace_context>',
   ),
 }));
 
 // ── KeychainService mock ──────────────────────────────────────────────────────
-vi.mock('@/modules/models/KeychainService', () => ({
+vi.mock('@/platform/providers/KeychainService', () => ({
   KeychainService: class {
     async getKey(provider: string) {
       if (provider === 'anthropic') return 'test-api-key';
@@ -47,7 +47,7 @@ vi.mock('@/modules/models/KeychainService', () => ({
 }));
 
 // ── Provider mocks ────────────────────────────────────────────────────────────
-vi.mock('@/modules/models/ClaudeProvider', () => {
+vi.mock('@/platform/providers/ClaudeProvider', () => {
   const send = mockSendMessage;
   return {
     ClaudeProvider: class {
@@ -60,7 +60,7 @@ vi.mock('@/modules/models/ClaudeProvider', () => {
   };
 });
 
-vi.mock('@/modules/models/OpenAIProvider', () => ({
+vi.mock('@/platform/providers/OpenAIProvider', () => ({
   OpenAIProvider: class {
     sendMessage() { return Promise.resolve({ content: '', usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: 0, model: 'gpt-4o-mini' }); }
     structuredOutput() { return Promise.resolve({}); }
@@ -70,7 +70,7 @@ vi.mock('@/modules/models/OpenAIProvider', () => ({
   },
 }));
 
-vi.mock('@/modules/models/GeminiProvider', () => ({
+vi.mock('@/platform/providers/GeminiProvider', () => ({
   GeminiProvider: class {
     sendMessage() { return Promise.resolve({ content: '', usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: 0, model: 'gemini-pro' }); }
     structuredOutput() { return Promise.resolve({}); }
@@ -80,7 +80,7 @@ vi.mock('@/modules/models/GeminiProvider', () => ({
   },
 }));
 
-vi.mock('@/modules/models/OllamaProvider', () => ({
+vi.mock('@/platform/providers/OllamaProvider', () => ({
   OllamaProvider: class {
     sendMessage() { return Promise.resolve({ content: '', usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: 0, model: 'llama3' }); }
     structuredOutput() { return Promise.resolve({}); }
@@ -92,8 +92,8 @@ vi.mock('@/modules/models/OllamaProvider', () => ({
 
 // Import after mocks
 import { generateMatterAtAGlance, hasCloudKeyForGlance, buildProviderForGlance } from '@/features/matters/logic/matterAtAGlance';
-import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
-import { buildWorkspaceContextBlock } from '@/modules/memory/workspaceCommand';
+import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
+import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
 
 const mockRetrieve = vi.mocked(MemoryService.retrieve);
 const mockIsMemoryEnabled = vi.mocked(isMemoryEnabled);

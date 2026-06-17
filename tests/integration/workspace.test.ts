@@ -10,8 +10,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { WorkspaceService } from '@/modules/workspace/WorkspaceService';
-import type { FSBackend, FileStat } from '@/modules/workspace/types';
+import { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import type { FSBackend, FileStat } from '@/platform/fs/types';
 import type { FileNode } from '@/types/workspace';
 
 /**

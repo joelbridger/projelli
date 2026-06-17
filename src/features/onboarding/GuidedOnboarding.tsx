@@ -34,7 +34,7 @@ import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
 import { MailImapConnect } from '@/features/settings/MailImapConnect';
 import { FirmAdminConsole } from '@/features/firm/FirmAdminConsole';
 import { FirmSignIn } from '@/features/firm/FirmSignIn';
-import { DataMapDialog } from '@/components/privacy/DataMapDialog';
+import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import { useFirm } from '@/hooks/useFirm';
 
 import { writeSampleFiles, getSamplesForProfession } from '@/onboarding/samples';
@@ -42,7 +42,7 @@ import { persistProfessionModelDefault, getModelForProfession } from '@/onboardi
 import { markAiSetupDeferred } from '@/features/onboarding/aiSetupState';
 import { useProfessionCopy } from '@/features/onboarding/useProfessionCopy';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
-import type { KeyProvider } from '@/modules/models/KeychainService';
+import type { KeyProvider } from '@/platform/providers/KeychainService';
 import type { ProviderId } from '@/features/onboarding/ProviderTutorialSteps';
 
 // ---------------------------------------------------------------------------

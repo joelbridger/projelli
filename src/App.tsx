@@ -17,7 +17,7 @@ import { useDialogManager } from '@/app/dialogs/useDialogManager';
 import { useFileOperations } from '@/app/fileOps/useFileOperations';
 import { useDocumentCreation } from '@/app/fileOps/useDocumentCreation';
 import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
-import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
+import { WorkspaceSelector } from '@/platform/fs/ui/WorkspaceSelector';
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
 import { ReimaginedTrustBar } from '@/app/shell/layout/ReimaginedTrustBar';
@@ -25,31 +25,31 @@ import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
 
-import { ProjectManager } from '@/components/workspace/ProjectManager';
+import { ProjectManager } from '@/platform/fs/ui/ProjectManager';
 import { Button } from '@/ui/button';
 import { Command, Moon, Monitor, Sun, Settings } from 'lucide-react';
-import { manualUpdateCheck } from '@/components/updater/UpdateManager';
+import { manualUpdateCheck } from '@/platform/updater/UpdateManager';
 import { openExternal } from '@/utils/openExternal';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
 import { GuidedOnboarding } from '@/features/onboarding/GuidedOnboarding';
-import { createKeychainService } from '@/modules/models/KeychainService';
+import { createKeychainService } from '@/platform/providers/KeychainService';
 import { sendEvent } from '@/utils/telemetry';
 import { useFeatureTour } from '@/hooks/useFeatureTour';
 // M1 (v1.5) Memory: workspace RAG indexer + status UI.
-import { ModelDownloadCard } from '@/components/memory/ModelDownloadCard';
-import { RagProgressBanner } from '@/components/memory/RagProgressBanner';
+import { ModelDownloadCard } from '@/platform/rag/ui/ModelDownloadCard';
+import { RagProgressBanner } from '@/platform/rag/ui/RagProgressBanner';
 import { useMemoryWiring } from '@/hooks/useMemoryWiring';
 import { useGlobalFileDrop } from '@/app/shell/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
-import { createWorkspaceService, type WorkspaceService } from '@/modules/workspace/WorkspaceService';
-import { createWebFSBackend } from '@/modules/workspace/WebFSBackend';
-import type { TrashedItem } from '@/modules/history/TrashService';
+import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
+import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
+import type { TrashedItem } from '@/platform/history/TrashService';
 
 import type { AuditEntry } from '@/types/audit';
-import { AuditService } from '@/modules/audit/AuditService';
+import { AuditService } from '@/platform/audit/AuditService';
 import { getOrCreateSampleMatter, useMatterStore } from '@/stores/matterStore';
 import { useMatterUiStore, isWorkingSurface } from '@/stores/matterUiStore';
 
@@ -60,7 +60,7 @@ import {
 import {
   isWorkflowFilePath,
 } from '@/features/workflows/engine/workflowFile';
-import { FileSystemWatcher, createFileTreeSnapshot } from '@/modules/workspace/FileSystemWatcher';
+import { FileSystemWatcher, createFileTreeSnapshot } from '@/platform/fs/FileSystemWatcher';
 
 import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/utils/file-utils';
 import { writeDroppedFiles } from '@/utils/fileDrop';

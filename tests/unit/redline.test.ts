@@ -18,8 +18,8 @@ import {
   requestRedlineEdits,
 } from '@/features/documents/docx/redline';
 import type { DocumentJson } from '@/types/docx';
-import type { Provider } from '@/modules/models/Provider';
-import { createProvider } from '@/modules/models/providerFactory';
+import type { Provider } from '@/platform/providers/Provider';
+import { createProvider } from '@/platform/providers/providerFactory';
 
 function sampleDoc(): DocumentJson {
   return {

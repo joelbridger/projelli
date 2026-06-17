@@ -14,7 +14,7 @@ import {
   CONFIDENTIALITY_MODE_SETTING_KEY,
   DEFAULT_CONFIDENTIALITY_MODE,
   CONFIDENTIALITY_MODES,
-} from '@/modules/privacy/egress';
+} from '@/platform/privacy/egress';
 
 function coerceMode(value: unknown): ConfidentialityMode {
   if (typeof value === 'string' && (CONFIDENTIALITY_MODES as string[]).includes(value)) {

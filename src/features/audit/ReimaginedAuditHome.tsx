@@ -33,7 +33,7 @@ import {
   downloadAuditCSV,
   downloadAuditJSON,
 } from '@/features/audit/audit-export';
-import { isAuditEncrypted } from '@/modules/audit/AuditService';
+import { isAuditEncrypted } from '@/platform/audit/AuditService';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import {
   Button,

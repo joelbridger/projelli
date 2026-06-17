@@ -11,11 +11,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
-import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
-import { GeminiProvider } from '@/modules/models/GeminiProvider';
-import { OllamaProvider } from '@/modules/models/OllamaProvider';
-import { MockProvider } from '@/modules/models/MockProvider';
+import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
+import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
+import { GeminiProvider } from '@/platform/providers/GeminiProvider';
+import { OllamaProvider } from '@/platform/providers/OllamaProvider';
+import { MockProvider } from '@/platform/providers/MockProvider';
 import type { ChatAttachment } from '@/types/ai';
 
 // Minimal 1x1 PNG bytes (enough that base64 isn't empty)

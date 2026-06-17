@@ -49,7 +49,7 @@ import {
   filterEntries,
   uniqueModels,
 } from '@/features/audit/audit-export';
-import { isAuditEncrypted } from '@/modules/audit/AuditService';
+import { isAuditEncrypted } from '@/platform/audit/AuditService';
 
 interface AuditLogProps {
   entries: AuditEntry[];

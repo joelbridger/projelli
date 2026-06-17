@@ -1,7 +1,7 @@
 /**
  * vaultFsBackend.test.ts
  *
- * Unit tests for src/modules/workspace/VaultFSBackend.ts.
+ * Unit tests for src/platform/fs/VaultFSBackend.ts.
  *
  * Strategy:
  *   - Construct a VaultFSBackend wrapping a FakeFSBackend that records every
@@ -30,7 +30,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { FSBackend, FileStat } from '@/modules/workspace/types';
+import type { FSBackend, FileStat } from '@/platform/fs/types';
 import type { FileNode } from '@/types/workspace';
 
 // ── In-memory byte store for the mock ────────────────────────────────────────
@@ -153,7 +153,7 @@ class FakeFSBackend implements FSBackend {
 }
 
 // ── Import after mocks ────────────────────────────────────────────────────────
-import { VaultFSBackend } from '@/modules/workspace/VaultFSBackend';
+import { VaultFSBackend } from '@/platform/fs/VaultFSBackend';
 
 const WORKSPACE = '/fake/root';
 

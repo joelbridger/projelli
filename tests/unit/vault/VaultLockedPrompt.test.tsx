@@ -34,7 +34,7 @@ vi.mock('@/stores/vaultStore', () => ({
 const vaultDecryptAllMock = vi.fn();
 const vaultDisableMock = vi.fn();
 
-vi.mock('@/modules/vault/vaultClient', () => ({
+vi.mock('@/platform/firm/vault/vaultClient', () => ({
   vaultDecryptAll: (...a: unknown[]) => vaultDecryptAllMock(...a),
   vaultDisable: (...a: unknown[]) => vaultDisableMock(...a),
 }));

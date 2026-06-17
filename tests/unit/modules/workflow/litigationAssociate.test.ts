@@ -27,8 +27,8 @@ import {
   type RetrievedChunk,
 } from '@/features/workflows/engine/legalAnalysis';
 import { serializeContradictionsDocx } from '@/utils/docx-io';
-import { createMockProvider } from '@/modules/models/MockProvider';
-import type { Provider, ProviderResponse } from '@/modules/models/Provider';
+import { createMockProvider } from '@/platform/providers/MockProvider';
+import type { Provider, ProviderResponse } from '@/platform/providers/Provider';
 import type {
   WorkflowTemplate,
   AnalyzeStepConfig,

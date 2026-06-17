@@ -27,7 +27,7 @@ import {
   DialogTrigger,
 } from '@/ui/dialog';
 import { ragRetrieve, type RagHit, type RetrievalScope } from '@/utils/tauri-commands';
-import { summarizePrivilegeDiff } from '@/modules/memory/privilegeDiff';
+import { summarizePrivilegeDiff } from '@/platform/rag/privilegeDiff';
 
 /** The demo runner's shape — `ragRetrieve` in production, a mock in tests. */
 export type ExplainerRetrieve = (

@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-type SeamModule = typeof import('@/modules/ocr/ocrEngine');
+type SeamModule = typeof import('@/platform/rag/ocr/ocrEngine');
 
 interface RecordedCall {
   method: string;
@@ -74,7 +74,7 @@ function tick(): Promise<void> {
 }
 
 async function loadSeam(): Promise<SeamModule> {
-  return import('@/modules/ocr/ocrEngine');
+  return import('@/platform/rag/ocr/ocrEngine');
 }
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]);

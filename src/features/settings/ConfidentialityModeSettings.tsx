@@ -32,8 +32,8 @@ import {
   useConfidentialityMode,
   useSetConfidentialityMode,
 } from '@/hooks/useConfidentialityMode';
-import { modeNeedsManagedKey, type ConfidentialityMode } from '@/modules/privacy/egress';
-import { DataMapDialog } from '@/components/privacy/DataMapDialog';
+import { modeNeedsManagedKey, type ConfidentialityMode } from '@/platform/privacy/egress';
+import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import {
   usePrivilegedMatterMode,
   useSetPrivilegedMatterMode,

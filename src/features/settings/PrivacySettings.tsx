@@ -17,7 +17,7 @@ import { MapPin } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { useTelemetryConsent } from '@/hooks/useTelemetryConsent';
 import { getInstallId } from '@/utils/installId';
-import { DataMapDialog } from '@/components/privacy/DataMapDialog';
+import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 
 export function PrivacySettings() {
   const { t } = useTranslation();

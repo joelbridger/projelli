@@ -83,7 +83,7 @@ vi.mock('@/stores/matterStore', () => ({
 }));
 
 // matterResolver: provide the same label logic as the real module.
-vi.mock('@/modules/memory/matterResolver', () => ({
+vi.mock('@/platform/rag/matterResolver', () => ({
   matterLabel: (matter: { name: string; client: string; id: string }) => {
     const name = matter.name.trim();
     const client = matter.client.trim();

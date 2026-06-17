@@ -17,8 +17,8 @@ import {
   selectHasActiveFirmSeat,
   type FirmOrg,
 } from '@/stores/firmStore';
-import type { Entitlement } from '@/modules/licensing/entitlements';
-import type { AssuredProvider } from '@/modules/firm/contract';
+import type { Entitlement } from '@/platform/licensing/entitlements';
+import type { AssuredProvider } from '@/platform/firm/contract';
 
 /** How often to heartbeat an active seat (catches revocations; anchors grace). */
 const HEARTBEAT_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours

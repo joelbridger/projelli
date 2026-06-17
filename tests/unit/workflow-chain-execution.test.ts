@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { MockProvider } from '@/modules/models/MockProvider';
+import { MockProvider } from '@/platform/providers/MockProvider';
 import { runChain } from '@/features/workflows/engine/WorkflowChainEngine';
 import type {
   WorkflowChain,

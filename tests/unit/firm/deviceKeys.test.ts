@@ -35,12 +35,12 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 // ── Mock fetch for FirmApiClient (used by registerDevice).
 const fetchMock = vi.fn();
-vi.mock('@/modules/models/fetchUtils', () => ({
+vi.mock('@/platform/providers/fetchUtils', () => ({
   getCorsSafeFetch: async () => fetchMock as unknown as typeof fetch,
 }));
 
-import { getOrCreateDeviceKeypair, registerDevice, _resetDeviceCache } from '@/modules/firm/deviceKeys';
-import { FirmApiClient, type TokenSource } from '@/modules/firm/FirmApiClient';
+import { getOrCreateDeviceKeypair, registerDevice, _resetDeviceCache } from '@/platform/firm/deviceKeys';
+import { FirmApiClient, type TokenSource } from '@/platform/firm/FirmApiClient';
 
 function jsonResponse(status: number, body: unknown): Response {
   return {

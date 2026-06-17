@@ -14,7 +14,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Briefcase, Lock, Plus, FolderOpen, Scale, CheckCircle2, Circle, MessageSquare, FileText, Mail, ChevronUp, ChevronDown } from 'lucide-react';
 import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
-import { matterLabel } from '@/modules/memory/matterResolver';
+import { matterLabel } from '@/platform/rag/matterResolver';
 import { MatterHub } from '@/features/matters/MatterHub';
 import { useApiKeys } from '@/hooks/useApiKeys';
 import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/utils/mail-commands';

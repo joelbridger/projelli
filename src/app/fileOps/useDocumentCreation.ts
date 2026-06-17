@@ -11,7 +11,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { createBlankDocx, docxBytesToDataUrl } from '@/utils/docx-io';
-import type { WorkspaceService } from '@/modules/workspace/WorkspaceService';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileNode } from '@/types/workspace';
 import type { PromptOptions } from '@/hooks/usePromptDialog';
 import type { ConfirmOptions } from '@/hooks/useConfirmDialog';

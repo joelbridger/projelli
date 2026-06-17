@@ -20,7 +20,7 @@ import {
   vaultUnlockWithRecovery,
   provisionEscrow,
   type AdminDevice,
-} from '@/modules/vault/vaultClient';
+} from '@/platform/firm/vault/vaultClient';
 
 export type VaultPhase =
   | 'explain'

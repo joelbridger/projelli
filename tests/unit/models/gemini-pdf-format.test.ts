@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { GeminiProvider } from '@/modules/models/GeminiProvider';
+import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import type { ChatAttachment } from '@/types/ai';
 
 vi.mock('@/lib/pdf-extract', () => ({

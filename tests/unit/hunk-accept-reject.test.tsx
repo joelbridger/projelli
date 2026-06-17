@@ -24,7 +24,7 @@ import type {
   SendOptions,
   StructuredOutputOptions,
   ProviderMetadata,
-} from '@/modules/models/Provider';
+} from '@/platform/providers/Provider';
 import {
   useInlineAiEdit,
   type EditorAdapter,

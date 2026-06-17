@@ -22,7 +22,7 @@ import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // --- Mock the OCR engine seam (controllable availability + results) ---
-vi.mock('@/modules/ocr/ocrEngine', () => ({
+vi.mock('@/platform/rag/ocr/ocrEngine', () => ({
   isOcrEngineAvailable: vi.fn(() => true),
   ocrPageImage: vi.fn(),
   destroyOcrClient: vi.fn(() => Promise.resolve()),
@@ -53,7 +53,7 @@ import {
   destroyOcrClient,
   isOcrEngineAvailable,
   ocrPageImage,
-} from '@/modules/ocr/ocrEngine';
+} from '@/platform/rag/ocr/ocrEngine';
 import {
   MemoryService,
   resetMemoryEnabledReader,
@@ -63,8 +63,8 @@ import {
   setOcrScannedPdfsEnabledReader,
   setPdfIndexingEnabledReader,
   isOcrScannedPdfsEnabled,
-} from '@/modules/memory/MemoryService';
-import { useOcrProgressStore } from '@/modules/memory/ocrProgressStore';
+} from '@/platform/rag/MemoryService';
+import { useOcrProgressStore } from '@/platform/rag/ocrProgressStore';
 import { ragIndexPdfChunks } from '@/utils/tauri-commands';
 
 const NATIVE_PAGE_TEXT =

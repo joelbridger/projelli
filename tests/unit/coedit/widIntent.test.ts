@@ -18,7 +18,7 @@ import {
   yDocToDocumentJson,
   addTrackedInsertion,
   addTrackedDeletion,
-} from '@/modules/coedit/docCrdt';
+} from '@/platform/firm/coedit/docCrdt';
 import type { DocumentJson, DocxParagraph, DocxInlineInsertion, DocxInlineDeletion } from '@/types/docx';
 
 // ---------------------------------------------------------------------------

@@ -37,7 +37,7 @@ const PresentationViewer = lazy(() =>
 );
 import { SourceFileEditor } from '@/features/ask/research/SourceFileEditor';
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
-import { FileGridView } from '@/components/workspace/FileGridView';
+import { FileGridView } from '@/platform/fs/ui/FileGridView';
 import { WaveformEditor } from '@/features/dictation/audio/WaveformEditor';
 import { VersionHistoryPanel } from '@/features/documents/version/VersionHistoryPanel';
 import { BinaryVersionHistoryPanel } from '@/features/documents/version/BinaryVersionHistoryPanel';
@@ -72,8 +72,8 @@ import { markdownToDocxBytes } from '@/utils/docx-io';
 import { markdownToPptxBytes } from '@/utils/pptx-io';
 import { withShortcut } from '@/utils/shortcuts';
 import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
-import { modeRestrictsToLocal } from '@/modules/privacy/egress';
-import { detectOllama } from '@/modules/models/OllamaProvider';
+import { modeRestrictsToLocal } from '@/platform/privacy/egress';
+import { detectOllama } from '@/platform/providers/OllamaProvider';
 import { isAudioFile, getFileExtension, shouldVersionFile, isDiskVersioned } from './mainPanelHelpers';
 import { DocLoadingFallback, DocLegacyFallback } from './MainPanelDocFallbacks';
 

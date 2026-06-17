@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { resolveWorkspacePath } from '../../src/modules/workspace/pathResolve';
+import { resolveWorkspacePath } from '../../src/platform/fs/pathResolve';
 
 describe('resolveWorkspacePath', () => {
   // --- relative inputs are resolved against rootPath ---

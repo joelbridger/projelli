@@ -3,7 +3,7 @@
 // templates repo URL, default cache + install paths under the workspace
 // root, and a `community` provenance stamp on installed entries.
 
-import type { FSBackend } from '@/modules/workspace/types';
+import type { FSBackend } from '@/platform/fs/types';
 import { MarketplaceService } from './MarketplaceService';
 
 export const TEMPLATES_REPO_URL =

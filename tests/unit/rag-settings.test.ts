@@ -27,7 +27,7 @@ import {
   isMemoryEnabled,
   resetMemoryEnabledReader,
   setMemoryEnabledReader,
-} from '@/modules/memory/MemoryService';
+} from '@/platform/rag/MemoryService';
 
 describe('MemoryService toggle', () => {
   beforeEach(() => {

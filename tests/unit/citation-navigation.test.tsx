@@ -19,21 +19,21 @@ vi.mock('@/features/ask/ChatCostChip', () => ({
   ChatCostChip: () => null,
 }));
 
-vi.mock('@/modules/models/ClaudeProvider', () => ({
+vi.mock('@/platform/providers/ClaudeProvider', () => ({
   ClaudeProvider: class {
     setTools() {}
     sendMessage = vi.fn();
     getMetadata() { return { model: 'stub' }; }
   },
 }));
-vi.mock('@/modules/models/OpenAIProvider', () => ({
+vi.mock('@/platform/providers/OpenAIProvider', () => ({
   OpenAIProvider: class {
     setTools() {}
     sendMessage = vi.fn();
     getMetadata() { return { model: 'stub' }; }
   },
 }));
-vi.mock('@/modules/models/GeminiProvider', () => ({
+vi.mock('@/platform/providers/GeminiProvider', () => ({
   GeminiProvider: class {
     setTools() {}
     sendMessage = vi.fn();

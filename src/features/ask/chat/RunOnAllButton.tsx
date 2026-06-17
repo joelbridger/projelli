@@ -17,13 +17,13 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import { Sparkles, Loader2, X, CheckCircle2 } from 'lucide-react';
-import type { Provider } from '@/modules/models/Provider';
-import { ComparisonView } from '@/components/analysis/ComparisonView';
+import type { Provider } from '@/platform/providers/Provider';
+import { ComparisonView } from '@/platform/analysis/ui/ComparisonView';
 import { tierHasFeature, type LicenseTier } from '@/hooks/useLicense';
 import {
   ContradictionDetector,
   type ContradictionAnalysis,
-} from '@/modules/analysis/ContradictionDetector';
+} from '@/platform/analysis/ContradictionDetector';
 
 export interface ConfiguredProvider {
   /** Stable id for keying testids, e.g. "claude" / "openai" / "gemini". */

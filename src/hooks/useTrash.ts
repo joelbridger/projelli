@@ -4,8 +4,8 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { WorkspaceService } from '@/modules/workspace/WorkspaceService';
-import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import { useEditorStore } from '@/stores/editorStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 

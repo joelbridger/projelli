@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
+import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import type { ChatAttachment } from '@/types/ai';
 
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // '%PDF' magic bytes

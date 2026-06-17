@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { AuditService } from '@/modules/audit/AuditService';
+import { AuditService } from '@/platform/audit/AuditService';
 import type { AuditEntry } from '@/types/audit';
 import { entriesToCSV, CSV_COLUMNS } from '@/features/audit/audit-export';
 

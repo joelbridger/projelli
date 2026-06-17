@@ -1,7 +1,7 @@
 // Cross-platform external link opener
 // Supports both browser (window.open) and Tauri (shell plugin)
 
-import { isTauriEnvironment } from '@/modules/workspace/BackendFactory';
+import { isTauriEnvironment } from '@/platform/fs/BackendFactory';
 
 /**
  * Opens a URL in the system's default browser (Tauri) or a new tab (browser)

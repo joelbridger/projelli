@@ -12,7 +12,7 @@ import type {
   AnalyzeStepConfig,
   ContradictionAnalysisResult,
 } from '@/types/workflow';
-import type { Provider } from '@/modules/models/Provider';
+import type { Provider } from '@/platform/providers/Provider';
 import type { RetrievalScope } from '@/utils/tauri-commands';
 import {
   runContradictionAnalysis,

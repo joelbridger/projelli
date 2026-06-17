@@ -14,7 +14,7 @@ import { useMatterStore } from '@/stores/matterStore';
 import { ensureMatterSync, getMatterSyncClient } from '@/features/matters/logic/matterNotesSync';
 import { MatterNotesEditor } from '@/features/matters/MatterNotesEditor';
 import { useMatterSyncStatus } from '@/stores/matterSyncStore';
-import type { MatterSyncClient } from '@/modules/firm/MatterSyncClient';
+import type { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
 
 interface MatterNotesEditorWrapperProps {
   localMatterId: string;

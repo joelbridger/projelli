@@ -18,7 +18,7 @@
  */
 
 import type { ChatAttachment } from '@/types/ai';
-import type { PdfMode } from '@/modules/models/pdf-capability';
+import type { PdfMode } from '@/platform/providers/pdf-capability';
 
 /** Anthropic's approximate token cost per page in native-PDF mode. */
 const CLAUDE_NATIVE_TOKENS_PER_PAGE = 1500;

@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildWorkspaceContextBlock,
   injectWorkspaceContext,
-} from '@/modules/memory/workspaceCommand';
+} from '@/platform/rag/workspaceCommand';
 import type { RagHit } from '@/utils/tauri-commands';
 
 const HITS: RagHit[] = [

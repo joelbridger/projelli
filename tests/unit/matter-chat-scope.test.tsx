@@ -23,8 +23,8 @@ const mocks = vi.hoisted(() => ({
   verifyCitation: vi.fn(),
 }));
 
-vi.mock('@/modules/memory/MemoryService', async (orig) => {
-  const real = await orig<typeof import('@/modules/memory/MemoryService')>();
+vi.mock('@/platform/rag/MemoryService', async (orig) => {
+  const real = await orig<typeof import('@/platform/rag/MemoryService')>();
   return {
     ...real,
     MemoryService: { ...real.MemoryService, retrieve: mocks.retrieve },
@@ -39,7 +39,7 @@ vi.mock('@/utils/tauri-commands', async (orig) => {
   return { ...real, ragVerifyCitation: mocks.verifyCitation };
 });
 
-vi.mock('@/modules/models/ClaudeProvider', () => ({
+vi.mock('@/platform/providers/ClaudeProvider', () => ({
   ClaudeProvider: class {
     setTools() {}
     sendMessage = mocks.sendMessage;
@@ -47,7 +47,7 @@ vi.mock('@/modules/models/ClaudeProvider', () => ({
     getMetadata() { return { model: 'stub' }; }
   },
 }));
-vi.mock('@/modules/models/OpenAIProvider', () => ({
+vi.mock('@/platform/providers/OpenAIProvider', () => ({
   OpenAIProvider: class {
     setTools() {}
     sendMessage = mocks.sendMessage;
@@ -55,7 +55,7 @@ vi.mock('@/modules/models/OpenAIProvider', () => ({
     getMetadata() { return { model: 'stub' }; }
   },
 }));
-vi.mock('@/modules/models/GeminiProvider', () => ({
+vi.mock('@/platform/providers/GeminiProvider', () => ({
   GeminiProvider: class {
     setTools() {}
     sendMessage = mocks.sendMessage;

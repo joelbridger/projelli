@@ -18,7 +18,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { CheckCircle2, AlertCircle, RefreshCw, ExternalLink } from 'lucide-react';
-import { detectOllama } from '@/modules/models/OllamaProvider';
+import { detectOllama } from '@/platform/providers/OllamaProvider';
 
 export interface OllamaSettingsSectionProps {
   /**

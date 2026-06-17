@@ -20,22 +20,22 @@ import { estimatePdfTokens } from '@/features/ask/attachments/pdfTokens';
 import type { PdfExtractionResult } from '@/lib/pdf-extract';
 import type { ChatAttachment, AIChatFile, ChatMessage, WorkspaceSource, TurnScope } from '@/types/ai';
 import type { AuditEntry, AuditScope, CitationVerdict } from '@/types/audit';
-import { auditEventToEntry } from '@/modules/audit/AuditService';
-import { resolveEgress } from '@/modules/privacy/egress';
+import { auditEventToEntry } from '@/platform/audit/AuditService';
+import { resolveEgress } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
-import type { Provider, AttachmentBytes } from '@/modules/models/Provider';
-import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
-import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
-import { GeminiProvider } from '@/modules/models/GeminiProvider';
-import { OllamaProvider } from '@/modules/models/OllamaProvider';
-import { isLocalProviderId } from '@/modules/models/providerFactory';
-import { resolveAssuredRoute } from '@/modules/firm/resolveAssuredRoute';
+import type { Provider, AttachmentBytes } from '@/platform/providers/Provider';
+import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
+import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
+import { GeminiProvider } from '@/platform/providers/GeminiProvider';
+import { OllamaProvider } from '@/platform/providers/OllamaProvider';
+import { isLocalProviderId } from '@/platform/providers/providerFactory';
+import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { createDemoProvider } from '@/web-demo/demoAIProvider';
-import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/modules/models/fetchUtils';
-import { FILE_ACCESS_TOOLS } from '@/modules/tools/fileAccessTools';
+import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/platform/providers/fetchUtils';
+import { FILE_ACCESS_TOOLS } from '@/platform/tools/fileAccessTools';
 import type { useActiveMatter } from '@/stores/matterStore';
-import { matterLabel } from '@/modules/memory/matterResolver';
+import { matterLabel } from '@/platform/rag/matterResolver';
 import type { RetrievalScope } from '@/utils/tauri-commands';
 import type { ExtractedContext } from '@/utils/ai-file-context';
 import { filterByScope } from '@/utils/client-boundary';
@@ -46,16 +46,16 @@ import {
   estimateMessagesTokens,
   estimateTokens,
 } from '@/features/ask/compression';
-import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
+import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import {
   DEFAULT_WORKSPACE_TOP_K,
   buildWorkspaceContextBlock,
   normalizeNumericCitations,
   parseWorkspaceCommand,
   verifyCitations,
-} from '@/modules/memory/workspaceCommand';
-import { buildFactsMemoryBlock } from '@/modules/memory/FactsService';
-import { snapshotFactsForInjection } from '@/modules/memory/factsSingleton';
+} from '@/platform/rag/workspaceCommand';
+import { buildFactsMemoryBlock } from '@/platform/rag/FactsService';
+import { snapshotFactsForInjection } from '@/platform/rag/factsSingleton';
 import type { ChatSession, ChatCostEntry } from '@/stores/aiChatStore';
 // buildOpenFilesPromptBlock + refusalKeyForReason stay exported from AIChatViewer
 // (external importers: useTestModeWorkspace, refusal-key.test). The deferred,
@@ -154,7 +154,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
     abortControllerRef,
   } = deps;
 
-  const buildFastProvider = useCallback((): import('@/modules/models/Provider').Provider | null => {
+  const buildFastProvider = useCallback((): import('@/platform/providers/Provider').Provider | null => {
     const chatProvider = chatData.provider ?? 'anthropic';
     const apiKey = apiKeys.find(k => k.provider === chatProvider && k.isValid);
     if (!apiKey) return null;

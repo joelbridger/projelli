@@ -9,20 +9,20 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useActiveMatter, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { matterLabel } from '@/modules/memory/matterResolver';
+import { matterLabel } from '@/platform/rag/matterResolver';
 import { getDemoAnswerForWorkspace, getDemoQuestions } from '@/onboarding/samples/sampleMatterDemo';
 import { useProfessionStore } from '@/stores/professionStore';
-import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
+import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import {
   DEFAULT_WORKSPACE_TOP_K,
   buildWorkspaceContextBlock,
   citationBasename,
   parseCitations,
   resolveCitationPath,
-} from '@/modules/memory/workspaceCommand';
+} from '@/platform/rag/workspaceCommand';
 import type { WorkspaceSource } from '@/types/ai';
 import type { RagHit, RetrievalScope } from '@/utils/tauri-commands';
-import { KeychainService } from '@/modules/models/KeychainService';
+import { KeychainService } from '@/platform/providers/KeychainService';
 import { useAIChatStore } from '@/stores/aiChatStore';
 import type { ChatMessage } from '@/types/ai';
 import type { AskScope, AnswerCitation, AskTurn } from './askHelpers';

@@ -42,7 +42,7 @@ import { persist } from 'zustand/middleware';
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import type { Matter, MatterScope } from '@/types/matter';
-import { resolveMatterId, findMatter } from '@/modules/memory/matterResolver';
+import { resolveMatterId, findMatter } from '@/platform/rag/matterResolver';
 import { getProfession } from '@/stores/professionStore';
 import { getSampleMatterName } from '@/onboarding/samples/sampleMatterDemo';
 import type { MatterUiSnapshot } from '@/stores/matterUiStore';

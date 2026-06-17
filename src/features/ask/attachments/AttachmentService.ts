@@ -1,4 +1,4 @@
-import type { FSBackend } from '@/modules/workspace/types';
+import type { FSBackend } from '@/platform/fs/types';
 import type { ChatAttachment } from '@/types/ai';
 import { sha256Hex } from '@/lib/hash';
 

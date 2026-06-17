@@ -22,7 +22,7 @@ import {
 import {
   detectOllama,
   formatOllamaDisplayName,
-} from '@/modules/models/OllamaProvider';
+} from '@/platform/providers/OllamaProvider';
 
 interface TemplateModelSettingsProps {
   /** All templates to show (built-ins first, then user templates). */

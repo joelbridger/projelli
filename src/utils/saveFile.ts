@@ -1,7 +1,7 @@
 // Cross-platform file save dialog
 // Supports both browser (File System Access API) and Tauri (dialog plugin)
 
-import { isTauriEnvironment } from '@/modules/workspace/BackendFactory';
+import { isTauriEnvironment } from '@/platform/fs/BackendFactory';
 
 export interface SaveFileOptions {
   /**

@@ -14,7 +14,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useLicense } from '@/hooks/useLicense';
 import { useTrial } from '@/hooks/useTrial';
 import { useEntitlement } from '@/hooks/useEntitlement';
-import { entitlementMessage } from '@/modules/licensing';
+import { entitlementMessage } from '@/platform/licensing';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';

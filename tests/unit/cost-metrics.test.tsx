@@ -16,7 +16,7 @@ import {
   CostMetrics,
   buildDailySeries,
   computeMonthTotals,
-} from '@/components/analysis/CostMetrics';
+} from '@/platform/analysis/ui/CostMetrics';
 
 function makeEntry(partial: Partial<AuditEntry> & { timestamp: string }): AuditEntry {
   return {

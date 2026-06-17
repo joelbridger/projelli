@@ -22,17 +22,17 @@ import {
   buildWorkflowFilename,
   executionToFileData,
 } from '@/features/workflows/engine/workflowFile';
-import { createMockProvider } from '@/modules/models/MockProvider';
-import { createClaudeProvider } from '@/modules/models/ClaudeProvider';
-import { createOpenAIProvider } from '@/modules/models/OpenAIProvider';
-import { createGeminiProvider } from '@/modules/models/GeminiProvider';
-import { OllamaProvider, detectOllama, OLLAMA_DEFAULT_MODEL } from '@/modules/models/OllamaProvider';
-import { modeRestrictsToLocal } from '@/modules/privacy/egress';
+import { createMockProvider } from '@/platform/providers/MockProvider';
+import { createClaudeProvider } from '@/platform/providers/ClaudeProvider';
+import { createOpenAIProvider } from '@/platform/providers/OpenAIProvider';
+import { createGeminiProvider } from '@/platform/providers/GeminiProvider';
+import { OllamaProvider, detectOllama, OLLAMA_DEFAULT_MODEL } from '@/platform/providers/OllamaProvider';
+import { modeRestrictsToLocal } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
-import { MemoryService } from '@/modules/memory/MemoryService';
+import { MemoryService } from '@/platform/rag/MemoryService';
 import { getActiveScope } from '@/stores/matterStore';
 import { ragVerifyCitation, type RetrievalScope } from '@/utils/tauri-commands';
-import { auditEventToEntry } from '@/modules/audit/AuditService';
+import { auditEventToEntry } from '@/platform/audit/AuditService';
 import type { AuditEntry, AuditScope } from '@/types/audit';
 import type {
   WorkflowTemplate,

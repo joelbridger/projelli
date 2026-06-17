@@ -27,7 +27,7 @@ import {
 import { McpApprovalModal } from '@/features/settings/McpApprovalModal';
 import { usePrivilegedMatterModeActive } from '@/hooks/usePrivilegedMatterMode';
 import type { AuditEvent } from '@/types/audit';
-import { PRIVILEGED_MATTER_BLOCK_REASON } from '@/modules/privacy/privilegedMatterMode';
+import { PRIVILEGED_MATTER_BLOCK_REASON } from '@/platform/privacy/privilegedMatterMode';
 
 export interface McpApprovalGateProps {
   /** Append a structured audit event (App.tsx wires this through the active

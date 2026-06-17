@@ -20,7 +20,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import { PDFViewer } from '@/features/documents/media/PDFViewer';
 import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
-import { isTauriEnvironment } from '@/modules/workspace/BackendFactory';
+import { isTauriEnvironment } from '@/platform/fs/BackendFactory';
 import { saveFile } from '@/utils/saveFile';
 import {
   convertPptToPdf,

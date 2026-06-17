@@ -11,7 +11,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WorkflowEngine, type InterviewHandler, type FileOperations, type ProgressHandler } from '@/features/workflows/engine/WorkflowEngine';
-import { MockProvider, createMockProvider } from '@/modules/models/MockProvider';
+import { MockProvider, createMockProvider } from '@/platform/providers/MockProvider';
 import { ClientIntakeSynthesizer } from '@/features/workflows/engine/templates/legal/ClientIntakeSynthesizer';
 import type { RunRecord, RunRecordStatus } from '@/types/workflow';
 

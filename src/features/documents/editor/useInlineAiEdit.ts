@@ -24,7 +24,7 @@ import {
 } from '@/features/documents/editor-core/aiEdit/streamingDiff';
 import { buildEditSystemPrompt } from '@/features/documents/editor-core/aiEdit/editPrompt';
 import type { DiffHunk, HunkResolution } from '@/features/documents/editor-core/aiEdit/types';
-import type { Provider } from '@/modules/models/Provider';
+import type { Provider } from '@/platform/providers/Provider';
 import { getVersionService } from '@/features/documents/versioning/VersionService';
 
 /** Subset of editor surface the hook needs. */

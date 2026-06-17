@@ -14,11 +14,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as Y from 'yjs';
-import { openCoeditSession, closeCoeditSession, type CoeditSessionOptions } from '@/modules/coedit/coeditSession';
-import { generateMatterKey } from '@/modules/firm/matterCrypto';
+import { openCoeditSession, closeCoeditSession, type CoeditSessionOptions } from '@/platform/firm/coedit/coeditSession';
+import { generateMatterKey } from '@/platform/firm/matterCrypto';
 import type { DocumentJson } from '@/types/docx';
-import type { WebSocketLike } from '@/modules/firm/MatterSyncClient';
-import type { PushUpdateResponse, PullUpdatesResponse } from '@/modules/firm/contract';
+import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
+import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
 
 // ---------------------------------------------------------------------------
 // Minimal fake relay that supports injecting presence frames
@@ -99,7 +99,7 @@ function fakeClient(relay: FakeDocRelayWithPresence, docId: string) {
       ticket: `tkt_${Math.random().toString(36).slice(2)}`,
       expires_in_ms: 30_000,
     }),
-  } as unknown as import('@/modules/firm/FirmApiClient').FirmApiClient;
+  } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 }
 
 async function until(pred: () => boolean, tries = 80): Promise<void> {

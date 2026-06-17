@@ -25,7 +25,7 @@ import {
   validateApiKeyLive,
   type ValidationProvider,
   type ValidationOutcome,
-} from '@/modules/models/apiKeyValidation';
+} from '@/platform/providers/apiKeyValidation';
 
 interface ApiKeyTesterProps {
   provider: ValidationProvider;

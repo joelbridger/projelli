@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import { Trans } from 'react-i18next';
 import { CheckCircle2, AlertCircle, Mic, MicOff } from 'lucide-react';
-import { isVoiceSidecarAvailable } from '@/modules/voice/voiceStatus';
+import { isVoiceSidecarAvailable } from '@/platform/voice/voiceStatus';
 import { VoiceOutputSettingsSection } from '@/features/dictation/tts/VoiceOutputSettingsSection';
 
 type SidecarStatus = 'checking' | 'ready' | 'missing';

@@ -36,7 +36,7 @@ import type {
   FileOperations,
   InterviewHandler,
 } from './WorkflowEngine';
-import type { Provider } from '@/modules/models/Provider';
+import type { Provider } from '@/platform/providers/Provider';
 
 /**
  * The outcome of running one step inside a chain.
