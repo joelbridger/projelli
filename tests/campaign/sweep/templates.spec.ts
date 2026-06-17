@@ -13,7 +13,7 @@ import { waitForTestModeLoad, hardClick, safeFill } from '../../e2e/helpers/test
 
 // ---------------------------------------------------------------------------
 // Template IDs from the built-in packs. These must match the `id` field in
-// each template's export. Verified against src/modules/workflow/templates/.
+// each template's export. Verified against src/features/workflows/engine/templates/.
 // ---------------------------------------------------------------------------
 const LEGAL_TEMPLATES = [
   { id: 'legal-case-timeline-builder',           ledger: 'L-060' },

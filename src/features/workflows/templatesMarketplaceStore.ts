@@ -7,7 +7,7 @@
  *
  * App.tsx seeds the store via `setMarketplace(...)` whenever the workspace
  * changes; on workspace teardown it calls `clearMarketplace()`. The hook
- * `useTemplatesMarketplace` (see `@/hooks/useTemplatesMarketplace`) is the
+ * `useTemplatesMarketplace` (see `@/features/workflows/useTemplatesMarketplace`) is the
  * canonical reader.
  *
  * `cacheStatus` and `updateCount` are mirrored on the store rather than
@@ -18,8 +18,8 @@
  */
 
 import { create } from 'zustand';
-import type { MarketplaceService, CacheStatus } from '@/modules/marketplace';
-import type { TemplateMetadataReader } from '@/modules/marketplace';
+import type { MarketplaceService, CacheStatus } from '@/features/workflows/marketplace/svc';
+import type { TemplateMetadataReader } from '@/features/workflows/marketplace/svc';
 
 export interface TemplatesMarketplaceState {
   service: MarketplaceService | null;

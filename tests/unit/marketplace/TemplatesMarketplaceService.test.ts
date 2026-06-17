@@ -7,15 +7,15 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 import * as tauriCore from '@tauri-apps/api/core';
-import { MarketplaceService } from '@/modules/marketplace/MarketplaceService';
+import { MarketplaceService } from '@/features/workflows/marketplace/svc/MarketplaceService';
 import {
   createTemplatesMarketplaceService,
   TEMPLATES_REPO_URL,
-} from '@/modules/marketplace/TemplatesMarketplaceService';
+} from '@/features/workflows/marketplace/svc/TemplatesMarketplaceService';
 import { AuditService } from '@/modules/audit/AuditService';
 import type { FSBackend } from '@/modules/workspace/types';
-import type { CatalogEntry, InstalledEntry } from '@/types/marketplace';
-import type { TemplateManifest } from '@/types/templateManifest';
+import type { CatalogEntry, InstalledEntry } from '@/features/workflows/types/marketplace';
+import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
 
 const mockInvoke = vi.mocked(tauriCore.invoke);
 

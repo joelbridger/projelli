@@ -19,8 +19,8 @@ import {
   saveUserTemplate,
   setSystemPrompt,
   setUserTemplateStorage,
-} from '@/modules/workflow/userTemplates';
-import { allWorkflows } from '@/modules/workflow';
+} from '@/features/workflows/engine/userTemplates';
+import { allWorkflows } from '@/features/workflows/engine';
 
 /**
  * In-memory storage adapter so tests don't depend on JSDOM's

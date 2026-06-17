@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MarketplaceService } from '@/modules/marketplace/MarketplaceService';
+import { MarketplaceService } from '@/features/workflows/marketplace/svc/MarketplaceService';
 import type { FSBackend } from '@/modules/workspace/types';
-import type { CatalogEntry } from '@/types/marketplace';
+import type { CatalogEntry } from '@/features/workflows/types/marketplace';
 
 function makeFs() {
   const writes = new Map<string, Uint8Array>();

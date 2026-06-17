@@ -20,9 +20,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { Loader2, Trash2 } from 'lucide-react';
-import type { MarketplaceService } from '@/modules/marketplace';
-import type { InstalledEntry, TemplateProvenance } from '@/types/marketplace';
-import { TEMPLATE_PROVENANCE_LABELS } from '@/modules/marketplace';
+import type { MarketplaceService } from '@/features/workflows/marketplace/svc';
+import type { InstalledEntry, TemplateProvenance } from '@/features/workflows/types/marketplace';
+import { TEMPLATE_PROVENANCE_LABELS } from '@/features/workflows/marketplace/svc';
 
 export interface InstalledTemplatesListProps {
   service: MarketplaceService;

@@ -12,7 +12,7 @@ import {
   verifyChecksum,
   extractTarball,
   cleanupOnError,
-} from '@/modules/marketplace/install';
+} from '@/features/workflows/marketplace/svc/install';
 import type { FSBackend } from '@/modules/workspace/types';
 
 const mockInvoke = vi.mocked(tauriCore.invoke);

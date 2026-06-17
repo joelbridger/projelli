@@ -25,8 +25,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
-import { validateTemplateManifest } from '@/modules/marketplace/manifestValidator';
-import type { CatalogEntry } from '@/types/marketplace';
+import { validateTemplateManifest } from '@/features/workflows/marketplace/svc/manifestValidator';
+import type { CatalogEntry } from '@/features/workflows/types/marketplace';
 
 const LIVE_OK = process.env.LIVE_NETWORK_OK === '1';
 

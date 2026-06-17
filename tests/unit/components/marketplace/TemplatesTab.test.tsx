@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor, act } from '@testing-library/react';
-import { TemplatesTab } from '@/components/marketplace/TemplatesTab';
-import { useTemplatesMarketplaceStore } from '@/stores/templatesMarketplaceStore';
-import type { MarketplaceService, CacheStatus } from '@/modules/marketplace';
-import type { CatalogEntry, InstalledEntry } from '@/types/marketplace';
+import { TemplatesTab } from '@/features/workflows/marketplace/TemplatesTab';
+import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
+import type { MarketplaceService, CacheStatus } from '@/features/workflows/marketplace/svc';
+import type { CatalogEntry, InstalledEntry } from '@/features/workflows/types/marketplace';
 
 const ENTRY_A: CatalogEntry = {
   id: 'investor-update-v1',

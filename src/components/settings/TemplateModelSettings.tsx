@@ -18,7 +18,7 @@ import type { WorkflowTemplate, TemplateProviderId } from '@/types/workflow';
 import {
   TEMPLATE_MODEL_OVERRIDES_KEY,
   type TemplateModelOverride,
-} from '@/modules/workflow/resolveTemplateModel';
+} from '@/features/workflows/engine/resolveTemplateModel';
 import {
   detectOllama,
   formatOllamaDisplayName,

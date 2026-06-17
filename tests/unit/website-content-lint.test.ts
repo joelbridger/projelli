@@ -237,7 +237,7 @@ describe('T1-B — EULA/Terms Practice annual subscription', () => {
  * T1-D — homepage pricing card reflects actual template counts.
  *
  * Counts must match the number of *.ts files (excluding index.ts) in each
- * src/modules/workflow/templates/<pack>/ directory.
+ * src/features/workflows/engine/templates/<pack>/ directory.
  */
 describe('T1-D — homepage pricing card reflects actual template counts', () => {
   it('homepage pricing card reflects actual template counts', async () => {
@@ -253,7 +253,7 @@ describe('T1-D — homepage pricing card reflects actual template counts', () =>
       { dir: 'consulting', label: 'Consulting' },
       { dir: 'advisors', label: 'Advisor' },
     ];
-    const templatesRoot = path.resolve(websiteDir, '../src/modules/workflow/templates');
+    const templatesRoot = path.resolve(websiteDir, '../src/features/workflows/engine/templates');
     for (const { dir, label } of packs) {
       const files = (await fs.readdir(path.join(templatesRoot, dir))).filter(
         (f) => f.endsWith('.ts') && f !== 'index.ts',

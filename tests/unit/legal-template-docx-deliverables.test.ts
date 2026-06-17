@@ -20,8 +20,8 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import JSZip from 'jszip';
-import { LEGAL_TEMPLATES } from '../../src/modules/workflow/templates/legal/index';
-import { WorkflowEngine } from '../../src/modules/workflow/WorkflowEngine';
+import { LEGAL_TEMPLATES } from '../../src/features/workflows/engine/templates/legal/index';
+import { WorkflowEngine } from '../../src/features/workflows/engine/WorkflowEngine';
 import { MockProvider } from '../../src/modules/models/MockProvider';
 import { serializeContradictionsDocx } from '../../src/utils/docx-io';
 import type { WorkflowTemplate, ContradictionAnalysisResult } from '../../src/types/workflow';

@@ -95,7 +95,7 @@ export interface WorkflowEngineOptions {
   /**
    * Stream C1 — Built-in templates the engine should surface alongside any
    * community-installed templates. Caller-supplied so the engine doesn't
-   * have to import from `@/modules/workflow` (which would create a circular
+   * have to import from `@/features/workflows/engine` (which would create a circular
    * import via this file's barrel re-export).
    */
   builtInTemplates?: WorkflowTemplate[];

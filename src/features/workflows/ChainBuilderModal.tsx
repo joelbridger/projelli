@@ -29,8 +29,8 @@ import type {
   WorkflowChainStep,
   WorkflowTemplate,
 } from '@/types/workflow';
-import { emptyChain } from '@/modules/workflow/WorkflowChainEngine';
-import { saveChain } from '@/modules/workflow/workflowChains';
+import { emptyChain } from '@/features/workflows/engine/WorkflowChainEngine';
+import { saveChain } from '@/features/workflows/engine/workflowChains';
 
 interface ChainBuilderModalProps {
   open: boolean;

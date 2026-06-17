@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 import type {
   CacheStatus,
   MarketplaceService,
-} from '@/modules/marketplace';
+} from '@/features/workflows/marketplace/svc';
 import { RefreshCw, AlertCircle, WifiOff } from 'lucide-react';
 
 interface MarketplaceOfflineBannerProps {

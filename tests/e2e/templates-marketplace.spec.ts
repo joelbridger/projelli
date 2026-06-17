@@ -261,7 +261,7 @@ async function exposeMarketplaceTestKit(page: Page) {
     // to fetch the marketplace barrel in dev. The dev URL pattern matches
     // the Vite default for src/ modules.
     const m = (await import(
-      /* @vite-ignore */ '/src/modules/marketplace/index.ts'
+      /* @vite-ignore */ '/src/features/workflows/marketplace/svc/index.ts'
     )) as {
       MarketplaceService: new (opts: {
         repoUrl: string;

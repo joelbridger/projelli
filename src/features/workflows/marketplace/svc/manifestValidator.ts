@@ -10,7 +10,7 @@ import { z } from 'zod';
 import type {
   TemplateManifest,
   TemplateFileType,
-} from '@/types/templateManifest';
+} from '@/features/workflows/types/templateManifest';
 
 const TEMPLATE_FILE_TYPES: readonly TemplateFileType[] = [
   'markdown',

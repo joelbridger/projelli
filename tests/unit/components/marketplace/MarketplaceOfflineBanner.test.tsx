@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
-import { MarketplaceOfflineBanner } from '@/components/marketplace/MarketplaceOfflineBanner';
-import type { CacheStatus, MarketplaceService } from '@/modules/marketplace';
+import { MarketplaceOfflineBanner } from '@/features/workflows/marketplace/MarketplaceOfflineBanner';
+import type { CacheStatus, MarketplaceService } from '@/features/workflows/marketplace/svc';
 
 interface StubServiceOverrides {
   cacheStatus?: CacheStatus;

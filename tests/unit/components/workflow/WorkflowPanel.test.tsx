@@ -27,7 +27,7 @@ import type { WorkflowTemplate } from '@/types/workflow';
 // ---- Mocks ---------------------------------------------------------------
 
 const mockLoadAllTemplates = vi.fn<() => WorkflowTemplate[]>();
-vi.mock('@/modules/workflow/userTemplates', () => ({
+vi.mock('@/features/workflows/engine/userTemplates', () => ({
   loadAllTemplates: () => mockLoadAllTemplates(),
   duplicateTemplate: vi.fn((t: WorkflowTemplate) => t),
   deleteUserTemplate: vi.fn(),
@@ -52,7 +52,7 @@ let marketplaceState: MockMarketplace = {
   setCacheStatus: () => {},
   setUpdateCount: () => {},
 };
-vi.mock('@/hooks/useTemplatesMarketplace', () => ({
+vi.mock('@/features/workflows/useTemplatesMarketplace', () => ({
   useTemplatesMarketplace: () => marketplaceState,
 }));
 
@@ -68,12 +68,12 @@ vi.mock('@/hooks/useTrial', () => ({
 
 // Render-time stubs for the chain builder modal (its internals require a
 // fully-stocked store that's irrelevant to provenance grouping).
-vi.mock('@/components/workflow/ChainBuilderModal', () => ({
+vi.mock('@/features/workflows/ChainBuilderModal', () => ({
   ChainBuilderModal: () => null,
 }));
 
 // Import after mocks are in place.
-import { WorkflowPanel } from '@/components/workflow/WorkflowPanel';
+import { WorkflowPanel } from '@/features/workflows/WorkflowPanel';
 
 // ---- Helpers ------------------------------------------------------------
 

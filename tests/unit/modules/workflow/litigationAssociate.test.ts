@@ -21,11 +21,11 @@ import {
   type FileOperations,
   type InterviewHandler,
   type AnalyzeDeps,
-} from '@/modules/workflow/WorkflowEngine';
+} from '@/features/workflows/engine/WorkflowEngine';
 import {
   runContradictionAnalysis,
   type RetrievedChunk,
-} from '@/modules/workflow/legalAnalysis';
+} from '@/features/workflows/engine/legalAnalysis';
 import { serializeContradictionsDocx } from '@/utils/docx-io';
 import { createMockProvider } from '@/modules/models/MockProvider';
 import type { Provider, ProviderResponse } from '@/modules/models/Provider';

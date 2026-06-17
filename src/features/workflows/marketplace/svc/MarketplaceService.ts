@@ -1,6 +1,6 @@
 import type { FSBackend } from '@/modules/workspace/types';
-import type { CatalogEntry, InstalledEntry, UpdateInfo, TemplateProvenance } from '@/types/marketplace';
-import type { TemplateManifest } from '@/types/templateManifest';
+import type { CatalogEntry, InstalledEntry, UpdateInfo, TemplateProvenance } from '@/features/workflows/types/marketplace';
+import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
 import { AuditService } from '@/modules/audit/AuditService';
 import {
   downloadTarball,

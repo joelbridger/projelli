@@ -29,7 +29,7 @@ import type {
   WorkflowExecution,
   InterviewQuestion,
 } from '@/types/workflow';
-import { loadAllTemplates } from '@/modules/workflow/userTemplates';
+import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { FileNode } from '@/types/workspace';

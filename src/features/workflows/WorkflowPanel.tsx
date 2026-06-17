@@ -47,17 +47,17 @@ import {
   loadAllTemplates,
   saveUserTemplate,
   setSystemPrompt,
-} from '@/modules/workflow/userTemplates';
+} from '@/features/workflows/engine/userTemplates';
 import { ChainBuilderModal } from './ChainBuilderModal';
-import { prioritizeByProfession } from '@/modules/workflow/prioritizeByProfession';
+import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
 import { useProfessionStore, isLawExperience } from '@/stores/professionStore';
 import { useTrialGate } from '@/hooks/useTrial';
-import { useTemplatesMarketplace } from '@/hooks/useTemplatesMarketplace';
+import { useTemplatesMarketplace } from '@/features/workflows/useTemplatesMarketplace';
 import { useSettingsStore } from '@/stores/settingsStore';
 import {
   TEMPLATE_PROVENANCE_LABELS,
   type TemplateProvenance,
-} from '@/modules/marketplace';
+} from '@/features/workflows/marketplace/svc';
 
 interface WorkflowPanelProps {
   onStartWorkflow: (template: WorkflowTemplate) => void;

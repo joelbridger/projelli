@@ -2,7 +2,7 @@
  * F-106 / F-107 — Workflow provider resolution unit tests.
  *
  * Tests the REAL resolveWorkflowProvider function exported from
- * src/modules/workflow/resolveTemplateModel.ts.
+ * src/features/workflows/engine/resolveTemplateModel.ts.
  *
  * These tests exercise the pure helper directly — no React tree, no mocks of
  * the function under test. The key invariant: reverting the ollama-first
@@ -29,7 +29,7 @@ import {
   type ResolveWorkflowProviderInput,
   type WorkflowProviderResolution,
   type TemplateModelOverride,
-} from '@/modules/workflow/resolveTemplateModel';
+} from '@/features/workflows/engine/resolveTemplateModel';
 import type { TemplateProviderId, WorkflowTemplate } from '@/types/workflow';
 
 // ---------------------------------------------------------------------------

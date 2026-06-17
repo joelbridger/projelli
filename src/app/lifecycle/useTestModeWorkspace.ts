@@ -10,7 +10,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useFileBackupStore } from '@/stores/fileBackupStore';
 import { useFileContextStore } from '@/stores/fileContextStore';
-import { useTemplatesMarketplaceStore } from '@/stores/templatesMarketplaceStore';
+import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import { buildOpenFilesPromptBlock } from '@/components/ai/AIChatViewer';
 import type { WorkspaceService } from '@/modules/workspace/WorkspaceService';
 import type { FileNode } from '@/types/workspace';

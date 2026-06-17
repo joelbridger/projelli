@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   TemplateMetadataReader,
   COMMUNITY_TEMPLATE_ID_PREFIX,
-} from '@/modules/marketplace/TemplateMetadataReader';
+} from '@/features/workflows/marketplace/svc/TemplateMetadataReader';
 import type { FSBackend } from '@/modules/workspace/types';
-import type { InstalledEntry } from '@/types/marketplace';
-import type { TemplateManifest } from '@/types/templateManifest';
-import type { MarketplaceService } from '@/modules/marketplace/MarketplaceService';
+import type { InstalledEntry } from '@/features/workflows/types/marketplace';
+import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
+import type { MarketplaceService } from '@/features/workflows/marketplace/svc/MarketplaceService';
 import { AuditService } from '@/modules/audit/AuditService';
 
 // ---------------------------------------------------------------------------

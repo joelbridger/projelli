@@ -8,12 +8,12 @@
 import { useCallback } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
-import { useTemplatesMarketplaceStore } from '@/stores/templatesMarketplaceStore';
+import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import {
   createTemplatesMarketplaceService,
   TemplateMetadataReader,
   type MarketplaceService,
-} from '@/modules/marketplace';
+} from '@/features/workflows/marketplace/svc';
 import { isLawExperience } from '@/stores/professionStore';
 import { createWorkspaceService, type WorkspaceService } from '@/modules/workspace/WorkspaceService';
 import { createFSBackend } from '@/modules/workspace/BackendFactory';

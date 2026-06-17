@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { TemplateCatalogCard } from '@/components/marketplace/TemplateCatalogCard';
-import type { CatalogEntry } from '@/types/marketplace';
+import { TemplateCatalogCard } from '@/features/workflows/marketplace/TemplateCatalogCard';
+import type { CatalogEntry } from '@/features/workflows/types/marketplace';
 
 const SAMPLE: CatalogEntry = {
   id: 'investor-update-v1',

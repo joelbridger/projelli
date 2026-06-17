@@ -10,10 +10,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { TaxResearchMemo } from '@/modules/workflow/templates/tax/TaxResearchMemo';
-import { EvidenceGapAnalyzer } from '@/modules/workflow/templates/legal/EvidenceGapAnalyzer';
-import { PrivilegeLogDrafter } from '@/modules/workflow/templates/legal/PrivilegeLogDrafter';
-import { EngagementLetterBuilder } from '@/modules/workflow/templates/tax/EngagementLetterBuilder';
+import { TaxResearchMemo } from '@/features/workflows/engine/templates/tax/TaxResearchMemo';
+import { EvidenceGapAnalyzer } from '@/features/workflows/engine/templates/legal/EvidenceGapAnalyzer';
+import { PrivilegeLogDrafter } from '@/features/workflows/engine/templates/legal/PrivilegeLogDrafter';
+import { EngagementLetterBuilder } from '@/features/workflows/engine/templates/tax/EngagementLetterBuilder';
 import type { GenerateStepConfig } from '@/types/workflow';
 
 /** Pull the systemPrompt from the first generate step of a template. */

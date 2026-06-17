@@ -52,7 +52,7 @@ const mockTemplates: WorkflowTemplate[] = [
   },
 ];
 
-vi.mock('@/modules/workflow/userTemplates', () => ({
+vi.mock('@/features/workflows/engine/userTemplates', () => ({
   loadAllTemplates: () => mockTemplates,
 }));
 
@@ -66,7 +66,7 @@ vi.mock('@/stores/professionStore', () => ({
 }));
 
 // prioritizeByProfession: pass-through (order doesn't matter for these tests).
-vi.mock('@/modules/workflow/prioritizeByProfession', () => ({
+vi.mock('@/features/workflows/engine/prioritizeByProfession', () => ({
   prioritizeByProfession: (templates: WorkflowTemplate[]) => templates,
 }));
 
@@ -94,7 +94,7 @@ vi.mock('@/modules/memory/matterResolver', () => ({
 
 // ── Import component and mocked store AFTER mocks are set up ─────────────────
 
-import { ReimaginedAssociateHome } from '@/components/workflow/ReimaginedAssociateHome';
+import { ReimaginedAssociateHome } from '@/features/workflows/ReimaginedAssociateHome';
 import { useProfessionStore } from '@/stores/professionStore';
 
 // ── Shared props factory ────────────────────────────────────────────────────

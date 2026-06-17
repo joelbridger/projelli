@@ -23,7 +23,7 @@ import {
   groundQuoteToChunk,
   runContradictionAnalysis,
   type RetrievedChunk,
-} from '@/modules/workflow/legalAnalysis';
+} from '@/features/workflows/engine/legalAnalysis';
 import { createMockProvider } from '@/modules/models/MockProvider';
 import type { Provider } from '@/modules/models/Provider';
 import type { AnalyzeStepConfig } from '@/types/workflow';

@@ -14,13 +14,13 @@ import { ReimaginedMattersHome } from '@/components/matter/ReimaginedMattersHome
 import { ReimaginedAsk } from '@/components/ai/ReimaginedAsk';
 import { ReimaginedEmailWorkspace } from '@/features/email/ReimaginedEmailWorkspace';
 import { ReimaginedDocumentsHome } from '@/components/documents/ReimaginedDocumentsHome';
-import { ReimaginedAssociateHome } from '@/components/workflow/ReimaginedAssociateHome';
+import { ReimaginedAssociateHome } from '@/features/workflows/ReimaginedAssociateHome';
 import { ReimaginedAuditHome } from '@/features/audit/ReimaginedAuditHome';
 import { MainPanel } from '@/components/layout/MainPanel';
 import { SettingsContent } from '@/components/settings/SettingsContent';
-import { loadAllTemplates } from '@/modules/workflow/userTemplates';
+import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { requestScrollToParagraph } from '@/utils/scrollToParagraph';
-import { isWorkflowFilePath } from '@/modules/workflow/workflowFile';
+import { isWorkflowFilePath } from '@/features/workflows/engine/workflowFile';
 import { useEditorStore } from '@/stores/editorStore';
 
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';

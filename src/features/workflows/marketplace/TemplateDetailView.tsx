@@ -40,13 +40,13 @@ import { cn } from '@/lib/utils';
 import type {
   CatalogEntry,
   InstalledEntry,
-} from '@/types/marketplace';
+} from '@/features/workflows/types/marketplace';
 import type {
   InstallPhase,
   MarketplaceService,
-} from '@/modules/marketplace';
-import type { TemplateManifest, TemplateFileEntry } from '@/types/templateManifest';
-import { validateTemplateManifest } from '@/modules/marketplace';
+} from '@/features/workflows/marketplace/svc';
+import type { TemplateManifest, TemplateFileEntry } from '@/features/workflows/types/templateManifest';
+import { validateTemplateManifest } from '@/features/workflows/marketplace/svc';
 
 interface TemplateDetailViewProps {
   entry: CatalogEntry;

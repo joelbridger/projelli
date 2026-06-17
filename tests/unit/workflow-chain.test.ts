@@ -15,14 +15,14 @@ import {
   extractNamedOutputs,
   applyInputMap,
   emptyChain,
-} from '@/modules/workflow/WorkflowChainEngine';
+} from '@/features/workflows/engine/WorkflowChainEngine';
 import {
   saveChain,
   getChain,
   listChains,
   deleteChain,
   setChainStorage,
-} from '@/modules/workflow/workflowChains';
+} from '@/features/workflows/engine/workflowChains';
 import type {
   WorkflowChain,
   WorkflowTemplate,

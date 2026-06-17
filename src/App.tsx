@@ -43,7 +43,7 @@ import { useMemoryWiring } from '@/hooks/useMemoryWiring';
 import { useGlobalFileDrop } from '@/components/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
-import { useWorkflowStore } from '@/stores/workflowStore';
+import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { createWorkspaceService, type WorkspaceService } from '@/modules/workspace/WorkspaceService';
 import { createWebFSBackend } from '@/modules/workspace/WebFSBackend';
 import type { TrashedItem } from '@/modules/history/TrashService';
@@ -56,10 +56,10 @@ import { useMatterUiStore, isWorkingSurface } from '@/stores/matterUiStore';
 import {
   TemplateMetadataReader,
   type MarketplaceService,
-} from '@/modules/marketplace';
+} from '@/features/workflows/marketplace/svc';
 import {
   isWorkflowFilePath,
-} from '@/modules/workflow/workflowFile';
+} from '@/features/workflows/engine/workflowFile';
 import { FileSystemWatcher, createFileTreeSnapshot } from '@/modules/workspace/FileSystemWatcher';
 
 import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/utils/file-utils';
@@ -71,7 +71,7 @@ import { useSourceCards } from '@/hooks/useSourceCards';
 import { useAIChatFiles } from '@/hooks/useAIChatFiles';
 import { useApiKeys } from '@/hooks/useApiKeys';
 import { useOpenFileAIContext } from '@/hooks/useOpenFileAIContext';
-import { useTemplatesMarketplaceStore } from '@/stores/templatesMarketplaceStore';
+import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import { useModelList } from '@/hooks/useModelList';
 import { useContentIndex } from '@/hooks/useContentIndex';
 import { useMailSync } from '@/hooks/useMailSync';

@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import {
   resolveTemplateModel,
   type TemplateModelOverride,
-} from '@/modules/workflow/resolveTemplateModel';
+} from '@/features/workflows/engine/resolveTemplateModel';
 import type { WorkflowTemplate } from '@/types/workflow';
 
 function templateFixture(

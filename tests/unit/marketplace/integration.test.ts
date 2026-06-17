@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { MarketplaceService } from '@/modules/marketplace';
-import type { CatalogEntry } from '@/modules/marketplace';
+import { MarketplaceService } from '@/features/workflows/marketplace/svc';
+import type { CatalogEntry } from '@/features/workflows/marketplace/svc';
 
 describe('marketplace barrel exports', () => {
   it('exports MarketplaceService class', () => {

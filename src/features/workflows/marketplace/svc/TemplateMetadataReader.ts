@@ -9,8 +9,8 @@
 
 import type { FSBackend } from '@/modules/workspace/types';
 import type { WorkflowTemplate, InterviewQuestion } from '@/types/workflow';
-import type { InstalledEntry } from '@/types/marketplace';
-import type { TemplateManifest } from '@/types/templateManifest';
+import type { InstalledEntry } from '@/features/workflows/types/marketplace';
+import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
 import { AuditService } from '@/modules/audit/AuditService';
 import { validateTemplateManifest } from './manifestValidator';
 import type { MarketplaceService } from './MarketplaceService';

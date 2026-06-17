@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { prioritizeByProfession } from '@/modules/workflow/prioritizeByProfession';
+import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
 import type { WorkflowTemplate } from '@/types/workflow';
 
 // Minimal template factory — only the fields the helper reads matter.

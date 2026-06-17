@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { CatalogEntry, InstalledEntry, UpdateInfo } from '@/types/marketplace';
+import type { CatalogEntry, InstalledEntry, UpdateInfo } from '@/features/workflows/types/marketplace';
 
 describe('CatalogEntry type', () => {
   it('accepts a fully-populated entry', () => {

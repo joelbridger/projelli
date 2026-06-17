@@ -13,7 +13,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useAIChatStore } from '@/stores/aiChatStore';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { useWorkflowStore } from '@/stores/workflowStore';
+import { useWorkflowStore } from '@/features/workflows/workflowStore';
 
 export interface SeedPayload {
   workspace?: Partial<ReturnType<typeof useWorkspaceStore.getState>>;

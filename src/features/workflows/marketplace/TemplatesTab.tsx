@@ -31,9 +31,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChevronDown, Loader2, RefreshCw, Search } from 'lucide-react';
-import { useTemplatesMarketplace } from '@/hooks/useTemplatesMarketplace';
-import type { CatalogEntry, InstalledEntry } from '@/types/marketplace';
-import { compareSemver } from '@/modules/marketplace';
+import { useTemplatesMarketplace } from '@/features/workflows/useTemplatesMarketplace';
+import type { CatalogEntry, InstalledEntry } from '@/features/workflows/types/marketplace';
+import { compareSemver } from '@/features/workflows/marketplace/svc';
 import { TemplateCatalogCard } from './TemplateCatalogCard';
 import { TemplateDetailView } from './TemplateDetailView';
 import { InstalledTemplatesList } from './InstalledTemplatesList';

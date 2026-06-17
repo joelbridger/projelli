@@ -1,4 +1,4 @@
-import type { TemplateProvenance } from '@/modules/marketplace/templateProvenance';
+import type { TemplateProvenance } from '@/features/workflows/marketplace/svc/templateProvenance';
 
 export type { TemplateProvenance };
 

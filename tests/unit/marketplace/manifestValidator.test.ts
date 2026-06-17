@@ -3,8 +3,8 @@ import {
   validateTemplateManifest,
   checkMinKeepanceVersion,
   compareSemver,
-} from '@/modules/marketplace/manifestValidator';
-import type { TemplateManifest } from '@/types/templateManifest';
+} from '@/features/workflows/marketplace/svc/manifestValidator';
+import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
 
 const VALID: TemplateManifest = {
   id: 'investor-update-v1',

@@ -41,15 +41,15 @@ import { FileGridView } from '@/components/workspace/FileGridView';
 import { WaveformEditor } from '@/features/dictation/audio/WaveformEditor';
 import { VersionHistoryPanel } from '@/components/version/VersionHistoryPanel';
 import { BinaryVersionHistoryPanel } from '@/components/version/BinaryVersionHistoryPanel';
-import { BrowserPanel } from '@/components/workflow/BrowserPanel';
-import { WorkflowExecutionTab } from '@/components/workflow/WorkflowExecutionTab';
+import { BrowserPanel } from '@/features/workflows/BrowserPanel';
+import { WorkflowExecutionTab } from '@/features/workflows/WorkflowExecutionTab';
 import { EmailViewer } from '@/features/email/EmailViewer';
 import { MatterNotesEditorWrapper } from '@/components/matter/MatterNotesEditorWrapper';
 import {
   fileDataToExecution,
   isWorkflowFilePath,
   parseWorkflowFile,
-} from '@/modules/workflow/workflowFile';
+} from '@/features/workflows/engine/workflowFile';
 import { getVersionService } from '@/modules/versioning/VersionService';
 import { getBinaryVersionService } from '@/modules/versioning';
 import { useEditorStore } from '@/stores/editorStore';

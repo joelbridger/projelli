@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
-import { MarketplaceTab } from '@/components/marketplace/MarketplaceTab';
-import { useTemplatesMarketplaceStore } from '@/stores/templatesMarketplaceStore';
-import type { MarketplaceService } from '@/modules/marketplace';
+import { MarketplaceTab } from '@/features/workflows/marketplace/MarketplaceTab';
+import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
+import type { MarketplaceService } from '@/features/workflows/marketplace/svc';
 
 // Minimal stub matching the surface MarketplaceTab + the offline banner read.
 function makeStubService(overrides: Partial<MarketplaceService> = {}): MarketplaceService {

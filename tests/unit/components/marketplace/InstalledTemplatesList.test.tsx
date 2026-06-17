@@ -8,9 +8,9 @@ import {
   act,
   within,
 } from '@testing-library/react';
-import { InstalledTemplatesList } from '@/components/marketplace/InstalledTemplatesList';
-import type { MarketplaceService } from '@/modules/marketplace';
-import type { CatalogEntry, InstalledEntry } from '@/types/marketplace';
+import { InstalledTemplatesList } from '@/features/workflows/marketplace/InstalledTemplatesList';
+import type { MarketplaceService } from '@/features/workflows/marketplace/svc';
+import type { CatalogEntry, InstalledEntry } from '@/features/workflows/types/marketplace';
 
 const ENTRY: CatalogEntry = {
   id: 'investor-update-v1',

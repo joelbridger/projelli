@@ -57,8 +57,8 @@ import { TemplateModelSettings } from '@/components/settings/TemplateModelSettin
 import { PrivacySettings } from '@/components/settings/PrivacySettings';
 import { ConfidentialityModeSettings } from '@/components/settings/ConfidentialityModeSettings';
 import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
-import { MarketplaceTab } from '@/components/marketplace/MarketplaceTab';
-import { useTemplateUpdateCount } from '@/hooks/useTemplatesMarketplace';
+import { MarketplaceTab } from '@/features/workflows/marketplace/MarketplaceTab';
+import { useTemplateUpdateCount } from '@/features/workflows/useTemplatesMarketplace';
 import { MobileSettings } from '@/components/settings/MobileSettings';
 import { AdvancedSettings } from '@/components/settings/AdvancedSettings';
 import { VoiceSettingsSection } from '@/components/settings/VoiceSettingsSection';

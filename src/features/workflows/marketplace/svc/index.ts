@@ -19,7 +19,7 @@ export {
   TEMPLATES_CATALOG_PATH,
 } from './TemplatesMarketplaceService';
 export type { CreateTemplatesMarketplaceOptions } from './TemplatesMarketplaceService';
-export type { CatalogEntry, InstalledEntry, UpdateInfo } from '@/types/marketplace';
+export type { CatalogEntry, InstalledEntry, UpdateInfo } from '@/features/workflows/types/marketplace';
 export {
   downloadTarball,
   verifyChecksum,
@@ -49,7 +49,7 @@ export type {
   TemplateFileEntry,
   TemplateFileType,
   TemplateManifestAuthor,
-} from '@/types/templateManifest';
+} from '@/features/workflows/types/templateManifest';
 export {
   TemplateMetadataReader,
   COMMUNITY_TEMPLATE_ID_PREFIX,

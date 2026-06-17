@@ -25,17 +25,17 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 import * as tauriCore from '@tauri-apps/api/core';
-import { MarketplaceService } from '@/modules/marketplace/MarketplaceService';
+import { MarketplaceService } from '@/features/workflows/marketplace/svc/MarketplaceService';
 import {
   TemplateMetadataReader,
   COMMUNITY_TEMPLATE_ID_PREFIX,
-} from '@/modules/marketplace/TemplateMetadataReader';
-import { WorkflowEngine, type FileOperations, type InterviewHandler } from '@/modules/workflow/WorkflowEngine';
+} from '@/features/workflows/marketplace/svc/TemplateMetadataReader';
+import { WorkflowEngine, type FileOperations, type InterviewHandler } from '@/features/workflows/engine/WorkflowEngine';
 import { createMockProvider } from '@/modules/models/MockProvider';
 import { AuditService } from '@/modules/audit/AuditService';
 import type { FSBackend } from '@/modules/workspace/types';
-import type { CatalogEntry } from '@/types/marketplace';
-import type { TemplateManifest } from '@/types/templateManifest';
+import type { CatalogEntry } from '@/features/workflows/types/marketplace';
+import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
 import type { WorkflowTemplate } from '@/types/workflow';
 
 const mockInvoke = vi.mocked(tauriCore.invoke);

@@ -49,8 +49,8 @@ import {
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout, SearchField, SurfaceToolbar } from '@/components/ui/kp';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/types/workflow';
-import { loadAllTemplates } from '@/modules/workflow/userTemplates';
-import { prioritizeByProfession } from '@/modules/workflow/prioritizeByProfession';
+import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
+import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
 import { useProfessionStore, isLawExperience } from '@/stores/professionStore';
 import { useTrialGate } from '@/hooks/useTrial';
 import { useActiveMatter } from '@/stores/matterStore';

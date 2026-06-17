@@ -5,7 +5,7 @@
  * the 3.0 product repositioning (law-practice focus).
  */
 
-import { useTemplatesMarketplace } from '@/hooks/useTemplatesMarketplace';
+import { useTemplatesMarketplace } from '@/features/workflows/useTemplatesMarketplace';
 import { MarketplaceOfflineBanner } from './MarketplaceOfflineBanner';
 import { TemplatesTab } from './TemplatesTab';
 

@@ -16,7 +16,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { SettingsModal } from '@/components/settings/SettingsModal';
-import { useTemplatesMarketplaceStore } from '@/stores/templatesMarketplaceStore';
+import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 
 beforeEach(() => {
   useTemplatesMarketplaceStore.getState().clearMarketplace();

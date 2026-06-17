@@ -15,13 +15,13 @@ import {
   resolveWorkflowProvider,
   TEMPLATE_MODEL_OVERRIDES_KEY,
   type TemplateModelOverride,
-} from '@/modules/workflow/resolveTemplateModel';
-import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
+} from '@/features/workflows/engine/resolveTemplateModel';
+import { createWorkflowEngine } from '@/features/workflows/engine/WorkflowEngine';
 import {
   appendCompletedInterviewAnswers,
   buildWorkflowFilename,
   executionToFileData,
-} from '@/modules/workflow/workflowFile';
+} from '@/features/workflows/engine/workflowFile';
 import { createMockProvider } from '@/modules/models/MockProvider';
 import { createClaudeProvider } from '@/modules/models/ClaudeProvider';
 import { createOpenAIProvider } from '@/modules/models/OpenAIProvider';
@@ -47,7 +47,7 @@ import type { FileNode } from '@/types/workspace';
 import type {
   TemplateMetadataReader,
   MarketplaceService,
-} from '@/modules/marketplace';
+} from '@/features/workflows/marketplace/svc';
 
 export interface UseWorkflowRunnerOptions {
   rootPath: string | null;

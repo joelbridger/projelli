@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 
 import { McpApprovalGate } from '@/components/settings/McpApprovalGate';
 import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
-import { InterviewForm } from '@/components/workflow/InterviewForm';
+import { InterviewForm } from '@/features/workflows/InterviewForm';
 import { CommandPalette, type PaletteCommand } from '@/components/common/CommandPalette';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { AccountWindow } from '@/features/account/AccountWindow';
@@ -41,7 +41,7 @@ import {
 
 import type { AuditEntry, AuditEvent } from '@/types/audit';
 import { auditEventToEntry } from '@/modules/audit/AuditService';
-import { loadAllTemplates } from '@/modules/workflow/userTemplates';
+import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import type { InterviewQuestion } from '@/types/workflow';
 import type { FileNode } from '@/types/workspace';
 import type { SettingCategory } from '@/settings/schema';

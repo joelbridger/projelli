@@ -41,8 +41,8 @@ import { fileURLToPath } from 'node:url';
 
 // Primary import via the `@/` path alias (tsx reads tsconfig paths).
 // Fallback (if the alias ever fails to resolve):
-//   import { LEGAL_TEMPLATES } from '../src/modules/workflow/templates/legal/index';
-//   import { TAX_TEMPLATES } from '../src/modules/workflow/templates/tax/index';
+//   import { LEGAL_TEMPLATES } from '../src/features/workflows/engine/templates/legal/index';
+//   import { TAX_TEMPLATES } from '../src/features/workflows/engine/templates/tax/index';
 import { LEGAL_TEMPLATES } from '@/modules/workflow/templates/legal/index';
 import { TAX_TEMPLATES } from '@/modules/workflow/templates/tax/index';
 import type {

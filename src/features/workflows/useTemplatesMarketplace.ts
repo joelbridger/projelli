@@ -3,16 +3,16 @@
  *
  * Returns the workspace-bound `MarketplaceService` + `TemplateMetadataReader`
  * plus the latest `cacheStatus` and `updateCount`. Consumers under
- * `src/components/marketplace/` use this rather than reading App refs.
+ * `src/features/workflows/marketplace/` use this rather than reading App refs.
  *
  * The store is seeded by App.tsx on workspace select. Until a workspace is
  * loaded, `service` and `reader` are both `null` and components should
  * render an empty / "select a workspace" state.
  */
 
-import { useTemplatesMarketplaceStore } from '@/stores/templatesMarketplaceStore';
-import type { MarketplaceService, CacheStatus } from '@/modules/marketplace';
-import type { TemplateMetadataReader } from '@/modules/marketplace';
+import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
+import type { MarketplaceService, CacheStatus } from '@/features/workflows/marketplace/svc';
+import type { TemplateMetadataReader } from '@/features/workflows/marketplace/svc';
 
 export interface UseTemplatesMarketplaceResult {
   service: MarketplaceService | null;

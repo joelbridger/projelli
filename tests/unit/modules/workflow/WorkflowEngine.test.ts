@@ -10,7 +10,7 @@ import {
   createWorkflowEngine,
   type InterviewHandler,
   type FileOperations,
-} from '@/modules/workflow/WorkflowEngine';
+} from '@/features/workflows/engine/WorkflowEngine';
 import { createMockProvider } from '@/modules/models/MockProvider';
 import type { WorkflowTemplate } from '@/types/workflow';
 
