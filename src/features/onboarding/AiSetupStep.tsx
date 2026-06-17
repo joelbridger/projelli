@@ -168,18 +168,15 @@ function ChooseView({
         </button>
       </div>
 
-      {/* Three paths. "Skip for now" is the prominent default. */}
+      {/* Three paths. BYOK is the recommended default; Skip is last, lighter. */}
       <div className="space-y-3">
-        <SkipCard
-          testId="ai-path-later"
-          onSkip={onSkip}
-        />
         <PathCard
           testId="ai-path-own-account"
           icon={Cloud}
           tone="text-sky-700 bg-sky-50"
           title="Connect your AI provider account"
-          badge="Recommended when ready"
+          badge="Recommended for legal work"
+          prominent
           body={`Connect your Claude, OpenAI, or Gemini account with a few clicks. We walk you through it step by step. Your AI usage goes straight to your provider. ${professionCopy.estimatedCostDesc}`}
           onClick={onPickOwnAccount}
         />
@@ -188,9 +185,13 @@ function ChooseView({
           icon={Laptop}
           tone="text-emerald-700 bg-emerald-50"
           title="Keep everything on your computer"
-          badge="Most private"
-          body="For your most sensitive work, run a free AI model on your own machine with a tool called Ollama. Nothing is sent over the internet, not even to an AI company. We will check whether it is installed and help you if it is not."
+          badge="Maximum privacy. Less capable for legal work."
+          body="Run a free AI model on your own machine with a tool called Ollama. Nothing is sent over the internet, not even to an AI company. We will check whether it is installed and help you if it is not."
           onClick={onPickLocal}
+        />
+        <SkipCard
+          testId="ai-path-later"
+          onSkip={onSkip}
         />
       </div>
 
@@ -212,15 +213,20 @@ interface PathCardProps {
   badge?: string;
   body: string;
   onClick: () => void;
+  /** When true, renders with the navy border + shadow to signal the recommended path. */
+  prominent?: boolean;
 }
 
-function PathCard({ testId, icon: Icon, tone, title, badge, body, onClick }: PathCardProps) {
+function PathCard({ testId, icon: Icon, tone, title, badge, body, onClick, prominent }: PathCardProps) {
   return (
     <button
       type="button"
       data-testid={testId}
       onClick={onClick}
-      className="group flex w-full items-start gap-4 rounded-lg border border-border bg-card p-4 text-left opacity-90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:border-primary hover:bg-muted/30"
+      className="group flex w-full items-start gap-4 rounded-lg border bg-card p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/30"
+      style={prominent
+        ? { borderColor: '#0a2540', boxShadow: '0 2px 10px rgba(10,37,64,0.12)' }
+        : undefined}
     >
       <div className={cn('shrink-0 h-10 w-10 rounded-md flex items-center justify-center', tone)} aria-hidden>
         <Icon className="h-5 w-5" />
@@ -241,15 +247,14 @@ function PathCard({ testId, icon: Icon, tone, title, badge, body, onClick }: Pat
   );
 }
 
-/** The prominent "skip for now" default. Styled as the primary action. */
+/** The "skip for now" option. Styled as a secondary, lighter card. */
 function SkipCard({ testId, onSkip }: { testId: string; onSkip: () => void }) {
   return (
     <button
       type="button"
       data-testid={testId}
       onClick={onSkip}
-      className="group flex w-full items-center gap-4 rounded-lg border bg-card p-5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/20"
-      style={{ borderColor: '#0a2540', boxShadow: '0 2px 10px rgba(10,37,64,0.12)' }}
+      className="group flex w-full items-center gap-4 rounded-lg border border-border bg-muted/10 p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/20"
     >
       <div className="shrink-0 h-10 w-10 rounded-md flex items-center justify-center text-slate-700 bg-slate-100" aria-hidden>
         <Clock className="h-5 w-5" />
@@ -487,7 +492,7 @@ function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
   return (
     <div className="space-y-5" data-testid="ai-setup-local-view">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight" style={{ color: 'var(--kp-navy)' }}>Keep everything on your computer</h2>
+        <h2 className="text-3xl font-bold tracking-tight" style={{ color: 'var(--kp-navy)' }}>Maximum privacy. Less capable for legal work.</h2>
         <p className="text-base text-muted-foreground mt-1">
           Run the AI on your own machine. Nothing is sent over the internet, not
           even to an AI company.
@@ -496,10 +501,11 @@ function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
 
       <div className="rounded-lg border border-border bg-emerald-50/60 p-4 text-sm text-foreground leading-relaxed space-y-2">
         <p>
+          Local models keep everything on your machine, but are meaningfully less capable for legal drafting
+          and analysis than Claude or GPT. Most attorneys use their own cloud key.
           This uses a free tool called <span className="font-medium">Ollama</span> that runs an AI model
-          directly on your computer. It is the most private option, and a good fit
-          for {professionCopy.sensitiveWorkDesc}. Nothing ever leaves your machine.
-          The trade-off is that local models are usually less capable than Claude or GPT, and a fast computer helps.
+          directly on your computer. Nothing ever leaves your machine, and it is a good fit for {professionCopy.sensitiveWorkDesc}.
+          A fast computer helps.
         </p>
         <p className="text-muted-foreground">
           Choosing this turns on <span className="font-medium text-foreground">Local-only mode</span>, which keeps Keepance

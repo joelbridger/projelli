@@ -290,6 +290,61 @@ describe('AiSetupStep — data map is reachable', () => {
 });
 
 // ---------------------------------------------------------------------------
+// WS5 Task 1 — BYOK-first card ordering and badge copy
+// ---------------------------------------------------------------------------
+
+describe('AiSetupStep — WS5 BYOK-first ordering and badges', () => {
+  it('BYOK card appears before local card in the DOM', () => {
+    renderStep();
+    const ownAccount = screen.getByTestId('ai-path-own-account');
+    const local = screen.getByTestId('ai-path-local');
+    const allInteractive = screen.getAllByRole('button');
+    const ownIdx = allInteractive.indexOf(ownAccount);
+    const localIdx = allInteractive.indexOf(local);
+    expect(ownIdx).toBeLessThan(localIdx);
+  });
+
+  it('BYOK badge text does NOT contain "when ready"', () => {
+    renderStep();
+    const ownAccount = screen.getByTestId('ai-path-own-account');
+    expect(ownAccount.textContent).not.toMatch(/when ready/i);
+  });
+
+  it('BYOK badge reads "Recommended for legal work"', () => {
+    renderStep();
+    const ownAccount = screen.getByTestId('ai-path-own-account');
+    expect(ownAccount.textContent).toMatch(/Recommended for legal work/i);
+  });
+
+  it('local card carries the quality caveat in its badge', () => {
+    renderStep();
+    const local = screen.getByTestId('ai-path-local');
+    // Badge must mention quality trade-off
+    expect(local.textContent).toMatch(/less capable/i);
+  });
+
+  it('local card badge text does NOT say "Most private" alone — must include caveat', () => {
+    renderStep();
+    const local = screen.getByTestId('ai-path-local');
+    // "Most private" alone was the old badge; it should now include quality caveat
+    expect(local.textContent).toMatch(/Maximum privacy/i);
+  });
+
+  it('skip card (ai-path-later) renders last among the three path cards', () => {
+    renderStep();
+    const ownAccount = screen.getByTestId('ai-path-own-account');
+    const local = screen.getByTestId('ai-path-local');
+    const later = screen.getByTestId('ai-path-later');
+    const allInteractive = screen.getAllByRole('button');
+    const ownIdx = allInteractive.indexOf(ownAccount);
+    const localIdx = allInteractive.indexOf(local);
+    const laterIdx = allInteractive.indexOf(later);
+    expect(laterIdx).toBeGreaterThan(ownIdx);
+    expect(laterIdx).toBeGreaterThan(localIdx);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 6. Profession sets a sensible default model
 // ---------------------------------------------------------------------------
 
