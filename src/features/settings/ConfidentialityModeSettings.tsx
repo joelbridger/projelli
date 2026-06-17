@@ -48,6 +48,8 @@ interface ModeCard {
   /** Light-theme accent for the selected ring + icon. */
   accent: string;
   comingSoon?: boolean;
+  /** When true, renders a small "Recommended" badge next to the card title. */
+  recommended?: boolean;
 }
 
 /** The two cards shown to solo (non-firm) users. */
@@ -67,6 +69,7 @@ const SOLO_CARDS: ModeCard[] = [
     blurb:
       'Your own API key talks directly to your chosen AI provider (Anthropic, OpenAI, or Google). Keepance is not in between. The provider sees your prompt, so control retention and training in your provider account.',
     accent: 'text-sky-700 border-sky-400 dark:text-sky-300 dark:border-sky-700',
+    recommended: true,
   },
 ];
 
@@ -151,14 +154,24 @@ export function ConfidentialityModeSettings() {
                   <Icon className="h-4 w-4 shrink-0" aria-hidden />
                   {card.title}
                 </span>
-                {selected && !disabled && (
-                  <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-label="Selected" />
-                )}
-                {disabled && (
-                  <span className="text-[10px] uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-muted text-muted-foreground">
-                    Needs admin key
-                  </span>
-                )}
+                <span className="flex items-center gap-1.5 shrink-0">
+                  {card.recommended && (
+                    <span
+                      data-testid={`confidentiality-mode-${card.mode}-recommended`}
+                      className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
+                    >
+                      Recommended
+                    </span>
+                  )}
+                  {selected && !disabled && (
+                    <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-label="Selected" />
+                  )}
+                  {disabled && (
+                    <span className="text-[10px] uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-muted text-muted-foreground">
+                      Needs admin key
+                    </span>
+                  )}
+                </span>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">{card.blurb}</p>
             </button>

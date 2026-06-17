@@ -111,6 +111,25 @@ describe('ConfidentialityModeSettings — Assured selectability', () => {
 });
 
 // ---------------------------------------------------------------------------
+// WS5 Task 2 — "Recommended" badge on the Direct card in Settings.
+// ---------------------------------------------------------------------------
+describe('ConfidentialityModeSettings — WS5 Recommended badge on Direct', () => {
+  it('shows a "Recommended" badge on the Direct (BYOK) card', () => {
+    useFirmStore.setState({ assuredProviders: [], session: null });
+    render(<ConfidentialityModeSettings />);
+    const directCard = screen.getByTestId('confidentiality-mode-direct');
+    expect(directCard.textContent).toMatch(/Recommended/i);
+  });
+
+  it('does NOT show a "Recommended" badge on the Local-only card', () => {
+    useFirmStore.setState({ assuredProviders: [], session: null });
+    render(<ConfidentialityModeSettings />);
+    const localCard = screen.getByTestId('confidentiality-mode-local-only');
+    expect(localCard.textContent).not.toMatch(/Recommended/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 4. The status-bar / composer egress badge renders the assured severity.
 // ---------------------------------------------------------------------------
 describe('EgressIndicator (assured)', () => {
