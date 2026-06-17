@@ -28,11 +28,11 @@ import type {
   WorkflowTemplate,
   WorkflowExecution,
   InterviewQuestion,
-} from '@/types/workflow';
+} from '@/platform/types/workflow';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 
 // ---------------------------------------------------------------------------
 // Types

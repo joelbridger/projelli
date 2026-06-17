@@ -1,7 +1,7 @@
 // Trash Service
 // Manages soft-deleted files with restore capability
 
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 
 export interface TrashedItem {
   /** Unique ID for the trash entry */

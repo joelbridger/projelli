@@ -15,7 +15,7 @@ import { SCorpReasonableCompMemo } from './SCorpReasonableCompMemo';
 import { EntityElectionAnalysis } from './EntityElectionAnalysis';
 import { WISPBuilder } from './WISPBuilder';
 
-import type { WorkflowTemplate } from '@/types/workflow';
+import type { WorkflowTemplate } from '@/platform/types/workflow';
 
 export const TAX_TEMPLATES: WorkflowTemplate[] = [
   EngagementLetterBuilder,

@@ -12,7 +12,7 @@ import {
   RAG_PROGRESS_EVENT,
   type RagIndexingProgress,
   type RagIndexingStatus,
-} from '@/utils/tauri-commands';
+} from '@/platform/utils/tauri-commands';
 
 export interface RagStatusSnapshot {
   status: RagIndexingStatus;

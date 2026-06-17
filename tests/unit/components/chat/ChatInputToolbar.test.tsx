@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ChatInputToolbar } from '@/features/ask/chat/ChatInputToolbar';
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 
 const att: ChatAttachment = {
   id: 'hash1',

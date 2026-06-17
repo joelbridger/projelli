@@ -23,7 +23,7 @@ import {
   documentJsonToYDoc,
   yDocToDocumentJson,
 } from '@/platform/firm/coedit/docCrdt';
-import type { DocumentJson } from '@/types/docx';
+import type { DocumentJson } from '@/platform/types/docx';
 import type { FirmApiClient } from '@/platform/firm/FirmApiClient';
 import type { WebSocketFactory } from '@/platform/firm/MatterSyncClient';
 

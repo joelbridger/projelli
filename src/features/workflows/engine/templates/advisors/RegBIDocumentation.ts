@@ -5,7 +5,7 @@
 // determinations, or satisfy Reg BI on its own. All determinations are advisor judgments. Compliance officer
 // review required before ANY client use.
 
-import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
+import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {

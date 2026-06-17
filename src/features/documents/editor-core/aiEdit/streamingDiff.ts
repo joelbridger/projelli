@@ -1,6 +1,6 @@
 // Streaming diff engine for M5 inline AI edits.
 //
-// This is a small layer on top of `src/utils/diff.ts` (LCS line diff).
+// This is a small layer on top of `src/platform/utils/diff.ts` (LCS line diff).
 // The LCS implementation is already in the repo, already covered by
 // existing tests, and is small enough that recomputing it after every
 // streamed token is fine for a selection of a few dozen lines — which
@@ -13,7 +13,7 @@
 // across the app makes the streaming overlay visually consistent with
 // version-history preview.
 
-import { computeDiff, type DiffLine } from '@/utils/diff';
+import { computeDiff, type DiffLine } from '@/platform/utils/diff';
 import type { DiffHunk } from './types';
 
 /**

@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { AlertTriangle, ExternalLink, FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
-import { openExternal } from '@/utils/openExternal';
+import { openExternal } from '@/platform/utils/openExternal';
 
 export function SpreadsheetSkeleton({ fileName, className }: { fileName: string; className?: string | undefined }) {
   return (

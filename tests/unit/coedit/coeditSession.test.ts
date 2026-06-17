@@ -17,7 +17,7 @@ import * as Y from 'yjs';
 import { openCoeditSession, closeCoeditSession, type CoeditSessionOptions } from '@/platform/firm/coedit/coeditSession';
 import { documentJsonToYDoc, yDocToDocumentJson, editRunText } from '@/platform/firm/coedit/docCrdt';
 import { generateMatterKey } from '@/platform/firm/matterCrypto';
-import type { DocumentJson, DocxParagraph } from '@/types/docx';
+import type { DocumentJson, DocxParagraph } from '@/platform/types/docx';
 import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
 import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
 

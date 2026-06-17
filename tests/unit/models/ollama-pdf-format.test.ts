@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 
 vi.mock('@/lib/pdf-extract', () => ({
   extractPdfText: vi.fn().mockResolvedValue({

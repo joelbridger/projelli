@@ -1,7 +1,7 @@
 /**
  * Workstream D — Client boundary / cross-client detection helpers.
  *
- * Tests the pure functions in `src/utils/client-boundary.ts` that determine
+ * Tests the pure functions in `src/platform/utils/client-boundary.ts` that determine
  * which top-level folders a set of AI-context file paths belong to, and
  * whether the set spans more than one "client" folder.
  *
@@ -14,7 +14,7 @@ import {
   getDistinctTopLevelFolders,
   detectCrossClientContext,
   ROOT_LEVEL_SENTINEL,
-} from '@/utils/client-boundary';
+} from '@/platform/utils/client-boundary';
 
 // ---------------------------------------------------------------------------
 // getTopLevelFolder

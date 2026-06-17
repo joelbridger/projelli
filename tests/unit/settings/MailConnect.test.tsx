@@ -8,7 +8,7 @@ const mockMailCancelSync = vi.fn();
 const mockMailIsConnected = vi.fn();
 const mockMailFdeStatus = vi.fn();
 
-vi.mock('@/utils/mail-commands', () => ({
+vi.mock('@/platform/utils/mail-commands', () => ({
   get mailIsConnected() { return mockMailIsConnected; },
   get mailBeginLogin() { return mockMailBeginLogin; },
   get mailPollLogin() { return mockMailPollLogin; },

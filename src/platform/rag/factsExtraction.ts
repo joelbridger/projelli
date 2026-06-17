@@ -22,7 +22,7 @@
  *     only exception and is routed through the singleton reader.
  */
 
-import type { ChatMessage } from '@/types/ai';
+import type { ChatMessage } from '@/platform/types/ai';
 import type {
   OutputSchema,
   Provider,

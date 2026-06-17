@@ -12,7 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ReimaginedAuditHome } from '@/features/audit/ReimaginedAuditHome';
-import type { AuditEntry } from '@/types/audit';
+import type { AuditEntry } from '@/platform/types/audit';
 
 function makeEntry(partial: Partial<AuditEntry> = {}): AuditEntry {
   return {

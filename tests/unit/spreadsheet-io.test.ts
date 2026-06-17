@@ -18,7 +18,7 @@ import {
   serializeSpreadsheet,
   spreadsheetBytesToDataUrl,
   type SheetModel,
-} from '../../src/utils/spreadsheet-io';
+} from '../../src/platform/utils/spreadsheet-io';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

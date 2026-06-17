@@ -2,7 +2,7 @@
  * Keyboard Shortcuts Overlay tests (UX-10)
  *
  * Pressing `?` anywhere (outside an input) opens a Radix Dialog listing all
- * shortcuts from `src/utils/shortcuts.ts`, grouped by category. The overlay
+ * shortcuts from `src/platform/utils/shortcuts.ts`, grouped by category. The overlay
  * has a VISIBLE DialogTitle ("Keyboard shortcuts") — we do not repeat the
  * sr-only workaround used by the command palette.
  *

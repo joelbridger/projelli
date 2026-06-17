@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ChatAttachment, ChatMessage } from '@/types/ai';
+import type { ChatAttachment, ChatMessage } from '@/platform/types/ai';
 
 describe('ChatAttachment type', () => {
   it('accepts a fully-populated image attachment', () => {

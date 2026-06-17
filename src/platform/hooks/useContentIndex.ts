@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type MiniSearch from 'minisearch';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 import {
   buildWorkspaceIndex,
   createIndex,

@@ -17,7 +17,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 
 // ── Mail commands (async probes used by GetStartedCard) ───────────────────────
-vi.mock('@/utils/mail-commands', () => ({
+vi.mock('@/platform/utils/mail-commands', () => ({
   mailIsConnected: async () => false,
   gmailIsConnected: async () => false,
   mailImapIsConnected: async () => false,
@@ -25,7 +25,7 @@ vi.mock('@/utils/mail-commands', () => ({
 }));
 
 // ── useApiKeys ─────────────────────────────────────────────────────────────────
-vi.mock('@/hooks/useApiKeys', () => ({
+vi.mock('@/platform/hooks/useApiKeys', () => ({
   useApiKeys: () => ({ apiKeys: [] }),
 }));
 
@@ -33,7 +33,7 @@ vi.mock('@/hooks/useApiKeys', () => ({
 // (pure function, no side effects)
 
 // ── useFirm (no firm session in these tests) ──────────────────────────────────
-vi.mock('@/hooks/useFirm', () => ({
+vi.mock('@/platform/hooks/useFirm', () => ({
   useFirm: () => ({
     isSignedIn: false,
     hasActiveSeat: false,

@@ -1,7 +1,7 @@
 // Workspace Service
 // Orchestrates file operations with security validation
 
-import type { FileNode, Workspace, RecentWorkspace } from '@/types/workspace';
+import type { FileNode, Workspace, RecentWorkspace } from '@/platform/types/workspace';
 import type {
   FSBackend,
   FileStat,

@@ -4,14 +4,14 @@
 // functions (clone, set-cell, insert/delete row+col, auto-width, navigation,
 // extension inference). No React / component dependencies.
 
-import { SheetEngine } from '@/utils/spreadsheet-io';
+import { SheetEngine } from '@/platform/utils/spreadsheet-io';
 import type {
   SheetModel,
   SheetData,
   SheetCell,
   MergeRange,
   SpreadsheetExtension,
-} from '@/utils/spreadsheet-io';
+} from '@/platform/utils/spreadsheet-io';
 
 /** Anything more than this row count flips on the virtualizer. */
 export const VIRTUALIZE_ROW_THRESHOLD = 500;

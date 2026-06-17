@@ -6,8 +6,8 @@
 // paid differentiators are profession packs (checked by `hasPack`) and seats.
 
 import { describe, it, expect } from 'vitest';
-import { tierHasFeature, hasPack } from '@/hooks/useLicense';
-import type { LicenseTier } from '@/hooks/useLicense';
+import { tierHasFeature, hasPack } from '@/platform/hooks/useLicense';
+import type { LicenseTier } from '@/platform/hooks/useLicense';
 
 const FEATURES = [
   'multi-provider',

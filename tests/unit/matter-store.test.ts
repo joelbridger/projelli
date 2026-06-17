@@ -16,7 +16,7 @@ import {
   isPathInFolder,
   matterLabel,
 } from '@/platform/rag/matterResolver';
-import { UNASSIGNED_MATTER_ID, type Matter } from '@/types/matter';
+import { UNASSIGNED_MATTER_ID, type Matter } from '@/platform/types/matter';
 import {
   useMatterStore,
   resolveMatterIdForPath,

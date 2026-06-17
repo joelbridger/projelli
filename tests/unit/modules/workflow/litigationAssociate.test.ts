@@ -26,7 +26,7 @@ import {
   runContradictionAnalysis,
   type RetrievedChunk,
 } from '@/features/workflows/engine/legalAnalysis';
-import { serializeContradictionsDocx } from '@/utils/docx-io';
+import { serializeContradictionsDocx } from '@/platform/utils/docx-io';
 import { createMockProvider } from '@/platform/providers/MockProvider';
 import type { Provider, ProviderResponse } from '@/platform/providers/Provider';
 import type {
@@ -35,8 +35,8 @@ import type {
   GenerateStepConfig,
   InterviewStepConfig,
   ContradictionAnalysisResult,
-} from '@/types/workflow';
-import type { RetrievalScope } from '@/utils/tauri-commands';
+} from '@/platform/types/workflow';
+import type { RetrievalScope } from '@/platform/utils/tauri-commands';
 
 // ---------------------------------------------------------------------------
 // Test doubles

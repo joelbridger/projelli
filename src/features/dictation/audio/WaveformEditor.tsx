@@ -21,7 +21,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { saveFile } from '@/utils/saveFile';
+import { saveFile } from '@/platform/utils/saveFile';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.js';
 import {

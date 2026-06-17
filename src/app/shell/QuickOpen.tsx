@@ -27,7 +27,7 @@ import {
 } from '@/ui/dialog';
 import { Input } from '@/ui/input';
 import { cn } from '@/lib/utils';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 
 const RECENTS_STORAGE_KEY = 'quickopen:recents';
 const RECENTS_MAX = 10;

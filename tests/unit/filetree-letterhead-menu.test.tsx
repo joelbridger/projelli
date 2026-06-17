@@ -7,7 +7,7 @@ import { render, screen, cleanup, within, fireEvent, waitFor } from '@testing-li
 
 import { FileTree } from '@/platform/fs/ui/FileTree';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 
 const docxNode: FileNode = {
   id: 'n-docx',

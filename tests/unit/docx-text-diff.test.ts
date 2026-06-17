@@ -3,7 +3,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { diffParagraphEdits, diffSpans } from '@/utils/docx-text-diff';
+import { diffParagraphEdits, diffSpans } from '@/platform/utils/docx-text-diff';
 
 describe('diffSpans', () => {
   it('returns no spans of change for identical text', () => {

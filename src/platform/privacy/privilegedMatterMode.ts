@@ -29,7 +29,7 @@
  * for use outside React (e.g. the bridge's network gate).
  */
 
-import { isPrivileged, type Privilege } from '@/types/privilege';
+import { isPrivileged, type Privilege } from '@/platform/types/privilege';
 import type { ConfidentialityMode } from '@/platform/privacy/egress';
 
 /**

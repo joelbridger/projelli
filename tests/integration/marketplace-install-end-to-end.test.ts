@@ -36,7 +36,7 @@ import { AuditService } from '@/platform/audit/AuditService';
 import type { FSBackend } from '@/platform/fs/types';
 import type { CatalogEntry } from '@/features/workflows/types/marketplace';
 import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
-import type { WorkflowTemplate } from '@/types/workflow';
+import type { WorkflowTemplate } from '@/platform/types/workflow';
 
 const mockInvoke = vi.mocked(tauriCore.invoke);
 

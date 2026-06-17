@@ -6,7 +6,7 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 
 import { FileTree } from '@/platform/fs/ui/FileTree';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 
 // Tree shape: Client > Matter (folder) > brief.docx
 const matterFolder: FileNode = {

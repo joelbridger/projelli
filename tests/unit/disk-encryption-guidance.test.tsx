@@ -18,7 +18,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 
-vi.mock('@/utils/openExternal', () => ({
+vi.mock('@/platform/utils/openExternal', () => ({
   openExternal: vi.fn(async () => {}),
 }));
 

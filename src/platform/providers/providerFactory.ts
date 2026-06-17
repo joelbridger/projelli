@@ -14,7 +14,7 @@ import { OllamaProvider, OLLAMA_DEFAULT_MODEL } from './OllamaProvider';
 import {
   getDefaultModelForTier,
   type Provider as CloudProviderId,
-} from '@/utils/defaultModel';
+} from '@/platform/utils/defaultModel';
 import type { AssuredRoute } from '@/platform/firm/assuredInference';
 
 /**

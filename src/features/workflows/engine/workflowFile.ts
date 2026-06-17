@@ -13,7 +13,7 @@ import type {
   WorkflowExecution,
   WorkflowFileData,
   WorkflowTemplate,
-} from '@/types/workflow';
+} from '@/platform/types/workflow';
 
 const FILE_EXT = '.workflow';
 

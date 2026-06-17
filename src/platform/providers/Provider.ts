@@ -1,6 +1,6 @@
 // Provider Interface
 // Abstract interface for AI model adapters
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 
 /** Claude image block shape (returned by ClaudeProvider.formatAttachmentForRequest). */
 export interface ClaudeImageBlock {

@@ -34,7 +34,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type { FSBackend, FileStat } from './types';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 
 /** Vault metadata filename — never surfaced to callers via list(). */
 const VAULT_METADATA = '.keepance-vault.json';

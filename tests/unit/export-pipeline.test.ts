@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { availableExportFormats, replaceExtension } from '../../src/utils/export-formats';
+import { availableExportFormats, replaceExtension } from '../../src/platform/utils/export-formats';
 import { titleFromFileName } from '../../src/features/documents/pdf-export';
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 // Helpers extracted from MatterManagerDialog.tsx — pure module-scope utilities.
 
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 import { AuditService } from '@/platform/audit/AuditService';
 
 /** Collect every folder path in the workspace tree (depth-first, sorted). */

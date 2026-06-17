@@ -66,7 +66,7 @@ vi.mock('@/features/ask/ChatCostChip', () => ({
 }));
 
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
-import type { AIChatFile } from '@/types/ai';
+import type { AIChatFile } from '@/platform/types/ai';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 
 const chat: AIChatFile = {

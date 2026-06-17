@@ -2,7 +2,7 @@
 // Drafting aid: every generated output carries a banner requiring professional review before use.
 // COMPLIANCE SENSITIVE: Reg S-P / 2024 amendments. Must be reviewed by qualified compliance professional before use.
 
-import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
+import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {

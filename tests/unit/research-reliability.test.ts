@@ -14,7 +14,7 @@ import { TaxResearchMemo } from '@/features/workflows/engine/templates/tax/TaxRe
 import { EvidenceGapAnalyzer } from '@/features/workflows/engine/templates/legal/EvidenceGapAnalyzer';
 import { PrivilegeLogDrafter } from '@/features/workflows/engine/templates/legal/PrivilegeLogDrafter';
 import { EngagementLetterBuilder } from '@/features/workflows/engine/templates/tax/EngagementLetterBuilder';
-import type { GenerateStepConfig } from '@/types/workflow';
+import type { GenerateStepConfig } from '@/platform/types/workflow';
 
 /** Pull the systemPrompt from the first generate step of a template. */
 function getSystemPrompt(template: { steps: { type: string; config: unknown }[] }): string {

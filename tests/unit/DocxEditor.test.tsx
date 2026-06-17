@@ -50,13 +50,13 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   readFile: (...args: unknown[]) => readFileMock(...args),
 }));
 const saveFileMock = vi.fn();
-vi.mock('@/utils/saveFile', () => ({
+vi.mock('@/platform/utils/saveFile', () => ({
   saveFile: (...args: unknown[]) => saveFileMock(...args),
 }));
 
 import { TooltipProvider } from '@/ui/tooltip';
 import { DocxEditor } from '@/features/documents/media/DocxEditor';
-import type { DocumentJson, DocxAiEdit } from '@/types/docx';
+import type { DocumentJson, DocxAiEdit } from '@/platform/types/docx';
 
 function docWithRevisions(): DocumentJson {
   return {

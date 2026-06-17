@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import type { APIKey } from '@/types';
+import type { APIKey } from '@/platform/types';
 
 interface UseApiKeysReturn {
   apiKeys: APIKey[];

@@ -9,7 +9,7 @@ import { RegSPSafeguardsOutline } from './RegSPSafeguardsOutline';
 import { BooksRecordsRetentionNote } from './BooksRecordsRetentionNote';
 import { RegBIDocumentation } from './RegBIDocumentation';
 
-import type { WorkflowTemplate } from '@/types/workflow';
+import type { WorkflowTemplate } from '@/platform/types/workflow';
 
 export const ADVISOR_TEMPLATES: WorkflowTemplate[] = [
   ClientFinancialPlanSummary,

@@ -32,7 +32,7 @@ vi.mock('@tauri-apps/api/event', () => ({
   },
 }));
 
-import { useModelStatus } from '@/hooks/useModelStatus';
+import { useModelStatus } from '@/platform/hooks/useModelStatus';
 
 describe('useModelStatus', () => {
   beforeEach(() => {

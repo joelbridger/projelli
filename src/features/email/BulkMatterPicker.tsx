@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Loader2, FolderInput } from 'lucide-react';
 import { SearchField, Dropdown } from '@/ui/kp';
 import { useMatters } from '@/platform/matter/matterStore';
-import { mailRetagMessageMatter } from '@/utils/mail-commands';
+import { mailRetagMessageMatter } from '@/platform/utils/mail-commands';
 import { matterLabel } from '@/platform/rag/matterResolver';
 
 // ── BulkMatterPicker ───────────────────────────────────────────────────────

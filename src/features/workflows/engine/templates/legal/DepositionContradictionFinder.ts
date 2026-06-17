@@ -2,9 +2,9 @@
 // Drafting aid: every generated output carries a banner requiring professional review before use.
 
 // NOTE: `category: 'legal'` requires adding 'legal' to the WorkflowTemplate category
-// union in src/types/workflow.ts before this template is registered.
+// union in src/platform/types/workflow.ts before this template is registered.
 
-import type { WorkflowTemplate, InterviewStepConfig, AnalyzeStepConfig } from '@/types/workflow';
+import type { WorkflowTemplate, InterviewStepConfig, AnalyzeStepConfig } from '@/platform/types/workflow';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {

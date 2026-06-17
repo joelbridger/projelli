@@ -16,7 +16,7 @@ import { documentJsonToYDoc, yDocToDocumentJson, editRunText } from '@/platform/
 import { generateMatterKey, importMatterKey } from '@/platform/firm/matterCrypto';
 import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
 import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
-import type { DocumentJson, DocxParagraph } from '@/types/docx';
+import type { DocumentJson, DocxParagraph } from '@/platform/types/docx';
 
 // ---------------------------------------------------------------------------
 // Fixtures

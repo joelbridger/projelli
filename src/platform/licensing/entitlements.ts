@@ -39,7 +39,7 @@
  * handled conservatively (we never accidentally strip a grandfathered user).
  */
 
-import type { LicenseTier } from '@/hooks/useLicense';
+import type { LicenseTier } from '@/platform/hooks/useLicense';
 
 /**
  * The stable paid tier codes (same wire codes as the license JWT). `free` means

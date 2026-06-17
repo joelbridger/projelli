@@ -40,7 +40,7 @@ import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { cn } from '@/lib/utils';
-import { useFirm } from '@/hooks/useFirm';
+import { useFirm } from '@/platform/hooks/useFirm';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import {
   publishMatterKeyToMembers,

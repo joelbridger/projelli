@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Provider, ProviderContentBlock } from '@/platform/providers/Provider';
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 
 describe('Provider interface extension', () => {
   it('declares formatAttachmentForRequest method', () => {

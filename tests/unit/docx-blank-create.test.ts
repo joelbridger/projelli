@@ -23,7 +23,7 @@ import JSZip from 'jszip';
 import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createBlankDocx } from '../../src/utils/docx-io';
+import { createBlankDocx } from '../../src/platform/utils/docx-io';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = resolve(

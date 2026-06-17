@@ -23,9 +23,9 @@
  *     rendered as clickable.
  */
 
-import type { RagHit, CitationVerdict } from '@/utils/tauri-commands';
-import { ragVerifyCitation } from '@/utils/tauri-commands';
-import type { WorkspaceSource } from '@/types/ai';
+import type { RagHit, CitationVerdict } from '@/platform/utils/tauri-commands';
+import { ragVerifyCitation } from '@/platform/utils/tauri-commands';
+import type { WorkspaceSource } from '@/platform/types/ai';
 
 /** The bare verdict string from citation verification (the `verdict` field of
  *  the backend's discriminated `CitationVerdict`). */

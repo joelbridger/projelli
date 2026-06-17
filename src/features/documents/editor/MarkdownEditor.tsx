@@ -22,7 +22,7 @@ import {
   consumePendingScroll,
   resolveScrollPosition,
   type ScrollToParagraphDetail,
-} from '@/utils/scrollToParagraph';
+} from '@/platform/utils/scrollToParagraph';
 import { InlineChatAnchor } from './InlineChatAnchor';
 import { StreamingDiffOverlay } from './StreamingDiffOverlay';
 import { codeMirrorAdapter, useInlineAiEdit } from './useInlineAiEdit';
@@ -217,13 +217,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
 
     // Q12 + Q13 — smart paste callbacks behind refs so they stay fresh
     // without re-mounting the editor. Default `fetchUrlTitle` imports
-    // lazily from `@/utils/tauri-commands` so tests that mock the Tauri
+    // lazily from `@/platform/utils/tauri-commands` so tests that mock the Tauri
     // bindings don't have to wire a stub manually.
     const fetchUrlTitleRef = useRef<FetchUrlTitle>(
       fetchUrlTitle ??
         (async (url: string) => {
           try {
-            const mod = await import('@/utils/tauri-commands');
+            const mod = await import('@/platform/utils/tauri-commands');
             return await mod.fetchUrlTitle(url);
           } catch {
             return '';

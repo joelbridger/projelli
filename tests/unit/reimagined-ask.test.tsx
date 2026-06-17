@@ -98,7 +98,7 @@ vi.mock('@/platform/providers/GeminiProvider', () => ({ GeminiProvider: vi.fn() 
 vi.mock('@/platform/privacy/ui/EgressIndicator', () => ({
   EgressIndicator: () => null,
 }));
-vi.mock('@/hooks/useConfidentialityMode', () => ({
+vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
   getConfidentialityMode: () => 'local',
   useConfidentialityMode: () => 'local',
 }));

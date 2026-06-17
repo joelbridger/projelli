@@ -35,7 +35,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/ui/dialog';
-import { openExternal } from '@/utils/openExternal';
+import { openExternal } from '@/platform/utils/openExternal';
 import { ExternalLink, Eye, EyeOff, Check, AlertCircle, ArrowLeft, ArrowRight, RefreshCw, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { detectOllama } from '@/platform/providers/OllamaProvider';

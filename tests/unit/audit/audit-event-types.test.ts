@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { AuditEvent } from '@/types/audit';
+import type { AuditEvent } from '@/platform/types/audit';
 
 describe('AuditEvent v2.0 additions', () => {
   it('accepts attachment_added', () => {

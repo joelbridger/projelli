@@ -5,7 +5,7 @@ const mockGmailConnect = vi.fn();
 const mockGmailIsConnected = vi.fn();
 const mockGmailDisconnect = vi.fn();
 
-vi.mock('@/utils/mail-commands', () => ({
+vi.mock('@/platform/utils/mail-commands', () => ({
   get gmailConnect() { return mockGmailConnect; },
   get gmailIsConnected() { return mockGmailIsConnected; },
   get gmailDisconnect() { return mockGmailDisconnect; },

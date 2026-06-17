@@ -4,7 +4,7 @@
 // any TabBar state). No coupling to the TabBar component body.
 
 import { Globe, MessageSquare, Sparkles, EyeOff, Mail } from 'lucide-react';
-import { getFileIcon } from '@/utils/fileIcons';
+import { getFileIcon } from '@/platform/utils/fileIcons';
 import { cn } from '@/lib/utils';
 import { useFileContextStore } from '@/platform/state/fileContextStore';
 

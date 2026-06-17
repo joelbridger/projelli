@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { mailImapConnect, mailImapIsConnected, mailImapDisconnect } from '@/utils/mail-commands';
+import { mailImapConnect, mailImapIsConnected, mailImapDisconnect } from '@/platform/utils/mail-commands';
 
 export function MailImapConnect() {
   const [connected, setConnected] = useState(false);

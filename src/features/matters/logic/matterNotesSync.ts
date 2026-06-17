@@ -13,7 +13,7 @@
  *     via keys/fetch + rotateKey, or set status 'error' if that fails (403/404).
  */
 
-import type { Matter } from '@/types/matter';
+import type { Matter } from '@/platform/types/matter';
 import { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
 import { obtainMatterKey } from '@/platform/firm/matterKeyService';
 import { clearMatterKey, storeMatterKey } from '@/platform/firm/firmKeychain';

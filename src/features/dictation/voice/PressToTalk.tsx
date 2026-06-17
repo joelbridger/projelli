@@ -17,8 +17,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Mic } from 'lucide-react';
 import { VoiceCapture } from '@/features/dictation/voice/VoiceCapture';
-import { transcribeAudio } from '@/utils/tauri-commands';
-import { isMac } from '@/utils/shortcuts';
+import { transcribeAudio } from '@/platform/utils/tauri-commands';
+import { isMac } from '@/platform/utils/shortcuts';
 
 /** Mode distinguishes insert-at-cursor from save-to-inbox. */
 type RecordMode = 'insert' | 'note';

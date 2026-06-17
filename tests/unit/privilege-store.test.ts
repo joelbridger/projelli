@@ -13,7 +13,7 @@ import {
   resolvePrivilege,
   normalizeSourceId,
 } from '@/platform/rag/privilegeResolver';
-import { isPrivileged } from '@/types/privilege';
+import { isPrivileged } from '@/platform/types/privilege';
 
 function resetStore() {
   usePrivilegeStore.setState({ privilegeBySource: {}, includePrivileged: false });

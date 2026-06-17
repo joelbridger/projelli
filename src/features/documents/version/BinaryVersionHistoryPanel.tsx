@@ -28,14 +28,14 @@ import {
 import { Button } from '@/ui/button';
 import { DiffViewer } from '@/features/documents/editor/DiffViewer';
 import { cn } from '@/lib/utils';
-import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import {
   getBinaryVersionService,
   type BinaryVersionEntry,
   type VersionFS,
 } from '@/features/documents/versioning';
-import { extractDocxTextFromPath, canDiffDocx } from '@/utils/docx-version-diff';
+import { extractDocxTextFromPath, canDiffDocx } from '@/platform/utils/docx-version-diff';
 
 interface BinaryVersionHistoryPanelProps {
   /** Absolute on-disk path of the file (the tab path). */

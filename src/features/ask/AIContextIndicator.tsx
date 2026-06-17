@@ -25,12 +25,12 @@ import {
   TooltipTrigger,
 } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
-import type { ExtractedContext } from '@/utils/ai-file-context';
+import type { ExtractedContext } from '@/platform/utils/ai-file-context';
 import {
   detectCrossClientContext,
   ROOT_LEVEL_SENTINEL,
   getTopLevelFolderNames,
-} from '@/utils/client-boundary';
+} from '@/platform/utils/client-boundary';
 
 export interface AIContextIndicatorProps {
   /** The active file contexts that will be included in the next AI message. */

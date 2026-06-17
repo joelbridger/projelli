@@ -16,7 +16,7 @@ import {
   useOpenEmailListener,
   mailIdFromSource,
   emailTabLabel,
-} from '@/hooks/useOpenEmailListener';
+} from '@/platform/hooks/useOpenEmailListener';
 
 function dispatchOpenEmail(sourceId: unknown) {
   window.dispatchEvent(

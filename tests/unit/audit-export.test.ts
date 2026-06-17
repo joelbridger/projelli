@@ -1,11 +1,11 @@
-// Unit tests for src/utils/audit-export.ts
+// Unit tests for src/platform/utils/audit-export.ts
 //
 // Focus: serialization correctness (CSV RFC 4180 escaping, JSON shape),
 // filename format, filter composition. Download side effect is covered by
 // spying on the document / URL APIs to avoid real DOM mutation.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { AuditEntry } from '@/types/audit';
+import type { AuditEntry } from '@/platform/types/audit';
 import {
   entriesToJSON,
   entriesToCSV,

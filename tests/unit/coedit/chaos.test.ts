@@ -22,7 +22,7 @@ import {
   addTrackedInsertion,
   addTrackedDeletion,
 } from '@/platform/firm/coedit/docCrdt';
-import type { DocumentJson } from '@/types/docx';
+import type { DocumentJson } from '@/platform/types/docx';
 
 // ---------------------------------------------------------------------------
 // Fixture

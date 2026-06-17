@@ -22,7 +22,7 @@
  * needing a provider or hook.
  */
 
-import type { WorkflowTemplate } from '@/types/workflow';
+import type { WorkflowTemplate } from '@/platform/types/workflow';
 import { allWorkflows } from '.';
 
 export const USER_TEMPLATES_STORAGE_KEY = 'keepance:userWorkflowTemplates';

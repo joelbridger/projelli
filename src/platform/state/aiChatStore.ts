@@ -12,7 +12,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
-import type { ChatMessage } from '@/types/ai';
+import type { ChatMessage } from '@/platform/types/ai';
 
 export interface ChatCostEntry {
   cost: number;

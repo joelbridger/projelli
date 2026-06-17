@@ -33,7 +33,7 @@ import { FolderOpen, FolderTree, FileText, X, Plus, Upload, ListTree, LayoutGrid
 import { IconButton, Callout, Button, SearchField, SurfaceToolbar } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { useEditorStore } from '@/platform/state/editorStore';
-import { getFileIcon } from '@/utils/fileIcons';
+import { getFileIcon } from '@/platform/utils/fileIcons';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';

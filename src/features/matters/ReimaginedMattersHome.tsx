@@ -16,10 +16,10 @@ import { Briefcase, Lock, Plus, FolderOpen, Scale, CheckCircle2, Circle, Message
 import { useMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { MatterHub } from '@/features/matters/MatterHub';
-import { useApiKeys } from '@/hooks/useApiKeys';
-import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/utils/mail-commands';
-import type { Matter } from '@/types/matter';
-import { useEntityLabel } from '@/hooks/useEntityLabel';
+import { useApiKeys } from '@/platform/hooks/useApiKeys';
+import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/platform/utils/mail-commands';
+import type { Matter } from '@/platform/types/matter';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar } from '@/ui/kp';
 

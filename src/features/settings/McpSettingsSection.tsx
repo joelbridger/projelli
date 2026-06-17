@@ -21,8 +21,8 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Download, CheckCircle2, AlertCircle, ExternalLink, ShieldOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { mcpBundlePath } from '@/utils/tauri-commands';
-import { usePrivilegedMatterModeActive } from '@/hooks/usePrivilegedMatterMode';
+import { mcpBundlePath } from '@/platform/utils/tauri-commands';
+import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
 
 export interface McpSettingsSectionProps {
   /** Test hook — override the bundle-path lookup so tests don't have to

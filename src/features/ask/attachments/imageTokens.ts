@@ -12,7 +12,7 @@
  * from byteSize (assumes ~3 bytes per pixel at the raw level).
  */
 
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 
 const TILE_PX = 512;
 const CLAUDE_TOKENS_PER_TILE = 85;

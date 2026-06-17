@@ -4,13 +4,13 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 import {
   Folder,
   ChevronRight,
   Home,
 } from 'lucide-react';
-import { getFileIcon } from '@/utils/fileIcons';
+import { getFileIcon } from '@/platform/utils/fileIcons';
 import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 

@@ -18,7 +18,7 @@ import {
   useActiveMatterPrivileged,
   isActiveMatterPrivileged,
 } from '@/platform/matter/matterStore';
-import { useConfidentialityMode, getConfidentialityMode } from '@/hooks/useConfidentialityMode';
+import { useConfidentialityMode, getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import {
   PRIVILEGED_MATTER_MODE_SETTING_KEY,
   DEFAULT_PRIVILEGED_MATTER_MODE,

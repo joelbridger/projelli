@@ -8,9 +8,9 @@ import {
   evaluateFormulaString,
   extractDependencies,
   formulaValueToDisplay,
-} from '@/utils/formula-engine';
-import { SheetEngine } from '@/utils/spreadsheet-io';
-import type { SheetData, SheetCell } from '@/utils/spreadsheet-io';
+} from '@/platform/utils/formula-engine';
+import { SheetEngine } from '@/platform/utils/spreadsheet-io';
+import type { SheetData, SheetCell } from '@/platform/utils/spreadsheet-io';
 
 function cell(value: string | number | null, formula?: string): SheetCell {
   if (formula !== undefined) {

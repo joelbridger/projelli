@@ -5,7 +5,7 @@ const mockMailImapConnect = vi.fn();
 const mockMailImapIsConnected = vi.fn();
 const mockMailImapDisconnect = vi.fn();
 
-vi.mock('@/utils/mail-commands', () => ({
+vi.mock('@/platform/utils/mail-commands', () => ({
   get mailImapConnect() { return mockMailImapConnect; },
   get mailImapIsConnected() { return mockMailImapIsConnected; },
   get mailImapDisconnect() { return mockMailImapDisconnect; },

@@ -34,8 +34,8 @@ vi.mock('@/platform/rag/MemoryService', async (orig) => {
 
 // verifyCitations (in workspaceCommand) calls ragVerifyCitation — mock the
 // underlying Tauri wrapper so we control the verdict.
-vi.mock('@/utils/tauri-commands', async (orig) => {
-  const real = await orig<typeof import('@/utils/tauri-commands')>();
+vi.mock('@/platform/utils/tauri-commands', async (orig) => {
+  const real = await orig<typeof import('@/platform/utils/tauri-commands')>();
   return { ...real, ragVerifyCitation: mocks.verifyCitation };
 });
 
@@ -67,7 +67,7 @@ vi.mock('@/platform/providers/GeminiProvider', () => ({
 vi.mock('@/features/ask/ChatCostChip', () => ({ ChatCostChip: () => null }));
 
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
-import type { AIChatFile } from '@/types/ai';
+import type { AIChatFile } from '@/platform/types/ai';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 

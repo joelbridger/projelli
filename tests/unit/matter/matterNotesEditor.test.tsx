@@ -18,7 +18,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, waitFor } from '@testing-library/react';
 import * as Y from 'yjs';
 import type { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
-import type { Matter } from '@/types/matter';
+import type { Matter } from '@/platform/types/matter';
 import { useMatterSyncStore } from '@/platform/matter/matterSyncStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useEditorStore } from '@/platform/state/editorStore';

@@ -17,7 +17,7 @@ import {
 import { useMatters, useActiveMatterId } from '@/platform/matter/matterStore';
 import { AccountIdentity } from './AccountIdentity';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { useEntityLabel } from '@/hooks/useEntityLabel';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
 
 type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'email' | 'settings';

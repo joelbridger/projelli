@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
-import type { InterviewQuestion } from '@/types/workflow';
+import type { InterviewQuestion } from '@/platform/types/workflow';
 import { cn } from '@/lib/utils';
 
 interface InterviewFormProps {

@@ -31,13 +31,13 @@ import { Button } from '@/ui/button';
 import {
   useConfidentialityMode,
   useSetConfidentialityMode,
-} from '@/hooks/useConfidentialityMode';
+} from '@/platform/hooks/useConfidentialityMode';
 import { modeNeedsManagedKey, type ConfidentialityMode } from '@/platform/privacy/egress';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import {
   usePrivilegedMatterMode,
   useSetPrivilegedMatterMode,
-} from '@/hooks/usePrivilegedMatterMode';
+} from '@/platform/hooks/usePrivilegedMatterMode';
 import { useFirmStore } from '@/platform/firm/firmStore';
 
 interface ModeCard {

@@ -11,8 +11,8 @@
  */
 
 import { Sparkles, CheckCircle2 } from 'lucide-react';
-import { useTrial } from '@/hooks/useTrial';
-import { useLicense } from '@/hooks/useLicense';
+import { useTrial } from '@/platform/hooks/useTrial';
+import { useLicense } from '@/platform/hooks/useLicense';
 import { cn } from '@/lib/utils';
 
 interface TrialStatusChipProps {

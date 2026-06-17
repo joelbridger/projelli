@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { RunRecord, WorkflowTemplate } from '@/types/workflow';
+import type { RunRecord, WorkflowTemplate } from '@/platform/types/workflow';
 
 interface WorkflowState {
   // Available templates

@@ -1,7 +1,7 @@
 // Run Record Service
 // Persists and manages workflow run records
 
-import type { RunRecord, RunRecordStatus } from '@/types/workflow';
+import type { RunRecord, RunRecordStatus } from '@/platform/types/workflow';
 
 export interface RunRecordQuery {
   /** Filter by workflow ID */

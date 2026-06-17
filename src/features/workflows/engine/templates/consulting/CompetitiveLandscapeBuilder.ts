@@ -2,7 +2,7 @@
 // Can ship without formal advisor review (no statutory claims).
 // Recommend one experienced consultant read-through before production.
 
-import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
+import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {

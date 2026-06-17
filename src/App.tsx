@@ -29,17 +29,17 @@ import { ProjectManager } from '@/platform/fs/ui/ProjectManager';
 import { Button } from '@/ui/button';
 import { Command, Moon, Monitor, Sun, Settings } from 'lucide-react';
 import { manualUpdateCheck } from '@/platform/updater/UpdateManager';
-import { openExternal } from '@/utils/openExternal';
+import { openExternal } from '@/platform/utils/openExternal';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
 import { GuidedOnboarding } from '@/features/onboarding/GuidedOnboarding';
 import { createKeychainService } from '@/platform/providers/KeychainService';
-import { sendEvent } from '@/utils/telemetry';
-import { useFeatureTour } from '@/hooks/useFeatureTour';
+import { sendEvent } from '@/platform/utils/telemetry';
+import { useFeatureTour } from '@/platform/hooks/useFeatureTour';
 // M1 (v1.5) Memory: workspace RAG indexer + status UI.
 import { ModelDownloadCard } from '@/platform/rag/ui/ModelDownloadCard';
 import { RagProgressBanner } from '@/platform/rag/ui/RagProgressBanner';
-import { useMemoryWiring } from '@/hooks/useMemoryWiring';
+import { useMemoryWiring } from '@/platform/hooks/useMemoryWiring';
 import { useGlobalFileDrop } from '@/app/shell/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
@@ -48,7 +48,7 @@ import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/Wor
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
 import type { TrashedItem } from '@/platform/history/TrashService';
 
-import type { AuditEntry } from '@/types/audit';
+import type { AuditEntry } from '@/platform/types/audit';
 import { AuditService } from '@/platform/audit/AuditService';
 import { getOrCreateSampleMatter, useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterUiStore, isWorkingSurface } from '@/platform/matter/matterUiStore';
@@ -62,23 +62,23 @@ import {
 } from '@/features/workflows/engine/workflowFile';
 import { FileSystemWatcher, createFileTreeSnapshot } from '@/platform/fs/FileSystemWatcher';
 
-import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/utils/file-utils';
-import { writeDroppedFiles } from '@/utils/fileDrop';
+import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/platform/utils/file-utils';
+import { writeDroppedFiles } from '@/platform/utils/fileDrop';
 
 
-import { useTrash } from '@/hooks/useTrash';
+import { useTrash } from '@/platform/hooks/useTrash';
 import { useSourceCards } from '@/app/hooks/useSourceCards';
-import { useAIChatFiles } from '@/hooks/useAIChatFiles';
-import { useApiKeys } from '@/hooks/useApiKeys';
-import { useOpenFileAIContext } from '@/hooks/useOpenFileAIContext';
+import { useAIChatFiles } from '@/platform/hooks/useAIChatFiles';
+import { useApiKeys } from '@/platform/hooks/useApiKeys';
+import { useOpenFileAIContext } from '@/platform/hooks/useOpenFileAIContext';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
-import { useModelList } from '@/hooks/useModelList';
-import { useContentIndex } from '@/hooks/useContentIndex';
+import { useModelList } from '@/platform/hooks/useModelList';
+import { useContentIndex } from '@/platform/hooks/useContentIndex';
 import { useMailSync } from '@/features/email/useMailSync';
-import { useOpenEmailListener } from '@/hooks/useOpenEmailListener';
-import type { MailIndexChunk } from '@/utils/mail-commands';
-import { useConfirmDialog } from '@/hooks/useConfirmDialog';
-import { usePromptDialog } from '@/hooks/usePromptDialog';
+import { useOpenEmailListener } from '@/platform/hooks/useOpenEmailListener';
+import type { MailIndexChunk } from '@/platform/utils/mail-commands';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { useUndoToast } from '@/app/shell/common/UndoToast';
 
 // Module-level constants so the onboarding/tour effects have stable deps

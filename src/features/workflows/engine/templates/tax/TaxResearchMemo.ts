@@ -1,7 +1,7 @@
 // Tax Practice Pack v2.2 (shipped). Built with input from practicing CPAs and EAs.
 // Drafting aid: every generated output carries a banner requiring professional review before use.
 
-import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
+import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {

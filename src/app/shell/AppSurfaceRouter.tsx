@@ -19,16 +19,16 @@ import { ReimaginedAuditHome } from '@/features/audit/ReimaginedAuditHome';
 import { MainPanel } from '@/app/shell/layout/MainPanel';
 import { SettingsContent } from '@/features/settings/SettingsContent';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
-import { requestScrollToParagraph } from '@/utils/scrollToParagraph';
+import { requestScrollToParagraph } from '@/platform/utils/scrollToParagraph';
 import { isWorkflowFilePath } from '@/features/workflows/engine/workflowFile';
 import { useEditorStore } from '@/platform/state/editorStore';
 
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
-import type { WorkflowExecution, WorkflowTemplate, InterviewQuestion, RunRecord } from '@/types/workflow';
-import type { AuditEntry } from '@/types/audit';
-import type { APIKey } from '@/types';
+import type { WorkflowExecution, WorkflowTemplate, InterviewQuestion, RunRecord } from '@/platform/types/workflow';
+import type { AuditEntry } from '@/platform/types/audit';
+import type { APIKey } from '@/platform/types';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 import type { SettingCategory } from '@/settings/schema';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
@@ -149,8 +149,8 @@ export function AppSurfaceRouter({
           onSaveToDocument={async (content) => {
             if (!workspaceServiceRef.current || !rootPath) return;
             // Word-first: AI answers save as a real .docx (not markdown).
-            const { deriveFilenameFromMessage, resolveUniqueName } = await import('@/utils/fileDrop');
-            const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/utils/docx-io');
+            const { deriveFilenameFromMessage, resolveUniqueName } = await import('@/platform/utils/fileDrop');
+            const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/platform/utils/docx-io');
             const firmName = (() => { try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; } })();
             const base = deriveFilenameFromMessage(content).replace(/\.(md|markdown|txt)$/i, '');
             const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
@@ -171,8 +171,8 @@ export function AppSurfaceRouter({
           onSaveToWorkspace={async (content, suggestedName) => {
             if (!workspaceServiceRef.current || !rootPath) return;
             // Word-first: saved email content becomes a real .docx.
-            const { resolveUniqueName } = await import('@/utils/fileDrop');
-            const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/utils/docx-io');
+            const { resolveUniqueName } = await import('@/platform/utils/fileDrop');
+            const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/platform/utils/docx-io');
             const firmName = (() => { try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; } })();
             const base = suggestedName.replace(/\.(md|markdown|txt)$/i, '');
             const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);

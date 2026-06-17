@@ -12,7 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FSBackend, FileStat } from '@/platform/fs/types';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 
 /**
  * Create a mock FSBackend for testing

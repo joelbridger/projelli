@@ -19,7 +19,7 @@ import { useState, useMemo } from 'react';
 import { Briefcase, Globe, Map as MapIcon, Info } from 'lucide-react';
 import { useActiveMatter } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
+import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import {
@@ -27,7 +27,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/ui/tooltip';
-import { useEntityLabel } from '@/hooks/useEntityLabel';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
 import type { EgressProvider } from '@/platform/privacy/egress';
 

@@ -15,7 +15,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import type { WorkflowTemplate, RunRecord } from '@/types/workflow';
+import type { WorkflowTemplate, RunRecord } from '@/platform/types/workflow';
 
 // ── Mock the template loader before importing the component ─────────────────
 
@@ -72,7 +72,7 @@ vi.mock('@/features/workflows/engine/prioritizeByProfession', () => ({
 
 // Trial gate: not locked by default; tests override per-case.
 const mockTrialGate = vi.fn(() => ({ isLocked: false, daysRemaining: 25, isTrialExpired: false, isActivated: true, trialDays: 30 }));
-vi.mock('@/hooks/useTrial', () => ({
+vi.mock('@/platform/hooks/useTrial', () => ({
   useTrialGate: () => mockTrialGate(),
 }));
 

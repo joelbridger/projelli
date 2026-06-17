@@ -21,7 +21,7 @@
  *    pay for the app and are more likely to want a higher-capability default.
  */
 
-import type { LicenseTier } from '@/hooks/useLicense';
+import type { LicenseTier } from '@/platform/hooks/useLicense';
 
 export type Provider = 'anthropic' | 'openai' | 'google';
 

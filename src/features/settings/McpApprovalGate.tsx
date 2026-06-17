@@ -23,10 +23,10 @@ import {
   mcpListPendingApprovals,
   mcpApproveWrite,
   type McpPendingApproval,
-} from '@/utils/tauri-commands';
+} from '@/platform/utils/tauri-commands';
 import { McpApprovalModal } from '@/features/settings/McpApprovalModal';
-import { usePrivilegedMatterModeActive } from '@/hooks/usePrivilegedMatterMode';
-import type { AuditEvent } from '@/types/audit';
+import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
+import type { AuditEvent } from '@/platform/types/audit';
 import { PRIVILEGED_MATTER_BLOCK_REASON } from '@/platform/privacy/privilegedMatterMode';
 
 export interface McpApprovalGateProps {

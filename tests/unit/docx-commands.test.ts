@@ -20,8 +20,8 @@ import {
   docxAuthorRevisions,
   docxApplyLetterhead,
   isDocxEngineAvailable,
-} from '@/utils/docx-commands';
-import type { DocumentJson, DocxAiEdit } from '@/types/docx';
+} from '@/platform/utils/docx-commands';
+import type { DocumentJson, DocxAiEdit } from '@/platform/types/docx';
 
 const invokeMock = vi.mocked(invoke);
 
@@ -133,7 +133,7 @@ describe('docx-commands (browser mode)', () => {
       invoke: vi.fn(),
       isTauri: () => false,
     }));
-    const mod = await import('@/utils/docx-commands');
+    const mod = await import('@/platform/utils/docx-commands');
     expect(mod.isDocxEngineAvailable()).toBe(false);
     await expect(mod.docxOpen('/x.docx')).rejects.toThrow(/desktop app/i);
     await expect(mod.docxSave('/x.docx', doc)).rejects.toThrow(/desktop app/i);

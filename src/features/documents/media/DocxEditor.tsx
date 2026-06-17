@@ -56,7 +56,7 @@ import { cn } from '@/lib/utils';
 import { AutoSaveIndicator } from '@/features/documents/editor/AutoSaveIndicator';
 import { DocxViewer } from '@/features/documents/media/DocxViewer';
 import { LibreOfficeHelpNotice } from '@/features/documents/media/LibreOfficeHelpNotice';
-import { detectLibreOffice } from '@/utils/tauri-commands';
+import { detectLibreOffice } from '@/platform/utils/tauri-commands';
 import {
   docxAuthorRevisions,
   docxConvertToPdf,
@@ -67,21 +67,21 @@ import {
   docxResolveRevision,
   docxSave,
   isDocxEngineAvailable,
-} from '@/utils/docx-commands';
+} from '@/platform/utils/docx-commands';
 import { createProvider, isLocalProviderId, type ChatProviderId } from '@/platform/providers/providerFactory';
-import { useTrialGate } from '@/hooks/useTrial';
+import { useTrialGate } from '@/platform/hooks/useTrial';
 import {
   REDLINE_AUTHOR,
   paragraphPlainRunText,
   requestRedlineEdits,
 } from '@/features/documents/docx/redline';
-import { diffParagraphEdits } from '@/utils/docx-text-diff';
+import { diffParagraphEdits } from '@/platform/utils/docx-text-diff';
 import {
   anchoredCommentIds,
   commentList,
   countRevisions,
   groupRevisions,
-} from '@/utils/docx-dom';
+} from '@/platform/utils/docx-dom';
 import type {
   DocumentJson,
   DocxComment,
@@ -89,8 +89,8 @@ import type {
   DocxResolveAction,
   DocxRun,
   GroupedRevision,
-} from '@/types/docx';
-import type { AuditEntry } from '@/types/audit';
+} from '@/platform/types/docx';
+import type { AuditEntry } from '@/platform/types/audit';
 import type { CoeditSession } from '@/platform/firm/coedit/coeditSession';
 import * as Y from 'yjs';
 import { editRunText, addTrackedInsertion, addTrackedDeletion, resolveRevision } from '@/platform/firm/coedit/docCrdt';
@@ -491,7 +491,7 @@ export function DocxEditor({
       const pdfPath = await docxConvertToPdf(srcPath);
       const { readFile } = await import('@tauri-apps/plugin-fs');
       const bytes = await readFile(pdfPath);
-      const { saveFile } = await import('@/utils/saveFile');
+      const { saveFile } = await import('@/platform/utils/saveFile');
       const saved = await saveFile(bytes, {
         suggestedName: `${exportStem}.pdf`,
         types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],

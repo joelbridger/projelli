@@ -2,7 +2,7 @@
  * Keyboard shortcuts overlay modal.
  *
  * Triggered by pressing `?` anywhere in the app (outside of an input). Lists
- * every shortcut from the single source of truth at `src/utils/shortcuts.ts`,
+ * every shortcut from the single source of truth at `src/platform/utils/shortcuts.ts`,
  * grouped by category, with a search box that live-filters the list.
  *
  * A11y:
@@ -28,7 +28,7 @@ import {
   isMac,
   type ShortcutCategory,
   type ShortcutDef,
-} from '@/utils/shortcuts';
+} from '@/platform/utils/shortcuts';
 
 interface ShortcutsOverlayProps {
   open: boolean;

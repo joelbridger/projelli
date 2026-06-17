@@ -13,7 +13,7 @@
  * ── Tier-code reconciliation (READ THIS) ───────────────────────────────────
  * The internal tier CODES are intentionally STABLE as `personal | professional
  * | practice`. The backend client contract (`backend/src/contract.ts`), the
- * license-validator service, and `src/hooks/useLicense.ts` all speak those
+ * license-validator service, and `src/platform/hooks/useLicense.ts` all speak those
  * codes on the wire. We do NOT refactor them - a license minted today must keep
  * validating.
  *

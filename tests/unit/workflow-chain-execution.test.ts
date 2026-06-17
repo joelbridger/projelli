@@ -16,7 +16,7 @@ import type {
   WorkflowTemplate,
   InterviewStepConfig,
   GenerateStepConfig,
-} from '@/types/workflow';
+} from '@/platform/types/workflow';
 
 function makeStep1(): WorkflowTemplate {
   const interview: InterviewStepConfig = {

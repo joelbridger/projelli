@@ -39,11 +39,11 @@ import {
   DialogTitle,
 } from '@/ui/dialog';
 
-import type { AuditEntry, AuditEvent } from '@/types/audit';
+import type { AuditEntry, AuditEvent } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
-import type { InterviewQuestion } from '@/types/workflow';
-import type { FileNode } from '@/types/workspace';
+import type { InterviewQuestion } from '@/platform/types/workflow';
+import type { FileNode } from '@/platform/types/workspace';
 import type { SettingCategory } from '@/settings/schema';
 
 export interface AppDialogsProps {

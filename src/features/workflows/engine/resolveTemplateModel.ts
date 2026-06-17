@@ -14,7 +14,7 @@
  * consulted when no explicit run-time pick exists.
  */
 
-import type { TemplateProviderId, WorkflowTemplate } from '@/types/workflow';
+import type { TemplateProviderId, WorkflowTemplate } from '@/platform/types/workflow';
 
 export interface TemplateModelOverride {
   provider: TemplateProviderId;

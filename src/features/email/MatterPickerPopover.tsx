@@ -6,7 +6,7 @@ import {
   mailRetagMessageMatter,
   mailRetagFolderMatter,
   type MailListItem,
-} from '@/utils/mail-commands';
+} from '@/platform/utils/mail-commands';
 import { matterLabel } from '@/platform/rag/matterResolver';
 
 // ── MatterPickerPopover ────────────────────────────────────────────────────

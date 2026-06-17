@@ -26,7 +26,7 @@
  *   We use a UUIDv4-shaped string from crypto.getRandomValues.
  */
 
-import { keychainGet, keychainSet } from '@/utils/tauri-commands';
+import { keychainGet, keychainSet } from '@/platform/utils/tauri-commands';
 import { isTauri } from '@tauri-apps/api/core';
 import { FirmApiClient } from './FirmApiClient';
 

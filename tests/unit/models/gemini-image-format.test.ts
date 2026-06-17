@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
 

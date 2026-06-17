@@ -7,7 +7,7 @@ import {
   clearExpandedFlags,
   type CompressionOptions,
 } from '@/features/ask/compression';
-import type { ChatMessage } from '@/types/ai';
+import type { ChatMessage } from '@/platform/types/ai';
 import type { Provider } from '@/platform/providers/Provider';
 
 // Helper: create a minimal ChatMessage.

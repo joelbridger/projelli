@@ -32,7 +32,7 @@ import {
   type ParagraphChild,
 } from 'docx';
 
-import type { ContradictionAnalysisResult, ContradictionFinding } from '@/types/workflow';
+import type { ContradictionAnalysisResult, ContradictionFinding } from '@/platform/types/workflow';
 
 import { dataUrlToArrayBuffer } from './spreadsheet-io';
 
@@ -1299,7 +1299,7 @@ export async function applyLetterheadIfConfigured(bytes: Uint8Array): Promise<Ui
     const fs = await import('@tauri-apps/plugin-fs');
     const templateBytes = await fs.readFile(absoluteTemplatePath);
 
-    const { docxApplyLetterhead } = await import('@/utils/docx-commands');
+    const { docxApplyLetterhead } = await import('@/platform/utils/docx-commands');
     const mergedB64 = await docxApplyLetterhead(
       bytesToBase64(bytes),
       bytesToBase64(templateBytes),

@@ -24,7 +24,7 @@ import {
   type ConfidentialityMode,
   type EgressInfo,
 } from '@/platform/privacy/egress';
-import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
+import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 
 const BYOK_STORAGE_KEY = 'byokKey';

@@ -9,9 +9,9 @@ import {
 } from '@/ui/dialog';
 import { Button, IconButton } from '@/ui/kp';
 import { useProfileStore } from '@/platform/profile/profileStore';
-import { useFirm } from '@/hooks/useFirm';
-import { readImageAsDataUrl } from '@/utils/imageUpload';
-import type { AuditEntry } from '@/types/audit';
+import { useFirm } from '@/platform/hooks/useFirm';
+import { readImageAsDataUrl } from '@/platform/utils/imageUpload';
+import type { AuditEntry } from '@/platform/types/audit';
 import { LicenseSettings } from '@/features/settings/LicenseSettings';
 import { FirmSignIn } from '@/features/firm/FirmSignIn';
 import { FirmAdminConsole } from '@/features/firm/FirmAdminConsole';

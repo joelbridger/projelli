@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { MailSyncProgress } from '@/utils/mail-commands';
+import type { MailSyncProgress } from '@/platform/utils/mail-commands';
 
 interface MailState {
   connected: boolean;

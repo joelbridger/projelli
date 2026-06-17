@@ -20,7 +20,7 @@
  */
 
 import { getInstallId } from './installId';
-import { getTelemetryConsent } from '@/hooks/useTelemetryConsent';
+import { getTelemetryConsent } from '@/platform/hooks/useTelemetryConsent';
 
 const ENDPOINT = 'https://keepance.com/api/forms/keepance/app-event';
 const SENT_KEY = 'keepance_telemetry_sent_events';

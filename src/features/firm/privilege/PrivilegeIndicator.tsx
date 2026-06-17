@@ -16,7 +16,7 @@ import {
   privilegeShortLabel,
   privilegeLabel,
   type Privilege,
-} from '@/types/privilege';
+} from '@/platform/types/privilege';
 
 export interface PrivilegeIndicatorProps {
   privilege: Privilege;

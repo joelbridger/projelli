@@ -1,6 +1,6 @@
 import { Building2, User, ChevronRight } from 'lucide-react';
 import { useProfileStore } from '@/platform/profile/profileStore';
-import { useFirm } from '@/hooks/useFirm';
+import { useFirm } from '@/platform/hooks/useFirm';
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);

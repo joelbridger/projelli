@@ -24,11 +24,11 @@ import type {
   ContradictionAnalysisResult,
   ContradictionFinding,
   FindingSource,
-} from '@/types/workflow';
-import { OCR_LOW_CONFIDENCE, type RetrievalScope } from '@/utils/tauri-commands';
+} from '@/platform/types/workflow';
+import { OCR_LOW_CONFIDENCE, type RetrievalScope } from '@/platform/utils/tauri-commands';
 
 /** A retrieved chunk, narrowed to the fields the analysis pipeline needs.
- *  Structurally compatible with `RagHit` from `@/utils/tauri-commands`. */
+ *  Structurally compatible with `RagHit` from `@/platform/utils/tauri-commands`. */
 export interface RetrievedChunk {
   path: string;
   chunkText: string;

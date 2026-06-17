@@ -13,7 +13,7 @@ import type {
   ClaudeDocumentBlock,
   AttachmentBytes,
 } from './Provider';
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInference';
 import { isVisionModel } from './vision-capability';

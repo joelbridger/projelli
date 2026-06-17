@@ -65,14 +65,14 @@ import { VoiceSettingsSection } from '@/features/settings/VoiceSettingsSection';
 import { LanguagePicker } from '@/features/settings/LanguagePicker';
 import { SetupChecklist } from '@/features/settings/SetupChecklist';
 import { ApiKeyWizard } from '@/features/onboarding/ApiKeyWizard';
-import type { AuditEntry } from '@/types/audit';
-import type { WorkflowTemplate } from '@/types/workflow';
+import type { AuditEntry } from '@/platform/types/audit';
+import type { WorkflowTemplate } from '@/platform/types/workflow';
 import {
   SHORTCUTS,
   groupShortcutsByCategory,
   formatShortcutHint,
   isMac,
-} from '@/utils/shortcuts';
+} from '@/platform/utils/shortcuts';
 import {
   X,
   Upload,

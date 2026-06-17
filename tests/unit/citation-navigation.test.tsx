@@ -42,7 +42,7 @@ vi.mock('@/platform/providers/GeminiProvider', () => ({
 }));
 
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
-import type { AIChatFile } from '@/types/ai';
+import type { AIChatFile } from '@/platform/types/ai';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import {
   SCROLL_TO_PARAGRAPH_EVENT,
@@ -51,7 +51,7 @@ import {
   requestScrollToParagraph,
   resolveScrollPosition,
   type ScrollToParagraphDetail,
-} from '@/utils/scrollToParagraph';
+} from '@/platform/utils/scrollToParagraph';
 
 function buildChatWithCitations(): AIChatFile {
   return {

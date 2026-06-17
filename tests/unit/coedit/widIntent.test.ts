@@ -19,7 +19,7 @@ import {
   addTrackedInsertion,
   addTrackedDeletion,
 } from '@/platform/firm/coedit/docCrdt';
-import type { DocumentJson, DocxParagraph, DocxInlineInsertion, DocxInlineDeletion } from '@/types/docx';
+import type { DocumentJson, DocxParagraph, DocxInlineInsertion, DocxInlineDeletion } from '@/platform/types/docx';
 
 // ---------------------------------------------------------------------------
 // Fixtures

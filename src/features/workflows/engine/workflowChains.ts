@@ -7,7 +7,7 @@
 // This module mirrors `userTemplates.ts` — swap-in storage adapter, JSON
 // on the wire, tiny API — so the two feel alike in code reviews.
 
-import type { WorkflowChain } from '@/types/workflow';
+import type { WorkflowChain } from '@/platform/types/workflow';
 import { deserializeChain, serializeChain } from './WorkflowChainEngine';
 
 export const CHAIN_STORAGE_KEY = 'keepance:workflowChains';

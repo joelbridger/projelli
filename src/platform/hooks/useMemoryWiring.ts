@@ -34,8 +34,8 @@ import {
   isPathInFolder,
   parseMailFolderKey,
 } from '@/platform/rag/matterResolver';
-import { UNASSIGNED_MATTER_ID } from '@/types/matter';
-import { mailBackfillRag, mailRetagFolderMatter } from '@/utils/mail-commands';
+import { UNASSIGNED_MATTER_ID } from '@/platform/types/matter';
+import { mailBackfillRag, mailRetagFolderMatter } from '@/platform/utils/mail-commands';
 import {
   resolvePrivilegeForSource,
   usePrivilegeStore,
@@ -53,10 +53,10 @@ import {
   watchWorkspace,
   type ModelDownloadProgress,
   type WorkspaceChangeEvent,
-} from '@/utils/tauri-commands';
-import { mailSetWorkspace } from '@/utils/mail-commands';
+} from '@/platform/utils/tauri-commands';
+import { mailSetWorkspace } from '@/platform/utils/mail-commands';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 
 /** Build a FactsStorage adapter from a WorkspaceService-shaped object. */
 export function buildFactsStorage(

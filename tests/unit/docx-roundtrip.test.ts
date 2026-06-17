@@ -17,8 +17,8 @@ import JSZip from 'jszip';
 import {
   serializeDocx,
   docxBytesToDataUrl,
-} from '../../src/utils/docx-io';
-import { dataUrlToArrayBuffer } from '../../src/utils/spreadsheet-io';
+} from '../../src/platform/utils/docx-io';
+import { dataUrlToArrayBuffer } from '../../src/platform/utils/spreadsheet-io';
 
 describe('DOCX round-trip (UX-35)', () => {
   it('produces byte-identical bytes after data URL encode then decode', async () => {

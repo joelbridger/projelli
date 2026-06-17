@@ -1,7 +1,7 @@
 // Doc Summary Service
 // Generates structured summaries from documents using AI
 
-import type { DocSummary } from '@/types/analysis';
+import type { DocSummary } from '@/platform/types/analysis';
 import type { Provider, StructuredOutputOptions, OutputSchema } from '@/platform/providers/Provider';
 
 /**

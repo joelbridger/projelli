@@ -10,7 +10,7 @@ import {
   resolveTemplateModel,
   type TemplateModelOverride,
 } from '@/features/workflows/engine/resolveTemplateModel';
-import type { WorkflowTemplate } from '@/types/workflow';
+import type { WorkflowTemplate } from '@/platform/types/workflow';
 
 function templateFixture(
   partial: Partial<WorkflowTemplate> & { id: string }

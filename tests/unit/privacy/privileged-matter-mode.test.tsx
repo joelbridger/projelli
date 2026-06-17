@@ -26,12 +26,12 @@ import {
 import {
   usePrivilegedMatterMode,
   getPrivilegedMatterModeActive,
-} from '@/hooks/usePrivilegedMatterMode';
+} from '@/platform/hooks/usePrivilegedMatterMode';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 import { McpApprovalModal } from '@/features/settings/McpApprovalModal';
-import type { McpPendingApproval } from '@/utils/tauri-commands';
+import type { McpPendingApproval } from '@/platform/utils/tauri-commands';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 

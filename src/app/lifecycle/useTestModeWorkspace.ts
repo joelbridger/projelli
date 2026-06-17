@@ -13,7 +13,7 @@ import { useFileContextStore } from '@/platform/state/fileContextStore';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import { buildOpenFilesPromptBlock } from '@/features/ask/AIChatViewer';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 import type React from 'react';
 
 export interface UseTestModeWorkspaceOptions {

@@ -10,9 +10,9 @@ import { useEffect, useState } from 'react';
 import { CheckCircle2, Circle, RefreshCw } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
-import { useApiKeys } from '@/hooks/useApiKeys';
-import { useFirm } from '@/hooks/useFirm';
-import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/utils/mail-commands';
+import { useApiKeys } from '@/platform/hooks/useApiKeys';
+import { useFirm } from '@/platform/hooks/useFirm';
+import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/platform/utils/mail-commands';
 import type { SettingCategory } from '@/settings/schema';
 
 interface SetupChecklistProps {

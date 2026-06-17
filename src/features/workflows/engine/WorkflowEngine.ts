@@ -11,9 +11,9 @@ import type {
   GenerateStepConfig,
   AnalyzeStepConfig,
   ContradictionAnalysisResult,
-} from '@/types/workflow';
+} from '@/platform/types/workflow';
 import type { Provider } from '@/platform/providers/Provider';
-import type { RetrievalScope } from '@/utils/tauri-commands';
+import type { RetrievalScope } from '@/platform/utils/tauri-commands';
 import {
   runContradictionAnalysis,
   type RetrieveFn,
@@ -304,7 +304,7 @@ export class WorkflowEngine {
   private async writeDeliverable(outputFile: string, markdownContent: string): Promise<void> {
     const isDocx = outputFile.toLowerCase().endsWith('.docx');
     if (isDocx && this.fileOps.writeFileBinary) {
-      const { markdownToDocxBytes, applyLetterheadIfConfigured } = await import('@/utils/docx-io');
+      const { markdownToDocxBytes, applyLetterheadIfConfigured } = await import('@/platform/utils/docx-io');
       const bytes = await markdownToDocxBytes(markdownContent, outputFile);
       // VG-4c — put the deliverable on the firm letterhead if one is configured
       // (opt-in; fail-open: pass-through when unset, not in Tauri, or on error).
@@ -439,7 +439,7 @@ export class WorkflowEngine {
     // VG-4c — put the deliverable on the firm letterhead if one is configured
     // (opt-in; fail-open). Applied to the serialized bytes, AFTER the retrieval
     // note is rendered into `meta`, so the disclosure is never disturbed.
-    const { applyLetterheadIfConfigured } = await import('@/utils/docx-io');
+    const { applyLetterheadIfConfigured } = await import('@/platform/utils/docx-io');
     const finalBytes = await applyLetterheadIfConfigured(bytes);
     await this.fileOps.writeFileBinary(config.outputFile, finalBytes);
 

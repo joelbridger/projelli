@@ -4,7 +4,7 @@
  * could open a memory panel later (M2/M3); for M1 it's display-only.
  */
 
-import { useRagStatus } from '@/hooks/useRagStatus';
+import { useRagStatus } from '@/platform/hooks/useRagStatus';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { Brain } from 'lucide-react';
 

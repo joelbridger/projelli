@@ -6,7 +6,7 @@
  * duplicate-name rules and binary/text routing.
  */
 
-import { isBinaryFile } from '@/utils/file-utils';
+import { isBinaryFile } from '@/platform/utils/file-utils';
 
 /**
  * Minimal surface of the workspace service we depend on here. We declare

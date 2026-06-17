@@ -25,7 +25,7 @@
 
 import { useEffect, useState } from 'react';
 import { useEntitlement } from './useEntitlement';
-import { sendEventOnce } from '@/utils/telemetry';
+import { sendEventOnce } from '@/platform/utils/telemetry';
 
 const FIRST_LAUNCH_KEY = 'keepance_first_launch_at';
 const TRIAL_DAYS = 30;

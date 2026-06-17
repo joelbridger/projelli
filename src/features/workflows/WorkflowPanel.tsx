@@ -39,7 +39,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
-import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/types/workflow';
+import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/platform/types/workflow';
 import {
   duplicateTemplate,
   deleteUserTemplate,
@@ -51,7 +51,7 @@ import {
 import { ChainBuilderModal } from './ChainBuilderModal';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
 import { useProfessionStore, isLawExperience } from '@/platform/profile/professionStore';
-import { useTrialGate } from '@/hooks/useTrial';
+import { useTrialGate } from '@/platform/hooks/useTrial';
 import { useTemplatesMarketplace } from '@/features/workflows/useTemplatesMarketplace';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import {

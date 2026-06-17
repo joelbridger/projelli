@@ -6,7 +6,7 @@
 // the picker, not buried in a flat grid of everything. This pure helper does
 // that reordering; the picker calls it with the stored onboarding profession.
 
-import type { WorkflowTemplate } from '@/types/workflow';
+import type { WorkflowTemplate } from '@/platform/types/workflow';
 
 export type Profession = 'legal' | 'tax' | 'consulting' | 'advisor' | 'other';
 

@@ -3,7 +3,7 @@
 
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { computeDiff, type DiffResult, type DiffLine } from '@/utils/diff';
+import { computeDiff, type DiffResult, type DiffLine } from '@/platform/utils/diff';
 
 interface DiffViewerProps {
   originalContent: string;

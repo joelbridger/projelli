@@ -18,8 +18,8 @@ import {
   snippet,
   runsText,
   authorColor,
-} from '@/utils/docx-dom';
-import type { DocumentJson } from '@/types/docx';
+} from '@/platform/utils/docx-dom';
+import type { DocumentJson } from '@/platform/types/docx';
 
 describe('parseRunFormat', () => {
   it('returns empty object for undefined / empty properties', () => {

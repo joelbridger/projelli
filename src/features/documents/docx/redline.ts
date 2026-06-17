@@ -28,7 +28,7 @@ import type {
   DocumentJson,
   DocxAiEdit,
   DocxParagraph,
-} from '@/types/docx';
+} from '@/platform/types/docx';
 import type { OutputSchema, Provider } from '@/platform/providers/Provider';
 
 /** Author string stamped on AI redline revisions (matches the engine default). */

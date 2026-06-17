@@ -11,8 +11,8 @@ import {
 } from 'lucide-react';
 import { Button, Badge } from '@/ui/kp';
 import { usePrivilegeForSource } from '@/platform/firm/privilegeStore';
-import { mailGetMessage, type MailListItem } from '@/utils/mail-commands';
-import { isPrivileged } from '@/types/privilege';
+import { mailGetMessage, type MailListItem } from '@/platform/utils/mail-commands';
+import { isPrivileged } from '@/platform/types/privilege';
 import { formatRelativeDate, slugify } from './emailWorkspaceHelpers';
 import { MatterPickerPopover } from './MatterPickerPopover';
 import { MailRowPrivilege } from './MailRowPrivilege';

@@ -33,7 +33,7 @@ import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { yCollab } from 'y-codemirror.next';
 import type { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
-import type { Matter } from '@/types/matter';
+import type { Matter } from '@/platform/types/matter';
 import { useMatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import { cn } from '@/lib/utils';
 

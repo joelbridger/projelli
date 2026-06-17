@@ -8,8 +8,8 @@ import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { columnIndexToLetter } from '@/utils/spreadsheet-io';
-import type { SheetData, SheetCell } from '@/utils/spreadsheet-io';
+import { columnIndexToLetter } from '@/platform/utils/spreadsheet-io';
+import type { SheetData, SheetCell } from '@/platform/utils/spreadsheet-io';
 import {
   VIRTUALIZE_ROW_THRESHOLD,
   ROW_HEIGHT_PX,

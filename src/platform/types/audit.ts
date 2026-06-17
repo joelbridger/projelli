@@ -80,7 +80,7 @@ export interface AuditEntry {
    * Q4 (Wave 1.2) — Optional cost/token fields populated when an entry
    * represents a model call or a workflow/chat completion that triggered
    * one. Pre-v1.5 entries won't have these; the cost dashboard just skips
-   * entries where these aren't set. See `src/utils/audit-export.ts` —
+   * entries where these aren't set. See `src/platform/utils/audit-export.ts` —
    * these keys are also scraped from `outputs`/`metadata` for backward
    * compatibility with entries that stored them there.
    */

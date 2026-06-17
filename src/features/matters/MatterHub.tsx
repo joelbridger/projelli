@@ -13,7 +13,7 @@ import { Briefcase, Lock, ChevronRight, Sparkles, FileText, Mail, GitBranch, Clo
 import { useMatters, useActiveMatterPrivileged, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { useEntityLabel } from '@/hooks/useEntityLabel';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { useMatterAtAGlanceStore } from '@/platform/matter/matterAtAGlanceStore';
 import {
   generateMatterAtAGlance,

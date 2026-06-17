@@ -11,7 +11,7 @@ import { WorkspaceService, createWorkspaceService } from '@/platform/fs/Workspac
 import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactory';
 import { vaultStatus } from '@/platform/firm/vault/vaultClient';
 import { DEFAULT_WORKSPACE_FOLDERS } from '@/platform/fs/types';
-import { openExternal } from '@/utils/openExternal';
+import { openExternal } from '@/platform/utils/openExternal';
 import { KeepanceLogo } from '@/ui/brand/KeepanceLogo';
 import { GradientGlow } from '@/ui/brand/GradientGlow';
 import { VaultLockedPrompt } from '@/features/firm/vault/VaultLockedPrompt';

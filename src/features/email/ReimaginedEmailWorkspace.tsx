@@ -47,9 +47,9 @@ import {
   type MailListItem,
   type ConnectedAccount,
   type MailAttachmentInput,
-} from '@/utils/mail-commands';
+} from '@/platform/utils/mail-commands';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
-import type { RagHit, RetrievalScope } from '@/utils/tauri-commands';
+import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { mapMailError, parseRecipients, filterInputStyle } from './emailWorkspaceHelpers';
 import { BulkMatterPicker } from './BulkMatterPicker';

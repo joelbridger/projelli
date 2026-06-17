@@ -32,7 +32,7 @@ import {
 } from '@/ui/dialog';
 import { Button } from '@/ui/button';
 import { AlertTriangle, Check, X, FilePlus2, FilePen, ShieldOff } from 'lucide-react';
-import type { McpPendingApproval } from '@/utils/tauri-commands';
+import type { McpPendingApproval } from '@/platform/utils/tauri-commands';
 
 export interface McpApprovalModalProps {
   /** Current pending approvals queue. When empty, the modal stays closed. */

@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import type { AuditEntry } from '@/types/audit';
+import type { AuditEntry } from '@/platform/types/audit';
 import {
   CostMetrics,
   buildDailySeries,

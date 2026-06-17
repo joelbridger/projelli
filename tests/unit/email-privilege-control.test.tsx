@@ -22,7 +22,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 
 const mockMailGetMessage = vi.fn();
 
-vi.mock('@/utils/mail-commands', () => ({
+vi.mock('@/platform/utils/mail-commands', () => ({
   get mailGetMessage() {
     return mockMailGetMessage;
   },
@@ -30,7 +30,7 @@ vi.mock('@/utils/mail-commands', () => ({
 
 import { EmailViewer } from '@/features/email/EmailViewer';
 import { usePrivilegeStore } from '@/platform/firm/privilegeStore';
-import type { MailView } from '@/utils/mail-commands';
+import type { MailView } from '@/platform/utils/mail-commands';
 
 function sampleMessage(overrides: Partial<MailView> = {}): MailView {
   return {

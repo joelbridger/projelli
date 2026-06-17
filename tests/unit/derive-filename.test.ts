@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { deriveFilenameFromMessage } from '../../src/utils/fileDrop';
+import { deriveFilenameFromMessage } from '../../src/platform/utils/fileDrop';
 
 describe('deriveFilenameFromMessage', () => {
   it('uses a leading markdown heading when present', () => {

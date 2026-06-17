@@ -20,7 +20,7 @@ import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import type { Provider } from '@/platform/providers/Provider';
-import type { RagHit, RetrievalScope } from '@/utils/tauri-commands';
+import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 
 // Re-export types consumed by callers so they don't need to reach into
 // @/utils/tauri-commands directly.

@@ -22,7 +22,7 @@ import {
   fireEvent,
   within,
 } from '@testing-library/react';
-import type { WorkflowTemplate } from '@/types/workflow';
+import type { WorkflowTemplate } from '@/platform/types/workflow';
 
 // ---- Mocks ---------------------------------------------------------------
 
@@ -56,7 +56,7 @@ vi.mock('@/features/workflows/useTemplatesMarketplace', () => ({
   useTemplatesMarketplace: () => marketplaceState,
 }));
 
-vi.mock('@/hooks/useTrial', () => ({
+vi.mock('@/platform/hooks/useTrial', () => ({
   useTrialGate: () => ({
     isLocked: false,
     daysRemaining: 30,

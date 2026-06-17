@@ -36,7 +36,7 @@ vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
 import {
   changedPrivilegeSources,
   useMemoryWiring,
-} from '@/hooks/useMemoryWiring';
+} from '@/platform/hooks/useMemoryWiring';
 import { usePrivilegeStore } from '@/platform/firm/privilegeStore';
 
 describe('changedPrivilegeSources (pure diff)', () => {

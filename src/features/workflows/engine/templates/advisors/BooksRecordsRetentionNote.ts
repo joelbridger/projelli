@@ -2,7 +2,7 @@
 // Drafting aid: every generated output carries a banner requiring professional review before use.
 // COMPLIANCE SENSITIVE: Rule 204-2 record retention. Must be reviewed by qualified compliance professional before use.
 
-import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
+import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {

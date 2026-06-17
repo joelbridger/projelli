@@ -19,7 +19,7 @@ import { Card, CardContent } from '@/ui/card';
 import { Sparkles, Loader2, X, CheckCircle2 } from 'lucide-react';
 import type { Provider } from '@/platform/providers/Provider';
 import { ComparisonView } from '@/platform/analysis/ui/ComparisonView';
-import { tierHasFeature, type LicenseTier } from '@/hooks/useLicense';
+import { tierHasFeature, type LicenseTier } from '@/platform/hooks/useLicense';
 import {
   ContradictionDetector,
   type ContradictionAnalysis,

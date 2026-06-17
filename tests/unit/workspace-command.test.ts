@@ -22,7 +22,7 @@ import {
   resolveCitationPath,
   stripWorkspaceCommand,
 } from '@/platform/rag/workspaceCommand';
-import type { RagHit } from '@/utils/tauri-commands';
+import type { RagHit } from '@/platform/utils/tauri-commands';
 
 describe('parseWorkspaceCommand', () => {
   it('detects @workspace at the start of a message and strips it', () => {

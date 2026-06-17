@@ -16,7 +16,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as Y from 'yjs';
 import { openCoeditSession, closeCoeditSession, type CoeditSessionOptions } from '@/platform/firm/coedit/coeditSession';
 import { generateMatterKey } from '@/platform/firm/matterCrypto';
-import type { DocumentJson } from '@/types/docx';
+import type { DocumentJson } from '@/platform/types/docx';
 import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
 import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
 

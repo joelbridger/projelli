@@ -18,11 +18,11 @@ import { AttachmentService } from '@/features/ask/attachments/AttachmentService'
 import { estimateImageTokens } from '@/features/ask/attachments/imageTokens';
 import { estimatePdfTokens } from '@/features/ask/attachments/pdfTokens';
 import type { PdfExtractionResult } from '@/lib/pdf-extract';
-import type { ChatAttachment, AIChatFile, ChatMessage, WorkspaceSource, TurnScope } from '@/types/ai';
-import type { AuditEntry, AuditScope, CitationVerdict } from '@/types/audit';
+import type { ChatAttachment, AIChatFile, ChatMessage, WorkspaceSource, TurnScope } from '@/platform/types/ai';
+import type { AuditEntry, AuditScope, CitationVerdict } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
-import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import type { Provider, AttachmentBytes } from '@/platform/providers/Provider';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
@@ -36,9 +36,9 @@ import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/
 import { FILE_ACCESS_TOOLS } from '@/platform/tools/fileAccessTools';
 import type { useActiveMatter } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import type { RetrievalScope } from '@/utils/tauri-commands';
-import type { ExtractedContext } from '@/utils/ai-file-context';
-import { filterByScope } from '@/utils/client-boundary';
+import type { RetrievalScope } from '@/platform/utils/tauri-commands';
+import type { ExtractedContext } from '@/platform/utils/ai-file-context';
+import { filterByScope } from '@/platform/utils/client-boundary';
 import {
   compressMessages,
   getMessagesForSend,

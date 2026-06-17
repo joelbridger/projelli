@@ -15,7 +15,7 @@ import type {
   AttachmentBytes,
 } from './Provider';
 import { ProviderError } from './Provider';
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 import { extractPdfText } from '@/lib/pdf-extract';
 
 /**

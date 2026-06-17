@@ -8,7 +8,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import { FileType, Loader2 } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { isTauriEnvironment } from '@/platform/fs/BackendFactory';
-import { detectLibreOffice, convertDocToDocx } from '@/utils/tauri-commands';
+import { detectLibreOffice, convertDocToDocx } from '@/platform/utils/tauri-commands';
 import { downloadFileWithDialog } from './mainPanelHelpers';
 
 export function DocLoadingFallback({ fileName }: { fileName: string }) {

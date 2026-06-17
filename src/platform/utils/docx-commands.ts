@@ -19,7 +19,7 @@ import type {
   DocxAiEdit,
   DocxAuthorRevisionsResult,
   DocxResolveAction,
-} from '@/types/docx';
+} from '@/platform/types/docx';
 import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 

@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import type { AIChatFile } from '@/types/ai';
+import type { AIChatFile } from '@/platform/types/ai';
 
 interface UseAIChatFilesOptions {
   rootPath: string | null;

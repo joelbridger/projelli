@@ -31,7 +31,7 @@ import {
   DEFAULT_PRIVILEGE,
   isPrivileged,
   type Privilege,
-} from '@/types/privilege';
+} from '@/platform/types/privilege';
 
 interface PrivilegeState {
   /** Normalized source id → privilege. Only non-`none` entries are stored. */

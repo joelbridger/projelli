@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { FileNode, RecentWorkspace } from '@/types/workspace';
+import type { FileNode, RecentWorkspace } from '@/platform/types/workspace';
 
 interface WorkspaceState {
   // Current workspace

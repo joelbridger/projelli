@@ -4,15 +4,15 @@
  */
 
 import { citationBasename } from '@/platform/rag/workspaceCommand';
-import type { WorkspaceSource } from '@/types/ai';
-import type { RagHit } from '@/utils/tauri-commands';
+import type { WorkspaceSource } from '@/platform/types/ai';
+import type { RagHit } from '@/platform/utils/tauri-commands';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import { KeychainService } from '@/platform/providers/KeychainService';
 import type { Provider } from '@/platform/providers/Provider';
-import type { ChatMessage } from '@/types/ai';
+import type { ChatMessage } from '@/platform/types/ai';
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                       */

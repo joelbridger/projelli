@@ -15,7 +15,7 @@ import {
   documentJsonToYDoc,
   yDocToDocumentJson,
 } from '@/platform/firm/coedit/docCrdt';
-import type { DocumentJson } from '@/types/docx';
+import type { DocumentJson } from '@/platform/types/docx';
 import type { CoeditSession } from '@/platform/firm/coedit/coeditSession';
 
 // --- Tauri mock (same as DocxEditor.test.tsx) ---
@@ -52,7 +52,7 @@ vi.mock('@/platform/providers/providerFactory', () => ({
 }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ save: vi.fn() }));
 vi.mock('@tauri-apps/plugin-fs', () => ({ readFile: vi.fn() }));
-vi.mock('@/utils/saveFile', () => ({ saveFile: vi.fn() }));
+vi.mock('@/platform/utils/saveFile', () => ({ saveFile: vi.fn() }));
 
 import { TooltipProvider } from '@/ui/tooltip';
 import { DocxEditor } from '@/features/documents/media/DocxEditor';

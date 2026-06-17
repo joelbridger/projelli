@@ -8,7 +8,7 @@ import { History, RotateCcw, Trash2, Download, X, Clock, FileText, GitCompare } 
 import { getVersionService, type FileVersion } from '@/features/documents/versioning/VersionService';
 import { DiffViewer } from '@/features/documents/editor/DiffViewer';
 import { cn } from '@/lib/utils';
-import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
 interface VersionHistoryPanelProps {

@@ -12,7 +12,7 @@
  * indexer's `PRIVILEGE_NONE` default.
  */
 
-import { DEFAULT_PRIVILEGE, type Privilege } from '@/types/privilege';
+import { DEFAULT_PRIVILEGE, type Privilege } from '@/platform/types/privilege';
 
 /**
  * Normalise a source id for use as a privilege-map key. File paths use

@@ -21,7 +21,7 @@
 
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { AuditEntry } from '@/types/audit';
+import type { AuditEntry } from '@/platform/types/audit';
 
 export interface CostMetricsProps {
   entries: AuditEntry[];

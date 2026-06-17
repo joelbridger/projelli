@@ -21,12 +21,12 @@ import { PDFViewer } from '@/features/documents/media/PDFViewer';
 import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 import { isTauriEnvironment } from '@/platform/fs/BackendFactory';
-import { saveFile } from '@/utils/saveFile';
+import { saveFile } from '@/platform/utils/saveFile';
 import {
   convertPptToPdf,
   detectLibreOffice,
-} from '@/utils/tauri-commands';
-import { extractSlides, type SlidePreview } from '@/utils/pptx-io';
+} from '@/platform/utils/tauri-commands';
+import { extractSlides, type SlidePreview } from '@/platform/utils/pptx-io';
 import { AlertTriangle, Info, Loader2, Presentation } from 'lucide-react';
 
 interface PresentationViewerProps {

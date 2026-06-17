@@ -27,7 +27,7 @@ import {
   getSuggestedVisionModel,
 } from '@/platform/providers/vision-capability';
 import { SUPPORTED_PDF_MIME } from '@/platform/providers/pdf-capability';
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 
 export interface ChatInputToolbarProps {
   /** Provider string used for vision capability check ('anthropic'|'openai'|'google'|'ollama'). */

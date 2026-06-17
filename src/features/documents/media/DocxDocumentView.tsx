@@ -20,13 +20,13 @@ import {
   parseRunFormat,
   runFormatToStyle,
   runsText,
-} from '@/utils/docx-dom';
+} from '@/platform/utils/docx-dom';
 import type {
   DocumentJson,
   DocxBlock,
   DocxInline,
   DocxRun,
-} from '@/types/docx';
+} from '@/platform/types/docx';
 import { extractLooseText } from './docxEditorHelpers';
 
 export function DocumentBody({

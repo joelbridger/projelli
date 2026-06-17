@@ -21,7 +21,7 @@
  * unit-testable; it is NEVER the storage on a real install.
  */
 
-import { keychainGet, keychainSet, keychainDelete } from '@/utils/tauri-commands';
+import { keychainGet, keychainSet, keychainDelete } from '@/platform/utils/tauri-commands';
 import { isTauri } from '@tauri-apps/api/core';
 
 /** Service namespace for a user's auth + seat tokens. */

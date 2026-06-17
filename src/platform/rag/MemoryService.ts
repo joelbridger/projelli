@@ -28,7 +28,7 @@ import {
   ragSetWorkspace,
   type RagHit,
   type RetrievalScope,
-} from '@/utils/tauri-commands';
+} from '@/platform/utils/tauri-commands';
 
 /** How the toggle is read. Pluggable so tests can pass a stub. */
 export type MemoryEnabledReader = () => boolean;

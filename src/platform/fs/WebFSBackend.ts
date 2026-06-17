@@ -1,7 +1,7 @@
 // Web File System Backend
 // Implements FSBackend using the File System Access API
 
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 import type { FSBackend, FileStat } from './types';
 import { FileOperationError } from './types';
 

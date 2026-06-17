@@ -21,10 +21,10 @@
  */
 
 import MiniSearch, { type SearchResult as MiniSearchResult } from 'minisearch';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import { extractForAI } from '@/utils/ai-file-context';
-import { isBinaryFile } from '@/utils/file-utils';
+import { extractForAI } from '@/platform/utils/ai-file-context';
+import { isBinaryFile } from '@/platform/utils/file-utils';
 
 /** Max content length to index per file. Keeps the worst-case search cost
  *  sane when a user opens a 50 MB transcript. ~200k chars ≈ 50k tokens. */

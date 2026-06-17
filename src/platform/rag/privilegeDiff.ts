@@ -7,7 +7,7 @@
  * right now. Results arrive score-sorted, so the first withheld hit is the
  * top source the user is being protected from leaking.
  */
-import type { RagHit } from '@/utils/tauri-commands';
+import type { RagHit } from '@/platform/utils/tauri-commands';
 import { citationBasename } from '@/platform/rag/workspaceCommand';
 
 export interface PrivilegeDiffSummary {

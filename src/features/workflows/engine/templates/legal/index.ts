@@ -27,7 +27,7 @@
 //      EVERY citation via `rag_verify_citation`, marks unverified findings, and
 //      renders the Word deliverable. The grounding/verification/render seams
 //      live in `../legalAnalysis.ts` + `serializeContradictionsDocx`
-//      (`src/utils/docx-io.ts`); reuse them for new structured kinds
+//      (`src/platform/utils/docx-io.ts`); reuse them for new structured kinds
 //      (timeline, privilege-log, discovery-triage, …).
 //
 // Keep every legal template `@draft` with `requiresVerification: true` and its
@@ -53,7 +53,7 @@ import { RealEstateClosingChecklist } from './RealEstateClosingChecklist';
 import { CitationFormatter } from './CitationFormatter';
 import { IssueSpotter } from './IssueSpotter';
 
-import type { WorkflowTemplate } from '@/types/workflow';
+import type { WorkflowTemplate } from '@/platform/types/workflow';
 
 export const LEGAL_TEMPLATES: WorkflowTemplate[] = [
   DepositionContradictionFinder,

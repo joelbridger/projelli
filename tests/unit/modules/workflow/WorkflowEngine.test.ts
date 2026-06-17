@@ -12,7 +12,7 @@ import {
   type FileOperations,
 } from '@/features/workflows/engine/WorkflowEngine';
 import { createMockProvider } from '@/platform/providers/MockProvider';
-import type { WorkflowTemplate } from '@/types/workflow';
+import type { WorkflowTemplate } from '@/platform/types/workflow';
 
 function makeTemplate(id: string, overrides: Partial<WorkflowTemplate> = {}): WorkflowTemplate {
   return {

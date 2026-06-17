@@ -21,7 +21,7 @@ import {
   runExtraction,
   shouldRunExtraction,
 } from '@/platform/rag/factsExtraction';
-import type { ChatMessage } from '@/types/ai';
+import type { ChatMessage } from '@/platform/types/ai';
 import type { Provider, ProviderMetadata } from '@/platform/providers/Provider';
 
 function makeProvider(

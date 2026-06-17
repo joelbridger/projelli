@@ -28,7 +28,7 @@ import type {
   TextExtractBlock,
   AttachmentBytes,
 } from './Provider';
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { extractPdfText } from '@/lib/pdf-extract';

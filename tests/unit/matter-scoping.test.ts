@@ -14,8 +14,8 @@ import {
   filterByScope,
   getTopLevelFolderNames,
   ROOT_LEVEL_SENTINEL,
-} from '@/utils/client-boundary';
-import type { ExtractedContext } from '@/utils/ai-file-context';
+} from '@/platform/utils/client-boundary';
+import type { ExtractedContext } from '@/platform/utils/ai-file-context';
 
 // ---------------------------------------------------------------------------
 // Helpers

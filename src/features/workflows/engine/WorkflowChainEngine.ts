@@ -30,7 +30,7 @@ import type {
   WorkflowChainStep,
   WorkflowTemplate,
   RunRecord,
-} from '@/types/workflow';
+} from '@/platform/types/workflow';
 import { createWorkflowEngine } from './WorkflowEngine';
 import type {
   FileOperations,

@@ -9,7 +9,7 @@
 import { useState, useCallback } from 'react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useEditorStore } from '@/platform/state/editorStore';
-import { saveFile } from '@/utils/saveFile';
+import { saveFile } from '@/platform/utils/saveFile';
 import {
   resolveTemplateModel,
   resolveWorkflowProvider,
@@ -28,22 +28,22 @@ import { createOpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { createGeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider, detectOllama, OLLAMA_DEFAULT_MODEL } from '@/platform/providers/OllamaProvider';
 import { modeRestrictsToLocal } from '@/platform/privacy/egress';
-import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { MemoryService } from '@/platform/rag/MemoryService';
 import { getActiveScope } from '@/platform/matter/matterStore';
-import { ragVerifyCitation, type RetrievalScope } from '@/utils/tauri-commands';
+import { ragVerifyCitation, type RetrievalScope } from '@/platform/utils/tauri-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
-import type { AuditEntry, AuditScope } from '@/types/audit';
+import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import type {
   WorkflowTemplate,
   WorkflowExecution,
   InterviewQuestion,
   WorkflowFileData,
   TemplateProviderId,
-} from '@/types/workflow';
-import type { APIKey } from '@/types/ai';
-import type { RunRecord } from '@/types/workflow';
-import type { FileNode } from '@/types/workspace';
+} from '@/platform/types/workflow';
+import type { APIKey } from '@/platform/types/ai';
+import type { RunRecord } from '@/platform/types/workflow';
+import type { FileNode } from '@/platform/types/workspace';
 import type {
   TemplateMetadataReader,
   MarketplaceService,
@@ -474,7 +474,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
               return verdict.verdict;
             },
             serializeContradictions: async (result, meta) => {
-              const { serializeContradictionsDocx } = await import('@/utils/docx-io');
+              const { serializeContradictionsDocx } = await import('@/platform/utils/docx-io');
               const firmName = (() => {
                 try {
                   return localStorage.getItem('keepance_firm_name') ?? '';
@@ -630,7 +630,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
   const handleWorkflowExportDocx = useCallback(
     async (content: string, suggestedName: string) => {
       try {
-        const { markdownToDocxBytes } = await import('@/utils/docx-io');
+        const { markdownToDocxBytes } = await import('@/platform/utils/docx-io');
         // Read firm name from localStorage — the WorkflowExecutionTab input persists it there
         const firmName = (() => {
           try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; }
@@ -665,7 +665,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
   const handleWorkflowExportPptx = useCallback(
     async (content: string, suggestedName: string) => {
       try {
-        const pptxIo = await import('@/utils/pptx-io');
+        const pptxIo = await import('@/platform/utils/pptx-io');
 
         // Try the structured path first
         const slideJSON = (() => {
@@ -679,7 +679,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
               typeof parsed[0]?.title === 'string' &&
               typeof parsed[0]?.layout === 'string'
             ) {
-              return parsed as import('@/utils/pptx-io').SlideJSON[];
+              return parsed as import('@/platform/utils/pptx-io').SlideJSON[];
             }
           } catch {
             // malformed JSON — fall through to markdown path
@@ -690,7 +690,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         const firmNameRaw = (() => {
           try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; }
         })();
-        const pptxOptions: import('@/utils/pptx-io').PptxExportOptions = firmNameRaw
+        const pptxOptions: import('@/platform/utils/pptx-io').PptxExportOptions = firmNameRaw
           ? { firmName: firmNameRaw }
           : {};
 

@@ -6,7 +6,7 @@
 // Kept intentionally free of React / DOM coupling below the download layer
 // so the serialization is unit-testable without jsdom.
 
-import type { AuditEntry, AuditActionType } from '@/types/audit';
+import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 
 /**
  * Columns emitted by the CSV exporter. The final three (`tokens_in`,

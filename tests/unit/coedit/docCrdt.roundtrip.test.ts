@@ -2,7 +2,7 @@
  * Round-trip test for the docCrdt Y.Doc <-> DocumentJson converters.
  *
  * Fixture adapted from the plan's illustrative shapes to the REAL DocumentJson
- * TypeScript types (src/types/docx.ts). Key differences from the plan sketch:
+ * TypeScript types (src/platform/types/docx.ts). Key differences from the plan sketch:
  *   - formatVersion  (not format_version)     — camelCase, matches serde rename_all
  *   - propertiesXml  (not properties_xml)
  *   - preserveSpace  (not preserve_space)
@@ -22,7 +22,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { documentJsonToYDoc, yDocToDocumentJson } from '@/platform/firm/coedit/docCrdt';
-import type { DocumentJson, DocxParagraph, DocxInlineInsertion, DocxInlineDeletion } from '@/types/docx';
+import type { DocumentJson, DocxParagraph, DocxInlineInsertion, DocxInlineDeletion } from '@/platform/types/docx';
 
 // ---------------------------------------------------------------------------
 // Fixture

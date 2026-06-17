@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   ragRetagMatter: vi.fn(),
 }));
 
-vi.mock('@/utils/tauri-commands', () => ({
+vi.mock('@/platform/utils/tauri-commands', () => ({
   ragIndexFile: mocks.ragIndexFile,
   ragIndexWorkspace: mocks.ragIndexWorkspace,
   ragIndexPdfChunks: mocks.ragIndexPdfChunks,

@@ -20,11 +20,11 @@ import {
   parseCitations,
   resolveCitationPath,
 } from '@/platform/rag/workspaceCommand';
-import type { WorkspaceSource } from '@/types/ai';
-import type { RagHit, RetrievalScope } from '@/utils/tauri-commands';
+import type { WorkspaceSource } from '@/platform/types/ai';
+import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 import { KeychainService } from '@/platform/providers/KeychainService';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
-import type { ChatMessage } from '@/types/ai';
+import type { ChatMessage } from '@/platform/types/ai';
 import type { AskScope, AnswerCitation, AskTurn } from './askHelpers';
 import {
   sourceLocator,

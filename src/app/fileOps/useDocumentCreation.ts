@@ -10,11 +10,11 @@ import React, { useCallback } from 'react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
-import { createBlankDocx, docxBytesToDataUrl } from '@/utils/docx-io';
+import { createBlankDocx, docxBytesToDataUrl } from '@/platform/utils/docx-io';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import type { FileNode } from '@/types/workspace';
-import type { PromptOptions } from '@/hooks/usePromptDialog';
-import type { ConfirmOptions } from '@/hooks/useConfirmDialog';
+import type { FileNode } from '@/platform/types/workspace';
+import type { PromptOptions } from '@/platform/hooks/usePromptDialog';
+import type { ConfirmOptions } from '@/platform/hooks/useConfirmDialog';
 
 type OpenFile = ReturnType<typeof useEditorStore.getState>['openFile'];
 

@@ -30,7 +30,7 @@ import {
   type WorkflowProviderResolution,
   type TemplateModelOverride,
 } from '@/features/workflows/engine/resolveTemplateModel';
-import type { TemplateProviderId, WorkflowTemplate } from '@/types/workflow';
+import type { TemplateProviderId, WorkflowTemplate } from '@/platform/types/workflow';
 
 // ---------------------------------------------------------------------------
 // Fixture helpers

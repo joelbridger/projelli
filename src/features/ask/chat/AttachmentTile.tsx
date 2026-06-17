@@ -6,7 +6,7 @@
 import { X, Image as ImageIcon, FileText } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 
 export interface AttachmentTileProps {
   attachment: ChatAttachment;

@@ -7,7 +7,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { WorkflowTemplate, GenerateStepConfig } from '@/types/workflow';
+import type { WorkflowTemplate, GenerateStepConfig } from '@/platform/types/workflow';
 import {
   clearUserTemplates,
   deleteUserTemplate,

@@ -17,8 +17,8 @@
 
 import { useState, useEffect } from 'react';
 import { Sparkles, X } from 'lucide-react';
-import { useTrial } from '@/hooks/useTrial';
-import { useLicense } from '@/hooks/useLicense';
+import { useTrial } from '@/platform/hooks/useTrial';
+import { useLicense } from '@/platform/hooks/useLicense';
 import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 

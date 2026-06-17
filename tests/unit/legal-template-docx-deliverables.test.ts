@@ -23,8 +23,8 @@ import JSZip from 'jszip';
 import { LEGAL_TEMPLATES } from '../../src/features/workflows/engine/templates/legal/index';
 import { WorkflowEngine } from '../../src/features/workflows/engine/WorkflowEngine';
 import { MockProvider } from '../../src/platform/providers/MockProvider';
-import { serializeContradictionsDocx } from '../../src/utils/docx-io';
-import type { WorkflowTemplate, ContradictionAnalysisResult } from '../../src/types/workflow';
+import { serializeContradictionsDocx } from '../../src/platform/utils/docx-io';
+import type { WorkflowTemplate, ContradictionAnalysisResult } from '../../src/platform/types/workflow';
 
 // ─── 1. All legal templates declare .docx outputFile ─────────────────────────
 

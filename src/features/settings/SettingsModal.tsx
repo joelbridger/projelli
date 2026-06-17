@@ -26,8 +26,8 @@ import {
 } from '@/ui/dialog';
 import { SettingsContent } from '@/features/settings/SettingsContent';
 import type { SettingCategory } from '@/settings/schema';
-import type { AuditEntry } from '@/types/audit';
-import type { WorkflowTemplate } from '@/types/workflow';
+import type { AuditEntry } from '@/platform/types/audit';
+import type { WorkflowTemplate } from '@/platform/types/workflow';
 
 // ---------------------------------------------------------------------------
 // Props

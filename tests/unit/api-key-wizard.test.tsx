@@ -14,7 +14,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ApiKeyWizard } from '@/features/onboarding/ApiKeyWizard';
 
 // Mock openExternal so clicking "Open console" doesn't try to open a real URL
-vi.mock('@/utils/openExternal', () => ({
+vi.mock('@/platform/utils/openExternal', () => ({
   openExternal: vi.fn(async () => {}),
 }));
 

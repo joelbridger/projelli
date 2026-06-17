@@ -1,5 +1,5 @@
 import type { FSBackend } from '@/platform/fs/types';
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 import { sha256Hex } from '@/lib/hash';
 
 const SUPPORTED_MIME: Record<string, ChatAttachment['type']> = {

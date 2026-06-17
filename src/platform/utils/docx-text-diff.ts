@@ -13,7 +13,7 @@
 // experience. We reuse the drift-safe batch command to apply the result, so the
 // anchoring + id allocation logic is shared with the AI redline path.
 
-import type { DocxAiEdit } from '@/types/docx';
+import type { DocxAiEdit } from '@/platform/types/docx';
 
 /**
  * Split text into tokens that preserve whitespace, so reconstructed strings are

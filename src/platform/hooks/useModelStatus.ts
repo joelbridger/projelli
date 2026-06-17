@@ -25,7 +25,7 @@ import {
   modelStatus,
   type ModelDownloadProgress,
   type ModelDownloadState,
-} from '@/utils/tauri-commands';
+} from '@/platform/utils/tauri-commands';
 
 export interface ModelStatusSnapshot {
   state: 'idle' | ModelDownloadState;

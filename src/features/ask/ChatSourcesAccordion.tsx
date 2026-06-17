@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import type { WorkspaceSource } from '@/types/ai';
+import type { WorkspaceSource } from '@/platform/types/ai';
 import { citationBasename } from '@/platform/rag/workspaceCommand';
 import { citationDisplayLabel } from './renderingHelpers';
 

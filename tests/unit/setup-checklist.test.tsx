@@ -11,24 +11,24 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 // Module mocks — must be declared before the component import.
 // ---------------------------------------------------------------------------
 
-vi.mock('@/hooks/useApiKeys', () => ({
+vi.mock('@/platform/hooks/useApiKeys', () => ({
   useApiKeys: vi.fn(),
 }));
 
-vi.mock('@/hooks/useFirm', () => ({
+vi.mock('@/platform/hooks/useFirm', () => ({
   useFirm: vi.fn(),
 }));
 
-vi.mock('@/utils/mail-commands', () => ({
+vi.mock('@/platform/utils/mail-commands', () => ({
   mailIsConnected: vi.fn(),
   gmailIsConnected: vi.fn(),
   mailImapIsConnected: vi.fn(),
 }));
 
 import { SetupChecklist } from '@/features/settings/SetupChecklist';
-import { useApiKeys } from '@/hooks/useApiKeys';
-import { useFirm } from '@/hooks/useFirm';
-import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/utils/mail-commands';
+import { useApiKeys } from '@/platform/hooks/useApiKeys';
+import { useFirm } from '@/platform/hooks/useFirm';
+import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/platform/utils/mail-commands';
 
 // ---------------------------------------------------------------------------
 // Helper to set up mocks for each test variant

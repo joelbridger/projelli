@@ -28,7 +28,7 @@ import {
   ALL_PRIVILEGE_STATUSES,
   privilegeLabel,
   type Privilege,
-} from '@/types/privilege';
+} from '@/platform/types/privilege';
 
 export interface PrivilegeMenuItemsProps {
   /** The source being tagged: a file path, `mail:<id>`, or `.aichat` path. */

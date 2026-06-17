@@ -29,7 +29,7 @@ import {
   McpSettingsSection,
   McpApprovalModal,
 } from '@/features/settings';
-import type { McpPendingApproval } from '@/utils/tauri-commands';
+import type { McpPendingApproval } from '@/platform/utils/tauri-commands';
 
 // ---------------------------------------------------------------------------
 // McpSettingsSection

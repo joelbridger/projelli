@@ -14,13 +14,13 @@
 // The public API stays synchronous and append-only so every existing caller
 // (plugins, TTS, marketplace) is unchanged; desktop encryption is transparent.
 
-import type { AuditEntry, AuditActionType, AuditEvent, AuditQueryOptions } from '@/types/audit';
+import type { AuditEntry, AuditActionType, AuditEvent, AuditQueryOptions } from '@/platform/types/audit';
 import {
   auditAppend,
   auditList,
   auditSetWorkspace,
   type AuditEntryRecord,
-} from '@/utils/tauri-commands';
+} from '@/platform/utils/tauri-commands';
 // Tauri presence is detected via the injected window global in
 // isAuditEncrypted(), not the SDK's isTauri export: vitest throws when code
 // accesses a named export a partial mock omits, so importing isTauri here would

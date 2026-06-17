@@ -106,7 +106,7 @@ describe('resolveAssuredRoute (policy gate)', () => {
   });
 
   it('returns undefined unless mode is assured AND a managed key exists AND tokens present', async () => {
-    vi.doMock('@/hooks/useConfidentialityMode', () => ({
+    vi.doMock('@/platform/hooks/useConfidentialityMode', () => ({
       getConfidentialityMode: () => 'assured',
     }));
     vi.doMock('@/platform/firm/firmStore', () => ({
@@ -127,7 +127,7 @@ describe('resolveAssuredRoute (policy gate)', () => {
   });
 
   it('returns undefined when mode is not assured', async () => {
-    vi.doMock('@/hooks/useConfidentialityMode', () => ({
+    vi.doMock('@/platform/hooks/useConfidentialityMode', () => ({
       getConfidentialityMode: () => 'direct',
     }));
     vi.doMock('@/platform/firm/firmStore', () => ({

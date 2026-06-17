@@ -9,7 +9,7 @@
  * the provider we lead with and tutorialise most thoroughly, and to a model
  * appropriate for the kind of work the profession implies.
  *
- * Behaviour contract (mirrors `src/utils/defaultModel.ts`):
+ * Behaviour contract (mirrors `src/platform/utils/defaultModel.ts`):
  *   - This only SUPPLIES a default. It never overrides a model the user has
  *     already chosen for themselves.
  *   - The chosen model id must exist in `DEFAULT_ANTHROPIC` /
@@ -21,7 +21,7 @@ import {
   DEFAULT_ANTHROPIC_PAID,
   DEFAULT_ANTHROPIC_FREE,
   type Provider,
-} from '@/utils/defaultModel';
+} from '@/platform/utils/defaultModel';
 
 export type Profession = 'legal' | 'tax' | 'consulting' | 'advisor' | 'other';
 

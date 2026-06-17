@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { mailIsConnected, mailBeginLogin, mailPollLogin, mailSyncAll, mailCancelSync, mailFdeStatus, type DeviceCodePrompt } from '@/utils/mail-commands';
+import { mailIsConnected, mailBeginLogin, mailPollLogin, mailSyncAll, mailCancelSync, mailFdeStatus, type DeviceCodePrompt } from '@/platform/utils/mail-commands';
 import { useMailSync } from '@/features/email/useMailSync';
 import { useMailStore } from '@/features/email/mailStore';
 import { getMatters } from '@/platform/matter/matterStore';

@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { AuditService } from '@/platform/audit/AuditService';
-import type { AuditEntry } from '@/types/audit';
+import type { AuditEntry } from '@/platform/types/audit';
 import { entriesToCSV, CSV_COLUMNS } from '@/features/audit/audit-export';
 
 function buildEntry(partial: Partial<AuditEntry>): AuditEntry {

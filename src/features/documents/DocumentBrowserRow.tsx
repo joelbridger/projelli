@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { File, FileText, Folder, Pencil, Trash2, Download } from 'lucide-react';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 

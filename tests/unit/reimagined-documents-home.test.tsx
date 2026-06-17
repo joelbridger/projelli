@@ -22,7 +22,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReimaginedDocumentsHome, type ReimaginedDocumentsHomeProps } from '@/features/documents/ReimaginedDocumentsHome';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 
 // ── Store mocks ────────────────────────────────────────────────────────────

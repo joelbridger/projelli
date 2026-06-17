@@ -17,7 +17,7 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { useModelStatus } from '@/hooks/useModelStatus';
+import { useModelStatus } from '@/platform/hooks/useModelStatus';
 
 export interface ModelDownloadCardProps {
   /** Override the live hook for tests. */

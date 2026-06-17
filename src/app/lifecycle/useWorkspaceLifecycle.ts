@@ -18,10 +18,10 @@ import { isLawExperience } from '@/platform/profile/professionStore';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createFSBackend } from '@/platform/fs/BackendFactory';
 import { AuditService } from '@/platform/audit/AuditService';
-import type { AuditEntry } from '@/types/audit';
+import type { AuditEntry } from '@/platform/types/audit';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { SourceCard } from '@/features/ask/types/research';
-import type { AIChatFile } from '@/types/ai';
+import type { AIChatFile } from '@/platform/types/ai';
 
 export interface UseWorkspaceLifecycleOptions {
   workspaceServiceRef: React.MutableRefObject<WorkspaceService | null>;

@@ -25,7 +25,7 @@
 
 import { describe, it, expect } from 'vitest';
 import JSZip from 'jszip';
-import { markdownToDocxBytes } from '../../src/utils/docx-io';
+import { markdownToDocxBytes } from '../../src/platform/utils/docx-io';
 
 /** Unzip a .docx and return the word/document.xml content as a string. */
 async function extractDocumentXml(bytes: Uint8Array): Promise<string> {

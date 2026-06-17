@@ -9,7 +9,7 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import type { ChatMessage } from '@/types/ai';
+import type { ChatMessage } from '@/platform/types/ai';
 import { estimateTokens } from '@/features/ask/compression';
 import { formatContextSize } from '@/platform/providers/context-limits';
 

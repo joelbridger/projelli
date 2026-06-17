@@ -94,7 +94,7 @@ export interface Matter {
 
 /**
  * The retrieval scope a chat resolves to. Mirrors `RetrievalScope` in
- * `@/utils/tauri-commands`, re-exported here so UI code can talk about
+ * `@/platform/utils/tauri-commands`, re-exported here so UI code can talk about
  * matters without importing the Tauri bindings directly. There is no silent
  * "everything" default — a caller must name a matter or explicitly pick
  * `allMatters` (the audited cross-matter capability).

@@ -1,6 +1,6 @@
 // Workspace Module Types
 
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 
 /**
  * File system backend interface

@@ -5,9 +5,9 @@
 import { Sparkles, AlertTriangle, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import i18n from '@/i18n';
-import { OCR_LOW_CONFIDENCE } from '@/utils/tauri-commands';
+import { OCR_LOW_CONFIDENCE } from '@/platform/utils/tauri-commands';
 import { parseCitations, resolveCitationPath } from '@/platform/rag/workspaceCommand';
-import type { AIChatFile, WorkspaceSource } from '@/types/ai';
+import type { AIChatFile, WorkspaceSource } from '@/platform/types/ai';
 
 /**
  * Render markdown-like formatting for messages

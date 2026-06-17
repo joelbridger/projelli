@@ -13,7 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useRagStatus } from '@/hooks/useRagStatus';
+import { useRagStatus } from '@/platform/hooks/useRagStatus';
 import { MemoryService } from '@/platform/rag/MemoryService';
 import { useOcrProgressStore } from '@/platform/rag/ocrProgressStore';
 

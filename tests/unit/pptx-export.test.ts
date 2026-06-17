@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildPptxFromSlideJSON, extractPptxText } from '../../src/utils/pptx-io';
+import { buildPptxFromSlideJSON, extractPptxText } from '../../src/platform/utils/pptx-io';
 
 describe('structured PPTX export', () => {
   it('builds a PPTX buffer from slide JSON with speaker notes', async () => {

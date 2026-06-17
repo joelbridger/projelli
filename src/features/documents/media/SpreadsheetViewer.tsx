@@ -12,7 +12,7 @@ import {
   serializeSpreadsheet,
   spreadsheetBytesToDataUrl,
   type SheetModel,
-} from '@/utils/spreadsheet-io';
+} from '@/platform/utils/spreadsheet-io';
 import {
   setCellValue,
   insertRow,

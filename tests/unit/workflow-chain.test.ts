@@ -27,7 +27,7 @@ import type {
   WorkflowChain,
   WorkflowTemplate,
   RunRecord,
-} from '@/types/workflow';
+} from '@/platform/types/workflow';
 
 function templateFixture(partial: Partial<WorkflowTemplate> & { id: string }): WorkflowTemplate {
   return {

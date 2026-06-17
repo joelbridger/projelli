@@ -24,7 +24,7 @@ import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 
 // ── Module mocks ────────────────────────────────────────────────────────────
 
-vi.mock('@/utils/mail-commands', () => ({
+vi.mock('@/platform/utils/mail-commands', () => ({
   mailListMessages: vi.fn(),
   mailGetMessage: vi.fn(),
   mailConnectedAccounts: vi.fn(),
@@ -62,7 +62,7 @@ import {
   mailRetagFolderMatter,
   mailRetagMessageMatter,
   mailSend,
-} from '@/utils/mail-commands';
+} from '@/platform/utils/mail-commands';
 import { useActiveMatter, useMatters } from '@/platform/matter/matterStore';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/platform/firm/privilegeStore';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';

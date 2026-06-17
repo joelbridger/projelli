@@ -31,12 +31,12 @@ import {
   MoreHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { saveFile } from '@/utils/saveFile';
-import { markdownToDocxBytes } from '@/utils/docx-io';
-import { markdownToPptxBytes } from '@/utils/pptx-io';
+import { saveFile } from '@/platform/utils/saveFile';
+import { markdownToDocxBytes } from '@/platform/utils/docx-io';
+import { markdownToPptxBytes } from '@/platform/utils/pptx-io';
 import { exportMarkdownAsPdf } from '@/features/documents/pdf-export';
-import { availableExportFormats, replaceExtension } from '@/utils/export-formats';
-import type { ExportFormat } from '@/utils/export-formats';
+import { availableExportFormats, replaceExtension } from '@/platform/utils/export-formats';
+import type { ExportFormat } from '@/platform/utils/export-formats';
 import type { MarkdownEditorRef } from './MarkdownEditor';
 
 /** File type inferred from the active tab's extension. */

@@ -31,7 +31,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { FSBackend, FileStat } from '@/platform/fs/types';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 
 // ── In-memory byte store for the mock ────────────────────────────────────────
 // Stores bytes per relPath. On write: records bytes. On read: returns them.

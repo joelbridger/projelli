@@ -41,7 +41,7 @@ import {
   KeyRound as KeyIcon,
   UserX,
 } from 'lucide-react';
-import type { AuditEntry, AuditActionType } from '@/types/audit';
+import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import { EmptyState } from '@/ui/EmptyState';
 import {
   downloadAuditCSV,

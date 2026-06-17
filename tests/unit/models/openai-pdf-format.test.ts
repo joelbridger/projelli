@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 
 // Mock pdf-extract so tests do not need a real PDF.js environment.
 vi.mock('@/lib/pdf-extract', () => ({

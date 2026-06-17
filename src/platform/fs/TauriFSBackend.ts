@@ -3,7 +3,7 @@
 
 import type { FSBackend, FileStat } from './types';
 import { FileOperationError } from './types';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 
 // Tauri fs plugin types (imported dynamically to avoid browser errors)
 interface TauriFsModule {

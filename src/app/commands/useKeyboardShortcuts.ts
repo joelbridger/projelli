@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 
 export interface KeyboardShortcutDeps {
   // State values

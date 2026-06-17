@@ -16,13 +16,13 @@ import {
 import { useActiveMatter } from '@/platform/matter/matterStore';
 import { BugReportDialog } from '@/app/shell/common/BugReportDialog';
 import { TrialStatusChip } from '@/features/account/trial';
-import { useTrial } from '@/hooks/useTrial';
-import { useLicense } from '@/hooks/useLicense';
+import { useTrial } from '@/platform/hooks/useTrial';
+import { useLicense } from '@/platform/hooks/useLicense';
 // Privileged Matter Mode: persistent badge stating network extensions are off.
-import { usePrivilegedMatterMode } from '@/hooks/usePrivilegedMatterMode';
+import { usePrivilegedMatterMode } from '@/platform/hooks/usePrivilegedMatterMode';
 // F-120 (VG-5a): live pulse while a provider request is actually in flight.
 import { useEgressActivityStore } from '@/platform/privacy/egressActivity';
-import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
+import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 
 /**
  * Extract project name from full path

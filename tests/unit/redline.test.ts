@@ -17,7 +17,7 @@ import {
   paragraphPlainRunText,
   requestRedlineEdits,
 } from '@/features/documents/docx/redline';
-import type { DocumentJson } from '@/types/docx';
+import type { DocumentJson } from '@/platform/types/docx';
 import type { Provider } from '@/platform/providers/Provider';
 import { createProvider } from '@/platform/providers/providerFactory';
 

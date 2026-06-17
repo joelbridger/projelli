@@ -38,7 +38,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   readFile: (...args: unknown[]) => readFileMock(...args),
 }));
 
-import { applyLetterheadIfConfigured } from '@/utils/docx-io';
+import { applyLetterheadIfConfigured } from '@/platform/utils/docx-io';
 
 const ORIGINAL = new Uint8Array([1, 2, 3, 4]);
 const TEMPLATE = new Uint8Array([9, 8, 7]);

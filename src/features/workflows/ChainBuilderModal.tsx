@@ -28,7 +28,7 @@ import type {
   WorkflowChain,
   WorkflowChainStep,
   WorkflowTemplate,
-} from '@/types/workflow';
+} from '@/platform/types/workflow';
 import { emptyChain } from '@/features/workflows/engine/WorkflowChainEngine';
 import { saveChain } from '@/features/workflows/engine/workflowChains';
 

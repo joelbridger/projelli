@@ -29,8 +29,8 @@ vi.mock('@/platform/rag/ocr/ocrEngine', () => ({
 }));
 
 // --- Mock the Tauri command layer (capture ragIndexPdfChunks calls) ---
-vi.mock('@/utils/tauri-commands', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/utils/tauri-commands')>();
+vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/utils/tauri-commands')>();
   return {
     ...actual,
     ragIndexPdfChunks: vi.fn(() => Promise.resolve(3)),
@@ -65,7 +65,7 @@ import {
   isOcrScannedPdfsEnabled,
 } from '@/platform/rag/MemoryService';
 import { useOcrProgressStore } from '@/platform/rag/ocrProgressStore';
-import { ragIndexPdfChunks } from '@/utils/tauri-commands';
+import { ragIndexPdfChunks } from '@/platform/utils/tauri-commands';
 
 const NATIVE_PAGE_TEXT =
   'This page has a real extracted text layer with well over the per-page OCR threshold of characters.';

@@ -106,7 +106,7 @@ vi.mock('@/platform/providers/OllamaProvider', () => {
 vi.mock('@/features/ask/ChatCostChip', () => ({ ChatCostChip: () => null }));
 
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
-import type { AIChatFile } from '@/types/ai';
+import type { AIChatFile } from '@/platform/types/ai';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import {

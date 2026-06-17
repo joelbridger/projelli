@@ -57,7 +57,7 @@ vi.mock('@/platform/audit/AuditService', () => ({
 // This avoids fighting with the persist middleware and getState() snapshots.
 let firmSessionMock = { isSignedIn: false, hasActiveSeat: false, role: null as string | null, org: null as { org_id: string } | null };
 
-vi.mock('@/hooks/useFirm', () => ({
+vi.mock('@/platform/hooks/useFirm', () => ({
   useFirm: () => ({
     isSignedIn: firmSessionMock.isSignedIn,
     hasActiveSeat: firmSessionMock.hasActiveSeat,
@@ -78,7 +78,7 @@ vi.mock('@/hooks/useFirm', () => ({
 }));
 
 // ── Mock mail commands (no real IPC in tests) ─────────────────────────────────
-vi.mock('@/utils/mail-commands', () => ({
+vi.mock('@/platform/utils/mail-commands', () => ({
   mailConnectedAccounts: async () => [],
 }));
 

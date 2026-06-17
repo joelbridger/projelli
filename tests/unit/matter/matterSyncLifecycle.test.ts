@@ -131,7 +131,7 @@ import {
   getMatterSyncClient,
 } from '@/features/matters/logic/matterNotesSync';
 import { clearMatterKey } from '@/platform/firm/firmKeychain';
-import type { Matter } from '@/types/matter';
+import type { Matter } from '@/platform/types/matter';
 
 function makeMatter(overrides?: Partial<Matter>): Matter {
   return {

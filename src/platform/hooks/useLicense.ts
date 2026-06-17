@@ -34,7 +34,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { sendEvent } from '@/utils/telemetry';
+import { sendEvent } from '@/platform/utils/telemetry';
 
 export type LicenseTier = 'free' | 'personal' | 'professional' | 'practice';
 export type ProfessionPack = 'legal' | 'tax' | 'consulting';

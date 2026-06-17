@@ -10,7 +10,7 @@
  * The caller is responsible for writing the result back to the AIChatFile.
  */
 
-import type { ChatMessage } from '@/types/ai';
+import type { ChatMessage } from '@/platform/types/ai';
 import type { Provider } from '@/platform/providers/Provider';
 
 /** Approximate 4 chars per token. Good enough for meter + batching. */

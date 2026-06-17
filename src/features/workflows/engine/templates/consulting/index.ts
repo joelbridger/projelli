@@ -11,7 +11,7 @@ import { CompetitiveLandscapeBuilder } from './CompetitiveLandscapeBuilder';
 import { FindingsSynthesizer } from './FindingsSynthesizer';
 import { WorkshopBoardPrep } from './WorkshopBoardPrep';
 
-import type { WorkflowTemplate } from '@/types/workflow';
+import type { WorkflowTemplate } from '@/platform/types/workflow';
 
 export const CONSULTING_TEMPLATES: WorkflowTemplate[] = [
   StatementOfWorkDrafter,

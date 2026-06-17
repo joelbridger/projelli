@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { estimateImageTokens } from '@/features/ask/attachments/imageTokens';
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 
 function att(width: number, height: number): ChatAttachment {
   return {

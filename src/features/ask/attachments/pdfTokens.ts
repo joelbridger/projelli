@@ -17,7 +17,7 @@
  * using a typical-page word count (300 words × 1.33 tokens/word ≈ 400 tokens).
  */
 
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 import type { PdfMode } from '@/platform/providers/pdf-capability';
 
 /** Anthropic's approximate token cost per page in native-PDF mode. */

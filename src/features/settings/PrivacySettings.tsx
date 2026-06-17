@@ -15,8 +15,8 @@ import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { MapPin } from 'lucide-react';
 import { Button } from '@/ui/button';
-import { useTelemetryConsent } from '@/hooks/useTelemetryConsent';
-import { getInstallId } from '@/utils/installId';
+import { useTelemetryConsent } from '@/platform/hooks/useTelemetryConsent';
+import { getInstallId } from '@/platform/utils/installId';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 
 export function PrivacySettings() {

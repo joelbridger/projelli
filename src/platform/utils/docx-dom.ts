@@ -24,7 +24,7 @@ import type {
   GroupedRevision,
   ParsedParagraphFormat,
   ParsedRunFormat,
-} from '@/types/docx';
+} from '@/platform/types/docx';
 
 // ---------------------------------------------------------------------------
 // propertiesXml parsing (run-level)

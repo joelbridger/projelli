@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AuditLog } from '@/app/shell/common/AuditLog';
-import type { AuditEntry } from '@/types/audit';
+import type { AuditEntry } from '@/platform/types/audit';
 
 function entry(partial: Partial<AuditEntry> = {}): AuditEntry {
   return {

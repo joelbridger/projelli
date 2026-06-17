@@ -26,12 +26,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 // --- Mocks (leaf side-effects only) ----------------------------------------
 
 // Telemetry must never hit the network in tests.
-vi.mock('@/utils/telemetry', () => ({
+vi.mock('@/platform/utils/telemetry', () => ({
   sendEvent: vi.fn(async () => {}),
 }));
 
 // openExternal must never try to open a real URL in jsdom.
-vi.mock('@/utils/openExternal', () => ({
+vi.mock('@/platform/utils/openExternal', () => ({
   openExternal: vi.fn(async () => {}),
 }));
 

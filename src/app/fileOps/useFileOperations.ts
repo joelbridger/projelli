@@ -9,15 +9,15 @@
 import { useCallback } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
-import { saveFile } from '@/utils/saveFile';
-import { isBinaryFile } from '@/utils/file-utils';
-import { dataUrlToArrayBuffer } from '@/utils/spreadsheet-io';
+import { saveFile } from '@/platform/utils/saveFile';
+import { isBinaryFile } from '@/platform/utils/file-utils';
+import { dataUrlToArrayBuffer } from '@/platform/utils/spreadsheet-io';
 import { createFileTreeSnapshot } from '@/platform/fs/FileSystemWatcher';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileSystemWatcher } from '@/platform/fs/FileSystemWatcher';
-import type { FileNode } from '@/types/workspace';
-import type { PromptOptions } from '@/hooks/usePromptDialog';
-import type { useContentIndex } from '@/hooks/useContentIndex';
+import type { FileNode } from '@/platform/types/workspace';
+import type { PromptOptions } from '@/platform/hooks/usePromptDialog';
+import type { useContentIndex } from '@/platform/hooks/useContentIndex';
 
 type OpenTab = ReturnType<typeof useEditorStore.getState>['openTabs'][number];
 type ContentIndex = ReturnType<typeof useContentIndex>;

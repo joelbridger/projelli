@@ -81,7 +81,7 @@ const mockUseFirm = vi.fn(() => ({
   signOut: vi.fn(),
 }));
 
-vi.mock('@/hooks/useFirm', () => ({
+vi.mock('@/platform/hooks/useFirm', () => ({
   useFirm: () => mockUseFirm(),
 }));
 

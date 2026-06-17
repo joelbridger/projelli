@@ -19,7 +19,7 @@ const mockMailGetAttachment = vi.fn();
 const mockMailRetagMessageMatter = vi.fn();
 const mockMailSend = vi.fn();
 
-vi.mock('@/utils/mail-commands', () => ({
+vi.mock('@/platform/utils/mail-commands', () => ({
   get mailGetMessage() { return mockMailGetMessage; },
   get mailGetAttachment() { return mockMailGetAttachment; },
   get mailRetagMessageMatter() { return mockMailRetagMessageMatter; },
@@ -58,12 +58,12 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
   })),
 }));
 
-vi.mock('@/utils/fileDrop', () => ({
+vi.mock('@/platform/utils/fileDrop', () => ({
   deriveFilenameFromMessage: vi.fn(() => 'reply-draft.md'),
 }));
 
 import { EmailViewer, stripResidualTags, parseRecipients } from '@/features/email/EmailViewer';
-import type { MailView } from '@/utils/mail-commands';
+import type { MailView } from '@/platform/utils/mail-commands';
 
 function sampleMessage(overrides: Partial<MailView> = {}): MailView {
   return {

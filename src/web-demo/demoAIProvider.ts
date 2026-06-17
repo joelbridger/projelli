@@ -31,7 +31,7 @@ import type {
   StructuredOutputOptions,
   ProviderContentBlock,
 } from '@/platform/providers/Provider';
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 import { getDemoSessionToken, resetDemoSessionToken } from './demoSessionToken';
 
 const BYOK_STORAGE_KEY = 'byokKey';

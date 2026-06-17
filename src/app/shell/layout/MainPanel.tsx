@@ -10,7 +10,7 @@ import {
 } from '@/features/onboarding/ApiKeySetupCard';
 import { TabBar } from '@/features/documents/editor/TabBar';
 import { AutoSaveIndicator } from '@/features/documents/editor/AutoSaveIndicator';
-import { getFileIcon } from '@/utils/fileIcons';
+import { getFileIcon } from '@/platform/utils/fileIcons';
 import { MarkdownEditor, type MarkdownEditorRef } from '@/features/documents/editor/MarkdownEditor';
 import { MarkdownPreview } from '@/features/documents/editor/MarkdownPreview';
 import { FormattingToolbar, type ToolbarFileType } from '@/features/documents/editor/FormattingToolbar';
@@ -67,11 +67,11 @@ import {
 } from '@/ui/dropdown-menu';
 import { FileText, List, PanelRightClose, FileType, X, History, Download, ChevronDown, MoreHorizontal, Columns, Rows, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { saveFile } from '@/utils/saveFile';
-import { markdownToDocxBytes } from '@/utils/docx-io';
-import { markdownToPptxBytes } from '@/utils/pptx-io';
-import { withShortcut } from '@/utils/shortcuts';
-import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
+import { saveFile } from '@/platform/utils/saveFile';
+import { markdownToDocxBytes } from '@/platform/utils/docx-io';
+import { markdownToPptxBytes } from '@/platform/utils/pptx-io';
+import { withShortcut } from '@/platform/utils/shortcuts';
+import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { modeRestrictsToLocal } from '@/platform/privacy/egress';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
 import { isAudioFile, getFileExtension, shouldVersionFile, isDiskVersioned } from './mainPanelHelpers';
@@ -81,7 +81,7 @@ import type {
   WorkflowTemplate,
   WorkflowExecution,
   InterviewQuestion,
-} from '@/types/workflow';
+} from '@/platform/types/workflow';
 
 interface APIKey {
   provider: string;
@@ -98,7 +98,7 @@ interface MainPanelProps {
   workspaceServiceRef?: React.MutableRefObject<any>;
   rootPath?: string;
   onFileTreeChange?: () => void;
-  onAuditLog?: (entry: Omit<import('@/types/audit').AuditEntry, 'id' | 'timestamp'>) => void;
+  onAuditLog?: (entry: Omit<import('@/platform/types/audit').AuditEntry, 'id' | 'timestamp'>) => void;
   /**
    * M2 — forwarded to AIChatViewer so citation chips in assistant
    * responses can open the cited file at a specific paragraph index.
@@ -574,10 +574,10 @@ export function MainPanel({
       // surface. Closing the tab drops the conversation unless the user
       // exports it or saves a copy from within the viewer.
       if (tab.type === 'ai-assistant') {
-        let chatData: import('@/types/ai').AIChatFile;
+        let chatData: import('@/platform/types/ai').AIChatFile;
         try {
           chatData = tab.content
-            ? (JSON.parse(tab.content) as import('@/types/ai').AIChatFile)
+            ? (JSON.parse(tab.content) as import('@/platform/types/ai').AIChatFile)
             : {
                 id: tab.path,
                 title: tab.name || 'AI Assistant',
@@ -643,7 +643,7 @@ export function MainPanel({
       // Check for .aichat files
       if (tab.path.endsWith('.aichat')) {
         try {
-          const chatData = JSON.parse(tab.content) as import('@/types/ai').AIChatFile;
+          const chatData = JSON.parse(tab.content) as import('@/platform/types/ai').AIChatFile;
           return (
             <AIChatViewer
               chatData={chatData}

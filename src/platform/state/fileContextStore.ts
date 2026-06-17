@@ -22,7 +22,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-import type { ExtractedContext } from '@/utils/ai-file-context';
+import type { ExtractedContext } from '@/platform/utils/ai-file-context';
 
 interface FileContextState {
   /** In-memory extracted context per tab path. NOT persisted. */

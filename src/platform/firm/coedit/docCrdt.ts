@@ -85,7 +85,7 @@ import type {
   DocxInlineInsertion,
   DocxInlineDeletion,
   DocxRun,
-} from '@/types/docx';
+} from '@/platform/types/docx';
 import { applyTextDiff } from './textDiff';
 
 // ---------------------------------------------------------------------------

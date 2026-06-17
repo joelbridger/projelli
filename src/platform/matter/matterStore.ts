@@ -41,7 +41,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
-import type { Matter, MatterScope } from '@/types/matter';
+import type { Matter, MatterScope } from '@/platform/types/matter';
 import { resolveMatterId, findMatter } from '@/platform/rag/matterResolver';
 import { getProfession } from '@/platform/profile/professionStore';
 import { getSampleMatterName } from '@/onboarding/samples/sampleMatterDemo';

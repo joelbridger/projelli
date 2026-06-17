@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
-import type { WorkflowTemplate } from '@/types/workflow';
+import type { WorkflowTemplate } from '@/platform/types/workflow';
 
 // Minimal template factory — only the fields the helper reads matter.
 function tpl(id: string, category: WorkflowTemplate['category']): WorkflowTemplate {

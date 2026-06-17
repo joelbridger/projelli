@@ -34,7 +34,7 @@ import { matterLabel } from '@/platform/rag/matterResolver';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
-import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useAsk, type UseAskProps } from './useAsk';
 
 /* -------------------------------------------------------------------------- */

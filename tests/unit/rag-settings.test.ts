@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock the Tauri command surface BEFORE importing the service.
-vi.mock('@/utils/tauri-commands', () => {
+vi.mock('@/platform/utils/tauri-commands', () => {
   return {
     ragRetrieve: vi.fn(async () => []),
     ragIndexFile: vi.fn(async () => {}),
@@ -21,7 +21,7 @@ vi.mock('@/utils/tauri-commands', () => {
   };
 });
 
-import * as tauri from '@/utils/tauri-commands';
+import * as tauri from '@/platform/utils/tauri-commands';
 import {
   MemoryService,
   isMemoryEnabled,

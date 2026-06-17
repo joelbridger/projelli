@@ -14,7 +14,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
-vi.mock('@/utils/openExternal', () => ({
+vi.mock('@/platform/utils/openExternal', () => ({
   openExternal: vi.fn(async () => {}),
 }));
 
@@ -30,7 +30,7 @@ import {
   PROFESSION_MODEL_STORAGE_KEY,
   PROFESSION_PROVIDER_STORAGE_KEY,
 } from '@/onboarding/professionModel';
-import { DEFAULT_ANTHROPIC_PAID } from '@/utils/defaultModel';
+import { DEFAULT_ANTHROPIC_PAID } from '@/platform/utils/defaultModel';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 
 beforeEach(() => {

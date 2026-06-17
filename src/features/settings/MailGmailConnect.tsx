@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { gmailConnect, gmailIsConnected, gmailDisconnect } from '@/utils/mail-commands';
+import { gmailConnect, gmailIsConnected, gmailDisconnect } from '@/platform/utils/mail-commands';
 
 export function MailGmailConnect() {
   const [connected, setConnected] = useState(false);

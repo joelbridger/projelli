@@ -10,9 +10,9 @@
 // tracked insertions, etc.) is a deliberate FOLLOW-UP — text diff is the honest,
 // shippable first step that already answers "what words changed".
 
-import { documentPlainText } from '@/utils/docx-dom';
-import { docxOpen, isDocxEngineAvailable } from '@/utils/docx-commands';
-import type { DocumentJson } from '@/types/docx';
+import { documentPlainText } from '@/platform/utils/docx-dom';
+import { docxOpen, isDocxEngineAvailable } from '@/platform/utils/docx-commands';
+import type { DocumentJson } from '@/platform/types/docx';
 
 /**
  * Extract plain text from a `.docx` at `path` using the engine. The snapshot

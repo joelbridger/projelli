@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { X, GripVertical, MoreHorizontal, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/ui/button';
-import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import {
   DropdownMenu,

@@ -6,7 +6,7 @@
 // fallback works out of the box; the UI component handles the actual
 // Phase A / Phase B orchestration before writing the output file.
 
-import type { WorkflowTemplate, GenerateStepConfig } from '@/types/workflow';
+import type { WorkflowTemplate, GenerateStepConfig } from '@/platform/types/workflow';
 
 const promptTemplate = `You are synthesizing insights across multiple customer interview transcripts.
 The UI has already attached the transcripts; produce a structured synthesis

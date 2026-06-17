@@ -26,8 +26,8 @@ import {
 } from '@/features/workflows/engine/legalAnalysis';
 import { createMockProvider } from '@/platform/providers/MockProvider';
 import type { Provider } from '@/platform/providers/Provider';
-import type { AnalyzeStepConfig } from '@/types/workflow';
-import type { RetrievalScope } from '@/utils/tauri-commands';
+import type { AnalyzeStepConfig } from '@/platform/types/workflow';
+import type { RetrievalScope } from '@/platform/utils/tauri-commands';
 
 const chunks: RetrievedChunk[] = [
   {

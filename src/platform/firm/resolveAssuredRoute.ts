@@ -14,7 +14,7 @@
  * "should we use assured?" policy in one pure-ish place.
  */
 
-import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import {
   getFirmAccessToken,
   getFirmSeatToken,

@@ -15,7 +15,7 @@
 // an honest "nothing here" rather than a manufactured one. @draft framing and
 // the verification banner stay until attorney sign-off.
 
-import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
+import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/platform/types/workflow';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {

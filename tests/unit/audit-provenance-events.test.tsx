@@ -36,8 +36,8 @@ vi.mock('@/platform/rag/MemoryService', async (orig) => {
   };
 });
 
-vi.mock('@/utils/tauri-commands', async (orig) => {
-  const real = await orig<typeof import('@/utils/tauri-commands')>();
+vi.mock('@/platform/utils/tauri-commands', async (orig) => {
+  const real = await orig<typeof import('@/platform/utils/tauri-commands')>();
   return { ...real, ragVerifyCitation: mocks.verifyCitation };
 });
 
@@ -69,8 +69,8 @@ vi.mock('@/platform/providers/GeminiProvider', () => ({
 vi.mock('@/features/ask/ChatCostChip', () => ({ ChatCostChip: () => null }));
 
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
-import type { AIChatFile } from '@/types/ai';
-import type { AuditEntry } from '@/types/audit';
+import type { AIChatFile } from '@/platform/types/ai';
+import type { AuditEntry } from '@/platform/types/audit';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';

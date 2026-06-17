@@ -50,8 +50,8 @@ import {
   type ProviderId,
 } from '@/features/onboarding/ProviderTutorialSteps';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
-import { useSetConfidentialityMode } from '@/hooks/useConfidentialityMode';
-import { openExternal } from '@/utils/openExternal';
+import { useSetConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { openExternal } from '@/platform/utils/openExternal';
 import { clearAiSetupDeferred } from '@/features/onboarding/aiSetupState';
 import type { KeyProvider } from '@/platform/providers/KeychainService';
 import { useProfessionCopy } from '@/features/onboarding/useProfessionCopy';

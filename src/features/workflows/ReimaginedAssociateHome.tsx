@@ -48,11 +48,11 @@ import {
 } from 'lucide-react';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout, SearchField, SurfaceToolbar } from '@/ui/kp';
-import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/types/workflow';
+import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/platform/types/workflow';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
 import { useProfessionStore, isLawExperience } from '@/platform/profile/professionStore';
-import { useTrialGate } from '@/hooks/useTrial';
+import { useTrialGate } from '@/platform/hooks/useTrial';
 import { useActiveMatter } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 

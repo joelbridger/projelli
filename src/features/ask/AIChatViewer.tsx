@@ -13,12 +13,12 @@ import { SUPPORTED_PDF_MIME, getPdfMode } from '@/platform/providers/pdf-capabil
 import { extractPdfText, type PdfExtractionResult } from '@/lib/pdf-extract';
 import { PdfModeChip } from '@/features/ask/chat/PdfModeChip';
 import { PdfPreviewBeforeSend } from '@/features/ask/chat/PdfPreviewBeforeSend';
-import type { ChatAttachment } from '@/types/ai';
+import type { ChatAttachment } from '@/platform/types/ai';
 import { Button } from '@/ui/button';
 import { Textarea } from '@/ui/textarea';
 import { cn } from '@/lib/utils';
-import type { AIChatFile } from '@/types/ai';
-import type { AuditEntry } from '@/types/audit';
+import type { AIChatFile } from '@/platform/types/ai';
+import type { AuditEntry } from '@/platform/types/audit';
 import type { Provider } from '@/platform/providers/Provider';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
@@ -35,10 +35,10 @@ import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 // F-121 (VG-5b) — explains privilege exclusion next to its toggle, with a
 // "see it work" check that runs the user's own question against their index.
 import { PrivilegeExclusionExplainer } from '@/features/ask/PrivilegeExclusionExplainer';
-import { MODEL_NOT_READY, type RetrievalScope } from '@/utils/tauri-commands';
+import { MODEL_NOT_READY, type RetrievalScope } from '@/platform/utils/tauri-commands';
 import { useFileContextStore } from '@/platform/state/fileContextStore';
-import type { ExtractedContext } from '@/utils/ai-file-context';
-import { filterByScope } from '@/utils/client-boundary';
+import type { ExtractedContext } from '@/platform/utils/ai-file-context';
+import { filterByScope } from '@/platform/utils/client-boundary';
 import { ChatCostChip } from '@/features/ask/ChatCostChip';
 import { AIContextIndicator } from '@/features/ask/AIContextIndicator';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
@@ -46,7 +46,7 @@ import { ContextMeterBar } from '@/features/ask/chat/ContextMeterBar';
 import { CompressedSegmentMarker } from '@/features/ask/chat/CompressedSegmentMarker';
 import { CompressionConfirmModal } from '@/features/ask/chat/CompressionConfirmModal';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { useTrialGate } from '@/hooks/useTrial';
+import { useTrialGate } from '@/platform/hooks/useTrial';
 import {
   renderMessageWithWorkspaceChip,
   renderMessageWithCitations,

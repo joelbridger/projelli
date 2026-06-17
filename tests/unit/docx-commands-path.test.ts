@@ -20,9 +20,9 @@ vi.mock('@tauri-apps/api/core', () => ({
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 
 import { invoke } from '@tauri-apps/api/core';
-import { docxOpen, docxSave } from '@/utils/docx-commands';
-import { convertDocToDocx, convertPptToPdf } from '@/utils/tauri-commands';
-import type { DocumentJson } from '@/types/docx';
+import { docxOpen, docxSave } from '@/platform/utils/docx-commands';
+import { convertDocToDocx, convertPptToPdf } from '@/platform/utils/tauri-commands';
+import type { DocumentJson } from '@/platform/types/docx';
 
 const invokeMock = vi.mocked(invoke);
 

@@ -15,8 +15,8 @@ import { AlertTriangle, FileType, ExternalLink } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
-import { openExternal } from '@/utils/openExternal';
-import { parseDocxForPreview, renderDocxPreview } from '@/utils/docx-io';
+import { openExternal } from '@/platform/utils/openExternal';
+import { parseDocxForPreview, renderDocxPreview } from '@/platform/utils/docx-io';
 
 interface DocxViewerProps {
   src: string;

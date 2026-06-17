@@ -33,7 +33,7 @@ import {
   type PricingTierCode,
 } from '@/config/pricing';
 import { PricingTiers } from '@/features/settings/PricingTiers';
-import type { LicenseTier } from '@/hooks/useLicense';
+import type { LicenseTier } from '@/platform/hooks/useLicense';
 import type { Plan } from '../../backend/src/contract';
 
 describe('pricing config — tiers and prices', () => {

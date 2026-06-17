@@ -20,7 +20,7 @@ const { mockGenerate, mockHasCloudKey } = vi.hoisted(() => ({
 }));
 
 // ── Mail commands ─────────────────────────────────────────────────────────────
-vi.mock('@/utils/mail-commands', () => ({
+vi.mock('@/platform/utils/mail-commands', () => ({
   mailIsConnected: async () => false,
   gmailIsConnected: async () => false,
   mailImapIsConnected: async () => false,
@@ -28,12 +28,12 @@ vi.mock('@/utils/mail-commands', () => ({
 }));
 
 // ── useApiKeys ────────────────────────────────────────────────────────────────
-vi.mock('@/hooks/useApiKeys', () => ({
+vi.mock('@/platform/hooks/useApiKeys', () => ({
   useApiKeys: () => ({ apiKeys: [] }),
 }));
 
 // ── useFirm ───────────────────────────────────────────────────────────────────
-vi.mock('@/hooks/useFirm', () => ({
+vi.mock('@/platform/hooks/useFirm', () => ({
   useFirm: () => ({
     isSignedIn: false,
     hasActiveSeat: false,

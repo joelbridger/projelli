@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/utils/file-utils';
+import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/platform/utils/file-utils';
 
 interface OpenTab {
   path: string;

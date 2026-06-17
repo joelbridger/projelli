@@ -3,7 +3,7 @@
 
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { FileNode } from '@/types/workspace';
+import type { FileNode } from '@/platform/types/workspace';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import {
   ChevronRight,
@@ -26,7 +26,7 @@ import {
   FileType,
   FileText,
 } from 'lucide-react';
-import { getFileIcon } from '@/utils/fileIcons';
+import { getFileIcon } from '@/platform/utils/fileIcons';
 import { Button } from '@/ui/button';
 import {
   DropdownMenu,
@@ -36,7 +36,7 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
 import { EmptyState } from '@/ui/EmptyState';
-import { AI_MESSAGE_MIME } from '@/utils/fileDrop';
+import { AI_MESSAGE_MIME } from '@/platform/utils/fileDrop';
 import { isAbsolutePath } from '@/platform/fs/pathResolve';
 import { cn } from '@/lib/utils';
 import { PrivilegeMenuItems } from '@/features/firm/privilege/PrivilegeMenuItems';

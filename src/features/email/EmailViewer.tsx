@@ -42,15 +42,15 @@ import {
   mailRetagMessageMatter,
   mailSend,
   type MailView,
-} from '@/utils/mail-commands';
+} from '@/platform/utils/mail-commands';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/platform/firm/privilegeStore';
 import { useMatters } from '@/platform/matter/matterStore';
 import {
   ALL_PRIVILEGE_STATUSES,
   isPrivileged,
   type Privilege,
-} from '@/types/privilege';
-import { deriveFilenameFromMessage } from '@/utils/fileDrop';
+} from '@/platform/types/privilege';
+import { deriveFilenameFromMessage } from '@/platform/utils/fileDrop';
 import { createKeychainService } from '@/platform/providers/KeychainService';
 import { createClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { createOpenAIProvider } from '@/platform/providers/OpenAIProvider';
@@ -58,7 +58,7 @@ import { createGeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import type { Provider } from '@/platform/providers/Provider';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { useEntityLabel } from '@/hooks/useEntityLabel';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
 export interface EmailViewerProps {
   /** Message id or `mail:<id>` citation source id. */

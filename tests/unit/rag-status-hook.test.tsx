@@ -30,7 +30,7 @@ vi.mock('@tauri-apps/api/event', () => ({
   }),
 }));
 
-import { useRagStatus } from '@/hooks/useRagStatus';
+import { useRagStatus } from '@/platform/hooks/useRagStatus';
 
 describe('useRagStatus', () => {
   beforeEach(() => {

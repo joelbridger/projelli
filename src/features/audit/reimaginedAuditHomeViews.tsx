@@ -11,7 +11,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import type { AuditEntry, AuditActionType } from '@/types/audit';
+import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import {
   Button,
   FilterPanel,

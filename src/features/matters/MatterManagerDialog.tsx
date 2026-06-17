@@ -48,9 +48,9 @@ import { Label } from '@/ui/label';
 import { cn } from '@/lib/utils';
 import { useMatters, useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import { mailConnectedAccounts, type ConnectedAccount } from '@/utils/mail-commands';
+import { mailConnectedAccounts, type ConnectedAccount } from '@/platform/utils/mail-commands';
 import { mailFolderKey } from '@/platform/rag/matterResolver';
-import { useFirm } from '@/hooks/useFirm';
+import { useFirm } from '@/platform/hooks/useFirm';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import {
   getOrCreateMatterKey,
@@ -61,7 +61,7 @@ import { registerDevice } from '@/platform/firm/deviceKeys';
 import type { MatterMineSummary } from '@/platform/firm/contract';
 import { openMatterNotes } from '@/features/matters/logic/openMatterNotes';
 import { stopMatterSync } from '@/features/matters/logic/matterNotesSync';
-import { useEntityLabel } from '@/hooks/useEntityLabel';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { collectFolderPaths, relLabel, audit } from './matterManagerDialogHelpers';
 import { MemberRoster } from './MemberRoster';
 

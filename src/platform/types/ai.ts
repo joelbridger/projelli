@@ -128,8 +128,8 @@ export interface ChatMessage {
 
 /**
  * M2 — a single retrieval source attached to a chat message. Mirror of
- * `RagHit` from `@/utils/tauri-commands` but redeclared here to keep
- * `@/types/ai` free of Tauri imports (these messages are serialized to
+ * `RagHit` from `@/platform/utils/tauri-commands` but redeclared here to keep
+ * `@/platform/types/ai` free of Tauri imports (these messages are serialized to
  * `.aichat` files and may be round-tripped in browser mode).
  *
  * A3: adds optional sourceType and pageNumber for PDF chunks.

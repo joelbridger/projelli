@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { Card } from '@/ui/kp';
-import type { RagHit } from '@/utils/tauri-commands';
-import type { MailListItem } from '@/utils/mail-commands';
+import type { RagHit } from '@/platform/utils/tauri-commands';
+import type { MailListItem } from '@/platform/utils/mail-commands';
 
 // ── AskHit card ────────────────────────────────────────────────────────────
 
