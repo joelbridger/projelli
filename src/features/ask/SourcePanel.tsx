@@ -1,6 +1,10 @@
-import { CheckCircle2, FileText, ExternalLink } from 'lucide-react';
+import { useState } from 'react';
+import { CheckCircle2, FileText, ExternalLink, ShieldCheck, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button, Badge, Eyebrow, Card } from '@/ui/kp';
 import type { AnswerCitation } from './askHelpers';
+import { ragVerifyCitation, type CitationVerdict } from '@/platform/utils/tauri-commands';
+import { auditEventToEntry } from '@/platform/audit/AuditService';
+import type { AuditEntry } from '@/platform/types/audit';
 
 /* -------------------------------------------------------------------------- */
 /* SourcePanel — sticky side panel showing the selected citation's passage     */
@@ -9,10 +13,51 @@ import type { AnswerCitation } from './askHelpers';
 export function SourcePanel({
   cite,
   onOpenFile,
+  onAuditLog,
 }: {
   cite: AnswerCitation | null;
   onOpenFile?: (path: string) => void;
+  /**
+   * WS3 (Task 4): when provided, each "Verify against source" result emits
+   * a `citation_verified` audit entry so the check is on the record.
+   */
+  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 }) {
+  // WS3 (Task 4): verification state — null = not run, 'loading' = in flight,
+  // CitationVerdict = result.
+  const [verdictState, setVerdictState] = useState<CitationVerdict | 'loading' | null>(null);
+  // Reset verdict when the selected citation changes so stale verdicts
+  // don't carry over to a different chip.
+  const citeKey = cite ? `${cite.n}-${cite.id ?? 'noid'}` : 'none';
+  const [lastCiteKey, setLastCiteKey] = useState<string>(citeKey);
+  if (citeKey !== lastCiteKey) {
+    setLastCiteKey(citeKey);
+    setVerdictState(null);
+  }
+
+  const canVerify = Boolean(cite?.id && cite?.matterId);
+
+  async function handleVerify() {
+    if (!cite?.id || !cite?.matterId) return;
+    setVerdictState('loading');
+    try {
+      const result = await ragVerifyCitation(cite.id, cite.matterId, cite.excerpt);
+      setVerdictState(result);
+      // Emit audit entry so the check is on the record.
+      // The audit type uses the plain verdict string, not the object.
+      onAuditLog?.(
+        auditEventToEntry({
+          type: 'citation_verified',
+          timestamp: new Date().toISOString(),
+          payload: { citationId: cite.id, verdict: result.verdict },
+        }),
+      );
+    } catch {
+      // ragVerifyCitation throws in browser/test mode; treat as "not available".
+      setVerdictState(null);
+    }
+  }
+
   if (!cite) {
     return (
       <Card
@@ -117,6 +162,90 @@ export function SourcePanel({
         >
           {cite.excerpt}
         </blockquote>
+
+        {/* WS3 (Task 4): "Verify against source" button + verdict.
+            Guard: disabled with tooltip when id/matterId are absent (pre-3.0 or
+            browser mode). Only `verified` is reassuring; the other three
+            verdicts render as clear problems — no softening. */}
+        <div style={{ marginTop: 'var(--kp-space-sm)' }}>
+          <button
+            type="button"
+            data-testid="verify-citation-btn"
+            disabled={!canVerify || verdictState === 'loading'}
+            title={canVerify ? 'Check this quote against the stored source' : 'Verification is not available for this citation (pre-3.0 or browser mode)'}
+            onClick={() => { void handleVerify(); }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '5px 10px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-background)',
+              fontSize: 'var(--kp-font-xs)',
+              fontWeight: 'var(--kp-weight-medium)',
+              color: canVerify ? 'var(--color-foreground)' : 'var(--color-muted-foreground)',
+              cursor: canVerify ? 'pointer' : 'not-allowed',
+              opacity: canVerify ? 1 : 0.55,
+              width: '100%',
+              justifyContent: 'center',
+            }}
+          >
+            {verdictState === 'loading' ? (
+              <Loader2 size={12} strokeWidth={2} className="animate-spin" />
+            ) : (
+              <ShieldCheck size={12} strokeWidth={2} />
+            )}
+            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            Verify against source
+            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          </button>
+
+          {/* Verdict rendering — honest, no softening.
+              Only `verified` is reassuring. notFound / textMismatch /
+              matterMismatch must read as clear problems. */}
+          {verdictState && verdictState !== 'loading' && (
+            <div
+              data-testid="verify-verdict"
+              data-verdict={verdictState.verdict}
+              style={{
+                marginTop: 8,
+                padding: '8px 11px',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 'var(--kp-font-xs)',
+                lineHeight: 'var(--kp-leading-normal)',
+                display: 'flex',
+                gap: 7,
+                alignItems: 'flex-start',
+                ...(verdictState.verdict === 'verified'
+                  ? {
+                      background: 'var(--kp-local-bg)',
+                      border: '1px solid var(--kp-local-line)',
+                      color: 'var(--kp-local)',
+                    }
+                  : {
+                      background: 'color-mix(in srgb, var(--kp-danger, #dc2626) 8%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--kp-danger, #dc2626) 35%, transparent)',
+                      color: 'color-mix(in srgb, var(--kp-danger, #dc2626) 90%, black)',
+                    }),
+              }}
+            >
+              {verdictState.verdict === 'verified' ? (
+                <CheckCircle2 size={13} strokeWidth={2} style={{ flex: 'none', marginTop: 1 }} />
+              ) : (
+                <AlertTriangle size={13} strokeWidth={2} style={{ flex: 'none', marginTop: 1 }} />
+              )}
+              <span>
+                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                {verdictState.verdict === 'verified' && 'Quote found in source. This citation checks out.'}
+                {verdictState.verdict === 'notFound' && 'This quote was not found in the cited source. Do not rely on it without checking the original.'}
+                {verdictState.verdict === 'textMismatch' && 'The quote does not match the stored text. Do not rely on it without checking the original.'}
+                {verdictState.verdict === 'matterMismatch' && `This source belongs to a different matter. Do not rely on it — this may be a cross-matter data leak.`}
+                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+              </span>
+            </div>
+          )}
+        </div>
 
         {cite.path && (
           <Button

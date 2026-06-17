@@ -49,12 +49,8 @@ vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
   };
 });
 
-// Audit log mock (used by SourcePanel)
+// Audit log mock (used by SourcePanel via onAuditLog prop)
 const mockAuditLog = vi.fn();
-vi.mock('@/platform/audit/auditLog', () => ({
-  logAuditEntry: mockAuditLog,
-  useAuditStore: () => ({ log: mockAuditLog }),
-}));
 
 /* -------------------------------------------------------------------------- */
 /* Task 1: AnswerCitation id + matterId threading                              */
