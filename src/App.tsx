@@ -106,6 +106,9 @@ function App() {
     showWhatsNewModalDirect, setShowWhatsNewModalDirect,
     apiKeyWizardOpen, setApiKeyWizardOpen,
   } = useDialogManager();
+  // Tab to pre-select inside the Account window (e.g. 'connections' from the
+  // email connect entry points). Cleared when the window closes.
+  const [accountWindowInitialTab, setAccountWindowInitialTab] = useState<string | undefined>(undefined);
   // Shared contract — "Ask from the matter hub prefills Search".
   // MatterHub dispatches a keepance:matter-launch event with surface='search'
   // and a question string; App sets this state; Ask consumes it.
@@ -704,7 +707,7 @@ function App() {
   // account, matter launch). See src/app/lifecycle/useGlobalEventBus.ts.
   useGlobalEventBus({
     onOpenMatterManager: () => setMatterManagerOpen(true),
-    onOpenAccount: () => setAccountWindowOpen(true),
+    onOpenAccount: (tab?: string) => { setAccountWindowInitialTab(tab); setAccountWindowOpen(true); },
     openSettings,
     setSidebarActiveTab,
     setDocumentsView,
@@ -1251,6 +1254,8 @@ This file contains rules and guidelines for AI assistants in this workspace.
         handleSettingsRestartOnboarding={handleSettingsRestartOnboarding}
         accountWindowOpen={accountWindowOpen}
         setAccountWindowOpen={setAccountWindowOpen}
+        accountWindowInitialTab={accountWindowInitialTab}
+        onAccountWindowClosed={() => setAccountWindowInitialTab(undefined)}
         firstRunOverlay={firstRunOverlay}
         tourOpen={tourOpen}
         showFirstRun={showFirstRun}

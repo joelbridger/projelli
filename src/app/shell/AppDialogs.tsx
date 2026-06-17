@@ -77,6 +77,10 @@ export interface AppDialogsProps {
   // Account window
   accountWindowOpen: boolean;
   setAccountWindowOpen: (open: boolean) => void;
+  /** Tab to pre-select when the window opens (e.g. 'connections'). */
+  accountWindowInitialTab?: string | undefined;
+  /** Called when the account window closes, so the caller can clear initialTab. */
+  onAccountWindowClosed?: () => void;
 
   // First-run overlay (pre-built JSX from App)
   firstRunOverlay: React.ReactNode;
@@ -148,6 +152,8 @@ export function AppDialogs({
   handleSettingsRestartOnboarding,
   accountWindowOpen,
   setAccountWindowOpen,
+  accountWindowInitialTab,
+  onAccountWindowClosed,
   firstRunOverlay,
   tourOpen,
   showFirstRun,
@@ -226,11 +232,16 @@ export function AppDialogs({
         onRestartOnboarding={handleSettingsRestartOnboarding}
       />
 
-      {/* Account / firm window — opened from the rail's account identity. */}
+      {/* Account / firm window — opened from the rail's account identity, or from
+          email connect entry points (pre-selects the Connections tab). */}
       <AccountWindow
         open={accountWindowOpen}
-        onOpenChange={setAccountWindowOpen}
+        onOpenChange={(open) => {
+          setAccountWindowOpen(open);
+          if (!open) onAccountWindowClosed?.();
+        }}
         auditEntries={auditEntries}
+        initialTab={accountWindowInitialTab}
       />
 
       {/* Keepance 3.0: rebuilt first-run wizard — the live first-run surface.

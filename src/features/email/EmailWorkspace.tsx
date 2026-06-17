@@ -147,23 +147,31 @@ export function EmailWorkspace({
   // Fingerprint tracks query/filter params (not offset) to detect filter changes in Effect B
   const queryFingerprintRef = useRef('');
 
-  // Load connected accounts on mount
+  // Load connected accounts on mount and re-check on window focus so the view
+  // updates automatically after the user connects an account in the Account window.
   useEffect(() => {
     let cancelled = false;
-    mailConnectedAccounts()
-      .then((accs) => {
-        if (!cancelled) {
-          setAccounts(accs);
-          setAccountsLoaded(true);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAccounts([]);
-          setAccountsLoaded(true);
-        }
-      });
-    return () => { cancelled = true; };
+    const load = () => {
+      mailConnectedAccounts()
+        .then((accs) => {
+          if (!cancelled) {
+            setAccounts(accs);
+            setAccountsLoaded(true);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setAccounts([]);
+            setAccountsLoaded(true);
+          }
+        });
+    };
+    load();
+    window.addEventListener('focus', load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', load);
+    };
   }, []);
 
   // Auto-select first account when compose opens and accounts are available

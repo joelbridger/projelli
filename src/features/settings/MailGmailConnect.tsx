@@ -17,7 +17,7 @@ export function MailGmailConnect() {
       await gmailConnect();
       setConnected(true);
     } catch (err) {
-      setConnectError(err instanceof Error ? err.message : 'Could not connect. Please try again.');
+      setConnectError(typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not connect. Please try again.');
     } finally {
       setConnecting(false);
     }

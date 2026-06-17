@@ -138,6 +138,8 @@ pub fn run() {
             commands::mail::gmail_connect,
             commands::mail::gmail_is_connected,
             commands::mail::gmail_disconnect,
+            // Outlook loopback auth-code + PKCE (replaces device-code for personal accounts).
+            commands::mail::outlook_connect,
             // Email send — compose and send from any connected provider (M365/Gmail/IMAP).
             commands::mail::mail_send,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).

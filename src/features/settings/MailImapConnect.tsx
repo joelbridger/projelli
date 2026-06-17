@@ -21,7 +21,7 @@ export function MailImapConnect() {
       await mailImapConnect({ host, port, username, password });
       setConnected(true);
     } catch (err) {
-      setConnectError(err instanceof Error ? err.message : 'Could not connect. Check your settings and try again.');
+      setConnectError(typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not connect. Check your settings and try again.');
     } finally {
       setConnecting(false);
     }

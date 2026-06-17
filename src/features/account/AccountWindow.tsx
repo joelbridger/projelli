@@ -1,5 +1,5 @@
 /* eslint-disable keepance-i18n/no-hardcoded-string */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Upload, User, Building2, X } from 'lucide-react';
 import {
   Dialog,
@@ -26,6 +26,8 @@ interface AccountWindowProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   auditEntries?: AuditEntry[];
+  /** Tab id to pre-select when the window opens (e.g. 'connections'). */
+  initialTab?: string | undefined;
 }
 
 const ACCOUNT_TABS = [
@@ -41,7 +43,7 @@ const ACCOUNT_TABS = [
  * used to live in the Settings "Account" tab (License, Firm, Usage,
  * Connections). The Account tab was removed from Settings in favor of this.
  */
-export function AccountWindow({ open, onOpenChange, auditEntries }: AccountWindowProps) {
+export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: AccountWindowProps) {
   const { isSignedIn, org } = useFirm();
   const isFirm = isSignedIn;
   const profile = useProfileStore();
@@ -49,7 +51,18 @@ export function AccountWindow({ open, onOpenChange, auditEntries }: AccountWindo
   // Horizontal tabs, collapsed by default: no tab selected on open, so the
   // window shows just the profile and the tab row. Clicking a tab opens it;
   // clicking the active tab collapses back to nothing.
-  const [activeTab, setActiveTab] = useState<string>('');
+  // When `initialTab` is provided (e.g. from the email connect entry points),
+  // pre-select that tab on open.
+  const [activeTab, setActiveTab] = useState<string>(initialTab ?? '');
+
+  // Sync the active tab whenever the window opens: if `initialTab` is given,
+  // jump to it; otherwise reset to the collapsed state. Runs when `open` toggles
+  // so re-opening with a different target lands on the right tab each time.
+  useEffect(() => {
+    if (open) {
+      setActiveTab(initialTab ?? '');
+    }
+  }, [open, initialTab]);
 
   const name = isFirm ? profile.firmName : profile.soloName;
   const image = isFirm ? profile.firmLogo : profile.soloAvatar;

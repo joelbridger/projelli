@@ -48,6 +48,10 @@ jobs:
   build:
     permissions:
       contents: write
+    env:
+      # Gmail Desktop OAuth creds, injected at build time (kept out of source).
+      KEEPANCE_GMAIL_CLIENT_ID: ${{ secrets.KEEPANCE_GMAIL_CLIENT_ID }}
+      KEEPANCE_GMAIL_CLIENT_SECRET: ${{ secrets.KEEPANCE_GMAIL_CLIENT_SECRET }}
     strategy:
       fail-fast: false
       matrix:
@@ -352,6 +356,10 @@ jobs:
   build-windows:
     permissions:
       contents: write
+    env:
+      # Gmail Desktop OAuth creds, injected at build time (kept out of source).
+      KEEPANCE_GMAIL_CLIENT_ID: ${{ secrets.KEEPANCE_GMAIL_CLIENT_ID }}
+      KEEPANCE_GMAIL_CLIENT_SECRET: ${{ secrets.KEEPANCE_GMAIL_CLIENT_SECRET }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

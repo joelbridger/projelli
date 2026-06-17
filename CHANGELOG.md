@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.2] - 2026-06-17
+
+Email connection fixes, from Windows testing.
+
+### Fixed
+- Connecting Gmail now completes. The Google desktop sign-in token exchange was missing a required credential; it is now included, so your inbox connects.
+- Connecting Outlook now works for personal Microsoft accounts. Outlook sign-in moved to the same reliable local sign-in Gmail uses, so it completes instead of hanging on a stray page.
+- "Connect your email" now opens the email connection screen (in Account, under Connections) instead of AI settings, and a failed connection shows the real reason instead of a generic message.
+
 ## [3.3.1] - 2026-06-17
 
 A reliability and onboarding-polish release fixing issues found in Windows testing.

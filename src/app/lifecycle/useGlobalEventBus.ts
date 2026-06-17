@@ -36,8 +36,8 @@ export interface AskPrefill {
 export interface GlobalEventBusHandlers {
   /** Open the canonical matter-create dialog (MatterManagerDialog). */
   onOpenMatterManager: () => void;
-  /** Open the dedicated Account window. */
-  onOpenAccount: () => void;
+  /** Open the dedicated Account window, optionally jumping to a specific tab. */
+  onOpenAccount: (tab?: string) => void;
   /** Open Settings deep-linked to a category. */
   openSettings: (category?: SettingCategory) => void;
   setSidebarActiveTab: (tab: AppSurface) => void;
@@ -80,8 +80,12 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
       ref.current.openSettings(category);
     };
 
-    // Rail account identity → open the Account window.
-    const onOpenAccount = () => ref.current.onOpenAccount();
+    // Rail account identity (or email connect shortcuts) → open the Account window,
+    // optionally jumping straight to a named tab (e.g. "connections").
+    const onOpenAccount = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: string } | null>).detail?.tab;
+      ref.current.onOpenAccount(tab);
+    };
 
     // Matter launch: an explicit surface jumps there; no surface restores the
     // matter's remembered working surface + focused document (or its hub).

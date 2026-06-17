@@ -189,7 +189,9 @@ export function AppSurfaceRouter({
             setFileTree(tree);
             openFile(path, finalName, docxBytesToDataUrl(bytes));
           }}
-          onOpenSettings={() => openSettings('ai')}
+          onOpenSettings={() => {
+            window.dispatchEvent(new CustomEvent('keepance:open-account', { detail: { tab: 'connections' } }));
+          }}
         />
       ) : sidebarActiveTab ==='files' ? (
         <DocumentsHome

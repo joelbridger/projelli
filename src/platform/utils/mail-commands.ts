@@ -287,6 +287,12 @@ export async function mailListMessages(query: MailListQuery): Promise<MailListPa
   return invoke<MailListPage>('mail_list_messages', { query });
 }
 
+// Microsoft 365 loopback OAuth (one-click flow, mirrors gmail_connect)
+export async function outlookConnect(): Promise<void> {
+  if (!isTauri()) throw new Error('Microsoft 365 connect is only available in the desktop app.');
+  return invoke<void>('outlook_connect');
+}
+
 // Gmail native provider (loopback PKCE OAuth)
 export async function gmailConnect(): Promise<void> {
   if (!isTauri()) throw new Error('Gmail connect is only available in the desktop app.');

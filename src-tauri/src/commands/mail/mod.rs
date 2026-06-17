@@ -34,12 +34,17 @@ const GMAIL_REFRESH_KEY: &str = "refresh-token";
 const GMAIL_ACCOUNT: &str = "default"; // single Gmail account today; cursors are (provider,account,folder)-scoped
 
 fn gmail_client_id() -> String {
-    option_env!("KEEPANCE_GMAIL_CLIENT_ID")
-        // Desktop OAuth client for the "Keepance Mail" Google Cloud project
-        // (registered under jamesondaines4@gmail.com, 2026-06-08). A public-client
-        // id is not a secret; the loopback+PKCE flow needs no client secret.
-        .unwrap_or("194900913942-1ubo8rmfe3mfh1o0gaauv60vktllpl7t.apps.googleusercontent.com")
-        .to_string()
+    // Injected at build time from the KEEPANCE_GMAIL_CLIENT_ID secret (CI job
+    // env in .github/workflows/release.yml). Kept out of source so it is never
+    // committed; set the env locally for `tauri dev` Gmail testing.
+    option_env!("KEEPANCE_GMAIL_CLIENT_ID").unwrap_or("").to_string()
+}
+
+fn gmail_client_secret() -> String {
+    // Google requires the client_secret at its token endpoint for Desktop-type
+    // OAuth clients (even with PKCE). Injected at build time from the
+    // KEEPANCE_GMAIL_CLIENT_SECRET secret; never committed to source.
+    option_env!("KEEPANCE_GMAIL_CLIENT_SECRET").unwrap_or("").to_string()
 }
 pub const SYNC_PROGRESS_EVENT: &str = "mail-sync-progress";
 /// G5: per-message event that carries decrypted text to the renderer for
@@ -776,6 +781,39 @@ pub async fn mail_backfill_rag(
     Ok(indexed)
 }
 
+/// Run the Microsoft loopback+PKCE sign-in: open the browser, catch the
+/// redirect, exchange the code (no client_secret — MS treats this as a public
+/// client), and store the refresh token under the SAME keychain entry the
+/// existing `OAuth::refresh` path reads, so `fresh_access_token` keeps working
+/// unchanged. Blocks until the user finishes (or a 5-minute timeout).
+///
+/// NOTE for Azure portal: the app registration must have
+/// `http://localhost` listed as a Mobile and desktop redirect URI.
+#[tauri::command]
+pub async fn outlook_connect() -> Result<(), String> {
+    use crate::commands::mail::gmail::oauth::{
+        bind_loopback, gen_pkce, gen_state, open_browser, await_redirect_code,
+    };
+    use crate::commands::mail::oauth::{build_ms_auth_url, ms_exchange_code, MS_TOKEN_ENDPOINT};
+
+    let (verifier, challenge) = gen_pkce();
+    let state_token = gen_state();
+    let (listener, redirect_uri) = bind_loopback().await.map_err(|e| e.to_string())?;
+    let url = build_ms_auth_url(&client_id(), &redirect_uri, &challenge, &state_token);
+    open_browser(&url);
+    let code = await_redirect_code(listener, &state_token, std::time::Duration::from_secs(300))
+        .await
+        .map_err(|e| e.to_string())?;
+    let tokens = ms_exchange_code(&client_id(), &code, &verifier, &redirect_uri, MS_TOKEN_ENDPOINT)
+        .await
+        .map_err(|e| e.to_string())?;
+    keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
+        .map_err(|e| e.to_string())?
+        .set_password(&tokens.refresh)
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn mail_begin_login() -> Result<DeviceCodePrompt, String> {
     let auth = OAuth::new(client_id());
@@ -949,7 +987,7 @@ pub async fn gmail_connect() -> Result<(), String> {
     let url = build_auth_url(&gmail_client_id(), &redirect_uri, &challenge, &state);
     open_browser(&url);
     let code = await_redirect_code(listener, &state, std::time::Duration::from_secs(300)).await.map_err(|e| e.to_string())?;
-    let oauth = GoogleOAuth::new(gmail_client_id());
+    let oauth = GoogleOAuth::new(gmail_client_id(), gmail_client_secret());
     let tokens = oauth.exchange_code(&code, &verifier, &redirect_uri).await.map_err(|e| e.to_string())?;
     let refresh = tokens.refresh.ok_or("Google did not return a refresh token; try again")?;
     keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY).map_err(|e| e.to_string())?
@@ -976,7 +1014,7 @@ async fn fresh_gmail_access_token() -> Result<String, String> {
     let entry = keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY)
         .map_err(|e| e.to_string())?;
     let rt = entry.get_password().map_err(|_| "not connected".to_string())?;
-    let oauth = crate::commands::mail::gmail::oauth::GoogleOAuth::new(gmail_client_id());
+    let oauth = crate::commands::mail::gmail::oauth::GoogleOAuth::new(gmail_client_id(), gmail_client_secret());
     match oauth.refresh(&rt).await {
         Ok(tokens) => Ok(tokens.access),
         Err(e) => {

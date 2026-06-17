@@ -69,7 +69,7 @@ pub fn build_auth_url(
 
 /// Minimal percent-encoder: encodes everything except unreserved chars
 /// (RFC 3986 §2.3: ALPHA / DIGIT / "-" / "." / "_" / "~").
-fn urlencoding_encode(s: &str) -> String {
+pub(crate) fn urlencoding_encode(s: &str) -> String {
     let mut out = String::with_capacity(s.len() * 3);
     for b in s.bytes() {
         match b {
@@ -135,6 +135,7 @@ pub struct GoogleTokens {
 
 pub struct GoogleOAuth {
     client_id: String,
+    client_secret: String,
     /// Full token endpoint URL (overridable for wiremock tests).
     base: String,
     http: reqwest::Client,
@@ -142,21 +143,22 @@ pub struct GoogleOAuth {
 
 impl GoogleOAuth {
     /// Create with the real Google token endpoint.
-    pub fn new(client_id: String) -> Self {
-        Self::new_with_base(client_id, TOKEN_ENDPOINT.to_string())
+    pub fn new(client_id: String, client_secret: String) -> Self {
+        Self::new_with_base(client_id, client_secret, TOKEN_ENDPOINT.to_string())
     }
 
     /// Create with a custom token endpoint (e.g. wiremock base URL + path).
-    pub fn new_with_base(client_id: String, base: String) -> Self {
+    pub fn new_with_base(client_id: String, client_secret: String, base: String) -> Self {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .connect_timeout(Duration::from_secs(15))
             .build()
             .expect("build reqwest client");
-        Self { client_id, base, http }
+        Self { client_id, client_secret, base, http }
     }
 
     /// Exchange an authorization code (plus PKCE verifier) for tokens.
+    /// Google requires client_secret for Desktop-type OAuth clients even with PKCE.
     pub async fn exchange_code(
         &self,
         code: &str,
@@ -168,6 +170,7 @@ impl GoogleOAuth {
             .post(&self.base)
             .form(&[
                 ("client_id", self.client_id.as_str()),
+                ("client_secret", self.client_secret.as_str()),
                 ("code", code),
                 ("code_verifier", code_verifier),
                 ("grant_type", "authorization_code"),
@@ -181,12 +184,14 @@ impl GoogleOAuth {
     }
 
     /// Refresh an access token using a stored refresh token.
+    /// Google requires client_secret for Desktop-type OAuth clients.
     pub async fn refresh(&self, refresh_token: &str) -> anyhow::Result<GoogleTokens> {
         let resp = self
             .http
             .post(&self.base)
             .form(&[
                 ("client_id", self.client_id.as_str()),
+                ("client_secret", self.client_secret.as_str()),
                 ("refresh_token", refresh_token),
                 ("grant_type", "refresh_token"),
             ])
@@ -462,7 +467,7 @@ mod tests {
             .await;
 
         let token_url = format!("{}/token", server.uri());
-        let auth = GoogleOAuth::new_with_base("client-abc".into(), token_url);
+        let auth = GoogleOAuth::new_with_base("client-abc".into(), "test-secret".into(), token_url);
         let tokens = auth
             .exchange_code("code123", "verifier123", "http://127.0.0.1:1234")
             .await
@@ -490,7 +495,7 @@ mod tests {
             .await;
 
         let token_url = format!("{}/token", server.uri());
-        let auth = GoogleOAuth::new_with_base("client-abc".into(), token_url);
+        let auth = GoogleOAuth::new_with_base("client-abc".into(), "test-secret".into(), token_url);
         let tokens = auth
             .refresh("old-refresh-token")
             .await
@@ -518,7 +523,7 @@ mod tests {
             .await;
 
         let token_url = format!("{}/token", server.uri());
-        let auth = GoogleOAuth::new_with_base("client-abc".into(), token_url);
+        let auth = GoogleOAuth::new_with_base("client-abc".into(), "test-secret".into(), token_url);
         let result = auth
             .exchange_code("code", "verifier", "http://127.0.0.1:1234")
             .await;
@@ -543,7 +548,7 @@ mod tests {
             .await;
 
         let token_url = format!("{}/token", server.uri());
-        let auth = GoogleOAuth::new_with_base("client-abc".into(), token_url);
+        let auth = GoogleOAuth::new_with_base("client-abc".into(), "test-secret".into(), token_url);
         let result = auth
             .exchange_code("code", "verifier", "http://127.0.0.1:1234")
             .await;
@@ -566,13 +571,66 @@ mod tests {
             .await;
 
         let token_url = format!("{}/token", server.uri());
-        let auth = GoogleOAuth::new_with_base("client-abc".into(), token_url);
+        let auth = GoogleOAuth::new_with_base("client-abc".into(), "test-secret".into(), token_url);
         let result = auth
             .exchange_code("bad_code", "verifier", "http://127.0.0.1:1234")
             .await;
         assert!(result.is_err(), "non-200 must be an error");
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("invalid_grant"), "error should surface google error: {msg}");
+    }
+
+    // ── client_secret is sent in both exchange and refresh ────────────────────
+
+    #[tokio::test]
+    async fn exchange_code_sends_client_secret() {
+        use wiremock::matchers::{method, path, body_string_contains};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // The mock requires `client_secret` to be present in the body.
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .and(body_string_contains("client_secret=my-secret"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "AT",
+                "refresh_token": "RT",
+                "expires_in": 3600,
+                "token_type": "Bearer"
+            })))
+            .mount(&server)
+            .await;
+
+        let token_url = format!("{}/token", server.uri());
+        let auth = GoogleOAuth::new_with_base("client-abc".into(), "my-secret".into(), token_url);
+        let result = auth
+            .exchange_code("code123", "verifier123", "http://127.0.0.1:1234")
+            .await;
+        assert!(result.is_ok(), "exchange_code must succeed when client_secret is present: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    async fn refresh_sends_client_secret() {
+        use wiremock::matchers::{method, path, body_string_contains};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // The mock requires `client_secret` to be present in the body.
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .and(body_string_contains("client_secret=my-secret"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "AT_refreshed",
+                "expires_in": 3600,
+                "token_type": "Bearer"
+            })))
+            .mount(&server)
+            .await;
+
+        let token_url = format!("{}/token", server.uri());
+        let auth = GoogleOAuth::new_with_base("client-abc".into(), "my-secret".into(), token_url);
+        let result = auth.refresh("old-rt").await;
+        assert!(result.is_ok(), "refresh must succeed when client_secret is present: {:?}", result.err());
     }
 
     // ── Loopback redirect — connection-reset regression test ─────────────────

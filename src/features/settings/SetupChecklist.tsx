@@ -101,7 +101,9 @@ export function SetupChecklist({ onRestartOnboarding, onNavigate }: SetupCheckli
       <ChecklistRow
         label="Email connected"
         connected={emailConnected}
-        onAction={() => { onNavigate('integrations'); }}
+        onAction={() => {
+          window.dispatchEvent(new CustomEvent('keepance:open-account', { detail: { tab: 'connections' } }));
+        }}
       />
 
       <ChecklistRow
