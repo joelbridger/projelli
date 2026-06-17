@@ -581,7 +581,11 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         // Get the file extension
         const ext = tab.name.split('.').pop();
         const newName = ext ? `${editingTabName.trim()}.${ext}` : editingTabName.trim();
-        await onRenameFile(editingTabPath, newName);
+        try {
+          await onRenameFile(editingTabPath, newName);
+        } catch (err) {
+          console.error('Tab rename failed:', err);
+        }
       }
     }
     setEditingTabPath(null);
@@ -680,10 +684,10 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
             type="text"
             value={editingTabName}
             onChange={(e) => setEditingTabName(e.target.value)}
-            onBlur={handleTabRenameSubmit}
+            onBlur={() => void handleTabRenameSubmit()}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                handleTabRenameSubmit();
+                void handleTabRenameSubmit();
               } else if (e.key === 'Escape') {
                 setEditingTabPath(null);
                 setEditingTabName('');
@@ -927,13 +931,13 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                           type="text"
                           value={editingTabName}
                           onChange={(e) => setEditingTabName(e.target.value)}
-                          onBlur={handleTabRenameSubmit}
+                          onBlur={() => void handleTabRenameSubmit()}
                           onClick={(e) => e.stopPropagation()}
                           onKeyDown={(e) => {
                             // Stop arrow keys from triggering Radix typeahead.
                             e.stopPropagation();
                             if (e.key === 'Enter') {
-                              handleTabRenameSubmit();
+                              void handleTabRenameSubmit();
                             } else if (e.key === 'Escape') {
                               setEditingTabPath(null);
                               setEditingTabName('');

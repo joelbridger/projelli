@@ -515,8 +515,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
     setMissingSourceWarning(null);
     setLoading(chatId, true);
 
-    // Call AI provider with streaming
-    (async () => {
+    // Call AI provider with streaming. The IIFE is voided because
+    // handleSendMessage itself is async — this fire-and-forget inner
+    // IIFE intentionally runs off the main call stack (streaming updates
+    // continue after the caller's useCallback returns). All errors are
+    // caught inside; the outer .catch surfaces any unexpected escape.
+    void (async () => {
       try {
         // Determine provider from chat data, fallback to anthropic
         const chatProvider = chatData.provider ?? 'anthropic';
@@ -1136,7 +1140,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
       } finally {
         setLoading(chatId, false);
       }
-    })();
+    })().catch((err) => {
+      // Unexpected escape from the try/catch above. Surface it so the
+      // conversation failure isn't silently swallowed.
+      console.error('Unexpected error escaping AI chat IIFE:', err);
+      setLoading(chatId, false);
+    });
   }, [inputValue, pendingAttachments, previewUrls, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
 
   return { handleSendMessage, handleManualCompress };
