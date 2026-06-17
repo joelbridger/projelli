@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AttachmentService } from '@/modules/attachments/AttachmentService';
+import { AttachmentService } from '@/features/ask/attachments/AttachmentService';
 import type { FSBackend } from '@/modules/workspace/types';
 
 // FSBackend uses readBinary/writeBinary with ArrayBuffer (not readBytes/writeBytes with Uint8Array).

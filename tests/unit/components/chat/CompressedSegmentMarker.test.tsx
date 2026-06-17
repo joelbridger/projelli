@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { CompressedSegmentMarker } from '@/components/chat/CompressedSegmentMarker';
+import { CompressedSegmentMarker } from '@/features/ask/chat/CompressedSegmentMarker';
 import type { ChatMessage } from '@/types/ai';
 
 function summaryMsg(overrides: Partial<ChatMessage> = {}): ChatMessage {

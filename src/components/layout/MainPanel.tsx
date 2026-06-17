@@ -35,8 +35,8 @@ const PresentationViewer = lazy(() =>
     default: m.PresentationViewer,
   }))
 );
-import { SourceFileEditor } from '@/components/research/SourceFileEditor';
-import { AIChatViewer } from '@/components/ai/AIChatViewer';
+import { SourceFileEditor } from '@/features/ask/research/SourceFileEditor';
+import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import { FileGridView } from '@/components/workspace/FileGridView';
 import { WaveformEditor } from '@/features/dictation/audio/WaveformEditor';
 import { VersionHistoryPanel } from '@/components/version/VersionHistoryPanel';

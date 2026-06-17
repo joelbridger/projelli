@@ -10,7 +10,7 @@
 
 import { useTranslation } from 'react-i18next';
 import type { ChatMessage } from '@/types/ai';
-import { estimateTokens } from '@/modules/chat/compression';
+import { estimateTokens } from '@/features/ask/compression';
 import { formatContextSize } from '@/modules/models/context-limits';
 
 export interface CompressedSegmentMarkerProps {

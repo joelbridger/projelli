@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { PdfPreviewBeforeSend } from '@/components/chat/PdfPreviewBeforeSend';
+import { PdfPreviewBeforeSend } from '@/features/ask/chat/PdfPreviewBeforeSend';
 
 const SHORT_TEXT = 'This is extracted text from the PDF document.';
 const LONG_TEXT = 'A'.repeat(300);

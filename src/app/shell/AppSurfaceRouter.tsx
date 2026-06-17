@@ -11,7 +11,7 @@
  */
 
 import { ReimaginedMattersHome } from '@/components/matter/ReimaginedMattersHome';
-import { ReimaginedAsk } from '@/components/ai/ReimaginedAsk';
+import { ReimaginedAsk } from '@/features/ask/ReimaginedAsk';
 import { ReimaginedEmailWorkspace } from '@/features/email/ReimaginedEmailWorkspace';
 import { ReimaginedDocumentsHome } from '@/components/documents/ReimaginedDocumentsHome';
 import { ReimaginedAssociateHome } from '@/features/workflows/ReimaginedAssociateHome';

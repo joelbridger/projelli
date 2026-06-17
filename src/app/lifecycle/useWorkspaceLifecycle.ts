@@ -20,7 +20,7 @@ import { createFSBackend } from '@/modules/workspace/BackendFactory';
 import { AuditService } from '@/modules/audit/AuditService';
 import type { AuditEntry } from '@/types/audit';
 import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
-import type { SourceCard } from '@/types/research';
+import type { SourceCard } from '@/features/ask/types/research';
 import type { AIChatFile } from '@/types/ai';
 
 export interface UseWorkspaceLifecycleOptions {

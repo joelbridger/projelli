@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { VisionWarningBanner } from '@/components/chat/VisionWarningBanner';
+import { VisionWarningBanner } from '@/features/ask/chat/VisionWarningBanner';
 
 describe('VisionWarningBanner', () => {
   it('displays the error message', () => {

@@ -6,7 +6,7 @@ import {
   getMessagesForSend,
   clearExpandedFlags,
   type CompressionOptions,
-} from '@/modules/chat/compression';
+} from '@/features/ask/compression';
 import type { ChatMessage } from '@/types/ai';
 import type { Provider } from '@/modules/models/Provider';
 

@@ -4,7 +4,7 @@
 // search-failed text.
 
 import { describe, expect, it } from 'vitest';
-import { refusalKeyForReason } from '@/components/ai/AIChatViewer';
+import { refusalKeyForReason } from '@/features/ask/AIChatViewer';
 
 describe('refusalKeyForReason', () => {
   it('routes model-not-ready errors to the download-specific refusal', () => {

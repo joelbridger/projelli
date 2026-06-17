@@ -14,9 +14,9 @@
 
 import { useCallback } from 'react';
 import type { useTranslation } from 'react-i18next';
-import { AttachmentService } from '@/modules/attachments/AttachmentService';
-import { estimateImageTokens } from '@/modules/attachments/imageTokens';
-import { estimatePdfTokens } from '@/modules/attachments/pdfTokens';
+import { AttachmentService } from '@/features/ask/attachments/AttachmentService';
+import { estimateImageTokens } from '@/features/ask/attachments/imageTokens';
+import { estimatePdfTokens } from '@/features/ask/attachments/pdfTokens';
 import type { PdfExtractionResult } from '@/lib/pdf-extract';
 import type { ChatAttachment, AIChatFile, ChatMessage, WorkspaceSource, TurnScope } from '@/types/ai';
 import type { AuditEntry, AuditScope, CitationVerdict } from '@/types/audit';
@@ -45,7 +45,7 @@ import {
   clearExpandedFlags,
   estimateMessagesTokens,
   estimateTokens,
-} from '@/modules/chat/compression';
+} from '@/features/ask/compression';
 import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
 import {
   DEFAULT_WORKSPACE_TOP_K,

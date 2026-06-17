@@ -1,7 +1,7 @@
 // Source Service
 // Manages research sources for citations and evidence
 
-import type { SourceCard } from '@/types/research';
+import type { SourceCard } from '@/features/ask/types/research';
 
 export interface SourceCardQuery {
   /** Filter by topic tags */

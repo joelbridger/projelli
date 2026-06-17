@@ -18,7 +18,7 @@ import { entitlementMessage } from '@/modules/licensing';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CostDashboard } from '@/components/ai/CostDashboard';
+import { CostDashboard } from '@/features/ask/CostDashboard';
 import { PricingTiers } from '@/components/settings/PricingTiers';
 import { displayName } from '@/config/pricing';
 

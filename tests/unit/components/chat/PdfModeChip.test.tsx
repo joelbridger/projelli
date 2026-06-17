@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { PdfModeChip } from '@/components/chat/PdfModeChip';
+import { PdfModeChip } from '@/features/ask/chat/PdfModeChip';
 
 describe('PdfModeChip', () => {
   it('renders "Native PDF" label for native mode', () => {

@@ -66,9 +66,9 @@ vi.mock('@/modules/models/GeminiProvider', () => ({
   },
 }));
 
-vi.mock('@/components/ai/ChatCostChip', () => ({ ChatCostChip: () => null }));
+vi.mock('@/features/ask/ChatCostChip', () => ({ ChatCostChip: () => null }));
 
-import { AIChatViewer } from '@/components/ai/AIChatViewer';
+import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import type { AIChatFile } from '@/types/ai';
 import type { AuditEntry } from '@/types/audit';
 import { useAIChatStore } from '@/stores/aiChatStore';

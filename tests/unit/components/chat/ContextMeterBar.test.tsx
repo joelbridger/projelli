@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ContextMeterBar } from '@/components/chat/ContextMeterBar';
+import { ContextMeterBar } from '@/features/ask/chat/ContextMeterBar';
 
 describe('ContextMeterBar', () => {
   const base = {

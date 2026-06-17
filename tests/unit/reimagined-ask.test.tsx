@@ -1,7 +1,7 @@
 // Tests for ReimaginedAsk multi-turn conversational surface
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ReimaginedAsk } from '@/components/ai/ReimaginedAsk';
+import { ReimaginedAsk } from '@/features/ask/ReimaginedAsk';
 
 const mockInitSession = vi.fn();
 const mockAddMessage = vi.fn();

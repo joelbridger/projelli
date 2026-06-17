@@ -71,11 +71,11 @@ vi.mock('@/modules/models/GeminiProvider', () => ({
 
 // ChatCostChip uses Radix Tooltip, which requires a TooltipProvider at
 // the root. Not relevant to M2 — stub it out.
-vi.mock('@/components/ai/ChatCostChip', () => ({
+vi.mock('@/features/ask/ChatCostChip', () => ({
   ChatCostChip: () => null,
 }));
 
-import { AIChatViewer } from '@/components/ai/AIChatViewer';
+import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import type { AIChatFile } from '@/types/ai';
 import { useAIChatStore } from '@/stores/aiChatStore';
 

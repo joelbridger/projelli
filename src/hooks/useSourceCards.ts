@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import type { WorkspaceService } from '@/modules/workspace/WorkspaceService';
-import type { SourceCard } from '@/types/research';
+import type { SourceCard } from '@/features/ask/types/research';
 
 interface UseSourceCardsOptions {
   rootPath: string | null;

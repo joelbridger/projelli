@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { estimatePdfTokens } from '@/modules/attachments/pdfTokens';
+import { estimatePdfTokens } from '@/features/ask/attachments/pdfTokens';
 import type { ChatAttachment } from '@/types/ai';
 
 function pdfAtt(pages: number, byteSize = 10000): ChatAttachment {

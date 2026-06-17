@@ -12,7 +12,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { RunOnAllButton } from '@/components/chat/RunOnAllButton';
+import { RunOnAllButton } from '@/features/ask/chat/RunOnAllButton';
 import type { Provider, ProviderResponse } from '@/modules/models/Provider';
 
 function makeProvider(

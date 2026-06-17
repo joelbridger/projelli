@@ -15,7 +15,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 // Stub the providers so the import graph doesn't pull in network clients.
 // Also stub ChatCostChip — it uses Radix Tooltip which needs a provider
 // at the root we're not bothering to wire in these tests.
-vi.mock('@/components/ai/ChatCostChip', () => ({
+vi.mock('@/features/ask/ChatCostChip', () => ({
   ChatCostChip: () => null,
 }));
 
@@ -41,7 +41,7 @@ vi.mock('@/modules/models/GeminiProvider', () => ({
   },
 }));
 
-import { AIChatViewer } from '@/components/ai/AIChatViewer';
+import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import type { AIChatFile } from '@/types/ai';
 import { useAIChatStore } from '@/stores/aiChatStore';
 import {

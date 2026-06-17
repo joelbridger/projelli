@@ -61,11 +61,11 @@ vi.mock('@/modules/models/GeminiProvider', () => ({
     getMetadata() { return { model: 'stub' }; }
   },
 }));
-vi.mock('@/components/ai/ChatCostChip', () => ({
+vi.mock('@/features/ask/ChatCostChip', () => ({
   ChatCostChip: () => null,
 }));
 
-import { AIChatViewer } from '@/components/ai/AIChatViewer';
+import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import type { AIChatFile } from '@/types/ai';
 import { useAIChatStore } from '@/stores/aiChatStore';
 

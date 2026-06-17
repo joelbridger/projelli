@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { AttachmentService } from '@/modules/attachments/AttachmentService';
+import { AttachmentService } from '@/features/ask/attachments/AttachmentService';
 import { MockProvider } from '@/modules/models/MockProvider';
 import type { FSBackend } from '@/modules/workspace/types';
 import type { AttachmentBytes } from '@/modules/models/Provider';

@@ -14,7 +14,7 @@
  */
 
 import { useTodayCost, useLast7DaysCost, useThisMonthCost } from '@/stores/aiChatStore';
-import { formatCostLong } from '@/components/ai/ChatCostChip';
+import { formatCostLong } from '@/features/ask/ChatCostChip';
 import { cn } from '@/lib/utils';
 
 export interface CostDashboardProps {

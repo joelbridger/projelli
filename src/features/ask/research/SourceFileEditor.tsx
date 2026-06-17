@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ExternalLink, Save, Calendar, Tag, Plus, X, Loader2 } from 'lucide-react';
-import type { SourceCard } from '@/types/research';
+import type { SourceCard } from '@/features/ask/types/research';
 
 interface SourceFileEditorProps {
   filePath: string;
