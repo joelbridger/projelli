@@ -1,21 +1,19 @@
 /**
  * matterUiStore — per-matter UI memory.
  *
+ * MERGED into the unified matter store (2026-06-17 reorg). The state + actions
+ * now live as the `snapshots` slice of `useMatterStore`; this module keeps the
+ * UI types and the pure `isWorkingSurface` helper, and re-exports the store as
+ * `useMatterUiStore` so existing importers are unchanged. Persistence is
+ * unchanged: the merged store's multi-key adapter still writes localStorage
+ * `keepance:matter-ui-snapshots`.
+ *
  * Remembers, for each matter, the last "working" surface the user was on
  * (Search / Documents / Email / Workflows / Activity Log) and the document tab
  * they had focused there. When the user jumps away to another matter and comes
  * back, App restores this snapshot so they land right where they left off.
- *
- * Notes:
- * - We deliberately do NOT remember the 'matters' (hub/list) or 'settings'
- *   surfaces — those are browse/config views, not a working context. Leaving
- *   them out means opening a matter's hub never clobbers its remembered work.
- * - Search *results* already persist per-matter via aiChatStore (chatId
- *   "ask-<matterId>"), so restoring the Search surface brings them back for free.
- * - Persisted to localStorage so the memory also survives a reload.
  */
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { useMatterStore } from '@/stores/matterStore';
 
 /** The surfaces worth remembering per matter (a real working context). */
 export type MatterWorkingSurface = 'search' | 'files' | 'email' | 'workflows' | 'audit';
@@ -40,30 +38,5 @@ export interface MatterUiSnapshot {
   activeTabPath: string | null;
 }
 
-interface MatterUiState {
-  snapshots: Record<string, MatterUiSnapshot>;
-  saveSnapshot: (matterId: string, snapshot: MatterUiSnapshot) => void;
-  getSnapshot: (matterId: string) => MatterUiSnapshot | undefined;
-  clearSnapshot: (matterId: string) => void;
-}
-
-export const useMatterUiStore = create<MatterUiState>()(
-  persist(
-    (set, get) => ({
-      snapshots: {},
-      saveSnapshot: (matterId, snapshot) => {
-        set((state) => ({ snapshots: { ...state.snapshots, [matterId]: snapshot } }));
-      },
-      getSnapshot: (matterId) => get().snapshots[matterId],
-      clearSnapshot: (matterId) => {
-        set((state) => {
-          if (!(matterId in state.snapshots)) return state;
-          const next = { ...state.snapshots };
-          delete next[matterId];
-          return { snapshots: next };
-        });
-      },
-    }),
-    { name: 'keepance:matter-ui-snapshots' },
-  ),
-);
+/** Alias to the unified matter store — the `snapshots` slice lives there. */
+export const useMatterUiStore = useMatterStore;

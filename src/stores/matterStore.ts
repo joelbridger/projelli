@@ -1,9 +1,21 @@
 /**
  * Matter store (WS-B/C app) — Zustand + persist.
  *
- * Holds the user's matters (one client matter = one confidentiality boundary,
- * mapped to one or more workspace folders) and the ACTIVE matter that scopes
- * chat retrieval. Persisted to localStorage under `keepance:matters`.
+ * The single source of truth for matter state. It carries FOUR slices that used
+ * to be four separate stores (merged 2026-06-17 for the 3.0 reorg):
+ *   1. matters     — the user's matters + the active matter (persisted under
+ *                    `keepance:matters`). One client matter = one confidentiality
+ *                    boundary, mapped to one or more workspace folders.
+ *   2. snapshots   — per-matter UI working-surface memory (persisted under
+ *                    `keepance:matter-ui-snapshots`).
+ *   3. cache       — AI at-a-glance summary cache (persisted under
+ *                    `keepance:matter-at-a-glance`).
+ *   4. statusByMatterId — live per-matter sync status; EPHEMERAL, never persisted.
+ *
+ * Persistence preserves all three legacy localStorage keys byte-compatibly via a
+ * custom multi-key `storage` adapter (Zustand `persist` is one-key-per-store, so
+ * partialize alone cannot keep three keys — see `multiKeyMatterStorage` below and
+ * the hydration contract in `tests/unit/matter/matterStoreMerge.test.ts`).
  *
  * The active matter drives two things:
  *   1. Indexing — files under a matter's folders are tagged with that matter
@@ -18,15 +30,25 @@
  * Non-reactive accessors (`getMatters`, `resolveMatterIdForPath`) are exported
  * so the indexer hook can resolve a path -> matter without subscribing to the
  * store inside a React render.
+ *
+ * The legacy hook names (`useMatterUiStore`, `useMatterSyncStore`,
+ * `useMatterAtAGlanceStore`) remain importable from their original module paths
+ * as thin aliases to `useMatterStore` (see those files) so importers are
+ * unchanged; they will be folded away in the feature-folder migration.
  */
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import type { Matter, MatterScope } from '@/types/matter';
 import { resolveMatterId, findMatter } from '@/modules/memory/matterResolver';
 import { getProfession } from '@/stores/professionStore';
 import { getSampleMatterName } from '@/onboarding/samples/sampleMatterDemo';
+import type { MatterUiSnapshot } from '@/stores/matterUiStore';
+import type { MatterAtAGlanceEntry } from '@/stores/matterAtAGlanceStore';
+import type { MatterSyncStatus } from '@/stores/matterSyncStore';
+import type { MatterAtAGlanceResult } from '@/modules/matter/matterAtAGlance';
 
 /**
  * Stable id for the built-in sample matter ("Garcia v. Meridian Properties LLC").
@@ -71,6 +93,7 @@ export interface CreateMatterInput {
 }
 
 interface MatterState {
+  // ── matters slice (persisted → keepance:matters) ──────────────────────────
   matters: Matter[];
   /** Active matter id, or `null` for the explicit "all matters" scope. */
   activeMatterId: string | null;
@@ -104,11 +127,121 @@ interface MatterState {
   unlinkFirmMatter: (id: string) => void;
   /** Update the user's role on a shared matter (e.g. after a members/list refresh). */
   setMatterRole: (id: string, role: 'owner' | 'editor' | 'viewer') => void;
+
+  // ── UI slice (persisted → keepance:matter-ui-snapshots) ───────────────────
+  /** Per-matter memory of the last working surface + focused tab. */
+  snapshots: Record<string, MatterUiSnapshot>;
+  saveSnapshot: (matterId: string, snapshot: MatterUiSnapshot) => void;
+  getSnapshot: (matterId: string) => MatterUiSnapshot | undefined;
+  clearSnapshot: (matterId: string) => void;
+
+  // ── At-a-glance slice (persisted → keepance:matter-at-a-glance) ───────────
+  /** AI-generated at-a-glance summaries, keyed by matter id. */
+  cache: Record<string, MatterAtAGlanceEntry>;
+  setEntry: (matterId: string, result: MatterAtAGlanceResult) => void;
+  getEntry: (matterId: string) => MatterAtAGlanceEntry | undefined;
+  invalidate: (matterId: string) => void;
+  clearAll: () => void;
+
+  // ── Sync slice (EPHEMERAL — never persisted) ──────────────────────────────
+  /** Live sync status keyed by LOCAL matter id (not firmMatterId). */
+  statusByMatterId: Record<string, MatterSyncStatus>;
+  setStatus: (matterId: string, status: MatterSyncStatus) => void;
+  clearMatter: (matterId: string) => void;
+  clear: () => void;
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Multi-key persistence
+// ─────────────────────────────────────────────────────────────────────
+
+/** The persisted shape — what `partialize` emits and the storage adapter splits. */
+interface PersistedMatterState {
+  matters: Matter[];
+  activeMatterId: string | null;
+  snapshots: Record<string, MatterUiSnapshot>;
+  cache: Record<string, MatterAtAGlanceEntry>;
+}
+
+const MATTERS_KEY = 'keepance:matters';
+const UI_KEY = 'keepance:matter-ui-snapshots';
+const GLANCE_KEY = 'keepance:matter-at-a-glance';
+const MATTERS_VERSION = 4;
+
+function readLegacyEnvelope(
+  key: string,
+): { state?: Record<string, unknown>; version?: number } | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as { state?: Record<string, unknown>; version?: number };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Multi-key persistence: this single store fans out to the THREE legacy
+ * localStorage keys so existing users' data hydrates and is written back
+ * unchanged (plan risk R4 — no key rename, no destructive migration).
+ * `partialize` controls WHAT persists; this storage controls WHERE — splitting
+ * the partialized state into the three keys on write and reassembling on read.
+ * The sync slice is never partialized, so it never reaches here.
+ */
+const multiKeyMatterStorage: PersistStorage<PersistedMatterState> = {
+  getItem: (): StorageValue<PersistedMatterState> | null => {
+    const matters = readLegacyEnvelope(MATTERS_KEY);
+    const ui = readLegacyEnvelope(UI_KEY);
+    const glance = readLegacyEnvelope(GLANCE_KEY);
+    if (!matters && !ui && !glance) return null; // fresh user — use store defaults
+    const state: PersistedMatterState = {
+      matters: (matters?.state?.['matters'] as Matter[] | undefined) ?? [],
+      activeMatterId: (matters?.state?.['activeMatterId'] as string | null | undefined) ?? null,
+      snapshots: (ui?.state?.['snapshots'] as Record<string, MatterUiSnapshot> | undefined) ?? {},
+      cache: (glance?.state?.['cache'] as Record<string, MatterAtAGlanceEntry> | undefined) ?? {},
+    };
+    // Return the matters key's stored version so `persist` runs the matters
+    // migration (v1→v4) when an older user hydrates. The ui/glance slices have
+    // never been versioned and carry no migration of their own.
+    return { state, version: matters?.version ?? MATTERS_VERSION };
+  },
+  setItem: (_name, value): void => {
+    const { state } = value;
+    const version = value.version ?? MATTERS_VERSION;
+    try {
+      localStorage.setItem(
+        MATTERS_KEY,
+        JSON.stringify({
+          state: { matters: state.matters, activeMatterId: state.activeMatterId },
+          version,
+        }),
+      );
+      localStorage.setItem(
+        UI_KEY,
+        JSON.stringify({ state: { snapshots: state.snapshots }, version: 0 }),
+      );
+      localStorage.setItem(
+        GLANCE_KEY,
+        JSON.stringify({ state: { cache: state.cache }, version: 0 }),
+      );
+    } catch {
+      /* localStorage may be unavailable (strict privacy mode) */
+    }
+  },
+  removeItem: (): void => {
+    try {
+      localStorage.removeItem(MATTERS_KEY);
+      localStorage.removeItem(UI_KEY);
+      localStorage.removeItem(GLANCE_KEY);
+    } catch {
+      /* ignore */
+    }
+  },
+};
 
 export const useMatterStore = create<MatterState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       matters: [],
       activeMatterId: null,
 
@@ -251,18 +384,77 @@ export const useMatterStore = create<MatterState>()(
           ),
         }));
       },
+
+      // ── UI slice ────────────────────────────────────────────────────────
+      snapshots: {},
+      saveSnapshot: (matterId, snapshot) => {
+        set((state) => ({ snapshots: { ...state.snapshots, [matterId]: snapshot } }));
+      },
+      getSnapshot: (matterId) => get().snapshots[matterId],
+      clearSnapshot: (matterId) => {
+        set((state) => {
+          if (!(matterId in state.snapshots)) return state;
+          const next = { ...state.snapshots };
+          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+          delete next[matterId];
+          return { snapshots: next };
+        });
+      },
+
+      // ── At-a-glance slice ────────────────────────────────────────────────
+      cache: {},
+      setEntry: (matterId, result) => {
+        set((state) => ({
+          cache: {
+            ...state.cache,
+            [matterId]: {
+              result,
+              cachedAt: new Date().toISOString(),
+            },
+          },
+        }));
+      },
+      getEntry: (matterId) => get().cache[matterId],
+      invalidate: (matterId) => {
+        set((state) => {
+          const next = { ...state.cache };
+          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+          delete next[matterId];
+          return { cache: next };
+        });
+      },
+      clearAll: () => {
+        set({ cache: {} });
+      },
+
+      // ── Sync slice (ephemeral) ───────────────────────────────────────────
+      statusByMatterId: {},
+      setStatus: (matterId, status) =>
+        set((state) => ({
+          statusByMatterId: { ...state.statusByMatterId, [matterId]: status },
+        })),
+      clearMatter: (matterId) =>
+        set((state) => {
+          const next = { ...state.statusByMatterId };
+          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+          delete next[matterId];
+          return { statusByMatterId: next };
+        }),
+      clear: () => set({ statusByMatterId: {} }),
     }),
     {
       name: 'keepance:matters',
-      version: 4,
+      version: MATTERS_VERSION,
+      storage: multiKeyMatterStorage,
       // v1 -> v2: matters gained `mailFolderPaths`. v2 -> v3: matters gained the
       // `privileged` flag. v3 -> v4: matters gained firm linkage fields
       // (firmMatterId, orgId, role, shared). Backfill defaults so older persisted
       // matters parse cleanly (missing values are tolerated by readers, but
-      // normalising here keeps the shape consistent).
+      // normalising here keeps the shape consistent). Only the `matters` slice is
+      // versioned; the snapshots/cache slices pass through untouched.
       migrate: (persisted, version) => {
-        const state = persisted as Partial<MatterState> | undefined;
-        if (!state || !Array.isArray(state.matters)) return state as MatterState;
+        const state = persisted as Partial<PersistedMatterState> | undefined;
+        if (!state || !Array.isArray(state.matters)) return state as PersistedMatterState;
         if (version < 2) {
           state.matters = state.matters.map((m) => ({
             ...m,
@@ -288,13 +480,17 @@ export const useMatterStore = create<MatterState>()(
             return { ...m, shared: m.shared ?? false };
           });
         }
-        return state as MatterState;
+        return state as PersistedMatterState;
       },
       partialize: (state) => ({
         // `matters` carries `privileged` per matter, so the privileged
-        // designation persists across reloads.
+        // designation persists across reloads. snapshots + cache persist to their
+        // own legacy keys via the multi-key storage; statusByMatterId is
+        // intentionally omitted (ephemeral live-sync signal).
         matters: state.matters,
         activeMatterId: state.activeMatterId,
+        snapshots: state.snapshots,
+        cache: state.cache,
       }),
     },
   ),

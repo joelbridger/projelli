@@ -1,21 +1,19 @@
 /**
- * matterAtAGlanceStore.ts
+ * matterAtAGlanceStore — AI at-a-glance summary cache.
  *
- * Zustand + persist cache for AI-generated at-a-glance summaries.
- * Keyed by matter id; stores the generated result and timestamp so the
- * hub does not regenerate on every open. A manual Refresh clears the
- * cache entry for the current matter, forcing a new generation.
+ * MERGED into the unified matter store (2026-06-17 reorg). The state + actions
+ * now live as the `cache` slice of `useMatterStore`; this module keeps the entry
+ * type and re-exports the store as `useMatterAtAGlanceStore` so existing
+ * importers are unchanged. Persistence is unchanged: the merged store's
+ * multi-key adapter still writes localStorage `keepance:matter-at-a-glance`.
  *
- * Persisted to localStorage under 'keepance:matter-at-a-glance'.
+ * Keyed by matter id; stores the generated result and timestamp so the hub does
+ * not regenerate on every open. A manual Refresh invalidates the entry for the
+ * current matter, forcing a new generation.
  */
 
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { useMatterStore } from '@/stores/matterStore';
 import type { MatterAtAGlanceResult } from '@/modules/matter/matterAtAGlance';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface MatterAtAGlanceEntry {
   result: MatterAtAGlanceResult;
@@ -23,73 +21,5 @@ export interface MatterAtAGlanceEntry {
   cachedAt: string;
 }
 
-interface MatterAtAGlanceStore {
-  /** Map from matterId to cached entry. */
-  cache: Record<string, MatterAtAGlanceEntry>;
-
-  /**
-   * Store a generated result for a matter.
-   */
-  setEntry(matterId: string, result: MatterAtAGlanceResult): void;
-
-  /**
-   * Retrieve a cached entry by matter id, or undefined if not cached.
-   */
-  getEntry(matterId: string): MatterAtAGlanceEntry | undefined;
-
-  /**
-   * Invalidate the cache entry for a matter (e.g. on manual Refresh).
-   */
-  invalidate(matterId: string): void;
-
-  /**
-   * Clear all cached entries.
-   */
-  clearAll(): void;
-}
-
-// ---------------------------------------------------------------------------
-// Store
-// ---------------------------------------------------------------------------
-
-export const useMatterAtAGlanceStore = create<MatterAtAGlanceStore>()(
-  persist(
-    (set, get) => ({
-      cache: {},
-
-      setEntry(matterId, result) {
-        set((state) => ({
-          cache: {
-            ...state.cache,
-            [matterId]: {
-              result,
-              cachedAt: new Date().toISOString(),
-            },
-          },
-        }));
-      },
-
-      getEntry(matterId) {
-        return get().cache[matterId];
-      },
-
-      invalidate(matterId) {
-        set((state) => {
-          const next = { ...state.cache };
-          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-          delete next[matterId];
-          return { cache: next };
-        });
-      },
-
-      clearAll() {
-        set({ cache: {} });
-      },
-    }),
-    {
-      name: 'keepance:matter-at-a-glance',
-      // Only persist the cache map; actions are recreated on hydration.
-      partialize: (state) => ({ cache: state.cache }),
-    },
-  ),
-);
+/** Alias to the unified matter store — the `cache` slice lives there. */
+export const useMatterAtAGlanceStore = useMatterStore;
