@@ -335,8 +335,8 @@ describe('GuidedOnboarding', () => {
     expect(screen.getByText(/your firm admin manages members/i)).toBeInTheDocument();
   });
 
-  // 8. Firm step — solo (not signed in): solo button is dominant (top), FirmSignIn is secondary
-  it('firm step shows solo-first layout when not signed in: solo skip button above FirmSignIn', () => {
+  // 8. Firm step — three options (not signed in): Create, Join, and solo cards are all shown
+  it('firm step shows three option cards when not signed in', () => {
     mockUseFirm.mockReturnValue({
       isSignedIn: false,
       role: null,
@@ -366,14 +366,55 @@ describe('GuidedOnboarding', () => {
     fireEvent.click(screen.getByTestId('email-connect-later'));
 
     expect(screen.getByTestId('firm-signin-content')).toBeInTheDocument();
-    // Solo skip is the prominent top action
+    // All three option cards are present
+    expect(screen.getByTestId('firm-option-create')).toBeInTheDocument();
+    expect(screen.getByTestId('firm-option-join')).toBeInTheDocument();
+    expect(screen.getByTestId('firm-option-solo')).toBeInTheDocument();
+    // The solo card button carries the firm-solo-skip testid for backwards compat
     const soloBtn = screen.getByTestId('firm-solo-skip');
     expect(soloBtn).toBeInTheDocument();
-    expect(soloBtn).toHaveTextContent(/I practice alone/i);
-    // FirmSignIn is present but secondary (below)
-    expect(screen.getByTestId('firm-sign-in-stub')).toBeInTheDocument();
-    // Heading reflects the new copy
+    expect(soloBtn).toHaveTextContent(/continue solo/i);
+    // Heading reflects the step copy
     expect(screen.getByText(/how do you practice\?/i)).toBeInTheDocument();
+  });
+
+  // 8b. Firm step — clicking "Join your firm" expands the FirmSignIn sub-form
+  it('firm step expands FirmSignIn when "Join your firm" is clicked', () => {
+    mockUseFirm.mockReturnValue({
+      isSignedIn: false,
+      role: null,
+      hasActiveSeat: false,
+      email: null,
+      org: null,
+      seatId: null,
+      entitlement: { state: 'no-license', reason: 'no-license' },
+      isOffline: false,
+      isLoading: false,
+      error: null,
+      assuredProviders: [],
+      signIn: vi.fn(),
+      signInSso: vi.fn(),
+      claimOrg: vi.fn(),
+      activateSeat: vi.fn(),
+      signOut: vi.fn(),
+    } as ReturnType<typeof mockUseFirm>);
+
+    render(<GuidedOnboarding {...defaultProps} />);
+    fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
+    fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
+    fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
+    fireEvent.click(screen.getByTestId('onboarding-data-continue'));
+    fireEvent.click(screen.getByTestId('stub-skip-ai'));
+    fireEvent.click(screen.getByTestId('email-connect-later'));
+
+    // Before expanding, FirmSignIn is not shown
+    expect(screen.queryByTestId('firm-sign-in-stub')).not.toBeInTheDocument();
+    // Expand Join your firm
+    const joinCard = screen.getByTestId('firm-option-join').querySelector('button')!;
+    fireEvent.click(joinCard);
+    // Now FirmSignIn appears
+    expect(screen.getByTestId('firm-sign-in-stub')).toBeInTheDocument();
   });
 
   // 9. Skip (top-right) marks complete and calls onComplete

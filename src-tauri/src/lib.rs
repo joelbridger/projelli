@@ -12,6 +12,8 @@ pub mod commands;
 // (start/stop/is_running) that long-lived daemon sidecars and fire-and-forget
 // per-request sidecars both satisfy via appropriate no-ops.
 pub mod sidecars;
+// Cross-cutting utilities (process helpers, etc.).
+pub mod util;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

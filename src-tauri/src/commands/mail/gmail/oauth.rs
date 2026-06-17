@@ -244,14 +244,19 @@ pub async fn bind_loopback() -> anyhow::Result<(tokio::net::TcpListener, String)
 /// Best-effort: logs a warning on failure but does not return an error
 /// (the user can also copy-paste the URL).
 pub fn open_browser(auth_url: &str) {
-    if let Err(e) = open::that(auth_url) {
-        log::warn!("gmail: could not open browser automatically: {e}");
-    }
+    // Routed through the shared no-window opener so Windows does not flash a
+    // console window when launching the browser for the Gmail OAuth consent.
+    crate::util::proc::open_url(auth_url);
 }
 
 /// Accept ONE connection on `listener`, read the GET request line,
 /// verify `state`, write a "you can close this tab" response, and return
 /// the authorization code. Times out after `timeout`.
+///
+/// This function drains the rest of the browser's HTTP request headers before
+/// closing so the OS sends a clean TCP FIN instead of a RST. Without draining,
+/// closing a socket with unread data causes the OS to send a RST, which makes
+/// the browser show `net::ERR_CONNECTION_RESET` and a blank page.
 pub async fn await_redirect_code(
     listener: tokio::net::TcpListener,
     expected_state: &str,
@@ -284,30 +289,59 @@ pub async fn await_redirect_code(
         let (code, state) = parse_redirect_query(&request_line)
             .ok_or_else(|| anyhow!("missing code or state in redirect"))?;
 
+        // Drain remaining request headers up to \r\n\r\n (or 16 KB cap).
+        // This empties the receive buffer so the OS sends FIN rather than RST.
+        drain_request_headers(&mut socket).await;
+
         if state != expected_state {
-            // Write error page before returning error so the browser sees something.
-            let _ = socket
-                .write_all(
-                    b"HTTP/1.1 400 Bad Request\r\nContent-Type: text/html\r\n\r\n\
-                      <html><body>Authentication error: state mismatch.</body></html>",
-                )
-                .await;
+            // Write a complete response before returning error so the browser sees something.
+            let err_body = b"<html><body>Authentication error: state mismatch.</body></html>";
+            let err_response = format!(
+                "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                err_body.len()
+            );
+            let _ = socket.write_all(err_response.as_bytes()).await;
+            let _ = socket.write_all(err_body).await;
+            let _ = socket.flush().await;
+            let _ = socket.shutdown().await;
             anyhow::bail!("state mismatch in OAuth redirect");
         }
 
-        socket
-            .write_all(
-                b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n\
-                  <html><body>Signed in. You can close this tab and return to Keepance.</body></html>",
-            )
-            .await?;
-        // Flush so the browser actually receives the response before we drop the socket.
+        let body = b"<html><body>Signed in. You can close this tab and return to Keepance.</body></html>";
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        );
+        socket.write_all(response.as_bytes()).await?;
+        socket.write_all(body).await?;
+        // Flush then shut down the write half cleanly (FIN, not RST).
         socket.flush().await?;
+        let _ = socket.shutdown().await;
 
         Ok(code)
     })
     .await
     .map_err(|_| anyhow!("timed out waiting for OAuth redirect"))?
+}
+
+/// Read and discard bytes from `socket` until the end-of-headers marker
+/// `\r\n\r\n` is seen or 16 KB have been consumed, whichever comes first.
+/// Best-effort: ignores errors (the browser may have already closed its send half).
+async fn drain_request_headers(socket: &mut tokio::net::TcpStream) {
+    const CAP: usize = 16 * 1024;
+    let mut drained = Vec::with_capacity(512);
+    let mut tmp = [0u8; 1];
+    while drained.len() < CAP {
+        match socket.read_exact(&mut tmp).await {
+            Ok(_) => {
+                drained.push(tmp[0]);
+                if drained.ends_with(b"\r\n\r\n") {
+                    break;
+                }
+            }
+            Err(_) => break, // EOF or connection error — nothing more to drain
+        }
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────
@@ -539,5 +573,91 @@ mod tests {
         assert!(result.is_err(), "non-200 must be an error");
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("invalid_grant"), "error should surface google error: {msg}");
+    }
+
+    // ── Loopback redirect — connection-reset regression test ─────────────────
+    //
+    // Verifies that await_redirect_code:
+    //   1. Returns the authorization code.
+    //   2. Sends a complete HTTP/1.1 response with Content-Length and 200 OK.
+    //   3. Drains the browser's request headers before closing so the OS sends
+    //      a clean FIN instead of a TCP RST (fixes net::ERR_CONNECTION_RESET).
+    //   4. The client read reaches EOF cleanly (no connection reset).
+    #[tokio::test]
+    async fn await_redirect_code_returns_code_and_clean_response() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::{TcpListener, TcpStream};
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let expected_state = "TEST_STATE_12345";
+
+        // Spawn the function under test in a background task.
+        let task = tokio::spawn(await_redirect_code(
+            listener,
+            expected_state,
+            Duration::from_secs(5),
+        ));
+
+        // Act as the browser: connect and write a complete realistic HTTP request.
+        let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).await.unwrap();
+        let request = format!(
+            "GET /?code=TESTCODE&state={} HTTP/1.1\r\nHost: 127.0.0.1\r\nUser-Agent: test\r\nAccept: */*\r\n\r\n",
+            expected_state
+        );
+        stream.write_all(request.as_bytes()).await.unwrap();
+        stream.flush().await.unwrap();
+
+        // Read the ENTIRE response until EOF. This proves the server sent a
+        // complete, well-formed response and shut down cleanly (FIN, not RST).
+        let mut response = Vec::new();
+        stream.read_to_end(&mut response).await
+            .expect("read_to_end must not error — a TCP RST would produce an error here");
+
+        let response_str = String::from_utf8_lossy(&response);
+
+        // The authorization code must be returned by the task.
+        let code = task.await.unwrap().expect("await_redirect_code must succeed");
+        assert_eq!(code, "TESTCODE", "returned code must match the query parameter");
+
+        // Response must be 200 OK.
+        assert!(
+            response_str.contains("200 OK"),
+            "response must be 200 OK, got: {response_str}"
+        );
+
+        // Response must include a Content-Length header (required for clean close).
+        assert!(
+            response_str.contains("Content-Length:"),
+            "response must include Content-Length header, got: {response_str}"
+        );
+
+        // The friendly body must be present.
+        assert!(
+            response_str.contains("Signed in"),
+            "response body must contain the sign-in message, got: {response_str}"
+        );
+
+        // Content-Length must equal the actual body byte length.
+        let header_end = response_str.find("\r\n\r\n")
+            .expect("response must have header/body separator");
+        let body = &response_str[header_end + 4..];
+        let cl_line = response_str
+            .lines()
+            .find(|l| l.to_ascii_lowercase().starts_with("content-length:"))
+            .expect("Content-Length line must exist");
+        let cl_value: usize = cl_line
+            .splitn(2, ':')
+            .nth(1)
+            .unwrap()
+            .trim()
+            .parse()
+            .expect("Content-Length must be a number");
+        assert_eq!(
+            cl_value,
+            body.len(),
+            "Content-Length ({cl_value}) must equal actual body length ({})",
+            body.len()
+        );
     }
 }

@@ -83,16 +83,18 @@ impl ParakeetSidecar {
     ) -> Result<TranscribeOutput> {
         use tokio::process::Command;
         use tokio::time::timeout;
+        use crate::util::proc::hide_console_tokio;
 
         let args = self.build_args(model);
         let started = Instant::now();
 
-        let mut child = Command::new(&self.binary)
-            .args(&args)
+        let mut cmd = Command::new(&self.binary);
+        cmd.args(&args)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()?;
+            .stderr(std::process::Stdio::piped());
+        hide_console_tokio(&mut cmd);
+        let mut child = cmd.spawn()?;
 
         if let Some(mut stdin) = child.stdin.take() {
             let bytes = wav_bytes.clone();

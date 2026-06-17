@@ -162,11 +162,14 @@ pub async fn transcribe_audio(
     let args = build_transcribe_args(&binary_name, model.as_deref());
 
     let started = Instant::now();
-    let mut child = Command::new(&binary)
+    let mut spawn_cmd = Command::new(&binary);
+    spawn_cmd
         .args(&args)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    crate::util::proc::hide_console_tokio(&mut spawn_cmd);
+    let mut child = spawn_cmd
         .spawn()
         .map_err(|e| format!("failed to spawn voice sidecar: {e}"))?;
 

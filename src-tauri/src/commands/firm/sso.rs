@@ -126,10 +126,9 @@ async fn run(backend_base: String, email: String) -> anyhow::Result<String> {
                 .to_string())
         })?;
 
-    // Open the system browser to the IdP authorization URL.
-    if let Err(e) = open::that(auth_url) {
-        log::warn!("firm sso: could not open browser automatically: {e}");
-    }
+    // Open the system browser to the IdP authorization URL via the shared
+    // no-window opener (avoids a Windows console flash during firm sign-in).
+    crate::util::proc::open_url(auth_url);
 
     // Wait for the backend→loopback redirect carrying the one-time sso_code.
     let code = await_sso_redirect(listener, Duration::from_secs(300)).await?;
@@ -156,14 +155,15 @@ async fn run(backend_base: String, email: String) -> anyhow::Result<String> {
 
 /// Accept one connection, read the GET request line, respond to the browser,
 /// and return the `sso_code`. Times out after `timeout`.
+///
+/// Drains remaining request headers before closing to send a clean TCP FIN
+/// instead of a RST, preventing `net::ERR_CONNECTION_RESET` in the browser.
 async fn await_sso_redirect(
     listener: tokio::net::TcpListener,
     timeout: Duration,
 ) -> anyhow::Result<String> {
-    let html_ok = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n\
-        <html><body>Signed in. You can close this tab and return to Keepance.</body></html>";
-    let html_err = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n\
-        <html><body>Sign-in failed. Return to Keepance and try again.</body></html>";
+    let body_ok = b"<html><body>Signed in. You can close this tab and return to Keepance.</body></html>";
+    let body_err = b"<html><body>Sign-in failed. Return to Keepance and try again.</body></html>";
 
     tokio::time::timeout(timeout, async move {
         let (mut socket, _peer) = listener.accept().await?;
@@ -181,26 +181,66 @@ async fn await_sso_redirect(
 
         let line = String::from_utf8_lossy(&buf).trim_end().to_string();
 
+        // Drain remaining request headers to empty the receive buffer.
+        drain_sso_request_headers(&mut socket).await;
+
         match parse_sso_redirect(&line) {
             SsoRedirect::Code(c) => {
-                let _ = socket.write_all(html_ok).await;
+                let resp = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body_ok.len()
+                );
+                let _ = socket.write_all(resp.as_bytes()).await;
+                let _ = socket.write_all(body_ok).await;
                 let _ = socket.flush().await;
+                let _ = socket.shutdown().await;
                 Ok(c)
             }
             SsoRedirect::Error(e) => {
-                let _ = socket.write_all(html_err).await;
+                let resp = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body_err.len()
+                );
+                let _ = socket.write_all(resp.as_bytes()).await;
+                let _ = socket.write_all(body_err).await;
                 let _ = socket.flush().await;
+                let _ = socket.shutdown().await;
                 Err(anyhow!(e))
             }
             SsoRedirect::None => {
-                let _ = socket.write_all(html_err).await;
+                let resp = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body_err.len()
+                );
+                let _ = socket.write_all(resp.as_bytes()).await;
+                let _ = socket.write_all(body_err).await;
                 let _ = socket.flush().await;
+                let _ = socket.shutdown().await;
                 Err(anyhow!("no_code_in_redirect"))
             }
         }
     })
     .await
     .map_err(|_| anyhow!("timed_out_waiting_for_sso"))?
+}
+
+/// Read and discard bytes until the end-of-headers marker `\r\n\r\n` or 16 KB.
+/// Best-effort: ignores errors (the browser may have already closed its send half).
+async fn drain_sso_request_headers(socket: &mut tokio::net::TcpStream) {
+    const CAP: usize = 16 * 1024;
+    let mut drained = Vec::with_capacity(512);
+    let mut tmp = [0u8; 1];
+    while drained.len() < CAP {
+        match socket.read_exact(&mut tmp).await {
+            Ok(_) => {
+                drained.push(tmp[0]);
+                if drained.ends_with(b"\r\n\r\n") {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────

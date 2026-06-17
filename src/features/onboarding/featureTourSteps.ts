@@ -1,7 +1,7 @@
 /**
  * Feature tour steps shown AFTER the first-run wizard completes.
  *
- * 7-step onboarding sequence for Keepance 3.0's Spine navigation.
+ * 11-step onboarding sequence for Keepance 3.0's Spine navigation.
  * Target selectors: data-testid first, fallback to CSS selector.
  * Placement: 'top' | 'bottom' | 'left' | 'right' | 'center' (center
  * = modal-in-the-middle, for intro + outro steps).
@@ -19,7 +19,7 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'intro',
     title: 'A quick look at the new layout',
-    body: 'Keepance 3.0 is built around matters, not files. This tour covers the six things worth knowing. Skip any time with Esc, step back with the left arrow key. You can restart from Settings, Onboarding.',
+    body: 'Keepance 3.0 is built around matters, not files. This tour covers the main areas worth knowing. Skip any time with Esc, step back with the left arrow key. You can restart from Settings, Onboarding.',
     targetSelector: null,
     placement: 'center',
   },
@@ -52,6 +52,13 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
     placement: 'right',
   },
   {
+    id: 'workflows',
+    title: 'Workflows run your repeatable tasks',
+    body: 'A workflow is a multi-step task you define once and run whenever you need it: drafting a demand letter, running a conflict check, building a client summary. Every run is saved with its inputs and outputs so you can replay it or hand it to a colleague.',
+    targetSelector: '[data-testid="spine-nav-workflows"]',
+    placement: 'right',
+  },
+  {
     id: 'audit',
     title: 'Activity Log',
     body: 'Every AI action is logged: the prompt, the model, the response, and the cost. If a client ever asks what the AI did with their documents, this is your answer. Filter by date, export to CSV, or print it for the file.',
@@ -59,9 +66,30 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
     placement: 'right',
   },
   {
+    id: 'privacy',
+    title: 'Privacy Center',
+    body: 'This is where you can see exactly where your data lives and what, if anything, leaves your machine. You can run a one-click confidentiality report that lists every data store and every outbound connection. It\'s the plain answer to "where does my clients\' data go."',
+    targetSelector: '[data-testid="spine-nav-privacy"]',
+    placement: 'right',
+  },
+  {
+    id: 'settings',
+    title: 'Settings',
+    body: 'Your AI connection lives here: add your own API key, switch to a local model, or set up your firm\'s proxy. You can also configure your email account, firm details, and general preferences. If something isn\'t working, Settings is the first place to check.',
+    targetSelector: '[data-testid="spine-nav-settings"]',
+    placement: 'right',
+  },
+  {
+    id: 'account',
+    title: 'Your account',
+    body: 'Your profile, plan, and seat are here. Sign in and out, see your current subscription, and manage your license. If you\'re on a firm plan, your admin can add or remove seats from the same spot.',
+    targetSelector: '[data-testid="account-identity"]',
+    placement: 'right',
+  },
+  {
     id: 'outro',
     title: 'You are all set',
-    body: 'Start by creating a matter and opening a document. The AI key setup is in Settings, AI if you have not added one yet. Your data never leaves your machine without your knowledge. Build something good.',
+    body: 'Start by creating a matter and opening a document. The AI key setup is in Settings if you have not added one yet. Your data never leaves your machine without your knowledge. Build something good.',
     targetSelector: null,
     placement: 'center',
   },

@@ -1,10 +1,10 @@
 /**
- * FeatureTour unit tests — exercises the 7-step popover/dialog flow plus
+ * FeatureTour unit tests — exercises the 11-step popover/dialog flow plus
  * data-integrity assertions against featureTourSteps.ts.
  *
- * The tour targets the new Spine nav: spine-nav-{matters,search,files,email,audit}.
- * On the old shell those elements are absent and FeatureTour auto-advances —
- * that is intentional and acceptable behaviour (noted in docs).
+ * The tour targets the new Spine nav: spine-nav-{matters,search,files,email,workflows,audit,privacy,settings}
+ * and account-identity. On the old shell those elements are absent and FeatureTour
+ * auto-advances — that is intentional and acceptable behaviour (noted in docs).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -20,7 +20,11 @@ function seedTargets(): () => void {
     'spine-nav-search',
     'spine-nav-files',
     'spine-nav-email',
+    'spine-nav-workflows',
     'spine-nav-audit',
+    'spine-nav-privacy',
+    'spine-nav-settings',
+    'account-identity',
   ];
   for (const testid of targets) {
     const el = document.createElement('div');
@@ -116,8 +120,8 @@ describe('FeatureTour', () => {
 });
 
 describe('Feature tour content integrity', () => {
-  it('has exactly 7 steps', () => {
-    expect(FEATURE_TOUR_STEPS.length).toBe(7);
+  it('has exactly 11 steps', () => {
+    expect(FEATURE_TOUR_STEPS.length).toBe(11);
   });
 
   it('every step has title + body longer than threshold', () => {
@@ -137,7 +141,7 @@ describe('Feature tour content integrity', () => {
     expect(all).not.toMatch(/\b(leverage|seamless|empower|unlock|delve|tapestry|elevate)\b/i);
   });
 
-  it('uses new spine-nav-* selectors', () => {
+  it('uses new spine-nav-* selectors and account-identity', () => {
     const selectors = FEATURE_TOUR_STEPS
       .map((s) => s.targetSelector)
       .filter((s): s is string => s !== null);
@@ -145,7 +149,11 @@ describe('Feature tour content integrity', () => {
     expect(selectors.some((s) => s.includes('spine-nav-search'))).toBe(true);
     expect(selectors.some((s) => s.includes('spine-nav-files'))).toBe(true);
     expect(selectors.some((s) => s.includes('spine-nav-email'))).toBe(true);
+    expect(selectors.some((s) => s.includes('spine-nav-workflows'))).toBe(true);
     expect(selectors.some((s) => s.includes('spine-nav-audit'))).toBe(true);
+    expect(selectors.some((s) => s.includes('spine-nav-privacy'))).toBe(true);
+    expect(selectors.some((s) => s.includes('spine-nav-settings'))).toBe(true);
+    expect(selectors.some((s) => s.includes('account-identity'))).toBe(true);
   });
 
   it('has no legacy sidebar-tab-* selectors', () => {

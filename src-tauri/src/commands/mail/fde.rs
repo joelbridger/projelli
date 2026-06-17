@@ -55,8 +55,14 @@ pub fn detect() -> FdeStatus {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
+        use crate::util::proc::hide_console;
         // `manage-bde -status C:` — 0 exit + "Protection On" = encrypted.
-        let out = Command::new("manage-bde").args(["-status", "C:"]).output();
+        let out = {
+            let mut cmd = Command::new("manage-bde");
+            cmd.args(["-status", "C:"]);
+            hide_console(&mut cmd);
+            cmd.output()
+        };
         match out {
             Ok(o) => {
                 let s = String::from_utf8_lossy(&o.stdout).to_lowercase();

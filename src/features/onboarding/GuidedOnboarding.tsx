@@ -835,9 +835,12 @@ interface FirmStepProps {
   onAdvance: () => void;
 }
 
+type FirmOption = 'create' | 'join';
+
 function FirmStep({ onBack, onAdvance }: FirmStepProps) {
   const firm = useFirm();
   const professionCopy = useProfessionCopy();
+  const [selectedOption, setSelectedOption] = useState<FirmOption | null>(null);
 
   let content: ReactNode;
 
@@ -863,28 +866,140 @@ function FirmStep({ onBack, onAdvance }: FirmStepProps) {
       </div>
     );
   } else {
-    // Not signed in: solo path is dominant (top); team sign-in is secondary below.
+    // Not signed in: show three equally-weighted option cards.
     content = (
       <div data-testid="firm-signin-content">
-        <GradientButton
-          onClick={onAdvance}
-          data-testid="firm-solo-skip"
-          style={{ width: '100%', fontWeight: 700, fontSize: 15, padding: '12px 0', marginBottom: 24 }}
-        >
-          I practice alone, skip this
-        </GradientButton>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 4 }}>
 
-        <div style={{ position: 'relative', textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ borderTop: '1px solid hsl(214.3 31.8% 90%)', position: 'absolute', top: '50%', left: 0, right: 0 }} />
-          <span style={{ position: 'relative', background: '#fff', padding: '0 12px', fontSize: 12, color: 'hsl(215.4 16.3% 44%)', fontWeight: 600 }}>
-            Part of a team?
-          </span>
+          {/* Create a firm */}
+          <div data-testid="firm-option-create">
+            <button
+              type="button"
+              onClick={() => { setSelectedOption(selectedOption === 'create' ? null : 'create'); }}
+              style={{
+                width: '100%',
+                textAlign: 'left',
+                borderRadius: selectedOption === 'create' ? '10px 10px 0 0' : 10,
+                border: selectedOption === 'create'
+                  ? '2px solid var(--kp-navy)'
+                  : '1.5px solid hsl(214.3 31.8% 60%)',
+                padding: '14px 16px',
+                cursor: 'pointer',
+                background: selectedOption === 'create' ? 'rgba(10,37,64,0.06)' : '#fff',
+                transition: 'border-color 0.15s, background 0.15s',
+              }}
+            >
+              <p style={{ fontSize: 14, fontWeight: 700, color: 'hsl(222.2 84% 4.9%)', marginBottom: 3 }}>
+                Create a firm
+              </p>
+              <p style={{ fontSize: 12, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.45, margin: 0 }}>
+                You're setting Keepance up for your practice or team. You'll claim the org and become the admin. Requires a Firm-plan license key.
+              </p>
+            </button>
+            {selectedOption === 'create' && (
+              <div
+                style={{
+                  border: '2px solid var(--kp-navy)',
+                  borderTop: 'none',
+                  borderRadius: '0 0 10px 10px',
+                  padding: '16px 16px 12px',
+                  background: '#fff',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => { setSelectedOption(null); }}
+                  style={{
+                    fontSize: 12, color: 'hsl(215.4 16.3% 44%)', background: 'none',
+                    border: 'none', cursor: 'pointer', padding: '0 0 10px',
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                  }}
+                >
+                  <span style={{ fontSize: 14 }}>&#8592;</span> Back to options
+                </button>
+                <FirmSignIn initialPanel="claim" />
+              </div>
+            )}
+          </div>
+
+          {/* Join your firm */}
+          <div data-testid="firm-option-join">
+            <button
+              type="button"
+              onClick={() => { setSelectedOption(selectedOption === 'join' ? null : 'join'); }}
+              style={{
+                width: '100%',
+                textAlign: 'left',
+                borderRadius: selectedOption === 'join' ? '10px 10px 0 0' : 10,
+                border: selectedOption === 'join'
+                  ? '2px solid var(--kp-navy)'
+                  : '1.5px solid hsl(214.3 31.8% 60%)',
+                padding: '14px 16px',
+                cursor: 'pointer',
+                background: selectedOption === 'join' ? 'rgba(10,37,64,0.06)' : '#fff',
+                transition: 'border-color 0.15s, background 0.15s',
+              }}
+            >
+              <p style={{ fontSize: 14, fontWeight: 700, color: 'hsl(222.2 84% 4.9%)', marginBottom: 3 }}>
+                Join your firm
+              </p>
+              <p style={{ fontSize: 12, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.45, margin: 0 }}>
+                Your firm already uses Keepance. Sign in with your firm account or activate your seat with a license key.
+              </p>
+            </button>
+            {selectedOption === 'join' && (
+              <div
+                style={{
+                  border: '2px solid var(--kp-navy)',
+                  borderTop: 'none',
+                  borderRadius: '0 0 10px 10px',
+                  padding: '16px 16px 12px',
+                  background: '#fff',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => { setSelectedOption(null); }}
+                  style={{
+                    fontSize: 12, color: 'hsl(215.4 16.3% 44%)', background: 'none',
+                    border: 'none', cursor: 'pointer', padding: '0 0 10px',
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                  }}
+                >
+                  <span style={{ fontSize: 14 }}>&#8592;</span> Back to options
+                </button>
+                <FirmSignIn initialPanel="signin" />
+              </div>
+            )}
+          </div>
+
+          {/* Continue solo */}
+          <div data-testid="firm-option-solo">
+            <button
+              type="button"
+              data-testid="firm-solo-skip"
+              onClick={onAdvance}
+              style={{
+                width: '100%',
+                textAlign: 'left',
+                borderRadius: 10,
+                border: '1.5px solid hsl(214.3 31.8% 60%)',
+                padding: '14px 16px',
+                cursor: 'pointer',
+                background: '#fff',
+                transition: 'border-color 0.15s, background 0.15s',
+              }}
+            >
+              <p style={{ fontSize: 14, fontWeight: 700, color: 'hsl(222.2 84% 4.9%)', marginBottom: 3 }}>
+                Continue solo
+              </p>
+              <p style={{ fontSize: 12, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.45, margin: 0 }}>
+                You work alone. Everything stays local. You can connect to a firm later in Settings.
+              </p>
+            </button>
+          </div>
+
         </div>
-
-        <p style={{ fontSize: 13, color: 'hsl(215.4 16.3% 44%)', marginBottom: 14, lineHeight: 1.5, textAlign: 'center' }}>
-          Have a Keepance Firm subscription? Sign in to activate your seat.
-        </p>
-        <FirmSignIn />
       </div>
     );
   }

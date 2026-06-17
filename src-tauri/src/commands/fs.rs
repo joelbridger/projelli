@@ -83,19 +83,22 @@ pub fn open_in_explorer(path: &str) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
+        use crate::util::proc::hide_console;
         if is_file {
             // /select,<path> opens the parent folder with the file highlighted.
             // Plain `explorer <path>` on a file path is unreliable and may open
             // Documents when the path has mixed separators.
             let select_arg = format!("/select,{}", path.display());
-            std::process::Command::new("explorer")
-                .arg(&select_arg)
-                .spawn()
+            let mut cmd = std::process::Command::new("explorer");
+            cmd.arg(&select_arg);
+            hide_console(&mut cmd);
+            cmd.spawn()
                 .map_err(|e| format!("I could not open File Explorer: {}", e))?;
         } else {
-            std::process::Command::new("explorer")
-                .arg(path)
-                .spawn()
+            let mut cmd = std::process::Command::new("explorer");
+            cmd.arg(path);
+            hide_console(&mut cmd);
+            cmd.spawn()
                 .map_err(|e| format!("I could not open File Explorer: {}", e))?;
         }
     }
@@ -315,15 +318,18 @@ pub fn convert_doc_to_docx(input_path: String) -> Result<String, String> {
         .parent()
         .ok_or_else(|| format!("Could not determine parent directory of {}", input.display()))?;
 
-    let output = std::process::Command::new(&soffice)
-        .arg("--headless")
-        .arg("--convert-to")
-        .arg("docx")
-        .arg("--outdir")
-        .arg(parent)
-        .arg(input)
-        .output()
-        .map_err(|e| format!("Failed to spawn LibreOffice: {}", e))?;
+    let output = {
+        use crate::util::proc::hide_console;
+        let mut cmd = std::process::Command::new(&soffice);
+        cmd.arg("--headless")
+            .arg("--convert-to")
+            .arg("docx")
+            .arg("--outdir")
+            .arg(parent)
+            .arg(input);
+        hide_console(&mut cmd);
+        cmd.output().map_err(|e| format!("Failed to spawn LibreOffice: {}", e))?
+    };
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -477,15 +483,18 @@ pub fn convert_ppt_to_pdf(input_path: String) -> Result<String, String> {
     // Slow path: run LibreOffice. `--outdir` is the cache dir; the produced
     // file will be named after the input's stem, which we then move into
     // place.
-    let output = std::process::Command::new(&soffice)
-        .arg("--headless")
-        .arg("--convert-to")
-        .arg("pdf")
-        .arg("--outdir")
-        .arg(&cache_dir)
-        .arg(&canonical)
-        .output()
-        .map_err(|e| format!("Failed to spawn LibreOffice: {}", e))?;
+    let output = {
+        use crate::util::proc::hide_console;
+        let mut cmd = std::process::Command::new(&soffice);
+        cmd.arg("--headless")
+            .arg("--convert-to")
+            .arg("pdf")
+            .arg("--outdir")
+            .arg(&cache_dir)
+            .arg(&canonical);
+        hide_console(&mut cmd);
+        cmd.output().map_err(|e| format!("Failed to spawn LibreOffice: {}", e))?
+    };
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -621,15 +630,18 @@ pub fn convert_docx_to_pdf(input_path: String) -> Result<String, String> {
 
     // Slow path: run LibreOffice. `--outdir` is the cache dir; the produced file
     // is named after the input's stem, which we then move into place.
-    let output = std::process::Command::new(&soffice)
-        .arg("--headless")
-        .arg("--convert-to")
-        .arg("pdf")
-        .arg("--outdir")
-        .arg(&cache_dir)
-        .arg(&canonical)
-        .output()
-        .map_err(|e| format!("Failed to spawn LibreOffice: {}", e))?;
+    let output = {
+        use crate::util::proc::hide_console;
+        let mut cmd = std::process::Command::new(&soffice);
+        cmd.arg("--headless")
+            .arg("--convert-to")
+            .arg("pdf")
+            .arg("--outdir")
+            .arg(&cache_dir)
+            .arg(&canonical);
+        hide_console(&mut cmd);
+        cmd.output().map_err(|e| format!("Failed to spawn LibreOffice: {}", e))?
+    };
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();

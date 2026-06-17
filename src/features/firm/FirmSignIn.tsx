@@ -35,6 +35,18 @@ import type { SeatLimitExceededResponse } from '@/platform/firm/contract';
 
 type Panel = 'signin' | 'claim';
 
+export interface FirmSignInProps {
+  /**
+   * When set, the component starts with the specified panel open.
+   * 'claim' → the "Create a firm" (claim-org) form.
+   * 'signin' → the "Sign in" form (default if omitted).
+   * Omitting the prop leaves the component in its normal interactive state
+   * where the user can switch between panels via the "Just bought Keepance"
+   * link. This keeps existing usage (no props) unchanged.
+   */
+  initialPanel?: Panel;
+}
+
 function StatusPill({ entitlement, isOffline }: { entitlement: ReturnType<typeof useFirm>['entitlement']; isOffline: boolean }) {
   let label = 'No seat';
   let tone = 'border-border bg-muted/30 text-muted-foreground';
@@ -65,10 +77,10 @@ function StatusPill({ entitlement, isOffline }: { entitlement: ReturnType<typeof
   );
 }
 
-export function FirmSignIn() {
+export function FirmSignIn({ initialPanel }: FirmSignInProps = {}) {
   const { t } = useTranslation();
   const firm = useFirm();
-  const [panel, setPanel] = useState<Panel>('signin');
+  const [panel, setPanel] = useState<Panel>(initialPanel ?? 'signin');
 
   // Sign-in panel state
   const [email, setEmail] = useState('');

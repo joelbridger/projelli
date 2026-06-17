@@ -113,9 +113,10 @@ impl PiperSidecar {
 
     async fn spawn(&mut self) -> Result<()> {
         use tokio::process::Command;
+        use crate::util::proc::hide_console_tokio;
 
-        let child = Command::new(&self.binary)
-            .args([
+        let mut cmd = Command::new(&self.binary);
+        cmd.args([
                 "--model",
                 self.model.to_str().unwrap_or_default(),
                 "--json-input",
@@ -123,8 +124,9 @@ impl PiperSidecar {
             ])
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()?;
+            .stderr(std::process::Stdio::piped());
+        hide_console_tokio(&mut cmd);
+        let child = cmd.spawn()?;
 
         self.process = Some(child);
         Ok(())
