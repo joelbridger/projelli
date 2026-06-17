@@ -122,7 +122,7 @@ export const PRICING_TIERS: readonly PricingTier[] = [
       'Shared matters and collaboration',
       'Admin console with SSO, ethical walls, and seat management',
       'The assured zero-retention option',
-      'The assurance package: DPA, trust center, SOC 2 readiness',
+      'Open, inspectable architecture you can verify (independent SOC 2 and a DPA are on our roadmap, not yet in place)',
     ],
   },
 ] as const;

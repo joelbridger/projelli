@@ -156,12 +156,12 @@
         "ai-chat": "AI chat with your own keys (Claude, OpenAI, Gemini)",
         "workflows": "All workflow templates",
         "workspaces": "Open as many folders as you need, files, and version history",
-        "whiteboard-audio-research": "Whiteboard, audio recording, research citations",
+        "whiteboard-audio-research": "Audio recording and research citations",
         "multi-model": "Multi-model comparison",
         "commercial": "Commercial use license",
         "updates": "Continuous updates, legal-content maintenance, and security patches",
         "one-pack": "All practice workflow templates (Professional)",
-        "all-packs": "Shared matters, admin console, and the assurance package (Firm)"
+        "all-packs": "Shared matters, admin console, and assured zero-retention routing (Firm)"
       }
     },
     "privacy": {
