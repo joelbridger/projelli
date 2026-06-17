@@ -154,11 +154,16 @@
 | **API Key Storage** | OS Keychain (Tauri) → Encrypted file fallback |
 | **Testing** | Vitest + React Testing Library | Vite-native |
 
-> **⚠️ Structure reconciliation (in progress, 2026-06-16).** The data-layer rows above are corrected to reality. The ASCII diagram's module/tool boxes and the **"Key Files" / "Directory Structure"** sections further down still describe the PRE-reorg layout. The codebase is being migrated to a **feature-first structure** — `src/{app,features,platform,ui,lib}` — and the authoritative map will live in **`ARCHITECTURE.md`** once the reorg completes. Until then, trust the code over those sections.
+> **✅ Structure reconciliation (DONE, 2026-06-17).** The 3.0 feature-first reorg is complete: `src/` is now `{app, features, platform, ui, lib}` (one folder per product surface + a cross-cutting platform layer), governed by a 5-layer dependency DAG. **The authoritative map is [`ARCHITECTURE.md`](./ARCHITECTURE.md) — read it first for anything structural.** The "Key Files" / "Directory Structure" sections below are kept only as a coarse historical reference; where they disagree with `ARCHITECTURE.md` or the code, the code wins. The data-layer rows in the table above are accurate.
 
 ---
 
 ## Key Files
+
+> **Historical paths (pre-3.0-reorg).** Modules moved to `platform/`, components
+> to `features/`/`ui/`/`app/`, stores to `platform/`. For current locations use
+> **[`ARCHITECTURE.md`](./ARCHITECTURE.md)** or grep by symbol — the tables below
+> name the right files but their `src/...` paths are stale.
 
 ### Core Modules
 
@@ -384,6 +389,10 @@ npm run test:security     # Security tests
 ---
 
 ## Directory Structure
+
+> **Historical (pre-3.0-reorg) layout — kept for reference only.** The current
+> tree is `src/{app, features, platform, ui, lib}` (feature-first, 5-layer DAG).
+> See **[`ARCHITECTURE.md`](./ARCHITECTURE.md)** for the authoritative map.
 
 ```
 keepance/
