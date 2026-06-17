@@ -6,22 +6,56 @@
 > product (it had accreted sediment from the "projelli" notes-app and the general
 > "AI workspace" eras).
 
-## LATEST UPDATE (2026-06-16, continued session) — 3 more giant components split
+## LATEST UPDATE (2026-06-16/17, continued session) — ALL 7 giant components split ✅
 
-Continuing the giant-component safe-tier splits with the proven Explore-map →
-sed-carve-verbatim → typecheck+vitest+commit-per-extraction loop. **DONE this
-session (every moved symbol verified BYTE-VERBATIM via extract-by-name diff vs the
-pre-split git rev; gates green per commit; all pushed):**
+The giant-component safe-tier splits (the remaining Phase-3 work) are **DONE — all 7
+components split**, via the proven Explore-map → sed-carve-VERBATIM →
+typecheck+vitest+commit-per-extraction loop. **Every moved symbol verified
+BYTE-VERBATIM** (extract-by-name `diff` vs the pre-split git rev); gates green per
+commit; all pushed. **HEAD: `4460073`** (local==origin).
 
-- **DocxEditor 2200 → 1209** → `docxEditorHelpers.ts` (3 helpers + RedlineSummary type), `DocxDocumentView.tsx` (7-component render tree + DocxEditorMessage), `DocxReviewPane.tsx` (ReviewPane/RevisionRow/CommentCard), `DocxRedlineControls.tsx` (ReviewingToggle/RedlineComposer/RedlineSummaryPanel). 4 commits. 18/18 symbols verbatim.
-- **SpreadsheetViewer 1533 → 233** → `spreadsheetViewerHelpers.ts` (constants + CellPos/MergeMaps + model-edit helpers), `SpreadsheetChrome.tsx` (FormulaBar/SelectionSummary/EditToolbar/SheetTabsBar), `SheetGrid.tsx` (SheetGrid/SheetRow/Cell cluster), `SpreadsheetStates.tsx` (Skeleton/Error). 4 commits. all symbols verbatim.
-- **MainPanel 1589 → 1259** → `mainPanelHelpers.ts` (file-type predicates + downloadFileWithDialog), `MainPanelDocFallbacks.tsx` (DocLoadingFallback/DocLegacyFallback). 2 commits. The big `renderEditorPane` (danger-zone, closes over ~30 parent locals) intentionally LEFT in place.
+| Component | Before→After | New files | Commits |
+|---|---|---|---|
+| DocxEditor | 2200→1209 | `docxEditorHelpers.ts`, `DocxDocumentView.tsx`, `DocxReviewPane.tsx`, `DocxRedlineControls.tsx` | 4 |
+| SpreadsheetViewer | 1533→233 | `spreadsheetViewerHelpers.ts`, `SpreadsheetChrome.tsx`, `SheetGrid.tsx`, `SpreadsheetStates.tsx` | 4 |
+| MainPanel | 1589→1259 | `mainPanelHelpers.ts`, `MainPanelDocFallbacks.tsx` | 2 |
+| TabBar | 1376→1286 | `tabBarHelpers.tsx` (removeExtension/pathToTestId/getTabIcon/AIContextChip) | 1 |
+| SettingsContent | 1297→1120 | `settingsContentHelpers.ts`, `settingsContentPrimitives.tsx` | 2 |
+| ReimaginedAuditHome | 1210→440 | `reimaginedAuditHomeHelpers.ts`, `reimaginedAuditHomeViews.tsx` | 2 |
+| MatterManagerDialog | 1198→872 | `matterManagerDialogHelpers.ts`, `MemberRoster.tsx` | 2 |
 
-**HEAD: b5438f5** (local==origin). Gates unchanged: `npm run typecheck` 0, `npx vitest run` 3124 passed / 3 skipped (267 files).
+The editors/MainPanel/TabBar I did inline (under-tested → relied on byte-verbatim).
+SettingsContent/AuditHome/MatterManagerDialog were **delegated to Sonnet subagents**
+and **verified centrally by me** (git-state advanced + claimed files exist + my own
+`tsc`/`vitest` at HEAD + byte-verbatim diff) before pushing — the verbatim-check
+defeats the fabrication risk. Gates throughout: `npm run typecheck` 0, `npx vitest
+run` 3124 passed / 3 skipped (267 files).
 
-**REMAINING giant components:** TabBar (1376), SettingsContent (1297), ReimaginedAuditHome (1210), MatterManagerDialog (1198). Then the deferred risky atomic moves (AIChatViewer `handleSendMessage`, ReimaginedAsk `handleAsk`+effects), then Phase 4 (matter-store merge + feature-folder migration), Phase 5 (docs/i18n).
+**Note:** SettingsContent's split was CONSERVATIVE (subagent left `SettingRow`,
+`SubSection`/`AccordionSection`, `ShortcutsSection`, `AIContextCapabilityWarning`,
+and the section renderers — all further-extractable safe-tier). A follow-up round
+could take it from 1120 toward <800.
 
-**Verbatim-check technique (reuse it):** `git show <pre-split-rev>:<file>` vs the new files, extract each moved symbol by name (awk on `^(export )?(function|interface|const) NAME`), strip the added `export `, `diff`. All must match. Single-line `const` needs a direct grep-diff (the awk over-grabs them). This caught one off-by-one (a missing interface closing brace) before it shipped.
+**Verbatim-check technique (reuse it):** `git show <pre-split-rev>:<file>` vs the new
+files; extract each moved symbol by name (awk on `^(export )?(function|interface|const|type) NAME`),
+strip the added `export `, `diff`. All must match. Single-line `const`/`type` need a
+direct grep-diff (the awk over-grabs them). This caught one off-by-one (a missing
+interface closing brace) before it shipped.
+
+### ⏭️ WHAT'S LEFT (deliberately deferred to a fresh, focused session)
+
+Everything remaining is risky, data-loss-sensitive, or huge — NOT safe end-of-long-session work. Left in a clean, verified-green, fully-pushed state:
+
+1. **Deferred risky atomic moves (still deferred — do as ONE atomic move, great care, do NOT split internally):**
+   - **AIChatViewer `handleSendMessage`** (`src/components/ai/AIChatViewer.tsx`): a ~1040-line `useCallback` (lines ~514–1550) → `useChatSending` hook. It is RECURSIVE (re-invokes itself after compression at ~794 and via `setTimeout` at ~2027), shares `abortControllerRef` (line 257) with `handleStop` (1554–1566), and has a compression-modal callback + citation-verify closures. `buildOpenFilesPromptBlock` (166) and `refusalKeyForReason` (108) MUST stay exported (external imports). Well-tested (8+ unit specs) — a real safety net for whoever does it.
+   - **ReimaginedAsk `handleAsk` + effects** (`src/components/ai/ReimaginedAsk.tsx`): `handleAsk` (~295–510) closes over ~11 useState setters + `abortRef`; plus 7 effects (lines 98,180,198,206,216,227,241) + recent-sessions derivation. A "fat-hook" extraction (`useAsk`) returning everything the ~400-line render reads. Covered by reimagined-ask / ask-workspace-mode / citation-navigation specs.
+   - Pattern to use: the App.tsx hook-extraction approach (destructure deps at top so the body copies VERBATIM; latest-handlers `ref` for register-once listeners). These are fat-hook moves, not safe-tier splits — read the whole handler + its owned state first, decide which state moves into the hook vs. is returned.
+
+2. **Phase 4 — matter-store merge (DATA-LOSS-SENSITIVE = plan risk R4; the careful one):** merge `matterStore` (424 lines, key `keepance:matters`, **22 importers**), `matterUiStore` (69, key `keepance:matter-ui-snapshots`, 2), `matterSyncStore` (62, **no persist** — ephemeral, 4), `matterAtAGlanceStore` (95, key `keepance:matter-at-a-glance`, 1) into one store with 4 slices. **GOTCHA: Zustand `persist` writes ONE localStorage key per store**, but we must preserve 3 distinct keys — so a merged store needs a CUSTOM `storage` adapter that reads/writes all 3 keys (partialize alone is NOT enough; it controls *what*, not *where*). Add a hydration test loading from each legacy key fixture BEFORE merging. Keep the `useMatterStore` API stable for its 22 importers. Also merge profile+profession.
+
+3. **Phase 4 — feature-folder migration (~498 files, HUGE):** move into `src/{app,features,platform,ui,lib}` with path-alias shims + a codemod, ONE feature per commit, tests green between each. The biggest structural win + the most disruptive — best done fresh.
+
+4. **Phase 5 — finalize:** rewrite CLAUDE.md structure sections + add `ARCHITECTURE.md` (5-layer DAG, "features never import features") + i18n sweep + final `projelli`/`Reimagined`/stale-string sweep.
 
 ## TL;DR
 
