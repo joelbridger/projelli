@@ -35,6 +35,7 @@ import { createDemoProvider } from '@/web-demo/demoAIProvider';
 import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/platform/providers/fetchUtils';
 import { FILE_ACCESS_TOOLS } from '@/platform/tools/fileAccessTools';
 import type { useActiveMatter } from '@/platform/matter/matterStore';
+import { getActiveScope, useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import type { RetrievalScope } from '@/platform/utils/tauri-commands';
 import type { ExtractedContext } from '@/platform/utils/ai-file-context';
@@ -550,6 +551,13 @@ export function useChatSending(deps: UseChatSendingDeps) {
             isDemo: IS_DEMO,
             assuredAvailable: assuredAvailableForChat,
           });
+          const rawScope = getActiveScope();
+          const foundMatterName = rawScope.kind === 'matter'
+            ? useMatterStore.getState().matters.find(m => m.id === rawScope.matterId)?.name
+            : undefined;
+          const auditScope: AuditScope = rawScope.kind === 'matter'
+            ? { kind: 'matter', matterId: rawScope.matterId, ...(foundMatterName !== undefined && { matterName: foundMatterName }) }
+            : { kind: 'allMatters' };
           onAuditLog?.(auditEventToEntry({
             type: 'egress',
             timestamp: new Date().toISOString(),
@@ -558,6 +566,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               mode: getConfidentialityMode(),
               destination: egress.destination,
               dataLeaves: egress.dataLeaves,
+              scope: auditScope,
             },
           }));
         }

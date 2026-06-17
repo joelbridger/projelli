@@ -224,6 +224,21 @@ describe('Keepance 3.0 audit provenance events', () => {
     expect(payload['dataLeaves']).toBe(true);
   });
 
+  it('logs egress with the active matter scope', async () => {
+    const m = seedMatter();
+    mocks.retrieve.mockResolvedValue([
+      { path: 'Acme/pricing.md', chunkText: 'Premium tier priced at $49.', score: 0.88, paragraphIndex: 2, id: 'chunk-e', matterId: m.id, sourceId: '/ws/Acme/pricing.md' },
+    ]);
+
+    const logged: LoggedEntry[] = [];
+    await sendWorkspaceMessage((e) => logged.push(e));
+
+    const egress = eventsOfType(logged, 'egress');
+    expect(egress).toHaveLength(1);
+    const payload = egress[0]!.metadata as Record<string, unknown>;
+    expect(payload['scope']).toMatchObject({ kind: 'matter', matterId: m.id });
+  });
+
   it('logs citation_verified with the verdict for each checked citation', async () => {
     const m = seedMatter();
     mocks.retrieve.mockResolvedValue([

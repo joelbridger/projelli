@@ -318,6 +318,8 @@ export type AuditEvent =
         destination: EgressDestination;
         /** Whether anything actually left the device for this send. */
         dataLeaves: boolean;
+        /** The active matter scope at send time (for per-matter report assembly). */
+        scope?: AuditScope;
       };
     };
 
