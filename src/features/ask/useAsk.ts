@@ -443,6 +443,11 @@ export function useAsk({
             sources.find((s) => s.path === resolvedPath && s.paragraphIndex === cite.paragraphIndex) ??
             sources.find((s) => s.path === resolvedPath);
 
+          // WS3: forward id + matterId from the matched hit so the SourcePanel
+          // can call ragVerifyCitation for on-demand source verification.
+          const matchedHit = hits.find(
+            (h) => h.path === resolvedPath && h.paragraphIndex === cite.paragraphIndex,
+          ) ?? hits.find((h) => h.path === resolvedPath);
           citations.push({
             n,
             label: citationBasename(resolvedPath ?? cite.basename),
@@ -450,6 +455,8 @@ export function useAsk({
             path: resolvedPath,
             locator: matchedSource ? sourceLocator(matchedSource) : cite.basename,
             verified: resolvedPath !== null,
+            ...(matchedHit?.id !== undefined ? { id: matchedHit.id } : {}),
+            ...(matchedHit?.matterId !== undefined ? { matterId: matchedHit.matterId } : {}),
           });
         }
 

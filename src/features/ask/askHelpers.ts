@@ -40,6 +40,17 @@ export interface AnswerCitation {
   locator: string;
   /** Whether the source was returned from the verified RAG store. */
   verified: boolean;
+  /**
+   * WS3: content-addressed chunk id — passed to `ragVerifyCitation` for
+   * on-demand source verification. Absent on pre-3.0 citations.
+   */
+  id?: string;
+  /**
+   * WS3: the matter this chunk belongs to — the confidentiality scope
+   * used as `claimedMatterId` in `ragVerifyCitation`. Absent on pre-3.0
+   * citations.
+   */
+  matterId?: string;
 }
 
 export interface AskTurn {
