@@ -70,8 +70,8 @@ export function AiSetupReminder({ hasModelConnected, onConnect, className }: AiS
       <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
       <div className="min-w-0 flex-1">
         <p className="leading-relaxed">
-          You skipped connecting an AI. Keepance still works for your files and
-          notes; connect a model whenever you are ready to use the assistant.
+          Connect your Claude or OpenAI account for the best results on legal work.
+          Local models are available but are less capable for legal analysis.
         </p>
         <button
           type="button"

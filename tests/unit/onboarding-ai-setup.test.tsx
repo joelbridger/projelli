@@ -195,6 +195,40 @@ describe('AiSetupStep — "Set this up later" never blocks', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// WS5 Task 3 — AiSetupReminder BYOK-first nudge copy
+// ---------------------------------------------------------------------------
+
+describe('AiSetupReminder — WS5 BYOK-first nudge copy', () => {
+  it('reminder text mentions Claude or OpenAI (BYOK-first nudge)', () => {
+    localStorage.setItem('keepance_ai_setup_deferred', 'true');
+    render(<AiSetupReminder hasModelConnected={false} onConnect={vi.fn()} />);
+    const reminder = screen.getByTestId('ai-setup-reminder');
+    expect(reminder.textContent).toMatch(/Claude|OpenAI/i);
+  });
+
+  it('reminder text mentions "legal work" or "legal analysis"', () => {
+    localStorage.setItem('keepance_ai_setup_deferred', 'true');
+    render(<AiSetupReminder hasModelConnected={false} onConnect={vi.fn()} />);
+    const reminder = screen.getByTestId('ai-setup-reminder');
+    expect(reminder.textContent).toMatch(/legal work|legal analysis/i);
+  });
+
+  it('reminder text does NOT contain "whenever you are ready" (old generic copy)', () => {
+    localStorage.setItem('keepance_ai_setup_deferred', 'true');
+    render(<AiSetupReminder hasModelConnected={false} onConnect={vi.fn()} />);
+    const reminder = screen.getByTestId('ai-setup-reminder');
+    expect(reminder.textContent).not.toMatch(/whenever you are ready/i);
+  });
+
+  it('reminder text does NOT contain an em dash', () => {
+    localStorage.setItem('keepance_ai_setup_deferred', 'true');
+    render(<AiSetupReminder hasModelConnected={false} onConnect={vi.fn()} />);
+    const reminder = screen.getByTestId('ai-setup-reminder');
+    expect(reminder.textContent).not.toContain('—');
+  });
+});
+
 describe('AiSetupReminder', () => {
   it('shows after a deferral and links to connect, then hides once dismissed', () => {
     // Simulate the skip path having set the flag.
