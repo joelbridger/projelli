@@ -6,6 +6,35 @@
 > product (it had accreted sediment from the "projelli" notes-app and the general
 > "AI workspace" eras).
 
+## ✅✅ REORG COMPLETE (2026-06-17, session 3) — feature-folder migration (Phase 4b–e) + Phase 5 finalize DONE
+
+**HEAD `e59af41`** (branch `keepance-3.0`, local==origin, tree clean). **Gates: `npm run typecheck` 0; `npx vitest run` 3133 passed / 3 skipped** (269 files; +1 = the new architecture guard test, the only count change — no behavior tests lost). 24 commits this session, all behavior-preserving, gates green per commit, all pushed. **Nothing deployed** (commercial product — needs explicit go).
+
+### The codebase is now feature-first: `src/{app, features, platform, ui, lib}`
+- **`features/`** (11 product surfaces): account, ask, audit, dictation, documents, email, firm, matters, onboarding, settings, workflows.
+- **`platform/`** (cross-cutting capabilities by domain): providers, fs, rag, firm, matter, audit, privacy, search, history, licensing, analysis, updater, profile, settings, state, tools, voice, hooks, utils, types.
+- **`ui/`** (design system: Radix primitives + `ui/kp/` + brand + shared presentational SurfaceHeader/ConfirmDialog/EmptyState), **`lib/`** (domain-free leaf utils), **`app/`** (the shell: App.tsx/main.tsx + `src/app/{shell,lifecycle,dialogs,commands,fileOps,workflow,hooks}`).
+- The old layer dirs (`components/`, `modules/`, `stores/`, `hooks/`, `utils/`, `types/`) are **gone**.
+
+### What was done
+1. **Feature migration** — moved each surface one-commit-at-a-time (email→audit→dictation→account→onboarding→workflows→ask→documents→matters→firm→settings), then ui, app/shell, platform modules, stores, and shared hooks/utils/types. Tooling: a deterministic codemod (`/tmp/reorg-move.mjs`) doing `git mv` + `@/`-specifier rewrite + `src/`-path-literal rewrite; whole-dir moves to distinct dest subpaths (barrel/relative-safe). Every commit: my own `git diff --stat` + `tsc` + full `vitest` (NOT agent prose). Done centrally (the codemod is deterministic + cheap; central run avoided the prior fabrication risk).
+2. **Dropped the `Reimagined` prefix** everywhere (10 files + 372 identifier/path/test-id occurrences; pure rename).
+3. **Clean 5-layer DAG** `lib ← ui ← platform ← features ← app` — eliminated all platform→feature edges (matterAtAGlance + sample-matter seed → platform/matter; the FileTree/WorkspaceSelector file-nav UI → features/documents/workspace). **Added `tests/unit/architecture-boundaries.test.ts`** that machine-enforces no-upward-imports + a documented 11-edge feature↔feature allowlist.
+4. **Collapsed aliases** to the single `@/*`→`src/*` catch-all (removed the 8 dead per-layer aliases from tsconfig/vite/vitest).
+5. **Docs**: added **`ARCHITECTURE.md`** (canonical map — read it first for anything structural); flipped CLAUDE.md's reconciliation note to DONE and flagged its historical Directory-Structure/Key-Files sections.
+
+### Deferred (intentionally — low value / needs tooling / behavior-risk vs marginal gain; NONE blocking)
+- **The 3 matter-store alias shims** (`platform/matter/{matterUiStore,matterSyncStore,matterAtAGlanceStore}.ts`) — thin re-exports of `useMatterStore` that also hold a few matter UI types + the `isWorkingSurface` helper. The real sediment (4 scattered matter stores) is gone — they're one store + 3 co-located thin shims. Removing the last 3 means relocating those types/helper into matterStore + repointing ~20 importers; harmless to leave.
+- **Orphaned i18n keys** (16 whiteboard entries in `src/locales`, + the license-unlocks "Whiteboard,…" string) — dead translations for removed features; harmless. Removal needs the `i18n:extract` tool + snapshot update.
+- **9 stale "reimagined shell" prose comments** — cosmetic.
+- **App.tsx (~1280 lines)** + a few giant components (SettingsContent 1120, AIChatViewer 1343) — explicitly accepted/deferred in the session-2 sections below as out-of-scope safe-tier leftovers, not migration work.
+
+### Recovery / tooling
+- Restore point unchanged: `git reset --hard refs/tags/backup/pre-reorg-2026-06-16`.
+- Codemods used (throwaways in `/tmp`, not committed): `reorg-move.mjs` (move+codemod), `reorg-deprefix.mjs` (Reimagined strip), `reorg-classify.mjs` (the platform-vs-feature analyzer). Progress ledger: `.git/sdd/progress.md`.
+
+---
+
 ## LATEST UPDATE (2026-06-17, session 2) — Phase 4a store merge DONE; feature migration is NEXT (fresh) ✅
 
 **HEAD `076a789`** (local==origin, tree clean). This session landed, on top of the giant-component splits:
