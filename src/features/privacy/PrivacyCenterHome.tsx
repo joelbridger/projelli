@@ -5,7 +5,6 @@
  * SurfaceHeader, live egress status, the DataMapContent, and a
  * "Confidentiality Report" action for the active matter.
  */
-/* eslint-disable keepance-i18n/no-hardcoded-string */
 import { useState, useCallback } from 'react';
 import { Lock } from 'lucide-react';
 import type { AuditEntry } from '@/platform/types/audit';

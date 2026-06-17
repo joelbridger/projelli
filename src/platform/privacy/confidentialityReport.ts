@@ -73,9 +73,16 @@ export function pickAttestation(byMode: Record<string, number>): string {
     return 'No AI activity was recorded for this matter.';
   }
 
-  const hasLocal = (byMode['local-only'] ?? 0) > 0;
-  const hasDirect = (byMode['direct'] ?? 0) > 0;
-  const hasAssured = (byMode['assured'] ?? 0) > 0;
+  const localCount = byMode['local-only'] ?? 0;
+  const directCount = byMode['direct'] ?? 0;
+  const assuredCount = byMode['assured'] ?? 0;
+  const hasLocal = localCount > 0;
+  const hasDirect = directCount > 0;
+  const hasAssured = assuredCount > 0;
+
+  // Plural helper keeps the call-count copy grammatical without inlining the
+  // ternary into every template literal.
+  const calls = (n: number) => `${String(n)} call${n === 1 ? '' : 's'}`;
 
   if (hasLocal && !hasDirect && !hasAssured) {
     return (
@@ -88,11 +95,11 @@ export function pickAttestation(byMode: Record<string, number>): string {
     const parts: string[] = [];
     if (hasLocal) {
       parts.push(
-        `${byMode['local-only']} call${byMode['local-only'] === 1 ? '' : 's'} ran on a local model on your machine (nothing left the device).`
+        `${calls(localCount)} ran on a local model on your machine (nothing left the device).`
       );
     }
     parts.push(
-      `${byMode['direct']} call${byMode['direct'] === 1 ? '' : 's'} went directly from your machine to your AI provider under your own API key. ` +
+      `${calls(directCount)} went directly from your machine to your AI provider under your own API key. ` +
       'Keepance was not in the path and has no copy of these prompts. ' +
       'Your provider received the prompts and may retain them briefly per their data policy. ' +
       'Keepance does not use your data for training.'
@@ -104,11 +111,11 @@ export function pickAttestation(byMode: Record<string, number>): string {
     const parts: string[] = [];
     if (hasLocal) {
       parts.push(
-        `${byMode['local-only']} call${byMode['local-only'] === 1 ? '' : 's'} ran on a local model on your machine (nothing left the device).`
+        `${calls(localCount)} ran on a local model on your machine (nothing left the device).`
       );
     }
     parts.push(
-      `${byMode['assured']} call${byMode['assured'] === 1 ? '' : 's'} were routed through your firm's zero-retention proxy. ` +
+      `${calls(assuredCount)} were routed through your firm's zero-retention proxy. ` +
       'Keepance retained no prompt or completion. ' +
       'Your AI provider received the prompts under your firm\'s agreement with them.'
     );
@@ -119,17 +126,17 @@ export function pickAttestation(byMode: Record<string, number>): string {
   const parts: string[] = [];
   if (hasLocal) {
     parts.push(
-      `${byMode['local-only']} call${byMode['local-only'] === 1 ? '' : 's'} ran on a local model (nothing left the device).`
+      `${calls(localCount)} ran on a local model (nothing left the device).`
     );
   }
   if (hasDirect) {
     parts.push(
-      `${byMode['direct']} call${byMode['direct'] === 1 ? '' : 's'} went directly from your machine to your AI provider under your own key (Keepance not in the path).`
+      `${calls(directCount)} went directly from your machine to your AI provider under your own key (Keepance not in the path).`
     );
   }
   if (hasAssured) {
     parts.push(
-      `${byMode['assured']} call${byMode['assured'] === 1 ? '' : 's'} went through your firm's zero-retention proxy (Keepance retained nothing).`
+      `${calls(assuredCount)} went through your firm's zero-retention proxy (Keepance retained nothing).`
     );
   }
   return parts.join(' ');
@@ -147,7 +154,7 @@ export function buildConfidentialityReport(
   // is available (i.e., legacy entries with no scope are attributed to any matter query).
   const egressEntries = entries.filter((e) => {
     if (e.action !== 'egress') return false;
-    const meta = e.metadata as Record<string, unknown>;
+    const meta = e.metadata;
     const scope = meta['scope'] as AuditScope | undefined;
     if (!scope) {
       // Legacy entry — no scope info. Include in an "all matters" report,
@@ -163,7 +170,7 @@ export function buildConfidentialityReport(
   });
 
   const calls: ConfidentialityReportCall[] = egressEntries.map((e) => {
-    const meta = e.metadata as Record<string, unknown>;
+    const meta = e.metadata;
     return {
       at: e.timestamp,
       model: e.model ?? (meta['model'] as string | undefined) ?? 'unknown',
