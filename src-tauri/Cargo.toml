@@ -9,8 +9,8 @@ members = [".", "crates/keepance-docx", "crates/keepance-vault"]
 
 [package]
 name = "keepance"
-version = "3.2.0"
-description = "Local-first AI workspace for confidential client work"
+version = "3.3.0"
+description = "The private intelligence layer for a law practice"
 authors = ["Keepance"]
 license = "MIT"
 repository = ""

@@ -7,7 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-06-17
+
+The "trust and traction" release: the trust story made visible and demo-able, citations hardened against hallucination, the email wedge secured, bring-your-own-key set as the honest default, an opt-in learning loop, and every public claim reconciled to one source of truth. Built on the behavior-preserving 3.0 feature-first reorganization.
+
+### Added
+- **A "Where your data is" Privacy Center, and a one-click Confidentiality Report.** A full-screen view of exactly where each matter's data goes, plus a printable per-matter report you can keep in the client file ("this matter's AI ran locally or under your own key; nothing was disclosed to a third-party Keepance server"). The report is honest by mode: it only claims "nothing left this machine" when every call for that matter ran locally.
+- **An opt-in design-partner diagnostics mode, off by default.** If you turn it on, Keepance sends structured usage counts only (which features you use, how many searches you run, which workflow template you ran) to help improve the product for legal practice. It never sends your content, file names, matter names, prompts, or search queries, and it is listed plainly in the Data Map.
+
+### Security
+- **Retrieved file and email content is now treated as untrusted data inside AI prompts.** Email is attacker-controlled, so everything pulled into an answer is sanitized and wrapped in a "this is reference data, never instructions" envelope. This defuses prompt-injection, for example a malicious email that tries to tell the AI to ignore its instructions and exfiltrate your files.
+
+### Fixed
+- **Honest claims everywhere.** The license screen no longer lists a removed feature, the Firm tier's SOC 2 and DPA language is framed as roadmap rather than delivered, and the website, README, and in-app pricing all read from one source of truth with a guard test that keeps them in sync.
+- **Customer-safety hardening.** Fixed a latent bug in attachment binary writes (surfaced by type-hardening the workspace service), file-save, autosave, and audit-write operations no longer fail silently, and the test suite now has a type-safety net.
+
 ### Changed
+- **Cited answers are now unmistakable.** An answer with no citation from your files carries a clear "verify this before relying on it" warning, a "verify against source" check flags fabricated, mismatched, or cross-matter citations in plain language, and clicking a citation opens the source at the right spot in one step.
+- **Bring-your-own-key is the recommended default.** Onboarding leads with connecting your own Claude or OpenAI account (best quality, and your data goes only to your provider, never a Keepance server). Local-model mode is presented honestly as maximum privacy but less capable for legal work, not as a co-equal default.
+- **Pricing leads solo-first.** The Solo plan is featured; the Firm tier is honestly de-emphasized until its assurance package (SOC 2, DPA) exists.
 - **A first-time-user UX overhaul, so Keepance is easier to adopt.** After a full first-time-user review, a wave of changes to make the first fifteen minutes effortless and the language plain:
   - **You can try Keepance before connecting anything.** New users land in a real sample matter ("Garcia v. Meridian Properties LLC") and get an instant cited answer to example questions with no AI account required; every citation opens the real sample file. Connecting your own AI is now an optional upgrade you reach for when ready, not a wall on day one.
   - **Plainer names.** "Ask" is now "Search", "Associate" is "Workflows", and "AI Audit" is "Activity Log". The confidentiality choices read as two plain options for solo users ("On this computer only" / "Cloud AI, your account"); developer jargon ("egress", "API key", "tokens", "MCP") is gone from what you see, replaced with plain words ("AI request", "account key", and so on).
