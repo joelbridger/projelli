@@ -34,6 +34,20 @@ export type MailSyncStatus = 'idle' | 'syncing' | 'done' | 'cancelled' | 'error'
 export interface MailSyncProgress { status: MailSyncStatus; folder?: string | null; written: number; removed: number; }
 export const MAIL_SYNC_EVENT = 'mail-sync-progress';
 export const MAIL_INDEX_CHUNK_EVENT = 'mail-index-chunk';
+
+/**
+ * One chunk of decrypted email text emitted during a mail sync, used to build
+ * the in-memory full-text search index (MiniSearch).
+ *
+ * TRUST BOUNDARY — decrypted text to renderer via Tauri event:
+ *   The Rust sync worker decrypts each stored message and emits this event over
+ *   the Tauri event bus (same-process IPC, NOT a network hop). `decryptedText`
+ *   lives only in renderer-process memory inside the MiniSearch instance; it is
+ *   never written to disk in plaintext and never forwarded to any server. The
+ *   App.tsx handler (`handleMailChunk`) passes it directly to `contentIndex.upsert`
+ *   — no further transmission occurs. If this path is ever changed to send
+ *   `decryptedText` over a network connection, a full security review is required.
+ */
 export interface MailIndexChunk { docId: string; subject: string; decryptedText: string; }
 
 export async function mailSetWorkspace(path: string): Promise<void> {
@@ -78,8 +92,26 @@ export async function mailBackfillRag(matterMap: MailMatterMapEntry[] = []): Pro
   return invoke<number>('mail_backfill_rag', { matterMap });
 }
 
-/** Fetch + decrypt ONE stored message for the read-only viewer. `id` may be the
- *  raw message id or a `mail:<id>` citation source id. */
+/**
+ * Fetch + decrypt ONE stored message for the read-only viewer. `id` may be the
+ * raw message id or a `mail:<id>` citation source id.
+ *
+ * TRUST BOUNDARY — decrypted body to renderer:
+ *   The `mail_get_message` Rust command reads the encrypted SQLCipher blob for
+ *   the requested message, decrypts it entirely in the Tauri/Rust process, and
+ *   returns the result as a structured `MailView` over the Tauri IPC bridge
+ *   (same-process inter-thread communication, NOT a network hop). The decrypted
+ *   body lives only in renderer-process memory for the duration of the viewer's
+ *   lifetime; it is never written back to disk in plaintext and never sent to
+ *   any Keepance server or AI inference endpoint. The `EmailViewer` component
+ *   renders `message.body` as React text content (never `dangerouslySetInnerHTML`)
+ *   and runs `stripResidualTags()` as a second defensive layer.
+ *
+ *   If this function is ever refactored to transmit the body over a real network
+ *   hop (e.g. a WebSocket, a proxy, or a cloud relay), STOP and perform a full
+ *   security review before shipping — that would break the local-first privacy
+ *   guarantee and the firm-tier E2EE contract.
+ */
 export async function mailGetMessage(id: string): Promise<MailView> {
   if (!isTauri()) throw new Error('Email viewer is only available in the desktop app.');
   return invoke<MailView>('mail_get_message', { id });
