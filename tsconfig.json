@@ -43,15 +43,9 @@
       // resolve it. Types-only mapping; runtime resolution (Vite/Vitest)
       // uses the real "exports" entry (dist/lib.js) and is unaffected.
       "tesseract-wasm": ["./node_modules/tesseract-wasm/dist/index.d.ts"],
-      "@/*": ["./src/*"],
-      "@/components/*": ["./src/components/*"],
-      "@/modules/*": ["./src/modules/*"],
-      "@/stores/*": ["./src/stores/*"],
-      "@/hooks/*": ["./src/hooks/*"],
-      "@/types/*": ["./src/types/*"],
-      "@/utils/*": ["./src/utils/*"],
-      "@/lib/*": ["./src/lib/*"],
-      "@/tools/*": ["./src/tools/*"]
+      // Single catch-all: @/<layer>/... resolves to src/<layer>/... for the
+      // 5-layer tree (app, features, platform, ui, lib). See ARCHITECTURE.md.
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src"],

@@ -28,15 +28,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      // Single catch-all for the 5-layer tree (app/features/platform/ui/lib).
       '@': path.resolve(__dirname, './src'),
-      '@/components': path.resolve(__dirname, './src/components'),
-      '@/modules': path.resolve(__dirname, './src/modules'),
-      '@/stores': path.resolve(__dirname, './src/stores'),
-      '@/hooks': path.resolve(__dirname, './src/hooks'),
-      '@/types': path.resolve(__dirname, './src/types'),
-      '@/utils': path.resolve(__dirname, './src/utils'),
-      '@/lib': path.resolve(__dirname, './src/lib'),
-      '@/tools': path.resolve(__dirname, './src/tools'),
       // Stream A2: pdfjs-dist standard build requires a web worker and browser
       // canvas APIs. In the Vitest jsdom environment (Node 20), use the legacy
       // build instead, which runs in-thread without a web worker.
