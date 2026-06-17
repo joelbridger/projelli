@@ -66,7 +66,7 @@ describe('en.json structure snapshot', () => {
         "quick-open": 1,
         "research": 11,
         "search": 6,
-        "settings": 153,
+        "settings": 163,
         "shortcuts-overlay": 2,
         "tts": 1,
         "updater": 2,
@@ -82,8 +82,8 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    // 814 = 807 + the 7 matter.manager isolated-* keys (UX Round 3, Isolated-matter celebration).
-    expect(flat.length).toBe(814);
+    // 824 = 814 + the 10 new settings.privacy.design-partner.* keys (WS6, design-partner diagnostics).
+    expect(flat.length).toBe(824);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

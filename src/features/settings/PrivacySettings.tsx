@@ -16,12 +16,14 @@ import { Trans, useTranslation } from 'react-i18next';
 import { MapPin } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { useTelemetryConsent } from '@/platform/hooks/useTelemetryConsent';
+import { useDesignPartnerConsent } from '@/platform/hooks/useDesignPartnerConsent';
 import { getInstallId } from '@/platform/utils/installId';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 
 export function PrivacySettings() {
   const { t } = useTranslation();
   const { consent, setConsent } = useTelemetryConsent();
+  const { consent: dpConsent, setConsent: setDpConsent } = useDesignPartnerConsent();
   const [dataMapOpen, setDataMapOpen] = useState(false);
 
   return (
@@ -114,6 +116,52 @@ export function PrivacySettings() {
               i18nKey="settings.privacy.telemetry.install-id-display"
               values={{ id: getInstallId() }}
               components={{ c: <code className="px-1 py-0.5 rounded bg-muted" /> }}
+            />
+          </p>
+        </div>
+      </div>
+
+      {/* Design-partner diagnostics opt-in — strictly optional, structure-only */}
+      <div
+        className="rounded-lg border border-border bg-card p-6 space-y-4"
+        data-testid="privacy-design-partner-card"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <h3 className="text-base font-semibold">
+              {t('settings.privacy.design-partner.title')}
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              {t('settings.privacy.design-partner.description')}
+            </p>
+          </div>
+          <Button
+            variant={dpConsent === 'enabled' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() =>
+              setDpConsent(dpConsent === 'enabled' ? 'disabled' : 'enabled')
+            }
+            data-testid="privacy-design-partner-toggle"
+          >
+            {dpConsent === 'enabled'
+              ? t('settings.privacy.design-partner.enabled')
+              : t('settings.privacy.design-partner.disabled')}
+          </Button>
+        </div>
+        <div className="border-t pt-4 space-y-2 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">
+            {t('settings.privacy.design-partner.what-is-sent')}
+          </p>
+          <ul className="space-y-1 ml-4 list-disc">
+            <li>{t('settings.privacy.design-partner.field-features')}</li>
+            <li>{t('settings.privacy.design-partner.field-workflow-id')}</li>
+            <li>{t('settings.privacy.design-partner.field-search-count')}</li>
+            <li>{t('settings.privacy.design-partner.field-install-id')}</li>
+          </ul>
+          <p>
+            <Trans
+              i18nKey="settings.privacy.design-partner.endpoint-note"
+              components={{ c: <code /> }}
             />
           </p>
         </div>

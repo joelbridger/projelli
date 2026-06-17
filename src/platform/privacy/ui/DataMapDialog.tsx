@@ -49,6 +49,7 @@ import {
   Printer,
   ChevronDown,
   X,
+  BarChart2,
 } from 'lucide-react';
 
 export interface DataMapDialogProps {
@@ -123,6 +124,13 @@ export const DATA_MAP_ROWS: MapRow[] = [
     title: "Keepance can encrypt this workspace's files with AES-256",
     body: "When you enable the vault, every document file is stored as ciphertext on disk (AES-256-GCM). Keepance decrypts files transparently as you work, so your day-to-day experience is unchanged. A 24-word recovery phrase is generated once and never stored by Keepance. If you lose that phrase and your device's keychain, Keepance cannot recover your files. For firm workspaces, a firm admin holds an escrow copy and can recover the vault on your behalf.",
     caveat: "File names and folder structure remain visible on disk regardless of vault status. Only the contents of individual files are encrypted. The recovery phrase is the sole backstop for solo users.",
+  },
+  {
+    icon: BarChart2,
+    tone: 'text-violet-700 bg-violet-50 dark:text-violet-300 dark:bg-violet-950/40',
+    title: 'Design-partner diagnostics (opt-in, off by default)',
+    body: 'If you turn on Design-partner diagnostics in Settings, Keepance sends structured usage counts to help improve the product for legal practice: which features you use, how many searches you run, which workflow template you ran, and whether you connected a provider. It never sends your content, file names, matter names, prompts, or search queries. Only counts and internal ids. This is a separate opt-in from anonymous analytics, also off by default.',
+    caveat: 'To confirm what is collected: Settings > Privacy > Design-partner diagnostics lists every field sent. Endpoint: keepance.com/api/forms/keepance/design-partner-event.',
   },
   {
     icon: HardDrive,
