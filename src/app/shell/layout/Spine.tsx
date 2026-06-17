@@ -11,7 +11,7 @@
  */
 import { useRef } from 'react';
 import {
-  Briefcase, FolderTree, Sparkles, ListChecks, ShieldCheck, Mail, Settings,
+  Briefcase, FolderTree, Sparkles, ListChecks, ShieldCheck, Mail, Settings, Lock,
   ChevronLeft, ChevronRight, type LucideIcon,
 } from 'lucide-react';
 import { useMatters, useActiveMatterId } from '@/platform/matter/matterStore';
@@ -20,7 +20,7 @@ import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
 
-type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'email' | 'settings';
+type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'email' | 'settings' | 'privacy';
 
 interface SpineProps {
   fileTreeContent?: React.ReactNode;
@@ -32,6 +32,7 @@ interface SpineProps {
   mattersContent?: React.ReactNode;
   emailContent?: React.ReactNode | undefined;
   settingsContent?: React.ReactNode | undefined;
+  privacyContent?: React.ReactNode | undefined;
   activeTab?: string | undefined;
   onTabChange?: ((tab: string) => void) | undefined;
   collapsed?: boolean | undefined;
@@ -57,7 +58,7 @@ function KeepanceMark() {
 
 export function Spine({
   fileTreeContent, searchContent, workflowContent,
-  auditContent, mattersContent, emailContent, settingsContent,
+  auditContent, mattersContent, emailContent, settingsContent, privacyContent,
   activeTab = 'matters', onTabChange, collapsed = false, onCollapsedChange,
 }: SpineProps) {
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -73,6 +74,7 @@ export function Spine({
     { id: 'email', label: 'Email', Icon: Mail },
     { id: 'workflows', label: 'Workflows', Icon: ListChecks },
     { id: 'audit', label: 'Activity Log', Icon: ShieldCheck },
+    { id: 'privacy', label: 'Privacy Center', Icon: Lock },
     { id: 'settings', label: 'Settings', Icon: Settings },
   ];
 
@@ -83,6 +85,7 @@ export function Spine({
     email: emailContent,
     workflows: workflowContent,
     audit: auditContent,
+    privacy: privacyContent,
     settings: settingsContent,
   };
 

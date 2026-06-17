@@ -16,6 +16,7 @@ import { EmailWorkspace } from '@/features/email/EmailWorkspace';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';
 import { AuditHome } from '@/features/audit/AuditHome';
+import { PrivacyCenterHome } from '@/features/privacy/PrivacyCenterHome';
 import { MainPanel } from '@/app/shell/layout/MainPanel';
 import { SettingsContent } from '@/features/settings/SettingsContent';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
@@ -32,6 +33,7 @@ import type { FileNode } from '@/platform/types/workspace';
 import type { SettingCategory } from '@/platform/settings/schema';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
+import type { Matter } from '@/platform/types/matter';
 
 export interface AppSurfaceRouterProps {
   sidebarActiveTab: AppSurface;
@@ -85,6 +87,7 @@ export interface AppSurfaceRouterProps {
   handleStartWorkflow: (template: WorkflowTemplate) => Promise<void>;
   handleSettingsAction: (actionId: string) => void;
   handleSettingsRestartOnboarding: () => void;
+  activeMatter: Matter | null;
 }
 
 export function AppSurfaceRouter({
@@ -139,6 +142,7 @@ export function AppSurfaceRouter({
   handleStartWorkflow,
   handleSettingsAction,
   handleSettingsRestartOnboarding,
+  activeMatter,
 }: AppSurfaceRouterProps) {
   return (
     <>
@@ -270,6 +274,8 @@ export function AppSurfaceRouter({
         />
       ) : sidebarActiveTab ==='audit' ? (
         <AuditHome entries={auditEntries} />
+      ) : sidebarActiveTab ==='privacy' ? (
+        <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />
       ) : sidebarActiveTab ==='settings' ? (
         // Full-page Settings surface — the SAME content as the quick modal
         // (5-section nav, search, accordion sub-sections, Export/Import/Reset),

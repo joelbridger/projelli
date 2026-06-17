@@ -24,6 +24,7 @@ export type AppSurface =
   | 'ai-assistant'
   | 'research'
   | 'audit'
+  | 'privacy'
   | 'settings'
   | 'trash';
 
@@ -54,8 +55,8 @@ const ACCOUNT_CATEGORIES = new Set<SettingCategory>([
   'integrations',
 ]);
 
-const ALLOWED_SURFACES = new Set(['search', 'files', 'email', 'workflows', 'audit'] as const);
-type AllowedSurface = 'search' | 'files' | 'email' | 'workflows' | 'audit';
+const ALLOWED_SURFACES = new Set(['search', 'files', 'email', 'workflows', 'audit', 'privacy'] as const);
+type AllowedSurface = 'search' | 'files' | 'email' | 'workflows' | 'audit' | 'privacy';
 
 export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
   // Keep the latest handlers in a ref so the listeners below register once.
@@ -122,15 +123,20 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
       ref.current.setSidebarActiveTab(snap.surface as AppSurface);
     };
 
+    // Privacy Center shortcut: jump straight to the privacy surface.
+    const onOpenPrivacyCenter = () => ref.current.setSidebarActiveTab('privacy');
+
     window.addEventListener('keepance:open-matter-manager', onOpenMatterManager);
     window.addEventListener('keepance:open-settings', onOpenSettings);
     window.addEventListener('keepance:open-account', onOpenAccount);
     window.addEventListener('keepance:matter-launch', onMatterLaunch);
+    window.addEventListener('keepance:open-privacy-center', onOpenPrivacyCenter);
     return () => {
       window.removeEventListener('keepance:open-matter-manager', onOpenMatterManager);
       window.removeEventListener('keepance:open-settings', onOpenSettings);
       window.removeEventListener('keepance:open-account', onOpenAccount);
       window.removeEventListener('keepance:matter-launch', onMatterLaunch);
+      window.removeEventListener('keepance:open-privacy-center', onOpenPrivacyCenter);
     };
   }, []);
 }

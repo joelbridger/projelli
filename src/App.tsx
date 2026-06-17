@@ -50,7 +50,7 @@ import type { TrashedItem } from '@/platform/history/TrashService';
 
 import type { AuditEntry } from '@/platform/types/audit';
 import { AuditService } from '@/platform/audit/AuditService';
-import { getOrCreateSampleMatter, useMatterStore } from '@/platform/matter/matterStore';
+import { getOrCreateSampleMatter, useMatterStore, useActiveMatter } from '@/platform/matter/matterStore';
 import { useMatterUiStore, isWorkingSurface } from '@/platform/matter/matterUiStore';
 
 import {
@@ -189,6 +189,7 @@ function App() {
   // Per-matter UI memory (matterUiStore): subscribe to the active matter so we
   // can save + restore each matter's last working surface and focused document.
   const activeMatterId = useMatterStore((s) => s.activeMatterId);
+  const activeMatter = useActiveMatter();
   // F-509 — controlled sidebar collapse so the global Ctrl+B shortcut and the
   // command palette can drive the same collapse the chevron button does.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -1218,6 +1219,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
           handleStartWorkflow={handleStartWorkflow}
           handleSettingsAction={handleSettingsAction}
           handleSettingsRestartOnboarding={handleSettingsRestartOnboarding}
+          activeMatter={activeMatter}
         />
       </div>
 

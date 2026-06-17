@@ -1,0 +1,84 @@
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { PrivacyCenterHome } from '@/features/privacy/PrivacyCenterHome';
+import type { AuditEntry } from '@/platform/types/audit';
+import type { Matter } from '@/platform/types/matter';
+
+// Mock EgressIndicator (complex deps, not under test here)
+vi.mock('@/platform/privacy/ui/EgressIndicator', () => ({
+  EgressIndicator: ({ mode }: { mode: string }) => (
+    <div data-testid="egress-indicator-mock" data-mode={mode} />
+  ),
+}));
+
+// Mock DataMapContent (large read-only document, not under test here)
+vi.mock('@/platform/privacy/ui/DataMapDialog', () => ({
+  DataMapContent: () => <div data-testid="data-map-content-mock" />,
+  DataMapDialog: () => null,
+}));
+
+// Mock ConfidentialityReportDialog (tested separately in its own file)
+vi.mock('@/platform/privacy/ui/ConfidentialityReportDialog', () => ({
+  ConfidentialityReportDialog: ({ open }: { open: boolean }) => (
+    open ? <div data-testid="confidentiality-report-dialog-mock" /> : null
+  ),
+}));
+
+// Mock useConfidentialityMode
+vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
+  useConfidentialityMode: () => 'direct',
+}));
+
+// Mock useEntityLabel (used by SurfaceHeader-related components)
+vi.mock('@/platform/hooks/useEntityLabel', () => ({
+  useEntityLabel: () => ({ one: 'matter', other: 'matters', Other: 'Matters' }),
+}));
+
+const SAMPLE_ENTRIES: AuditEntry[] = [];
+
+const SAMPLE_MATTER: Matter = {
+  id: 'matter_abc',
+  name: 'Garcia v. Meridian',
+  client: 'Garcia',
+  folders: [],
+  createdAt: '2026-06-17T00:00:00Z',
+  updatedAt: '2026-06-17T00:00:00Z',
+};
+
+describe('PrivacyCenterHome', () => {
+  it('renders without crashing with no active matter', () => {
+    render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
+    // The data map content mock should be present
+    expect(screen.getByTestId('data-map-content-mock')).toBeTruthy();
+  });
+
+  it('renders the report button', () => {
+    render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
+    expect(screen.getByTestId('privacy-center-report-button')).toBeTruthy();
+  });
+
+  it('shows generic "Confidentiality Report" button label when no active matter', () => {
+    render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
+    expect(screen.getByTestId('privacy-center-report-button').textContent).toContain('Confidentiality Report');
+  });
+
+  it('shows matter-scoped button label when matter is active', () => {
+    render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={SAMPLE_MATTER} />);
+    expect(screen.getByTestId('privacy-center-report-button').textContent).toContain('Garcia v. Meridian');
+  });
+
+  it('clicking the report button opens the dialog', () => {
+    render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
+    // Dialog not open initially
+    expect(screen.queryByTestId('confidentiality-report-dialog-mock')).toBeNull();
+    // Click the report button
+    fireEvent.click(screen.getByTestId('privacy-center-report-button'));
+    // Dialog should now be open
+    expect(screen.getByTestId('confidentiality-report-dialog-mock')).toBeTruthy();
+  });
+
+  it('renders the egress indicator strip', () => {
+    render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
+    expect(screen.getByTestId('egress-indicator-mock')).toBeTruthy();
+  });
+});
