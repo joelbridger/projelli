@@ -14,8 +14,8 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -23,8 +23,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+} from '@/ui/dialog';
+import { Input } from '@/ui/input';
 import {
   Play,
   Clock,

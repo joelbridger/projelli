@@ -29,14 +29,14 @@ import {
   DialogContent,
   DialogDescription,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+} from '@/ui/dialog';
+import { Button } from '@/ui/button';
 import {
   Accordion,
   AccordionItem,
   AccordionTrigger,
   AccordionContent,
-} from '@/components/ui/accordion';
+} from '@/ui/accordion';
 import {
   Laptop,
   Cloud,

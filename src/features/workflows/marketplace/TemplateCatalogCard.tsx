@@ -9,8 +9,8 @@
  */
 
 import { useCallback, useState } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Card } from '@/ui/card';
+import { Button } from '@/ui/button';
 import { Download, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CatalogEntry } from '@/features/workflows/types/marketplace';

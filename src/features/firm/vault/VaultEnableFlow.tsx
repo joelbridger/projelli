@@ -20,7 +20,7 @@
 import { useTranslation } from 'react-i18next';
 import { useVaultStore } from '@/stores/vaultStore';
 import { RecoveryPhraseCeremony } from './RecoveryPhraseCeremony';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { Loader2, ShieldCheck, Lock, KeyRound } from 'lucide-react';
 import type { AdminDevice } from '@/modules/vault/vaultClient';
 

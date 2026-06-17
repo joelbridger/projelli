@@ -1,6 +1,6 @@
 import { FileText, FolderOpen, Mail } from 'lucide-react';
-import { Chip } from '@/components/ui/kp';
-import type { IconType } from '@/components/ui/kp';
+import { Chip } from '@/ui/kp';
+import type { IconType } from '@/ui/kp';
 import type { AskScope } from './askHelpers';
 
 /* -------------------------------------------------------------------------- */

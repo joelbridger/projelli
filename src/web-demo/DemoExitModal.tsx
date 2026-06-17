@@ -15,7 +15,7 @@
  * by surface (banner vs exit modal vs homepage hero).
  */
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog';
+} from '@/ui/dialog';
 import { resetDemoSessionToken } from './demoSessionToken';
 import { trackDemoDownloadClicked } from './demoPlausible';
 

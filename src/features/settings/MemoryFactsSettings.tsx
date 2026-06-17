@@ -23,8 +23,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Trash2, Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@/ui/button';
+import { Input } from '@/ui/input';
 import { getFactsService } from '@/modules/memory/factsSingleton';
 import type { Fact } from '@/modules/memory/FactsService';
 

@@ -47,7 +47,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
-import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout, SearchField, SurfaceToolbar } from '@/components/ui/kp';
+import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout, SearchField, SurfaceToolbar } from '@/ui/kp';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/types/workflow';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';

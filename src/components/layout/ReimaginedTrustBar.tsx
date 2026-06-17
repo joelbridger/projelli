@@ -26,9 +26,9 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/ui/tooltip';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
-import { IconButton } from '@/components/ui/kp';
+import { IconButton } from '@/ui/kp';
 import type { EgressProvider } from '@/modules/privacy/egress';
 
 /**

@@ -14,7 +14,7 @@
  *   - `visible=true`  → shows the bar.
  */
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { Pause, Play, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

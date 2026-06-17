@@ -25,7 +25,7 @@ import {
   X,
 } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { DiffViewer } from '@/features/documents/editor/DiffViewer';
 import { cn } from '@/lib/utils';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';

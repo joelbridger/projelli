@@ -21,7 +21,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/ui/tooltip';
 import {
   useChatCost,
   useTodayCost,

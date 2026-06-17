@@ -19,8 +19,8 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+} from '@/ui/dialog';
+import { Input } from '@/ui/input';
 import { Keyboard, Search } from 'lucide-react';
 import {
   SHORTCUTS,

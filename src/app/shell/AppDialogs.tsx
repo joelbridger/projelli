@@ -37,7 +37,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/ui/dialog';
 
 import type { AuditEntry, AuditEvent } from '@/types/audit';
 import { auditEventToEntry } from '@/modules/audit/AuditService';

@@ -19,7 +19,7 @@ import { useState, useEffect } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { useTrial } from '@/hooks/useTrial';
 import { useLicense } from '@/hooks/useLicense';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 
 const SESSION_DISMISS_KEY = 'keepance_trial_banner_dismissed_at';

@@ -6,8 +6,8 @@ import {
   DialogContent,
   DialogTitle,
   DialogDescription,
-} from '@/components/ui/dialog';
-import { Button, IconButton } from '@/components/ui/kp';
+} from '@/ui/dialog';
+import { Button, IconButton } from '@/ui/kp';
 import { useProfileStore } from '@/stores/profileStore';
 import { useFirm } from '@/hooks/useFirm';
 import { readImageAsDataUrl } from '@/utils/imageUpload';

@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { Copy, Check, X } from 'lucide-react';
 
 const DOWNLOAD_URL = 'https://www.libreoffice.org/download/download-libreoffice/';

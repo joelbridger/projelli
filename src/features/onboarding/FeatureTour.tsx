@@ -10,8 +10,8 @@
  */
 import { useState, useEffect, useMemo, useLayoutEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/ui/dialog';
+import { Button } from '@/ui/button';
 import { FEATURE_TOUR_STEPS, type FeatureTourStep } from './featureTourSteps';
 
 export interface FeatureTourProps {

@@ -14,7 +14,7 @@
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { MapPin } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { useTelemetryConsent } from '@/hooks/useTelemetryConsent';
 import { getInstallId } from '@/utils/installId';
 import { DataMapDialog } from '@/components/privacy/DataMapDialog';

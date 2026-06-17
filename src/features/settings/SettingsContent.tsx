@@ -35,9 +35,9 @@ import {
   type ReactElement,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button, IconButton, SearchField, Badge, Eyebrow, SurfaceToolbar } from '@/components/ui/kp';
+import { Input } from '@/ui/input';
+import { Label } from '@/ui/label';
+import { Button, IconButton, SearchField, Badge, Eyebrow, SurfaceToolbar } from '@/ui/kp';
 import { cn } from '@/lib/utils';
 import {
   SETTINGS_SCHEMA,

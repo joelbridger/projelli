@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Copy, ShieldX, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/ui/button';
+import { Input } from '@/ui/input';
+import { Label } from '@/ui/label';
 import { useFirmStore } from '@/stores/firmStore';
 import { publishMatterKeyToMembers } from '@/modules/firm/matterKeyService';
 import type { MatterMembersResponse } from '@/modules/firm/contract';

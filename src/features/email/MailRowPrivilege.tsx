@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { ChevronDown, ShieldCheck, Check } from 'lucide-react';
-import { Dropdown } from '@/components/ui/kp';
+import { Dropdown } from '@/ui/kp';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
 import { ALL_PRIVILEGE_STATUSES, isPrivileged, type Privilege } from '@/types/privilege';
 

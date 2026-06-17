@@ -26,8 +26,8 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+} from '@/ui/dialog';
+import { Button } from '@/ui/button';
 import { vaultDecryptAll, vaultDisable } from '@/modules/vault/vaultClient';
 
 interface VaultEscapeHatchDialogProps {

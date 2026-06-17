@@ -2,8 +2,8 @@
 // None of these close over the parent component's state or handlers.
 
 import { useTranslation } from 'react-i18next';
-import { Input } from '@/components/ui/input';
-import { IconButton } from '@/components/ui/kp';
+import { Input } from '@/ui/input';
+import { IconButton } from '@/ui/kp';
 import { cn } from '@/lib/utils';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 

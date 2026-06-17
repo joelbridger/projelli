@@ -12,7 +12,7 @@
  * DemoExitModal (Task 4.3).
  */
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { BYOKKeyInput } from './BYOKKeyInput';
 import { trackDemoDownloadClicked } from './demoPlausible';
 

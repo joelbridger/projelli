@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { History, RotateCcw, Trash2, Download, X, Clock, FileText, GitCompare } from 'lucide-react';
 import { getVersionService, type FileVersion } from '@/features/documents/versioning/VersionService';
 import { DiffViewer } from '@/features/documents/editor/DiffViewer';

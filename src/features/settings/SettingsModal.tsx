@@ -23,7 +23,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/ui/dialog';
 import { SettingsContent } from '@/features/settings/SettingsContent';
 import type { SettingCategory } from '@/settings/schema';
 import type { AuditEntry } from '@/types/audit';

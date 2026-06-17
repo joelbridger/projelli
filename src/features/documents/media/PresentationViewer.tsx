@@ -18,7 +18,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 
 import { PDFViewer } from '@/features/documents/media/PDFViewer';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 import { isTauriEnvironment } from '@/modules/workspace/BackendFactory';
 import { saveFile } from '@/utils/saveFile';

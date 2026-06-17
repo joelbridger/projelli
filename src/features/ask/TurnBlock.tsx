@@ -1,5 +1,5 @@
 import { Quote, Loader2, ShieldCheck, Save } from 'lucide-react';
-import { Button } from '@/components/ui/kp';
+import { Button } from '@/ui/kp';
 import type { AskTurn } from './askHelpers';
 import { CitationText } from './CitationText';
 

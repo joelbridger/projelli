@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { AlertTriangle, FileType, ExternalLink } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { openExternal } from '@/utils/openExternal';
 import { parseDocxForPreview, renderDocxPreview } from '@/utils/docx-io';
 

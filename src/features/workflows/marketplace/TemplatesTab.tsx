@@ -21,15 +21,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@/ui/button';
+import { Input } from '@/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+} from '@/ui/dropdown-menu';
+import { Tabs, TabsList, TabsTrigger } from '@/ui/tabs';
 import { ChevronDown, Loader2, RefreshCw, Search } from 'lucide-react';
 import { useTemplatesMarketplace } from '@/features/workflows/useTemplatesMarketplace';
 import type { CatalogEntry, InstalledEntry } from '@/features/workflows/types/marketplace';

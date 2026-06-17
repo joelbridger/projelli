@@ -19,7 +19,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { CheckCircle, XCircle, Loader2, Wifi } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 import {
   validateApiKeyLive,

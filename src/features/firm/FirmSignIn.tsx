@@ -26,9 +26,9 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 import { isTauri } from '@tauri-apps/api/core';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/ui/button';
+import { Input } from '@/ui/input';
+import { Label } from '@/ui/label';
 import { cn } from '@/lib/utils';
 import { useFirm } from '@/hooks/useFirm';
 import type { SeatLimitExceededResponse } from '@/modules/firm/contract';

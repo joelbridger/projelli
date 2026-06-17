@@ -12,8 +12,8 @@ import { createFSBackend, isTauriEnvironment } from '@/modules/workspace/Backend
 import { vaultStatus } from '@/modules/vault/vaultClient';
 import { DEFAULT_WORKSPACE_FOLDERS } from '@/modules/workspace/types';
 import { openExternal } from '@/utils/openExternal';
-import { KeepanceLogo } from '@/components/brand/KeepanceLogo';
-import { GradientGlow } from '@/components/brand/GradientGlow';
+import { KeepanceLogo } from '@/ui/brand/KeepanceLogo';
+import { GradientGlow } from '@/ui/brand/GradientGlow';
 import { VaultLockedPrompt } from '@/features/firm/vault/VaultLockedPrompt';
 import { VaultEscapeHatchDialog } from '@/features/firm/vault/VaultEscapeHatchDialog';
 import {

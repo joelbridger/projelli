@@ -15,7 +15,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Lock, KeyRound } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { useVaultStore } from '@/stores/vaultStore';
 
 interface VaultLockedPromptProps {

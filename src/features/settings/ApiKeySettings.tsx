@@ -4,9 +4,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/ui/button';
+import { Input } from '@/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
 import {
   Key,
   Eye,

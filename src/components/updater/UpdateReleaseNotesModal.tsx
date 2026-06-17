@@ -9,14 +9,14 @@
  * warnings (UX-30).
  */
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/ui/dialog';
 import { useUpdaterStore } from '@/stores/updaterStore';
 import { Sparkles } from 'lucide-react';
 

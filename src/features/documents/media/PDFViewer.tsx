@@ -5,7 +5,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { openExternal } from '@/utils/openExternal';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import {
   ZoomIn,
   ZoomOut,

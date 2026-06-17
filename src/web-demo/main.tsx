@@ -19,7 +19,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from '../App';
-import { TooltipProvider } from '@/components/ui/tooltip';
+import { TooltipProvider } from '@/ui/tooltip';
 import '../styles/globals.css';
 import i18n from '../i18n';
 import { detectLocale } from '../lib/locale-detect';

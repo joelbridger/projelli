@@ -58,13 +58,13 @@ import {
   computeBackupPath,
   formatBackupTimestamp,
 } from '@/stores/fileBackupStore';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/ui/dropdown-menu';
 import { FileText, List, PanelRightClose, FileType, X, History, Download, ChevronDown, MoreHorizontal, Columns, Rows, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { saveFile } from '@/utils/saveFile';

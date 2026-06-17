@@ -15,7 +15,7 @@
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 import { useState } from 'react';
 import { Sparkles, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 import { hasDeferredAiSetup } from '@/features/onboarding/aiSetupState';
 

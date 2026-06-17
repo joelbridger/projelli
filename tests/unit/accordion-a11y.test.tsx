@@ -1,7 +1,7 @@
 /**
  * F-005 — Accordion ARIA wiring + keyboard navigation
  *
- * Verifies that the custom Accordion primitive (src/components/ui/accordion.tsx)
+ * Verifies that the custom Accordion primitive (src/ui/accordion.tsx)
  * meets the WAI-ARIA Accordion pattern requirements:
  *   - aria-expanded reflects open/closed state on triggers
  *   - aria-controls on trigger points at the correct panel id
@@ -20,7 +20,7 @@ import {
   AccordionItem,
   AccordionTrigger,
   AccordionContent,
-} from '@/components/ui/accordion';
+} from '@/ui/accordion';
 
 // ---------------------------------------------------------------------------
 // Helpers

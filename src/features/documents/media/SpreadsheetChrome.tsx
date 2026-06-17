@@ -4,7 +4,7 @@
 
 import { Plus, Minus, ArrowUpFromLine, ArrowDownFromLine, ArrowLeftFromLine, ArrowRightFromLine } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { columnIndexToLetter } from '@/utils/spreadsheet-io';
 import type { SheetData } from '@/utils/spreadsheet-io';
 import type { CellPos } from './spreadsheetViewerHelpers';

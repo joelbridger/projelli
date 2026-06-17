@@ -14,7 +14,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExternalLink } from 'lucide-react';
 import { openExternal } from '@/utils/openExternal';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 
 export type ProviderId = 'anthropic' | 'openai' | 'google';
 

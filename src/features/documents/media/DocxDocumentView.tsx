@@ -11,7 +11,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
 import {
   authorColor,

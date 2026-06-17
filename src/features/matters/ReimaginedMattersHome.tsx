@@ -21,7 +21,7 @@ import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/utils/
 import type { Matter } from '@/types/matter';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
-import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar } from '@/components/ui/kp';
+import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar } from '@/ui/kp';
 
 /** localStorage key for dismissing the setup card. */
 const SETUP_CARD_DISMISSED_KEY = 'keepance:setup-card-dismissed';

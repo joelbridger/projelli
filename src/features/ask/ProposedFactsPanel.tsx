@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, Check, X, Pencil, Brain } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/ui/button';
+import { Textarea } from '@/ui/textarea';
 
 /**
  * M3 — Proposed facts chip row. Rendered below the most recent AI

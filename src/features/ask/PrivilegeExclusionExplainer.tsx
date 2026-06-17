@@ -17,7 +17,7 @@
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Info } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
+} from '@/ui/dialog';
 import { ragRetrieve, type RagHit, type RetrievalScope } from '@/utils/tauri-commands';
 import { summarizePrivilegeDiff } from '@/modules/memory/privilegeDiff';
 

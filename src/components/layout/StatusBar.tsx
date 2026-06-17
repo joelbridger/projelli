@@ -12,7 +12,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/ui/dropdown-menu';
 import { useActiveMatter } from '@/stores/matterStore';
 import { BugReportDialog } from '@/components/common/BugReportDialog';
 import { TrialStatusChip } from '@/features/account/trial';

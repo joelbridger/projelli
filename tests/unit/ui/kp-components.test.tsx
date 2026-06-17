@@ -8,7 +8,7 @@ import {
   IconButton,
   SearchField,
   SegmentedToggle,
-} from '@/components/ui/kp';
+} from '@/ui/kp';
 
 describe('kp Button', () => {
   it('renders children and applies the variant + size classes', () => {

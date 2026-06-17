@@ -18,7 +18,7 @@
 
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Label } from '@/components/ui/label';
+import { Label } from '@/ui/label';
 import i18n from '@/i18n';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { AuditService } from '@/modules/audit/AuditService';

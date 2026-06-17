@@ -3,7 +3,7 @@
 // recording, effects, cut/copy/paste, undo/redo, and keyboard shortcuts.
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import {
   Play,
   Pause,
@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
   DropdownMenuLabel,
-} from '@/components/ui/dropdown-menu';
+} from '@/ui/dropdown-menu';
 import {
   applyGain,
   applyFadeIn,

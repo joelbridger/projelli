@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Circle, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 import { useApiKeys } from '@/hooks/useApiKeys';
 import { useFirm } from '@/hooks/useFirm';

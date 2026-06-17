@@ -38,7 +38,7 @@ import {
   X,
   PenLine,
 } from 'lucide-react';
-import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, SurfaceToolbar } from '@/components/ui/kp';
+import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, SurfaceToolbar } from '@/ui/kp';
 import { useActiveMatter } from '@/stores/matterStore';
 import {
   mailListMessages,

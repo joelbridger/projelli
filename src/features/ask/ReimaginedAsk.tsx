@@ -24,7 +24,7 @@ import {
   Sparkles, ArrowRight, AlertTriangle,
   MessageSquare, Plus,
 } from 'lucide-react';
-import { Button, Chip, Eyebrow, EmptyState, SurfaceToolbar, SearchField } from '@/components/ui/kp';
+import { Button, Chip, Eyebrow, EmptyState, SurfaceToolbar, SearchField } from '@/ui/kp';
 import { ScopeToggle } from './ScopeToggle';
 import { SourcePanel } from './SourcePanel';
 import { SampleBridgeCallout } from './SampleBridgeCallout';

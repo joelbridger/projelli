@@ -27,14 +27,14 @@ import {
   FileText,
 } from 'lucide-react';
 import { getFileIcon } from '@/utils/fileIcons';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/ui/dropdown-menu';
 import { EmptyState } from '@/components/common/EmptyState';
 import { AI_MESSAGE_MIME } from '@/utils/fileDrop';
 import { isAbsolutePath } from '@/modules/workspace/pathResolve';

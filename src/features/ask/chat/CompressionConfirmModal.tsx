@@ -21,8 +21,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+} from '@/ui/dialog';
+import { Button } from '@/ui/button';
 import { formatContextSize } from '@/modules/models/context-limits';
 
 export interface CompressionConfirmModalProps {

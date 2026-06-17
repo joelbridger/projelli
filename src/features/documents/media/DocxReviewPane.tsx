@@ -5,7 +5,7 @@
 
 import { useTranslation } from 'react-i18next';
 import { Check, CheckCheck, PanelRightClose, X, XCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 import { authorColor, formatRevisionDate, snippet } from '@/utils/docx-dom';
 import type { DocxComment, DocxResolveAction, GroupedRevision } from '@/types/docx';

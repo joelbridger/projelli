@@ -14,8 +14,8 @@
 
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/ui/button';
+import { Card, CardContent } from '@/ui/card';
 import { Sparkles, Loader2, X, CheckCircle2 } from 'lucide-react';
 import type { Provider } from '@/modules/models/Provider';
 import { ComparisonView } from '@/components/analysis/ComparisonView';

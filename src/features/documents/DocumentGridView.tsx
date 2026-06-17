@@ -22,7 +22,7 @@ import {
   Search,
   ChevronRight,
 } from 'lucide-react';
-import { Button, EmptyState } from '@/components/ui/kp';
+import { Button, EmptyState } from '@/ui/kp';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { TrashPanel } from '@/components/common/TrashPanel';

@@ -13,8 +13,8 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs';
+import { Button } from '@/ui/button';
 import { ExternalLink } from 'lucide-react';
 
 type ProviderId = 'icloud' | 'dropbox' | 'syncthing' | 'gdrive';

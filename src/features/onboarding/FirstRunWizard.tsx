@@ -31,7 +31,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { writeSampleFiles, getSamplesForProfession } from '@/onboarding/samples';
 import { AiSetupStep } from '@/features/onboarding/AiSetupStep';
 import { DiskEncryptionGuidance } from '@/features/onboarding/DiskEncryptionGuidance';

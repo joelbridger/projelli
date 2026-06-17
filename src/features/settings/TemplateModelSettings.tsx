@@ -10,8 +10,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
+import { Label } from '@/ui/label';
+import { Button } from '@/ui/button';
 import { X } from 'lucide-react';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { WorkflowTemplate, TemplateProviderId } from '@/types/workflow';

@@ -54,7 +54,7 @@ vi.mock('@/utils/saveFile', () => ({
   saveFile: (...args: unknown[]) => saveFileMock(...args),
 }));
 
-import { TooltipProvider } from '@/components/ui/tooltip';
+import { TooltipProvider } from '@/ui/tooltip';
 import { DocxEditor } from '@/features/documents/media/DocxEditor';
 import type { DocumentJson, DocxAiEdit } from '@/types/docx';
 

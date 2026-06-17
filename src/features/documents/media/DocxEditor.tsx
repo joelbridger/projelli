@@ -43,7 +43,7 @@ import {
   X,
 } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,7 +51,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { AutoSaveIndicator } from '@/features/documents/editor/AutoSaveIndicator';
 import { DocxViewer } from '@/features/documents/media/DocxViewer';

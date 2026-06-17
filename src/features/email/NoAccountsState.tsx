@@ -1,5 +1,5 @@
 import { Mail } from 'lucide-react';
-import { Button, EmptyState } from '@/components/ui/kp';
+import { Button, EmptyState } from '@/ui/kp';
 
 // ── No-accounts empty state ────────────────────────────────────────────────
 

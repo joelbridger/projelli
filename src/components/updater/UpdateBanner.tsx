@@ -14,7 +14,7 @@
 
 import { useState } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { useUpdaterStore } from '@/stores/updaterStore';
 import { Download, RefreshCw, X } from 'lucide-react';
 import { cn } from '@/lib/utils';

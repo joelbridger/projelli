@@ -54,7 +54,7 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({ save: vi.fn() }));
 vi.mock('@tauri-apps/plugin-fs', () => ({ readFile: vi.fn() }));
 vi.mock('@/utils/saveFile', () => ({ saveFile: vi.fn() }));
 
-import { TooltipProvider } from '@/components/ui/tooltip';
+import { TooltipProvider } from '@/ui/tooltip';
 import { DocxEditor } from '@/features/documents/media/DocxEditor';
 
 // ---------------------------------------------------------------------------

@@ -20,7 +20,7 @@ import {
   Eyebrow,
   EmptyState,
   SlidePanel,
-} from '@/components/ui/kp';
+} from '@/ui/kp';
 import {
   lookupLabel,
   lookupCategory,

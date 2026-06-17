@@ -23,7 +23,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { ExtractedContext } from '@/utils/ai-file-context';
 import {

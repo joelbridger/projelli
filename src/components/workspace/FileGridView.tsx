@@ -11,7 +11,7 @@ import {
   Home,
 } from 'lucide-react';
 import { getFileIcon } from '@/utils/fileIcons';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 
 interface FileGridViewProps {

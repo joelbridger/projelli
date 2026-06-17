@@ -1,5 +1,5 @@
 import { CheckCircle2, FileText, ExternalLink } from 'lucide-react';
-import { Button, Badge, Eyebrow, Card } from '@/components/ui/kp';
+import { Button, Badge, Eyebrow, Card } from '@/ui/kp';
 import type { AnswerCitation } from './askHelpers';
 
 /* -------------------------------------------------------------------------- */

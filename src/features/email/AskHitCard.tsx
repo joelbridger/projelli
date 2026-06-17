@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Card } from '@/components/ui/kp';
+import { Card } from '@/ui/kp';
 import type { RagHit } from '@/utils/tauri-commands';
 import type { MailListItem } from '@/utils/mail-commands';
 

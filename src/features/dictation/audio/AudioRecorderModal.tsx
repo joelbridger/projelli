@@ -3,8 +3,8 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog';
+import { Button } from '@/ui/button';
 import { Mic, Square, Play, Pause, Save, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

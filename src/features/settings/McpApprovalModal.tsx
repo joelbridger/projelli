@@ -29,8 +29,8 @@ import {
   DialogContent,
   DialogDescription,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+} from '@/ui/dialog';
+import { Button } from '@/ui/button';
 import { AlertTriangle, Check, X, FilePlus2, FilePen, ShieldOff } from 'lucide-react';
 import type { McpPendingApproval } from '@/utils/tauri-commands';
 

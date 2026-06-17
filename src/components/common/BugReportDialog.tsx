@@ -6,11 +6,11 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from '@/ui/dialog';
+import { Button } from '@/ui/button';
+import { Textarea } from '@/ui/textarea';
+import { Input } from '@/ui/input';
+import { Label } from '@/ui/label';
 import { Bug, Loader2 } from 'lucide-react';
 import { getCorsSafeFetch } from '@/modules/models/fetchUtils';
 import { openExternal } from '@/utils/openExternal';

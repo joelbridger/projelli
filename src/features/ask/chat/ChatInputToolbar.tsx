@@ -17,7 +17,7 @@
 import { useRef, useState, useCallback, type DragEvent, type ClipboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Paperclip } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 import { AttachmentTile } from './AttachmentTile';
 import { VisionWarningBanner } from './VisionWarningBanner';

@@ -26,7 +26,7 @@ import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
 
 import { ProjectManager } from '@/components/workspace/ProjectManager';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { Command, Moon, Monitor, Sun, Settings } from 'lucide-react';
 import { manualUpdateCheck } from '@/components/updater/UpdateManager';
 import { openExternal } from '@/utils/openExternal';

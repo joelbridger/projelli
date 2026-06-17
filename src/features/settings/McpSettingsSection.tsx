@@ -18,7 +18,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { Download, CheckCircle2, AlertCircle, ExternalLink, ShieldOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mcpBundlePath } from '@/utils/tauri-commands';

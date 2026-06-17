@@ -2,7 +2,7 @@
 // Plays audio files with controls and waveform visualization
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { Play, Pause, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

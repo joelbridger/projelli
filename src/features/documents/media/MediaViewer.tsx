@@ -2,7 +2,7 @@
 // Displays images and videos with basic controls
 
 import { useState, useCallback, useRef } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import {
   ZoomIn,
   ZoomOut,

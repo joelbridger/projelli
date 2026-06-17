@@ -22,7 +22,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-} from '@/components/ui/dropdown-menu';
+} from '@/ui/dropdown-menu';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
 import {
   ALL_PRIVILEGE_STATUSES,

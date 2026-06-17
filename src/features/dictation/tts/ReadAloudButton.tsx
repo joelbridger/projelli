@@ -15,7 +15,7 @@
  * is a pure controlled button that receives `playing` / `loading` state.
  */
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { Volume2, Square, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

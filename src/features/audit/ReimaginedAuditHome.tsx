@@ -41,7 +41,7 @@ import {
   FilterToggle,
   Card,
   SurfaceToolbar,
-} from '@/components/ui/kp';
+} from '@/ui/kp';
 import {
   PAGE_SIZE,
   ActionCategory,

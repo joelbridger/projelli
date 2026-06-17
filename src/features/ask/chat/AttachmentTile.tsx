@@ -4,7 +4,7 @@
  * remove button.
  */
 import { X, Image as ImageIcon, FileText } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 import type { ChatAttachment } from '@/types/ai';
 

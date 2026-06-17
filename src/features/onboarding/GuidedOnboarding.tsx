@@ -20,7 +20,7 @@
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 
 import { useState, useRef, type ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/button';
 import { Check, Upload, User, Building2 } from 'lucide-react';
 import { useProfileStore } from '@/stores/profileStore';
 import { readImageAsDataUrl } from '@/utils/imageUpload';

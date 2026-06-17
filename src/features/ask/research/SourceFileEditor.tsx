@@ -5,10 +5,10 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { openExternal } from '@/utils/openExternal';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/ui/button';
+import { Input } from '@/ui/input';
+import { Label } from '@/ui/label';
+import { Textarea } from '@/ui/textarea';
 import { ExternalLink, Save, Calendar, Tag, Plus, X, Loader2 } from 'lucide-react';
 import type { SourceCard } from '@/features/ask/types/research';
 
