@@ -141,10 +141,10 @@
 
 | Layer | Technology | Notes |
 |-------|------------|-------|
-| **Frontend** | React 18 + TypeScript 5 + Vite 5 | Strict mode enabled |
+| **Frontend** | React 18 + TypeScript 5 + Vite 6 | Strict mode enabled |
 | **State** | Zustand | No providers needed, works outside React |
 | **UI Components** | shadcn/ui + Radix + Tailwind CSS 3 | Accessible, customizable |
-| **Editor** | In-house OOXML (.docx) engine + TipTap | Word-native is primary: tracked changes + AI redline. (Legacy CodeMirror/markdown is being removed in the 3.0 reorg.) |
+| **Editor** | In-house OOXML (.docx) engine + TipTap | Word-native is primary: tracked changes + AI redline. CodeMirror is kept for plain-text/Markdown utility files (.md/.txt/.json). |
 | **Desktop** | Tauri 2 | Small binary, native security model |
 | **Persistence** | Flat files (WebFS / Tauri FS) for documents; Zustand + `localStorage` for app state | **NO sql.js.** RunRecords are `.workflow` files; SourceCards are `.source` files. |
 | **Search** | minisearch (full-text) + fuse.js (fuzzy / quick-open) | **NO FlexSearch.** Semantic RAG = LanceDB + fastembed (e5-small), native Rust, stored under `~/.keepance`. |
@@ -230,7 +230,7 @@
 - **React functional components** - No class components
 - **shadcn/ui patterns** - Use existing components, don't reinvent
 - **Zustand for state** - Keep stores focused, use selectors
-- **Path aliases** - Use `@/` prefix for imports (e.g., `@/modules/workspace`)
+- **Path aliases** - Use `@/` prefix for imports (e.g., `@/platform/fs/WorkspaceService`, `@/features/ask/Ask`). See `ARCHITECTURE.md` for the layer layout.
 
 ### Naming Conventions
 
@@ -292,10 +292,10 @@ interface FSBackend {
 **All file changes are automatically saved** - no manual save required.
 
 **How it works:**
-- **Interval**: Every 2 seconds (App.tsx lines 1875-1890)
+- **Interval**: Every 2 seconds (`src/app/lifecycle/useAutosave.ts`)
 - **Trigger**: Changes to file content mark tabs as `isDirty: true`
 - **Persistence**: Autosave interval writes dirty tabs to disk via WorkspaceService
-- **Visual Indicator**: "Auto-save" label with Save icon in MainPanel status bar (MainPanel.tsx lines 554-558)
+- **Visual Indicator**: "Auto-save" / dirty indicator in the status bar (`src/app/shell/layout/StatusBar.tsx`)
 - **Version History**: Versionable files (.md, .txt, .json, .source) automatically save versions on content change
 
 **User Experience:**
@@ -362,10 +362,10 @@ useEffect(() => {
 
 ### Running Tests:
 ```bash
-npm run test              # Run all tests
-npm run test:unit         # Unit tests only
-npm run test:integration  # Integration tests
-npm run test:security     # Security tests
+npm run test              # Run all tests (Vitest unit + integration)
+npm run test:watch        # Watch mode
+npm run test:coverage     # With coverage
+npx playwright test       # E2E
 ```
 
 ---
@@ -547,10 +547,6 @@ interface DocSummary {
 ### TypeScript errors after changes
 - Run `npx tsc --noEmit` to see all errors
 - Check that strict mode rules are followed
-
-### SQLite errors in browser
-- sql.js WASM must be loaded before use
-- Check async initialization in `src/lib/sqlite.ts`
 
 ### File operations fail silently
 - Check browser DevTools console for permission errors
