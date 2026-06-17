@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.1] - 2026-06-17
+
+A reliability and onboarding-polish release fixing issues found in Windows testing.
+
+### Fixed
+- **No more flashing console window on Windows.** Connecting email, opening a Word document, revealing a file in Explorer, and the disk-encryption check no longer flash a black terminal window. Every Windows helper process now launches hidden.
+- **Connecting Gmail no longer ends on a blank "Could not connect" screen.** The local sign-in handoff returns a complete, cleanly-closed response, so the browser finishes the redirect instead of resetting the connection.
+
+### Changed
+- **Clearer firm setup in onboarding.** "How do you practice?" now offers three plain choices, Create a firm, Join your firm, or Continue solo, each with guidance on what to do and how.
+- **A fuller product tour.** The guided tour now also covers Workflows, the Privacy Center, Settings, and your Account.
+
 ## [3.3.0] - 2026-06-17
 
 The "trust and traction" release: the trust story made visible and demo-able, citations hardened against hallucination, the email wedge secured, bring-your-own-key set as the honest default, an opt-in learning loop, and every public claim reconciled to one source of truth. Built on the behavior-preserving 3.0 feature-first reorganization.
