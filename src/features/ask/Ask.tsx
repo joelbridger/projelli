@@ -72,6 +72,7 @@ export function Ask(props: UseAskProps) {
     handleAsk,
     handleKeyDown,
     handleSaveToDocument,
+    onOpenFileAtPath,
     isBusy,
   } = useAsk(props);
 
@@ -348,6 +349,7 @@ export function Ask(props: UseAskProps) {
               onSaveToDocument={onSaveToDocument ? handleSaveToDocument : undefined}
               isSaving={savingIdx === idx}
               isPersisted={false}
+              {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
             />
           ))}
 
@@ -364,6 +366,7 @@ export function Ask(props: UseAskProps) {
               isSaving={false}
               isPersisted={false}
               isStreaming
+              {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
             />
           )}
           </div>

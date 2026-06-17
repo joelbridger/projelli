@@ -111,6 +111,7 @@ describe('Task 2 — CitationText chip fires onOpenFileAtPath on click', () => {
         verified: true,
         id: 'chunk-c1',
         matterId: 'matter-acme',
+        paragraphIndex: 4,
       },
     ];
     render(
@@ -127,7 +128,7 @@ describe('Task 2 — CitationText chip fires onOpenFileAtPath on click', () => {
     expect(onOpenFile).toHaveBeenCalledTimes(1);
     expect(onOpenFile).toHaveBeenCalledWith(
       '/ws/contracts/contract.docx',
-      4, // paragraphIndex from locator §4
+      4,
       'The penalty clause is at section 8.',
     );
   });

@@ -42,12 +42,19 @@ export interface UseAskProps {
   prefillRequest?: { question: string; autoSubmit?: boolean } | null;
   /** Called after a prefill has been consumed so the parent can clear it. */
   onPrefillConsumed?: () => void;
+  /**
+   * WS3 (Task 2): when provided, citation chip clicks open the file at the
+   * cited paragraph in the editor — single-click navigation matching the Chat
+   * surface. Signature mirrors AIChatViewer.onOpenFileAtPath.
+   */
+  onOpenFileAtPath?: (path: string, paragraphIndex?: number, snippet?: string) => void | Promise<void>;
 }
 
 export function useAsk({
   onSaveToDocument,
   prefillRequest,
   onPrefillConsumed,
+  onOpenFileAtPath,
 }: UseAskProps) {
   const activeMatter = useActiveMatter();
   const rootPath = useWorkspaceStore((s) => s.rootPath);
@@ -445,6 +452,8 @@ export function useAsk({
 
           // WS3: forward id + matterId from the matched hit so the SourcePanel
           // can call ragVerifyCitation for on-demand source verification.
+          // Also forward paragraphIndex so CitationText chip click can open
+          // the file directly at the cited passage (one-click navigation).
           const matchedHit = hits.find(
             (h) => h.path === resolvedPath && h.paragraphIndex === cite.paragraphIndex,
           ) ?? hits.find((h) => h.path === resolvedPath);
@@ -455,6 +464,7 @@ export function useAsk({
             path: resolvedPath,
             locator: matchedSource ? sourceLocator(matchedSource) : cite.basename,
             verified: resolvedPath !== null,
+            paragraphIndex: cite.paragraphIndex,
             ...(matchedHit?.id !== undefined ? { id: matchedHit.id } : {}),
             ...(matchedHit?.matterId !== undefined ? { matterId: matchedHit.matterId } : {}),
           });
@@ -555,6 +565,7 @@ export function useAsk({
     handleAsk,
     handleKeyDown,
     handleSaveToDocument,
+    onOpenFileAtPath,
     isBusy,
   };
 }

@@ -11,11 +11,17 @@ export function CitationText({
   citations,
   selected,
   onSelect,
+  onOpenFileAtPath,
 }: {
   text: string;
   citations: AnswerCitation[];
   selected: number | null;
   onSelect: (n: number) => void;
+  /**
+   * WS3 (Task 2): when provided, chip click also opens the file at the
+   * cited paragraph — single-click navigation matching the Chat surface.
+   */
+  onOpenFileAtPath?: (path: string, paragraphIndex: number, snippet?: string) => void;
 }) {
   const parts = text.split(/(\{\d+\})/g);
   return (
@@ -30,11 +36,35 @@ export function CitationText({
         const isVerified = cite?.verified ?? false;
         const isUnresolved = cite?.path === null;
 
+        // WS3 (Task 3): three unmistakable states reflected in data-verified
+        // 'true'    — resolved and verified (green)
+        // 'false'   — unresolved / path is null (danger/amber)
+        // 'unknown' — resolved but not yet verified (neutral)
+        const dataVerified: 'true' | 'false' | 'unknown' = isUnresolved
+          ? 'false'
+          : isVerified
+            ? 'true'
+            : 'unknown';
+
         return (
           <button
             key={i}
             type="button"
-            onClick={() => { onSelect(n); }}
+            data-testid={`ask-citation-chip-${n}`}
+            data-verified={dataVerified}
+            onClick={() => {
+              onSelect(n);
+              // WS3 (Task 2): also open the file at the cited paragraph if
+              // a path is available — single-click, no second "Open in editor"
+              // click required (matches the Chat surface behaviour).
+              if (onOpenFileAtPath && cite?.path) {
+                onOpenFileAtPath(
+                  cite.path,
+                  cite.paragraphIndex ?? 0,
+                  cite.excerpt || undefined,
+                );
+              }
+            }}
             aria-label={`Citation ${String(n)}: ${cite?.label ?? 'unknown'}. ${isVerified ? 'Verified.' : 'Not verified.'}`}
             title={
               isUnresolved

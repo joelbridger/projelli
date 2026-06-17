@@ -1,5 +1,5 @@
-import { Quote, Loader2, ShieldCheck, Save } from 'lucide-react';
-import { Button } from '@/ui/kp';
+import { Quote, Loader2, ShieldCheck, Save, AlertTriangle } from 'lucide-react';
+import { Button, Callout } from '@/ui/kp';
 import type { AskTurn } from './askHelpers';
 import { CitationText } from './CitationText';
 
@@ -17,6 +17,7 @@ export function TurnBlock({
   isSaving,
   isPersisted,
   isStreaming = false,
+  onOpenFileAtPath,
 }: {
   turn: AskTurn;
   turnIdx: number;
@@ -27,6 +28,11 @@ export function TurnBlock({
   isSaving: boolean;
   isPersisted: boolean;
   isStreaming?: boolean;
+  /**
+   * WS3 (Task 2): when provided, citation chip clicks open the file at
+   * the cited paragraph in the editor — single-click navigation.
+   */
+  onOpenFileAtPath?: (path: string, paragraphIndex: number, snippet?: string) => void;
 }) {
   const isThisTurnSelected = selectedTurnIdx === turnIdx;
   const selectedForThisTurn = isThisTurnSelected ? selected : null;
@@ -83,14 +89,17 @@ export function TurnBlock({
             citations={turn.citations}
             selected={selectedForThisTurn}
             onSelect={(n) => { onCitationSelect(turnIdx, n); }}
+            {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
           />
         )}
 
         {/* Privacy attestation (completed cited turns only).
             A2: shown only when citations exist, so it is never contradicted
-            by the "No indexed sources" note below — the two are mutually exclusive. */}
+            by the "No indexed sources" note below — the two are mutually exclusive.
+            WS3: add data-testid so tests can assert its presence. */}
         {!isStreaming && turn.answer && turn.citations.length > 0 && (
           <div
+            data-testid="ask-cited-attestation"
             style={{
               padding: '9px 12px',
               borderRadius: 'var(--radius-md)',
@@ -110,13 +119,17 @@ export function TurnBlock({
           </div>
         )}
 
-        {/* No citations note — only shows when there are genuinely no citations.
-            A2: mutually exclusive with the attestation above. */}
+        {/* WS3 (Task 3): uncited warning — upgraded from a muted one-liner to a
+            visible Callout so an uncited answer looks clearly LESS trustworthy
+            than a cited one. Mutually exclusive with the attestation above.
+            A2 guarantee preserved: only shown when there are no citations. */}
         {!isStreaming && turn.citations.length === 0 && turn.answer && (
-          <div style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            No indexed sources were cited. Index your files to get click-to-verify answers.
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          <div data-testid="ask-uncited-warning">
+            <Callout variant="warning" icon={AlertTriangle}>
+              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+              Not cited from your files. Verify this before relying on it.
+              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            </Callout>
           </div>
         )}
 
