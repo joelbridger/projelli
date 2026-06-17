@@ -128,11 +128,11 @@
         </div>
 
         <div class="input-group">
-          <label for="keepance-tier">Keepance tier (one-time)</label>
+          <label for="keepance-tier">Keepance tier (annual)</label>
           <select id="keepance-tier">
-            <option value="49" selected>Personal ($49 one-time)</option>
-            <option value="149">Professional + practice pack ($149/yr)</option>
-            <option value="499">Practice, up to 5 seats ($499/yr)</option>
+            <option value="468" selected>Solo ($468/yr)</option>
+            <option value="948">Professional ($948/yr)</option>
+            <option value="1548">Firm, per seat ($1,548/yr, min 3 seats)</option>
           </select>
         </div>
       </div>
@@ -221,7 +221,7 @@
 
     <div class="cta-card">
       <h3>Try BYOK with Keepance</h3>
-      <p>Free 30-day trial. Personal is $49 one-time. Professional (with practice pack) is $149/yr. Your client data never touches our servers.</p>
+      <p>Free 30-day trial. Solo is $468/yr. Professional is $948/yr. Firm is $1,548/seat/yr (min 3 seats). Your client data never touches our servers.</p>
       <a href="/#pricing" class="cta-btn">Get Keepance</a>
     </div>
   </div>
@@ -300,11 +300,11 @@
           }
         });
 
-        // 3-year totals
+        // 3-year totals (Keepance tiers are annual subscriptions)
         const subYear1 = subTotalMonthly * 12;
         const sub3Year = subTotalMonthly * 36;
         const keepanceYear1 = keepanceCost + (monthlyByokCost * 12);
-        const keepance3Year = keepanceCost + (monthlyByokCost * 36);
+        const keepance3Year = (keepanceCost * 3) + (monthlyByokCost * 36);
         const savings = sub3Year - keepance3Year;
 
         // Update breakdown (all textContent, no innerHTML)

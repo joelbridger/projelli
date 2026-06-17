@@ -228,7 +228,8 @@ describe('T1-B — EULA/Terms Practice annual subscription', () => {
     ];
     for (const f of filesToCheck) {
       const html = readFileSync(join(websiteDir, f), 'utf-8');
-      expect(html, `stale $129 in ${f}`).not.toMatch(/\$129\b/);
+      // $129/mo is the current Firm monthly rate; flag only $129 NOT followed by /mo (the retired Professional one-time price).
+      expect(html, `stale $129 (retired Professional) in ${f}`).not.toMatch(/\$129\b(?!\s*\/\s*mo)/);
     }
   });
 });

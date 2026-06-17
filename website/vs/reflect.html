@@ -22,7 +22,7 @@
     { "@type": "Question", "name": "Is Reflect a good Notion alternative?", "acceptedAnswer": { "@type": "Answer", "text": "Reflect is closer to Roam Research or Logseq in shape, with strong networked-thinking features. It's not really a Notion alternative; Notion is a team workspace, Reflect is single-user notes with AI." } },
     { "@type": "Question", "name": "Does Reflect work offline?", "acceptedAnswer": { "@type": "Answer", "text": "Reflect has cached offline access for reading existing notes, but it's a cloud-first app. Editing while offline syncs once you reconnect, and the cloud is the source of truth." } },
     { "@type": "Question", "name": "Can I migrate from Reflect to Keepance?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Reflect supports Markdown export. Drop the exported folder into a Keepance workspace and you're done. Wiki-links convert mostly cleanly, since Reflect uses [[link]] syntax similar to Keepance's." } },
-    { "@type": "Question", "name": "What does Reflect cost?", "acceptedAnswer": { "@type": "Answer", "text": "Reflect is $15/month or $144/year. AI is bundled into the subscription. Keepance is $49 Personal (one-time), $149/yr Professional (includes one practice pack), or $499/yr Practice (up to 5 seats), plus your own AI provider's API costs (typically $5-15/month)." } }
+    { "@type": "Question", "name": "What does Reflect cost?", "acceptedAnswer": { "@type": "Answer", "text": "Reflect is $15/month or $144/year. AI is bundled into the subscription. Keepance is Solo $468/yr, Professional $948/yr, or Firm $1,548/seat/yr (min 3 seats), plus your own AI provider's API costs (typically $5-15/month)." } }
   ] }
   </script>
   <style>
@@ -80,13 +80,13 @@
       <thead><tr><th>Feature</th><th>Reflect</th><th>Keepance</th></tr></thead>
       <tbody>
         <tr><td>Where data lives</td><td>Reflect's cloud (encrypted at rest)</td><td>Your hard drive (Markdown files)</td></tr>
-        <tr><td>Pricing</td><td>$15/mo or $144/yr</td><td>$149/yr (Professional) + your AI provider's API costs</td></tr>
+        <tr><td>Pricing</td><td>$15/mo or $144/yr</td><td>$948/yr (Professional) + your AI provider's API costs</td></tr>
         <tr><td>Where your prompts go</td><td>Through Reflect's servers</td><td>Direct from your machine to the AI provider (Anthropic/OpenAI/Google)</td></tr>
         <tr><td>What's stored on a vendor's server</td><td>Your notes (encrypted at rest on Reflect's infrastructure)</td><td>Nothing. No documents, no prompts, no API key on Keepance servers</td></tr>
         <tr><td>AI model</td><td>Whatever Reflect provides (currently Claude + others)</td><td>Bring your own Claude / OpenAI / Gemini key</td></tr>
         <tr><td>Wiki-links / backlinks</td><td><span class="pill yes">Yes (excellent)</span></td><td><span class="pill yes">Yes</span></td></tr>
         <tr><td>Daily notes</td><td><span class="pill yes">Yes (default flow)</span></td><td><span class="pill yes">Yes (template)</span></td></tr>
-        <tr><td>Profession-specific practice packs</td><td><span class="pill no">No</span></td><td>28 built in + <a href="https://github.com/keepance/community-templates" target="_blank" rel="noopener">community marketplace</a></td></tr>
+        <tr><td>Profession-specific practice packs</td><td><span class="pill no">No</span></td><td>50+ built-in templates across legal, tax, consulting, and advisory practices</td></tr>
         <tr><td>Image attachments in AI chat</td><td><span class="pill maybe">Limited</span></td><td><span class="pill yes">Paste, drag, paperclip per provider</span></td></tr>
         <tr><td>PDF chat with native vision</td><td><span class="pill no">No</span></td><td><span class="pill yes">Drop a PDF, Claude reads it natively</span></td></tr>
         <tr><td>PDFs in workspace search</td><td><span class="pill no">No</span></td><td><span class="pill yes">Toggle in Memory settings</span></td></tr>
@@ -153,7 +153,7 @@
         <tr><td>API key custody</td><td>Not applicable. Reflect's key, bundled into the subscription.</td><td>Your OS keychain. Keepance never sees it.</td></tr>
         <tr><td>Vendor retention policy applies to your content</td><td>Yes, per Reflect's privacy policy</td><td>No. Nothing is stored on Keepance servers.</td></tr>
         <tr><td>Can you use it for privileged client work?</td><td>Depends on your jurisdiction, firm policy, and Reflect's retention terms</td><td>Files stay on your machine, Keepance never sees them. AI prompts go to the provider you chose; use Ollama for fully local inference.</td></tr>
-        <tr><td>Pricing</td><td>$144/yr (or $15/mo)</td><td>$49 one-time Personal, $149/yr Professional (includes one practice pack), $499/yr Practice (up to 5 seats). Plus your own AI provider's API costs (typically $5-15/mo).</td></tr>
+        <tr><td>Pricing</td><td>$144/yr (or $15/mo)</td><td>Solo $468/yr, Professional $948/yr, Firm $1,548/seat/yr (min 3 seats). Plus your own AI provider's API costs (typically $5-15/mo).</td></tr>
       </tbody>
     </table>
 
@@ -186,7 +186,7 @@
       </details>
       <details>
         <summary>What does Reflect cost?</summary>
-        <p>Reflect is $15/month or $144/year. AI is bundled into the subscription. Keepance is $49 Personal (one-time), $149/yr Professional (includes one practice pack), or $499/yr Practice (up to 5 seats), plus your own AI provider's API costs (typically $5-15/month).</p>
+        <p>Reflect is $15/month or $144/year. AI is bundled into the subscription. Keepance is Solo $468/yr, Professional $948/yr, or Firm $1,548/seat/yr (min 3 seats), plus your own AI provider's API costs (typically $5-15/month).</p>
       </details>
       <details>
         <summary>Which has better AI quality?</summary>
@@ -199,9 +199,9 @@
     </div>
 
     <div class="cta-row">
-      <p>Download free for 30 days, no credit card. Personal $49 one-time, Professional $149/yr (includes one practice pack), Practice $499/yr (up to 5 seats). Documents and API key stay on your machine.</p>
+      <p>Download free for 30 days, no credit card. Solo $468/yr, Professional $948/yr, Firm $1,548/seat/yr (min 3 seats). Documents and API key stay on your machine.</p>
       <a href="/#pricing" class="cta">Download free for 30 days</a>
-      <p style="margin-top: 16px; font-size: 0.9375rem;">Founding offer: the first 100 buyers of each practice pack get Professional at $99/yr instead of $149/yr. <a href="/#pricing">Reserve the founding price</a> while checkout opens.</p>
+      <p style="margin-top: 16px; font-size: 0.9375rem;">Founding rate: 30% off, locked for life. <a href="/#pricing">Reserve the founding price</a> while it lasts.</p>
       <p style="margin-top: 12px; font-size: 0.9375rem;">Built for your field: <a href="/legal/">attorneys</a> and <a href="/consulting/">consultants</a>. See all: <a href="/">keepance.com</a> for attorneys, tax pros, and consultants.</p>
     </div>
   </div>
