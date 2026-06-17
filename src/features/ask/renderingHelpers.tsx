@@ -267,7 +267,7 @@ export function renderMessageWithCitations(
         }}
         title={(() => {
           const base = unverified
-            ? `Unverified citation — could not confirm "${label}" against the source. Do not rely on this without checking.`
+            ? `Unverified citation. Could not confirm "${label}" against the source. Do not rely on this without checking.`
             : resolved
               ? `Open ${resolved}`
               : 'Source file not found';
