@@ -23,7 +23,7 @@ import { ApiKeyWizard } from '@/features/onboarding/ApiKeyWizard';
 import { ShortcutsOverlay } from '@/components/ShortcutsOverlay';
 import { QuickOpen } from '@/components/QuickOpen';
 import { AudioRecorderModal } from '@/features/dictation/audio/AudioRecorderModal';
-import { ConfirmDialog, type ConfirmDialogProps } from '@/components/common/ConfirmDialog';
+import { ConfirmDialog, type ConfirmDialogProps } from '@/ui/ConfirmDialog';
 import { PromptDialog, type PromptDialogProps } from '@/components/common/PromptDialog';
 import { UndoToastRenderer, type UndoToastController } from '@/components/common/UndoToast';
 import { GlobalDropOverlay } from '@/components/common/GlobalDropOverlay';

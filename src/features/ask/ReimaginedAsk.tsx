@@ -32,7 +32,7 @@ import { TurnBlock } from './TurnBlock';
 import { SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 import { isMemoryEnabled } from '@/modules/memory/MemoryService';
-import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
+import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { EgressIndicator } from '@/components/privacy/EgressIndicator';
 import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
 import { useAsk, type UseAskProps } from './useAsk';

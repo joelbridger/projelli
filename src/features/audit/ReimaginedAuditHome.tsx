@@ -34,7 +34,7 @@ import {
   downloadAuditJSON,
 } from '@/features/audit/audit-export';
 import { isAuditEncrypted } from '@/modules/audit/AuditService';
-import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
+import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import {
   Button,
   SearchField,

@@ -46,7 +46,7 @@ import {
   AlertTriangle,
   AlertCircle,
 } from 'lucide-react';
-import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
+import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout, SearchField, SurfaceToolbar } from '@/ui/kp';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/types/workflow';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';

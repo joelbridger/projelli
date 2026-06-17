@@ -9,7 +9,7 @@ import { getVersionService, type FileVersion } from '@/features/documents/versio
 import { DiffViewer } from '@/features/documents/editor/DiffViewer';
 import { cn } from '@/lib/utils';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
-import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
 interface VersionHistoryPanelProps {
   filePath: string;

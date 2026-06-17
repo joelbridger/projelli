@@ -35,7 +35,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
-import { EmptyState } from '@/components/common/EmptyState';
+import { EmptyState } from '@/ui/EmptyState';
 import { AI_MESSAGE_MIME } from '@/utils/fileDrop';
 import { isAbsolutePath } from '@/modules/workspace/pathResolve';
 import { cn } from '@/lib/utils';

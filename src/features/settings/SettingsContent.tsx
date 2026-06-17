@@ -81,7 +81,7 @@ import {
   ExternalLink,
   Settings,
 } from 'lucide-react';
-import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
+import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import {
   settingTestid,
   SETTINGS_GROUP_SEARCH,

@@ -42,7 +42,7 @@ import {
   UserX,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/types/audit';
-import { EmptyState } from './EmptyState';
+import { EmptyState } from '@/ui/EmptyState';
 import {
   downloadAuditCSV,
   downloadAuditJSON,

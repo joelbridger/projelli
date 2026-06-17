@@ -8,7 +8,7 @@ import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { cn } from '@/lib/utils';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
-import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import {
   Dialog,
   DialogContent,

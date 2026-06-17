@@ -95,7 +95,7 @@ vi.mock('@/stores/editorStore', () => ({
 // and grid content. Only TrashPanel is mocked.)
 
 // TrashPanel mock — renders trash items as a list
-vi.mock('@/components/common/TrashPanel', () => ({
+vi.mock('@/features/documents/TrashPanel', () => ({
   TrashPanel: ({ items }: { items: TrashedItem[] }) => (
     <div data-testid="trash-panel">
       {items.map((item) => (

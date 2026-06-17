@@ -31,7 +31,7 @@ import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
 import type { FileNode } from '@/types/workspace';
 import type { SettingCategory } from '@/settings/schema';
 import type { WorkspaceService } from '@/modules/workspace/WorkspaceService';
-import type { TrashRetentionPeriod } from '@/components/common/TrashPanel';
+import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 
 export interface AppSurfaceRouterProps {
   sidebarActiveTab: AppSurface;

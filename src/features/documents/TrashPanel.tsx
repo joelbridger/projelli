@@ -24,7 +24,7 @@ import {
   Settings,
 } from 'lucide-react';
 import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
-import { EmptyState } from './EmptyState';
+import { EmptyState } from '@/ui/EmptyState';
 
 export type TrashRetentionPeriod = 'never' | 7 | 30 | 90 | 'custom';
 

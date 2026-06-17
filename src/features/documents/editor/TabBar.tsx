@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 import { X, GripVertical, MoreHorizontal, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
-import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,

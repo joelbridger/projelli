@@ -1,9 +1,9 @@
 // Common Components
 // Shared UI components for the application
 
-export { TrashPanel } from './TrashPanel';
+export { TrashPanel } from '@/features/documents/TrashPanel';
 export { AuditLog } from './AuditLog';
-export { EmptyState } from './EmptyState';
+export { EmptyState } from '@/ui/EmptyState';
 export {
   CommandPalette,
   getDefaultCommands,

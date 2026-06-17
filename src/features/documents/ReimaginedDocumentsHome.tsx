@@ -31,11 +31,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FolderOpen, FolderTree, FileText, X, Plus, Upload, ListTree, LayoutGrid } from 'lucide-react';
 import { IconButton, Callout, Button, SearchField, SurfaceToolbar } from '@/ui/kp';
-import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
+import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { useEditorStore } from '@/stores/editorStore';
 import { getFileIcon } from '@/utils/fileIcons';
 import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
-import type { TrashRetentionPeriod } from '@/components/common/TrashPanel';
+import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';
 import { FileTree } from '@/components/workspace/FileTree';
 

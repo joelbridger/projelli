@@ -50,7 +50,7 @@ import {
 } from '@/utils/mail-commands';
 import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
 import type { RagHit, RetrievalScope } from '@/utils/tauri-commands';
-import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
+import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { mapMailError, parseRecipients, filterInputStyle } from './emailWorkspaceHelpers';
 import { BulkMatterPicker } from './BulkMatterPicker';
 import { AskHitCard } from './AskHitCard';

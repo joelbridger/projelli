@@ -20,7 +20,7 @@ import { useApiKeys } from '@/hooks/useApiKeys';
 import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/utils/mail-commands';
 import type { Matter } from '@/types/matter';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
-import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
+import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar } from '@/ui/kp';
 
 /** localStorage key for dismissing the setup card. */

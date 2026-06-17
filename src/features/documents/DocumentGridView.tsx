@@ -25,8 +25,8 @@ import {
 import { Button, EmptyState } from '@/ui/kp';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
-import { TrashPanel } from '@/components/common/TrashPanel';
-import type { TrashRetentionPeriod } from '@/components/common/TrashPanel';
+import { TrashPanel } from '@/features/documents/TrashPanel';
+import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
 import type { FileNode } from '@/types/workspace';
 

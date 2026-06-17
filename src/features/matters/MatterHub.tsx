@@ -22,7 +22,7 @@ import {
 import { isMemoryEnabled } from '@/modules/memory/MemoryService';
 import type { MatterAtAGlanceResult } from '@/features/matters/logic/matterAtAGlance';
 import { Button, IconButton, SearchField, Chip, Badge, Eyebrow, Card } from '@/ui/kp';
-import SurfaceHeader from '@/components/layout/SurfaceHeader';
+import SurfaceHeader from '@/ui/SurfaceHeader';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
