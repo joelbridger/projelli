@@ -42,7 +42,7 @@ feedback from practitioners
 Background: I'm a designer by day, and I built a desktop AI tool because I wanted to use AI on
 client work without having the data conversation.
 
-The short version of what it does: AI chat where every conversation saves as a Markdown file on
+The short version of what it does: AI chat where every conversation saves as a real file on
 your hard drive. You bring your own Anthropic/OpenAI/Google API key. The API call goes from your
 machine directly to the provider. Keepance never sees the data.
 
@@ -59,7 +59,7 @@ actually run:
 
 1. Do these five templates cover the right moments in an engagement, or am I missing something obvious?
 2. Is "NDA-Safe" a useful framing, or does it sound like I'm overpromising?
-3. Is $129 one-time reasonable for a solo practitioner tool? (Includes the template pack.)
+3. Is $79/month (or $948/yr) reasonable for a solo practitioner tool? (Includes the template pack.)
 
 Disclosure: this is my product (keepance.com). Not trying to spam — I genuinely want practitioner
 input before I push this more broadly.

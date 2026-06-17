@@ -36,7 +36,7 @@ A few specific things I'd genuinely like feedback on:
 
 3. The Patent Disclosure Draft is the one I'm least confident about. It's built around the EU absolute-novelty concern. If you do prosecution work, I'd love to know if the framing is realistic.
 
-The app is at keepance.com. There's a free Personal tier and a Professional tier ($129 one-time) that includes the Legal Practice pack. I'm not here to push sales. I'm here because this subreddit is full of practitioners who will tell me exactly what's wrong with my thinking, which is exactly what I need.
+The app is at keepance.com. There's a Solo plan ($39/mo or $468/yr) and a Professional plan ($79/mo or $948/yr) that includes the Legal Practice pack. I'm not here to push sales. I'm here because this subreddit is full of practitioners who will tell me exactly what's wrong with my thinking, which is exactly what I need.
 
 ---
 

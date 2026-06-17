@@ -26,8 +26,8 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 | **Cloud BYOK (your key, direct to provider)** | Yes | No | No | No | No | No | No | No | No | No |
 | **No-training policy (cloud)** | N/A (user's own key, user's own provider terms) | Contractual, SOC 2 | Contractual, zero retention, SOC 2 | Training policy not fully public | Contractual, 24-hr deletion, SOC 2 | No training (enterprise tenant), SOC 2 | Free/Plus train by default; Team+ no-training | No training; SOC 2 Type II + HIPAA | No audio/video stored; SOC 2 Type II | Consumer Free/Plus train by default |
 | **SOC 2 / signed DPA** | Not yet (in progress) | SOC 2 Type II | SOC 2 + ISO 27001 | Intuit enterprise posture | SOC 2 | SOC 2 / ISO / FedRAMP | No DPA published | SOC 2 Type II + HIPAA | SOC 2 Type II | No |
-| **Conversations become files you own** | Yes, automatic (Markdown on disk) | Stored in Clio | Stored in TR cloud | Stored in Intuit | Cloud only | Saves to M365/SharePoint | Deck lives in Gamma | Notes in Jump cloud | Notes in Zocks cloud | Conversation in OpenAI |
-| **Files are plain-text and portable** | Yes (Markdown) | No | No | No | No | Partial (Word/PPTX) | Partial (export PDF/PPTX) | No | Partial (archiving) | No |
+| **Conversations become files you own** | Yes, automatic (.docx on disk) | Stored in Clio | Stored in TR cloud | Stored in Intuit | Cloud only | Saves to M365/SharePoint | Deck lives in Gamma | Notes in Jump cloud | Notes in Zocks cloud | Conversation in OpenAI |
+| **Files are portable and editable** | Yes (.docx, opens in Word; plus plain-text fallback) | No | No | No | No | Partial (Word/PPTX) | Partial (export PDF/PPTX) | No | Partial (archiving) | No |
 | **Profession workflow templates** | 28 built-in + community marketplace | Matter-type actions (deep Clio integration) | Litigation task library (Westlaw-grounded) | Tax advisory planning (60+ return data points) | Research + confidence scoring (primary authority) | General productivity | Deck templates (best-in-class slides) | Meeting-notes templates (30+ CRM integrations) | Meeting-notes; eMoney sync | General-purpose |
 | **Proprietary research database** | No (sits beside Westlaw / Checkpoint) | No | Yes -- Westlaw + Shepard's | No | Yes -- primary tax authority + citations | No | No | No | No | No (hallucination risk) |
 | **Practice-management integration** | No (sits beside Clio, Drake, eMoney) | Yes -- Clio matters, billing, deadlines | Yes -- Westlaw / Practical Law | Yes -- built into Lacerte / ProConnect | Research only | Yes -- M365 / SharePoint / Teams | No | Yes -- 30+ CRM integrations | Yes -- eMoney + Smarsh/Global Relay | No |
@@ -36,8 +36,8 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 | **AI provider choice** | Claude, OpenAI, Gemini, Ollama | Clio-selected | TR models | Intuit-selected | Blue J proprietary | Azure OpenAI (tenant) | Multiple (Gamma-selected) | Jump-selected | Zocks-selected | OpenAI only |
 | **Multimodal (image + PDF in chat)** | Yes (native PDF for Claude; text-extract for others) | Partial | Deep doc review | Partial (return data ingestion) | Partial | Yes (in Word / Teams / Edge) | Yes (source images for slides) | Partial (transcript only) | Partial (transcript only) | Yes (native since 2023) |
 | **Works offline** | Yes (local Ollama for inference too) | No | No | No | No | No | No | No | No | No |
-| **Price (approx., 2026)** | $49 one-time / $149/yr / $499/yr + API costs | ~$49-59/mo add-on to Clio | ~$225-428/mo (~$2,700-5,000/yr) | Free (bundled) | ~$1,498/yr | ~$18-30/mo/seat | ~$9-18/mo individual | ~$75-175/advisor/mo | ~$67-184/mo | $0-20/mo |
-| **Pricing model** | One-time or annual; no per-seat usage fees | Monthly per-seat SaaS | Monthly per-seat SaaS | Bundled SaaS | Annual SaaS | Monthly per-seat add-on | Monthly SaaS | Monthly per-advisor SaaS | Monthly per-advisor SaaS | Monthly SaaS |
+| **Price (approx., 2026)** | $468/yr ($39/mo) Solo / $948/yr ($79/mo) Pro / $1,548/seat/yr ($129/mo) Firm + API costs | ~$49-59/mo add-on to Clio | ~$225-428/mo (~$2,700-5,000/yr) | Free (bundled) | ~$1,498/yr | ~$18-30/mo/seat | ~$9-18/mo individual | ~$75-175/advisor/mo | ~$67-184/mo | $0-20/mo |
+| **Pricing model** | Annual subscription (or monthly); no per-seat usage fees for Solo/Pro | Monthly per-seat SaaS | Monthly per-seat SaaS | Bundled SaaS | Annual SaaS | Monthly per-seat add-on | Monthly SaaS | Monthly per-advisor SaaS | Monthly per-advisor SaaS | Monthly SaaS |
 | **Desktop app (not browser-only)** | Yes (Windows + Mac + Linux, Tauri) | No | No | No | No | Yes (Office desktop + web) | No | Partial (browser + mobile) | Partial (browser + mobile) | Partial (browser + mobile apps) |
 
 ---
@@ -166,7 +166,7 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 - The only product in any of these four markets with a zero-egress local-model option
 - Own your files in plain Markdown: no vendor lock-in, no disappearing history
 - 28 profession-specific workflow templates + community marketplace
-- Price: $149/yr vs $1,200-5,000/yr for purpose-built tools
+- Price: $468/yr (Solo) or $948/yr (Professional) vs $1,200-5,000/yr for purpose-built tools
 - Compatible with any system of record (Drake, Clio, eMoney) because it does not try to integrate with them; it sits beside them
 - 2026 regulatory forcing functions (US v. Heppner for privilege; IRC §7216 / §6713 + FTC Safeguards Rule for tax; SEC Reg S-P deadline June 3 2026; rising NDA no-upload clauses) all push toward a zero-egress architecture
 
@@ -185,7 +185,7 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 - "Nothing leaves your machine" applies specifically to users running a local AI model (Ollama). With a cloud BYOK key (Anthropic, OpenAI, Google), the prompt goes to that provider under the user's own API key. Keepance never sees that data; the provider does.
 - Regulatory references (US v. Heppner, IRC §7216, SEC Reg S-P) are informational only, not legal or compliance advice. Practitioners should verify with their own counsel.
 - US v. Heppner (Rakoff, S.D.N.Y., Feb 17 2026; defendant convicted May 7 2026) is a real and significant ruling but is a leading cautionary case, not settled black-letter law. Later courts are applying a fact-specific approach.
-- Keepance pricing: $49 one-time (Personal) / $149/yr (Professional, includes one practice pack) / $499/yr (Practice, up to 5 seats). Not "$499 one-time."
+- Keepance pricing: Solo $468/yr ($39/mo) / Professional $948/yr ($79/mo, includes one practice pack) / Firm $1,548/seat/yr ($129/mo, min 3 seats, all packs). Founding cohort gets 30% off for life. Annual subscriptions only — do not quote the old one-time figures.
 - All competitor pricing is approximate, as of June 2026. Verify with vendor before publishing.
 
 ---

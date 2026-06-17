@@ -63,7 +63,7 @@ A few things I'd specifically like input on:
 
 3. The 1040 Pre-Review Checklist is probably the most opinionated template in the pack. It assumes a particular order of operations. If you have a pre-review checklist you already use, I'd love to see how different it is.
 
-The app is at keepance.com. $49 Personal tier is free of the profession packs. The $129 Professional tier includes the Tax Practice pack. I'm not here to push sales. I'm here because this subreddit is the right audience to catch my mistakes before they become problems.
+The app is at keepance.com. The Solo plan ($39/mo or $468/yr) gives you the full workspace. The Professional plan ($79/mo or $948/yr) includes the Tax Practice pack. I'm not here to push sales. I'm here because this subreddit is the right audience to catch my mistakes before they become problems.
 
 ---
 

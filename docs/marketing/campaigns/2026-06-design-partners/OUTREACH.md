@@ -10,7 +10,7 @@ Voice rules apply (no em dashes, first person, contractions). These are honest l
 
 > Hey [name], I've been building something for the last few months and you're exactly the person I want using it before I make any noise about it.
 >
-> It's called Keepance. It's a local-first AI workspace: you chat with Claude or GPT inside it, and every conversation becomes a real Markdown file in a folder on your own machine. Nothing routes through my servers, and you bring your own API key. I built it for the kind of work you can't really paste into someone else's cloud, which is basically your whole job.
+> It's called Keepance. It's a local-first AI workspace: you chat with Claude or GPT inside it, and every conversation becomes a real document in a folder on your own machine. Nothing routes through my servers, and you bring your own API key. I built it for the kind of work you can't really paste into someone else's cloud, which is basically your whole job.
 >
 > I'm putting together a small group of people who actually do this work to use it for real and tell me what's wrong with it. You'd get the full app free, a direct line to me, and real say over what ships next. The only thing I want back is honest use on real work and your honest read. If it turns out genuinely useful, I'd love to quote you on the site, but that's only if it earns it, no pressure either way.
 >

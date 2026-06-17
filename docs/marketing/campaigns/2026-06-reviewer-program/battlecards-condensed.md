@@ -15,7 +15,7 @@ One-liner: "Clio Duo knows your matters and your billing. Keepance is for the co
 When to concede: If their AI need is entirely around Clio workflow context (matters, billing, deadlines), Clio Duo is already there. Keepance is an add-on for the drafting work, not a replacement.
 
 **vs CoCounsel**
-One-liner: "CoCounsel is the right tool for Westlaw-grounded citation research. Keepance is for drafting the privilege log, the memo, the engagement letter, at $149/yr and with no vendor in the data path."
+One-liner: "CoCounsel is the right tool for Westlaw-grounded citation research. Keepance is for drafting the privilege log, the memo, the engagement letter, at $79/mo and with no vendor in the data path."
 When to concede: Any workflow that requires citation-verified primary-authority research needs CoCounsel or a comparable tool. Keepance does not compete on legal research databases. Tell them plainly.
 
 ---

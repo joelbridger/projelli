@@ -42,7 +42,7 @@ This one builds a starting draft for client engagement letters with AI-specific 
 
 Honestly, I'm most interested in this one. I know the six templates I shipped are not the whole picture. What would you actually reach for during a busy January that isn't in there?
 
-The app is at keepance.com. Personal tier is $49 one-time (full workspace, no pack). Professional is $129 and includes the Tax Practice pack. Charter pricing is $89 for the first hundred buyers.
+The app is at keepance.com. Solo plan is $39/mo or $468/yr (full workspace, no pack). Professional is $79/mo or $948/yr and includes the Tax Practice pack. Founding cohort gets 30% off for life.
 
 I'm not here to sell anything today. I'm here because this subreddit has practitioners who will tell me exactly what's wrong, which is exactly what I need before this thing gets used on real client files during filing season.
 

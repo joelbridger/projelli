@@ -32,7 +32,7 @@ A couple of years ago I started using AI tools for client work and ran into the 
 
 I've since built a Legal Practice pack: seven attorney-specific workflow templates reviewed by a practicing attorney. The timing felt real after ABA Formal Opinion 512 and the Heppner ruling earlier this year.
 
-The pricing is one-time, not subscription. I'd be glad to send you a license and walk you through what it does.
+Pricing is annual subscription: Solo $468/yr, Professional $948/yr, Firm $1,548/seat/yr. I'd be glad to send you a license and walk you through what it does.
 
 Jameson Daines
 keepance.com
@@ -51,7 +51,7 @@ Hi Bob,
 
 Thanks for the follow-up. Here's the fuller picture.
 
-**What Keepance is.** A desktop app (Windows, Mac, Linux) that combines a Markdown editor, AI chat, and structured workflow templates into a single workspace. The key architectural decision: nothing touches my servers. Files live on the user's machine in a folder they pick. API keys live in the user's OS, not in a database I control. When an attorney sends a prompt, that request goes from their computer directly to Anthropic or OpenAI. I never see it.
+**What Keepance is.** A desktop app (Windows, Mac, Linux) that combines a Word-native (.docx) document layer, AI chat, and structured workflow templates into a single workspace. The key architectural decision: nothing touches my servers. Files live on the user's machine in a folder they pick. API keys live in the user's OS, not in a database I control. When an attorney sends a prompt, that request goes from their computer directly to Anthropic or OpenAI. I never see it.
 
 **Why it matters for privilege.** The Heppner ruling (S.D.N.Y., Judge Rakoff, Feb. 2026) found that consumer AI use without attorney direction did not preserve privilege. The dicta are favorable for the opposite scenario: counsel-directed, locally-controlled workflows. I'm not a lawyer and I won't overclaim on privilege theory, but the architecture removes the third-party disclosure question entirely because there's no Keepance intermediary in the data path.
 
@@ -59,7 +59,7 @@ Thanks for the follow-up. Here's the fuller picture.
 
 **What Keepance is not.** Not a Clio competitor. Not a document management system. Not a legal research tool. It does not connect to court databases, case law, or any external service. Attorneys who need full practice management software should keep using what they have. Keepance fits in the gap between that infrastructure and the actual thinking work.
 
-**Pricing:** $49 Personal / $129 Professional (one profession pack included) / $399 Practice (up to 5 seats, all packs). One-time, not recurring.
+**Pricing:** Solo $468/yr ($39/mo) / Professional $948/yr ($79/mo, one profession pack included) / Firm $1,548/seat/yr ($129/mo, min 3 seats, all packs). Annual subscription.
 
 Happy to send a license, answer questions, or connect you with the attorney advisor who reviewed the templates.
 
@@ -104,7 +104,7 @@ damaging the relationship over, and Bob has a long memory for people who are pes
 - A legal angle with substance. ABA Opinion 512 and Heppner are real developments his readers care
   about. Lead with those, not with the product.
 - Concrete pricing. He covers indie and small-vendor tools often and his readers ask about cost
-  immediately. "$49 one-time" is a real differentiator in a market full of subscriptions.
+  immediately. "$468/yr" is a real differentiator in a market where comparable tools run $2,700-5,000/yr.
 
 **What to avoid:**
 - Never frame Keepance as "the next X" (next Clio, next Westlaw, next anything).
