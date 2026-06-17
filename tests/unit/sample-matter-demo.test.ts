@@ -21,7 +21,7 @@ import {
   getDemoQuestions,
   getDemoAnswerForWorkspace,
   getSampleMatterName,
-} from '@/features/onboarding/samples/sampleMatterDemo';
+} from '@/platform/matter/samples/sampleMatterDemo';
 import type { Profession } from '@/platform/profile/professionModel';
 
 beforeEach(() => {

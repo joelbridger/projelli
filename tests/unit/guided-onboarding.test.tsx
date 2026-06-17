@@ -85,7 +85,7 @@ vi.mock('@/platform/hooks/useFirm', () => ({
   useFirm: () => mockUseFirm(),
 }));
 
-vi.mock('@/features/onboarding/samples', () => ({
+vi.mock('@/platform/matter/samples', () => ({
   writeSampleFiles: vi.fn().mockResolvedValue(undefined),
   getSamplesForProfession: () => ['sample1.md', 'sample2.md'],
 }));

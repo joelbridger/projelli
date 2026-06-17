@@ -37,7 +37,7 @@ const PresentationViewer = lazy(() =>
 );
 import { SourceFileEditor } from '@/features/ask/research/SourceFileEditor';
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
-import { FileGridView } from '@/platform/fs/ui/FileGridView';
+import { FileGridView } from '@/features/documents/workspace/FileGridView';
 import { WaveformEditor } from '@/features/dictation/audio/WaveformEditor';
 import { VersionHistoryPanel } from '@/features/documents/version/VersionHistoryPanel';
 import { BinaryVersionHistoryPanel } from '@/features/documents/version/BinaryVersionHistoryPanel';

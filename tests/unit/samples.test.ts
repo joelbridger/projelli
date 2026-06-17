@@ -1,7 +1,7 @@
 /**
  * Q11 (Wave 1.5) — Sample workspace seed files.
  *
- * Verifies the three Markdown samples under src/features/onboarding/samples exist on
+ * Verifies the three Markdown samples under src/platform/matter/samples exist on
  * disk, contain no em dashes (Keepance voice rule — see
  * `feedback_no_em_dashes.md`), and each begins with a `# Sample:` heading as
  * required by the spec.
@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const SAMPLES_DIR = resolve(__dirname, '../../src/features/onboarding/samples');
+const SAMPLES_DIR = resolve(__dirname, '../../src/platform/matter/samples');
 
 const SAMPLE_FILENAMES = [
   'Sample - Pricing Strategy.md',
@@ -50,14 +50,14 @@ describe('onboarding samples', () => {
   }
 
   it('exports exactly 3 samples from the index', async () => {
-    const mod = await import('../../src/features/onboarding/samples/index');
+    const mod = await import('../../src/platform/matter/samples/index');
     expect(mod.SAMPLE_FILES).toHaveLength(3);
     const names = mod.SAMPLE_FILES.map((s) => s.filename).sort();
     expect(names).toEqual([...SAMPLE_FILENAMES].sort());
   });
 
   it('no sample content contains an em dash when imported as raw', async () => {
-    const mod = await import('../../src/features/onboarding/samples/index');
+    const mod = await import('../../src/platform/matter/samples/index');
     for (const sample of mod.SAMPLE_FILES) {
       expect(sample.content, `${sample.filename} should contain no em dashes`).not.toContain('\u2014');
     }

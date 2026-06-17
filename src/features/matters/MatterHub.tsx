@@ -18,9 +18,9 @@ import { useMatterAtAGlanceStore } from '@/platform/matter/matterAtAGlanceStore'
 import {
   generateMatterAtAGlance,
   hasCloudKeyForGlance,
-} from '@/features/matters/logic/matterAtAGlance';
+} from '@/platform/matter/matterAtAGlance';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
-import type { MatterAtAGlanceResult } from '@/features/matters/logic/matterAtAGlance';
+import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
 import { Button, IconButton, SearchField, Chip, Badge, Eyebrow, Card } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
 

@@ -111,7 +111,7 @@ vi.mock('@/features/documents/TrashPanel', () => ({
 // by its own suite + the campaign filetree sweep; here we only need to confirm
 // the Tree | Grid toggle mounts it and hands it the move handler. The stub
 // exposes a button that invokes onMove so we can assert wiring if needed.
-vi.mock('@/platform/fs/ui/FileTree', () => ({
+vi.mock('@/features/documents/workspace/FileTree', () => ({
   FileTree: ({
     onMove,
   }: {

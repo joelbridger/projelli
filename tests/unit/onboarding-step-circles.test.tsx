@@ -14,7 +14,7 @@ import { render, screen, act } from '@testing-library/react';
 import { FirstRunWizard } from '@/features/onboarding/FirstRunWizard';
 
 // Prevent any real side effects from the wizard
-vi.mock('@/features/onboarding/samples', () => ({
+vi.mock('@/platform/matter/samples', () => ({
   writeSampleFiles: vi.fn(),
   getSamplesForProfession: vi.fn(() => []),
 }));

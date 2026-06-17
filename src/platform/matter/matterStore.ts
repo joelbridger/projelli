@@ -44,11 +44,11 @@ import { useShallow } from 'zustand/react/shallow';
 import type { Matter, MatterScope } from '@/platform/types/matter';
 import { resolveMatterId, findMatter } from '@/platform/rag/matterResolver';
 import { getProfession } from '@/platform/profile/professionStore';
-import { getSampleMatterName } from '@/features/onboarding/samples/sampleMatterDemo';
+import { getSampleMatterName } from '@/platform/matter/samples/sampleMatterDemo';
 import type { MatterUiSnapshot } from '@/platform/matter/matterUiStore';
 import type { MatterAtAGlanceEntry } from '@/platform/matter/matterAtAGlanceStore';
 import type { MatterSyncStatus } from '@/platform/matter/matterSyncStore';
-import type { MatterAtAGlanceResult } from '@/features/matters/logic/matterAtAGlance';
+import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
 
 /**
  * Stable id for the built-in sample matter ("Garcia v. Meridian Properties LLC").

@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getSamplesForProfession } from '../../src/features/onboarding/samples/index';
+import { getSamplesForProfession } from '../../src/platform/matter/samples/index';
 import { prioritizeByProfession } from '../../src/features/workflows/engine/prioritizeByProfession';
 import { ADVISOR_TEMPLATES } from '../../src/features/workflows/engine/templates/advisors/index';
 import type { WorkflowTemplate } from '../../src/platform/types/workflow';

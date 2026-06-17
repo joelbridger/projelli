@@ -26,7 +26,7 @@ import { invoke } from '@tauri-apps/api/core';
 // Import the REAL resolveExplorerPath from the production FileTree component.
 // This ensures the test guards the actual logic, not an inline copy.
 // NOTE: FileTree is a React component module; we import only the named export.
-import { resolveExplorerPath } from '../../src/platform/fs/ui/FileTree';
+import { resolveExplorerPath } from '../../src/features/documents/workspace/FileTree';
 
 // Simulate what handleOpenInExplorer does: resolve, then invoke.
 async function handleOpenInExplorer(

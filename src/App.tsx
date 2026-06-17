@@ -17,7 +17,7 @@ import { useDialogManager } from '@/app/dialogs/useDialogManager';
 import { useFileOperations } from '@/app/fileOps/useFileOperations';
 import { useDocumentCreation } from '@/app/fileOps/useDocumentCreation';
 import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
-import { WorkspaceSelector } from '@/platform/fs/ui/WorkspaceSelector';
+import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelector';
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
 import { TrustBar } from '@/app/shell/layout/TrustBar';
@@ -25,7 +25,7 @@ import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
 
-import { ProjectManager } from '@/platform/fs/ui/ProjectManager';
+import { ProjectManager } from '@/features/documents/workspace/ProjectManager';
 import { Button } from '@/ui/button';
 import { Command, Moon, Monitor, Sun, Settings } from 'lucide-react';
 import { manualUpdateCheck } from '@/platform/updater/UpdateManager';

@@ -91,7 +91,7 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
 }));
 
 // Import after mocks
-import { generateMatterAtAGlance, hasCloudKeyForGlance, buildProviderForGlance } from '@/features/matters/logic/matterAtAGlance';
+import { generateMatterAtAGlance, hasCloudKeyForGlance, buildProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
 

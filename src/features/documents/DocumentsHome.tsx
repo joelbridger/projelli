@@ -37,7 +37,7 @@ import { getFileIcon } from '@/platform/utils/fileIcons';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';
-import { FileTree } from '@/platform/fs/ui/FileTree';
+import { FileTree } from '@/features/documents/workspace/FileTree';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 

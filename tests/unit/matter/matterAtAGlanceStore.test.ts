@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useMatterAtAGlanceStore } from '@/platform/matter/matterAtAGlanceStore';
-import type { MatterAtAGlanceResult } from '@/features/matters/logic/matterAtAGlance';
+import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
 
 const sampleResult: MatterAtAGlanceResult = {
   openIssues: ['Lease dispute unresolved'],

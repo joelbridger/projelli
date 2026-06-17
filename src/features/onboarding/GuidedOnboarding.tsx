@@ -37,7 +37,7 @@ import { FirmSignIn } from '@/features/firm/FirmSignIn';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import { useFirm } from '@/platform/hooks/useFirm';
 
-import { writeSampleFiles, getSamplesForProfession } from '@/features/onboarding/samples';
+import { writeSampleFiles, getSamplesForProfession } from '@/platform/matter/samples';
 import { persistProfessionModelDefault, getModelForProfession } from '@/platform/profile/professionModel';
 import { markAiSetupDeferred } from '@/features/onboarding/aiSetupState';
 import { useProfessionCopy } from '@/features/onboarding/useProfessionCopy';

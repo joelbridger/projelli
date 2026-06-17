@@ -32,7 +32,7 @@
 import { useState, type ReactNode } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Button } from '@/ui/button';
-import { writeSampleFiles, getSamplesForProfession } from '@/features/onboarding/samples';
+import { writeSampleFiles, getSamplesForProfession } from '@/platform/matter/samples';
 import { AiSetupStep } from '@/features/onboarding/AiSetupStep';
 import { DiskEncryptionGuidance } from '@/features/onboarding/DiskEncryptionGuidance';
 import { DataMapDialog, DataMapContent } from '@/platform/privacy/ui/DataMapDialog';
