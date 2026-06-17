@@ -48,9 +48,9 @@ vi.mock('@/modules/models/OllamaProvider', async (importOriginal) => {
   };
 });
 
-import { AiSetupStep, type AiSetupStepProps } from '@/components/onboarding/AiSetupStep';
-import { AiSetupReminder } from '@/components/onboarding/AiSetupReminder';
-import { hasDeferredAiSetup, clearAiSetupDeferred } from '@/onboarding/aiSetupState';
+import { AiSetupStep, type AiSetupStepProps } from '@/features/onboarding/AiSetupStep';
+import { AiSetupReminder } from '@/features/onboarding/AiSetupReminder';
+import { hasDeferredAiSetup, clearAiSetupDeferred } from '@/features/onboarding/aiSetupState';
 import {
   getModelForProfession,
   persistProfessionModelDefault,

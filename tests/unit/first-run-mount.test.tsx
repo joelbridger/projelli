@@ -59,8 +59,8 @@ vi.mock('@/modules/models/KeychainService', () => ({
 }));
 
 import App from '@/App';
-import { hasCompletedOnboarding } from '@/components/onboarding/onboardingState';
-import { hasDeferredAiSetup } from '@/onboarding/aiSetupState';
+import { hasCompletedOnboarding } from '@/features/onboarding/onboardingState';
+import { hasDeferredAiSetup } from '@/features/onboarding/aiSetupState';
 
 const ONBOARDING_FLAG = 'keepance_onboarding_complete';
 

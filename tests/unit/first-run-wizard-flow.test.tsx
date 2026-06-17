@@ -24,8 +24,8 @@ vi.mock('@/modules/models/OllamaProvider', async (importOriginal) => {
   return { ...actual, detectOllama: vi.fn(async () => ({ reachable: false, models: [] })) };
 });
 
-import { FirstRunWizard } from '@/components/onboarding/FirstRunWizard';
-import { hasDeferredAiSetup } from '@/onboarding/aiSetupState';
+import { FirstRunWizard } from '@/features/onboarding/FirstRunWizard';
+import { hasDeferredAiSetup } from '@/features/onboarding/aiSetupState';
 import {
   PROFESSION_MODEL_STORAGE_KEY,
   PROFESSION_PROVIDER_STORAGE_KEY,

@@ -7,7 +7,7 @@ import {
   ApiKeySetupCard,
   hasDismissedApiKeyCard,
   markApiKeyCardDismissed,
-} from '@/components/onboarding/ApiKeySetupCard';
+} from '@/features/onboarding/ApiKeySetupCard';
 import { TabBar } from '@/components/editor/TabBar';
 import { AutoSaveIndicator } from '@/components/editor/AutoSaveIndicator';
 import { getFileIcon } from '@/utils/fileIcons';

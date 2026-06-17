@@ -11,7 +11,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
-import { FirstRunWizard } from '@/components/onboarding/FirstRunWizard';
+import { FirstRunWizard } from '@/features/onboarding/FirstRunWizard';
 
 // Prevent any real side effects from the wizard
 vi.mock('@/onboarding/samples', () => ({
@@ -27,13 +27,13 @@ vi.mock('@/onboarding/professionModel', () => ({
   })),
 }));
 
-vi.mock('@/onboarding/aiSetupState', () => ({
+vi.mock('@/features/onboarding/aiSetupState', () => ({
   markAiSetupDeferred: vi.fn(),
 }));
 
 // Mock AiSetupStep so we don't need to render its full implementation
 // (avoids deep import chains for the AI setup components).
-vi.mock('@/components/onboarding/AiSetupStep', () => ({
+vi.mock('@/features/onboarding/AiSetupStep', () => ({
   AiSetupStep: ({ onSkip }: { onSkip: () => void }) => (
     <div>
       <button type="button" onClick={onSkip}>Set up later</button>

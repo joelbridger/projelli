@@ -32,8 +32,8 @@ vi.mock('@/modules/models/OllamaProvider', async (importOriginal) => {
 import {
   DiskEncryptionGuidance,
   detectDesktopPlatform,
-} from '@/components/onboarding/DiskEncryptionGuidance';
-import { FirstRunWizard } from '@/components/onboarding/FirstRunWizard';
+} from '@/features/onboarding/DiskEncryptionGuidance';
+import { FirstRunWizard } from '@/features/onboarding/FirstRunWizard';
 import { DataMapContent, DATA_MAP_ROWS } from '@/components/privacy/DataMapDialog';
 
 const UA = {

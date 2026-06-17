@@ -11,7 +11,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { FirstRunWizard } from '@/components/onboarding/FirstRunWizard';
+import { FirstRunWizard } from '@/features/onboarding/FirstRunWizard';
 
 function makeMockWorkspace() {
   return {

@@ -8,8 +8,8 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { FeatureTour } from '@/components/onboarding/FeatureTour';
-import { FEATURE_TOUR_STEPS } from '@/components/onboarding/featureTourSteps';
+import { FeatureTour } from '@/features/onboarding/FeatureTour';
+import { FEATURE_TOUR_STEPS } from '@/features/onboarding/featureTourSteps';
 
 // Seed the new Spine nav testids so anchored steps resolve instead of
 // auto-advancing. Matches the data-testid attrs on ReimaginedSpine buttons.

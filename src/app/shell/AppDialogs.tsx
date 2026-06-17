@@ -18,8 +18,8 @@ import { InterviewForm } from '@/components/workflow/InterviewForm';
 import { CommandPalette, type PaletteCommand } from '@/components/common/CommandPalette';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { AccountWindow } from '@/features/account/AccountWindow';
-import { FeatureTour } from '@/components/onboarding/FeatureTour';
-import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
+import { FeatureTour } from '@/features/onboarding/FeatureTour';
+import { ApiKeyWizard } from '@/features/onboarding/ApiKeyWizard';
 import { ShortcutsOverlay } from '@/components/ShortcutsOverlay';
 import { QuickOpen } from '@/components/QuickOpen';
 import { AudioRecorderModal } from '@/features/dictation/audio/AudioRecorderModal';
@@ -29,7 +29,7 @@ import { UndoToastRenderer, type UndoToastController } from '@/components/common
 import { GlobalDropOverlay } from '@/components/common/GlobalDropOverlay';
 import { WhatsNewToast, WhatsNewModal, useWhatsNew } from '@/components/WhatsNew';
 import { UpdateManager } from '@/components/updater/UpdateManager';
-import { type WizardProvider } from '@/components/onboarding/ApiKeyWizard';
+import { type WizardProvider } from '@/features/onboarding/ApiKeyWizard';
 
 import {
   Dialog,

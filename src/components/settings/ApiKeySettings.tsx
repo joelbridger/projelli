@@ -18,8 +18,8 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import type { KeyProvider, StoredKey } from '@/modules/models/KeychainService';
-import { ApiKeyExplainer } from '@/components/onboarding/ApiKeyExplainer';
-import { ApiKeyTester } from '@/components/onboarding/ApiKeyTester';
+import { ApiKeyExplainer } from '@/features/onboarding/ApiKeyExplainer';
+import { ApiKeyTester } from '@/features/onboarding/ApiKeyTester';
 import type { ValidationProvider } from '@/modules/models/apiKeyValidation';
 
 interface ApiKeySettingsProps {

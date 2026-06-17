@@ -11,7 +11,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
+import { ApiKeyWizard } from '@/features/onboarding/ApiKeyWizard';
 
 // Mock openExternal so clicking "Open console" doesn't try to open a real URL
 vi.mock('@/utils/openExternal', () => ({

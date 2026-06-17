@@ -12,7 +12,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 // Tauri / network dependencies.
 // ---------------------------------------------------------------------------
 
-vi.mock('@/components/onboarding/AiSetupStep', () => ({
+vi.mock('@/features/onboarding/AiSetupStep', () => ({
   AiSetupStep: ({
     onSaveKey,
     onUseLocal,
@@ -95,15 +95,15 @@ vi.mock('@/onboarding/professionModel', () => ({
   getModelForProfession: () => ({ provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' }),
 }));
 
-vi.mock('@/onboarding/aiSetupState', () => ({
+vi.mock('@/features/onboarding/aiSetupState', () => ({
   markAiSetupDeferred: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------
 // Import the component under test AFTER mocks are set up.
 // ---------------------------------------------------------------------------
-import { GuidedOnboarding } from '@/components/onboarding/GuidedOnboarding';
-import * as onboardingState from '@/components/onboarding/onboardingState';
+import { GuidedOnboarding } from '@/features/onboarding/GuidedOnboarding';
+import * as onboardingState from '@/features/onboarding/onboardingState';
 
 // ---------------------------------------------------------------------------
 // Test helpers

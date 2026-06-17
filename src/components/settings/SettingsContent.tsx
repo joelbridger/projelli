@@ -64,7 +64,7 @@ import { AdvancedSettings } from '@/components/settings/AdvancedSettings';
 import { VoiceSettingsSection } from '@/components/settings/VoiceSettingsSection';
 import { LanguagePicker } from '@/components/settings/LanguagePicker';
 import { SetupChecklist } from '@/components/settings/SetupChecklist';
-import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
+import { ApiKeyWizard } from '@/features/onboarding/ApiKeyWizard';
 import type { AuditEntry } from '@/types/audit';
 import type { WorkflowTemplate } from '@/types/workflow';
 import {

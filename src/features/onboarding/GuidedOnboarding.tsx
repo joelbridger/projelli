@@ -39,11 +39,11 @@ import { useFirm } from '@/hooks/useFirm';
 
 import { writeSampleFiles, getSamplesForProfession } from '@/onboarding/samples';
 import { persistProfessionModelDefault, getModelForProfession } from '@/onboarding/professionModel';
-import { markAiSetupDeferred } from '@/onboarding/aiSetupState';
-import { useProfessionCopy } from '@/hooks/useProfessionCopy';
+import { markAiSetupDeferred } from '@/features/onboarding/aiSetupState';
+import { useProfessionCopy } from '@/features/onboarding/useProfessionCopy';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
 import type { KeyProvider } from '@/modules/models/KeychainService';
-import type { ProviderId } from '@/components/onboarding/ProviderTutorialSteps';
+import type { ProviderId } from '@/features/onboarding/ProviderTutorialSteps';
 
 // ---------------------------------------------------------------------------
 // Types

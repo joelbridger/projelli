@@ -17,7 +17,7 @@ import { useState } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { hasDeferredAiSetup } from '@/onboarding/aiSetupState';
+import { hasDeferredAiSetup } from '@/features/onboarding/aiSetupState';
 
 const SESSION_DISMISS_KEY = 'keepance_ai_setup_reminder_dismissed';
 

@@ -33,13 +33,13 @@ import { useState, type ReactNode } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { writeSampleFiles, getSamplesForProfession } from '@/onboarding/samples';
-import { AiSetupStep } from '@/components/onboarding/AiSetupStep';
-import { DiskEncryptionGuidance } from '@/components/onboarding/DiskEncryptionGuidance';
+import { AiSetupStep } from '@/features/onboarding/AiSetupStep';
+import { DiskEncryptionGuidance } from '@/features/onboarding/DiskEncryptionGuidance';
 import { DataMapDialog, DataMapContent } from '@/components/privacy/DataMapDialog';
 import { persistProfessionModelDefault, getModelForProfession } from '@/onboarding/professionModel';
-import { markAiSetupDeferred } from '@/onboarding/aiSetupState';
+import { markAiSetupDeferred } from '@/features/onboarding/aiSetupState';
 import type { KeyProvider } from '@/modules/models/KeychainService';
-import type { ProviderId } from '@/components/onboarding/ProviderTutorialSteps';
+import type { ProviderId } from '@/features/onboarding/ProviderTutorialSteps';
 
 const STORAGE_KEY = 'keepance_onboarding_complete';
 const PROFESSION_STORAGE_KEY = 'keepance_profession';

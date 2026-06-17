@@ -14,7 +14,7 @@ import {
   PROVIDER_TUTORIALS,
   ProviderTutorialList,
   type ProviderId,
-} from '@/components/onboarding/ProviderTutorialSteps';
+} from '@/features/onboarding/ProviderTutorialSteps';
 
 describe('Per-provider tutorial data shape', () => {
   const providers: ProviderId[] = ['anthropic', 'openai', 'google'];

@@ -44,17 +44,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { ApiKeyTester } from '@/components/onboarding/ApiKeyTester';
+import { ApiKeyTester } from '@/features/onboarding/ApiKeyTester';
 import {
   PROVIDER_TUTORIALS,
   type ProviderId,
-} from '@/components/onboarding/ProviderTutorialSteps';
+} from '@/features/onboarding/ProviderTutorialSteps';
 import { detectOllama } from '@/modules/models/OllamaProvider';
 import { useSetConfidentialityMode } from '@/hooks/useConfidentialityMode';
 import { openExternal } from '@/utils/openExternal';
-import { clearAiSetupDeferred } from '@/onboarding/aiSetupState';
+import { clearAiSetupDeferred } from '@/features/onboarding/aiSetupState';
 import type { KeyProvider } from '@/modules/models/KeychainService';
-import { useProfessionCopy } from '@/hooks/useProfessionCopy';
+import { useProfessionCopy } from '@/features/onboarding/useProfessionCopy';
 
 /** Which screen of the AI-setup step the user is on. */
 type View = 'choose' | 'own-account' | 'local';

@@ -5,7 +5,7 @@
  * don't scatter raw key strings across the app.  The two primary exported
  * helpers (hasCompletedOnboarding / getOnboardingProfession) are
  * re-exported from here; FirstRunWizard.tsx still exports them directly as
- * well so existing importers of '@/components/onboarding' are unaffected.
+ * well so existing importers of '@/features/onboarding' are unaffected.
  */
 
 export const ONBOARDING_COMPLETE_KEY = 'keepance_onboarding_complete';
