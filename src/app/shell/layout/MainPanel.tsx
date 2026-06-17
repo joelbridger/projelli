@@ -82,6 +82,7 @@ import type {
   WorkflowExecution,
   InterviewQuestion,
 } from '@/platform/types/workflow';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 
 interface APIKey {
   provider: string;
@@ -95,7 +96,7 @@ interface MainPanelProps {
   onRename?: (path: string, newName: string) => Promise<void>;
   onDownload?: (path: string, name: string) => void;
   apiKeys?: APIKey[];
-  workspaceServiceRef?: React.MutableRefObject<any>;
+  workspaceServiceRef?: React.MutableRefObject<WorkspaceService | null>;
   rootPath?: string;
   onFileTreeChange?: () => void;
   onAuditLog?: (entry: Omit<import('@/platform/types/audit').AuditEntry, 'id' | 'timestamp'>) => void;

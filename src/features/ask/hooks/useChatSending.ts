@@ -15,6 +15,7 @@
 import { useCallback } from 'react';
 import type { useTranslation } from 'react-i18next';
 import { AttachmentService } from '@/features/ask/attachments/AttachmentService';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { estimateImageTokens } from '@/features/ask/attachments/imageTokens';
 import { estimatePdfTokens } from '@/features/ask/attachments/pdfTokens';
 import type { PdfExtractionResult } from '@/lib/pdf-extract';
@@ -69,7 +70,7 @@ export interface UseChatSendingDeps {
   chatData: AIChatFile;
   onSave: ((updatedChat: AIChatFile) => void) | undefined;
   apiKeys: APIKey[];
-  workspaceServiceRef: React.MutableRefObject<any> | undefined;
+  workspaceServiceRef: React.MutableRefObject<WorkspaceService | null> | undefined;
   rootPath: string | undefined;
   onFileTreeChange: (() => void) | undefined;
   onAuditLog: ((entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void) | undefined;
@@ -816,9 +817,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // read is skipped gracefully (logged but not fatal).
         let attachmentBytes: AttachmentBytes[] | undefined;
         if (messageAttachments && messageAttachments.length > 0 && workspaceServiceRef?.current) {
-          const attService = new AttachmentService(workspaceServiceRef.current);
+          const backend = workspaceServiceRef.current.getBackend();
+          const attService = backend ? new AttachmentService(backend) : null;
           const loaded: AttachmentBytes[] = [];
           for (const att of messageAttachments) {
+            if (!attService) continue;
             try {
               const bytes = await attService.read(att);
               loaded.push({ att, bytes });

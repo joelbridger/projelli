@@ -66,6 +66,7 @@ import {
   type ChatExtractionState,
   type ProposedFact,
 } from '@/platform/rag/factsExtraction';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 
 /**
  * Pick the refusal i18n key for a failed workspace retrieval. The
@@ -101,7 +102,7 @@ interface AIChatViewerProps {
   onSave?: (updatedChat: AIChatFile) => void;
   onExport?: (chatData: AIChatFile) => void;
   apiKeys?: APIKey[];
-  workspaceServiceRef?: React.MutableRefObject<any>;
+  workspaceServiceRef?: React.MutableRefObject<WorkspaceService | null>;
   rootPath?: string; // Workspace root path for file access tools
   onFileTreeChange?: () => void; // Callback when AI modifies files
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void; // Callback to log AI actions
@@ -565,7 +566,9 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           const model = chatData.model ?? '';
           const mode = getPdfMode(provider, model);
 
-          const attService = new AttachmentService(workspaceServiceRef?.current);
+          const pdfBackend = workspaceServiceRef?.current?.getBackend();
+          if (!pdfBackend) throw new Error('Workspace not initialized');
+          const attService = new AttachmentService(pdfBackend);
           const att = await attService.save(bytes, file.name, file.type);
           // Stamp the extraction mode into the attachment metadata so it
           // survives serialisation and can be rendered in chat history.
@@ -595,7 +598,9 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         }
 
         // Images (A1 path — unchanged)
-        const attService = new AttachmentService(workspaceServiceRef?.current);
+        const imgBackend = workspaceServiceRef?.current?.getBackend();
+        if (!imgBackend) throw new Error('Workspace not initialized');
+        const attService = new AttachmentService(imgBackend);
         const att = await attService.save(bytes, file.name, file.type);
         const previewUrl = URL.createObjectURL(file);
         setPendingAttachments((prev) => [...prev, att]);
