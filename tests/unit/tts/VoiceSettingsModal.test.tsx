@@ -16,7 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { VoiceSettingsSection } from '@/features/settings/VoiceSettingsSection';
-import { SETTINGS_SCHEMA } from '@/settings/schema';
+import { SETTINGS_SCHEMA } from '@/platform/settings/schema';
 
 // TTS schema keys that should appear in the voice category
 const TTS_SCHEMA_KEYS = ['ttsEnabled', 'ttsVoice', 'ttsSpeed', 'ttsAutoRead', 'ttsShortcut'];

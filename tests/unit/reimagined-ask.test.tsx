@@ -26,7 +26,7 @@ vi.mock('@/platform/fs/workspaceStore', () => ({
 
 let mockProfession = 'legal';
 
-vi.mock('@/onboarding/samples/sampleMatterDemo', () => ({
+vi.mock('@/features/onboarding/samples/sampleMatterDemo', () => ({
   getDemoAnswerForWorkspace: vi.fn().mockReturnValue(null),
   getDemoQuestions: vi.fn().mockImplementation((p: string) => {
     if (p === 'tax') {
@@ -102,7 +102,7 @@ vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
   getConfidentialityMode: () => 'local',
   useConfidentialityMode: () => 'local',
 }));
-import { getDemoAnswerForWorkspace } from '@/onboarding/samples/sampleMatterDemo';
+import { getDemoAnswerForWorkspace } from '@/features/onboarding/samples/sampleMatterDemo';
 // The mock must expose both the hook form (selector call) and the static
 // getState() method used by Fix #1 (stale-sessions bug).
 // vi.mock factories are hoisted, so we cannot reference variables declared

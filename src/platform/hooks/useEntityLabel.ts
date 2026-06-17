@@ -20,7 +20,7 @@
  * changed by this hook; only the visible words adapt.
  */
 import { useProfessionStore, getProfession } from '@/platform/profile/professionStore';
-import type { Profession } from '@/onboarding/professionModel';
+import type { Profession } from '@/platform/profile/professionModel';
 
 export interface EntityLabel {
   /** lowercase singular  – "matter" / "client" / "engagement" */

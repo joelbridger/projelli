@@ -1,7 +1,7 @@
 // Extracted from SettingsContent.tsx — pure module-scope helpers and constants.
 // No React, no JSX, no component state.
 
-import type { SectionCategory } from '@/settings/schema';
+import type { SectionCategory } from '@/platform/settings/schema';
 
 /** Map a SETTINGS_SCHEMA `key` to the kebab-case test id callers know
  *  about. Keeps test selectors stable when refactoring. */

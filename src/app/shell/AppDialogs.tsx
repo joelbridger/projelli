@@ -44,7 +44,7 @@ import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import type { InterviewQuestion } from '@/platform/types/workflow';
 import type { FileNode } from '@/platform/types/workspace';
-import type { SettingCategory } from '@/settings/schema';
+import type { SettingCategory } from '@/platform/settings/schema';
 
 export interface AppDialogsProps {
   // MCP gate

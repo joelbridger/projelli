@@ -11,7 +11,7 @@
  * Default when unset: 'legal' (law is the lead ICP and the product's identity).
  */
 import { create } from 'zustand';
-import type { Profession } from '@/onboarding/professionModel';
+import type { Profession } from '@/platform/profile/professionModel';
 
 /** Same key the onboarding wizard's getOnboardingProfession() reads. */
 export const PROFESSION_STORAGE_KEY = 'keepance_profession';

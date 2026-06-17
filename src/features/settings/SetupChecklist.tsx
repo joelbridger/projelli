@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 import { useApiKeys } from '@/platform/hooks/useApiKeys';
 import { useFirm } from '@/platform/hooks/useFirm';
 import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/platform/utils/mail-commands';
-import type { SettingCategory } from '@/settings/schema';
+import type { SettingCategory } from '@/platform/settings/schema';
 
 interface SetupChecklistProps {
   /** Trigger the GuidedOnboarding flow non-destructively (re-shows without clearing data). */

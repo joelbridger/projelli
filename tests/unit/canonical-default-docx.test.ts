@@ -10,7 +10,7 @@ import {
   SETTINGS_SCHEMA,
   getSchemaDefaults,
   getSettingDef,
-} from '@/settings/schema';
+} from '@/platform/settings/schema';
 
 describe('canonical default new-document type', () => {
   it('defaults Default New File Type to docx', () => {

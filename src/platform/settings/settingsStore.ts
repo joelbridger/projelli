@@ -12,7 +12,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { SETTINGS_SCHEMA, getSchemaDefaults } from '@/settings/schema';
+import { SETTINGS_SCHEMA, getSchemaDefaults } from '@/platform/settings/schema';
 
 // ---------------------------------------------------------------------------
 // Types

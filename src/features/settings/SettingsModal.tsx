@@ -25,7 +25,7 @@ import {
   DialogTitle,
 } from '@/ui/dialog';
 import { SettingsContent } from '@/features/settings/SettingsContent';
-import type { SettingCategory } from '@/settings/schema';
+import type { SettingCategory } from '@/platform/settings/schema';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { WorkflowTemplate } from '@/platform/types/workflow';
 

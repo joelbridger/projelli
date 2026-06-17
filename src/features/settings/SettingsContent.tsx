@@ -46,7 +46,7 @@ import {
   type SettingCategory,
   type SectionCategory,
   type SettingDefinition,
-} from '@/settings/schema';
+} from '@/platform/settings/schema';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import {
   isLimitExceedingCapability,

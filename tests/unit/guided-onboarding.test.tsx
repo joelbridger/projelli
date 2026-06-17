@@ -85,12 +85,12 @@ vi.mock('@/platform/hooks/useFirm', () => ({
   useFirm: () => mockUseFirm(),
 }));
 
-vi.mock('@/onboarding/samples', () => ({
+vi.mock('@/features/onboarding/samples', () => ({
   writeSampleFiles: vi.fn().mockResolvedValue(undefined),
   getSamplesForProfession: () => ['sample1.md', 'sample2.md'],
 }));
 
-vi.mock('@/onboarding/professionModel', () => ({
+vi.mock('@/platform/profile/professionModel', () => ({
   persistProfessionModelDefault: vi.fn(),
   getModelForProfession: () => ({ provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' }),
 }));

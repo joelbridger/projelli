@@ -15,7 +15,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { SettingsModal } from '@/features/settings/SettingsModal';
-import { resolveSection, CATEGORY_ALIAS_MAP } from '@/settings/schema';
+import { resolveSection, CATEGORY_ALIAS_MAP } from '@/platform/settings/schema';
 
 afterEach(() => {
   cleanup();

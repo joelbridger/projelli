@@ -29,7 +29,7 @@ import type { AuditEntry } from '@/platform/types/audit';
 import type { APIKey } from '@/platform/types';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { FileNode } from '@/platform/types/workspace';
-import type { SettingCategory } from '@/settings/schema';
+import type { SettingCategory } from '@/platform/settings/schema';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 

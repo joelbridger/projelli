@@ -29,7 +29,7 @@ import { hasDeferredAiSetup } from '@/features/onboarding/aiSetupState';
 import {
   PROFESSION_MODEL_STORAGE_KEY,
   PROFESSION_PROVIDER_STORAGE_KEY,
-} from '@/onboarding/professionModel';
+} from '@/platform/profile/professionModel';
 import { DEFAULT_ANTHROPIC_PAID } from '@/platform/utils/defaultModel';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 

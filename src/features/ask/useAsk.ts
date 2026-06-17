@@ -10,7 +10,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useActiveMatter, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { getDemoAnswerForWorkspace, getDemoQuestions } from '@/onboarding/samples/sampleMatterDemo';
+import { getDemoAnswerForWorkspace, getDemoQuestions } from '@/features/onboarding/samples/sampleMatterDemo';
 import { useProfessionStore } from '@/platform/profile/professionStore';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import {

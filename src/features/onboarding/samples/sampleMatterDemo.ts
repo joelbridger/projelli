@@ -17,7 +17,7 @@
  */
 
 import { getProfession } from '@/platform/profile/professionStore';
-import type { Profession } from '@/onboarding/professionModel';
+import type { Profession } from '@/platform/profile/professionModel';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AnswerCitation shape (mirrored from ReimaginedAsk.tsx — keep in sync)

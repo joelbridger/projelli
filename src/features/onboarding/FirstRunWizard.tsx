@@ -32,11 +32,11 @@
 import { useState, type ReactNode } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Button } from '@/ui/button';
-import { writeSampleFiles, getSamplesForProfession } from '@/onboarding/samples';
+import { writeSampleFiles, getSamplesForProfession } from '@/features/onboarding/samples';
 import { AiSetupStep } from '@/features/onboarding/AiSetupStep';
 import { DiskEncryptionGuidance } from '@/features/onboarding/DiskEncryptionGuidance';
 import { DataMapDialog, DataMapContent } from '@/platform/privacy/ui/DataMapDialog';
-import { persistProfessionModelDefault, getModelForProfession } from '@/onboarding/professionModel';
+import { persistProfessionModelDefault, getModelForProfession } from '@/platform/profile/professionModel';
 import { markAiSetupDeferred } from '@/features/onboarding/aiSetupState';
 import type { KeyProvider } from '@/platform/providers/KeychainService';
 import type { ProviderId } from '@/features/onboarding/ProviderTutorialSteps';

@@ -21,8 +21,8 @@ import {
   getDemoQuestions,
   getDemoAnswerForWorkspace,
   getSampleMatterName,
-} from '@/onboarding/samples/sampleMatterDemo';
-import type { Profession } from '@/onboarding/professionModel';
+} from '@/features/onboarding/samples/sampleMatterDemo';
+import type { Profession } from '@/platform/profile/professionModel';
 
 beforeEach(() => {
   mockedProfession = 'legal';

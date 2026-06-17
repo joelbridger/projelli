@@ -14,12 +14,12 @@ import { render, screen, act } from '@testing-library/react';
 import { FirstRunWizard } from '@/features/onboarding/FirstRunWizard';
 
 // Prevent any real side effects from the wizard
-vi.mock('@/onboarding/samples', () => ({
+vi.mock('@/features/onboarding/samples', () => ({
   writeSampleFiles: vi.fn(),
   getSamplesForProfession: vi.fn(() => []),
 }));
 
-vi.mock('@/onboarding/professionModel', () => ({
+vi.mock('@/platform/profile/professionModel', () => ({
   persistProfessionModelDefault: vi.fn(),
   getModelForProfession: vi.fn(() => ({
     provider: 'anthropic',

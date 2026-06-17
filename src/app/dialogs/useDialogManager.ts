@@ -10,7 +10,7 @@
  * change.
  */
 import { useState, useCallback } from 'react';
-import type { SettingCategory } from '@/settings/schema';
+import type { SettingCategory } from '@/platform/settings/schema';
 
 /** All dialog/modal toggle state surfaced by useDialogManager. */
 export interface DialogManager {

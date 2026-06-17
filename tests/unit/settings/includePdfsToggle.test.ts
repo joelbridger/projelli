@@ -6,7 +6,7 @@
  * Use resolveSection('memory') === 'ai-privacy' to confirm the alias still works.
  */
 import { describe, it, expect } from 'vitest';
-import { SETTINGS_SCHEMA, resolveSection } from '@/settings/schema';
+import { SETTINGS_SCHEMA, resolveSection } from '@/platform/settings/schema';
 
 describe('includePdfsInWorkspaceIndex setting', () => {
   const entry = SETTINGS_SCHEMA.find((s) => s.key === 'includePdfsInWorkspaceIndex');

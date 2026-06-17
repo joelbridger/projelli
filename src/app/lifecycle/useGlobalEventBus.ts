@@ -9,7 +9,7 @@
  * each listener effect mounted once for the life of the app.
  */
 import { useEffect, useRef } from 'react';
-import type { SettingCategory } from '@/settings/schema';
+import type { SettingCategory } from '@/platform/settings/schema';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterUiStore } from '@/platform/matter/matterUiStore';
 import { useEditorStore } from '@/platform/state/editorStore';

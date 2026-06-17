@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { SETTINGS_SCHEMA, getSchemaDefaults } from '@/settings/schema';
+import { SETTINGS_SCHEMA, getSchemaDefaults } from '@/platform/settings/schema';
 import { VOICE_CATALOG, BUNDLED_VOICE_ID } from '@/features/dictation/engine/voiceCatalog';
 
 const TTS_KEYS = ['ttsEnabled', 'ttsVoice', 'ttsSpeed', 'ttsAutoRead', 'ttsShortcut'] as const;
