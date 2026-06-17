@@ -6,6 +6,17 @@
 > product (it had accreted sediment from the "projelli" notes-app and the general
 > "AI workspace" eras).
 
+## LATEST UPDATE (2026-06-17, continued) — BOTH deferred atomic moves DONE ✅
+
+The two risky deferred fat-hook moves (item 1 below) are **DONE, byte-verbatim, gates green, pushed.** **HEAD: `3317577`** (local==origin).
+
+- **`ReimaginedAsk` → `useAsk`** (commit `f154c9e`): the entire logic layer (state, refs, 7 effects, recent-session derivations, `handleAsk` orchestrator) moved verbatim into `src/components/ai/useAsk.ts`; `ReimaginedAsk.tsx` 928 → 455 lines is now a pure render over the hook's return (typed via exported `UseAskProps`). All 3 moved slices (jsdoc/logic/render) confirmed byte-verbatim.
+- **`AIChatViewer` send+compress → `useChatSending`** (commit `3317577`): the coupled unit `buildFastProvider` + `handleManualCompress` + the ~908-line `handleSendMessage` moved verbatim into `src/components/ai/hooks/useChatSending.ts` (ordered bfp→hmc→hsm to kill the forward-ref/TDZ). Deps arrive via a `UseChatSendingDeps` object destructured at top → bodies + dep arrays copy verbatim (exhaustive-deps left untouched per the rule). Compression-modal STATE + `handleStop` + `abortControllerRef` stayed in the component (setters/ref passed in). `APIKey` now exported; `buildOpenFilesPromptBlock`/`refusalKeyForReason` stay exported from AIChatViewer and are imported back by the hook (deferred + hoisted-function circular import, vitest-green). `AIChatViewer.tsx` 2307 → 1343. Lint note: the hook carries the same ~99 `no-unsafe-*` errors the original AIChatViewer already had (verbatim `any`-typed `workspaceServiceRef`) — pre-existing debt relocated, not introduced; eslint is not a gate here.
+
+Gates per commit: `npm run typecheck` 0; `npx vitest run` 3124 passed / 3 skipped (267 files). **NEXT = Phase 4 (matter-store merge, data-loss-sensitive R4), then the feature-folder migration, then Phase 5.**
+
+---
+
 ## LATEST UPDATE (2026-06-16/17, continued session) — ALL 7 giant components split ✅
 
 The giant-component safe-tier splits (the remaining Phase-3 work) are **DONE — all 7
