@@ -64,6 +64,7 @@ import type { ChatSession, ChatCostEntry } from '@/platform/state/aiChatStore';
 // hoisted-function usage below makes this back-import cycle-safe.
 import { buildOpenFilesPromptBlock, refusalKeyForReason } from '../AIChatViewer';
 import type { APIKey } from '../AIChatViewer';
+import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 
 export interface UseChatSendingDeps {
   // Props forwarded from AIChatViewer.
@@ -222,6 +223,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
   const handleSendMessage = useCallback(async () => {
     if ((!inputValue.trim() && pendingAttachments.length === 0) || isLoading) return;
+
+    // WS6 diagnostics — structural, gated, fire-and-forget. No content captured.
+    void sendDiagnosticEvent({ event: 'feature_used', feature: 'ask' }).catch(() => undefined);
 
     // Audit (3.0 provenance) — emit one `citation_verified` event per citation
     // checked against the local store. Passed into `verifyCitations` so the

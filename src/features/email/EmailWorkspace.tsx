@@ -58,6 +58,7 @@ import { BulkMatterPicker } from './BulkMatterPicker';
 import { AskHitCard } from './AskHitCard';
 import { NoAccountsState } from './NoAccountsState';
 import { MailRow } from './MailRow';
+import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -192,6 +193,9 @@ export function EmailWorkspace({
     }
 
     debounceRef.current = setTimeout(() => { void (async () => {
+      // WS6 diagnostics — structural count only, no query text captured.
+      void sendDiagnosticEvent({ event: 'feature_used', feature: 'search' }).catch(() => undefined);
+      void sendDiagnosticEvent({ event: 'search_count', count: 1 }).catch(() => undefined);
       // Reset to first page when filters change
       setOffset(0);
       setLoading(true);

@@ -55,6 +55,7 @@ import { openExternal } from '@/platform/utils/openExternal';
 import { clearAiSetupDeferred } from '@/features/onboarding/aiSetupState';
 import type { KeyProvider } from '@/platform/providers/KeychainService';
 import { useProfessionCopy } from '@/features/onboarding/useProfessionCopy';
+import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 
 /** Which screen of the AI-setup step the user is on. */
 type View = 'choose' | 'own-account' | 'local';
@@ -303,6 +304,8 @@ function OwnAccountView({ defaultProvider, onSaveKey, onBack, onOpenDataMap }: O
       await onSaveKey(provider as KeyProvider, keyText.trim());
       // Saved successfully: this is no longer "deferred".
       clearAiSetupDeferred();
+      // WS6 diagnostics — provider name only, no key content captured.
+      void sendDiagnosticEvent({ event: 'provider_connected', provider }).catch(() => undefined);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

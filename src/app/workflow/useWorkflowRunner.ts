@@ -48,6 +48,7 @@ import type {
   TemplateMetadataReader,
   MarketplaceService,
 } from '@/features/workflows/marketplace/svc';
+import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 
 export interface UseWorkflowRunnerOptions {
   rootPath: string | null;
@@ -528,6 +529,9 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
           // Non-fatal: tree refresh failure shouldn't block the run.
         }
 
+        // WS6 diagnostics — structural, gated, fire-and-forget. No content captured.
+        void sendDiagnosticEvent({ event: 'feature_used', feature: 'workflow' }).catch(() => undefined);
+        void sendDiagnosticEvent({ event: 'workflow_run', templateId: template.id }).catch(() => undefined);
         const runRecord = await engine.execute(template);
         completeRun(runRecord);
 
