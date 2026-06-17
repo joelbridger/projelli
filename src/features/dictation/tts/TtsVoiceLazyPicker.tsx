@@ -15,8 +15,8 @@
 
 import { useState, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
-import { VOICE_CATALOG, BUNDLED_VOICE_ID, getVoiceById } from '@/modules/tts/voiceCatalog';
-import { TTSService } from '@/modules/tts/TTSService';
+import { VOICE_CATALOG, BUNDLED_VOICE_ID, getVoiceById } from '@/features/dictation/engine/voiceCatalog';
+import { TTSService } from '@/features/dictation/engine/TTSService';
 
 export interface TtsVoiceLazyPickerProps {
   /** Currently selected Piper voice ID. */

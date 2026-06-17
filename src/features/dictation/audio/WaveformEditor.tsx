@@ -41,7 +41,7 @@ import {
   sliceBuffer,
   spliceBuffer,
   insertBuffer,
-} from '@/modules/audio/audioEffects';
+} from '@/features/dictation/audio/audioEffects';
 
 interface WaveformEditorProps {
   audioSrc: string;

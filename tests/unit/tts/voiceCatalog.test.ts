@@ -4,7 +4,7 @@ import {
   getVoiceById,
   buildVoiceCdnUrl,
   BUNDLED_VOICE_ID,
-} from '@/modules/tts/voiceCatalog';
+} from '@/features/dictation/engine/voiceCatalog';
 
 describe('voiceCatalog', () => {
   it('has at least 3 voices', () => {

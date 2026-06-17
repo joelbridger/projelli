@@ -18,7 +18,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { TTSService } from '@/modules/tts/TTSService';
+import { TTSService } from '@/features/dictation/engine/TTSService';
 
 type TtsStatus = 'checking' | 'ready' | 'unavailable';
 

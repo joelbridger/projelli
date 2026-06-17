@@ -23,8 +23,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 import * as tauriCore from '@tauri-apps/api/core';
-import { TTSService } from '@/modules/tts/TTSService';
-import { VOICE_CATALOG } from '@/modules/tts/voiceCatalog';
+import { TTSService } from '@/features/dictation/engine/TTSService';
+import { VOICE_CATALOG } from '@/features/dictation/engine/voiceCatalog';
 
 const mockInvoke = vi.mocked(tauriCore.invoke);
 const mockIsTauri = vi.mocked(tauriCore.isTauri);

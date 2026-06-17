@@ -16,7 +16,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { AudioControlBar } from '@/components/tts/AudioControlBar';
+import { AudioControlBar } from '@/features/dictation/tts/AudioControlBar';
 
 describe('AudioControlBar', () => {
   const defaultProps = {

@@ -38,7 +38,7 @@ const PresentationViewer = lazy(() =>
 import { SourceFileEditor } from '@/components/research/SourceFileEditor';
 import { AIChatViewer } from '@/components/ai/AIChatViewer';
 import { FileGridView } from '@/components/workspace/FileGridView';
-import { WaveformEditor } from '@/components/audio/WaveformEditor';
+import { WaveformEditor } from '@/features/dictation/audio/WaveformEditor';
 import { VersionHistoryPanel } from '@/components/version/VersionHistoryPanel';
 import { BinaryVersionHistoryPanel } from '@/components/version/BinaryVersionHistoryPanel';
 import { BrowserPanel } from '@/components/workflow/BrowserPanel';

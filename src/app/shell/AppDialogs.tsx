@@ -22,7 +22,7 @@ import { FeatureTour } from '@/components/onboarding/FeatureTour';
 import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
 import { ShortcutsOverlay } from '@/components/ShortcutsOverlay';
 import { QuickOpen } from '@/components/QuickOpen';
-import { AudioRecorderModal } from '@/components/audio/AudioRecorderModal';
+import { AudioRecorderModal } from '@/features/dictation/audio/AudioRecorderModal';
 import { ConfirmDialog, type ConfirmDialogProps } from '@/components/common/ConfirmDialog';
 import { PromptDialog, type PromptDialogProps } from '@/components/common/PromptDialog';
 import { UndoToastRenderer, type UndoToastController } from '@/components/common/UndoToast';

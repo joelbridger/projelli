@@ -18,7 +18,7 @@ import {
   TTSService,
   // TTSAudioPlayer
   TTSAudioPlayer,
-} from '@/modules/tts';
+} from '@/features/dictation/engine';
 
 describe('TTS barrel exports', () => {
   it('exports VOICE_CATALOG as a non-empty array', () => {

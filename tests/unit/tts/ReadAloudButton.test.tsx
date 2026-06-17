@@ -15,7 +15,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ReadAloudButton } from '@/components/tts/ReadAloudButton';
+import { ReadAloudButton } from '@/features/dictation/tts/ReadAloudButton';
 
 describe('ReadAloudButton', () => {
   const defaultProps = {

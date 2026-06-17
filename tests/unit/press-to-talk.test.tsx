@@ -16,7 +16,7 @@ import {
   PressToTalkIndicator,
   usePressToTalk,
   insertAtCursor,
-} from '@/components/voice/PressToTalk';
+} from '@/features/dictation/voice/PressToTalk';
 
 function Harness(props: {
   captureFactory: () => { start: () => Promise<void>; stop: () => Promise<Uint8Array> };

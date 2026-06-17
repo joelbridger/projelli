@@ -20,7 +20,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TTSAudioPlayer } from '@/modules/tts/TTSAudioPlayer';
+import { TTSAudioPlayer } from '@/features/dictation/engine/TTSAudioPlayer';
 
 // ---------------------------------------------------------------------------
 // Web Audio mock (mirrors TTSAudioPlayer.test.ts)

@@ -2,7 +2,7 @@
  * TTS module barrel — Stream B public surface.
  *
  * Re-exports every public symbol from the TTS module so callers can import
- * from `@/modules/tts` without coupling to internal file structure.
+ * from `@/features/dictation/engine` without coupling to internal file structure.
  */
 
 // Voice catalog — voice metadata, CDN helpers

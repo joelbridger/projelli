@@ -19,7 +19,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { TtsVoiceLazyPicker } from '@/components/tts/TtsVoiceLazyPicker';
+import { TtsVoiceLazyPicker } from '@/features/dictation/tts/TtsVoiceLazyPicker';
 
 // Mock Tauri invoke so downloads can be simulated.
 vi.mock('@tauri-apps/api/core', () => ({
@@ -28,7 +28,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 // Mock TTSService to control downloadVoice() and isVoiceDownloaded().
-vi.mock('@/modules/tts/TTSService', () => ({
+vi.mock('@/features/dictation/engine/TTSService', () => ({
   TTSService: {
     downloadVoice: vi.fn(),
     isVoiceDownloaded: vi.fn((id: string) => id === 'en_US-amy-medium'),
@@ -42,7 +42,7 @@ vi.mock('@/modules/tts/TTSService', () => ({
   },
 }));
 
-import * as ttsModule from '@/modules/tts/TTSService';
+import * as ttsModule from '@/features/dictation/engine/TTSService';
 const mockDownloadVoice = vi.mocked(ttsModule.TTSService.downloadVoice);
 const mockIsVoiceDownloaded = vi.mocked(ttsModule.TTSService.isVoiceDownloaded);
 

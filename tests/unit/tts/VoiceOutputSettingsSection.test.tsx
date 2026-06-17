@@ -17,7 +17,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
-import { VoiceOutputSettingsSection } from '@/components/tts/VoiceOutputSettingsSection';
+import { VoiceOutputSettingsSection } from '@/features/dictation/tts/VoiceOutputSettingsSection';
 
 describe('VoiceOutputSettingsSection', () => {
   it('renders the section heading', async () => {

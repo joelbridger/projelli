@@ -16,7 +16,7 @@ import {
   resampleLinear,
   TRANSCRIBE_TARGET_SAMPLE_RATE,
   type RecorderLike,
-} from '@/modules/voice/VoiceCapture';
+} from '@/features/dictation/voice/VoiceCapture';
 
 describe('VoiceCapture (M6)', () => {
   describe('encodeWav16kMono', () => {
