@@ -32,7 +32,7 @@ import {
   uniqueModels,
   downloadAuditCSV,
   downloadAuditJSON,
-} from '@/utils/audit-export';
+} from '@/features/audit/audit-export';
 import { isAuditEncrypted } from '@/modules/audit/AuditService';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 import {

@@ -16,7 +16,7 @@ import {
   downloadAuditJSON,
   downloadAuditCSV,
   CSV_COLUMNS,
-} from '@/utils/audit-export';
+} from '@/features/audit/audit-export';
 
 function makeEntry(partial: Partial<AuditEntry> = {}): AuditEntry {
   return {

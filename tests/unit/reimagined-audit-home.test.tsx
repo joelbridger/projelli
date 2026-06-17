@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ReimaginedAuditHome } from '@/components/audit/ReimaginedAuditHome';
+import { ReimaginedAuditHome } from '@/features/audit/ReimaginedAuditHome';
 import type { AuditEntry } from '@/types/audit';
 
 function makeEntry(partial: Partial<AuditEntry> = {}): AuditEntry {

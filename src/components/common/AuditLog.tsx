@@ -48,7 +48,7 @@ import {
   downloadAuditJSON,
   filterEntries,
   uniqueModels,
-} from '@/utils/audit-export';
+} from '@/features/audit/audit-export';
 import { isAuditEncrypted } from '@/modules/audit/AuditService';
 
 interface AuditLogProps {

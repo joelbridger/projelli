@@ -15,7 +15,7 @@ import { ReimaginedAsk } from '@/components/ai/ReimaginedAsk';
 import { ReimaginedEmailWorkspace } from '@/features/email/ReimaginedEmailWorkspace';
 import { ReimaginedDocumentsHome } from '@/components/documents/ReimaginedDocumentsHome';
 import { ReimaginedAssociateHome } from '@/components/workflow/ReimaginedAssociateHome';
-import { ReimaginedAuditHome } from '@/components/audit/ReimaginedAuditHome';
+import { ReimaginedAuditHome } from '@/features/audit/ReimaginedAuditHome';
 import { MainPanel } from '@/components/layout/MainPanel';
 import { SettingsContent } from '@/components/settings/SettingsContent';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
