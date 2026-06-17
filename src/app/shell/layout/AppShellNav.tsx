@@ -7,7 +7,7 @@
  * are still accepted-and-ignored here — the Spine doesn't render them — pending
  * the dead sidebar-panel cleanup.
  */
-import { ReimaginedSpine } from '@/components/layout/ReimaginedSpine';
+import { ReimaginedSpine } from '@/app/shell/layout/ReimaginedSpine';
 
 export type AppShellNavProps = React.ComponentProps<typeof ReimaginedSpine> & {
   researchContent?: React.ReactNode;

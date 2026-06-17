@@ -19,9 +19,9 @@ import { useDocumentCreation } from '@/app/fileOps/useDocumentCreation';
 import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
 import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
 
-import { AppShellNav } from '@/components/layout/AppShellNav';
-import { ReimaginedTrustBar } from '@/components/layout/ReimaginedTrustBar';
-import { StatusBar } from '@/components/layout/StatusBar';
+import { AppShellNav } from '@/app/shell/layout/AppShellNav';
+import { ReimaginedTrustBar } from '@/app/shell/layout/ReimaginedTrustBar';
+import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
 
@@ -40,7 +40,7 @@ import { useFeatureTour } from '@/hooks/useFeatureTour';
 import { ModelDownloadCard } from '@/components/memory/ModelDownloadCard';
 import { RagProgressBanner } from '@/components/memory/RagProgressBanner';
 import { useMemoryWiring } from '@/hooks/useMemoryWiring';
-import { useGlobalFileDrop } from '@/components/common/GlobalDropOverlay';
+import { useGlobalFileDrop } from '@/app/shell/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
@@ -79,7 +79,7 @@ import { useOpenEmailListener } from '@/hooks/useOpenEmailListener';
 import type { MailIndexChunk } from '@/utils/mail-commands';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { usePromptDialog } from '@/hooks/usePromptDialog';
-import { useUndoToast } from '@/components/common/UndoToast';
+import { useUndoToast } from '@/app/shell/common/UndoToast';
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.

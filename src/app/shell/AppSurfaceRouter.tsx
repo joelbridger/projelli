@@ -16,7 +16,7 @@ import { ReimaginedEmailWorkspace } from '@/features/email/ReimaginedEmailWorksp
 import { ReimaginedDocumentsHome } from '@/features/documents/ReimaginedDocumentsHome';
 import { ReimaginedAssociateHome } from '@/features/workflows/ReimaginedAssociateHome';
 import { ReimaginedAuditHome } from '@/features/audit/ReimaginedAuditHome';
-import { MainPanel } from '@/components/layout/MainPanel';
+import { MainPanel } from '@/app/shell/layout/MainPanel';
 import { SettingsContent } from '@/features/settings/SettingsContent';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { requestScrollToParagraph } from '@/utils/scrollToParagraph';

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { getDefaultCommands, type PaletteCommand } from '@/components/common/CommandPalette';
+import { getDefaultCommands, type PaletteCommand } from '@/app/shell/common/CommandPalette';
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { PromptOptions } from '@/hooks/usePromptDialog';

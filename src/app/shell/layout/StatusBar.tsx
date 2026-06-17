@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
 import { useActiveMatter } from '@/stores/matterStore';
-import { BugReportDialog } from '@/components/common/BugReportDialog';
+import { BugReportDialog } from '@/app/shell/common/BugReportDialog';
 import { TrialStatusChip } from '@/features/account/trial';
 import { useTrial } from '@/hooks/useTrial';
 import { useLicense } from '@/hooks/useLicense';

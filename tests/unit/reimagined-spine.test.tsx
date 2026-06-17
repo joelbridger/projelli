@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ReimaginedSpine } from '@/components/layout/ReimaginedSpine';
+import { ReimaginedSpine } from '@/app/shell/layout/ReimaginedSpine';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
