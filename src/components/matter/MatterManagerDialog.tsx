@@ -50,12 +50,10 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useMatters, useMatterStore, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
-import type { FileNode } from '@/types/workspace';
 import { mailConnectedAccounts, type ConnectedAccount } from '@/utils/mail-commands';
 import { mailFolderKey } from '@/modules/memory/matterResolver';
 import { useFirm } from '@/hooks/useFirm';
 import { useFirmStore } from '@/stores/firmStore';
-import { AuditService } from '@/modules/audit/AuditService';
 import {
   getOrCreateMatterKey,
   publishMatterKeyToMembers,
@@ -66,45 +64,12 @@ import type { MatterMembersResponse, MatterMineSummary } from '@/modules/firm/co
 import { openMatterNotes } from '@/modules/matter/openMatterNotes';
 import { stopMatterSync } from '@/modules/matter/matterNotesSync';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
+import { collectFolderPaths, relLabel, generateTempPassword, audit } from './matterManagerDialogHelpers';
 
 export interface MatterManagerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-/** Collect every folder path in the workspace tree (depth-first, sorted). */
-function collectFolderPaths(nodes: FileNode[]): string[] {
-  const out: string[] = [];
-  const walk = (ns: FileNode[]) => {
-    for (const n of ns) {
-      if (n.type === 'folder') {
-        out.push(n.path);
-        if (n.children) walk(n.children);
-      }
-    }
-  };
-  walk(nodes);
-  return out.sort();
-}
-
-/** A short label for a folder path relative to the workspace root. */
-function relLabel(path: string, root: string | null): string {
-  if (!root) return path;
-  const r = root.replace(/\\/g, '/').replace(/\/+$/, '');
-  const p = path.replace(/\\/g, '/');
-  return p.startsWith(`${r}/`) ? p.slice(r.length + 1) : p;
-}
-
-/** Generate a random 16-char temporary password. */
-function generateTempPassword(): string {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$';
-  const arr = new Uint8Array(16);
-  crypto.getRandomValues(arr);
-  return Array.from(arr, (b) => chars[b % chars.length] ?? '?').join('');
-}
-
-const audit = new AuditService('firm');
-
 // ────────────────────────────────────────────────────────────────────────────
 // Sub-component: firm member roster for a single shared matter
 // ────────────────────────────────────────────────────────────────────────────
