@@ -67,14 +67,14 @@ import { writeDroppedFiles } from '@/utils/fileDrop';
 
 
 import { useTrash } from '@/hooks/useTrash';
-import { useSourceCards } from '@/hooks/useSourceCards';
+import { useSourceCards } from '@/app/hooks/useSourceCards';
 import { useAIChatFiles } from '@/hooks/useAIChatFiles';
 import { useApiKeys } from '@/hooks/useApiKeys';
 import { useOpenFileAIContext } from '@/hooks/useOpenFileAIContext';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import { useModelList } from '@/hooks/useModelList';
 import { useContentIndex } from '@/hooks/useContentIndex';
-import { useMailSync } from '@/hooks/useMailSync';
+import { useMailSync } from '@/features/email/useMailSync';
 import { useOpenEmailListener } from '@/hooks/useOpenEmailListener';
 import type { MailIndexChunk } from '@/utils/mail-commands';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';

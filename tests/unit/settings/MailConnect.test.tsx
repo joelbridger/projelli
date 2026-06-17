@@ -17,7 +17,7 @@ vi.mock('@/utils/mail-commands', () => ({
   get mailFdeStatus() { return mockMailFdeStatus; },
   MAIL_SYNC_EVENT: 'mail-sync-progress',
 }));
-vi.mock('@/hooks/useMailSync', () => ({ useMailSync: () => {} }));
+vi.mock('@/features/email/useMailSync', () => ({ useMailSync: () => {} }));
 
 import { MailConnect } from '@/features/settings/MailConnect';
 

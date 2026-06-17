@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils';
 import { saveFile } from '@/utils/saveFile';
 import { markdownToDocxBytes } from '@/utils/docx-io';
 import { markdownToPptxBytes } from '@/utils/pptx-io';
-import { exportMarkdownAsPdf } from '@/utils/pdf-export';
+import { exportMarkdownAsPdf } from '@/features/documents/pdf-export';
 import { availableExportFormats, replaceExtension } from '@/utils/export-formats';
 import type { ExportFormat } from '@/utils/export-formats';
 import type { MarkdownEditorRef } from './MarkdownEditor';
