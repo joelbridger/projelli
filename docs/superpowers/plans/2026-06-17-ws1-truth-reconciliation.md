@@ -4,6 +4,24 @@
 >
 > **Parent:** `docs/strategy/2026-06-17-keepance-master-plan.md` (WS1). **Branch:** `ws1-truth-reconciliation`. **Inventory of every contradiction (file:line):** the WS1 inventory section below + the master plan. **No production deploy without Jameson's explicit go** — this plan ends at "verified green on the branch," not "shipped."
 
+## ✅ STATUS (2026-06-17) — executed on branch `ws1-truth-reconciliation` (4 commits; typecheck 0, vitest 270 files/3137 passed, guard green)
+
+**DONE + verified:**
+- Single-source-of-truth guard (`tests/unit/truth-reconciliation.guard.test.ts`) — green.
+- In-app credibility: false SOC2/DPA Firm-tier claim → honest roadmap framing; removed "Whiteboard" license string fixed (en/de/es + hashes).
+- Pricing reconciled on ALL 32 live website pages + README (retired one-time/old prices → canonical subscription; Personal→Solo, Practice→Firm). Updated the existing `website-content-lint` $129 assertion for the new Firm monthly rate.
+- Homepage assurance honesty; README rewritten for v3.2.0; CLAUDE.md contradictions fixed.
+- Removed-feature claims (plugin/community marketplace, stale "28 built in") dropped from /vs/ + press-kit comparison; built-in count standardized to "50+".
+- Unpublished campaign drafts flagged (`campaigns/PRICING_NOTICE.md`).
+
+**DEFERRED (flagged — needs its own pass, not a find-replace):**
+- `website/press-kit/index.html` — a dated v2.0 press release (line 213: "Last updated 2026-05-04 (v2.0 release)") describing the removed plugin marketplace, "day-one plugins", "Pay once", and "Markdown file". Reporter-facing; needs a dedicated 3.0 press-kit refresh.
+- Unpublished campaign-draft narratives (old one-time-pricing story) — marketing rewrite, paused per the evaluation.
+
+**NOT deployed** — branch awaits Jameson's review (esp. the assurance wording) + explicit deploy go.
+
+---
+
 **Goal:** Make every live, buyer-facing surface state the same truth about price, version, template count, and trust/assurance status, and add a guard so it can't silently drift again.
 
 **Architecture:** `src/config/pricing.ts` is the canonical pricing source. A new vitest guard scans the live-claim surfaces (website non-blog HTML, README, in-app strings) for forbidden retired patterns + required canonical values. Fix in-app first (highest trust), then website, then docs.
