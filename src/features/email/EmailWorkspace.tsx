@@ -37,9 +37,11 @@ import {
   FolderInput,
   X,
   PenLine,
+  Sparkles,
 } from 'lucide-react';
-import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, SurfaceToolbar } from '@/ui/kp';
+import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, SurfaceToolbar, Callout } from '@/ui/kp';
 import { useActiveMatter } from '@/platform/matter/matterStore';
+import { useMailStore } from './mailStore';
 import {
   mailListMessages,
   mailConnectedAccounts,
@@ -76,6 +78,9 @@ export function EmailWorkspace({
   onOpenSettings,
 }: EmailWorkspaceProps) {
   const activeMatter = useActiveMatter();
+
+  // First-connect TTV callout — shown once after the first account is connected.
+  const { firstConnectCalloutSeen, dismissFirstConnectCallout } = useMailStore();
 
   // Scope toggle: "This matter" vs "All email" — only effective in Ask AI mode
   const [scopeAllEmail, setScopeAllEmail] = useState(false);
@@ -131,6 +136,9 @@ export function EmailWorkspace({
   const [composeSendError, setComposeSendError] = useState<string | null>(null);
   const [composeAttachments, setComposeAttachments] = useState<MailAttachmentInput[]>([]);
   const attachFileRef = useRef<HTMLInputElement>(null);
+
+  // Ref for focusing the search field from the first-connect callout CTA.
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Debounce ref and request fingerprint tracking
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -516,6 +524,7 @@ export function EmailWorkspace({
 
         {/* 5. Search field — grows to fill remaining space, always last */}
         <SearchField
+          ref={searchInputRef}
           size="md"
           icon={Search}
           value={query}
@@ -613,6 +622,45 @@ export function EmailWorkspace({
             </label>
           </div>
         </FilterPanel>
+      )}
+
+      {/* First-connect TTV callout — shown exactly once after the first account connects */}
+      {accountsLoaded && accounts.length > 0 && !firstConnectCalloutSeen && (
+        /* eslint-disable keepance-i18n/no-hardcoded-string */
+        <div style={{ padding: `var(--kp-space-sm) var(--kp-gutter) 0`, flexShrink: 0 }}>
+          <div data-testid="first-connect-callout">
+          <Callout
+            variant="info"
+            icon={Sparkles}
+            onDismiss={dismissFirstConnectCallout}
+          >
+            <span style={{ fontWeight: 'var(--kp-weight-semibold)' }}>Your email is connected.</span>
+            {' '}Try a search your inbox search never could.{' '}
+            <button
+              type="button"
+              data-testid="first-connect-callout-cta"
+              onClick={() => {
+                dismissFirstConnectCallout();
+                searchInputRef.current?.focus();
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                color: 'var(--kp-navy)',
+                fontWeight: 'var(--kp-weight-semibold)',
+                cursor: 'pointer',
+                fontSize: 'inherit',
+                textDecoration: 'underline',
+                fontFamily: 'inherit',
+              }}
+            >
+              Search by name, topic, or deadline
+            </button>
+          </Callout>
+          </div>
+        </div>
+        /* eslint-enable keepance-i18n/no-hardcoded-string */
       )}
 
       {/* Body */}
