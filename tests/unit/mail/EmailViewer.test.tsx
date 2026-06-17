@@ -62,7 +62,7 @@ vi.mock('@/utils/fileDrop', () => ({
   deriveFilenameFromMessage: vi.fn(() => 'reply-draft.md'),
 }));
 
-import { EmailViewer, stripResidualTags, parseRecipients } from '@/components/mail/EmailViewer';
+import { EmailViewer, stripResidualTags, parseRecipients } from '@/features/email/EmailViewer';
 import type { MailView } from '@/utils/mail-commands';
 
 function sampleMessage(overrides: Partial<MailView> = {}): MailView {

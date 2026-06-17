@@ -12,7 +12,7 @@
 
 import { ReimaginedMattersHome } from '@/components/matter/ReimaginedMattersHome';
 import { ReimaginedAsk } from '@/components/ai/ReimaginedAsk';
-import { ReimaginedEmailWorkspace } from '@/components/mail/ReimaginedEmailWorkspace';
+import { ReimaginedEmailWorkspace } from '@/features/email/ReimaginedEmailWorkspace';
 import { ReimaginedDocumentsHome } from '@/components/documents/ReimaginedDocumentsHome';
 import { ReimaginedAssociateHome } from '@/components/workflow/ReimaginedAssociateHome';
 import { ReimaginedAuditHome } from '@/components/audit/ReimaginedAuditHome';

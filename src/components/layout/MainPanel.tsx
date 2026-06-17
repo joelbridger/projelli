@@ -43,7 +43,7 @@ import { VersionHistoryPanel } from '@/components/version/VersionHistoryPanel';
 import { BinaryVersionHistoryPanel } from '@/components/version/BinaryVersionHistoryPanel';
 import { BrowserPanel } from '@/components/workflow/BrowserPanel';
 import { WorkflowExecutionTab } from '@/components/workflow/WorkflowExecutionTab';
-import { EmailViewer } from '@/components/mail/EmailViewer';
+import { EmailViewer } from '@/features/email/EmailViewer';
 import { MatterNotesEditorWrapper } from '@/components/matter/MatterNotesEditorWrapper';
 import {
   fileDataToExecution,

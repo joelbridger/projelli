@@ -66,7 +66,7 @@ import {
 import { useActiveMatter, useMatters } from '@/stores/matterStore';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
 import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
-import { ReimaginedEmailWorkspace } from '@/components/mail/ReimaginedEmailWorkspace';
+import { ReimaginedEmailWorkspace } from '@/features/email/ReimaginedEmailWorkspace';
 
 // ── Fixture data ────────────────────────────────────────────────────────────
 

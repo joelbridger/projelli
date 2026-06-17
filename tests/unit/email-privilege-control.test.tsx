@@ -28,7 +28,7 @@ vi.mock('@/utils/mail-commands', () => ({
   },
 }));
 
-import { EmailViewer } from '@/components/mail/EmailViewer';
+import { EmailViewer } from '@/features/email/EmailViewer';
 import { usePrivilegeStore } from '@/stores/privilegeStore';
 import type { MailView } from '@/utils/mail-commands';
 
