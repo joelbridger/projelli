@@ -102,7 +102,7 @@ const PRIVILEGE_OPTION_KEYS: Record<Privilege, string> = {
   'work-product': 'mail.viewer.privilege-mark-wp',
 };
 
-// ── buildProviderAsync — mirrors ReimaginedAsk.tsx pattern ─────────────────
+// ── buildProviderAsync — mirrors Ask.tsx pattern ─────────────────
 
 async function buildProviderAsync(): Promise<Provider> {
   const kc = createKeychainService('localStorage');

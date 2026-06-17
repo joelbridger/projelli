@@ -1,6 +1,6 @@
 /**
  * askHelpers — pure helper functions + data-contract types extracted from
- * ReimaginedAsk.tsx. No React, no side-effects; safe to import anywhere.
+ * Ask.tsx. No React, no side-effects; safe to import anywhere.
  */
 
 import { citationBasename } from '@/platform/rag/workspaceCommand';

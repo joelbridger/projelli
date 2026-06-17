@@ -26,7 +26,7 @@ export interface OnboardingStepFrameProps {
 }
 
 // ---------------------------------------------------------------------------
-// KeepanceMark — white keep + gradient sparkle (verbatim from ReimaginedSpine)
+// KeepanceMark — white keep + gradient sparkle (verbatim from Spine)
 // ---------------------------------------------------------------------------
 function KeepanceMark() {
   return (

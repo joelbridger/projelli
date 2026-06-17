@@ -1,5 +1,5 @@
 /**
- * ReimaginedDocumentsHome — unit tests (R4: "Files" pinned tab + grid model)
+ * DocumentsHome — unit tests (R4: "Files" pinned tab + grid model)
  *
  * Covers:
  *  1. Unified tab strip: pinned "Files" tab renders + is selected by default
@@ -21,7 +21,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ReimaginedDocumentsHome, type ReimaginedDocumentsHomeProps } from '@/features/documents/ReimaginedDocumentsHome';
+import { DocumentsHome, type DocumentsHomeProps } from '@/features/documents/DocumentsHome';
 import type { FileNode } from '@/platform/types/workspace';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 
@@ -154,7 +154,7 @@ const SAMPLE_TRASH_ITEMS: TrashedItem[] = [
   },
 ];
 
-function buildDefaultProps(overrides: Partial<ReimaginedDocumentsHomeProps> = {}): ReimaginedDocumentsHomeProps {
+function buildDefaultProps(overrides: Partial<DocumentsHomeProps> = {}): DocumentsHomeProps {
   return {
     mainPanelContent: <div data-testid="main-panel">Editor</div>,
     trashItems: [],
@@ -177,7 +177,7 @@ function buildDefaultProps(overrides: Partial<ReimaginedDocumentsHomeProps> = {}
 
 // ── Unified tab strip ──────────────────────────────────────────────────────
 
-describe('ReimaginedDocumentsHome — unified tab strip (R4)', () => {
+describe('DocumentsHome — unified tab strip (R4)', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
@@ -186,50 +186,50 @@ describe('ReimaginedDocumentsHome — unified tab strip (R4)', () => {
   });
 
   it('renders the documents container', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
-    expect(screen.getByTestId('reimagined-documents-split')).toBeTruthy();
+    render(<DocumentsHome {...buildDefaultProps()} />);
+    expect(screen.getByTestId('documents-split')).toBeTruthy();
   });
 
   it('renders a unified tab strip', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByTestId('documents-tab-strip')).toBeTruthy();
   });
 
   it('shows a pinned "Files" tab as the first tab', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     // "Files" chip must be present in the tab strip
     const strip = screen.getByTestId('documents-tab-strip');
     expect(strip.textContent).toContain('Files');
   });
 
   it('shows the DocumentGridView by default (no file open)', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByTestId('document-grid-view')).toBeTruthy();
     // Editor should NOT be visible
     expect(screen.queryByTestId('main-panel')).toBeNull();
   });
 
   it('does NOT show a left column panel', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.queryByTestId('documents-left-panel')).toBeNull();
   });
 });
 
 // ── Grid file view ─────────────────────────────────────────────────────────
 
-describe('ReimaginedDocumentsHome — grid file view', () => {
+describe('DocumentsHome — grid file view', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
   });
 
   it('renders the DocumentGridView when Files tab is active', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByTestId('document-grid-view')).toBeTruthy();
   });
 
   it('renders grid cards for all nodes in the fileTree', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     // Folder and files from mockFileTree should appear
     expect(screen.getByTestId('grid-card-/workspace/Contracts')).toBeTruthy();
     expect(screen.getByTestId('grid-card-/workspace/Brief.md')).toBeTruthy();
@@ -237,25 +237,25 @@ describe('ReimaginedDocumentsHome — grid file view', () => {
   });
 
   it('shows folder names in the grid', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByText('Contracts')).toBeTruthy();
   });
 
   it('shows file names in the grid', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByText('Brief.md')).toBeTruthy();
     expect(screen.getByText('Evidence.pdf')).toBeTruthy();
   });
 
   it('grid cards container is rendered', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByTestId('document-grid-cards')).toBeTruthy();
   });
 });
 
 // ── File open / editor tab ─────────────────────────────────────────────────
 
-describe('ReimaginedDocumentsHome — file open + editor tab', () => {
+describe('DocumentsHome — file open + editor tab', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
@@ -266,12 +266,12 @@ describe('ReimaginedDocumentsHome — file open + editor tab', () => {
   it('opening a file tab adds it to the strip', async () => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
-    const { rerender } = render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    const { rerender } = render(<DocumentsHome {...buildDefaultProps()} />);
 
     // Simulate a file tab opening (editorStore update)
     mockActiveTabPath = '/workspace/Brief.md';
     mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
-    rerender(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    rerender(<DocumentsHome {...buildDefaultProps()} />);
 
     await waitFor(() => {
       const strip = screen.getByTestId('documents-tab-strip');
@@ -282,11 +282,11 @@ describe('ReimaginedDocumentsHome — file open + editor tab', () => {
   it('shows the editor when a file tab becomes active', async () => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
-    const { rerender } = render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    const { rerender } = render(<DocumentsHome {...buildDefaultProps()} />);
 
     mockActiveTabPath = '/workspace/Brief.md';
     mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
-    rerender(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    rerender(<DocumentsHome {...buildDefaultProps()} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
@@ -297,7 +297,7 @@ describe('ReimaginedDocumentsHome — file open + editor tab', () => {
   it('clicking "Files" tab from editor view returns to the grid', async () => {
     mockActiveTabPath = '/workspace/Brief.md';
     mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
 
     // Initially showing editor (Brief.md is active)
     await waitFor(() => {
@@ -321,16 +321,16 @@ describe('ReimaginedDocumentsHome — file open + editor tab', () => {
 
 // ── Email-open flow ────────────────────────────────────────────────────────
 
-describe('ReimaginedDocumentsHome — email-open flow', () => {
+describe('DocumentsHome — email-open flow', () => {
   it('opening an email tab shows the editor (email-open intact)', async () => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
-    const { rerender } = render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    const { rerender } = render(<DocumentsHome {...buildDefaultProps()} />);
 
     // Simulate keepance:open-email -> editorStore update
     mockActiveTabPath = 'email://inbox/msg-001';
     mockOpenTabs = [{ path: 'email://inbox/msg-001', name: 'Re: Contract Review', type: 'email' }];
-    rerender(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    rerender(<DocumentsHome {...buildDefaultProps()} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
@@ -341,21 +341,21 @@ describe('ReimaginedDocumentsHome — email-open flow', () => {
 
 // ── Add files / import affordance ─────────────────────────────────────────
 
-describe('ReimaginedDocumentsHome — Add files button', () => {
+describe('DocumentsHome — Add files button', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
   });
 
   it('renders an "Add files" button in the grid toolbar', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     const btn = screen.getByTestId('add-files-btn');
     expect(btn).toBeTruthy();
   });
 
   it('clicking "Add files" calls onCreateDefaultDocument when provided', () => {
     const onCreateDefaultDocument = vi.fn();
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onCreateDefaultDocument })} />);
+    render(<DocumentsHome {...buildDefaultProps({ onCreateDefaultDocument })} />);
     const btn = screen.getByTestId('add-files-btn');
     fireEvent.click(btn);
     expect(onCreateDefaultDocument).toHaveBeenCalledOnce();
@@ -363,7 +363,7 @@ describe('ReimaginedDocumentsHome — Add files button', () => {
 
   it('clicking "Add files" falls back to onCreateFile when no shortcut is provided', () => {
     const onCreateFile = vi.fn();
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onCreateFile })} />);
+    render(<DocumentsHome {...buildDefaultProps({ onCreateFile })} />);
     const btn = screen.getByTestId('add-files-btn');
     fireEvent.click(btn);
     expect(onCreateFile).toHaveBeenCalledOnce();
@@ -372,7 +372,7 @@ describe('ReimaginedDocumentsHome — Add files button', () => {
 
 // ── Trust banner ───────────────────────────────────────────────────────────
 
-describe('ReimaginedDocumentsHome — trust banner', () => {
+describe('DocumentsHome — trust banner', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
@@ -384,12 +384,12 @@ describe('ReimaginedDocumentsHome — trust banner', () => {
   });
 
   it('trust banner does NOT show before any file is imported', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.queryByTestId('trust-banner')).toBeNull();
   });
 
   it('trust banner shows the first time "Add files" is clicked', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     const btn = screen.getByTestId('add-files-btn');
     fireEvent.click(btn);
     expect(screen.getByTestId('trust-banner')).toBeTruthy();
@@ -397,7 +397,7 @@ describe('ReimaginedDocumentsHome — trust banner', () => {
   });
 
   it('trust banner can be dismissed', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     fireEvent.click(screen.getByTestId('add-files-btn'));
     expect(screen.getByTestId('trust-banner')).toBeTruthy();
     const dismissBtn = screen.getByRole('button', { name: /dismiss/i });
@@ -407,14 +407,14 @@ describe('ReimaginedDocumentsHome — trust banner', () => {
 
   it('trust banner does not show again once localStorage flag is set', () => {
     localStorage.setItem('keepance:first-file-trust-shown', '1');
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     const btn = screen.getByTestId('add-files-btn');
     fireEvent.click(btn);
     expect(screen.queryByTestId('trust-banner')).toBeNull();
   });
 
   it('clicking "Add files" sets the localStorage flag', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     expect(localStorage.getItem('keepance:first-file-trust-shown')).toBeNull();
     fireEvent.click(screen.getByTestId('add-files-btn'));
     expect(localStorage.getItem('keepance:first-file-trust-shown')).toBe('1');
@@ -423,26 +423,26 @@ describe('ReimaginedDocumentsHome — trust banner', () => {
 
 // ── Trash (inside grid) ────────────────────────────────────────────────────
 
-describe('ReimaginedDocumentsHome — trash toggle', () => {
+describe('DocumentsHome — trash toggle', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
   });
 
   it('shows the Files toggle button in the grid toolbar', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     const filesBtn = screen.getByRole('button', { name: /^files$/i });
     expect(filesBtn).toBeTruthy();
   });
 
   it('shows the Trash toggle button in the grid toolbar', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     const trashBtn = screen.getByRole('button', { name: /^trash/i });
     expect(trashBtn).toBeTruthy();
   });
 
   it('clicking the Trash toggle renders the TrashPanel', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ trashItems: SAMPLE_TRASH_ITEMS })} />);
+    render(<DocumentsHome {...buildDefaultProps({ trashItems: SAMPLE_TRASH_ITEMS })} />);
     expect(screen.queryByTestId('trash-panel')).toBeNull();
     const trashBtn = screen.getByRole('button', { name: /^trash/i });
     fireEvent.click(trashBtn);
@@ -450,14 +450,14 @@ describe('ReimaginedDocumentsHome — trash toggle', () => {
   });
 
   it('TrashPanel receives and renders trashed items', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ trashItems: SAMPLE_TRASH_ITEMS })} />);
+    render(<DocumentsHome {...buildDefaultProps({ trashItems: SAMPLE_TRASH_ITEMS })} />);
     fireEvent.click(screen.getByRole('button', { name: /^trash/i }));
     expect(screen.getByTestId('trash-item-trash-1')).toBeTruthy();
     expect(screen.getByText('OldDraft.md')).toBeTruthy();
   });
 
   it('clicking Files toggle returns to grid view', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     fireEvent.click(screen.getByRole('button', { name: /^trash/i }));
     expect(screen.getByTestId('trash-panel')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /^files$/i }));
@@ -468,20 +468,20 @@ describe('ReimaginedDocumentsHome — trash toggle', () => {
 
 // ── Search ─────────────────────────────────────────────────────────────────
 
-describe('ReimaginedDocumentsHome — search', () => {
+describe('DocumentsHome — search', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
   });
 
   it('renders a search input in the grid toolbar', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     const searchInput = screen.getByRole('textbox');
     expect(searchInput).toBeTruthy();
   });
 
   it('typing in the search input filters grid cards by name', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     const searchInput = screen.getByRole('textbox');
     fireEvent.change(searchInput, { target: { value: 'brief' } });
     expect(screen.getByText('Brief.md')).toBeTruthy();
@@ -490,7 +490,7 @@ describe('ReimaginedDocumentsHome — search', () => {
   });
 
   it('shows empty search state when no files match the query', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     const searchInput = screen.getByRole('textbox');
     fireEvent.change(searchInput, { target: { value: 'zzznomatch' } });
     expect(screen.getByText(/no files match your search/i)).toBeTruthy();
@@ -499,7 +499,7 @@ describe('ReimaginedDocumentsHome — search', () => {
 
 // ── File / folder interactions ─────────────────────────────────────────────
 
-describe('ReimaginedDocumentsHome — file interactions', () => {
+describe('DocumentsHome — file interactions', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
@@ -507,7 +507,7 @@ describe('ReimaginedDocumentsHome — file interactions', () => {
 
   it('clicking a file card calls onFileOpen with correct path and name', async () => {
     const onFileOpen = vi.fn().mockResolvedValue(undefined);
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onFileOpen })} />);
+    render(<DocumentsHome {...buildDefaultProps({ onFileOpen })} />);
     const briefCard = screen.getByTestId('grid-card-/workspace/Brief.md');
     fireEvent.click(briefCard);
     await waitFor(() => {
@@ -518,7 +518,7 @@ describe('ReimaginedDocumentsHome — file interactions', () => {
 
   it('clicking a folder card does NOT call onFileOpen (drills into folder)', async () => {
     const onFileOpen = vi.fn().mockResolvedValue(undefined);
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onFileOpen })} />);
+    render(<DocumentsHome {...buildDefaultProps({ onFileOpen })} />);
     const folderCard = screen.getByTestId('grid-card-/workspace/Contracts');
     fireEvent.click(folderCard);
     await waitFor(() => {
@@ -529,14 +529,14 @@ describe('ReimaginedDocumentsHome — file interactions', () => {
 
 // ── fileTree population ────────────────────────────────────────────────────
 
-describe('ReimaginedDocumentsHome — fileTree + grid population', () => {
+describe('DocumentsHome — fileTree + grid population', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
   });
 
   it('grid shows all top-level nodes from fileTree (folder + files)', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     // Should show the folder and two files at root
     expect(screen.getByTestId('grid-card-/workspace/Contracts')).toBeTruthy();
     expect(screen.getByTestId('grid-card-/workspace/Brief.md')).toBeTruthy();
@@ -552,7 +552,7 @@ describe('ReimaginedDocumentsHome — fileTree + grid population', () => {
     // mocks are per-file, we verify the empty-state testId is present when
     // the component receives an empty tree. We can verify this indirectly:
     // when fileTree is NOT empty (the default), grid-empty-state must NOT appear.
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.queryByTestId('grid-empty-state')).toBeNull();
     // The grid-cards container must exist with actual cards
     expect(screen.getByTestId('document-grid-cards')).toBeTruthy();
@@ -561,7 +561,7 @@ describe('ReimaginedDocumentsHome — fileTree + grid population', () => {
 
 // ── R6-1: Tree | Grid toggle ─────────────────────────────────────────────────
 
-describe('ReimaginedDocumentsHome — Tree | Grid toggle (R6-1)', () => {
+describe('DocumentsHome — Tree | Grid toggle (R6-1)', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
@@ -573,20 +573,20 @@ describe('ReimaginedDocumentsHome — Tree | Grid toggle (R6-1)', () => {
   });
 
   it('renders the Tree | Grid toggle with both options', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByTestId('docs-view-toggle')).toBeTruthy();
     expect(screen.getByTestId('docs-view-tree')).toBeTruthy();
     expect(screen.getByTestId('docs-view-grid')).toBeTruthy();
   });
 
   it('defaults to the grid view (DocumentGridView visible, tree hidden)', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByTestId('document-grid-view')).toBeTruthy();
     expect(screen.queryByTestId('documents-tree-view')).toBeNull();
   });
 
   it('switching to Tree renders the FileTree and hides the grid', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     fireEvent.click(screen.getByTestId('docs-view-tree'));
     expect(screen.getByTestId('documents-tree-view')).toBeTruthy();
     expect(screen.getByTestId('file-tree')).toBeTruthy();
@@ -596,7 +596,7 @@ describe('ReimaginedDocumentsHome — Tree | Grid toggle (R6-1)', () => {
   });
 
   it('switching back to Grid restores the grid view', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     fireEvent.click(screen.getByTestId('docs-view-tree'));
     expect(screen.getByTestId('documents-tree-view')).toBeTruthy();
     fireEvent.click(screen.getByTestId('docs-view-grid'));
@@ -605,18 +605,18 @@ describe('ReimaginedDocumentsHome — Tree | Grid toggle (R6-1)', () => {
   });
 
   it('persists the chosen view to localStorage and restores it on remount', () => {
-    const { unmount } = render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    const { unmount } = render(<DocumentsHome {...buildDefaultProps()} />);
     fireEvent.click(screen.getByTestId('docs-view-tree'));
     expect(localStorage.getItem('keepance:docs-view')).toBe('tree');
     unmount();
     // Fresh mount reads the persisted choice → tree view is active.
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByTestId('documents-tree-view')).toBeTruthy();
   });
 
   it('passes the move handler through to the FileTree', async () => {
     const onMove = vi.fn().mockResolvedValue(undefined);
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onMove })} />);
+    render(<DocumentsHome {...buildDefaultProps({ onMove })} />);
     fireEvent.click(screen.getByTestId('docs-view-tree'));
     // The FileTree stub invokes onMove when its fake-move button is clicked.
     fireEvent.click(screen.getByTestId('file-tree-fake-move'));
@@ -644,7 +644,7 @@ function makeDataTransfer(initial?: Record<string, string>) {
   };
 }
 
-describe('ReimaginedDocumentsHome — grid drag-and-drop (R6-1)', () => {
+describe('DocumentsHome — grid drag-and-drop (R6-1)', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
@@ -653,7 +653,7 @@ describe('ReimaginedDocumentsHome — grid drag-and-drop (R6-1)', () => {
 
   it('dropping a file card onto a FOLDER card calls onMove(source, folderPath)', async () => {
     const onMove = vi.fn().mockResolvedValue(undefined);
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onMove })} />);
+    render(<DocumentsHome {...buildDefaultProps({ onMove })} />);
 
     const folderCard = screen.getByTestId('grid-card-/workspace/Contracts');
     // Simulate dragging Brief.md and dropping it on the Contracts folder.
@@ -668,7 +668,7 @@ describe('ReimaginedDocumentsHome — grid drag-and-drop (R6-1)', () => {
 
   it('dropping a node onto ITSELF is a no-op (no move)', async () => {
     const onMove = vi.fn().mockResolvedValue(undefined);
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onMove })} />);
+    render(<DocumentsHome {...buildDefaultProps({ onMove })} />);
 
     const folderCard = screen.getByTestId('grid-card-/workspace/Contracts');
     const dt = makeDataTransfer({ 'text/plain': '/workspace/Contracts' });
@@ -682,7 +682,7 @@ describe('ReimaginedDocumentsHome — grid drag-and-drop (R6-1)', () => {
 
   it('dropping a FILE card onto another FILE card does not move (files are not drop targets)', async () => {
     const onMove = vi.fn().mockResolvedValue(undefined);
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onMove })} />);
+    render(<DocumentsHome {...buildDefaultProps({ onMove })} />);
 
     const fileCard = screen.getByTestId('grid-card-/workspace/Evidence.pdf');
     const dt = makeDataTransfer({ 'text/plain': '/workspace/Brief.md' });
@@ -696,7 +696,7 @@ describe('ReimaginedDocumentsHome — grid drag-and-drop (R6-1)', () => {
 
 // ── R6-1: create document in the open folder ─────────────────────────────────
 
-describe('ReimaginedDocumentsHome — create in current folder (R6-1)', () => {
+describe('DocumentsHome — create in current folder (R6-1)', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
@@ -705,7 +705,7 @@ describe('ReimaginedDocumentsHome — create in current folder (R6-1)', () => {
 
   it('at root, "New document" calls onCreateDefaultDocument with no parentPath (App falls back to docs/)', () => {
     const onCreateDefaultDocument = vi.fn();
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onCreateDefaultDocument })} />);
+    render(<DocumentsHome {...buildDefaultProps({ onCreateDefaultDocument })} />);
     // The toolbar "New document" button lives in DocumentGridView.
     const newDocBtn = screen.getByRole('button', { name: /new document/i });
     fireEvent.click(newDocBtn);
@@ -716,7 +716,7 @@ describe('ReimaginedDocumentsHome — create in current folder (R6-1)', () => {
 
   it('after drilling into a folder, "New document" passes that folder as parentPath', () => {
     const onCreateDefaultDocument = vi.fn();
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onCreateDefaultDocument })} />);
+    render(<DocumentsHome {...buildDefaultProps({ onCreateDefaultDocument })} />);
 
     // Drill into the Contracts folder by clicking its card.
     fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts'));
@@ -728,7 +728,7 @@ describe('ReimaginedDocumentsHome — create in current folder (R6-1)', () => {
 
   it('after drilling into a folder, "New folder" creates inside that folder', () => {
     const onCreateFolder = vi.fn();
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onCreateFolder })} />);
+    render(<DocumentsHome {...buildDefaultProps({ onCreateFolder })} />);
 
     fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts'));
 
@@ -744,7 +744,7 @@ describe('ReimaginedDocumentsHome — create in current folder (R6-1)', () => {
 // UNMOUNTS/REMOUNTS on every nav, the fix reads documentsView in the useState
 // initializer on mount — these tests unmount/remount to mirror that exactly.
 
-describe('ReimaginedDocumentsHome — documentsView landing (Fix 1)', () => {
+describe('DocumentsHome — documentsView landing (Fix 1)', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
@@ -764,7 +764,7 @@ describe('ReimaginedDocumentsHome — documentsView landing (Fix 1)', () => {
     mockActiveTabPath = '/workspace/Brief.md';
     mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
     render(
-      <ReimaginedDocumentsHome {...buildDefaultProps()} documentsView="browser" />,
+      <DocumentsHome {...buildDefaultProps()} documentsView="browser" />,
     );
     expect(screen.getByTestId('document-grid-view')).toBeTruthy();
     expect(screen.queryByTestId('documents-editor-pane')).toBeNull();
@@ -774,7 +774,7 @@ describe('ReimaginedDocumentsHome — documentsView landing (Fix 1)', () => {
     mockActiveTabPath = '/workspace/Brief.md';
     mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
     render(
-      <ReimaginedDocumentsHome {...buildDefaultProps()} documentsView="editor" />,
+      <DocumentsHome {...buildDefaultProps()} documentsView="editor" />,
     );
     await waitFor(() => {
       expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
@@ -788,7 +788,7 @@ describe('ReimaginedDocumentsHome — documentsView landing (Fix 1)', () => {
     mockActiveTabPath = '/workspace/Brief.md';
     mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
     const { unmount } = render(
-      <ReimaginedDocumentsHome {...buildDefaultProps()} documentsView="editor" />,
+      <DocumentsHome {...buildDefaultProps()} documentsView="editor" />,
     );
     await waitFor(() => {
       expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
@@ -796,7 +796,7 @@ describe('ReimaginedDocumentsHome — documentsView landing (Fix 1)', () => {
     unmount();
 
     render(
-      <ReimaginedDocumentsHome {...buildDefaultProps()} documentsView="browser" />,
+      <DocumentsHome {...buildDefaultProps()} documentsView="browser" />,
     );
     await waitFor(() => {
       expect(screen.getByTestId('document-grid-view')).toBeTruthy();
@@ -809,12 +809,12 @@ describe('ReimaginedDocumentsHome — documentsView landing (Fix 1)', () => {
     mockActiveTabPath = '/workspace/Inbox.eml';
     mockOpenTabs = [{ path: '/workspace/Inbox.eml', name: 'Inbox.eml', type: 'email' }];
     const { rerender } = render(
-      <ReimaginedDocumentsHome {...buildDefaultProps()} documentsView="browser" />,
+      <DocumentsHome {...buildDefaultProps()} documentsView="browser" />,
     );
     expect(screen.getByTestId('document-grid-view')).toBeTruthy();
 
     rerender(
-      <ReimaginedDocumentsHome {...buildDefaultProps()} documentsView="editor" />,
+      <DocumentsHome {...buildDefaultProps()} documentsView="editor" />,
     );
     await waitFor(() => {
       expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
@@ -824,7 +824,7 @@ describe('ReimaginedDocumentsHome — documentsView landing (Fix 1)', () => {
   it('with documentsView undefined and no tabs, shows the Files browser (legacy default)', () => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByTestId('document-grid-view')).toBeTruthy();
     expect(screen.queryByTestId('documents-editor-pane')).toBeNull();
   });
@@ -832,7 +832,7 @@ describe('ReimaginedDocumentsHome — documentsView landing (Fix 1)', () => {
 
 // ── Fix 1: Tab strip keyboard accessibility ───────────────────────────────────
 
-describe('ReimaginedDocumentsHome — tab keyboard accessibility (Fix 1 a11y)', () => {
+describe('DocumentsHome — tab keyboard accessibility (Fix 1 a11y)', () => {
   beforeEach(() => {
     mockActiveTabPath = '/workspace/Brief.md';
     mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
@@ -841,13 +841,13 @@ describe('ReimaginedDocumentsHome — tab keyboard accessibility (Fix 1 a11y)', 
   });
 
   it('the tab strip has role="tablist"', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     const strip = screen.getByTestId('documents-tab-strip');
     expect(strip.getAttribute('role')).toBe('tablist');
   });
 
   it('the Files tab has role="tab" and is focusable (rendered as button)', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     const strip = screen.getByTestId('documents-tab-strip');
     const filesTab = Array.from(strip.querySelectorAll('[role="tab"]')).find(
       (el) => el.textContent?.trim().startsWith('Files'),
@@ -859,7 +859,7 @@ describe('ReimaginedDocumentsHome — tab keyboard accessibility (Fix 1 a11y)', 
 
   it('pressing Enter on the Files tab activates it (returns to grid)', async () => {
     // Start with the editor visible (active tab is a file).
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     await waitFor(() => {
       expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
     });
@@ -879,7 +879,7 @@ describe('ReimaginedDocumentsHome — tab keyboard accessibility (Fix 1 a11y)', 
   });
 
   it('pressing Space on the Files tab activates it (returns to grid)', async () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     await waitFor(() => {
       expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
     });
@@ -899,7 +899,7 @@ describe('ReimaginedDocumentsHome — tab keyboard accessibility (Fix 1 a11y)', 
   });
 
   it('each document tab has aria-selected reflecting whether it is active', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     const strip = screen.getByTestId('documents-tab-strip');
     const allTabs = Array.from(strip.querySelectorAll('[role="tab"]'));
     // At least one tab must have aria-selected
@@ -919,7 +919,7 @@ describe('DocumentGridView — grid count label (Fix 2)', () => {
   });
 
   it('shows total count when no search is active', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     const label = screen.getByTestId('grid-dir-label');
     // mockFileTree has 3 items: Contracts (folder), Brief.md, Evidence.pdf
     expect(label.textContent).toMatch(/3 items/i);
@@ -927,7 +927,7 @@ describe('DocumentGridView — grid count label (Fix 2)', () => {
   });
 
   it('shows "N of M items" when a search query narrows the results', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     const searchInput = screen.getByRole('textbox');
     // Type a query that matches only "Brief.md" (1 of 3 items)
     fireEvent.change(searchInput, { target: { value: 'brief' } });
@@ -937,7 +937,7 @@ describe('DocumentGridView — grid count label (Fix 2)', () => {
   });
 
   it('restores the plain total label when the search is cleared', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    render(<DocumentsHome {...buildDefaultProps()} />);
     const searchInput = screen.getByRole('textbox');
     fireEvent.change(searchInput, { target: { value: 'brief' } });
     // Now clear the search

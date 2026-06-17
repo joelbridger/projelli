@@ -12,7 +12,7 @@ import { FeatureTour } from '@/features/onboarding/FeatureTour';
 import { FEATURE_TOUR_STEPS } from '@/features/onboarding/featureTourSteps';
 
 // Seed the new Spine nav testids so anchored steps resolve instead of
-// auto-advancing. Matches the data-testid attrs on ReimaginedSpine buttons.
+// auto-advancing. Matches the data-testid attrs on Spine buttons.
 function seedTargets(): () => void {
   const container = document.createElement('div');
   const targets = [

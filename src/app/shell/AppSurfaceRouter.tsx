@@ -10,12 +10,12 @@
  * delegates rendering to the appropriate surface component.
  */
 
-import { ReimaginedMattersHome } from '@/features/matters/ReimaginedMattersHome';
-import { ReimaginedAsk } from '@/features/ask/ReimaginedAsk';
-import { ReimaginedEmailWorkspace } from '@/features/email/ReimaginedEmailWorkspace';
-import { ReimaginedDocumentsHome } from '@/features/documents/ReimaginedDocumentsHome';
-import { ReimaginedAssociateHome } from '@/features/workflows/ReimaginedAssociateHome';
-import { ReimaginedAuditHome } from '@/features/audit/ReimaginedAuditHome';
+import { MattersHome } from '@/features/matters/MattersHome';
+import { Ask } from '@/features/ask/Ask';
+import { EmailWorkspace } from '@/features/email/EmailWorkspace';
+import { DocumentsHome } from '@/features/documents/DocumentsHome';
+import { AssociateHome } from '@/features/workflows/AssociateHome';
+import { AuditHome } from '@/features/audit/AuditHome';
 import { MainPanel } from '@/app/shell/layout/MainPanel';
 import { SettingsContent } from '@/features/settings/SettingsContent';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
@@ -143,9 +143,9 @@ export function AppSurfaceRouter({
   return (
     <>
       {sidebarActiveTab ==='matters' ? (
-        <ReimaginedMattersHome />
+        <MattersHome />
       ) : sidebarActiveTab ==='search' ? (
-        <ReimaginedAsk
+        <Ask
           onSaveToDocument={async (content) => {
             if (!workspaceServiceRef.current || !rootPath) return;
             // Word-first: AI answers save as a real .docx (not markdown).
@@ -167,7 +167,7 @@ export function AppSurfaceRouter({
           onPrefillConsumed={() => setAskPrefill(null)}
         />
       ) : sidebarActiveTab ==='email' ? (
-        <ReimaginedEmailWorkspace
+        <EmailWorkspace
           onSaveToWorkspace={async (content, suggestedName) => {
             if (!workspaceServiceRef.current || !rootPath) return;
             // Word-first: saved email content becomes a real .docx.
@@ -188,7 +188,7 @@ export function AppSurfaceRouter({
           onOpenSettings={() => openSettings('ai')}
         />
       ) : sidebarActiveTab ==='files' ? (
-        <ReimaginedDocumentsHome
+        <DocumentsHome
           documentsView={documentsView}
           onFileOpen={handleFileOpen}
           onCreateFile={handleCreateFile}
@@ -252,7 +252,7 @@ export function AppSurfaceRouter({
           }
         />
       ) : sidebarActiveTab ==='workflows' ? (
-        <ReimaginedAssociateHome
+        <AssociateHome
           onStartWorkflow={handleStartWorkflow}
           currentExecution={currentExecution}
           runHistory={runHistory}
@@ -269,7 +269,7 @@ export function AppSurfaceRouter({
           }}
         />
       ) : sidebarActiveTab ==='audit' ? (
-        <ReimaginedAuditHome entries={auditEntries} />
+        <AuditHome entries={auditEntries} />
       ) : sidebarActiveTab ==='settings' ? (
         // Full-page Settings surface — the SAME content as the quick modal
         // (5-section nav, search, accordion sub-sections, Export/Import/Reset),

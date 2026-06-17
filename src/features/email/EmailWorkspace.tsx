@@ -1,5 +1,5 @@
 /**
- * ReimaginedEmailWorkspace — full-page email search and browse surface.
+ * EmailWorkspace — full-page email search and browse surface.
  *
  * Two modes:
  *   Search  — debounced mailListMessages() with provider / date / attachment
@@ -59,7 +59,7 @@ import { MailRow } from './MailRow';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
-export interface ReimaginedEmailWorkspaceProps {
+export interface EmailWorkspaceProps {
   onSaveToWorkspace?: ((content: string, suggestedName: string) => Promise<void>) | undefined;
   onOpenSettings?: (() => void) | undefined;
 }
@@ -71,10 +71,10 @@ export interface ReimaginedEmailWorkspaceProps {
 
 // ── Main export ────────────────────────────────────────────────────────────
 
-export function ReimaginedEmailWorkspace({
+export function EmailWorkspace({
   onSaveToWorkspace,
   onOpenSettings,
-}: ReimaginedEmailWorkspaceProps) {
+}: EmailWorkspaceProps) {
   const activeMatter = useActiveMatter();
 
   // Scope toggle: "This matter" vs "All email" — only effective in Ask AI mode

@@ -1,5 +1,5 @@
 /**
- * ReimaginedEmailWorkspace — unit tests.
+ * EmailWorkspace — unit tests.
  *
  * Tests cover:
  *   1.  Renders rows from mailListMessages results
@@ -66,7 +66,7 @@ import {
 import { useActiveMatter, useMatters } from '@/platform/matter/matterStore';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/platform/firm/privilegeStore';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
-import { ReimaginedEmailWorkspace } from '@/features/email/ReimaginedEmailWorkspace';
+import { EmailWorkspace } from '@/features/email/EmailWorkspace';
 
 // ── Fixture data ────────────────────────────────────────────────────────────
 
@@ -190,11 +190,11 @@ beforeEach(() => {
 
 // ── Tests ───────────────────────────────────────────────────────────────────
 
-describe('ReimaginedEmailWorkspace', () => {
+describe('EmailWorkspace', () => {
 
   // 1. Renders rows from mailListMessages results
   it('renders email rows from mailListMessages results', async () => {
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     const rows = screen.getAllByTestId('mail-row');
@@ -205,7 +205,7 @@ describe('ReimaginedEmailWorkspace', () => {
 
   // 2. Debounced keyword triggers a query after typing
   it('fires mailListMessages with the keyword after debounce', async () => {
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     const callsBefore = mockMailListMessages.mock.calls.length;
@@ -236,7 +236,7 @@ describe('ReimaginedEmailWorkspace', () => {
       { provider: 'gmail', account: 'personal', label: 'Personal' },
     ]);
 
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     // Expand the filter row (collapsed by default)
@@ -264,7 +264,7 @@ describe('ReimaginedEmailWorkspace', () => {
 
   // 4. Open action dispatches keepance:open-email with correct sourceId
   it('dispatches keepance:open-email with the correct sourceId when row is clicked', async () => {
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     const dispatched: CustomEvent[] = [];
@@ -283,7 +283,7 @@ describe('ReimaginedEmailWorkspace', () => {
 
   // 5. Privilege sub-component calls setPrivilege when user selects a privilege
   it('calls setPrivilege when a privilege option is selected from the dropdown', async () => {
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     const rows = screen.getAllByTestId('mail-row');
@@ -305,7 +305,7 @@ describe('ReimaginedEmailWorkspace', () => {
 
   // 6. File-to-matter (per-message) calls mailRetagMessageMatter with correct args
   it('calls mailRetagMessageMatter with correct args when a matter is chosen from per-row action', async () => {
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     const rows = screen.getAllByTestId('mail-row');
@@ -338,7 +338,7 @@ describe('ReimaginedEmailWorkspace', () => {
       () => new Promise((res) => { resolveList = res; }),
     );
 
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
 
     // Accounts settle, debounce fires, list call is in flight
     await act(async () => { await vi.advanceTimersByTimeAsync(50); });
@@ -359,7 +359,7 @@ describe('ReimaginedEmailWorkspace', () => {
   it('shows no-results state when mailListMessages returns empty items', async () => {
     mockMailListMessages.mockResolvedValue({ items: [], total: 0 });
 
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     expect(screen.getByTestId('no-results-state')).toBeInTheDocument();
@@ -371,7 +371,7 @@ describe('ReimaginedEmailWorkspace', () => {
     mockMailConnectedAccounts.mockResolvedValue([]);
 
     const onOpenSettings = vi.fn();
-    render(<ReimaginedEmailWorkspace onOpenSettings={onOpenSettings} />);
+    render(<EmailWorkspace onOpenSettings={onOpenSettings} />);
 
     // Only accounts fetch fires here - no debounce needed
     await act(async () => { await vi.advanceTimersByTimeAsync(50); });
@@ -392,7 +392,7 @@ describe('ReimaginedEmailWorkspace', () => {
   it('shows error state when mailListMessages rejects', async () => {
     mockMailListMessages.mockRejectedValue(new Error('Network error'));
 
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     expect(screen.getByTestId('error-state')).toBeInTheDocument();
@@ -402,7 +402,7 @@ describe('ReimaginedEmailWorkspace', () => {
 
   // 11. Opens the compose panel when "New email" button is clicked
   it('opens the compose panel when "New email" button is clicked', async () => {
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     expect(screen.queryByTestId('compose-close')).not.toBeInTheDocument();
@@ -418,7 +418,7 @@ describe('ReimaginedEmailWorkspace', () => {
 
   // 12. Compose Send calls mailSend with the right args and shows success
   it('compose Send calls mailSend with the right args and shows success', async () => {
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     fireEvent.click(screen.getByTestId('compose-btn'));
@@ -452,7 +452,7 @@ describe('ReimaginedEmailWorkspace', () => {
   it('compose shows scope_upgrade_required notice when mailSend rejects with that message', async () => {
     mockMailSend.mockRejectedValue(new Error('scope_upgrade_required'));
 
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     fireEvent.click(screen.getByTestId('compose-btn'));
@@ -469,7 +469,7 @@ describe('ReimaginedEmailWorkspace', () => {
 
   // 14. Ask AI mode shows empty-state headline + chips when no query is typed
   it('shows Ask AI empty state headline and chips when switching to Ask AI mode with no query', async () => {
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     // Switch to Ask AI mode
@@ -486,7 +486,7 @@ describe('ReimaginedEmailWorkspace', () => {
 
   // 15. Clicking a chip fills the Ask AI input with the chip text
   it('clicking an Ask AI chip populates the search input', async () => {
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     fireEvent.click(screen.getByTestId('mode-ask'));
@@ -503,7 +503,7 @@ describe('ReimaginedEmailWorkspace', () => {
 
   // 16. Parses recipients correctly from comma/semicolon-separated input
   it('parses recipients correctly from comma/semicolon-separated input', async () => {
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     fireEvent.click(screen.getByTestId('compose-btn'));
@@ -530,7 +530,7 @@ describe('ReimaginedEmailWorkspace', () => {
 
   // 17. Attach button renders in compose modal and attachment chips appear/disappear
   it('renders attach button in compose and shows/removes attachment chips', async () => {
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     fireEvent.click(screen.getByTestId('compose-btn'));
@@ -589,7 +589,7 @@ describe('ReimaginedEmailWorkspace', () => {
     // Simulate 2 loaded of 10 total
     mockMailListMessages.mockResolvedValue({ items: FIXTURE_ITEMS, total: 10 });
 
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     const countEl = screen.getByTestId('result-count');
@@ -602,7 +602,7 @@ describe('ReimaginedEmailWorkspace', () => {
     // items.length === total (2) and no query
     mockMailListMessages.mockResolvedValue({ items: FIXTURE_ITEMS, total: FIXTURE_ITEMS.length });
 
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     const countEl = screen.getByTestId('result-count');
@@ -614,7 +614,7 @@ describe('ReimaginedEmailWorkspace', () => {
   it('shows "Showing N of M" when a keyword query is active, even if all returned items equal total', async () => {
     mockMailListMessages.mockResolvedValue({ items: FIXTURE_ITEMS, total: FIXTURE_ITEMS.length });
 
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     // Type a query
@@ -628,7 +628,7 @@ describe('ReimaginedEmailWorkspace', () => {
 
   // 21. Matter picker search — filters the matter list
   it('filters the matter list in MatterPickerPopover when text is typed in the search input', async () => {
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     const rows = screen.getAllByTestId('mail-row');
@@ -656,7 +656,7 @@ describe('ReimaginedEmailWorkspace', () => {
   it('maps auth/401 errors to a plain reconnect message', async () => {
     mockMailListMessages.mockRejectedValue(new Error('401 Unauthorized'));
 
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     expect(screen.getByTestId('error-state')).toBeInTheDocument();
@@ -674,7 +674,7 @@ describe('ReimaginedEmailWorkspace', () => {
       return Promise.resolve({ items: FIXTURE_ITEMS, total: FIXTURE_ITEMS.length });
     });
 
-    render(<ReimaginedEmailWorkspace />);
+    render(<EmailWorkspace />);
     await waitForInitialLoad();
 
     expect(screen.getByTestId('error-state')).toBeInTheDocument();

@@ -1,5 +1,5 @@
 /**
- * Unit tests for ReimaginedAssociateHome.
+ * Unit tests for AssociateHome.
  *
  * Scope:
  *  - Template loader is mocked to inject controlled fixtures.
@@ -94,7 +94,7 @@ vi.mock('@/platform/rag/matterResolver', () => ({
 
 // ── Import component and mocked store AFTER mocks are set up ─────────────────
 
-import { ReimaginedAssociateHome } from '@/features/workflows/ReimaginedAssociateHome';
+import { AssociateHome } from '@/features/workflows/AssociateHome';
 import { useProfessionStore } from '@/platform/profile/professionStore';
 
 // ── Shared props factory ────────────────────────────────────────────────────
@@ -113,7 +113,7 @@ function defaultProps(overrides = {}) {
 
 // ── Law-persona tests (single category — filter bar hidden) ─────────────────
 
-describe('ReimaginedAssociateHome (law persona)', () => {
+describe('AssociateHome (law persona)', () => {
   beforeEach(() => {
     // Clear persisted UI state so tests don't bleed into each other.
     localStorage.clear();
@@ -135,18 +135,18 @@ describe('ReimaginedAssociateHome (law persona)', () => {
   });
 
   it('renders the surface header title', () => {
-    render(<ReimaginedAssociateHome {...defaultProps()} />);
+    render(<AssociateHome {...defaultProps()} />);
     expect(screen.getByRole('heading', { level: 1, name: 'Workflows' })).toBeTruthy();
   });
 
   it('renders the search box', () => {
-    render(<ReimaginedAssociateHome {...defaultProps()} />);
+    render(<AssociateHome {...defaultProps()} />);
     const searchInput = screen.getByTestId('associate-search');
     expect(searchInput).toBeTruthy();
   });
 
   it('groups legal templates into a Legal Practice section', () => {
-    render(<ReimaginedAssociateHome {...defaultProps()} />);
+    render(<AssociateHome {...defaultProps()} />);
     const legalSection = screen.getByTestId('associate-section-legal');
     expect(legalSection).toBeTruthy();
     // Tax templates are filtered out for law profession.
@@ -154,14 +154,14 @@ describe('ReimaginedAssociateHome (law persona)', () => {
   });
 
   it('renders template cards inside their section', () => {
-    render(<ReimaginedAssociateHome {...defaultProps()} />);
+    render(<AssociateHome {...defaultProps()} />);
     expect(screen.getByTestId('associate-card-deposition-contradiction-finder')).toBeTruthy();
     expect(screen.getByTestId('associate-card-case-timeline-builder')).toBeTruthy();
   });
 
   it('calls onStartWorkflow when Run is clicked', () => {
     const onStartWorkflow = vi.fn();
-    render(<ReimaginedAssociateHome {...defaultProps({ onStartWorkflow })} />);
+    render(<AssociateHome {...defaultProps({ onStartWorkflow })} />);
     const runBtn = screen.getByTestId('associate-run-deposition-contradiction-finder');
     fireEvent.click(runBtn);
     expect(onStartWorkflow).toHaveBeenCalledWith(
@@ -178,7 +178,7 @@ describe('ReimaginedAssociateHome (law persona)', () => {
       trialDays: 30,
     });
     const onStartWorkflow = vi.fn();
-    render(<ReimaginedAssociateHome {...defaultProps({ onStartWorkflow })} />);
+    render(<AssociateHome {...defaultProps({ onStartWorkflow })} />);
 
     expect(screen.getByTestId('associate-trial-banner')).toBeTruthy();
 
@@ -190,7 +190,7 @@ describe('ReimaginedAssociateHome (law persona)', () => {
   });
 
   it('filters templates by search query (name match)', () => {
-    render(<ReimaginedAssociateHome {...defaultProps()} />);
+    render(<AssociateHome {...defaultProps()} />);
     const searchInput = screen.getByTestId('associate-search');
     fireEvent.change(searchInput, { target: { value: 'timeline' } });
 
@@ -199,7 +199,7 @@ describe('ReimaginedAssociateHome (law persona)', () => {
   });
 
   it('shows empty state when search matches nothing', () => {
-    render(<ReimaginedAssociateHome {...defaultProps()} />);
+    render(<AssociateHome {...defaultProps()} />);
     const searchInput = screen.getByTestId('associate-search');
     fireEvent.change(searchInput, { target: { value: 'xyznotfound' } });
 
@@ -207,7 +207,7 @@ describe('ReimaginedAssociateHome (law persona)', () => {
   });
 
   it('shows provider error banner for needs-provider', () => {
-    render(<ReimaginedAssociateHome {...defaultProps({ providerError: 'needs-provider' })} />);
+    render(<AssociateHome {...defaultProps({ providerError: 'needs-provider' })} />);
     const banner = screen.getByTestId('associate-provider-error');
     expect(banner).toBeTruthy();
     const settingsBtn = screen.getByRole('button', { name: /open settings/i });
@@ -216,14 +216,14 @@ describe('ReimaginedAssociateHome (law persona)', () => {
 
   it('calls onOpenSettings when Open settings is clicked', () => {
     const onOpenSettings = vi.fn();
-    render(<ReimaginedAssociateHome {...defaultProps({ providerError: 'needs-provider', onOpenSettings })} />);
+    render(<AssociateHome {...defaultProps({ providerError: 'needs-provider', onOpenSettings })} />);
     const settingsBtn = screen.getByRole('button', { name: /open settings/i });
     fireEvent.click(settingsBtn);
     expect(onOpenSettings).toHaveBeenCalledOnce();
   });
 
   it('shows ollama-unreachable banner (no settings button)', () => {
-    render(<ReimaginedAssociateHome {...defaultProps({ providerError: 'ollama-unreachable' })} />);
+    render(<AssociateHome {...defaultProps({ providerError: 'ollama-unreachable' })} />);
     expect(screen.getByTestId('associate-provider-error')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /open settings/i })).toBeNull();
   });
@@ -243,7 +243,7 @@ describe('ReimaginedAssociateHome (law persona)', () => {
         error: undefined,
       },
     ];
-    render(<ReimaginedAssociateHome {...defaultProps({ runHistory })} />);
+    render(<AssociateHome {...defaultProps({ runHistory })} />);
     expect(screen.getByTestId('associate-recent-runs')).toBeTruthy();
     expect(screen.getByTestId('associate-run-row-run-1')).toBeTruthy();
   });
@@ -264,21 +264,21 @@ describe('ReimaginedAssociateHome (law persona)', () => {
         error: undefined,
       },
     ];
-    render(<ReimaginedAssociateHome {...defaultProps({ runHistory, onFocusExecutionTab })} />);
+    render(<AssociateHome {...defaultProps({ runHistory, onFocusExecutionTab })} />);
     const runRow = screen.getByTestId('associate-run-row-run-42');
     fireEvent.click(runRow);
     expect(onFocusExecutionTab).toHaveBeenCalledOnce();
   });
 
   it('does not show recent runs strip when runHistory is empty', () => {
-    render(<ReimaginedAssociateHome {...defaultProps({ runHistory: [] })} />);
+    render(<AssociateHome {...defaultProps({ runHistory: [] })} />);
     expect(screen.queryByTestId('associate-recent-runs')).toBeNull();
   });
 
   // ── Active-matter context chip ────────────────────────────────────────────
 
   it('shows no matter chip when there is no active matter', () => {
-    render(<ReimaginedAssociateHome {...defaultProps()} />);
+    render(<AssociateHome {...defaultProps()} />);
     expect(screen.queryByTestId('associate-active-matter-chip')).toBeNull();
   });
 
@@ -292,7 +292,7 @@ describe('ReimaginedAssociateHome (law persona)', () => {
       privileged: false,
       createdAt: new Date().toISOString(),
     });
-    render(<ReimaginedAssociateHome {...defaultProps()} />);
+    render(<AssociateHome {...defaultProps()} />);
     const chip = screen.getByTestId('associate-active-matter-chip');
     expect(chip).toBeTruthy();
     expect(chip.textContent).toContain('Running in:');
@@ -303,7 +303,7 @@ describe('ReimaginedAssociateHome (law persona)', () => {
 
   it('hides the practice-area filter bar when only one category is present', () => {
     // Law persona scopes to 'legal' only — one category, filter bar unnecessary.
-    render(<ReimaginedAssociateHome {...defaultProps()} />);
+    render(<AssociateHome {...defaultProps()} />);
     expect(screen.queryByTestId('associate-practice-filter')).toBeNull();
   });
 });
@@ -314,7 +314,7 @@ describe('ReimaginedAssociateHome (law persona)', () => {
 // three fixture templates (legal + tax) pass through the scope filter, giving
 // two distinct categories and making the chip bar appear.
 
-describe('ReimaginedAssociateHome — practice-area filter chips (multi-category)', () => {
+describe('AssociateHome — practice-area filter chips (multi-category)', () => {
   beforeEach(() => {
     // Clear persisted UI state so tests don't bleed into each other.
     localStorage.clear();
@@ -348,26 +348,26 @@ describe('ReimaginedAssociateHome — practice-area filter chips (multi-category
   }
 
   it('shows the filter bar when multiple categories are present', () => {
-    render(<ReimaginedAssociateHome {...multiProps()} />);
+    render(<AssociateHome {...multiProps()} />);
     expect(screen.getByTestId('associate-practice-filter')).toBeTruthy();
   });
 
   it('renders an "All" chip that is a button', () => {
-    render(<ReimaginedAssociateHome {...multiProps()} />);
+    render(<AssociateHome {...multiProps()} />);
     const allChip = screen.getByTestId('associate-filter-all');
     expect(allChip).toBeTruthy();
     expect(allChip.tagName).toBe('BUTTON');
   });
 
   it('renders a chip for each category present in the template set', () => {
-    render(<ReimaginedAssociateHome {...multiProps()} />);
+    render(<AssociateHome {...multiProps()} />);
     // mockTemplates has 'legal' and 'tax' categories.
     expect(screen.getByTestId('associate-filter-legal')).toBeTruthy();
     expect(screen.getByTestId('associate-filter-tax')).toBeTruthy();
   });
 
   it('clicking a category chip filters to only that category', () => {
-    render(<ReimaginedAssociateHome {...multiProps()} />);
+    render(<AssociateHome {...multiProps()} />);
     fireEvent.click(screen.getByTestId('associate-filter-tax'));
 
     expect(screen.getByTestId('associate-section-tax')).toBeTruthy();
@@ -375,7 +375,7 @@ describe('ReimaginedAssociateHome — practice-area filter chips (multi-category
   });
 
   it('clicking "All" after a category filter restores all sections', () => {
-    render(<ReimaginedAssociateHome {...multiProps()} />);
+    render(<AssociateHome {...multiProps()} />);
 
     fireEvent.click(screen.getByTestId('associate-filter-tax'));
     expect(screen.queryByTestId('associate-section-legal')).toBeNull();
@@ -386,7 +386,7 @@ describe('ReimaginedAssociateHome — practice-area filter chips (multi-category
   });
 
   it('search narrows within the selected category filter', () => {
-    render(<ReimaginedAssociateHome {...multiProps()} />);
+    render(<AssociateHome {...multiProps()} />);
 
     // Activate the legal chip.
     fireEvent.click(screen.getByTestId('associate-filter-legal'));
@@ -400,7 +400,7 @@ describe('ReimaginedAssociateHome — practice-area filter chips (multi-category
   });
 
   it('search across "All" chip still works correctly', () => {
-    render(<ReimaginedAssociateHome {...multiProps()} />);
+    render(<AssociateHome {...multiProps()} />);
 
     // "All" is active; search for 'tax'.
     fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'tax' } });
@@ -410,7 +410,7 @@ describe('ReimaginedAssociateHome — practice-area filter chips (multi-category
   });
 
   it('empty-state clear button resets both search and category filter', () => {
-    render(<ReimaginedAssociateHome {...multiProps()} />);
+    render(<AssociateHome {...multiProps()} />);
 
     // Apply a category filter then search for something that matches nothing.
     fireEvent.click(screen.getByTestId('associate-filter-legal'));
@@ -431,7 +431,7 @@ describe('ReimaginedAssociateHome — practice-area filter chips (multi-category
   // ── Search-narrowed category affordance ───────────────────────────────────
 
   it('shows "N of M" count badge when search has narrowed a category', () => {
-    render(<ReimaginedAssociateHome {...multiProps()} />);
+    render(<AssociateHome {...multiProps()} />);
 
     // Search for 'deposition' — matches only one of the two legal templates.
     fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'deposition' } });
@@ -442,7 +442,7 @@ describe('ReimaginedAssociateHome — practice-area filter chips (multi-category
   });
 
   it('shows the search-hidden hint with a working Clear search link', () => {
-    render(<ReimaginedAssociateHome {...multiProps()} />);
+    render(<AssociateHome {...multiProps()} />);
 
     // Search for 'deposition' — narrows legal from 2 to 1.
     fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'deposition' } });
@@ -462,7 +462,7 @@ describe('ReimaginedAssociateHome — practice-area filter chips (multi-category
 
 // ── localStorage persistence tests ────────────────────────────────────────
 
-describe('ReimaginedAssociateHome — localStorage persistence', () => {
+describe('AssociateHome — localStorage persistence', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.mocked(useProfessionStore).mockImplementation(
@@ -493,7 +493,7 @@ describe('ReimaginedAssociateHome — localStorage persistence', () => {
   }
 
   it('restores the active filter after a simulated remount', () => {
-    const { unmount } = render(<ReimaginedAssociateHome {...persistProps()} />);
+    const { unmount } = render(<AssociateHome {...persistProps()} />);
 
     // Select the "Legal Practice" filter chip.
     fireEvent.click(screen.getByTestId('associate-filter-legal'));
@@ -503,7 +503,7 @@ describe('ReimaginedAssociateHome — localStorage persistence', () => {
 
     // Simulate a tab switch: unmount + remount (no localStorage.clear between).
     unmount();
-    render(<ReimaginedAssociateHome {...persistProps()} />);
+    render(<AssociateHome {...persistProps()} />);
 
     // After remount the legal filter should be restored from localStorage.
     expect(screen.getByTestId('associate-section-legal')).toBeTruthy();
@@ -513,7 +513,7 @@ describe('ReimaginedAssociateHome — localStorage persistence', () => {
   });
 
   it('restores collapsed state after a simulated remount', () => {
-    const { unmount } = render(<ReimaginedAssociateHome {...persistProps()} />);
+    const { unmount } = render(<AssociateHome {...persistProps()} />);
 
     // Collapse the "Legal Practice" category.
     fireEvent.click(screen.getByTestId('associate-section-toggle-legal'));
@@ -522,7 +522,7 @@ describe('ReimaginedAssociateHome — localStorage persistence', () => {
 
     // Remount — no localStorage.clear, so state should persist.
     unmount();
-    render(<ReimaginedAssociateHome {...persistProps()} />);
+    render(<AssociateHome {...persistProps()} />);
 
     // Cards should still be hidden (collapsed restored from localStorage).
     expect(screen.queryByTestId('associate-card-deposition-contradiction-finder')).toBeNull();
@@ -531,14 +531,14 @@ describe('ReimaginedAssociateHome — localStorage persistence', () => {
   });
 
   it('writes the filter to localStorage when changed', () => {
-    render(<ReimaginedAssociateHome {...persistProps()} />);
+    render(<AssociateHome {...persistProps()} />);
     fireEvent.click(screen.getByTestId('associate-filter-tax'));
 
     expect(localStorage.getItem('keepance:workflows-filter')).toBe('tax');
   });
 
   it('writes collapsed state to localStorage when a section is toggled', () => {
-    render(<ReimaginedAssociateHome {...persistProps()} />);
+    render(<AssociateHome {...persistProps()} />);
     fireEvent.click(screen.getByTestId('associate-section-toggle-legal'));
 
     const stored = JSON.parse(localStorage.getItem('keepance:workflows-collapsed') ?? '{}') as Record<string, boolean>;

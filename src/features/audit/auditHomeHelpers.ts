@@ -1,7 +1,7 @@
 /**
- * reimaginedAuditHomeHelpers.ts
+ * auditHomeHelpers.ts
  * Pure module-scope constants, types, and helper functions extracted from
- * ReimaginedAuditHome.tsx. No React hooks, no component state/props/refs.
+ * AuditHome.tsx. No React hooks, no component state/props/refs.
  */
 
 import React from 'react';

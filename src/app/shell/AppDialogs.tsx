@@ -184,7 +184,7 @@ export function AppDialogs({
       />
 
       {/* Bug 1: MatterManagerDialog — opened by 'keepance:open-matter-manager'
-          events from the "New matter" buttons in ReimaginedMattersHome. */}
+          events from the "New matter" buttons in MattersHome. */}
       <MatterManagerDialog open={matterManagerOpen} onOpenChange={setMatterManagerOpen} />
 
       {/* Interview Dialog */}

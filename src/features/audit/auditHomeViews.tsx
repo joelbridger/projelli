@@ -1,7 +1,7 @@
 /**
- * reimaginedAuditHomeViews.tsx
+ * auditHomeViews.tsx
  * Self-contained presentational sub-components extracted from
- * ReimaginedAuditHome.tsx. Each component takes a clean props interface
+ * AuditHome.tsx. Each component takes a clean props interface
  * and does not close over the parent component's state or handlers.
  */
 
@@ -36,7 +36,7 @@ import {
   formatTimestamp,
   formatFullTimestamp,
   getScopeLabel,
-} from './reimaginedAuditHomeHelpers';
+} from './auditHomeHelpers';
 
 // ── Detail panel ───────────────────────────────────────────────────────────
 

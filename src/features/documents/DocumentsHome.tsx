@@ -1,5 +1,5 @@
 /**
- * ReimaginedDocumentsHome — R4 redesign: "Files" as a pinned tab.
+ * DocumentsHome — R4 redesign: "Files" as a pinned tab.
  *
  * Layout: a single unified tab strip across the top, followed by a single
  * content area. The strip always contains a pinned "Files" tab first, then
@@ -67,7 +67,7 @@ function writeDocsView(view: DocsView): void {
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
-export interface ReimaginedDocumentsHomeProps {
+export interface DocumentsHomeProps {
   /**
    * The full <MainPanel> element passed from App.tsx.
    * Rendered in the content area when a document tab is active.
@@ -288,7 +288,7 @@ function TabChip({ label, isActive, isDirty, icon, isPinned, onActivate, onClose
 
 // ── Main export ────────────────────────────────────────────────────────────
 
-export function ReimaginedDocumentsHome({
+export function DocumentsHome({
   mainPanelContent,
   documentsView,
   trashItems,
@@ -311,7 +311,7 @@ export function ReimaginedDocumentsHome({
   onCreateTextFileAtRoot,
   onCreateFolderAtRoot,
   onSetLetterheadTemplate,
-}: ReimaginedDocumentsHomeProps) {
+}: DocumentsHomeProps) {
   const activeTabPath = useEditorStore((s) => s.activeTabPath);
   const openTabs = useEditorStore((s) => s.openTabs);
   const setActiveTab = useEditorStore((s) => s.setActiveTab);
@@ -507,7 +507,7 @@ export function ReimaginedDocumentsHome({
 
   return (
     <div
-      data-testid="reimagined-documents-split"
+      data-testid="documents-split"
       style={{
         display: 'flex',
         flexDirection: 'column',

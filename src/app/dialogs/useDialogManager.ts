@@ -65,7 +65,7 @@ export function useDialogManager(): DialogManager {
   }, []);
   const [accountWindowOpen, setAccountWindowOpen] = useState(false);
   // Bug 1: MatterManagerDialog open state — driven by the
-  // 'keepance:open-matter-manager' custom event from ReimaginedMattersHome.
+  // 'keepance:open-matter-manager' custom event from MattersHome.
   const [matterManagerOpen, setMatterManagerOpen] = useState(false);
   // Direct trigger for the WhatsNew changelog modal from outside the
   // WhatsNewLayer (e.g. the Settings → About → "What's new" action).

@@ -1,7 +1,7 @@
 /**
  * matterHub.test.tsx
  *
- * Tests for MatterHub component + the list<->hub wiring in ReimaginedMattersHome.
+ * Tests for MatterHub component + the list<->hub wiring in MattersHome.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -84,7 +84,7 @@ vi.mock('@/platform/state/aiChatStore', () => ({
 }));
 
 // ── Import components after mocks ──────────────────────────────────────────────
-import { ReimaginedMattersHome } from '@/features/matters/ReimaginedMattersHome';
+import { MattersHome } from '@/features/matters/MattersHome';
 import { MatterHub } from '@/features/matters/MatterHub';
 
 function resetStore() {
@@ -102,9 +102,9 @@ describe('MatterHub — list to hub navigation', () => {
     useMatterStore.getState().createMatter({ name: 'Acme v. Beta', client: 'Acme' });
     const matter = useMatterStore.getState().matters[0]!;
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
-    fireEvent.click(screen.getByTestId(`reimagined-matter-row-${matter.id}`));
+    fireEvent.click(screen.getByTestId(`matter-row-${matter.id}`));
 
     expect(screen.getByTestId('hub-back-btn')).toBeInTheDocument();
   });
@@ -224,10 +224,10 @@ describe('MatterHub — list to hub navigation', () => {
     useMatterStore.getState().createMatter({ name: 'Back Test', client: 'Client' });
     const matter = useMatterStore.getState().matters[0]!;
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     // Open the hub
-    fireEvent.click(screen.getByTestId(`reimagined-matter-row-${matter.id}`));
+    fireEvent.click(screen.getByTestId(`matter-row-${matter.id}`));
     expect(screen.getByTestId('hub-back-btn')).toBeInTheDocument();
 
     // Click back
@@ -235,7 +235,7 @@ describe('MatterHub — list to hub navigation', () => {
 
     // Hub should be gone, list visible again
     expect(screen.queryByTestId('hub-back-btn')).not.toBeInTheDocument();
-    expect(screen.getByTestId(`reimagined-matter-row-${matter.id}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`matter-row-${matter.id}`)).toBeInTheDocument();
   });
 
   it('sample matter shows curated at-a-glance', () => {

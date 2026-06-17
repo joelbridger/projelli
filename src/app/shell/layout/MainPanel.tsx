@@ -143,7 +143,7 @@ interface MainPanelProps {
   onOpenSettings?: () => void;
   /**
    * R4: when true, the built-in TabBar is hidden so the parent (the unified
-   * Documents tab strip in ReimaginedDocumentsHome) can act as the sole tab
+   * Documents tab strip in DocumentsHome) can act as the sole tab
    * strip. Without this the Documents surface would show two tab bars.
    */
   hideTabBar?: boolean;

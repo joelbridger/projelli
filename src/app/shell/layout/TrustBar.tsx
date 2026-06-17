@@ -1,5 +1,5 @@
 /**
- * ReimaginedTrustBar — the hero trust element.
+ * TrustBar — the hero trust element.
  *
  * Research finding (Streams A + C converge): the egress indicator was the
  * single most emotionally powerful moment in the persona study, yet today it
@@ -61,7 +61,7 @@ function useActiveEgressProvider(mode: string): EgressProvider {
   }, [mode]);
 }
 
-export function ReimaginedTrustBar() {
+export function TrustBar() {
   const activeMatter = useActiveMatter();
   const confidentialityMode = useConfidentialityMode();
   const activeProvider = useActiveEgressProvider(confidentialityMode);

@@ -1,8 +1,8 @@
 /**
- * useAsk — the logic layer for ReimaginedAsk (state, refs, the seven effects, the
+ * useAsk — the logic layer for Ask (state, refs, the seven effects, the
  * recent-sessions derivations, and the RAG → provider → citation-parse `handleAsk`
- * orchestrator). Extracted VERBATIM from ReimaginedAsk.tsx so the component is a
- * pure render over this hook's return. See ReimaginedAsk.tsx for the surface-level
+ * orchestrator). Extracted VERBATIM from Ask.tsx so the component is a
+ * pure render over this hook's return. See Ask.tsx for the surface-level
  * documentation (scope toggle, citation-first design, chatId convention).
  */
 

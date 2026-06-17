@@ -1,7 +1,7 @@
 /**
  * DocumentBrowserRow — a single file or folder row in DocumentBrowser.
  *
- * Uses the ReimaginedMattersHome row pattern: grid layout, hover/active state
+ * Uses the MattersHome row pattern: grid layout, hover/active state
  * via inline event handlers, icon-only action buttons revealed on hover.
  */
 

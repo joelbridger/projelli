@@ -1,10 +1,10 @@
 /**
- * reimaginedMattersHome.test.tsx
+ * mattersHome.test.tsx
  *
  * Acceptance tests for B1 (sample-matter badge) and B4 (visible quick-actions).
  *
  * B1: When a matter has isSample===true, a "Sample" pill is visible on its row
- *     in ReimaginedMattersHome and in MatterManagerDialog. The delete button in
+ *     in MattersHome and in MatterManagerDialog. The delete button in
  *     MatterManagerDialog shows a confirm dialog before deleting the sample matter.
  *
  * B4: The Ask / Documents / Email quick-action buttons are present in the DOM
@@ -89,7 +89,7 @@ vi.mock('@/platform/providers/fetchUtils', () => ({
 }));
 
 // ── Import components after mocks ──────────────────────────────────────────────
-import { ReimaginedMattersHome } from '@/features/matters/ReimaginedMattersHome';
+import { MattersHome } from '@/features/matters/MattersHome';
 import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 
 function resetStore() {
@@ -97,10 +97,10 @@ function resetStore() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// B1 — Sample pill in ReimaginedMattersHome
+// B1 — Sample pill in MattersHome
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('ReimaginedMattersHome — B1 sample badge', () => {
+describe('MattersHome — B1 sample badge', () => {
   beforeEach(resetStore);
 
   it('shows the Sample pill on a matter with isSample===true', () => {
@@ -113,10 +113,10 @@ describe('ReimaginedMattersHome — B1 sample badge', () => {
     const matters = useMatterStore.getState().matters;
     const sampleMatter = matters[0]!;
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     // The row should be in the DOM
-    expect(screen.getByTestId(`reimagined-matter-row-${sampleMatter.id}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`matter-row-${sampleMatter.id}`)).toBeInTheDocument();
     // The Sample pill should appear
     expect(screen.getByTestId('sample-matter-pill')).toBeInTheDocument();
     expect(screen.getByTestId('sample-matter-pill').textContent).toBe('Sample');
@@ -125,24 +125,24 @@ describe('ReimaginedMattersHome — B1 sample badge', () => {
   it('does not show a Sample pill on a normal matter', () => {
     useMatterStore.getState().createMatter({ name: 'Normal Matter', client: 'Client' });
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     expect(screen.queryByTestId('sample-matter-pill')).not.toBeInTheDocument();
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// B4 — Quick-actions visible at rest in ReimaginedMattersHome
+// B4 — Quick-actions visible at rest in MattersHome
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('ReimaginedMattersHome — B4 quick-actions visible at rest', () => {
+describe('MattersHome — B4 quick-actions visible at rest', () => {
   beforeEach(resetStore);
 
   it('renders Ask / Documents / Email buttons in the DOM (not hidden) for each matter', () => {
     useMatterStore.getState().createMatter({ name: 'Acme v. Beta', client: 'Acme' });
     const matter = useMatterStore.getState().matters[0]!;
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     // All three buttons must exist in the DOM
     const askBtn = screen.getByTestId(`matter-launch-ask-${matter.id}`);
@@ -163,7 +163,7 @@ describe('ReimaginedMattersHome — B4 quick-actions visible at rest', () => {
     useMatterStore.getState().createMatter({ name: 'Smith v. Jones', client: 'Smith' });
     const matter = useMatterStore.getState().matters[0]!;
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     const askBtn = screen.getByTestId(`matter-launch-ask-${matter.id}`);
     const docsBtn = screen.getByTestId(`matter-launch-documents-${matter.id}`);
@@ -178,7 +178,7 @@ describe('ReimaginedMattersHome — B4 quick-actions visible at rest', () => {
     useMatterStore.getState().createMatter({ name: 'Focus Test', client: 'Client' });
     const matter = useMatterStore.getState().matters[0]!;
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     const askBtn = screen.getByTestId(`matter-launch-ask-${matter.id}`);
     expect(askBtn.tagName).toBe('BUTTON');
@@ -195,7 +195,7 @@ describe('ReimaginedMattersHome — B4 quick-actions visible at rest', () => {
     const handler = (e: Event) => { events.push(e as CustomEvent); };
     window.addEventListener('keepance:matter-launch', handler);
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     fireEvent.click(screen.getByTestId(`matter-launch-ask-${matter.id}`));
     expect(events).toHaveLength(1);
@@ -426,7 +426,7 @@ describe('MatterManagerDialog — B5 isolation affirmation + persistent badge', 
 // Search filtering
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('ReimaginedMattersHome — search filtering', () => {
+describe('MattersHome — search filtering', () => {
   beforeEach(resetStore);
 
   it('does not show the search box when there are <= 5 matters', () => {
@@ -434,7 +434,7 @@ describe('ReimaginedMattersHome — search filtering', () => {
       useMatterStore.getState().createMatter({ name: `Matter ${String(i)}`, client: `Client ${String(i)}` });
     }
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     expect(screen.queryByTestId('matters-search-input')).not.toBeInTheDocument();
   });
@@ -444,7 +444,7 @@ describe('ReimaginedMattersHome — search filtering', () => {
       useMatterStore.getState().createMatter({ name: `Matter ${String(i)}`, client: `Client ${String(i)}` });
     }
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     expect(screen.getByTestId('matters-search-input')).toBeInTheDocument();
   });
@@ -457,7 +457,7 @@ describe('ReimaginedMattersHome — search filtering', () => {
     useMatterStore.getState().createMatter({ name: 'Epsilon Group', client: 'Epsilon' });
     useMatterStore.getState().createMatter({ name: 'Zeta Holdings', client: 'Zeta' });
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     const searchInput = screen.getByTestId('matters-search-input');
     fireEvent.change(searchInput, { target: { value: 'beta' } });
@@ -476,7 +476,7 @@ describe('ReimaginedMattersHome — search filtering', () => {
     useMatterStore.getState().createMatter({ name: 'Gamma Dispute', client: 'Gamma LLC' });
     useMatterStore.getState().createMatter({ name: 'Delta Estate', client: 'Delta Family' });
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     const searchInput = screen.getByTestId('matters-search-input');
     fireEvent.change(searchInput, { target: { value: 'roberto' } });
@@ -491,7 +491,7 @@ describe('ReimaginedMattersHome — search filtering', () => {
       useMatterStore.getState().createMatter({ name: `Matter ${String(i)}`, client: `Client ${String(i)}` });
     }
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     const searchInput = screen.getByTestId('matters-search-input');
     fireEvent.change(searchInput, { target: { value: 'zzznomatch' } });
@@ -507,7 +507,7 @@ describe('ReimaginedMattersHome — search filtering', () => {
     useMatterStore.getState().createMatter({ name: 'Epsilon Group', client: 'Epsilon' });
     useMatterStore.getState().createMatter({ name: 'Zeta Holdings', client: 'Zeta' });
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     const searchInput = screen.getByTestId('matters-search-input');
     // Filter down
@@ -525,13 +525,13 @@ describe('ReimaginedMattersHome — search filtering', () => {
 // Sortable columns
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('ReimaginedMattersHome — sortable columns', () => {
+describe('MattersHome — sortable columns', () => {
   beforeEach(resetStore);
 
   it('renders sort buttons for each column header', () => {
     useMatterStore.getState().createMatter({ name: 'Alpha', client: 'Alpha' });
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     // Column header buttons should be present (aria-label contains "Sort by")
     const sortBtns = screen.getAllByRole('button', { name: /Sort by/i });
@@ -543,20 +543,20 @@ describe('ReimaginedMattersHome — sortable columns', () => {
     useMatterStore.getState().createMatter({ name: 'Alpha v. Beta', client: 'Alpha' });
     useMatterStore.getState().createMatter({ name: 'Mu v. Nu', client: 'Mu' });
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     // All three row testids should be present
     const matters = useMatterStore.getState().matters;
     const ids = matters.map((m) => m.id);
     for (const id of ids) {
-      expect(screen.getByTestId(`reimagined-matter-row-${id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`matter-row-${id}`)).toBeInTheDocument();
     }
   });
 
   it('clicking a column header toggles sort direction', () => {
     useMatterStore.getState().createMatter({ name: 'Alpha', client: 'Alpha' });
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     const nameSortBtn = screen.getByRole('button', { name: /Sort by Matter/i });
     // Click once — should toggle to descending (was already asc by default)
@@ -568,7 +568,7 @@ describe('ReimaginedMattersHome — sortable columns', () => {
   it('clicking a different column header switches sort key to asc', () => {
     useMatterStore.getState().createMatter({ name: 'Alpha', client: 'Alpha' });
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     const createdSortBtn = screen.getByRole('button', { name: /Sort by Created/i });
     fireEvent.click(createdSortBtn);
@@ -578,7 +578,7 @@ describe('ReimaginedMattersHome — sortable columns', () => {
   it('all sort column buttons are real <button> elements (keyboard-accessible)', () => {
     useMatterStore.getState().createMatter({ name: 'Alpha', client: 'Alpha' });
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     const sortBtns = screen.getAllByRole('button', { name: /Sort by/i });
     for (const btn of sortBtns) {
@@ -593,11 +593,11 @@ describe('ReimaginedMattersHome — sortable columns', () => {
 // GetStartedCard — create first matter step
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('ReimaginedMattersHome — GetStartedCard create-matter step', () => {
+describe('MattersHome — GetStartedCard create-matter step', () => {
   beforeEach(resetStore);
 
   it('shows the create-matter step when no matters exist', () => {
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     // Empty state renders GetStartedCard
     expect(screen.getByTestId('get-started-card')).toBeInTheDocument();
@@ -609,7 +609,7 @@ describe('ReimaginedMattersHome — GetStartedCard create-matter step', () => {
     const handler = (e: Event) => { events.push(e); };
     window.addEventListener('keepance:open-matter-manager', handler);
 
-    render(<ReimaginedMattersHome />);
+    render(<MattersHome />);
 
     fireEvent.click(screen.getByTestId('get-started-create-matter'));
     expect(events).toHaveLength(1);

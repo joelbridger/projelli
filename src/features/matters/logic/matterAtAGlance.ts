@@ -7,9 +7,9 @@
  * of open issues, deadlines, and next actions. Returns an empty result (no
  * error) when the matter has no indexed content yet.
  *
- * Provider priority mirrors ReimaginedAsk: Anthropic -> OpenAI -> Google ->
+ * Provider priority mirrors Ask: Anthropic -> OpenAI -> Google ->
  * Ollama fallback. The functions here are local copies -- do not import from
- * ReimaginedAsk.tsx.
+ * Ask.tsx.
  */
 
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
@@ -39,12 +39,12 @@ export interface MatterAtAGlanceResult {
 }
 
 // ---------------------------------------------------------------------------
-// Provider helpers (local copies -- do not import from ReimaginedAsk)
+// Provider helpers (local copies -- do not import from Ask)
 // ---------------------------------------------------------------------------
 
 /**
  * Returns true when at least one cloud key (Anthropic, OpenAI, or Google) is
- * stored. Ollama is not a cloud key. Mirrors hasCloudKey() in ReimaginedAsk.
+ * stored. Ollama is not a cloud key. Mirrors hasCloudKey() in Ask.
  */
 export async function hasCloudKeyForGlance(): Promise<boolean> {
   const kc = new KeychainService('localStorage');
@@ -58,7 +58,7 @@ export async function hasCloudKeyForGlance(): Promise<boolean> {
 }
 
 /**
- * Build a Provider using the same priority order as ReimaginedAsk:
+ * Build a Provider using the same priority order as Ask:
  * Anthropic -> OpenAI -> Google -> OllamaProvider fallback.
  */
 export async function buildProviderForGlance(): Promise<Provider> {

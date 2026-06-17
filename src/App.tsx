@@ -20,7 +20,7 @@ import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
 import { WorkspaceSelector } from '@/platform/fs/ui/WorkspaceSelector';
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
-import { ReimaginedTrustBar } from '@/app/shell/layout/ReimaginedTrustBar';
+import { TrustBar } from '@/app/shell/layout/TrustBar';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
@@ -108,7 +108,7 @@ function App() {
   } = useDialogManager();
   // Shared contract — "Ask from the matter hub prefills Search".
   // MatterHub dispatches a keepance:matter-launch event with surface='search'
-  // and a question string; App sets this state; ReimaginedAsk consumes it.
+  // and a question string; App sets this state; Ask consumes it.
   const [askPrefill, setAskPrefill] = useState<{ question: string; autoSubmit?: boolean } | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
   const featureTour = useFeatureTour();
@@ -192,10 +192,10 @@ function App() {
   // F-509 — controlled sidebar collapse so the global Ctrl+B shortcut and the
   // command palette can drive the same collapse the chevron button does.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  // Fix 1: which view the Documents surface should land on. ReimaginedDocumentsHome
+  // Fix 1: which view the Documents surface should land on. DocumentsHome
   // UNMOUNTS/REMOUNTS on every tab switch, so a counter "reset signal" can't work
   // (its refs reset on remount). Instead App owns the intent here (it persists
-  // across the remount) and ReimaginedDocumentsHome reads it in its useState
+  // across the remount) and DocumentsHome reads it in its useState
   // initializer on mount. Clicking the Documents nav, revealing a folder, or
   // launching a matter into Documents => 'browser' (the file list). Opening an
   // email/file into the Documents area => 'editor' (that document).
@@ -679,7 +679,7 @@ function App() {
   //
   // Bug 2 fix: wrap openTab so opening an email first navigates to the
   // 'files' sidebar tab (where MainPanel + EmailViewer live). Without this,
-  // the tab is added while the full-page ReimaginedEmailWorkspace is active,
+  // the tab is added while the full-page EmailWorkspace is active,
   // so the email opens invisibly and the user sees nothing happen.
   useOpenEmailListener(
     useCallback(
@@ -1144,7 +1144,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
       <TrialBanner onActivate={() => openSettings('license')} />
 
       {/* The hero Trust Bar (elevated egress + matter scope). */}
-      <ReimaginedTrustBar />
+      <TrustBar />
 
       {/* Main content area */}
       <div id="main-content" className="flex-1 flex overflow-hidden">

@@ -1,10 +1,10 @@
 /**
- * ReimaginedMattersHome — full-page, Clio-grade matters table.
+ * MattersHome — full-page, Clio-grade matters table.
  *
  * The landing surface for the reimagined matter-centric shell. Reads directly
  * from the live matterStore; clicking a row focuses AI on that client.
  * Self-contained: no required props. Wire it as `mattersContent` in
- * ReimaginedSpine to replace the placeholder.
+ * Spine to replace the placeholder.
  *
  * Styling: Tailwind utilities + CSS vars from globals.css (--kp-navy, --kp-blue,
  * --kp-accent, --color-border, --color-muted-foreground). Inline styles for
@@ -257,7 +257,7 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
       {/* Primary row — click to select */}
       <button
         type="button"
-        data-testid={`reimagined-matter-row-${matter.id}`}
+        data-testid={`matter-row-${matter.id}`}
         onClick={() => { onSelect(matter.id); }}
         style={{
           display: 'grid',
@@ -563,7 +563,7 @@ function TableHeader({ entityOneLabel, sort, onSort }: TableHeaderProps) {
 
 // ── Main export ────────────────────────────────────────────────────────────
 
-export function ReimaginedMattersHome() {
+export function MattersHome() {
   const matters = useMatters();
   const activeMatterId = useActiveMatterId();
   const setActiveMatter = useMatterStore((s) => s.setActiveMatter);

@@ -5,7 +5,7 @@
  * pairs built exclusively from the real content of that profession's primary
  * sample file (written by `writeSampleFiles`). Each answer uses {n} inline
  * citation chips and a parallel citations array whose shape matches
- * `AnswerCitation` in `ReimaginedAsk.tsx` exactly.
+ * `AnswerCitation` in `Ask.tsx` exactly.
  *
  * NOTE: citations carry a `path` placeholder token `{WORKSPACE_ROOT}` that
  * the caller must replace with the real workspace root at display time using
@@ -20,12 +20,12 @@ import { getProfession } from '@/platform/profile/professionStore';
 import type { Profession } from '@/platform/profile/professionModel';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AnswerCitation shape (mirrored from ReimaginedAsk.tsx — keep in sync)
+// AnswerCitation shape (mirrored from Ask.tsx — keep in sync)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * One cited source chip that appears in an ask answer.
- * Must match the `AnswerCitation` interface in `ReimaginedAsk.tsx` exactly.
+ * Must match the `AnswerCitation` interface in `Ask.tsx` exactly.
  */
 export interface AnswerCitation {
   /** 1-based chip number as it appears in the answer text as {n}. */
@@ -477,7 +477,7 @@ export function resolveDemoAnswerPaths(answer: DemoAnswer, workspaceRoot: string
  * Convenience: get and resolve in one call.
  *
  * When `profession` is not supplied, resolves from the current store value via
- * `getProfession()` so the demo branch in ReimaginedAsk can stay profession-aware
+ * `getProfession()` so the demo branch in Ask can stay profession-aware
  * without passing the profession explicitly.
  *
  * Returns `null` if the question has no matching demo answer for that profession.

@@ -32,7 +32,7 @@ export interface ChatAttachment {
 
 /**
  * One cited source chip stored with an assistant message.
- * Matches the `AnswerCitation` interface in `ReimaginedAsk.tsx` exactly.
+ * Matches the `AnswerCitation` interface in `Ask.tsx` exactly.
  * Persisted alongside the message so citations survive navigation/reload.
  */
 export interface PersistedCitation {
@@ -63,13 +63,13 @@ export interface ChatMessage {
   /**
    * Ask-surface citations persisted alongside the assistant message so that
    * clickable {n} chips and the Verified source panel survive navigation and
-   * reload. Set only on assistant messages produced by ReimaginedAsk.
+   * reload. Set only on assistant messages produced by Ask.
    * Optional for backward-compatibility with pre-fix legacy messages.
    */
   askCitations?: PersistedCitation[];
   /**
    * Ask-surface workspace sources persisted alongside the assistant message.
-   * Set only on assistant messages produced by ReimaginedAsk (RAG path).
+   * Set only on assistant messages produced by Ask (RAG path).
    * Optional for backward-compatibility with pre-fix legacy messages.
    */
   askSources?: WorkspaceSource[];

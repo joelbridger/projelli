@@ -1,4 +1,4 @@
-// Unit tests for ReimaginedAuditHome — full-page AI Audit surface.
+// Unit tests for AuditHome — full-page AI Audit surface.
 //
 // Covers:
 // - Rows render for each entry (newest-first order)
@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ReimaginedAuditHome } from '@/features/audit/ReimaginedAuditHome';
+import { AuditHome } from '@/features/audit/AuditHome';
 import type { AuditEntry } from '@/platform/types/audit';
 
 function makeEntry(partial: Partial<AuditEntry> = {}): AuditEntry {
@@ -54,9 +54,9 @@ const SAMPLE: AuditEntry[] = [
   }),
 ];
 
-describe('ReimaginedAuditHome', () => {
+describe('AuditHome', () => {
   it('renders all entries by default (newest first)', () => {
-    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    render(<AuditHome entries={SAMPLE} />);
     const rows = screen.getAllByTestId('audit-table-row');
     expect(rows).toHaveLength(3);
     // Newest first: egress (Apr 20), model (Apr 16), file (Apr 10)
@@ -66,12 +66,12 @@ describe('ReimaginedAuditHome', () => {
   });
 
   it('renders the page title Activity Log', () => {
-    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    render(<AuditHome entries={SAMPLE} />);
     expect(screen.getByRole('heading', { level: 1, name: /Activity Log/i })).toBeInTheDocument();
   });
 
   it('search filters rows by description text', () => {
-    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    render(<AuditHome entries={SAMPLE} />);
     const search = screen.getByTestId('audit-home-search');
     fireEvent.change(search, { target: { value: 'deposition' } });
     expect(screen.getAllByTestId('audit-table-row')).toHaveLength(1);
@@ -79,7 +79,7 @@ describe('ReimaginedAuditHome', () => {
   });
 
   it('search filters rows by action string', () => {
-    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    render(<AuditHome entries={SAMPLE} />);
     const search = screen.getByTestId('audit-home-search');
     fireEvent.change(search, { target: { value: 'egress' } });
     expect(screen.getAllByTestId('audit-table-row')).toHaveLength(1);
@@ -87,14 +87,14 @@ describe('ReimaginedAuditHome', () => {
   });
 
   it('filter panel is hidden by default and shown after toggle click', () => {
-    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    render(<AuditHome entries={SAMPLE} />);
     expect(screen.queryByTestId('audit-filter-panel')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('audit-home-filter-toggle'));
     expect(screen.getByTestId('audit-filter-panel')).toBeInTheDocument();
   });
 
   it('date-from filter removes entries before the given date', () => {
-    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    render(<AuditHome entries={SAMPLE} />);
     fireEvent.click(screen.getByTestId('audit-home-filter-toggle'));
     const from = screen.getByTestId('audit-home-filter-date-from');
     fireEvent.change(from, { target: { value: '2026-04-16' } });
@@ -105,7 +105,7 @@ describe('ReimaginedAuditHome', () => {
   });
 
   it('date-to filter removes entries after the given date', () => {
-    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    render(<AuditHome entries={SAMPLE} />);
     fireEvent.click(screen.getByTestId('audit-home-filter-toggle'));
     const to = screen.getByTestId('audit-home-filter-date-to');
     fireEvent.change(to, { target: { value: '2026-04-16' } });
@@ -116,7 +116,7 @@ describe('ReimaginedAuditHome', () => {
   });
 
   it('export CSV and JSON buttons are present and enabled when entries exist', () => {
-    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    render(<AuditHome entries={SAMPLE} />);
     const csvBtn = screen.getByTestId('audit-home-export-csv');
     const jsonBtn = screen.getByTestId('audit-home-export-json');
     expect(csvBtn).toBeInTheDocument();
@@ -126,7 +126,7 @@ describe('ReimaginedAuditHome', () => {
   });
 
   it('export buttons are disabled when no entries match current filters', () => {
-    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    render(<AuditHome entries={SAMPLE} />);
     const search = screen.getByTestId('audit-home-search');
     // A query that matches nothing
     fireEvent.change(search, { target: { value: 'zzznomatch' } });
@@ -135,14 +135,14 @@ describe('ReimaginedAuditHome', () => {
   });
 
   it('shows empty state when entries array is empty', () => {
-    render(<ReimaginedAuditHome entries={[]} />);
+    render(<AuditHome entries={[]} />);
     expect(screen.getByTestId('audit-empty-state')).toBeInTheDocument();
     expect(screen.getByText('No activity logged yet')).toBeInTheDocument();
     expect(screen.queryByTestId('audit-table-row')).not.toBeInTheDocument();
   });
 
   it('shows no-match state (not the empty state) when search matches nothing', () => {
-    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    render(<AuditHome entries={SAMPLE} />);
     fireEvent.change(screen.getByTestId('audit-home-search'), {
       target: { value: 'zzznomatch' },
     });
@@ -159,14 +159,14 @@ describe('ReimaginedAuditHome', () => {
 
   it('truly-empty state (no entries at all) differs from filtered-empty state', () => {
     // Truly empty: no entries in the log
-    const { unmount } = render(<ReimaginedAuditHome entries={[]} />);
+    const { unmount } = render(<AuditHome entries={[]} />);
     expect(screen.getByTestId('audit-empty-state')).toBeInTheDocument();
     expect(screen.getByText('No activity logged yet')).toBeInTheDocument();
     expect(screen.queryByTestId('audit-no-match-state')).not.toBeInTheDocument();
     unmount();
 
     // Filtered empty: entries exist but filter excludes all
-    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    render(<AuditHome entries={SAMPLE} />);
     fireEvent.change(screen.getByTestId('audit-home-search'), {
       target: { value: 'zzznomatch' },
     });
@@ -175,7 +175,7 @@ describe('ReimaginedAuditHome', () => {
   });
 
   it('detail panel opens on row click and shows entry info', () => {
-    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    render(<AuditHome entries={SAMPLE} />);
     const rows = screen.getAllByTestId('audit-table-row');
     fireEvent.click(rows[0]); // egress row (newest)
     const panel = screen.getByTestId('audit-detail-panel');
@@ -184,7 +184,7 @@ describe('ReimaginedAuditHome', () => {
   });
 
   it('detail panel closes when close button is clicked', () => {
-    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    render(<AuditHome entries={SAMPLE} />);
     fireEvent.click(screen.getAllByTestId('audit-table-row')[0]);
     const panel = screen.getByTestId('audit-detail-panel');
     expect(panel).toBeInTheDocument();
@@ -196,7 +196,7 @@ describe('ReimaginedAuditHome', () => {
   });
 
   it('scope pill renders for egress entries with mode metadata', () => {
-    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    render(<AuditHome entries={SAMPLE} />);
     // The egress entry has mode: 'direct' → should show "Direct" scope pill
     expect(screen.getByTestId('audit-scope-pill')).toBeInTheDocument();
     expect(screen.getByTestId('audit-scope-pill')).toHaveTextContent('Direct');

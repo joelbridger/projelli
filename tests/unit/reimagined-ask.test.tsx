@@ -1,7 +1,7 @@
-// Tests for ReimaginedAsk multi-turn conversational surface
+// Tests for Ask multi-turn conversational surface
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ReimaginedAsk } from '@/features/ask/ReimaginedAsk';
+import { Ask } from '@/features/ask/Ask';
 
 const mockInitSession = vi.fn();
 const mockAddMessage = vi.fn();
@@ -117,7 +117,7 @@ vi.mock('@/platform/state/aiChatStore', () => {
   return { useAIChatStore: hook };
 });
 
-describe('ReimaginedAsk', () => {
+describe('Ask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockActiveMatter = null;
@@ -131,40 +131,40 @@ describe('ReimaginedAsk', () => {
   });
 
   it('renders without crashing', () => {
-    const { container } = render(<ReimaginedAsk />);
+    const { container } = render(<Ask />);
     expect(container.firstChild).toBeTruthy();
   });
 
   it('shows composer input', () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.getByRole('textbox')).toBeDefined();
   });
 
   it('accepts onSaveToDocument prop', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
-    expect(() => render(<ReimaginedAsk onSaveToDocument={onSave} />)).not.toThrow();
+    expect(() => render(<Ask onSaveToDocument={onSave} />)).not.toThrow();
   });
 
   it('New ask button clears conversation state', async () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     // Verify the component renders something initially
     expect(screen.getByRole('textbox')).toBeDefined();
   });
 
   it('shows Search button in composer', () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     const askBtn = screen.getByRole('button', { name: /^Search$/i });
     expect(askBtn).toBeDefined();
   });
 
   it('Search button is disabled when input is empty', () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     const askBtn = screen.getByRole('button', { name: /^Search$/i });
     expect((askBtn as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('Search button enables when input has text', () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     const input = screen.getByRole('textbox');
     fireEvent.change(input, { target: { value: 'What are the key facts?' } });
     const askBtn = screen.getByRole('button', { name: /^Search$/i });
@@ -172,25 +172,25 @@ describe('ReimaginedAsk', () => {
   });
 
   it('calls initSession on mount', () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(mockInitSession).toHaveBeenCalledWith('ask-global', []);
   });
 
   it('shows empty state when no turns', () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     // The updated empty state headline
     expect(screen.getByText(/what do you want to find/i)).toBeDefined();
   });
 
   it('shows example chips in empty state', () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.getByText(/summarize the latest deposition/i)).toBeDefined();
     expect(screen.getByText(/find every email from opposing counsel/i)).toBeDefined();
     expect(screen.getByText(/what deadlines are coming up/i)).toBeDefined();
   });
 
   it('clicking an example chip fills the input without submitting', () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     const chip = screen.getByText(/summarize the latest deposition/i);
     fireEvent.click(chip);
     const input = screen.getByRole('textbox') as HTMLInputElement;
@@ -200,7 +200,7 @@ describe('ReimaginedAsk', () => {
   });
 
   it('submitting question does not throw (smoke test)', () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     const input = screen.getByRole('textbox');
     fireEvent.change(input, { target: { value: 'Test question' } });
     // Find the submit button — after typing, it should be enabled
@@ -229,7 +229,7 @@ describe('ReimaginedAsk', () => {
       lastUpdated: '2026-01-01T00:00:00Z',
     };
     try {
-      render(<ReimaginedAsk />);
+      render(<Ask />);
       // No raw chip markers anywhere in the restored prose.
       expect(screen.queryByText(/\{\d\}/)).toBeNull();
       // The words that flanked the markers are now adjacent (markers removed).
@@ -268,7 +268,7 @@ describe('ReimaginedAsk', () => {
       lastUpdated: '2026-01-01T00:00:00Z',
     };
     try {
-      render(<ReimaginedAsk />);
+      render(<Ask />);
       // The citation chip button must be rendered (not stripped to plain prose).
       // CitationText renders each {n} as a <button> with aria-label "Citation N: ...".
       const chipBtn = screen.getByRole('button', { name: /citation 1/i });
@@ -300,7 +300,7 @@ describe('ReimaginedAsk', () => {
       lastUpdated: '2026-01-01T00:00:00Z',
     };
     try {
-      render(<ReimaginedAsk />);
+      render(<Ask />);
       // The restored question should appear in the conversation.
       expect(screen.getByText(/what is the statute of limitations/i)).toBeDefined();
       // The restored answer should appear (stripped of any chip markers).
@@ -316,7 +316,7 @@ describe('ReimaginedAsk', () => {
 
   it('shows DEMO_QUESTIONS chips when active matter is the sample matter', () => {
     mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.getByText(/what are the open issues in this matter/i)).toBeDefined();
     expect(screen.getByText(/summarize the garcia matter for me/i)).toBeDefined();
     expect(screen.getByText(/what is the status of the meridian correspondence/i)).toBeDefined();
@@ -325,7 +325,7 @@ describe('ReimaginedAsk', () => {
 
   it('shows default chips (not demo questions) when active matter is not the sample matter', () => {
     mockActiveMatter = { id: 'matter_other', name: 'Other Matter' };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.getByText(/summarize the latest deposition/i)).toBeDefined();
     expect(screen.queryByText(/what are the open issues in this matter/i)).toBeNull();
   });
@@ -338,7 +338,7 @@ describe('ReimaginedAsk', () => {
       answer: 'The fee is $350/hr. {1}',
       citations: [{ n: 1, label: 'Sample - Matter Overview.md', excerpt: 'Fee: $350/hr', path: '/workspace/Sample - Matter Overview.md', locator: 'Sample - Matter Overview.md §Client Notes', verified: true }],
     });
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     const chip = screen.getByText(/what is the fee arrangement/i);
     fireEvent.click(chip);
     // Wait for the async handleAsk to resolve and addMessage to be called
@@ -363,7 +363,7 @@ describe('ReimaginedAsk', () => {
     // getDemoAnswerForWorkspace returns null → falls through to provider
     vi.mocked(getDemoAnswerForWorkspace).mockReturnValue(null);
     // No error should be thrown; the component should handle gracefully
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.getByText(/what are the open issues in this matter/i)).toBeDefined();
   });
 
@@ -373,26 +373,26 @@ describe('ReimaginedAsk', () => {
 
   it('shows the sample bridge callout in empty state when active matter is the sample matter', () => {
     mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.getByTestId('sample-bridge-callout')).toBeDefined();
     expect(screen.getByText(/this is sample data/i)).toBeDefined();
   });
 
   it('does not show the sample bridge callout when active matter is not the sample matter', () => {
     mockActiveMatter = { id: 'matter_other', name: 'Other Matter' };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
   });
 
   it('does not show the sample bridge callout when there is no active matter', () => {
     mockActiveMatter = null;
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
   });
 
   it('sample bridge callout is hidden after clicking dismiss and localStorage key is set', () => {
     mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     const dismissBtn = screen.getByTestId('sample-bridge-dismiss');
     fireEvent.click(dismissBtn);
     expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
@@ -402,14 +402,14 @@ describe('ReimaginedAsk', () => {
   it('sample bridge callout stays hidden on mount when localStorage flag is already set', () => {
     localStorage.setItem('keepance:sample-bridge-dismissed', '1');
     mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
   });
 
   it('"Add a matter" button dispatches the keepance:open-matter-manager event', () => {
     mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     const addBtn = screen.getByTestId('sample-bridge-add-matter');
     fireEvent.click(addBtn);
     expect(dispatchSpy).toHaveBeenCalledWith(
@@ -445,7 +445,7 @@ describe('ReimaginedAsk', () => {
       lastUpdated: '2026-01-02T00:00:00Z',
     };
     try {
-      render(<ReimaginedAsk />);
+      render(<Ask />);
       // Section heading and items should be present
       expect(screen.getByTestId('recent-in-matter')).toBeDefined();
       expect(screen.getByText(/recent in this matter/i)).toBeDefined();
@@ -477,7 +477,7 @@ describe('ReimaginedAsk', () => {
     // Also seed the prior session's messages in the store so they restore on load
     mockSessions[priorSessionId] = mockSessions[priorSessionId]!;
     try {
-      render(<ReimaginedAsk />);
+      render(<Ask />);
       const item = screen.getByTestId('matter-session-item');
       fireEvent.click(item);
       // After clicking, the component should display the prior session's content.
@@ -502,7 +502,7 @@ describe('ReimaginedAsk', () => {
       lastUpdated: '2026-01-01T00:00:00Z',
     };
     try {
-      render(<ReimaginedAsk />);
+      render(<Ask />);
       expect(screen.queryByTestId('recent-in-matter')).toBeNull();
     } finally {
       delete mockSessions[priorSampleId];
@@ -511,7 +511,7 @@ describe('ReimaginedAsk', () => {
 
   it('does NOT show "Recent in this matter" when the non-sample matter has no prior sessions', () => {
     mockActiveMatter = { id: 'matter_fresh', name: 'Fresh Matter' };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.queryByTestId('recent-in-matter')).toBeNull();
   });
 
@@ -520,13 +520,13 @@ describe('ReimaginedAsk', () => {
   // -------------------------------------------------------------------------
 
   it('renders scope toggle', () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.getByTestId('scope-toggle')).toBeDefined();
   });
 
   it('shows only "All matters" option when no matter is active', () => {
     mockActiveMatter = null;
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     // "This matter" should not be present
     expect(screen.queryByTestId('scope-option-this-matter')).toBeNull();
     expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
@@ -537,7 +537,7 @@ describe('ReimaginedAsk', () => {
 
   it('shows "This matter" + "All matters" + Email + Documents when a non-sample matter is active', () => {
     mockActiveMatter = { id: 'matter_abc', name: 'ABC v. XYZ' };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.getByTestId('scope-option-this-matter')).toBeDefined();
     expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
     expect(screen.getByTestId('scope-option-email')).toBeDefined();
@@ -546,7 +546,7 @@ describe('ReimaginedAsk', () => {
 
   it('hides Email and Documents options on the sample matter', () => {
     mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.queryByTestId('scope-option-email')).toBeNull();
     expect(screen.queryByTestId('scope-option-documents')).toBeNull();
     // This matter and All matters still shown
@@ -556,21 +556,21 @@ describe('ReimaginedAsk', () => {
 
   it('defaults to "this-matter" scope when a matter is active (aria-pressed=true)', () => {
     mockActiveMatter = { id: 'matter_abc', name: 'ABC v. XYZ' };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     const thisMatterBtn = screen.getByTestId('scope-option-this-matter') as HTMLButtonElement;
     expect(thisMatterBtn.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('defaults to "all-matters" scope when no matter is active', () => {
     mockActiveMatter = null;
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     const allMattersBtn = screen.getByTestId('scope-option-all-matters') as HTMLButtonElement;
     expect(allMattersBtn.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('clicking the Email scope option changes active scope to email', () => {
     mockActiveMatter = { id: 'matter_abc', name: 'ABC v. XYZ' };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     const emailBtn = screen.getByTestId('scope-option-email');
     fireEvent.click(emailBtn);
     expect((screen.getByTestId('scope-option-email') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
@@ -579,7 +579,7 @@ describe('ReimaginedAsk', () => {
 
   it('clicking the Documents scope option changes active scope to documents', () => {
     mockActiveMatter = null;
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     const docsBtn = screen.getByTestId('scope-option-documents');
     fireEvent.click(docsBtn);
     expect((screen.getByTestId('scope-option-documents') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
@@ -591,7 +591,7 @@ describe('ReimaginedAsk', () => {
   // -------------------------------------------------------------------------
   // These tests exercise filterHitsByScope indirectly via the isMailHit helper
   // that the component uses. We import and test the helper shape directly since
-  // ReimaginedAsk does not export it, and we validate the filtering behavior
+  // Ask does not export it, and we validate the filtering behavior
   // via hit arrays.
 
   it('filterHitsByScope keeps only mail hits for email scope', async () => {
@@ -606,7 +606,7 @@ describe('ReimaginedAsk', () => {
     vi.mocked(MS.retrieve).mockResolvedValueOnce([mailHit, docHit]);
 
     mockActiveMatter = { id: 'matter_abc', name: 'ABC v. XYZ' };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
 
     // Switch to Email scope then submit a question
     const emailBtn = screen.getByTestId('scope-option-email');
@@ -630,7 +630,7 @@ describe('ReimaginedAsk', () => {
     vi.mocked(MS2.retrieve).mockResolvedValueOnce([mailHit2, docHit2]);
 
     mockActiveMatter = { id: 'matter_def', name: 'DEF Matter' };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
 
     // Switch to Documents scope
     const docsBtn = screen.getByTestId('scope-option-documents');
@@ -648,7 +648,7 @@ describe('ReimaginedAsk', () => {
   it('shows TAX demo questions when profession is tax and sample matter is active', () => {
     mockProfession = 'tax';
     mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Dwyer - 2025 Form 1040', isSample: true };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.getByText(/can diane deduct her home office/i)).toBeDefined();
     expect(screen.getByText(/what open questions remain for the dwyer return/i)).toBeDefined();
     // Legal questions must NOT appear
@@ -659,7 +659,7 @@ describe('ReimaginedAsk', () => {
   it('shows CONSULTING demo questions when profession is consulting and sample matter is active', () => {
     mockProfession = 'consulting';
     mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Northwind - Go-to-Market Engagement', isSample: true };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.getByText(/what are the key findings so far/i)).toBeDefined();
     expect(screen.getByText(/what is the engagement scope/i)).toBeDefined();
     // Legal questions must NOT appear
@@ -670,7 +670,7 @@ describe('ReimaginedAsk', () => {
   it('still shows LEGAL demo questions when profession is legal and sample matter is active', () => {
     mockProfession = 'legal';
     mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.getByText(/what are the open issues in this matter/i)).toBeDefined();
     expect(screen.getByText(/summarize the garcia matter for me/i)).toBeDefined();
   });
@@ -690,7 +690,7 @@ describe('ReimaginedAsk', () => {
         verified: true,
       }],
     });
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     const chip = screen.getByText(/can diane deduct her home office/i);
     fireEvent.click(chip);
     await waitFor(() => {
@@ -709,7 +709,7 @@ describe('ReimaginedAsk', () => {
   it('prefillRequest fills the composer input', async () => {
     const onConsumed = vi.fn();
     render(
-      <ReimaginedAsk
+      <Ask
         prefillRequest={{ question: 'What is the discovery deadline?' }}
         onPrefillConsumed={onConsumed}
       />,
@@ -722,7 +722,7 @@ describe('ReimaginedAsk', () => {
   });
 
   it('null prefillRequest does nothing to the input', () => {
-    render(<ReimaginedAsk prefillRequest={null} />);
+    render(<Ask prefillRequest={null} />);
     const input = screen.getByRole('textbox') as HTMLInputElement;
     expect(input.value).toBe('');
   });
@@ -732,7 +732,7 @@ describe('ReimaginedAsk', () => {
   // -------------------------------------------------------------------------
 
   it('does not show inline New search button when there are no turns', () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     // With no turns, only the header button should be absent (turns.length === 0)
     // There should be no button with text "New search" at all
     const newSearchBtns = screen.queryAllByRole('button', { name: /new search/i });
@@ -744,7 +744,7 @@ describe('ReimaginedAsk', () => {
   // -------------------------------------------------------------------------
 
   it('renders a friendly auth error message (no raw 401)', () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     // We can't easily trigger the catch from here without integration setup,
     // but we can verify the component renders without throwing.
     expect(screen.getByRole('textbox')).toBeDefined();
@@ -755,7 +755,7 @@ describe('ReimaginedAsk', () => {
   // -------------------------------------------------------------------------
 
   it('shows the Enable indexing button when memory is off and no turns', () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     // isMemoryEnabled() returns false in mock, so the warning should show
     const btn = screen.queryByRole('button', { name: /enable indexing/i });
     expect(btn).not.toBeNull();
@@ -763,7 +763,7 @@ describe('ReimaginedAsk', () => {
 
   it('"Enable indexing" button dispatches keepance:open-settings event', () => {
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     const btn = screen.getByRole('button', { name: /enable indexing/i });
     fireEvent.click(btn);
     expect(dispatchSpy).toHaveBeenCalledWith(
@@ -787,7 +787,7 @@ describe('ReimaginedAsk', () => {
       lastUpdated: '2026-01-15T09:30:05Z',
     };
     try {
-      render(<ReimaginedAsk />);
+      render(<Ask />);
       // The chip should show the question text
       expect(screen.getAllByText(/what are the discovery deadlines/i).length).toBeGreaterThanOrEqual(1);
     } finally {
@@ -800,7 +800,7 @@ describe('ReimaginedAsk', () => {
   // -------------------------------------------------------------------------
 
   it('memory-off warning uses plain-language "indexed on your machine" text', () => {
-    render(<ReimaginedAsk />);
+    render(<Ask />);
     expect(screen.getByText(/cited answers need your documents indexed on your machine/i)).toBeDefined();
   });
 });

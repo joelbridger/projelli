@@ -350,11 +350,11 @@ export interface DocumentGridViewProps {
   onDownload: (path: string, name: string) => void;
   /**
    * Controlled: which sub-view is active — 'files' or 'trash'. Lifted to
-   * ReimaginedDocumentsHome so the toolbar can live above the tab strip.
+   * DocumentsHome so the toolbar can live above the tab strip.
    */
   activeView: 'files' | 'trash';
   /**
-   * Controlled: current search query. Lifted to ReimaginedDocumentsHome so
+   * Controlled: current search query. Lifted to DocumentsHome so
    * the SearchField in the toolbar can live above the tab strip.
    */
   searchQuery: string;

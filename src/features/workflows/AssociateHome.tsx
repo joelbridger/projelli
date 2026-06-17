@@ -1,5 +1,5 @@
 /**
- * ReimaginedAssociateHome — native full-page Workflows surface.
+ * AssociateHome — native full-page Workflows surface.
  *
  * Replaces the old "wrap WorkflowPanel" shim with a purpose-built,
  * grouped workflow library. The surface is self-contained: it loads
@@ -58,7 +58,7 @@ import { matterLabel } from '@/platform/rag/matterResolver';
 
 // ── Prop interface (kept identical to original) ────────────────────────────
 
-interface ReimaginedAssociateHomeProps {
+interface AssociateHomeProps {
   onStartWorkflow: (template: WorkflowTemplate) => void;
   currentExecution: WorkflowExecution | null;
   runHistory: RunRecord[];
@@ -504,14 +504,14 @@ function RunRow({
 
 // ── Main export ────────────────────────────────────────────────────────────
 
-export function ReimaginedAssociateHome({
+export function AssociateHome({
   onStartWorkflow,
   currentExecution,
   runHistory,
   providerError,
   onOpenSettings,
   onFocusExecutionTab,
-}: ReimaginedAssociateHomeProps) {
+}: AssociateHomeProps) {
   const trialGate = useTrialGate();
   const profession = useProfessionStore((s) => s.profession);
   const activeMatter = useActiveMatter();

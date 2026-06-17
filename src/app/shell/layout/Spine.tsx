@@ -1,5 +1,5 @@
 /**
- * ReimaginedSpine — the matter-centric navy "Spine" nav, brand-matched to
+ * Spine — the matter-centric navy "Spine" nav, brand-matched to
  * keepance.com. A drop-in alternative to <Sidebar> that reuses the exact same
  * content panels (matters, files, search, workflows, AI, audit, trash) but
  * leads with the attorney's jobs: Matters first, "Documents" for the file,
@@ -22,7 +22,7 @@ import { IconButton } from '@/ui/kp';
 
 type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'email' | 'settings';
 
-interface ReimaginedSpineProps {
+interface SpineProps {
   fileTreeContent?: React.ReactNode;
   searchContent?: React.ReactNode;
   workflowContent?: React.ReactNode;
@@ -55,11 +55,11 @@ function KeepanceMark() {
   );
 }
 
-export function ReimaginedSpine({
+export function Spine({
   fileTreeContent, searchContent, workflowContent,
   auditContent, mattersContent, emailContent, settingsContent,
   activeTab = 'matters', onTabChange, collapsed = false, onCollapsedChange,
-}: ReimaginedSpineProps) {
+}: SpineProps) {
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const matters = useMatters();
   const activeMatterId = useActiveMatterId();

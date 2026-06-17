@@ -1,5 +1,5 @@
 /**
- * ReimaginedAsk — multi-turn conversational cited-Ask surface.
+ * Ask — multi-turn conversational cited-Ask surface.
  *
  * Each question carries prior turns as context (last 6 exchanges) injected
  * into the system prompt. RAG retrieval is fresh per turn. Conversation is
@@ -41,7 +41,7 @@ import { useAsk, type UseAskProps } from './useAsk';
 /* Main component                                                               */
 /* -------------------------------------------------------------------------- */
 
-export function ReimaginedAsk(props: UseAskProps) {
+export function Ask(props: UseAskProps) {
   const { onSaveToDocument } = props;
   const {
     activeMatter,

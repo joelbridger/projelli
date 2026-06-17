@@ -1,5 +1,5 @@
 /**
- * ReimaginedAuditHome — full-page AI Audit surface.
+ * AuditHome — full-page AI Audit surface.
  *
  * A native full-page surface matching the Matters / Email workspace pattern:
  * eyebrow + title header, controls row (search, filters, export), a clean
@@ -46,7 +46,7 @@ import {
   PAGE_SIZE,
   ActionCategory,
   ACTION_CATEGORY,
-} from './reimaginedAuditHomeHelpers';
+} from './auditHomeHelpers';
 import {
   CategoryFilter,
   DetailPanel,
@@ -55,17 +55,17 @@ import {
   AuditEmptyState,
   AuditNoMatchState,
   AuditFilterPanel,
-} from './reimaginedAuditHomeViews';
+} from './auditHomeViews';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
-export interface ReimaginedAuditHomeProps {
+export interface AuditHomeProps {
   entries: AuditEntry[];
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
+export function AuditHome({ entries }: AuditHomeProps) {
   // ── Filter state ──────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
