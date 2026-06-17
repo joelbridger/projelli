@@ -9,7 +9,8 @@ import '../src/i18n';
 
 // pdfjs-dist 5.x uses Promise.withResolvers() which was added in Node 22.
 // Node 20 (used in CI and dev) doesn't have it. Polyfill it here.
-if (typeof Promise.withResolvers === 'undefined') {
+// Using 'in' check because TS (ES2022 target) doesn't know about withResolvers.
+if (!('withResolvers' in Promise)) {
   // @ts-expect-error - polyfill for Node 20
   Promise.withResolvers = function withResolvers<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -103,7 +104,6 @@ if (typeof window !== 'undefined') {
 // bytes. Patch via a FileReader-based fallback so tests exercising
 // docx serialization work under jsdom.
 if (typeof Blob !== 'undefined' && typeof Blob.prototype.arrayBuffer !== 'function') {
-  // @ts-expect-error — patching prototype at test setup
   Blob.prototype.arrayBuffer = function arrayBufferShim(this: Blob) {
     return new Promise<ArrayBuffer>((resolve, reject) => {
       const reader = new FileReader();
@@ -124,7 +124,6 @@ if (typeof window !== 'undefined') {
     ?.prototype;
   if (proto) {
     if (typeof proto.getBoundingClientRect !== 'function') {
-      // @ts-expect-error — patching prototype at test setup
       proto.getBoundingClientRect = function () {
         return {
           x: 0, y: 0, width: 0, height: 0,
@@ -133,7 +132,6 @@ if (typeof window !== 'undefined') {
       };
     }
     if (typeof proto.getClientRects !== 'function') {
-      // @ts-expect-error — patching prototype at test setup
       proto.getClientRects = function () {
         return { length: 0, item: () => null, [Symbol.iterator]: function*() {} } as unknown as DOMRectList;
       };

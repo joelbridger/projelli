@@ -59,7 +59,12 @@ export default tseslint.config(
       },
     },
   },
-  // Test files
+  // Test files — type-aware project so mocks built to the wrong shape
+  // are caught statically (not just if a given vitest run happens to
+  // exercise that path). Using `recommended` (not `strictTypeChecked`)
+  // so the jump from zero-project to type-project isn't immediately
+  // noisy; the full strict preset can be enabled once the baseline
+  // errors in tsconfig.test.json are resolved.
   {
     files: ['tests/**/*.{ts,tsx}'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
@@ -72,6 +77,8 @@ export default tseslint.config(
         ecmaFeatures: {
           jsx: true,
         },
+        project: ['./tsconfig.test.json'],
+        tsconfigRootDir: import.meta.dirname,
       },
     },
   }

@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Tests run in Node (Vitest) + jsdom, so relax a few bundler-mode
+    // restrictions that don't apply to the test runner.
+    "moduleResolution": "bundler",
+    // noEmit stays on — we're type-checking only.
+    "noEmit": true,
+    // Tests use vi.fn() stubs + jest-dom matchers that aren't in the main
+    // lib. Adding vitest/globals here keeps "describe/it/expect" typed
+    // without requiring a separate @types/jest dependency.
+    "types": ["vitest/globals"],
+    // tests/ has its own setup imports (React Testing Library, jest-dom)
+    // that don't exist in src/. Keep unused-locals off for test files so
+    // helper imports that are only side-effected don't fail the check.
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  // Include both src (so @/ imports resolve) and tests.
+  "include": ["src", "tests"]
+}
