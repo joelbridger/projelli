@@ -16,7 +16,7 @@
  */
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 import { useState, useMemo } from 'react';
-import { Briefcase, Globe, Map as MapIcon, Info } from 'lucide-react';
+import { Briefcase, Globe, Map as MapIcon, Info, Lock } from 'lucide-react';
 import { useActiveMatter } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
@@ -143,6 +143,17 @@ export function TrustBar() {
         size="xs"
         title="Where your data goes"
         onClick={() => { setDataMapOpen(true); }}
+        style={{ flexShrink: 0 }}
+      />
+
+      {/* Privacy Center shortcut — one click away from anywhere in the app. */}
+      <IconButton
+        icon={Lock}
+        label="Open Privacy Center"
+        variant="ghost"
+        size="xs"
+        title="Privacy Center"
+        onClick={() => { window.dispatchEvent(new CustomEvent('keepance:open-privacy-center')); }}
         style={{ flexShrink: 0 }}
       />
 
