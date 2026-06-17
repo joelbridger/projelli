@@ -32,7 +32,7 @@ import {
   formatAnnual,
   type PricingTierCode,
 } from '@/config/pricing';
-import { PricingTiers } from '@/components/settings/PricingTiers';
+import { PricingTiers } from '@/features/settings/PricingTiers';
 import type { LicenseTier } from '@/hooks/useLicense';
 import type { Plan } from '../../backend/src/contract';
 

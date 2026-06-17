@@ -11,7 +11,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
-import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
+import { MemoryFactsSettings } from '@/features/settings/MemoryFactsSettings';
 import type { Fact } from '@/modules/memory/FactsService';
 
 function makeFact(id: string, text: string): Fact {

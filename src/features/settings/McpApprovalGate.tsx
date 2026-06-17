@@ -24,7 +24,7 @@ import {
   mcpApproveWrite,
   type McpPendingApproval,
 } from '@/utils/tauri-commands';
-import { McpApprovalModal } from '@/components/settings/McpApprovalModal';
+import { McpApprovalModal } from '@/features/settings/McpApprovalModal';
 import { usePrivilegedMatterModeActive } from '@/hooks/usePrivilegedMatterMode';
 import type { AuditEvent } from '@/types/audit';
 import { PRIVILEGED_MATTER_BLOCK_REASON } from '@/modules/privacy/privilegedMatterMode';

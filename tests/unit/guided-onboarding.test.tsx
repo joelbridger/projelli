@@ -33,15 +33,15 @@ vi.mock('@/features/onboarding/AiSetupStep', () => ({
   ),
 }));
 
-vi.mock('@/components/settings/MailConnect', () => ({
+vi.mock('@/features/settings/MailConnect', () => ({
   MailConnect: () => <div data-testid="mail-connect-stub">MailConnect</div>,
 }));
 
-vi.mock('@/components/settings/MailGmailConnect', () => ({
+vi.mock('@/features/settings/MailGmailConnect', () => ({
   MailGmailConnect: () => <div data-testid="mail-gmail-connect-stub">MailGmailConnect</div>,
 }));
 
-vi.mock('@/components/settings/MailImapConnect', () => ({
+vi.mock('@/features/settings/MailImapConnect', () => ({
   MailImapConnect: () => <div data-testid="mail-imap-connect-stub">MailImapConnect</div>,
 }));
 

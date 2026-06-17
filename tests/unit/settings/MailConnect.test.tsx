@@ -19,7 +19,7 @@ vi.mock('@/utils/mail-commands', () => ({
 }));
 vi.mock('@/hooks/useMailSync', () => ({ useMailSync: () => {} }));
 
-import { MailConnect } from '@/components/settings/MailConnect';
+import { MailConnect } from '@/features/settings/MailConnect';
 
 // Prompt with a 1-second interval so fake-timer tests can advance cheaply.
 const DEFAULT_PROMPT = {

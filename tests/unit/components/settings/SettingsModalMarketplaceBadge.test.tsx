@@ -15,7 +15,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
-import { SettingsModal } from '@/components/settings/SettingsModal';
+import { SettingsModal } from '@/features/settings/SettingsModal';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 
 beforeEach(() => {

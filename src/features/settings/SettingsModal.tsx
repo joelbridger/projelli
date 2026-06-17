@@ -24,7 +24,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { SettingsContent } from '@/components/settings/SettingsContent';
+import { SettingsContent } from '@/features/settings/SettingsContent';
 import type { SettingCategory } from '@/settings/schema';
 import type { AuditEntry } from '@/types/audit';
 import type { WorkflowTemplate } from '@/types/workflow';

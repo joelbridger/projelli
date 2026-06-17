@@ -11,7 +11,7 @@ vi.mock('@/utils/mail-commands', () => ({
   get mailImapDisconnect() { return mockMailImapDisconnect; },
 }));
 
-import { MailImapConnect } from '@/components/settings/MailImapConnect';
+import { MailImapConnect } from '@/features/settings/MailImapConnect';
 
 describe('MailImapConnect', () => {
   beforeEach(() => {

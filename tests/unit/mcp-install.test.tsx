@@ -28,7 +28,7 @@ import {
 import {
   McpSettingsSection,
   McpApprovalModal,
-} from '@/components/settings';
+} from '@/features/settings';
 import type { McpPendingApproval } from '@/utils/tauri-commands';
 
 // ---------------------------------------------------------------------------

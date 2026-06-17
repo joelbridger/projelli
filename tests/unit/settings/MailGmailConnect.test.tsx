@@ -11,7 +11,7 @@ vi.mock('@/utils/mail-commands', () => ({
   get gmailDisconnect() { return mockGmailDisconnect; },
 }));
 
-import { MailGmailConnect } from '@/components/settings/MailGmailConnect';
+import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
 
 describe('MailGmailConnect', () => {
   beforeEach(() => {

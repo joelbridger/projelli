@@ -17,7 +17,7 @@ import {
   modeNeedsManagedKey,
   CONFIDENTIALITY_MODE_SETTING_KEY,
 } from '@/modules/privacy/egress';
-import { ConfidentialityModeSettings } from '@/components/settings/ConfidentialityModeSettings';
+import { ConfidentialityModeSettings } from '@/features/settings/ConfidentialityModeSettings';
 import { EgressIndicator } from '@/components/privacy/EgressIndicator';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useFirmStore } from '@/stores/firmStore';

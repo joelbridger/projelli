@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MobileSettings } from '@/components/settings/MobileSettings';
-import { AdvancedSettings } from '@/components/settings/AdvancedSettings';
+import { MobileSettings } from '@/features/settings/MobileSettings';
+import { AdvancedSettings } from '@/features/settings/AdvancedSettings';
 
 describe('Placeholder settings pages', () => {
   it('MobileSettings renders (shows provider tab triggers)', () => {

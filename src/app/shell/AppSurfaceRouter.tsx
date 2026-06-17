@@ -17,7 +17,7 @@ import { ReimaginedDocumentsHome } from '@/features/documents/ReimaginedDocument
 import { ReimaginedAssociateHome } from '@/features/workflows/ReimaginedAssociateHome';
 import { ReimaginedAuditHome } from '@/features/audit/ReimaginedAuditHome';
 import { MainPanel } from '@/components/layout/MainPanel';
-import { SettingsContent } from '@/components/settings/SettingsContent';
+import { SettingsContent } from '@/features/settings/SettingsContent';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { requestScrollToParagraph } from '@/utils/scrollToParagraph';
 import { isWorkflowFilePath } from '@/features/workflows/engine/workflowFile';

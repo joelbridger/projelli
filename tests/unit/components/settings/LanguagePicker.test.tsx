@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { cleanup, render, screen, fireEvent, act } from '@testing-library/react';
-import { LanguagePicker } from '@/components/settings/LanguagePicker';
+import { LanguagePicker } from '@/features/settings/LanguagePicker';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { AuditService } from '@/modules/audit/AuditService';
 import i18n from '@/i18n';

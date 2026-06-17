@@ -20,7 +20,7 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { SettingsContent } from '@/components/settings/SettingsContent';
+import { SettingsContent } from '@/features/settings/SettingsContent';
 
 afterEach(() => {
   cleanup();

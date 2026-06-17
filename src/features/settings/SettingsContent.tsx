@@ -53,17 +53,17 @@ import {
   getMaxContextTokens,
   formatContextSize,
 } from '@/modules/models/context-limits';
-import { TemplateModelSettings } from '@/components/settings/TemplateModelSettings';
-import { PrivacySettings } from '@/components/settings/PrivacySettings';
-import { ConfidentialityModeSettings } from '@/components/settings/ConfidentialityModeSettings';
-import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
+import { TemplateModelSettings } from '@/features/settings/TemplateModelSettings';
+import { PrivacySettings } from '@/features/settings/PrivacySettings';
+import { ConfidentialityModeSettings } from '@/features/settings/ConfidentialityModeSettings';
+import { MemoryFactsSettings } from '@/features/settings/MemoryFactsSettings';
 import { MarketplaceTab } from '@/features/workflows/marketplace/MarketplaceTab';
 import { useTemplateUpdateCount } from '@/features/workflows/useTemplatesMarketplace';
-import { MobileSettings } from '@/components/settings/MobileSettings';
-import { AdvancedSettings } from '@/components/settings/AdvancedSettings';
-import { VoiceSettingsSection } from '@/components/settings/VoiceSettingsSection';
-import { LanguagePicker } from '@/components/settings/LanguagePicker';
-import { SetupChecklist } from '@/components/settings/SetupChecklist';
+import { MobileSettings } from '@/features/settings/MobileSettings';
+import { AdvancedSettings } from '@/features/settings/AdvancedSettings';
+import { VoiceSettingsSection } from '@/features/settings/VoiceSettingsSection';
+import { LanguagePicker } from '@/features/settings/LanguagePicker';
+import { SetupChecklist } from '@/features/settings/SetupChecklist';
 import { ApiKeyWizard } from '@/features/onboarding/ApiKeyWizard';
 import type { AuditEntry } from '@/types/audit';
 import type { WorkflowTemplate } from '@/types/workflow';

@@ -12,11 +12,11 @@
 
 import { useTranslation } from 'react-i18next';
 
-import { McpApprovalGate } from '@/components/settings/McpApprovalGate';
+import { McpApprovalGate } from '@/features/settings/McpApprovalGate';
 import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 import { InterviewForm } from '@/features/workflows/InterviewForm';
 import { CommandPalette, type PaletteCommand } from '@/components/common/CommandPalette';
-import { SettingsModal } from '@/components/settings/SettingsModal';
+import { SettingsModal } from '@/features/settings/SettingsModal';
 import { AccountWindow } from '@/features/account/AccountWindow';
 import { FeatureTour } from '@/features/onboarding/FeatureTour';
 import { ApiKeyWizard } from '@/features/onboarding/ApiKeyWizard';

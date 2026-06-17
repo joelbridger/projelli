@@ -25,7 +25,7 @@ vi.mock('@/utils/mail-commands', () => ({
   mailImapIsConnected: vi.fn(),
 }));
 
-import { SetupChecklist } from '@/components/settings/SetupChecklist';
+import { SetupChecklist } from '@/features/settings/SetupChecklist';
 import { useApiKeys } from '@/hooks/useApiKeys';
 import { useFirm } from '@/hooks/useFirm';
 import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/utils/mail-commands';

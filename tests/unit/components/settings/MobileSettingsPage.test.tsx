@@ -17,7 +17,7 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { MobileSettingsPage } from '@/components/settings/MobileSettingsPage';
+import { MobileSettingsPage } from '@/features/settings/MobileSettingsPage';
 
 afterEach(() => {
   cleanup();

@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CostDashboard } from '@/features/ask/CostDashboard';
-import { PricingTiers } from '@/components/settings/PricingTiers';
+import { PricingTiers } from '@/features/settings/PricingTiers';
 import { displayName } from '@/config/pricing';
 
 export function LicenseSettings() {

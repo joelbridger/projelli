@@ -15,7 +15,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
-import { VoiceSettingsSection } from '@/components/settings/VoiceSettingsSection';
+import { VoiceSettingsSection } from '@/features/settings/VoiceSettingsSection';
 import { SETTINGS_SCHEMA } from '@/settings/schema';
 
 // TTS schema keys that should appear in the voice category

@@ -30,7 +30,7 @@ import {
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useMatterStore } from '@/stores/matterStore';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/modules/privacy/egress';
-import { McpApprovalModal } from '@/components/settings/McpApprovalModal';
+import { McpApprovalModal } from '@/features/settings/McpApprovalModal';
 import type { McpPendingApproval } from '@/utils/tauri-commands';
 import { StatusBar } from '@/components/layout/StatusBar';
 import { useWorkspaceStore } from '@/stores/workspaceStore';

@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
-import { VoiceSettingsSection } from '@/components/settings/VoiceSettingsSection';
+import { VoiceSettingsSection } from '@/features/settings/VoiceSettingsSection';
 
 describe('VoiceSettingsSection with TTS output section wired', () => {
   it('renders existing voice-status banner', async () => {

@@ -4,4 +4,4 @@
  * shipped the real implementation in `MobileSettingsPage`.
  */
 
-export { MobileSettingsPage as MobileSettings } from '@/components/settings/MobileSettingsPage';
+export { MobileSettingsPage as MobileSettings } from '@/features/settings/MobileSettingsPage';

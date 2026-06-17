@@ -12,15 +12,15 @@ import { useProfileStore } from '@/stores/profileStore';
 import { useFirm } from '@/hooks/useFirm';
 import { readImageAsDataUrl } from '@/utils/imageUpload';
 import type { AuditEntry } from '@/types/audit';
-import { LicenseSettings } from '@/components/settings/LicenseSettings';
+import { LicenseSettings } from '@/features/settings/LicenseSettings';
 import { FirmSignIn } from '@/features/firm/FirmSignIn';
 import { FirmAdminConsole } from '@/features/firm/FirmAdminConsole';
 import { CostMetrics } from '@/components/analysis/CostMetrics';
-import { MailConnect } from '@/components/settings/MailConnect';
-import { MailImapConnect } from '@/components/settings/MailImapConnect';
-import { MailGmailConnect } from '@/components/settings/MailGmailConnect';
-import { McpSettingsSection } from '@/components/settings/McpSettingsSection';
-import { OllamaSettingsSection } from '@/components/settings/OllamaSettingsSection';
+import { MailConnect } from '@/features/settings/MailConnect';
+import { MailImapConnect } from '@/features/settings/MailImapConnect';
+import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
+import { McpSettingsSection } from '@/features/settings/McpSettingsSection';
+import { OllamaSettingsSection } from '@/features/settings/OllamaSettingsSection';
 
 interface AccountWindowProps {
   open: boolean;
