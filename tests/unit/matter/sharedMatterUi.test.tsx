@@ -110,7 +110,7 @@ vi.mock('@/modules/firm/deviceKeys', () => ({
 }));
 
 // ── Import the component after mocks are in place ─────────────────────────────
-import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
+import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

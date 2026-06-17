@@ -10,7 +10,7 @@
  * delegates rendering to the appropriate surface component.
  */
 
-import { ReimaginedMattersHome } from '@/components/matter/ReimaginedMattersHome';
+import { ReimaginedMattersHome } from '@/features/matters/ReimaginedMattersHome';
 import { ReimaginedAsk } from '@/features/ask/ReimaginedAsk';
 import { ReimaginedEmailWorkspace } from '@/features/email/ReimaginedEmailWorkspace';
 import { ReimaginedDocumentsHome } from '@/features/documents/ReimaginedDocumentsHome';

@@ -103,14 +103,14 @@ vi.mock('@/modules/memory/MemoryService', () => ({
 }));
 
 // ── matterAtAGlance module ────────────────────────────────────────────────────
-vi.mock('@/modules/matter/matterAtAGlance', () => ({
+vi.mock('@/features/matters/logic/matterAtAGlance', () => ({
   generateMatterAtAGlance: mockGenerate,
   hasCloudKeyForGlance: mockHasCloudKey,
 }));
 
 // Import after mocks
-import { MatterHub } from '@/components/matter/MatterHub';
-import type { MatterAtAGlanceResult } from '@/modules/matter/matterAtAGlance';
+import { MatterHub } from '@/features/matters/MatterHub';
+import type { MatterAtAGlanceResult } from '@/features/matters/logic/matterAtAGlance';
 
 const sampleGlanceResult: MatterAtAGlanceResult = {
   openIssues: ['Lease dispute unresolved'],

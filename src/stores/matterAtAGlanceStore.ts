@@ -13,7 +13,7 @@
  */
 
 import { useMatterStore } from '@/stores/matterStore';
-import type { MatterAtAGlanceResult } from '@/modules/matter/matterAtAGlance';
+import type { MatterAtAGlanceResult } from '@/features/matters/logic/matterAtAGlance';
 
 export interface MatterAtAGlanceEntry {
   result: MatterAtAGlanceResult;

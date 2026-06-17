@@ -13,7 +13,7 @@
 import { useTranslation } from 'react-i18next';
 
 import { McpApprovalGate } from '@/components/settings/McpApprovalGate';
-import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
+import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 import { InterviewForm } from '@/features/workflows/InterviewForm';
 import { CommandPalette, type PaletteCommand } from '@/components/common/CommandPalette';
 import { SettingsModal } from '@/components/settings/SettingsModal';

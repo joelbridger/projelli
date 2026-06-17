@@ -30,8 +30,8 @@ import { useFirmStore } from '@/stores/firmStore';
 import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder } from '@/stores/aiChatStore';
 import { useActiveMatter } from '@/stores/matterStore';
 import { useIncludePrivileged, usePrivilegeStore } from '@/stores/privilegeStore';
-import { MatterScopeSelector } from '@/components/matter/MatterScopeSelector';
-import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
+import { MatterScopeSelector } from '@/features/matters/MatterScopeSelector';
+import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 // F-121 (VG-5b) — explains privilege exclusion next to its toggle, with a
 // "see it work" check that runs the user's own question against their index.
 import { PrivilegeExclusionExplainer } from '@/features/ask/PrivilegeExclusionExplainer';

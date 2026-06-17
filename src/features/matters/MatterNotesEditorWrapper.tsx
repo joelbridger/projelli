@@ -11,8 +11,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMatterStore } from '@/stores/matterStore';
-import { ensureMatterSync, getMatterSyncClient } from '@/modules/matter/matterNotesSync';
-import { MatterNotesEditor } from '@/components/matter/MatterNotesEditor';
+import { ensureMatterSync, getMatterSyncClient } from '@/features/matters/logic/matterNotesSync';
+import { MatterNotesEditor } from '@/features/matters/MatterNotesEditor';
 import { useMatterSyncStatus } from '@/stores/matterSyncStore';
 import type { MatterSyncClient } from '@/modules/firm/MatterSyncClient';
 

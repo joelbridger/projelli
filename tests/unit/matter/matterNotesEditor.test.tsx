@@ -60,7 +60,7 @@ vi.mock('@/stores/firmStore', () => ({
 // only need the mock for the Wrapper tests.
 let mockEnsureMatterSync: ReturnType<typeof vi.fn>;
 
-vi.mock('@/modules/matter/matterNotesSync', () => {
+vi.mock('@/features/matters/logic/matterNotesSync', () => {
   mockEnsureMatterSync = vi.fn();
   return {
     ensureMatterSync: (...args: unknown[]) => mockEnsureMatterSync(...args),
@@ -107,9 +107,9 @@ function resetStores() {
 }
 
 // ── Import components lazily to avoid issues with vi.mock order ──────────────
-let MatterNotesEditor: typeof import('@/components/matter/MatterNotesEditor').MatterNotesEditor;
-let MatterNotesEditorWrapper: typeof import('@/components/matter/MatterNotesEditorWrapper').MatterNotesEditorWrapper;
-let openMatterNotes: typeof import('@/modules/matter/openMatterNotes').openMatterNotes;
+let MatterNotesEditor: typeof import('@/features/matters/MatterNotesEditor').MatterNotesEditor;
+let MatterNotesEditorWrapper: typeof import('@/features/matters/MatterNotesEditorWrapper').MatterNotesEditorWrapper;
+let openMatterNotes: typeof import('@/features/matters/logic/openMatterNotes').openMatterNotes;
 
 // ── Test suite ────────────────────────────────────────────────────────────────
 
@@ -118,15 +118,15 @@ describe('MatterNotesEditor', () => {
     resetStores();
     keychainStore.clear();
     if (!MatterNotesEditor) {
-      const mod = await import('@/components/matter/MatterNotesEditor');
+      const mod = await import('@/features/matters/MatterNotesEditor');
       MatterNotesEditor = mod.MatterNotesEditor;
     }
     if (!MatterNotesEditorWrapper) {
-      const mod = await import('@/components/matter/MatterNotesEditorWrapper');
+      const mod = await import('@/features/matters/MatterNotesEditorWrapper');
       MatterNotesEditorWrapper = mod.MatterNotesEditorWrapper;
     }
     if (!openMatterNotes) {
-      const mod = await import('@/modules/matter/openMatterNotes');
+      const mod = await import('@/features/matters/logic/openMatterNotes');
       openMatterNotes = mod.openMatterNotes;
     }
   });

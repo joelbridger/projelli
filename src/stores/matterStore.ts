@@ -48,7 +48,7 @@ import { getSampleMatterName } from '@/onboarding/samples/sampleMatterDemo';
 import type { MatterUiSnapshot } from '@/stores/matterUiStore';
 import type { MatterAtAGlanceEntry } from '@/stores/matterAtAGlanceStore';
 import type { MatterSyncStatus } from '@/stores/matterSyncStore';
-import type { MatterAtAGlanceResult } from '@/modules/matter/matterAtAGlance';
+import type { MatterAtAGlanceResult } from '@/features/matters/logic/matterAtAGlance';
 
 /**
  * Stable id for the built-in sample matter ("Garcia v. Meridian Properties LLC").

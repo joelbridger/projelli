@@ -129,7 +129,7 @@ import {
   stopMatterSync,
   stopAll,
   getMatterSyncClient,
-} from '@/modules/matter/matterNotesSync';
+} from '@/features/matters/logic/matterNotesSync';
 import { clearMatterKey } from '@/modules/firm/firmKeychain';
 import type { Matter } from '@/types/matter';
 

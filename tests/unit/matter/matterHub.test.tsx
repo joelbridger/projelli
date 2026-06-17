@@ -84,8 +84,8 @@ vi.mock('@/stores/aiChatStore', () => ({
 }));
 
 // ── Import components after mocks ──────────────────────────────────────────────
-import { ReimaginedMattersHome } from '@/components/matter/ReimaginedMattersHome';
-import { MatterHub } from '@/components/matter/MatterHub';
+import { ReimaginedMattersHome } from '@/features/matters/ReimaginedMattersHome';
+import { MatterHub } from '@/features/matters/MatterHub';
 
 function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null });

@@ -89,8 +89,8 @@ vi.mock('@/modules/models/fetchUtils', () => ({
 }));
 
 // ── Import components after mocks ──────────────────────────────────────────────
-import { ReimaginedMattersHome } from '@/components/matter/ReimaginedMattersHome';
-import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
+import { ReimaginedMattersHome } from '@/features/matters/ReimaginedMattersHome';
+import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 
 function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null });

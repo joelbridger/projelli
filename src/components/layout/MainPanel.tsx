@@ -44,7 +44,7 @@ import { BinaryVersionHistoryPanel } from '@/features/documents/version/BinaryVe
 import { BrowserPanel } from '@/features/workflows/BrowserPanel';
 import { WorkflowExecutionTab } from '@/features/workflows/WorkflowExecutionTab';
 import { EmailViewer } from '@/features/email/EmailViewer';
-import { MatterNotesEditorWrapper } from '@/components/matter/MatterNotesEditorWrapper';
+import { MatterNotesEditorWrapper } from '@/features/matters/MatterNotesEditorWrapper';
 import {
   fileDataToExecution,
   isWorkflowFilePath,

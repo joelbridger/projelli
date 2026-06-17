@@ -59,8 +59,8 @@ import {
 } from '@/modules/firm/matterKeyService';
 import { registerDevice } from '@/modules/firm/deviceKeys';
 import type { MatterMineSummary } from '@/modules/firm/contract';
-import { openMatterNotes } from '@/modules/matter/openMatterNotes';
-import { stopMatterSync } from '@/modules/matter/matterNotesSync';
+import { openMatterNotes } from '@/features/matters/logic/openMatterNotes';
+import { stopMatterSync } from '@/features/matters/logic/matterNotesSync';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
 import { collectFolderPaths, relLabel, audit } from './matterManagerDialogHelpers';
 import { MemberRoster } from './MemberRoster';
