@@ -53,18 +53,22 @@ describe('pricing config — tiers and prices', () => {
     expect(solo.foundingAnnualPerYear).toBe(324);
   });
 
-  it('Professional has the ratified prices and is featured', () => {
+  it('Solo (personal) is now featured (solo-first, WS6)', () => {
+    expect(TIER_BY_CODE.personal.featured).toBe(true);
+  });
+
+  it('Professional is no longer featured (solo-first, WS6)', () => {
     const pro = TIER_BY_CODE.professional;
     expect(pro.displayName).toBe('Professional');
     expect(pro.annualPerMonth).toBe(79);
     expect(pro.annualPerYear).toBe(948);
     expect(pro.monthlyPerMonth).toBe(99);
-    expect(pro.featured).toBe(true);
+    expect(pro.featured).toBe(false);
     expect(pro.foundingAnnualPerMonth).toBe(55);
     expect(pro.foundingAnnualPerYear).toBe(660);
   });
 
-  it('Firm (practice) has the ratified prices and a 3-seat minimum', () => {
+  it('Firm (practice) has the ratified prices, a 3-seat minimum, and dimmed=true (solo-first, WS6)', () => {
     const firm = TIER_BY_CODE.practice;
     expect(firm.displayName).toBe('Firm');
     expect(firm.annualPerMonth).toBe(129);
@@ -73,6 +77,7 @@ describe('pricing config — tiers and prices', () => {
     expect(firm.minSeats).toBe(3);
     expect(firm.foundingAnnualPerMonth).toBe(90);
     expect(firm.foundingAnnualPerYear).toBe(1080);
+    expect(firm.dimmed).toBe(true);
   });
 
   it('annualPerYear is always 12x annualPerMonth (internal consistency)', () => {
@@ -181,6 +186,24 @@ describe('in-app pricing display (PricingTiers)', () => {
     const founding = screen.getByTestId('pricing-founding-rate');
     expect(founding).toHaveTextContent('Founding rate');
     expect(founding).toHaveTextContent('30 days');
+  });
+
+  it('Solo card shows a "Start here" badge (solo-first, WS6)', () => {
+    const badge = screen.getByTestId('pricing-badge-personal');
+    expect(badge).toHaveTextContent('Start here');
+  });
+
+  it('Professional card shows a "More features" badge (solo-first, WS6)', () => {
+    const badge = screen.getByTestId('pricing-badge-professional');
+    expect(badge).toHaveTextContent('More features');
+  });
+
+  it('Firm card shows a sublabel about roadmap (dimmed, WS6)', () => {
+    const sublabel = screen.getByTestId('pricing-firm-sublabel');
+    expect(sublabel).toHaveTextContent('SSO and co-editing included');
+    expect(sublabel).toHaveTextContent('roadmap');
+    // Must not contain em dash
+    expect(sublabel.textContent).not.toMatch(/—|&mdash;/);
   });
 });
 

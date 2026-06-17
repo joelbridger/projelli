@@ -52,6 +52,12 @@ export interface PricingTier {
   minSeats: number;
   /** Whether this tier is the visually highlighted / recommended one. */
   featured: boolean;
+  /**
+   * When true, the card is de-emphasised (muted/dimmed) to signal it is
+   * available but not the primary starting point. Used for the Firm tier
+   * whose SSO/co-editing features are overkill for the target early adopter.
+   */
+  dimmed?: boolean;
   /** Short "what this tier adds" feature lines, in display order. */
   features: string[];
 }
@@ -76,7 +82,7 @@ export const PRICING_TIERS: readonly PricingTier[] = [
     foundingAnnualPerMonth: 27,
     foundingAnnualPerYear: 324,
     minSeats: 1,
-    featured: false,
+    featured: true,
     features: [
       'The complete confidential workspace',
       'The Word-native editor',
@@ -97,7 +103,7 @@ export const PRICING_TIERS: readonly PricingTier[] = [
     foundingAnnualPerMonth: 55,
     foundingAnnualPerYear: 660,
     minSeats: 1,
-    featured: true,
+    featured: false,
     features: [
       'Everything in Solo',
       'The legal workflow library: deposition contradiction-finder, timelines, discovery triage, privilege-log drafter',
@@ -117,6 +123,7 @@ export const PRICING_TIERS: readonly PricingTier[] = [
     foundingAnnualPerYear: 1080,
     minSeats: 3,
     featured: false,
+    dimmed: true,
     features: [
       'Everything in Professional',
       'Shared matters and collaboration',

@@ -25,17 +25,32 @@ function TierCard({ tier }: { tier: PricingTier }) {
       data-testid={`pricing-tier-${tier.code}`}
       data-tier-name={tier.displayName}
       className={
-        'rounded-lg border p-4 flex flex-col ' +
+        'rounded-lg border p-4 flex flex-col transition-opacity ' +
         (tier.featured
           ? 'border-primary/60 bg-primary/5 ring-1 ring-primary/20'
-          : 'border-border bg-card')
+          : tier.dimmed
+            ? 'border-border bg-card opacity-80'
+            : 'border-border bg-card')
       }
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-semibold tracking-tight">{tier.displayName}</span>
         {tier.featured && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-primary/15 text-primary">
-            Most popular
+          <span
+            data-testid={`pricing-badge-${tier.code}`}
+            className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-primary/15 text-primary"
+          >
+            {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
+            Start here
+          </span>
+        )}
+        {!tier.featured && !tier.dimmed && (
+          <span
+            data-testid={`pricing-badge-${tier.code}`}
+            className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium text-muted-foreground border border-border"
+          >
+            {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
+            More features
           </span>
         )}
       </div>
@@ -65,6 +80,17 @@ function TierCard({ tier }: { tier: PricingTier }) {
           </li>
         ))}
       </ul>
+
+      {/* Firm tier: honest sublabel about roadmap status */}
+      {tier.dimmed && (
+        <p
+          data-testid="pricing-firm-sublabel"
+          className="mt-3 text-xs text-muted-foreground border-t pt-2"
+        >
+          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
+          For growing firms; SSO and co-editing included, SOC 2 and DPA on the roadmap.
+        </p>
+      )}
     </div>
   );
 }
