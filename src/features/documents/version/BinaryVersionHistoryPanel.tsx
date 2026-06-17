@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { DiffViewer } from '@/components/editor/DiffViewer';
+import { DiffViewer } from '@/features/documents/editor/DiffViewer';
 import { cn } from '@/lib/utils';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -34,7 +34,7 @@ import {
   getBinaryVersionService,
   type BinaryVersionEntry,
   type VersionFS,
-} from '@/modules/versioning';
+} from '@/features/documents/versioning';
 import { extractDocxTextFromPath, canDiffDocx } from '@/utils/docx-version-diff';
 
 interface BinaryVersionHistoryPanelProps {

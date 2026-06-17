@@ -5,7 +5,7 @@
 // block delimiters aren't chopped by the inline pattern.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderMarkdownToHtml } from '@/components/editor/MarkdownPreview';
+import { renderMarkdownToHtml } from '@/features/documents/editor/MarkdownPreview';
 import katex from 'katex';
 
 describe('MarkdownPreview — KaTeX math', () => {

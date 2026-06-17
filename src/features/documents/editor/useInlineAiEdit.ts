@@ -21,11 +21,11 @@ import {
   computeLineDiff,
   applyHunks,
   stripAccidentalMarkdownFence,
-} from '@/modules/editor/aiEdit/streamingDiff';
-import { buildEditSystemPrompt } from '@/modules/editor/aiEdit/editPrompt';
-import type { DiffHunk, HunkResolution } from '@/modules/editor/aiEdit/types';
+} from '@/features/documents/editor-core/aiEdit/streamingDiff';
+import { buildEditSystemPrompt } from '@/features/documents/editor-core/aiEdit/editPrompt';
+import type { DiffHunk, HunkResolution } from '@/features/documents/editor-core/aiEdit/types';
 import type { Provider } from '@/modules/models/Provider';
-import { getVersionService } from '@/modules/versioning/VersionService';
+import { getVersionService } from '@/features/documents/versioning/VersionService';
 
 /** Subset of editor surface the hook needs. */
 export interface EditorAdapter {

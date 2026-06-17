@@ -5,7 +5,7 @@
 // dependency. End-to-end SVG output is covered by Playwright later.
 
 import { describe, it, expect } from 'vitest';
-import { renderMarkdownToHtml } from '@/components/editor/MarkdownPreview';
+import { renderMarkdownToHtml } from '@/features/documents/editor/MarkdownPreview';
 
 describe('MarkdownPreview — Mermaid extraction', () => {
   it('extracts a fenced ```mermaid block into a placeholder div', () => {

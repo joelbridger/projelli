@@ -42,8 +42,8 @@ vi.mock('@/modules/coedit/docCrdt', async (importOriginal) => {
 });
 
 // --- Other required mocks (matches DocxEditor.test.tsx) ---
-vi.mock('@/modules/docx/redline', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/modules/docx/redline')>();
+vi.mock('@/features/documents/docx/redline', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/documents/docx/redline')>();
   return { ...actual, requestRedlineEdits: vi.fn() };
 });
 vi.mock('@/modules/models/providerFactory', () => ({
@@ -55,7 +55,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({ readFile: vi.fn() }));
 vi.mock('@/utils/saveFile', () => ({ saveFile: vi.fn() }));
 
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { DocxEditor } from '@/components/media/DocxEditor';
+import { DocxEditor } from '@/features/documents/media/DocxEditor';
 
 // ---------------------------------------------------------------------------
 // Test fixture

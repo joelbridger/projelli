@@ -8,16 +8,16 @@ import {
   hasDismissedApiKeyCard,
   markApiKeyCardDismissed,
 } from '@/features/onboarding/ApiKeySetupCard';
-import { TabBar } from '@/components/editor/TabBar';
-import { AutoSaveIndicator } from '@/components/editor/AutoSaveIndicator';
+import { TabBar } from '@/features/documents/editor/TabBar';
+import { AutoSaveIndicator } from '@/features/documents/editor/AutoSaveIndicator';
 import { getFileIcon } from '@/utils/fileIcons';
-import { MarkdownEditor, type MarkdownEditorRef } from '@/components/editor/MarkdownEditor';
-import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
-import { FormattingToolbar, type ToolbarFileType } from '@/components/editor/FormattingToolbar';
-import { SplitPane } from '@/components/editor/SplitPane';
-import { OutlinePanel } from '@/components/editor/OutlinePanel';
-import { ImageViewer, VideoViewer, isImageFile, isVideoFile } from '@/components/media/MediaViewer';
-import { PDFViewer, isPDFFile, isSpreadsheetFile, isPresentationFile, isWordFile } from '@/components/media/PDFViewer';
+import { MarkdownEditor, type MarkdownEditorRef } from '@/features/documents/editor/MarkdownEditor';
+import { MarkdownPreview } from '@/features/documents/editor/MarkdownPreview';
+import { FormattingToolbar, type ToolbarFileType } from '@/features/documents/editor/FormattingToolbar';
+import { SplitPane } from '@/features/documents/editor/SplitPane';
+import { OutlinePanel } from '@/features/documents/editor/OutlinePanel';
+import { ImageViewer, VideoViewer, isImageFile, isVideoFile } from '@/features/documents/media/MediaViewer';
+import { PDFViewer, isPDFFile, isSpreadsheetFile, isPresentationFile, isWordFile } from '@/features/documents/media/PDFViewer';
 
 // Heavy doc libraries (xlsx ~500KB, docx-preview ~300KB, mammoth ~200KB,
 // docx ~500KB) are lazy-loaded so markdown-only users don't download them up
@@ -25,13 +25,13 @@ import { PDFViewer, isPDFFile, isSpreadsheetFile, isPresentationFile, isWordFile
 // uses DocxEditor (which also wraps viewer fallbacks) whenever the user can
 // edit the file.
 const SpreadsheetViewer = lazy(() =>
-  import('@/components/media/SpreadsheetViewer').then((m) => ({ default: m.SpreadsheetViewer }))
+  import('@/features/documents/media/SpreadsheetViewer').then((m) => ({ default: m.SpreadsheetViewer }))
 );
 const DocxEditor = lazy(() =>
-  import('@/components/media/DocxEditor').then((m) => ({ default: m.DocxEditor }))
+  import('@/features/documents/media/DocxEditor').then((m) => ({ default: m.DocxEditor }))
 );
 const PresentationViewer = lazy(() =>
-  import('@/components/media/PresentationViewer').then((m) => ({
+  import('@/features/documents/media/PresentationViewer').then((m) => ({
     default: m.PresentationViewer,
   }))
 );
@@ -39,8 +39,8 @@ import { SourceFileEditor } from '@/features/ask/research/SourceFileEditor';
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import { FileGridView } from '@/components/workspace/FileGridView';
 import { WaveformEditor } from '@/features/dictation/audio/WaveformEditor';
-import { VersionHistoryPanel } from '@/components/version/VersionHistoryPanel';
-import { BinaryVersionHistoryPanel } from '@/components/version/BinaryVersionHistoryPanel';
+import { VersionHistoryPanel } from '@/features/documents/version/VersionHistoryPanel';
+import { BinaryVersionHistoryPanel } from '@/features/documents/version/BinaryVersionHistoryPanel';
 import { BrowserPanel } from '@/features/workflows/BrowserPanel';
 import { WorkflowExecutionTab } from '@/features/workflows/WorkflowExecutionTab';
 import { EmailViewer } from '@/features/email/EmailViewer';
@@ -50,8 +50,8 @@ import {
   isWorkflowFilePath,
   parseWorkflowFile,
 } from '@/features/workflows/engine/workflowFile';
-import { getVersionService } from '@/modules/versioning/VersionService';
-import { getBinaryVersionService } from '@/modules/versioning';
+import { getVersionService } from '@/features/documents/versioning/VersionService';
+import { getBinaryVersionService } from '@/features/documents/versioning';
 import { useEditorStore } from '@/stores/editorStore';
 import {
   useFileBackupStore,

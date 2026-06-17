@@ -28,7 +28,7 @@ import type {
 import {
   useInlineAiEdit,
   type EditorAdapter,
-} from '@/components/editor/useInlineAiEdit';
+} from '@/features/documents/editor/useInlineAiEdit';
 
 /** Tiny in-memory editor: tracks a doc string and a selection range. */
 function makeMemoryAdapter(initial: string, selection: { from: number; to: number }): {

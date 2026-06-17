@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { LibreOfficeHelpNotice } from '@/components/media/LibreOfficeHelpNotice';
+import { LibreOfficeHelpNotice } from '@/features/documents/media/LibreOfficeHelpNotice';
 
 const DOWNLOAD_URL = 'https://www.libreoffice.org/download/download-libreoffice/';
 

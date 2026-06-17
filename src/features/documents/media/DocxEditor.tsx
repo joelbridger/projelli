@@ -53,9 +53,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { AutoSaveIndicator } from '@/components/editor/AutoSaveIndicator';
-import { DocxViewer } from '@/components/media/DocxViewer';
-import { LibreOfficeHelpNotice } from '@/components/media/LibreOfficeHelpNotice';
+import { AutoSaveIndicator } from '@/features/documents/editor/AutoSaveIndicator';
+import { DocxViewer } from '@/features/documents/media/DocxViewer';
+import { LibreOfficeHelpNotice } from '@/features/documents/media/LibreOfficeHelpNotice';
 import { detectLibreOffice } from '@/utils/tauri-commands';
 import {
   docxAuthorRevisions,
@@ -74,7 +74,7 @@ import {
   REDLINE_AUTHOR,
   paragraphPlainRunText,
   requestRedlineEdits,
-} from '@/modules/docx/redline';
+} from '@/features/documents/docx/redline';
 import { diffParagraphEdits } from '@/utils/docx-text-diff';
 import {
   anchoredCommentIds,

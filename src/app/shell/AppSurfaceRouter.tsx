@@ -13,7 +13,7 @@
 import { ReimaginedMattersHome } from '@/components/matter/ReimaginedMattersHome';
 import { ReimaginedAsk } from '@/features/ask/ReimaginedAsk';
 import { ReimaginedEmailWorkspace } from '@/features/email/ReimaginedEmailWorkspace';
-import { ReimaginedDocumentsHome } from '@/components/documents/ReimaginedDocumentsHome';
+import { ReimaginedDocumentsHome } from '@/features/documents/ReimaginedDocumentsHome';
 import { ReimaginedAssociateHome } from '@/features/workflows/ReimaginedAssociateHome';
 import { ReimaginedAuditHome } from '@/features/audit/ReimaginedAuditHome';
 import { MainPanel } from '@/components/layout/MainPanel';

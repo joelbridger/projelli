@@ -13,7 +13,7 @@ import {
   BinaryVersionService,
   toWorkspaceRelative,
   type VersionFS,
-} from '@/modules/versioning/BinaryVersionService';
+} from '@/features/documents/versioning/BinaryVersionService';
 
 const ROOT = '/ws';
 

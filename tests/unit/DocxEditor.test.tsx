@@ -22,8 +22,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 // assert the editor translates edits -> engine call correctly and renders the
 // resulting tracked changes.
 const requestRedlineEditsMock = vi.fn();
-vi.mock('@/modules/docx/redline', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/modules/docx/redline')>();
+vi.mock('@/features/documents/docx/redline', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/documents/docx/redline')>();
   return {
     ...actual,
     requestRedlineEdits: (...args: unknown[]) => requestRedlineEditsMock(...args),
@@ -55,7 +55,7 @@ vi.mock('@/utils/saveFile', () => ({
 }));
 
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { DocxEditor } from '@/components/media/DocxEditor';
+import { DocxEditor } from '@/features/documents/media/DocxEditor';
 import type { DocumentJson, DocxAiEdit } from '@/types/docx';
 
 function docWithRevisions(): DocumentJson {
@@ -228,7 +228,7 @@ describe('DocxEditor — rendering', () => {
       isTauri: () => false,
     }));
     const { DocxEditor: BrowserEditor } = await import(
-      '@/components/media/DocxEditor'
+      '@/features/documents/media/DocxEditor'
     );
     render(
       <TooltipProvider>

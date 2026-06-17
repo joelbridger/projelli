@@ -32,7 +32,7 @@
 //     code blocks will appear as literal fenced text in the PDF. This is an
 //     accepted limitation; the text content is still present.
 
-import { renderMarkdownToHtml } from '@/components/editor/MarkdownPreview';
+import { renderMarkdownToHtml } from '@/features/documents/editor/MarkdownPreview';
 
 /** CSS rules for the print document, as a single string injected via a stylesheet node. */
 const PRINT_CSS = `

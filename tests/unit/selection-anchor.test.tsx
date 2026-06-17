@@ -21,8 +21,8 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, renderHook, act } from '@testing-library/react';
-import { InlineChatAnchor } from '@/components/editor/InlineChatAnchor';
-import { useInlineAiEdit, type EditorAdapter } from '@/components/editor/useInlineAiEdit';
+import { InlineChatAnchor } from '@/features/documents/editor/InlineChatAnchor';
+import { useInlineAiEdit, type EditorAdapter } from '@/features/documents/editor/useInlineAiEdit';
 
 describe('InlineChatAnchor', () => {
   it('renders the Ask AI button when coords are provided and no session', () => {

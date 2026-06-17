@@ -11,7 +11,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { createRef } from 'react';
-import { MarkdownEditor, type MarkdownEditorRef } from '@/components/editor/MarkdownEditor';
+import { MarkdownEditor, type MarkdownEditorRef } from '@/features/documents/editor/MarkdownEditor';
 
 // Minimal 1×1 transparent PNG.
 const TINY_PNG_BYTES = new Uint8Array([

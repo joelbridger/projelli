@@ -32,14 +32,14 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 import '@/i18n';
-import { BinaryVersionHistoryPanel } from '@/components/version/BinaryVersionHistoryPanel';
+import { BinaryVersionHistoryPanel } from '@/features/documents/version/BinaryVersionHistoryPanel';
 import {
   BinaryVersionService,
   toWorkspaceRelative,
   __resetBinaryVersionService,
   getBinaryVersionService,
   type VersionFS,
-} from '@/modules/versioning';
+} from '@/features/documents/versioning';
 
 const ROOT = '/ws';
 

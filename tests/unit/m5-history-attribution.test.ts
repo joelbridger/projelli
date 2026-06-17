@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { VersionService } from '@/modules/versioning/VersionService';
+import { VersionService } from '@/features/documents/versioning/VersionService';
 
 describe('VersionService AI attribution (M5)', () => {
   beforeEach(() => {
