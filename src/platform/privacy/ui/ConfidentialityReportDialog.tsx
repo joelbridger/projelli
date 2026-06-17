@@ -70,7 +70,7 @@ export function ConfidentialityReportDialog({ open, onOpenChange, report }: Conf
       return;
     }
 
-    doc.title = `Confidentiality Report — ${report.matterName} (Keepance)`;
+    doc.title = `Confidentiality Report: ${report.matterName} (Keepance)`;
 
     const style = doc.createElement('style');
     style.textContent = [
