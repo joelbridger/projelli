@@ -46,10 +46,14 @@ import {
   mailListMessages,
   mailConnectedAccounts,
   mailSend,
+  MAIL_SYNC_EVENT,
   type MailListItem,
   type ConnectedAccount,
   type MailAttachmentInput,
+  type MailSyncProgress,
 } from '@/platform/utils/mail-commands';
+import { listen } from '@tauri-apps/api/event';
+import { isTauri } from '@tauri-apps/api/core';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
@@ -171,6 +175,35 @@ export function EmailWorkspace({
     return () => {
       cancelled = true;
       window.removeEventListener('focus', load);
+    };
+  }, []);
+
+  // Re-query the message list when a sync finishes or this window regains focus.
+  // The connectors live in a SEPARATE window, so mail imported there lands in the
+  // shared encrypted store while this window's list still shows the pre-import
+  // state — without this, an import of hundreds of messages never appears here
+  // until a manual filter change. `setRetryCount` re-runs the keyword query
+  // (Effect A) from the first page. (`accounts` is intentionally not an Effect-A
+  // dependency, so updating it alone would not refresh the list.)
+  useEffect(() => {
+    const refresh = () => setRetryCount((c) => c + 1);
+    window.addEventListener('focus', refresh);
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    if (isTauri()) {
+      listen<MailSyncProgress>(MAIL_SYNC_EVENT, (e) => {
+        if (e.payload.status === 'done') refresh();
+      })
+        .then((u) => {
+          if (disposed) u();
+          else unlisten = u;
+        })
+        .catch(() => {});
+    }
+    return () => {
+      disposed = true;
+      window.removeEventListener('focus', refresh);
+      if (unlisten) unlisten();
     };
   }, []);
 

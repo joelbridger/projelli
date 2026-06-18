@@ -6,7 +6,11 @@ const FIRST_CONNECT_CALLOUT_KEY = 'keepance:email:firstConnectCalloutSeen';
 
 interface MailState {
   connected: boolean;
-  progress: MailSyncProgress | null;
+  /** Latest sync-progress for each provider, keyed by provider id ("m365" |
+   *  "imap" | "gmail"). The Microsoft 365 and Gmail connector panels are rendered
+   *  together, so a single shared progress object made one provider's count/error
+   *  appear on the other. Keying by provider lets each panel read only its own. */
+  progressByProvider: Record<string, MailSyncProgress>;
   /** True once the user has dismissed the first-connect TTV callout. Persisted
    *  to localStorage so the callout shows exactly once across sessions. */
   firstConnectCalloutSeen: boolean;
@@ -17,12 +21,15 @@ interface MailState {
 
 export const useMailStore = create<MailState>((set) => ({
   connected: false,
-  progress: null,
+  progressByProvider: {},
   firstConnectCalloutSeen:
     typeof localStorage !== 'undefined' &&
     localStorage.getItem(FIRST_CONNECT_CALLOUT_KEY) === '1',
   setConnected: (v) => set({ connected: v }),
-  setProgress: (p) => set({ progress: p }),
+  setProgress: (p) =>
+    set((s) => ({
+      progressByProvider: { ...s.progressByProvider, [p.provider || 'unknown']: p },
+    })),
   dismissFirstConnectCallout: () => {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(FIRST_CONNECT_CALLOUT_KEY, '1');

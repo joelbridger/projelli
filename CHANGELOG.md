@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.5] - 2026-06-18
+
+Fixes for the email-connector issues found while testing 3.3.4 on Windows.
+
+### Fixed
+- **The Microsoft 365 and Gmail panels no longer borrow each other's status.** Each panel now shows only its own account's import count and errors. Before, a Gmail import showed the same message count on the Microsoft 365 panel, and a Microsoft 365 error appeared on the Gmail panel even when Gmail was not connected.
+- **Connecting one account no longer fails because of the other.** Connecting Microsoft 365 imports only Microsoft mail, and connecting Gmail imports only Gmail. A problem with one account (for example a stale sign-in left over from a previous version) can no longer make the other account's connection report an error.
+- **The import count no longer looks like it restarts.** While importing an account with several folders or labels, the running total now keeps climbing instead of resetting to zero at each folder, so a large Gmail import reads as one continuous count.
+- **Imported mail now appears in the Email tab on its own.** The email list refreshes when an import finishes and when you return to the main window, so messages show up without having to change a filter to force a reload.
+- **The Windows installer and uninstaller now show the Keepance name and logo.** They previously still showed the old "Projelli" branding from before the rename.
+
 ## [3.3.4] - 2026-06-18
 
 ### Fixed

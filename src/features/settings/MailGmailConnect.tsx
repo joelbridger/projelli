@@ -7,7 +7,9 @@ import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 
 export function MailGmailConnect() {
   useMailSync();
-  const progress = useMailStore((s) => s.progress);
+  // Read ONLY this provider's progress so a Microsoft 365 sync never shows its
+  // count or error on the Gmail panel (they render together).
+  const progress = useMailStore((s) => s.progressByProvider['gmail']);
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -24,8 +26,9 @@ export function MailGmailConnect() {
       setConnected(true);
       // Now that we're connected, import the mail so it's searchable. Pass the
       // current mail->matter mapping so synced mail is scoped at index time.
-      // Surface failures instead of leaving the user with an empty inbox.
-      mailSyncAll(buildMailMatterMap(getMatters())).catch((err) => {
+      // Scope the sync to "gmail" so connecting Gmail never runs (or fails on) a
+      // Microsoft token. Surface failures instead of leaving an empty inbox.
+      mailSyncAll(buildMailMatterMap(getMatters()), 'gmail').catch((err) => {
         setConnectError(err instanceof Error ? err.message : typeof err === 'string' ? err : 'Mail sync could not start. Please try again.');
       });
     } catch (err) {

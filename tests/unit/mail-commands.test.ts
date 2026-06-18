@@ -54,14 +54,24 @@ describe('mail-commands', () => {
     const map = [{ provider: 'm365', account: 'default', folderId: 'inbox', matterId: 'matter_a' }];
     await mailSyncAll(map);
     // The resolved mail->matter mapping is passed so mail is scoped at index time.
-    expect(invoke).toHaveBeenCalledWith('mail_sync_all', { matterMap: map });
+    // onlyProvider defaults to null (sync every connected provider).
+    expect(invoke).toHaveBeenCalledWith('mail_sync_all', { matterMap: map, onlyProvider: null });
   });
 
-  it('mailSyncAll defaults to an empty matter map', async () => {
+  it('mailSyncAll defaults to an empty matter map and a null provider scope', async () => {
     (invoke as any).mockResolvedValue(undefined);
     const { mailSyncAll } = await import('@/platform/utils/mail-commands');
     await mailSyncAll();
-    expect(invoke).toHaveBeenCalledWith('mail_sync_all', { matterMap: [] });
+    expect(invoke).toHaveBeenCalledWith('mail_sync_all', { matterMap: [], onlyProvider: null });
+  });
+
+  it('mailSyncAll forwards a single-provider scope when given', async () => {
+    (invoke as any).mockResolvedValue(undefined);
+    const { mailSyncAll } = await import('@/platform/utils/mail-commands');
+    await mailSyncAll([], 'gmail');
+    // Connecting one account scopes the sync to that provider so it never runs
+    // (or fails on) another account's credentials.
+    expect(invoke).toHaveBeenCalledWith('mail_sync_all', { matterMap: [], onlyProvider: 'gmail' });
   });
 
   it('mailRetagFolderMatter re-tags a folder to a matter', async () => {

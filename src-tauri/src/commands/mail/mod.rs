@@ -209,6 +209,12 @@ pub struct DeviceCodePrompt {
 #[serde(rename_all = "camelCase")]
 pub struct SyncProgress {
     pub status: String,
+    /// Which provider this progress update belongs to ("m365" | "imap" |
+    /// "gmail"). The two connector panels (Microsoft 365 and Gmail) are rendered
+    /// together, so without this tag both would react to the same global event —
+    /// showing one provider's count/error on the other. Each panel now filters
+    /// to its own provider.
+    pub provider: String,
     pub folder: Option<String>,
     pub written: u32,
     pub removed: u32,
@@ -1228,29 +1234,334 @@ fn spawn_mail_rag_index(
     });
 }
 
-/// Enumerate folders then sync each to its deltaLink, emitting progress.
+/// Should this provider be synced, given an optional single-provider scope?
+/// `None` means "sync every connected provider" (a full refresh); `Some(p)`
+/// restricts the sync to provider `p`. A connector panel passes its own provider
+/// so connecting one account never touches another account's (possibly stale)
+/// credentials — which is what used to make connecting Microsoft 365 fail on a
+/// left-over Gmail token.
+fn should_sync_provider(only: &Option<String>, provider: &str) -> bool {
+    match only {
+        Some(p) => p == provider,
+        None => true,
+    }
+}
+
+/// Emit one provider-tagged progress event. Every connector panel filters to its
+/// own provider, so the tag is what keeps one account's status/count from
+/// appearing on another account's panel.
+fn emit_sync_progress(app: &AppHandle, provider: &str, status: &str, written: u32, removed: u32) {
+    let _ = app.emit(
+        SYNC_PROGRESS_EVENT,
+        SyncProgress {
+            status: status.to_string(),
+            provider: provider.to_string(),
+            folder: None,
+            written,
+            removed,
+        },
+    );
+}
+
+/// Build the per-message RAG index callback (identical for every provider): spawn
+/// fire-and-forget LanceDB indexing (G4) and emit the decrypted-text event the
+/// renderer feeds into MiniSearch (G5). Extracted so all three provider sections
+/// share one implementation instead of three copies.
+fn make_index_callback(
+    workspace: std::path::PathBuf,
+    app: AppHandle,
+    enc_key: [u8; 32],
+) -> impl Fn(&str, &str, &str) + Send + Sync {
+    move |id: &str, text: &str, matter_id: &str| {
+        let path_key = format!("mail:{}", id);
+        spawn_mail_rag_index(
+            workspace.clone(),
+            path_key,
+            text.to_string(),
+            matter_id.to_string(),
+            enc_key,
+        );
+        let subject = frontmatter_subject(text);
+        let _ = app.emit(
+            MAIL_INDEX_CHUNK_EVENT,
+            MailIndexChunkPayload {
+                doc_id: id.to_string(),
+                subject,
+                decrypted_text: text.to_string(),
+            },
+        );
+    }
+}
+
+/// Build the per-message tombstone callback (identical for every provider):
+/// delete the deleted message's LanceDB RAG chunks (keyed "mail:<id>") so it stops
+/// surfacing in retrieval (S3). Extracted to share one implementation.
+fn make_tombstone_callback(workspace: std::path::PathBuf) -> impl Fn(&str) + Send + Sync {
+    move |id: &str| {
+        let path_key = format!("mail:{}", id);
+        let ws = workspace.clone();
+        let _ = tokio::task::spawn(async move {
+            // Reuse the same store::delete_path helper used by rag_delete_path.
+            match crate::commands::rag::store::open_connection(&ws).await {
+                Ok(conn) => {
+                    let names = conn.table_names().execute().await.unwrap_or_default();
+                    if names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
+                        if let Ok(table) = conn
+                            .open_table(crate::commands::rag::store::TABLE_NAME)
+                            .execute()
+                            .await
+                        {
+                            // VG-6e: the delete matches the tokenized path column — needs the vector key.
+                            match crate::commands::rag::crypto::get_or_create_master_key() {
+                                Ok(vec_key) => {
+                                    if let Err(e) = crate::commands::rag::store::delete_path(
+                                        &table, &path_key, &vec_key,
+                                    )
+                                    .await
+                                    {
+                                        log::warn!(
+                                            "S3 tombstone: delete RAG chunks for {} failed: {}",
+                                            path_key,
+                                            e
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    log::warn!(
+                                        "S3 tombstone: vectors key unavailable for {}: {}",
+                                        path_key,
+                                        e
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("S3 tombstone: open lancedb for {} failed: {}", path_key, e);
+                }
+            }
+        });
+    }
+}
+
+/// Sync one folder, emitting provider-tagged progress whose counts are CUMULATIVE
+/// across the provider's folders: `base_written`/`base_removed` are the totals
+/// from already-completed folders, so the displayed number only ever grows. (Each
+/// folder's own counter resets to 0, which made a multi-folder Gmail backfill look
+/// like it kept "starting over".) Returns this folder's own stats so the caller
+/// can advance the base.
+#[allow(clippy::too_many_arguments)]
+async fn sync_one_folder(
+    app: &AppHandle,
+    event_provider: &str,
+    provider: &dyn MailProvider,
+    store: &(dyn MailStore + Sync),
+    workspace: &std::path::Path,
+    folder: &crate::commands::mail::provider::RemoteFolder,
+    account: &str,
+    matter_id: &str,
+    enc_key: &[u8; 32],
+    base_written: u32,
+    base_removed: u32,
+) -> anyhow::Result<sync::PageStats> {
+    let app2 = app.clone();
+    let ep = event_provider.to_string();
+    let emit = move |w: u32, r: u32| {
+        let _ = app2.emit(
+            SYNC_PROGRESS_EVENT,
+            SyncProgress {
+                status: "syncing".into(),
+                provider: ep.clone(),
+                folder: None,
+                written: base_written.saturating_add(w),
+                removed: base_removed.saturating_add(r),
+            },
+        );
+    };
+    let index_callback = make_index_callback(workspace.to_path_buf(), app.clone(), *enc_key);
+    let tombstone_callback = make_tombstone_callback(workspace.to_path_buf());
+    sync::sync_folder_provider(
+        provider,
+        store,
+        workspace,
+        folder,
+        account,
+        matter_id,
+        enc_key,
+        &emit,
+        &index_callback,
+        &tombstone_callback,
+    )
+    .await
+}
+
+/// Terminal outcome of one provider's sync section.
+enum SectionOutcome {
+    /// Completed; carries the provider's cumulative written/removed totals.
+    Done { written: u32, removed: u32 },
+    /// The user cancelled mid-sync.
+    Cancelled,
+}
+
+/// Translate one provider section's result into its provider-tagged terminal
+/// event. Called after the section's own folder loop; a section failure is
+/// isolated here (it emits that provider's `error` event and is logged) so it
+/// never aborts or error-flags the other providers in a full sync.
+fn finish_section(app: &AppHandle, provider: &str, result: Result<SectionOutcome, String>) {
+    match result {
+        Ok(SectionOutcome::Done { written, removed }) => {
+            emit_sync_progress(app, provider, "done", written, removed)
+        }
+        Ok(SectionOutcome::Cancelled) => emit_sync_progress(app, provider, "cancelled", 0, 0),
+        Err(e) => {
+            log::warn!("{provider} mail sync failed: {e}");
+            emit_sync_progress(app, provider, "error", 0, 0);
+        }
+    }
+}
+
+/// Sync every folder of the Microsoft 365 account. The access token is refreshed
+/// before enumeration AND before each folder, so a long backfill never outlives
+/// the ~3600s token lifetime. Counts accumulate across folders.
+async fn sync_m365_section(
+    app: &AppHandle,
+    store: &(dyn MailStore + Sync),
+    workspace: &std::path::Path,
+    enc_key: &[u8; 32],
+    matter_map: &[MailMatterMapEntry],
+    cancel: &Arc<AtomicBool>,
+) -> Result<SectionOutcome, String> {
+    let token = fresh_access_token().await?;
+    let folders = crate::commands::mail::graph::GraphProvider::new(token)
+        .list_folders()
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut base = sync::PageStats::default();
+    for folder in folders {
+        if cancel.load(Ordering::SeqCst) {
+            return Ok(SectionOutcome::Cancelled);
+        }
+        let token = fresh_access_token().await?;
+        let provider = crate::commands::mail::graph::GraphProvider::new(token);
+        let folder_matter = resolve_mail_matter(matter_map, "m365", M365_ACCOUNT, &folder.id);
+        let s = sync_one_folder(
+            app, "m365", &provider, store, workspace, &folder, M365_ACCOUNT, &folder_matter,
+            enc_key, base.written, base.removed,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+        base.written += s.written;
+        base.removed += s.removed;
+    }
+    Ok(SectionOutcome::Done { written: base.written, removed: base.removed })
+}
+
+/// Sync every folder of the configured IMAP account. One provider instance for
+/// all folders; counts accumulate across folders.
+async fn sync_imap_section(
+    app: &AppHandle,
+    store: &(dyn MailStore + Sync),
+    workspace: &std::path::Path,
+    enc_key: &[u8; 32],
+    matter_map: &[MailMatterMapEntry],
+    cancel: &Arc<AtomicBool>,
+) -> Result<SectionOutcome, String> {
+    let (imap_cfg, imap_pw) = match load_imap_config() {
+        Some(v) => v,
+        None => return Ok(SectionOutcome::Done { written: 0, removed: 0 }),
+    };
+    use crate::commands::mail::imap::ImapProvider;
+    let provider = ImapProvider {
+        host: imap_cfg.host.clone(),
+        port: imap_cfg.port,
+        username: imap_cfg.username.clone(),
+        password: imap_pw,
+        account: imap_cfg.account.clone(),
+    };
+    let folders = provider.list_folders().await.map_err(|e| e.to_string())?;
+    let mut base = sync::PageStats::default();
+    for folder in folders {
+        if cancel.load(Ordering::SeqCst) {
+            return Ok(SectionOutcome::Cancelled);
+        }
+        let folder_matter = resolve_mail_matter(matter_map, "imap", &imap_cfg.account, &folder.id);
+        let s = sync_one_folder(
+            app, "imap", &provider, store, workspace, &folder, &imap_cfg.account, &folder_matter,
+            enc_key, base.written, base.removed,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+        base.written += s.written;
+        base.removed += s.removed;
+    }
+    Ok(SectionOutcome::Done { written: base.written, removed: base.removed })
+}
+
+/// Sync every folder/label of the Gmail account. The token is refreshed before
+/// each folder. Counts accumulate across folders — Gmail exposes many labels, so
+/// a per-folder counter visibly reset to 0 each label; now it is monotonic.
+async fn sync_gmail_section(
+    app: &AppHandle,
+    store: &(dyn MailStore + Sync),
+    workspace: &std::path::Path,
+    enc_key: &[u8; 32],
+    matter_map: &[MailMatterMapEntry],
+    cancel: &Arc<AtomicBool>,
+) -> Result<SectionOutcome, String> {
+    use crate::commands::mail::gmail::GmailProvider;
+    let token = fresh_gmail_access_token().await?;
+    let folders = GmailProvider::new(token, GMAIL_ACCOUNT.to_string())
+        .list_folders()
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut base = sync::PageStats::default();
+    for folder in folders {
+        if cancel.load(Ordering::SeqCst) {
+            return Ok(SectionOutcome::Cancelled);
+        }
+        let token = fresh_gmail_access_token().await?;
+        let provider = GmailProvider::new(token, GMAIL_ACCOUNT.to_string());
+        let folder_matter = resolve_mail_matter(matter_map, "gmail", GMAIL_ACCOUNT, &folder.id);
+        let s = sync_one_folder(
+            app, "gmail", &provider, store, workspace, &folder, GMAIL_ACCOUNT, &folder_matter,
+            enc_key, base.written, base.removed,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+        base.written += s.written;
+        base.removed += s.removed;
+    }
+    Ok(SectionOutcome::Done { written: base.written, removed: base.removed })
+}
+
+/// Enumerate folders then sync each to its deltaLink, emitting provider-tagged
+/// progress.
 ///
 /// `matter_map` is the frontend's (provider, account, folder) -> matter mapping
 /// (from the matter store). Each folder's mail is indexed under the resolved
-/// matter at index time, falling back to `UNASSIGNED_MATTER` when unmapped. The
-/// argument is optional (defaults to empty) so callers that don't scope mail yet
-/// keep working.
+/// matter at index time, falling back to `UNASSIGNED_MATTER` when unmapped.
+///
+/// `only_provider` optionally restricts the sync to a single provider ("m365" |
+/// "imap" | "gmail"); a connector panel passes its own provider so connecting one
+/// account never runs (or fails on) another account's credentials. Omit it (null)
+/// to refresh every connected provider.
 #[tauri::command]
 pub async fn mail_sync_all(
     app: AppHandle,
     state: State<'_, MailState>,
     matter_map: Option<Vec<MailMatterMapEntry>>,
+    only_provider: Option<String>,
 ) -> Result<(), String> {
-    // FIX A: atomically claim the sync slot; reject if already in progress.
-    // We do NOT reset `cancel` here if we bail early — an in-flight sync owns it.
+    // Atomically claim the sync slot; reject if a sync is already running.
+    // We do NOT reset `cancel` if we bail here — an in-flight sync owns it.
     if state.is_syncing
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
     {
         return Err("a sync is already in progress".into());
     }
-    // RAII guard: restores is_syncing=false on every exit path (success, early
-    // return from cancel check, or any ? propagation below).
+    // RAII guard: restores is_syncing=false on every exit path.
     let _sync_guard = SyncGuard(state.is_syncing.clone());
 
     // Only reset cancel now that we hold the sync slot.
@@ -1258,25 +1569,23 @@ pub async fn mail_sync_all(
 
     let matter_map = matter_map.unwrap_or_default();
 
-    // Run the sync; on ANY failure emit a terminal "error" progress event so the
-    // UI stops showing a spinner (the frontend listens for sync-progress).
-    let outcome = mail_sync_all_inner(&app, &state, &matter_map).await;
-    if let Err(ref e) = outcome {
-        log::warn!("mail sync failed: {}", e);
-        let _ = app.emit(
-            SYNC_PROGRESS_EVENT,
-            SyncProgress { status: "error".into(), folder: None, written: 0, removed: 0 },
-        );
-    }
-    outcome
+    // Per-provider terminal events (done/error/cancelled) are emitted INSIDE the
+    // inner, per section, so one provider failing no longer error-flags the whole
+    // sync (it used to emit a single global "error" that showed on every panel).
+    // A setup failure (workspace/store/key) still surfaces to the caller as a
+    // rejected promise.
+    mail_sync_all_inner(&app, &state, &matter_map, &only_provider).await
 }
 
-/// Inner worker for `mail_sync_all`. The sync-slot guard and the terminal
-/// "error" event are owned by the command wrapper; this fn just does the work.
+/// Inner worker for `mail_sync_all`. Runs each in-scope, connected provider in
+/// its OWN fault-isolated section: one provider's failure emits that provider's
+/// `error` event and is logged, but never aborts or error-flags the others. Each
+/// section emits its own provider-tagged terminal event via `finish_section`.
 async fn mail_sync_all_inner(
     app: &AppHandle,
     state: &State<'_, MailState>,
     matter_map: &[MailMatterMapEntry],
+    only_provider: &Option<String>,
 ) -> Result<(), String> {
     let workspace = state
         .workspace
@@ -1286,359 +1595,35 @@ async fn mail_sync_all_inner(
         .ok_or("workspace not set")?;
     let cancel = state.cancel.clone();
 
-    // G7: Remove any plaintext Phase-1 Mail/ directory before the encrypted sync begins.
-    // Idempotent: no-op if Mail/ does not exist.
+    // G7: Remove any plaintext Phase-1 Mail/ directory before the encrypted sync
+    // begins. Idempotent: no-op if Mail/ does not exist.
     sync::migrate_plaintext(&workspace);
 
     let store = EncryptedMailStore::open(&workspace).map_err(|e| e.to_string())?;
     let enc_key = crate::commands::mail::crypto::get_or_create_master_key()
         .map_err(|e| e.to_string())?;
 
-    // Enumerate folders through the provider seam (M365 GraphProvider for now;
-    // Gmail/IMAP providers slot in here unchanged).
-    // Only enumerate M365 folders if a Microsoft account is actually connected.
-    // Without this guard, fresh_access_token() errors when only Gmail/IMAP is
-    // connected, aborting the whole sync before the Gmail/IMAP sections run.
-    let folders = if mail_is_connected().await.unwrap_or(false) {
-        let token = fresh_access_token().await?;
-        let provider = crate::commands::mail::graph::GraphProvider::new(token);
-        provider.list_folders().await.map_err(|e| e.to_string())?
-    } else {
-        Vec::new()
-    };
-
-    // FIX B: refresh the access token before each folder so long backfills
-    // never outlive the 3600-second token lifetime.
-    for folder in folders {
-        if cancel.load(Ordering::SeqCst) {
-            let _ = app.emit(
-                SYNC_PROGRESS_EVENT,
-                SyncProgress {
-                    status: "cancelled".into(),
-                    folder: None,
-                    written: 0,
-                    removed: 0,
-                },
-            );
-            return Ok(());
-        }
-        let token = fresh_access_token().await?;
-        let provider = crate::commands::mail::graph::GraphProvider::new(token);
-        let app2 = app.clone();
-        let fid2 = folder.id.clone();
-        let emit = move |w: u32, r: u32| {
-            let _ = app2.emit(
-                SYNC_PROGRESS_EVENT,
-                SyncProgress {
-                    status: "syncing".into(),
-                    folder: Some(fid2.clone()),
-                    written: w,
-                    removed: r,
-                },
-            );
-        };
-        // G4+G5: index_callback receives (doc_id, plaintext_markdown) for each
-        // new message. We:
-        //   1. Spawn an async task to call index_mail_text_internal (RAG/LanceDB, G4).
-        //   2. Emit a mail-index-chunk Tauri event so the renderer feeds the
-        //      decrypted text into MiniSearch in-memory (G5). The plaintext
-        //      never touches disk — it lives only in renderer-process memory.
-        let workspace_for_index = workspace.clone();
-        let app3 = app.clone();
-        let index_callback = move |id: &str, text: &str, matter_id: &str| {
-            let path_key = format!("mail:{}", id);
-            // WS-B/C: the matter resolved for this folder is tagged on the chunk
-            // at index time (UNASSIGNED_MATTER when the folder is not mapped).
-            // WS-VEC: index_mail_text_internal fetches the vector-store key itself
-            // (the RAG copy is encrypted at rest under that key, not the mail key).
-            // Fire-and-forget RAG indexing; sets the persistent backfill marker
-            // when the embedding model is not downloaded yet (Option B healing).
-            spawn_mail_rag_index(
-                workspace_for_index.clone(),
-                path_key,
-                text.to_string(),
-                matter_id.to_string(),
-                enc_key,
-            );
-            // G5: pull the subject from the frontmatter (scoped to the fenced
-            // block, unquoted + unescaped) and emit the event for MiniSearch.
-            let subject = frontmatter_subject(text);
-            let _ = app3.emit(MAIL_INDEX_CHUNK_EVENT, MailIndexChunkPayload {
-                doc_id: id.to_string(),
-                subject,
-                decrypted_text: text.to_string(),
-            });
-        };
-        // S3: tombstone_callback fires for each deleted message. It spawns a
-        // fire-and-forget async task to remove the LanceDB RAG chunks keyed
-        // "mail:<id>" so deleted email stops surfacing in rag_retrieve.
-        let workspace_for_tombstone = workspace.clone();
-        let tombstone_callback = move |id: &str| {
-            let path_key = format!("mail:{}", id);
-            let ws = workspace_for_tombstone.clone();
-            let _ = tokio::task::spawn(async move {
-                // Reuse the same store::delete_path helper used by rag_delete_path.
-                match crate::commands::rag::store::open_connection(&ws).await {
-                    Ok(conn) => {
-                        let names = conn.table_names().execute().await.unwrap_or_default();
-                        if names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
-                            if let Ok(table) = conn
-                                .open_table(crate::commands::rag::store::TABLE_NAME)
-                                .execute()
-                                .await
-                            {
-                                // VG-6e: the delete matches the tokenized path column — needs the vector key.
-                                match crate::commands::rag::crypto::get_or_create_master_key() {
-                                    Ok(vec_key) => {
-                                        if let Err(e) = crate::commands::rag::store::delete_path(&table, &path_key, &vec_key).await {
-                                            log::warn!("S3 tombstone: delete RAG chunks for {} failed: {}", path_key, e);
-                                        }
-                                    }
-                                    Err(e) => {
-                                        log::warn!("S3 tombstone: vectors key unavailable for {}: {}", path_key, e);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        log::warn!("S3 tombstone: open lancedb for {} failed: {}", path_key, e);
-                    }
-                }
-            });
-        };
-        let folder_matter = resolve_mail_matter(matter_map, "m365", M365_ACCOUNT, &folder.id);
-        sync::sync_folder_provider(
-            &provider, &store, &workspace, &folder, M365_ACCOUNT, &folder_matter, &enc_key, &emit,
-            &index_callback, &tombstone_callback,
-        )
-        .await
-        .map_err(|e| e.to_string())?;
+    // Each provider runs only if it is in scope (see `only_provider`) AND actually
+    // connected/configured — so connecting one account never reaches into
+    // another's (possibly stale) credentials, which is what made connecting
+    // Microsoft 365 fail on a left-over Gmail token. `finish_section` emits the
+    // provider-tagged terminal event; a section error is isolated to its own
+    // provider and never aborts the others.
+    if should_sync_provider(only_provider, "m365") && mail_is_connected().await.unwrap_or(false) {
+        let r = sync_m365_section(app, &store, &workspace, &enc_key, matter_map, &cancel).await;
+        finish_section(app, "m365", r);
     }
 
-    // ── IMAP account (if configured) — runs after M365 ────────────────────
-    if let Some((imap_cfg, imap_pw)) = load_imap_config() {
-        use crate::commands::mail::imap::ImapProvider;
-        let provider = ImapProvider {
-            host: imap_cfg.host.clone(),
-            port: imap_cfg.port,
-            username: imap_cfg.username.clone(),
-            password: imap_pw,
-            account: imap_cfg.account.clone(),
-        };
-        let folders = provider.list_folders().await.map_err(|e| e.to_string())?;
-        for folder in folders {
-            if cancel.load(Ordering::SeqCst) {
-                let _ = app.emit(
-                    SYNC_PROGRESS_EVENT,
-                    SyncProgress {
-                        status: "cancelled".into(),
-                        folder: None,
-                        written: 0,
-                        removed: 0,
-                    },
-                );
-                return Ok(());
-            }
-            let app2 = app.clone();
-            let fid2 = folder.id.clone();
-            let emit = move |w: u32, r: u32| {
-                let _ = app2.emit(
-                    SYNC_PROGRESS_EVENT,
-                    SyncProgress {
-                        status: "syncing".into(),
-                        folder: Some(fid2.clone()),
-                        written: w,
-                        removed: r,
-                    },
-                );
-            };
-            let workspace_for_index = workspace.clone();
-            let app3 = app.clone();
-            let index_callback = move |id: &str, text: &str, matter_id: &str| {
-                let path_key = format!("mail:{}", id);
-                // WS-VEC: index_mail_text_internal fetches the vector-store key.
-                // Fire-and-forget RAG indexing; sets the persistent backfill
-                // marker when the model is not downloaded yet (Option B healing).
-                spawn_mail_rag_index(
-                    workspace_for_index.clone(),
-                    path_key,
-                    text.to_string(),
-                    matter_id.to_string(),
-                    enc_key,
-                );
-                // G5: pull the subject from the frontmatter (scoped to the fenced
-                // block, unquoted + unescaped) and emit the event for MiniSearch.
-                let subject = frontmatter_subject(text);
-                let _ = app3.emit(MAIL_INDEX_CHUNK_EVENT, MailIndexChunkPayload {
-                    doc_id: id.to_string(),
-                    subject,
-                    decrypted_text: text.to_string(),
-                });
-            };
-            // S3: tombstone_callback fires for each deleted message. It spawns a
-            // fire-and-forget async task to remove the LanceDB RAG chunks keyed
-            // "mail:<id>" so deleted email stops surfacing in rag_retrieve.
-            let workspace_for_tombstone = workspace.clone();
-            let tombstone_callback = move |id: &str| {
-                let path_key = format!("mail:{}", id);
-                let ws = workspace_for_tombstone.clone();
-                let _ = tokio::task::spawn(async move {
-                    // Reuse the same store::delete_path helper used by rag_delete_path.
-                    match crate::commands::rag::store::open_connection(&ws).await {
-                        Ok(conn) => {
-                            let names = conn.table_names().execute().await.unwrap_or_default();
-                            if names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
-                                if let Ok(table) = conn
-                                    .open_table(crate::commands::rag::store::TABLE_NAME)
-                                    .execute()
-                                    .await
-                                {
-                                    // VG-6e: the delete matches the tokenized path column — needs the vector key.
-                                    match crate::commands::rag::crypto::get_or_create_master_key() {
-                                        Ok(vec_key) => {
-                                            if let Err(e) = crate::commands::rag::store::delete_path(&table, &path_key, &vec_key).await {
-                                                log::warn!("S3 tombstone: delete RAG chunks for {} failed: {}", path_key, e);
-                                            }
-                                        }
-                                        Err(e) => {
-                                            log::warn!("S3 tombstone: vectors key unavailable for {}: {}", path_key, e);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            log::warn!("S3 tombstone: open lancedb for {} failed: {}", path_key, e);
-                        }
-                    }
-                });
-            };
-            let folder_matter = resolve_mail_matter(matter_map, "imap", &imap_cfg.account, &folder.id);
-            sync::sync_folder_provider(
-                &provider, &store, &workspace, &folder, &imap_cfg.account, &folder_matter, &enc_key,
-                &emit, &index_callback, &tombstone_callback,
-            )
-            .await
-            .map_err(|e| e.to_string())?;
-        }
+    if should_sync_provider(only_provider, "imap") && load_imap_config().is_some() {
+        let r = sync_imap_section(app, &store, &workspace, &enc_key, matter_map, &cancel).await;
+        finish_section(app, "imap", r);
     }
 
-    // ── Gmail account (if connected) — runs after IMAP ────────────────────
-    if gmail_is_connected().await.unwrap_or(false) {
-        use crate::commands::mail::gmail::GmailProvider;
-        let folders = {
-            let token = fresh_gmail_access_token().await?;
-            GmailProvider::new(token, GMAIL_ACCOUNT.to_string()).list_folders().await.map_err(|e| e.to_string())?
-        };
-        for folder in folders {
-            if cancel.load(Ordering::SeqCst) {
-                let _ = app.emit(
-                    SYNC_PROGRESS_EVENT,
-                    SyncProgress {
-                        status: "cancelled".into(),
-                        folder: None,
-                        written: 0,
-                        removed: 0,
-                    },
-                );
-                return Ok(());
-            }
-            let token = fresh_gmail_access_token().await?;
-            let provider = GmailProvider::new(token, GMAIL_ACCOUNT.to_string());
-            let app2 = app.clone();
-            let fid2 = folder.id.clone();
-            let emit = move |w: u32, r: u32| {
-                let _ = app2.emit(
-                    SYNC_PROGRESS_EVENT,
-                    SyncProgress {
-                        status: "syncing".into(),
-                        folder: Some(fid2.clone()),
-                        written: w,
-                        removed: r,
-                    },
-                );
-            };
-            let workspace_for_index = workspace.clone();
-            let app3 = app.clone();
-            let index_callback = move |id: &str, text: &str, matter_id: &str| {
-                let path_key = format!("mail:{}", id);
-                // WS-VEC: index_mail_text_internal fetches the vector-store key.
-                // Fire-and-forget RAG indexing; sets the persistent backfill
-                // marker when the model is not downloaded yet (Option B healing).
-                spawn_mail_rag_index(
-                    workspace_for_index.clone(),
-                    path_key,
-                    text.to_string(),
-                    matter_id.to_string(),
-                    enc_key,
-                );
-                // G5: pull the subject from the frontmatter (scoped to the fenced
-                // block, unquoted + unescaped) and emit the event for MiniSearch.
-                let subject = frontmatter_subject(text);
-                let _ = app3.emit(MAIL_INDEX_CHUNK_EVENT, MailIndexChunkPayload {
-                    doc_id: id.to_string(),
-                    subject,
-                    decrypted_text: text.to_string(),
-                });
-            };
-            // S3: tombstone_callback fires for each deleted message. It spawns a
-            // fire-and-forget async task to remove the LanceDB RAG chunks keyed
-            // "mail:<id>" so deleted email stops surfacing in rag_retrieve.
-            let workspace_for_tombstone = workspace.clone();
-            let tombstone_callback = move |id: &str| {
-                let path_key = format!("mail:{}", id);
-                let ws = workspace_for_tombstone.clone();
-                let _ = tokio::task::spawn(async move {
-                    // Reuse the same store::delete_path helper used by rag_delete_path.
-                    match crate::commands::rag::store::open_connection(&ws).await {
-                        Ok(conn) => {
-                            let names = conn.table_names().execute().await.unwrap_or_default();
-                            if names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
-                                if let Ok(table) = conn
-                                    .open_table(crate::commands::rag::store::TABLE_NAME)
-                                    .execute()
-                                    .await
-                                {
-                                    // VG-6e: the delete matches the tokenized path column — needs the vector key.
-                                    match crate::commands::rag::crypto::get_or_create_master_key() {
-                                        Ok(vec_key) => {
-                                            if let Err(e) = crate::commands::rag::store::delete_path(&table, &path_key, &vec_key).await {
-                                                log::warn!("S3 tombstone: delete RAG chunks for {} failed: {}", path_key, e);
-                                            }
-                                        }
-                                        Err(e) => {
-                                            log::warn!("S3 tombstone: vectors key unavailable for {}: {}", path_key, e);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            log::warn!("S3 tombstone: open lancedb for {} failed: {}", path_key, e);
-                        }
-                    }
-                });
-            };
-            let folder_matter = resolve_mail_matter(matter_map, "gmail", GMAIL_ACCOUNT, &folder.id);
-            sync::sync_folder_provider(
-                &provider, &store, &workspace, &folder, GMAIL_ACCOUNT, &folder_matter, &enc_key,
-                &emit, &index_callback, &tombstone_callback,
-            )
-            .await
-            .map_err(|e| e.to_string())?;
-        }
+    if should_sync_provider(only_provider, "gmail") && gmail_is_connected().await.unwrap_or(false) {
+        let r = sync_gmail_section(app, &store, &workspace, &enc_key, matter_map, &cancel).await;
+        finish_section(app, "gmail", r);
     }
 
-    let _ = app.emit(
-        SYNC_PROGRESS_EVENT,
-        SyncProgress {
-            status: "done".into(),
-            folder: None,
-            written: 0,
-            removed: 0,
-        },
-    );
     Ok(())
 }
 
@@ -1918,9 +1903,27 @@ async fn send_imap(
 
 #[cfg(test)]
 mod tests {
-    use super::{frontmatter_subject, get_message_with_key, resolve_mail_matter, yaml_unescape, MailMatterMapEntry};
+    use super::{frontmatter_subject, get_message_with_key, resolve_mail_matter, should_sync_provider, yaml_unescape, MailMatterMapEntry};
     use crate::commands::mail::store::EncryptedMailStore;
     use crate::commands::rag::store::UNASSIGNED_MATTER;
+
+    #[test]
+    fn should_sync_provider_scopes_to_one_when_set() {
+        // A connector panel passes its own provider so connecting Microsoft 365
+        // never runs (or fails on) a left-over Gmail token, and vice versa.
+        assert!(should_sync_provider(&Some("m365".to_string()), "m365"));
+        assert!(!should_sync_provider(&Some("m365".to_string()), "gmail"));
+        assert!(!should_sync_provider(&Some("m365".to_string()), "imap"));
+        assert!(should_sync_provider(&Some("gmail".to_string()), "gmail"));
+    }
+
+    #[test]
+    fn should_sync_provider_allows_all_when_unscoped() {
+        // None = a full refresh: every connected provider is in scope.
+        assert!(should_sync_provider(&None, "m365"));
+        assert!(should_sync_provider(&None, "imap"));
+        assert!(should_sync_provider(&None, "gmail"));
+    }
 
     fn entry(provider: &str, account: &str, folder: &str, matter: &str) -> MailMatterMapEntry {
         MailMatterMapEntry {

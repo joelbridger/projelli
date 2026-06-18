@@ -31,7 +31,10 @@ export interface MailView {
   attachments: MailAttachmentRef[];
 }
 export type MailSyncStatus = 'idle' | 'syncing' | 'done' | 'cancelled' | 'error';
-export interface MailSyncProgress { status: MailSyncStatus; folder?: string | null; written: number; removed: number; }
+/** A sync-progress update for ONE provider. `provider` ("m365" | "imap" |
+ *  "gmail") tags which account the update belongs to so each connector panel
+ *  reacts only to its own status/count (the two panels are rendered together). */
+export interface MailSyncProgress { status: MailSyncStatus; provider: string; folder?: string | null; written: number; removed: number; }
 export const MAIL_SYNC_EVENT = 'mail-sync-progress';
 export const MAIL_INDEX_CHUNK_EVENT = 'mail-index-chunk';
 
@@ -68,14 +71,17 @@ export async function mailIsConnected(): Promise<boolean> {
   if (!isTauri()) return false;
   return invoke<boolean>('mail_is_connected');
 }
-/** Run a full mail sync. `matterMap` (from the matter store) scopes each mail
- *  folder to a matter at index time; omit it (or pass an empty array) to leave
- *  mail unassigned. */
-export async function mailSyncAll(matterMap: MailMatterMapEntry[] = []): Promise<void> {
+/** Run a mail sync. `matterMap` (from the matter store) scopes each mail folder
+ *  to a matter at index time; omit it (or pass an empty array) to leave mail
+ *  unassigned. `onlyProvider` ("m365" | "imap" | "gmail") restricts the sync to a
+ *  single provider — a connector panel passes its own provider so connecting one
+ *  account never runs (or fails on) another account's credentials. Omit it to
+ *  refresh every connected provider. */
+export async function mailSyncAll(matterMap: MailMatterMapEntry[] = [], onlyProvider?: string): Promise<void> {
   if (!isTauri()) throw new Error('Email sync is only available in the desktop app.');
   // The Rust command expects camelCase `folderId` / `matterId` on each entry,
   // which matches MailMatterMapEntry, so we can pass it straight through.
-  return invoke<void>('mail_sync_all', { matterMap });
+  return invoke<void>('mail_sync_all', { matterMap, onlyProvider: onlyProvider ?? null });
 }
 export async function mailCancelSync(): Promise<void> {
   if (!isTauri()) return;
