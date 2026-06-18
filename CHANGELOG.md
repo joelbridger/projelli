@@ -19,6 +19,7 @@ Fixes for the email-connector issues found while testing 3.3.4 on Windows.
 - **The Windows installer and uninstaller now show the Keepance name and logo.** They previously still showed the old "Projelli" branding from before the rename.
 - **Spam and deleted mail are no longer imported.** An email import now skips the junk folders, Gmail's Spam/Trash (and Chat) and Outlook's Junk Email/Deleted Items, matching how each service treats them, so a confidential mail search never surfaces spam or deleted messages. Found by running real accounts through the import end to end: a Gmail account (811 messages) and an Outlook mailbox (5,425 messages), both of which imported cleanly and fully searchably, with Outlook's Deleted Items (466 messages) correctly the only thing now held back.
 - **A stray em dash in the Gmail connection screen was removed** (house style: no em dashes in the interface).
+- **Gmail now imports everything, including archived mail, and faster.** The Gmail import switched from walking each label to a single pass over All Mail. That catches archived messages that have no label (these were being missed entirely), stops re-fetching the same message once per label, and skips Spam and Trash. Proven on a real account: it found 966 messages where the old per-label approach found 811, the 155-message difference being archived mail, in fewer fetches and less time.
 
 ## [3.3.4] - 2026-06-18
 

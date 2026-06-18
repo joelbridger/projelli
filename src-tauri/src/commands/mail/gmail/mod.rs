@@ -51,6 +51,16 @@ fn parse_gmail_cursor(cursor: &Cursor) -> GmailCursor {
     GmailCursor::Backfill
 }
 
+/// Gmail is synced as a SINGLE "All Mail" pass rather than label-by-label, so
+/// `list_folders` returns just this one synthetic folder. The backfill then uses
+/// `messages.list` with NO label filter, which Gmail returns as every message
+/// except Spam and Trash (`includeSpamTrash=false` default). That (a) catches
+/// archived mail that lives only in All Mail, (b) skips spam/trash, and (c) avoids
+/// re-fetching a message once per overlapping label (Inbox + Unread + Important +
+/// categories + custom labels all contain the same messages). The id is a
+/// sentinel that cannot collide with a real Gmail label id.
+const ALL_MAIL_FOLDER: &str = "__all_mail__";
+
 /// Gmail implementation of `MailProvider`.
 ///
 /// Sync strategy
@@ -104,19 +114,15 @@ impl MailProvider for GmailProvider {
         "gmail"
     }
 
-    /// List Gmail labels as `RemoteFolder` entries, EXCLUDING the junk system
-    /// labels we never import: SPAM and TRASH (a confidential mail search must not
-    /// surface spam or deleted mail), and CHAT (Hangouts chat, not email). This
-    /// mirrors Gmail's own `messages.list` default (`includeSpamTrash=false`).
-    /// User labels named e.g. "[Imap]/Trash" are NOT system labels and are kept.
+    /// Gmail is synced as ONE All-Mail pass (see `ALL_MAIL_FOLDER`), so this
+    /// returns a single synthetic folder instead of enumerating every label. That
+    /// catches archived mail, skips spam/trash, and avoids the per-label overlap
+    /// that made a backfill re-fetch the same message under each of its labels.
     async fn list_folders(&self) -> anyhow::Result<Vec<RemoteFolder>> {
-        const SKIP_LABELS: [&str; 3] = ["SPAM", "TRASH", "CHAT"];
-        let labels = self.client.list_labels().await?;
-        Ok(labels
-            .into_iter()
-            .filter(|(id, _)| !SKIP_LABELS.contains(&id.as_str()))
-            .map(|(id, name)| RemoteFolder { id, display_name: name })
-            .collect())
+        Ok(vec![RemoteFolder {
+            id: ALL_MAIL_FOLDER.to_string(),
+            display_name: "All Mail".to_string(),
+        }])
     }
 
     /// Fetch one page of changes for `folder` starting from `cursor`.
@@ -152,7 +158,14 @@ impl GmailProvider {
         label_id: &str,
         page_token: Option<&str>,
     ) -> anyhow::Result<ChangePage> {
-        let (ids, next_token) = self.client.list_message_ids(label_id, page_token).await?;
+        // The All-Mail folder lists every message with no label filter (so archived
+        // mail is included and spam/trash excluded). A real label id is still
+        // supported for defence/future use.
+        let (ids, next_token) = if label_id == ALL_MAIL_FOLDER {
+            self.client.list_all_message_ids(page_token).await?
+        } else {
+            self.client.list_message_ids(label_id, page_token).await?
+        };
 
         let mut messages = Vec::new();
         for id in &ids {
@@ -225,8 +238,21 @@ impl GmailProvider {
                 // messagesAdded[].message.id
                 if let Some(added) = entry.get("messagesAdded").and_then(|a| a.as_array()) {
                     for item in added {
-                        if let Some(id) = item
-                            .get("message")
+                        let message = item.get("message");
+                        // Consistent with the All-Mail backfill: skip messages in
+                        // Spam or Trash. The history message object carries its
+                        // labelIds, so this needs no extra fetch.
+                        let in_junk = message
+                            .and_then(|m| m.get("labelIds"))
+                            .and_then(|l| l.as_array())
+                            .map(|labels| {
+                                labels.iter().any(|l| matches!(l.as_str(), Some("SPAM") | Some("TRASH")))
+                            })
+                            .unwrap_or(false);
+                        if in_junk {
+                            continue;
+                        }
+                        if let Some(id) = message
                             .and_then(|m| m.get("id"))
                             .and_then(|s| s.as_str())
                         {
@@ -341,35 +367,78 @@ mod tests {
         assert_eq!(parse_gmail_cursor(&c), GmailCursor::Backfill);
     }
 
-    // ── list_folders wiremock test ────────────────────────────────────────────
+    // ── list_folders: single All-Mail folder ─────────────────────────────────
 
     #[tokio::test]
-    async fn list_folders_maps_labels_to_remote_folders() {
-        use wiremock::matchers::{method, path};
+    async fn list_folders_returns_single_all_mail() {
+        // Gmail is synced as one All-Mail pass, so list_folders returns a single
+        // synthetic folder regardless of how many labels the account has (it does
+        // not even call labels.list — no network).
+        let provider =
+            GmailProvider::new_with_base("AT".into(), "user@gmail.com".into(), "http://unused.invalid".into());
+        let folders = provider.list_folders().await.expect("list_folders");
+        assert_eq!(folders.len(), 1);
+        assert_eq!(folders[0].id, ALL_MAIL_FOLDER);
+        assert_eq!(folders[0].display_name, "All Mail");
+    }
+
+    // ── backfill: All-Mail pass sends NO labelIds filter ──────────────────────
+
+    #[tokio::test]
+    async fn all_mail_backfill_omits_label_filter() {
+        use wiremock::matchers::{method, path, query_param_is_missing};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let server = MockServer::start().await;
+
+        // The All-Mail list MUST omit the labelIds param so Gmail returns every
+        // message except Spam/Trash. Single page (no nextPageToken) -> done.
         Mock::given(method("GET"))
-            .and(path("/gmail/v1/users/me/labels"))
+            .and(path("/gmail/v1/users/me/messages"))
+            .and(query_param_is_missing("labelIds"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "labels": [
-                    { "id": "INBOX", "name": "INBOX", "type": "system" },
-                    { "id": "SPAM", "name": "SPAM", "type": "system" },
-                    { "id": "TRASH", "name": "TRASH", "type": "system" },
-                    { "id": "CHAT", "name": "CHAT", "type": "system" },
-                    { "id": "Label_42", "name": "Legal", "type": "user" }
-                ]
+                "messages": [{ "id": "amx", "threadId": "t" }],
+                "resultSizeEstimate": 1
             })))
             .mount(&server)
             .await;
 
-        let provider = GmailProvider::new_with_base("AT".into(), "user@gmail.com".into(), server.uri());
-        let folders = provider.list_folders().await.expect("list_folders");
-        // SPAM, TRASH, and CHAT are excluded; INBOX + user labels are kept.
-        assert_eq!(folders.len(), 2);
-        assert_eq!(folders[0], RemoteFolder { id: "INBOX".into(), display_name: "INBOX".into() });
-        assert_eq!(folders[1], RemoteFolder { id: "Label_42".into(), display_name: "Legal".into() });
-        assert!(!folders.iter().any(|f| f.id == "SPAM" || f.id == "TRASH" || f.id == "CHAT"));
+        Mock::given(method("GET"))
+            .and(path("/gmail/v1/users/me/messages/amx"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "amx",
+                "threadId": "t",
+                "labelIds": ["INBOX"],
+                "payload": {
+                    "mimeType": "text/plain",
+                    "headers": [
+                        { "name": "Subject", "value": "Hi" },
+                        { "name": "From", "value": "sender@example.com" },
+                        { "name": "Date", "value": "Mon, 01 Jan 2026 00:00:00 +0000" }
+                    ],
+                    "body": { "data": "SGVsbG8h" }
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/gmail/v1/users/me/profile"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "emailAddress": "user@gmail.com",
+                "historyId": "12345"
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = GmailProvider::new_with_base("AT".into(), "default".into(), server.uri());
+        let folder = RemoteFolder { id: ALL_MAIL_FOLDER.into(), display_name: "All Mail".into() };
+        // If list_all_message_ids sent a labelIds param, the mock above would not
+        // match and this call would fail — so the assertion is implicit + explicit.
+        let page = provider.fetch_changes(&folder, &Cursor::Backfill).await.expect("backfill");
+        assert_eq!(page.messages.len(), 1);
+        assert!(page.done, "single-page All-Mail backfill must be done=true");
+        assert_eq!(page.next, Some("hist:12345".into()));
     }
 
     // ── backfill: single page (no nextPageToken) -> done=true + hist: cursor ─

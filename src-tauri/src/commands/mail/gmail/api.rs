@@ -115,6 +115,37 @@ impl GmailClient {
         Ok((ids, next))
     }
 
+    /// List message ids across ALL mail: `messages.list` with NO `labelIds`
+    /// filter. Gmail returns every message EXCEPT those in Spam and Trash
+    /// (`includeSpamTrash=false` is the default). Used for the single-pass
+    /// All-Mail backfill, so archived mail (which lives only in All Mail) is
+    /// included and a message is not re-fetched once per overlapping label.
+    pub async fn list_all_message_ids(
+        &self,
+        page_token: Option<&str>,
+    ) -> anyhow::Result<(Vec<String>, Option<String>)> {
+        let mut url = format!("{}/gmail/v1/users/me/messages?maxResults=500", self.base);
+        if let Some(pt) = page_token {
+            url.push_str("&pageToken=");
+            url.push_str(pt);
+        }
+        let v = self.get_json(&url).await?;
+        let ids = v
+            .get("messages")
+            .and_then(|m| m.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| item.get("id")?.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let next = v
+            .get("nextPageToken")
+            .and_then(|t| t.as_str())
+            .map(String::from);
+        Ok((ids, next))
+    }
+
     /// `GET /gmail/v1/users/me/messages/{id}?format=full` — returns the raw
     /// JSON Value so the normalizer can inspect the full MIME tree.
     pub async fn get_message(&self, id: &str) -> anyhow::Result<serde_json::Value> {
