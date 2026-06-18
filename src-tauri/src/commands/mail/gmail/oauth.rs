@@ -91,8 +91,10 @@ pub(crate) fn urlencoding_encode(s: &str) -> String {
 ///
 /// Expects a string like `"GET /?code=abc&state=xyz HTTP/1.1"`.
 /// Returns `Some((code, state))` if both are present; `None` otherwise.
-/// Extra query parameters are ignored. Values are NOT percent-decoded (the
-/// code is an opaque token that Google issues without encoding in practice).
+/// Extra query parameters are ignored. Values ARE percent-decoded: Microsoft
+/// auth codes contain reserved characters (* ! $) that arrive percent-encoded
+/// in the redirect; without decoding they get double-encoded at the token
+/// exchange (reqwest re-encodes the %), which Microsoft rejects as invalid_grant.
 pub fn parse_redirect_query(request_line: &str) -> Option<(String, String)> {
     // Extract the path+query portion between the first space and "HTTP/"
     let after_method = request_line.splitn(2, ' ').nth(1)?;
@@ -113,13 +115,36 @@ pub fn parse_redirect_query(request_line: &str) -> Option<(String, String)> {
         let key = kv.next().unwrap_or("");
         let val = kv.next().unwrap_or("");
         match key {
-            "code" => code = Some(val.to_string()),
-            "state" => state = Some(val.to_string()),
+            "code" => code = Some(percent_decode(val)),
+            "state" => state = Some(percent_decode(val)),
             _ => {}
         }
     }
 
     Some((code?, state?))
+}
+
+/// Percent-decode a URL query value (`%XX` -> byte). Non-encoded characters are
+/// left as-is. Needed so Microsoft auth codes (which arrive percent-encoded)
+/// reach the token endpoint as their literal value rather than double-encoded.
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hi = (bytes[i + 1] as char).to_digit(16);
+            let lo = (bytes[i + 2] as char).to_digit(16);
+            if let (Some(hi), Some(lo)) = (hi, lo) {
+                out.push((hi * 16 + lo) as u8);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 // ── Token types ───────────────────────────────────────────────────────────

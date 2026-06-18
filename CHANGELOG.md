@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.4] - 2026-06-18
+
+### Fixed
+- Outlook sign-in now completes. The authorization code from Microsoft is URL-decoded before the token exchange, fixing an "invalid_grant" error (Microsoft codes contain characters that arrive percent-encoded).
+- Gmail now imports your mail after connecting. Connecting Gmail triggers the import, and the sync no longer aborts when only Gmail (not Microsoft 365) is connected, so your inbox becomes searchable.
+
 ## [3.3.3] - 2026-06-18
 
 Completes the Outlook connector fix, validated end to end against the live providers.

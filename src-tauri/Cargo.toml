@@ -9,7 +9,7 @@ members = [".", "crates/keepance-docx", "crates/keepance-vault"]
 
 [package]
 name = "keepance"
-version = "3.3.3"
+version = "3.3.4"
 description = "The private intelligence layer for a law practice"
 authors = ["Keepance"]
 license = "MIT"

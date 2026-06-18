@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
-import { gmailConnect, gmailIsConnected, gmailDisconnect } from '@/platform/utils/mail-commands';
+import { gmailConnect, gmailIsConnected, gmailDisconnect, mailSyncAll, mailCancelSync } from '@/platform/utils/mail-commands';
+import { useMailSync } from '@/features/email/useMailSync';
+import { useMailStore } from '@/features/email/mailStore';
+import { getMatters } from '@/platform/matter/matterStore';
+import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 
 export function MailGmailConnect() {
+  useMailSync();
+  const progress = useMailStore((s) => s.progress);
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -16,6 +22,12 @@ export function MailGmailConnect() {
     try {
       await gmailConnect();
       setConnected(true);
+      // Now that we're connected, import the mail so it's searchable. Pass the
+      // current mail->matter mapping so synced mail is scoped at index time.
+      // Surface failures instead of leaving the user with an empty inbox.
+      mailSyncAll(buildMailMatterMap(getMatters())).catch((err) => {
+        setConnectError(err instanceof Error ? err.message : typeof err === 'string' ? err : 'Mail sync could not start. Please try again.');
+      });
     } catch (err) {
       setConnectError(typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not connect. Please try again.');
     } finally {
@@ -30,6 +42,10 @@ export function MailGmailConnect() {
       // Best-effort disconnect; clear local state regardless.
     }
     setConnected(false);
+  }
+
+  function stopSync() {
+    mailCancelSync().catch(() => {});
   }
 
   return (
@@ -67,6 +83,20 @@ export function MailGmailConnect() {
       {connected && (
         <div className="mt-3 text-sm text-slate-700">
           <p className="font-medium text-green-700">Connected.</p>
+          {progress && progress.status === 'syncing' && (
+            <div className="mt-1 flex items-center gap-3">
+              <p>Importing… {progress.written.toLocaleString()} messages so far.</p>
+              <button onClick={stopSync}
+                className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                Stop
+              </button>
+            </div>
+          )}
+          {progress && progress.status === 'done' && <p className="mt-1">All mail imported and searchable.</p>}
+          {progress && progress.status === 'error' && (
+            <p className="mt-1 text-red-700">Mail sync ran into a problem. Open this panel again to retry.</p>
+          )}
+          {connectError && <p className="mt-1 text-red-700">Something went wrong: {connectError}</p>}
           <button
             type="button"
             onClick={() => void disconnect()}

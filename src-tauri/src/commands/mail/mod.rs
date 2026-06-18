@@ -1296,10 +1296,15 @@ async fn mail_sync_all_inner(
 
     // Enumerate folders through the provider seam (M365 GraphProvider for now;
     // Gmail/IMAP providers slot in here unchanged).
-    let folders = {
+    // Only enumerate M365 folders if a Microsoft account is actually connected.
+    // Without this guard, fresh_access_token() errors when only Gmail/IMAP is
+    // connected, aborting the whole sync before the Gmail/IMAP sections run.
+    let folders = if mail_is_connected().await.unwrap_or(false) {
         let token = fresh_access_token().await?;
         let provider = crate::commands::mail::graph::GraphProvider::new(token);
         provider.list_folders().await.map_err(|e| e.to_string())?
+    } else {
+        Vec::new()
     };
 
     // FIX B: refresh the access token before each folder so long backfills
