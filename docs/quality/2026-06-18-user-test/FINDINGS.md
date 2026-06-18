@@ -97,20 +97,20 @@ worktree agents and integrated on main.
 
 | # | Fix | Status |
 |--:|---|---|
-| 1 | Trash restore-collision | **FIXED** (root cause: collision path built with a leading slash → WorkspaceService rejected it → restore bailed before cleanup). Merged + regression unit test. Desktop spec `11` needs a selector follow-up (Trash lives in the "View files or trash" segmented group) to also confirm end-to-end. |
+| 1 | Trash restore-collision | **FIXED + DESKTOP-VERIFIED** (`11-trash-destructive` PASS on the real app). Root cause: collision path built with a leading slash → WorkspaceService rejected it → restore bailed before cleanup. Merged + regression unit test. |
 | 2 | Desktop API keys → OS keychain | **FIXED + DESKTOP-VERIFIED** (`16-settings-keys` PASS on the real app: keys persist via the OS keychain across relaunch, not in localStorage). Added a Tauri keychain backend; browser keeps localStorage. ⚠️ Follow-up: no migration for keys existing desktop users already saved in localStorage. |
 | 3 | Matter Manager Escape | **FIXED + DESKTOP-VERIFIED** (`14-matters` PASS). |
 | 4 | Open `.workflow` record | **FIXED + DESKTOP-VERIFIED** (`13-workflows` PASS). |
-| 5 | Root "New folder" | **FIXED** (merged + unit test). Desktop spec `10` selector follow-up. |
-| 6 | Rename updates open tab | **FIXED** (merged + unit test). Desktop spec `10` selector follow-up. |
+| 5 | Root "New folder" | **FIXED + DESKTOP-VERIFIED** (`10-files-editor` PASS, 3/3 stable). Merged + unit test. |
+| 6 | Rename updates open tab | **FIXED + DESKTOP-VERIFIED** (`10-files-editor` PASS, 3/3 stable). Merged + unit test. |
 | 7 | Ctrl+Shift+A from Documents | **FIXED** (merged + unit test; DocumentsHome no longer filters out the AI-assistant tab). |
 | — | Vault enable flow unreachable (built, never mounted) | **NOT yet fixed** — the wiring agent hung; deferred. Clear task: mount the existing `VaultEnableFlow` at a reachable entry point (the Data Map dialog already has the copy) + add testids so `12-vault` can drive it. |
 
-**Desktop-verified now:** keychain (#2), matter-escape (#3), workflow-open (#4).
-**Fixed + unit-verified, desktop spec selector follow-up:** trash (#1), new-folder (#5), rename-tab (#6), shortcut (#7).
-**Remaining:** wire the vault enable UI; the spec-selector polish for `10`/`11`; and the coverage
-enablers below (firm backend for `20`, embedding model + provider for `18-rag`, native folder
-picker for `15`).
+**Desktop-verified now:** trash (#1), keychain (#2), matter-escape (#3), workflow-open (#4),
+new-folder (#5), rename-tab (#6) — specs `10`/`11` selectors fixed, both green end-to-end.
+**Fixed + unit-verified (no dedicated desktop assertion):** shortcut (#7).
+**Remaining:** wire the vault enable UI (#—); and the coverage enablers below (firm backend for
+`20`, embedding model + provider for `18-rag`, native folder picker for `15`).
 
 ## Suggested fix order
 

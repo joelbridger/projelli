@@ -46,6 +46,33 @@ async function activateFilesTab(session, app) {
   await session.testid('documents-toolbar', 15_000);
 }
 
+// Land on the Files browser in tree view and keep it there. Clicking the "Files"
+// chip can race with a delayed editor auto-open: a just-renamed file opens a beat
+// later, and DocumentsHome then navigates back to the editor (the activeTabPath
+// effect queues setUserOnFiles(false)), unmounting the view toggle AFTER we saw
+// it. So require the toggle to STAY mounted across a settle window; if it flips,
+// the outer retry re-clicks the chip — and since that auto-open is one-shot, the
+// next click sticks. Then select Tree.
+async function ensureFilesTreeView(session, app) {
+  await session.waitFor(
+    async () => {
+      const filesTab = await session.find(
+        'xpath',
+        `//*[@role="tablist"]//button[normalize-space()=${app.xpathLiteral('Files')}]`,
+        15_000,
+      );
+      await session.click(filesTab);
+      for (let i = 0; i < 8; i += 1) {
+        await sleep(250);
+        if (!(await session.hasTestid('docs-view-toggle', 250))) return false;
+      }
+      return true;
+    },
+    { timeoutMs: 30_000, intervalMs: 250, label: 'Files browser view toggle (stable)' },
+  );
+  await session.clickTestid('docs-view-tree', 10_000);
+}
+
 async function openGridFolder(session, app, folderName) {
   const folder = await session.find(
     'xpath',
@@ -57,31 +84,34 @@ async function openGridFolder(session, app, folderName) {
 }
 
 async function openTreeRowMenu(session, fileName) {
-  const opened = await session.execute(
-    `
-      const name = arguments[0];
-      const rows = Array.from(document.querySelectorAll('[role="treeitem"]'));
-      const row = rows.find((el) => (el.textContent || '').includes(name));
-      if (!row) return false;
-      const button = row.querySelector('button[aria-label="File options"]');
-      if (!button) return false;
-      row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-      row.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-      button.dispatchEvent(new PointerEvent('pointerdown', {
-        bubbles: true,
-        cancelable: true,
-        pointerType: 'mouse',
-        button: 0,
-        buttons: 1,
-      }));
-      button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
-      button.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0 }));
-      button.click();
-      return true;
-    `,
-    [fileName],
+  // Retry until the row (and its hover-revealed "File options" button) renders.
+  await session.waitFor(
+    async () => session.execute(
+      `
+        const name = arguments[0];
+        const rows = Array.from(document.querySelectorAll('[role="treeitem"]'));
+        const row = rows.find((el) => (el.textContent || '').includes(name));
+        if (!row) return false;
+        row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        row.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+        const button = row.querySelector('button[aria-label="File options"]');
+        if (!button) return false;
+        button.dispatchEvent(new PointerEvent('pointerdown', {
+          bubbles: true,
+          cancelable: true,
+          pointerType: 'mouse',
+          button: 0,
+          buttons: 1,
+        }));
+        button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+        button.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0 }));
+        button.click();
+        return true;
+      `,
+      [fileName],
+    ),
+    { timeoutMs: 15_000, intervalMs: 300, label: `file-tree row menu for ${fileName}` },
   );
-  if (!opened) throw new Error(`Could not open file-tree row menu for ${fileName}`);
 }
 
 async function ensureTreeRowVisible(session, fileName, ancestorName) {
@@ -99,18 +129,20 @@ async function ensureTreeRowVisible(session, fileName, ancestorName) {
 }
 
 async function clickTreeRow(session, fileName) {
-  const clicked = await session.execute(
-    `
-      const name = arguments[0];
-      const rows = Array.from(document.querySelectorAll('[role="treeitem"]'));
-      const row = rows.find((el) => (el.textContent || '').includes(name));
-      if (!row) return false;
-      row.click();
-      return true;
-    `,
-    [fileName],
+  await session.waitFor(
+    async () => session.execute(
+      `
+        const name = arguments[0];
+        const rows = Array.from(document.querySelectorAll('[role="treeitem"]'));
+        const row = rows.find((el) => (el.textContent || '').includes(name));
+        if (!row) return false;
+        row.click();
+        return true;
+      `,
+      [fileName],
+    ),
+    { timeoutMs: 15_000, intervalMs: 300, label: `file-tree row for ${fileName}` },
   );
-  if (!clicked) throw new Error(`Could not click file-tree row for ${fileName}`);
 }
 
 async function clickMenuItem(session, app, label) {
@@ -211,8 +243,7 @@ export default {
     await session.waitForBodyText('Auto-saved version', { timeoutMs: 15_000 });
 
     // Rename the file through the row overflow and verify the path/content moved on disk.
-    await activateFilesTab(session, app);
-    await session.clickTestid('docs-view-tree', 15_000);
+    await ensureFilesTreeView(session, app);
     await openTreeRowMenu(session, 'notes.md');
     await clickMenuItem(session, app, 'Rename');
     await session.waitForBodyText('Rename', { timeoutMs: 15_000 });
@@ -247,6 +278,11 @@ export default {
     );
 
     // Switch tabs between the renamed markdown file and an existing text file.
+    // The renamed-notes.md editor is the active surface here, so the file tree
+    // isn't mounted; ensureFilesTreeView re-asserts the Files browser (racing the
+    // auto-open) before we open the root-level row's menu.
+    await ensureFilesTreeView(session, app);
+    await session.waitForBodyText('switch-target.txt', { timeoutMs: 15_000 });
     await openTreeRowMenu(session, 'switch-target.txt');
     await clickMenuItem(session, app, 'Rename');
     await session.waitForBodyText('Rename', { timeoutMs: 15_000 });
@@ -254,8 +290,7 @@ export default {
     const txtPath = path.join(workspace, 'switch-target-renamed.txt');
     await waitForDisk(() => fs.existsSync(txtPath), 'renamed switch-target text file on disk');
 
-    await activateFilesTab(session, app);
-    await session.clickTestid('docs-view-tree', 15_000);
+    await ensureFilesTreeView(session, app);
     await clickTreeRow(session, 'switch-target-renamed.txt');
     await session.waitForBodyText('switch-target-renamed.txt', { timeoutMs: 15_000 });
     await session.waitForBodyText('Second tab target', { timeoutMs: 15_000 });
