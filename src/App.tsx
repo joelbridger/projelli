@@ -33,7 +33,10 @@ import { openExternal } from '@/platform/utils/openExternal';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
 import { GuidedOnboarding } from '@/features/onboarding/GuidedOnboarding';
-import { createKeychainService } from '@/platform/providers/KeychainService';
+import {
+  createKeychainService,
+  migrateLocalStorageApiKeysToKeychain,
+} from '@/platform/providers/KeychainService';
 import { sendEvent } from '@/platform/utils/telemetry';
 import { useFeatureTour } from '@/platform/hooks/useFeatureTour';
 // M1 (v1.5) Memory: workspace RAG indexer + status UI.
@@ -280,6 +283,10 @@ function App() {
   // (KeychainService.setKey: OS keychain in Tauri, obfuscated localStorage in
   // the browser). Created once for the app lifetime.
   const keychainRef = useRef(createKeychainService());
+
+  useEffect(() => {
+    void migrateLocalStorageApiKeysToKeychain();
+  }, []);
 
   // Persist a key entered during onboarding through the canonical keychain
   // path, then mirror it into the live API-key state + model list so the AI
