@@ -219,7 +219,7 @@ export function useAsk({
   // Fix #8: resolve the active provider name for the EgressIndicator.
   useEffect(() => {
     void (async () => {
-      const kc = new KeychainService('localStorage');
+      const kc = new KeychainService();
       const ak = await kc.getKey('anthropic');
       if (ak?.trim()) { setActiveProvider('anthropic'); return; }
       const ok = await kc.getKey('openai');

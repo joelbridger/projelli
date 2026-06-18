@@ -105,7 +105,7 @@ const PRIVILEGE_OPTION_KEYS: Record<Privilege, string> = {
 // ── buildProviderAsync — mirrors Ask.tsx pattern ─────────────────
 
 async function buildProviderAsync(): Promise<Provider> {
-  const kc = createKeychainService('localStorage');
+  const kc = createKeychainService();
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) return createClaudeProvider({ apiKey: anthropicKey.trim() });
   const openaiKey = await kc.getKey('openai');
