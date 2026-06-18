@@ -105,6 +105,7 @@ function App() {
     matterManagerOpen, setMatterManagerOpen,
     showWhatsNewModalDirect, setShowWhatsNewModalDirect,
     apiKeyWizardOpen, setApiKeyWizardOpen,
+    apiKeyManagerOpen, setApiKeyManagerOpen,
   } = useDialogManager();
   // Tab to pre-select inside the Account window (e.g. 'connections' from the
   // email connect entry points). Cleared when the window closes.
@@ -255,7 +256,7 @@ function App() {
   useMailSync({ onMailChunk: handleMailChunk });
 
   // API key management
-  const { apiKeys, handleSaveApiKey: rawSaveApiKey } = useApiKeys();
+  const { apiKeys, handleSaveApiKey: rawSaveApiKey, handleDeleteApiKey } = useApiKeys();
 
   // Model list auto-fetching
   const validKeyEntries = useMemo(
@@ -291,6 +292,17 @@ function App() {
       handleSaveApiKey(provider, key);
     },
     [handleSaveApiKey]
+  );
+
+  // After "Manage AI Account Keys" removes a key from the keychain, clear the
+  // mirrored live API-key state (the `apiKey_<provider>` localStorage entry +
+  // the in-memory apiKeys array) so the AI pane immediately stops offering that
+  // provider. The keychain deletion itself happens inside ApiKeyManager.
+  const handleRemoveApiKey = useCallback(
+    (provider: 'anthropic' | 'openai' | 'google') => {
+      handleDeleteApiKey(provider);
+    },
+    [handleDeleteApiKey]
   );
 
   // Trash management
@@ -1016,7 +1028,10 @@ This file contains rules and guidelines for AI assistants in this workspace.
   // for updates, Open website, …) behaves identically in either surface.
   const handleSettingsAction = (actionId: string) => {
     if (actionId === 'open-ai-keys') {
-      setApiKeyWizardOpen(true);
+      // "Manage AI Account Keys" now opens the manager (list + remove + add),
+      // not the add-only wizard. The manager's "Add a provider key" button
+      // opens the wizard from there.
+      setApiKeyManagerOpen(true);
     } else if (actionId === 'open-api-key-tutorial') {
       setApiKeyWizardOpen(true);
     } else if (actionId === 'open-ai-rules') {
@@ -1264,6 +1279,10 @@ This file contains rules and guidelines for AI assistants in this workspace.
         apiKeyWizardOpen={apiKeyWizardOpen}
         setApiKeyWizardOpen={setApiKeyWizardOpen}
         handleSaveOnboardingApiKey={handleSaveOnboardingApiKey}
+        apiKeyManagerOpen={apiKeyManagerOpen}
+        setApiKeyManagerOpen={setApiKeyManagerOpen}
+        apiKeyKeychain={keychainRef.current}
+        onApiKeyRemoved={handleRemoveApiKey}
         showShortcutsOverlay={showShortcutsOverlay}
         setShowShortcutsOverlay={setShowShortcutsOverlay}
         showQuickOpen={showQuickOpen}

@@ -24,7 +24,7 @@
  *     for non-empty and reasonable length.
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
@@ -36,9 +36,14 @@ import {
   DialogDescription,
 } from '@/ui/dialog';
 import { openExternal } from '@/platform/utils/openExternal';
-import { ExternalLink, Eye, EyeOff, Check, AlertCircle, ArrowLeft, ArrowRight, RefreshCw, Cpu } from 'lucide-react';
+import { ExternalLink, Eye, EyeOff, Check, CheckCircle, XCircle, Loader2, AlertCircle, ArrowLeft, ArrowRight, RefreshCw, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
+import {
+  validateApiKeyLive,
+  type ValidationProvider,
+  type ValidationOutcome,
+} from '@/platform/providers/apiKeyValidation';
 import { PROVIDER_TUTORIALS, ProviderTutorialList, type ProviderId } from './ProviderTutorialSteps';
 
 export type WizardProvider = 'anthropic' | 'openai' | 'google' | 'ollama';
@@ -134,10 +139,23 @@ export function ApiKeyWizard({
   const [showKey, setShowKey] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Result of the live "is this key accepted by the provider?" check that runs
+  // when the user clicks Save. `null` = not yet checked / nothing to show.
+  const [validation, setValidation] = useState<
+    { outcome: ValidationOutcome; message: string } | null
+  >(null);
+  const validationAbortRef = useRef<AbortController | null>(null);
   const [ollamaStatus, setOllamaStatus] = useState<'idle' | 'checking' | 'ok' | 'missing'>('idle');
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
 
   const meta = PROVIDERS[provider];
+
+  // Abort any in-flight validation when the wizard unmounts.
+  useEffect(() => {
+    return () => {
+      validationAbortRef.current?.abort();
+    };
+  }, []);
 
   // Auto-detect Ollama when the user lands on step 3 of the Ollama flow.
   useEffect(() => {
@@ -160,6 +178,9 @@ export function ApiKeyWizard({
     setShowKey(false);
     setError(null);
     setSubmitting(false);
+    setValidation(null);
+    validationAbortRef.current?.abort();
+    validationAbortRef.current = null;
   };
 
   const changeProvider = (next: WizardProvider) => {
@@ -209,14 +230,62 @@ export function ApiKeyWizard({
       return;
     }
     setError(null);
+    setValidation(null);
     setSubmitting(true);
+
+    const trimmedKey = keyText.trim();
+
+    // Verify the key with the provider BEFORE declaring success. We reuse the
+    // same minimal-call path the "Test this key" button uses (validateApiKeyLive),
+    // so a rejected (401/403) key surfaces clearly instead of saving silently.
+    // A 15s timeout means a slow/offline network falls back to "saved anyway"
+    // rather than hanging the user forever.
+    validationAbortRef.current?.abort();
+    const ac = new AbortController();
+    validationAbortRef.current = ac;
+    const timeout = setTimeout(() => { ac.abort(); }, 15_000);
+
+    let result: { outcome: ValidationOutcome; message: string };
     try {
-      await onSaveKey(provider, keyText.trim());
+      result = await validateApiKeyLive(
+        provider as ValidationProvider,
+        trimmedKey,
+        ac.signal,
+      );
+    } catch (e) {
+      // Unexpected throw — treat as "couldn't verify", let the save proceed.
+      result = { outcome: 'network', message: e instanceof Error ? e.message : String(e) };
+    } finally {
+      clearTimeout(timeout);
+      validationAbortRef.current = null;
+    }
+
+    // A clearly rejected key (bad/expired) must NOT be treated as a success.
+    // Keep the wizard open so the user can paste a corrected key.
+    if (result.outcome === 'rejected' || result.outcome === 'malformed') {
+      setValidation(result);
+      setSubmitting(false);
+      return;
+    }
+
+    // 'ok' (verified) or 'network' (couldn't verify right now) both save.
+    // For 'network' we save anyway and tell the user we couldn't verify it.
+    setValidation(
+      result.outcome === 'network'
+        ? {
+            outcome: 'network',
+            message: "Couldn't verify the key right now, but it has been saved. We'll use it on your next request.",
+          }
+        : { outcome: 'ok', message: 'Key verified.' },
+    );
+
+    try {
+      await onSaveKey(provider, trimmedKey);
       // Close on successful save.
       onOpenChange(false);
       reset();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setValidation({ outcome: 'rejected', message: e instanceof Error ? e.message : String(e) });
     } finally {
       setSubmitting(false);
     }
@@ -230,8 +299,8 @@ export function ApiKeyWizard({
         onOpenChange(next);
       }}
     >
-      <DialogContent className="max-w-xl" data-testid="api-key-wizard">
-        <DialogHeader>
+      <DialogContent className="max-w-xl flex flex-col max-h-[85vh] gap-0" data-testid="api-key-wizard">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{tutorialOnly ? 'API Key Tutorial' : 'Add an AI provider key'}</DialogTitle>
           <DialogDescription>
             {tutorialOnly
@@ -239,6 +308,11 @@ export function ApiKeyWizard({
               : 'A 3-step walk-through. Your key never leaves your computer.'}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Scrollable body: the header above and the step navigation below stay
+            pinned, while this region scrolls when the modal is taller than the
+            window (e.g. the 800px-tall default desktop window). */}
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-4">
 
         {/* Provider selector (tabs) — exclude Ollama in tutorialOnly mode (no key needed) */}
         <div className="flex gap-2 border-b border-border pb-3">
@@ -324,9 +398,10 @@ export function ApiKeyWizard({
                   onChange={(e) => {
                     setKeyText(e.target.value);
                     setError(null);
+                    setValidation(null);
                   }}
                   placeholder={meta.placeholder}
-                  className={cn('pr-10 font-mono text-sm', error && 'border-destructive')}
+                  className={cn('pr-10 font-mono text-sm', (error || validation?.outcome === 'rejected') && 'border-destructive')}
                 />
                 <button
                   type="button"
@@ -343,6 +418,16 @@ export function ApiKeyWizard({
                   {error}
                 </p>
               )}
+              {submitting && !validation && (
+                <p
+                  data-testid="api-key-wizard-verifying"
+                  className="text-xs text-muted-foreground flex items-center gap-1.5"
+                >
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                  {`Checking your key with ${meta.name.replace(/\s*\(.*\)\s*$/, '')}...`}
+                </p>
+              )}
+              {validation && <WizardValidationBadge outcome={validation.outcome} message={validation.message} />}
               <p className="text-xs text-muted-foreground italic">{meta.costLine}</p>
             </div>
           </StepShell>
@@ -352,7 +437,7 @@ export function ApiKeyWizard({
           <StepShell
             testid="api-key-wizard-step-3"
             title="Step 3. Check your Ollama connection"
-            description="No API key needed — Ollama runs on your own machine."
+            description="No API key needed. Ollama runs on your own machine."
           >
             <div className="space-y-3">
               <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
@@ -402,9 +487,13 @@ export function ApiKeyWizard({
           </StepShell>
         )}
 
-        {/* Footer actions */}
+        </div>
+        {/* end scrollable body */}
+
+        {/* Footer actions — pinned (shrink-0) so the step navigation stays
+            reachable even when the body above scrolls. */}
         {tutorialOnly ? (
-          <div className="flex items-center justify-end pt-4 border-t border-border">
+          <div className="shrink-0 flex items-center justify-end pt-4 border-t border-border bg-background">
             <Button
               data-testid="api-key-wizard-tutorial-close"
               size="sm"
@@ -416,7 +505,7 @@ export function ApiKeyWizard({
             </Button>
           </div>
         ) : (
-        <div className="flex items-center justify-between pt-4 border-t border-border">
+        <div className="shrink-0 flex items-center justify-between pt-4 border-t border-border bg-background">
           <Button
             variant="ghost"
             size="sm"
@@ -525,6 +614,54 @@ function StepShell({ testid, title, description, children }: StepShellProps) {
       <p className="text-xs text-muted-foreground">{description}</p>
       <div className="pt-1">{children}</div>
     </div>
+  );
+}
+
+interface WizardValidationBadgeProps {
+  outcome: ValidationOutcome;
+  message: string;
+}
+
+/**
+ * Inline result of the on-save key verification. Light-theme styling, matching
+ * ApiKeyTester's ResultBadge: green check for a verified key, amber for the
+ * "saved but couldn't verify right now" network fallback, destructive for a
+ * key the provider rejected.
+ */
+function WizardValidationBadge({ outcome, message }: WizardValidationBadgeProps) {
+  if (outcome === 'ok') {
+    return (
+      <p
+        data-testid="api-key-wizard-result-ok"
+        className="flex items-center gap-1.5 text-xs text-emerald-700 font-medium"
+      >
+        <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+        {message}
+      </p>
+    );
+  }
+
+  if (outcome === 'network') {
+    return (
+      <p
+        data-testid="api-key-wizard-result-network"
+        className="flex items-center gap-1.5 text-xs text-amber-700"
+      >
+        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+        {message}
+      </p>
+    );
+  }
+
+  // 'rejected' or 'malformed' — the key did not work.
+  return (
+    <p
+      data-testid={`api-key-wizard-result-${outcome}`}
+      className="flex items-center gap-1.5 text-xs text-destructive"
+    >
+      <XCircle className="h-3.5 w-3.5 shrink-0" />
+      {message}
+    </p>
   );
 }
 

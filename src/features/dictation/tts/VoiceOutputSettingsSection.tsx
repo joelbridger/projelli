@@ -67,12 +67,12 @@ export function VoiceOutputSettingsSection({
       Icon: Loader2,
     },
     ready: {
-      label: 'TTS ready — Piper sidecar and bundled voice found.',
+      label: 'TTS ready. Piper sidecar and bundled voice found.',
       iconClass: 'text-emerald-500',
       Icon: CheckCircle2,
     },
     unavailable: {
-      label: 'TTS not available — Piper binary or bundled voice missing in this build.',
+      label: 'TTS not available. Piper binary or bundled voice missing in this build.',
       iconClass: 'text-amber-500',
       Icon: AlertCircle,
     },

@@ -454,7 +454,7 @@ export function WorkflowExecutionTab({
               <CardTitle className="text-sm flex items-center gap-2">
                 <HelpCircle className="h-4 w-4 text-amber-500" />
                 {t('workflow.execution.waiting-for-answers')}
-                {template.steps[currentStep]?.name ? ` — ${template.steps[currentStep]!.name}` : ''}
+                {template.steps[currentStep]?.name ? `: ${template.steps[currentStep]!.name}` : ''}
               </CardTitle>
             </CardHeader>
             <CardContent>

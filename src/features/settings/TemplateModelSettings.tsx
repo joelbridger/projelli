@@ -272,7 +272,7 @@ export function TemplateModelSettings({ templates }: TemplateModelSettingsProps)
                     className="h-8 w-8 p-0"
                     onClick={() => handleClear(tpl.id)}
                     aria-label={`Clear override for ${tpl.name}`}
-                    title="Remove pin — workflow will use your default AI"
+                    title="Remove pin, workflow will use your default AI"
                   >
                     <X className="h-3.5 w-3.5" />
                   </Button>

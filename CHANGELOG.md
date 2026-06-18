@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **AI chat provider/model picker** - The chat header now has a clickable picker (replacing the display-only model chip) to choose the AI provider and model for a chat. Lists only providers with a valid API key, groups models per provider, and hides cloud providers when the matter is "On this computer only" (local-only confidentiality mode). Selecting a model sets both provider and model in one save.
+  - New: `src/features/ask/chat/ChatModelPicker.tsx`, `src/features/ask/chat/providerModelResolution.ts`
+  - Tests: `tests/unit/chat-model-picker.test.tsx`
+
+### Fixed
+- **New chats now default to a provider the user actually has a valid key for** - Previously every new chat hardcoded Anthropic via `chatData.provider ?? 'anthropic'`, so a user whose only valid key was OpenAI or Gemini (or whose Anthropic key was bad) could not use chat at all. AIChatViewer now seeds a new chat's provider/model once on mount from the settings default (when its key is valid) or the first valid key, persisting via the existing `onSave`. The `?? 'anthropic'` fallback remains as the last resort that drives the "add a key" experience when no valid key exists.
+  - Files modified: `src/features/ask/AIChatViewer.tsx`
+
 ## [3.3.5] - 2026-06-18
 
 Fixes for the email-connector issues found while testing 3.3.4 on Windows.

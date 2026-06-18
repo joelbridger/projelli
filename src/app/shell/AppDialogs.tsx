@@ -20,6 +20,7 @@ import { SettingsModal } from '@/features/settings/SettingsModal';
 import { AccountWindow } from '@/features/account/AccountWindow';
 import { FeatureTour } from '@/features/onboarding/FeatureTour';
 import { ApiKeyWizard } from '@/features/onboarding/ApiKeyWizard';
+import { ApiKeyManager, type ApiKeyManagerKeychain } from '@/features/settings/ApiKeyManager';
 import { ShortcutsOverlay } from '@/app/shell/ShortcutsOverlay';
 import { QuickOpen } from '@/app/shell/QuickOpen';
 import { AudioRecorderModal } from '@/features/dictation/audio/AudioRecorderModal';
@@ -102,6 +103,14 @@ export interface AppDialogsProps {
     key: string
   ) => void | Promise<void>;
 
+  // "Manage AI Account Keys" — list + remove saved keys
+  apiKeyManagerOpen: boolean;
+  setApiKeyManagerOpen: (open: boolean) => void;
+  /** Shared KeychainService instance (same one the wizard saves through). */
+  apiKeyKeychain: ApiKeyManagerKeychain;
+  /** Called after a key is removed (with the provider), so AI state can refresh. */
+  onApiKeyRemoved?: (provider: 'anthropic' | 'openai' | 'google') => void;
+
   // Shortcuts overlay
   showShortcutsOverlay: boolean;
   setShowShortcutsOverlay: (open: boolean) => void;
@@ -162,6 +171,10 @@ export function AppDialogs({
   apiKeyWizardOpen,
   setApiKeyWizardOpen,
   handleSaveOnboardingApiKey: handleSaveKey,
+  apiKeyManagerOpen,
+  setApiKeyManagerOpen,
+  apiKeyKeychain,
+  onApiKeyRemoved,
   showShortcutsOverlay,
   setShowShortcutsOverlay,
   showQuickOpen,
@@ -263,7 +276,22 @@ export function AppDialogs({
         }}
       />
 
-      {/* Shell-aware API key wizard — opened from reimagined shell CTAs */}
+      {/* "Manage AI Account Keys" — lists the saved provider keys with a
+          masked prefix, a status, and Remove; "Add a provider key" hands off
+          to the wizard below. Opened from AI & Privacy settings. */}
+      <ApiKeyManager
+        open={apiKeyManagerOpen}
+        onOpenChange={setApiKeyManagerOpen}
+        keychainService={apiKeyKeychain}
+        onAddKey={() => {
+          setApiKeyManagerOpen(false);
+          setApiKeyWizardOpen(true);
+        }}
+        {...(onApiKeyRemoved ? { onKeyRemoved: onApiKeyRemoved } : {})}
+      />
+
+      {/* Shell-aware API key wizard — opened from reimagined shell CTAs and
+          from the manager's "Add a provider key" button. */}
       <ApiKeyWizard
         open={apiKeyWizardOpen}
         onOpenChange={setApiKeyWizardOpen}

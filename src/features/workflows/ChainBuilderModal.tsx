@@ -307,7 +307,7 @@ function ChainStepRow({
                     });
                   }}
                 >
-                  <option value="">— none —</option>
+                  <option value="">(none)</option>
                   {recommended.length > 0 && (
                     <optgroup label="Recommended">
                       {recommended.map((po) => (

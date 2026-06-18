@@ -32,6 +32,11 @@ import { useActiveMatter } from '@/platform/matter/matterStore';
 import { useIncludePrivileged, usePrivilegeStore } from '@/platform/firm/privilegeStore';
 import { MatterScopeSelector } from '@/features/matters/MatterScopeSelector';
 import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
+import { ChatModelPicker } from '@/features/ask/chat/ChatModelPicker';
+import {
+  resolveNewChatDefault,
+  type ChatProvider,
+} from '@/features/ask/chat/providerModelResolution';
 // F-121 (VG-5b) — explains privilege exclusion next to its toggle, with a
 // "see it work" check that runs the user's own question against their index.
 import { PrivilegeExclusionExplainer } from '@/features/ask/PrivilegeExclusionExplainer';
@@ -658,6 +663,48 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     }
   }, [onSave, chatData]);
 
+  // Provider/model picker — set BOTH provider and model in one save.
+  const handleSwitchProviderModel = useCallback((provider: ChatProvider, model: string) => {
+    if (onSave) {
+      onSave({ ...chatData, provider, model, updated: new Date().toISOString() });
+    }
+  }, [onSave, chatData]);
+
+  // Seed a NEW chat's provider/model ONCE to a provider the user actually has a
+  // valid key for, instead of the hardcoded 'anthropic' fallback that left
+  // OpenAI/Gemini-only users unable to send. Guarded by a ref so it can never
+  // loop (the onSave below changes chatData, which would otherwise re-run this).
+  // If nothing resolves (no valid key), we leave provider unset so the existing
+  // "add a key" experience still drives.
+  const providerSeededRef = useRef(false);
+  useEffect(() => {
+    if (providerSeededRef.current) return;
+    if (chatData.provider) {
+      // Already chosen (existing chat, or a prior seed) — never override.
+      providerSeededRef.current = true;
+      return;
+    }
+    if (!onSave) return;
+    const settings = useSettingsStore.getState();
+    const resolved = resolveNewChatDefault(apiKeys, {
+      defaultProvider: (settings.getSetting('defaultProvider') as string | undefined) ?? '',
+      defaultModel: (settings.getSetting('defaultModel') as string | undefined) ?? '',
+    });
+    if (!resolved) return; // (c) leave unset → '?? anthropic' still drives the add-a-key flow.
+    providerSeededRef.current = true;
+    onSave({
+      ...chatData,
+      provider: resolved.provider,
+      model: resolved.model,
+      updated: new Date().toISOString(),
+    });
+    // chatData is intentionally read fresh here but NOT in deps: the ref guard
+    // makes this effectively run-once, and including chatData would re-fire it
+    // on every message. apiKeys is the only input that should re-trigger a seed
+    // (e.g. a key validates after mount on an as-yet-unseeded chat).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKeys, onSave, chatData.provider]);
+
   const handleStop = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -802,17 +849,18 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div>
-          <div className="flex items-baseline gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <h2 data-testid="chat-title" className="text-lg font-semibold">{chatData.title}</h2>
-            {chatData.model && (
-              <span
-                data-testid="chat-header-model"
-                className="text-xs text-muted-foreground font-normal"
-                title={`Provider: ${chatData.provider ?? 'unknown'}`}
-              >
-                {chatData.model}
-              </span>
-            )}
+            {/* Provider/model picker — replaces the old display-only chip. Lets
+                the user choose which provider + model the next message uses,
+                limited to providers they hold a valid key for (and to local
+                providers when the matter is "On this computer only"). */}
+            <ChatModelPicker
+              provider={chatData.provider}
+              model={chatData.model}
+              apiKeys={apiKeys}
+              onSelect={handleSwitchProviderModel}
+            />
           </div>
           <p data-testid="chat-created-date" className="text-xs text-muted-foreground">
             Created {new Date(chatData.created).toLocaleDateString()}

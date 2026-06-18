@@ -446,7 +446,7 @@ export function AuditLog({
             panelName="audit"
             icon={History}
             title="No AI actions yet"
-            description="Every AI action in your workspace — file changes, workflow runs, model calls — gets logged here so you can review or audit what happened."
+            description="Every AI action in your workspace (file changes, workflow runs, model calls) gets logged here so you can review or audit what happened."
           />
         ) : (
           <div className="divide-y">

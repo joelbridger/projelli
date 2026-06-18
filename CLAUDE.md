@@ -59,6 +59,7 @@
 | **Deploy script** | `~/keepance/infra/deploy.sh` | rsync website/ → /var/www/keepance.com + CF cache purge |
 | **Business plan** | `~/keepance/KEEPANCE_BUSINESS_PLAN.md` | Operating contract — every CEO decision lives here |
 | **Backlog** | `~/keepance/BACKLOG.md` | Week-by-week tickets, includes marketing asset inventory section |
+| **Full user-test playbook** | `~/keepance/docs/quality/full-user-test-playbook.md` | Repeatable "drive it like a user" test (Playwright on the dev server + real keys + the 6 journeys + native-import harnesses). Run before any release candidate. Say "run the full user-test playbook". |
 | **Board action items** | `~/keepance/docs/operations/BOARD_ACTION_ITEMS.md` | Engineering / financial / identity work that needs Jameson's hands (Azure signing, Apple Developer, LemonSqueezy, etc.) |
 | **Marketing entry point** | `~/keepance/docs/marketing/README.md` | **Read first before any marketing work.** Explains the marketing/ folder structure (playbook, channels, action-packs, campaigns) and where new campaigns land. |
 | **Marketing playbook** | `~/keepance/docs/marketing/playbook/MARKETING_PLAYBOOK.md` | Master index tying all marketing artifacts together + critical-path launch timeline. |

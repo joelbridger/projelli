@@ -145,6 +145,20 @@ export function EmailWorkspace({
   // Ref for focusing the search field from the first-connect callout CTA.
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Close the compose modal when Escape is pressed.
+  useEffect(() => {
+    if (!composeOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setComposeOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [composeOpen]);
+
   // Debounce ref and request fingerprint tracking
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestQueryRef = useRef(0);

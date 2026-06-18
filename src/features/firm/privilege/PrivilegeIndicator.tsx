@@ -39,7 +39,7 @@ export function PrivilegeIndicator({
     <span
       data-testid="privilege-indicator"
       data-privilege={privilege}
-      title={`${full} — excluded from AI retrieval by default`}
+      title={`${full}: excluded from AI retrieval by default`}
       className={cn(
         'inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none',
         'border-rose-300 bg-rose-50 text-rose-700',

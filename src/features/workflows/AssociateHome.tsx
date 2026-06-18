@@ -646,7 +646,7 @@ export function AssociateHome({
         <SurfaceHeader
           Icon={ListChecks}
           title="Workflows"
-          description={`Your tireless associate. ${String(templates.length)} workflow${templates.length === 1 ? '' : 's'} ready — pick one to run.`}
+          description={`Your tireless associate. ${String(templates.length)} workflow${templates.length === 1 ? '' : 's'} ready. Pick one to run.`}
         />
       </div>
 

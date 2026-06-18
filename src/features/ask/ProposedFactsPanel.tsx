@@ -113,7 +113,7 @@ export function ProposedFactsPanel({
                         void onAccept(p.key);
                       }}
                       aria-label="Accept fact"
-                      title="Accept — save this fact to memory"
+                      title="Accept: save this fact to memory"
                     >
                       <Check className="h-3.5 w-3.5" />
                     </Button>
@@ -135,7 +135,7 @@ export function ProposedFactsPanel({
                       className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
                       onClick={() => onReject(p.key)}
                       aria-label="Reject fact"
-                      title="Reject — discard this proposal"
+                      title="Reject: discard this proposal"
                     >
                       <X className="h-3.5 w-3.5" />
                     </Button>

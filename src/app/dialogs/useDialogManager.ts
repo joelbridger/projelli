@@ -46,6 +46,9 @@ export interface DialogManager {
 
   apiKeyWizardOpen: boolean;
   setApiKeyWizardOpen: React.Dispatch<React.SetStateAction<boolean>>;
+
+  apiKeyManagerOpen: boolean;
+  setApiKeyManagerOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export function useDialogManager(): DialogManager {
@@ -72,6 +75,8 @@ export function useDialogManager(): DialogManager {
   const [showWhatsNewModalDirect, setShowWhatsNewModalDirect] = useState(false);
   // Shell-aware API key wizard — opened from reimagined shell CTAs.
   const [apiKeyWizardOpen, setApiKeyWizardOpen] = useState<boolean>(false);
+  // "Manage AI Account Keys" — lists + removes saved keys; opens the wizard to add.
+  const [apiKeyManagerOpen, setApiKeyManagerOpen] = useState<boolean>(false);
 
   return {
     showCommandPalette,
@@ -95,5 +100,7 @@ export function useDialogManager(): DialogManager {
     setShowWhatsNewModalDirect,
     apiKeyWizardOpen,
     setApiKeyWizardOpen,
+    apiKeyManagerOpen,
+    setApiKeyManagerOpen,
   };
 }

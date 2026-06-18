@@ -323,7 +323,7 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
             title="View license settings"
             className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-colors bg-amber-50 text-amber-800 hover:bg-amber-100"
           >
-            Free trial — {trial.daysRemaining} days left
+            Free trial, {trial.daysRemaining} days left
           </button>
         ) : onOpenSettings ? (
           <TrialStatusChip onClick={onOpenSettings} />
