@@ -30,7 +30,8 @@
     "i18n:extract": "node ./node_modules/.bin/i18next --config i18next-parser.config.js",
     "extract-i18n": "node ./node_modules/.bin/i18next --config i18next-parser.config.js",
     "translate-i18n": "node scripts/translate-i18n.mjs",
-    "fetch-piper-sidecar": "bash scripts/fetch-piper-sidecar.sh"
+    "fetch-piper-sidecar": "bash scripts/fetch-piper-sidecar.sh",
+    "test:desktop": "bash tests/desktop/run.sh"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.0",
