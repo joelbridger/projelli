@@ -126,3 +126,43 @@ loaded and intercept the first nav click. `seedReadyState` now seeds the real st
 3. **#3 / #4** (🟠 navigation/UX) — Matter Manager Escape + workflow-record open.
 4. **#5–#7** (🟡) — batch with the next files/editor pass.
 5. Stand up the local **firm backend** + **embedding model** to un-block `20-firm` and `18-rag`.
+
+## Round 3 — Codex-reviewed hardening + coverage (2026-06-18, later)
+
+After mounting the vault UI, an independent Codex review of the session diff surfaced a real
+**data-loss bug** (now fixed) and the API-key migration follow-up was implemented and merged.
+
+- **🔴 Vault re-create data-loss (FIXED).** `vault_create` wrote new metadata + a fresh master key
+  *unconditionally*, so enabling a vault on an already-vaulted workspace would overwrite the key and
+  permanently orphan files encrypted under the old one. `VaultControlCard` could briefly reach it
+  (the first render offered "Enable vault" before `vaultStatus` resolved). Fix: the card never offers
+  "Enable vault" until status is known and the workspace is confirmed unvaulted (drops stale async
+  responses); `vault_create` now refuses with `AlreadyEnabled` when metadata exists (defense-in-depth,
+  +cargo test); `12-vault` asserts an enabled vault never shows the enable trigger.
+- **#2 follow-up — legacy API-key migration (DONE, merged).** A one-time, desktop-only migration moves
+  pre-existing `apiKey_<provider>` localStorage keys into the OS keychain (write → read-back verify →
+  remove; sentinel set only on a fully clean run so failures retry). Codex-implemented in a worktree,
+  reviewed + merged; 3 unit tests.
+- **Full unit suite reconciled:** running the *whole* vitest suite (not just typecheck + L2) caught 7
+  failures the narrower checks missed — the i18n key-count/inventory lock (the 4 new `vault.control`
+  keys), the `privacy->firm` architecture edge (now allowlisted), and `first-run-mount`'s
+  `KeychainService` mock (needed the new migration export). All fixed. **Suite: 3306 passed / 3 skipped
+  / 0 failed.**
+
+### Final L2 board (against a rebuilt debug binary): 6 PASS · 2 FAIL · 4 BLOCKED
+
+The Jun-17 debug binary was **stale**; rebuilding it to current source (for the vault guard) is the
+honest test artifact and shifted two results that are **not** related to this session's changes:
+
+- **PASS:** `00`, `10` (fixed), `12-vault` (fixed), `14`, `16`, `19`. Zero process leak after the run;
+  the three other-service 1280x1024 Xvfb stayed up.
+- **`11-trash` FAIL — flaky, pre-existing.** Fails with *varying* errors across runs ("Trash button
+  not found", then "stale element reference") — a race in the spec, not a product bug, unrelated to
+  this session (it tests trash; nothing here touches it). Needs the same settle/retry hardening `10`
+  got. **Follow-up.**
+- **`13-workflows` BLOCKED — provider dependency.** Blocks on "needs a configured AI provider / Ollama
+  pinned to llama3.2:3b". Ollama is up with that model, so it's an in-app provider-detection/config
+  dependency (honest infra block, like `18-rag`); its earlier PASS was opportunistic detection.
+  **Follow-up.**
+- **BLOCKED (unchanged honest infra):** `15` (native folder picker), `17` (live OAuth), `20` (firm
+  backend). `18-rag` FAIL is the same embedding-model/provider infra gap.

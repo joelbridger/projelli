@@ -55,6 +55,10 @@ ensure_driver_ports_free() {
 # harness, so this never touches other services:
 #   - app/driver processes carry a per-run /tmp/keepance-l2.* path in their env
 #   - only this harness runs a 1366x900x24 Xvfb (other services use 1280x1024)
+# Killing Xvfb by geometry and rm-ing /tmp/keepance-l2.* by glob is safe because
+# runs are SERIALIZED: this is called only AFTER ensure_driver_ports_free, and two
+# run.sh invocations cannot both pass that port check. So nothing matched here is
+# owned by a live harness — it is always a leftover from an already-dead prior run.
 sweep_stale_l2() {
   local pid e args n=0
   for e in /proc/[0-9]*/environ; do
