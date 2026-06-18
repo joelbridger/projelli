@@ -48,7 +48,75 @@ ensure_driver_ports_free() {
   [[ $busy -eq 0 ]] || exit 1
 }
 
+# Reap leftovers from a previously-killed L2 run before we start. The per-spec
+# cleanup below stops new leaks, but a run that was Ctrl-C'd / killed can still
+# leave an app + Xvfb behind, and those pile up into the false "welcome-dialog-
+# pitch not found" wave from ~spec 14 on. Both markers here are UNIQUE to this
+# harness, so this never touches other services:
+#   - app/driver processes carry a per-run /tmp/keepance-l2.* path in their env
+#   - only this harness runs a 1366x900x24 Xvfb (other services use 1280x1024)
+sweep_stale_l2() {
+  local pid e args n=0
+  for e in /proc/[0-9]*/environ; do
+    grep -qaF '/tmp/keepance-l2.' "$e" 2>/dev/null || continue
+    pid="${e#/proc/}"; pid="${pid%/environ}"
+    [[ "$pid" == "$$" ]] && continue
+    kill -KILL "$pid" 2>/dev/null && n=$((n+1)) || true
+  done
+  for pid in $(pgrep -x Xvfb 2>/dev/null || true); do
+    args="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)" || continue
+    [[ "$args" == *"1366x900x24"* ]] && { kill -KILL "$pid" 2>/dev/null && n=$((n+1)) || true; }
+  done
+  rm -rf /tmp/keepance-l2.* 2>/dev/null || true
+  [[ $n -gt 0 ]] && echo "Swept $n stale L2 process(es)/server(s) from a prior run."
+  return 0
+}
+
+# Tear down everything a single spec started. The process-group kill handles the
+# driver stack (tauri-driver, WebKitWebDriver, dbus-run-session, gnome-keyring,
+# xvfb-run), but two things escape it and MUST be reaped explicitly, or they leak
+# and break later specs in the same board:
+#   1) the app binary -- WebKitWebDriver launches it in its OWN session, so the
+#      process-group kill misses it. We find it by the unique per-spec temp root
+#      in its environment (matches nothing outside this run).
+#   2) Xvfb -- xvfb-run double-forks it and, when SIGKILLed, never runs its own
+#      teardown, orphaning the X server. We kill the EXACT display this spec used
+#      (recorded to $display_file), so we never touch another service's Xvfb.
+cleanup_spec() {
+  local driver_pid="$1" tmproot="$2" display_file="$3"
+  local pid e args display
+
+  kill -TERM -- "-$driver_pid" 2>/dev/null || true
+  sleep 0.2
+  kill -KILL -- "-$driver_pid" 2>/dev/null || true
+  wait "$driver_pid" 2>/dev/null || true
+
+  # (1) reap the escaped app (and any straggler) by per-spec env marker
+  if [[ -n "$tmproot" ]]; then
+    for e in /proc/[0-9]*/environ; do
+      grep -qaF "$tmproot" "$e" 2>/dev/null || continue
+      pid="${e#/proc/}"; pid="${pid%/environ}"
+      [[ "$pid" == "$$" ]] && continue
+      kill -KILL "$pid" 2>/dev/null || true
+    done
+  fi
+
+  # (2) reap this spec's Xvfb by the exact display it picked
+  if [[ -f "$display_file" ]]; then
+    display="$(head -n1 "$display_file" 2>/dev/null | tr -d '[:space:]' || true)"
+    display="${display%%.*}"   # ":42.0" -> ":42"
+    if [[ "$display" =~ ^:[0-9]+$ ]]; then
+      for pid in $(pgrep -x Xvfb 2>/dev/null || true); do
+        args="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)" || continue
+        case " $args " in *" $display "*) kill -KILL "$pid" 2>/dev/null || true ;; esac
+      done
+    fi
+    rm -f "$display_file" 2>/dev/null || true
+  fi
+}
+
 ensure_driver_ports_free
+sweep_stale_l2
 
 # --- shared Vite (frontend) ------------------------------------------------
 VITE_PID=""
@@ -94,6 +162,10 @@ for SPEC in "${SPECS[@]}"; do
   TMPROOT="$(mktemp -d /tmp/keepance-l2.XXXXXX)"
   WORKSPACE="$TMPROOT/workspace"
   mkdir -p "$TMPROOT/home" "$TMPROOT/xdg-data" "$TMPROOT/xdg-config" "$TMPROOT/xdg-cache" "$WORKSPACE"
+  # The driver records the Xvfb display it lands on here so cleanup can kill that
+  # exact X server (and only it) afterwards.
+  DISPLAY_FILE="$EVIDENCE_DIR/${NAME}.display"
+  rm -f "$DISPLAY_FILE"
 
   # tauri-driver inherits this env (and passes it to the app it spawns), giving
   # each spec a fully isolated profile.
@@ -115,7 +187,11 @@ for SPEC in "${SPECS[@]}"; do
     TAURI_DRIVER_PORT="$TAURI_DRIVER_PORT" \
     TAURI_NATIVE_PORT="$TAURI_NATIVE_PORT" \
     WEBKIT_DRIVER="$WEBKIT_DRIVER" \
+    KP_DISPLAY_FILE="$DISPLAY_FILE" \
     dbus-run-session -- bash -c '
+      # Record the Xvfb display xvfb-run picked, so the parent can reap exactly
+      # this X server during cleanup (xvfb-run orphans it when SIGKILLed).
+      echo "${DISPLAY:-}" > "$KP_DISPLAY_FILE" 2>/dev/null || true
       printf "\n" | gnome-keyring-daemon --unlock --components=secrets >/dev/null 2>&1
       gnome-keyring-daemon --start --components=secrets >/dev/null 2>&1 &
       # Prime the DEFAULT collection: this creates + UNLOCKS it (with the empty
@@ -156,10 +232,7 @@ for SPEC in "${SPECS[@]}"; do
     esac
   fi
 
-  kill -TERM -- "-$DRIVER_PID" 2>/dev/null || true
-  sleep 0.2
-  kill -KILL -- "-$DRIVER_PID" 2>/dev/null || true
-  wait "$DRIVER_PID" 2>/dev/null || true
+  cleanup_spec "$DRIVER_PID" "$TMPROOT" "$DISPLAY_FILE"
   rm -rf "$TMPROOT"
   echo
 done

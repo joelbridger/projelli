@@ -56,18 +56,38 @@ up locally. Each is a clear next investment to widen coverage.
 | `18-rag-cited-ask` | The `intfloat/multilingual-e5-small` embedding model (via `model_ensure`) + an AI answer provider (a seeded key or local Ollama chat model). |
 | `20-firm-lifecycle` | A local firm backend: `./scripts/run-firm-backend-local.sh` so `/org/claim`, `/auth/login`, `/org/activate`, `/seat/validate` etc. are reachable. Two-instance co-editing/ethical-wall coverage also needs a second driver port in the harness. |
 
-## Harness reliability note (important for reading the board)
+## Harness reliability note — FIXED (2026-06-18)
 
-The L2 runner's per-spec cleanup is **incomplete**: it kills the `tauri-driver` process group but
-leaks the **app process (spawned by WebKitWebDriver in a separate session) and its Xvfb display**.
-On a clean start the full 12-spec board completes fine (first board: 5 PASS / 6 BLOCKED / 1 FAIL).
-But if the run starts with pre-existing orphans (e.g. after ad-hoc single-spec runs or killed
-agents), the leaked apps/Xvfb pile up and, from ~spec 14 on, a new app can't render within the
-timeout — producing a wave of false `welcome-dialog-pitch not found` failures (NOT product bugs).
-A second, dirty-start full board showed exactly this (1 PASS / 10 FAIL). **Authoritative signal =
-small, clean-start batches.** Follow-up: harden cleanup to reap the app + its Xvfb per spec (track
-the app PID / pkill by the per-spec temp HOME), or run in batches of <=6. Cleanup of leaked test
-processes must match ONLY `1366x900x24` Xvfb (other services run 1280x1024 Xvfb — do not kill those).
+**The per-spec cleanup leak is fixed in `run.sh`; full clean boards now run honestly without
+batching.** A re-verified full 12-spec board on `keepance-3.0` came back **6 PASS · 2 FAIL ·
+4 BLOCKED**, every spec (including the later 16–20 that used to cascade) booting the real app
+cleanly, and a post-run scan showed zero leaked harness processes. The two FAILs are honest,
+non-product issues — `10-files-editor` (row-menu spec selector) and `18-rag-cited-ask` (needs the
+e5-small embedding model + an answer provider) — not the old false `welcome-dialog-pitch` wave.
+
+What was wrong and what changed:
+
+- **The leak:** the old cleanup killed the `tauri-driver` process group but left two escapees
+  behind — the **app binary** (WebKitWebDriver launches it in its OWN session, so the group kill
+  misses it) and its **Xvfb display** (`xvfb-run` double-forks Xvfb and, when SIGKILLed, never runs
+  its own teardown). On a dirty start these piled up and, from ~spec 14 on, a new app couldn't
+  render within the timeout, producing a wave of false `welcome-dialog-pitch not found` failures
+  (a dirty-start board once showed 1 PASS / 10 FAIL).
+- **The fix (`run.sh`):** (1) each spec now records the Xvfb display it lands on and cleanup kills
+  *that exact* X server; (2) cleanup also reaps any process whose environment still carries the
+  spec's unique `/tmp/keepance-l2.*` temp root (catches the escaped app); (3) a startup
+  `sweep_stale_l2` reaps leftovers from a previously-killed run before a board begins. All matching
+  is scoped so it can never touch other services — the app/driver match is on the unique per-run
+  temp path, and the only Xvfb ever killed is this harness's `1366x900x24` server (other services
+  on the box run `1280x1024` and are left alone; verified intact after every run).
+
+Independent of the leak, a **stale long-running Vite dev server** can produce the *same*
+`welcome-dialog-pitch not found` symptom: if Vite was ever started inside a now-deleted worktree
+(e.g. a Codex `.worktrees/<x>` agent), its in-memory module graph keeps a dead path and throws a
+full-screen HMR overlay (`ENOENT … /.worktrees/<x>/public/favicon.svg`) that hides the app. The
+HTTP response still returns 200 with the right `<title>`, so `run.sh` "reuses" it. **If every spec
+fails at the welcome screen on a clean start, restart Vite from the repo root before debugging the
+app** (`kill` the `:5173` process, then `npm run dev`).
 
 ## Fix status (2026-06-18, second half of session)
 
