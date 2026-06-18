@@ -18,6 +18,12 @@ export default {
 
     await openMatterManagerFromMatters(session, app);
     await session.testid('matter-manager-dialog', 10_000);
+    await pressShortcut(session, 'Escape');
+    await waitForDialogClosed(session);
+    await assertShellStillMounted(session);
+
+    await openMatterManagerFromMatters(session, app);
+    await session.testid('matter-manager-dialog', 10_000);
 
     const alphaName = uniqueName('Alpha v. Beta');
     const alphaClient = 'Alpha Manufacturing';
@@ -106,10 +112,22 @@ async function closeDialog(session, app) {
     5_000,
   );
   await session.click(close);
+  await waitForDialogClosed(session);
+}
+
+async function waitForDialogClosed(session) {
   await session.waitFor(
     async () => !(await session.hasTestid('matter-manager-dialog', 500)),
     { timeoutMs: 10_000, intervalMs: 300, label: 'matter manager closed' },
   );
+}
+
+async function assertShellStillMounted(session) {
+  await session.testid('spine-nav', 10_000);
+  const welcomeVisible = await session.hasTestid('welcome-dialog-pitch', 1_000);
+  if (welcomeVisible) {
+    throw new Error('Matter Manager Escape returned to the workspace selector.');
+  }
 }
 
 async function openAIAssistant(session) {

@@ -490,6 +490,7 @@ function App() {
           const mimeType = getMimeType(name);
           const dataUrl = arrayBufferToDataUrl(buffer, mimeType);
           openFile(path, name, dataUrl);
+          setDocumentsView('editor');
         } else {
           const content = await workspaceServiceRef.current.readFile(path);
           // `.workflow` files are routed via openTab with the dedicated
@@ -501,6 +502,7 @@ function App() {
           } else {
             openFile(path, name, content);
           }
+          setDocumentsView('editor');
         }
       } catch (error) {
         console.error('Failed to open file:', error);

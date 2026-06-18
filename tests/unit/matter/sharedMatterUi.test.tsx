@@ -204,6 +204,20 @@ describe('MatterManagerDialog — solo mode (no firm session)', () => {
     // Firm mine section absent
     expect(screen.queryByTestId('firm-shared-mine-section')).not.toBeInTheDocument();
   });
+
+  it('pressing Escape closes only the matter manager dialog', async () => {
+    const onOpenChange = vi.fn();
+    render(<MatterManagerDialog open={true} onOpenChange={onOpenChange} />);
+
+    expect(screen.getByTestId('matter-manager-dialog')).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape', bubbles: true });
+
+    await waitFor(() => {
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -317,6 +317,11 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
       <DialogContent
         data-testid="matter-manager-dialog"
         className="max-w-2xl max-h-[80vh] overflow-y-auto"
+        onEscapeKeyDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onOpenChange(false);
+        }}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
