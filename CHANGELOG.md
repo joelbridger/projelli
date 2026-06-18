@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Files modified: `src/features/ask/chat/ChatModelPicker.tsx`
 
 ### Fixed
+- **Trash restore collisions now restore the deleted file instead of doing nothing.** When a trashed file is restored and the original path is already occupied, Keepance writes a `_restored_<timestamp>` copy, removes the trash payload, and clears the trash metadata entry.
+  - Files modified: `src/platform/history/TrashService.ts`, `src/platform/hooks/useTrash.ts`, `tests/unit/trash-service.test.ts`, `tests/desktop/specs/11-trash-destructive.mjs`
+- **TypeScript can resolve the OCR engine package again during local checks.** Added the local `tesseract-wasm` declaration the OCR seam already expected, matching the package's published types while working around its package-exports metadata.
+  - Files modified: `src/platform/types/tesseract-wasm.d.ts`
 - **The headless desktop vault test now uses a fresh Tauri driver instead of accidentally attaching to a stale one.** The L2 runner refuses occupied driver ports, starts the driver stack in its own process group, cleans up the app/WebKit/DBus/keyring processes together, and returns success for honest BLOCKED outcomes when no real test failed.
   - Files modified: `tests/desktop/run.sh`
 - **New chats now default to a provider the user actually has a valid key for** - Previously every new chat hardcoded Anthropic via `chatData.provider ?? 'anthropic'`, so a user whose only valid key was OpenAI or Gemini (or whose Anthropic key was bad) could not use chat at all. AIChatViewer now seeds a new chat's provider/model once on mount from the settings default (when its key is valid) or the first valid key, persisting via the existing `onSave`. The `?? 'anthropic'` fallback remains as the last resort that drives the "add a key" experience when no valid key exists.
