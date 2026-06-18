@@ -180,13 +180,20 @@ export class TrashService {
       const ext = item.name.includes('.') ? item.name.split('.').pop() : '';
       const baseName = ext ? item.name.slice(0, -(ext.length + 1)) : item.name;
       const timestamp = Date.now();
-      targetPath = ext
-        ? `${parentPath}/${baseName}_restored_${timestamp}.${ext}`
-        : `${parentPath}/${baseName}_restored_${timestamp}`;
+      const restoredName = ext
+        ? `${baseName}_restored_${timestamp}.${ext}`
+        : `${baseName}_restored_${timestamp}`;
+      targetPath = parentPath ? `${parentPath}/${restoredName}` : restoredName;
     }
 
-    // Move back from trash
-    await this.fileOps.move(item.trashPath, targetPath);
+    if (exists && item.type === 'file') {
+      const content = await this.fileOps.read(item.trashPath);
+      await this.fileOps.write(targetPath, content);
+      await this.fileOps.delete(item.trashPath);
+    } else {
+      // Move back from trash
+      await this.fileOps.move(item.trashPath, targetPath);
+    }
 
     // Remove from manifest
     this.items.delete(id);

@@ -253,22 +253,12 @@ export default {
     await activateTrashView(session, app);
     await session.waitForBodyText('collision.txt', { timeoutMs: 15_000 });
     await clickTrashRowAction(session, 'collision.txt', 'Restore');
-    let restoredCollision;
-    try {
-      restoredCollision = await waitForDisk(() => {
-        const candidates = fs
-          .readdirSync(workspace)
-          .filter((name) => /^collision_restored_\d+\.txt$/.test(name));
-        return candidates.length > 0 ? candidates[0] : null;
-      }, 'collision restore created a unique restored copy', 12_000);
-    } catch {
-      const originalContent = fs.existsSync(path.join(workspace, 'collision.txt'))
-        ? fs.readFileSync(path.join(workspace, 'collision.txt'), 'utf8').trim()
-        : '<missing>';
-      throw new Error(
-        `BLOCKED: needs product fix for Trash restore collision; restoring collision.txt while collision.txt already exists leaves no collision_restored_*.txt copy (original="${originalContent}", trashPayloadStillExists=${String(fs.existsSync(collisionEntry.trashPath))}, metadataStillHasEntry=${String(Boolean(trashEntryFor(workspace, 'collision.txt')))})`,
-      );
-    }
+    const restoredCollision = await waitForDisk(() => {
+      const candidates = fs
+        .readdirSync(workspace)
+        .filter((name) => /^collision_restored_\d+\.txt$/.test(name));
+      return candidates.length > 0 ? candidates[0] : null;
+    }, 'collision restore created a unique restored copy', 12_000);
     if (fs.readFileSync(path.join(workspace, 'collision.txt'), 'utf8') !== 'replacement collision\n') {
       throw new Error('Restore collision overwrote the replacement original file');
     }

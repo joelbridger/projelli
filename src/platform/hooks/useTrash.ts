@@ -160,11 +160,17 @@ export function useTrash({ rootPath, workspaceServiceRef }: UseTrashOptions): Us
           const baseName = ext ? item.name.slice(0, -(ext.length)) : item.name;
           const timestamp = Date.now();
           const parentPath = targetPath.split('/').slice(0, -1).join('/');
-          targetPath = `${parentPath}/${baseName}_restored_${timestamp}${ext}`;
+          const restoredName = `${baseName}_restored_${timestamp}${ext}`;
+          targetPath = parentPath ? `${parentPath}/${restoredName}` : restoredName;
         }
 
-        // Move back from trash
-        await workspaceServiceRef.current.move(item.trashPath, targetPath);
+        if (exists) {
+          await workspaceServiceRef.current.copy(item.trashPath, targetPath);
+          await workspaceServiceRef.current.delete(item.trashPath);
+        } else {
+          // Move back from trash
+          await workspaceServiceRef.current.move(item.trashPath, targetPath);
+        }
 
         // Remove from trash state and persist
         const newItems = trashItems.filter(i => i.id !== id);
