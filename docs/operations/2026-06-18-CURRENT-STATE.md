@@ -2,7 +2,29 @@
 
 > **Read this first.** Supersedes `2026-06-13-CURRENT-STATE.md` for the email-connector
 > work. Companion: memory `reference_keepance_email_oauth.md` (the fast validation loop
-> + every gotcha). Branch `keepance-3.0`, version now **3.3.5**, tree clean.
+> + every gotcha). Branch `keepance-3.0`, version **3.3.5**, tree clean, synced (HEAD `52216d5`).
+
+## TL;DR (round 4 — full user-test + UX fix wave, 2026-06-18)
+Beyond the email connectors, Jameson asked for a full "drive it like a user" test and then to
+fix everything found, autonomously. Done; committed `52216d5`; gates green (typecheck 0, vitest
+**3275 passed**). A **repeatable playbook** is saved at `docs/quality/full-user-test-playbook.md`
+(+ memory [[keepance-user-test]], + CLAUDE.md ref) — say "run the full user-test playbook".
+- 🔴 **AI chat was 100% unreachable** (command-palette action pointed at a removed sidebar surface;
+  Ctrl+Shift+A compared lowercase `'a'` while Shift makes `'A'` — also broke Ctrl+Shift+O/+P).
+  FIXED earlier (`c9ec30c`), then verified live (an OpenAI "PONG").
+- 🟠 **Chat had no model/provider picker** + new chats hardcoded Anthropic. FIXED: `ChatModelPicker`
+  in the header + new-chat default resolution (`providerModelResolution.ts`).
+- 🟠 **API keys** saved silently with no validation + "Manage" only added. FIXED: validate-on-save +
+  a real key manager (list/check/remove, `ApiKeyManager.tsx`).
+- 🟡 Key wizard modal too tall (now `max-h-[85vh]` + sticky footer); email compose now closes on
+  Escape; 11 user-facing em dashes removed.
+- **Open follow-ups (minor):** the new-chat default uses `apiKeys.isValid` = "key present", so a
+  present-but-expired key (e.g. a stale Anthropic key) is still chosen first — prefer a *verified*
+  provider, or re-validate stored keys. Live Ollama auto-detection isn't wired into the picker (only
+  shows if an apiKeys entry exists). Legacy `keepance_default_*` localStorage keys aren't consulted
+  (picker uses the settings store `defaultProvider`). The picker's live click-through
+  (switch provider → send) wasn't manually finished (it renders + 13 unit tests pass; send pipeline
+  proven earlier). ApiKeyWizard carries 9 pre-existing (non-gating) lint findings.
 
 ## TL;DR (round 2 — v3.3.5)
 Jameson tested the v3.3.4 build on Windows and hit five email-connector/UI bugs. All five
