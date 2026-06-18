@@ -35,8 +35,14 @@ import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 import { ChatModelPicker } from '@/features/ask/chat/ChatModelPicker';
 import {
   resolveNewChatDefault,
+  resolveSettingsDefaults,
   type ChatProvider,
 } from '@/features/ask/chat/providerModelResolution';
+import { getVerifiedProviders, getInvalidProviders } from '@/platform/providers/keyVerification';
+import {
+  PROFESSION_PROVIDER_STORAGE_KEY,
+  PROFESSION_MODEL_STORAGE_KEY,
+} from '@/platform/profile/professionModel';
 // F-121 (VG-5b) — explains privilege exclusion next to its toggle, with a
 // "see it work" check that runs the user's own question against their index.
 import { PrivilegeExclusionExplainer } from '@/features/ask/PrivilegeExclusionExplainer';
@@ -686,10 +692,27 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     }
     if (!onSave) return;
     const settings = useSettingsStore.getState();
-    const resolved = resolveNewChatDefault(apiKeys, {
-      defaultProvider: (settings.getSetting('defaultProvider') as string | undefined) ?? '',
-      defaultModel: (settings.getSetting('defaultModel') as string | undefined) ?? '',
-    });
+    // Settings store wins; fall back to the legacy keepance_default_* keys the
+    // older profession-model picker wrote, so a default set there is honored.
+    const defaults = resolveSettingsDefaults(
+      settings.getSetting('defaultProvider') as string | undefined,
+      settings.getSetting('defaultModel') as string | undefined,
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem(PROFESSION_PROVIDER_STORAGE_KEY)
+        : null,
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem(PROFESSION_MODEL_STORAGE_KEY)
+        : null,
+    );
+    // Prefer a provider whose key actually passed a live check over a
+    // present-but-expired one (e.g. a stale Anthropic key), and never default to
+    // a provider whose key a live check already rejected.
+    const resolved = resolveNewChatDefault(
+      apiKeys,
+      defaults,
+      getVerifiedProviders(),
+      getInvalidProviders(),
+    );
     if (!resolved) return; // (c) leave unset → '?? anthropic' still drives the add-a-key flow.
     providerSeededRef.current = true;
     onSave({

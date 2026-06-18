@@ -142,13 +142,45 @@ export interface SettingsDefaults {
 }
 
 /**
+ * Merge the settings-store defaults with the legacy `keepance_default_*`
+ * localStorage keys (written by the older profession-model picker). The store
+ * value wins; the legacy value is only consulted when the store is empty. Kept
+ * pure (caller passes the raw values) so it can be unit-tested without a store
+ * or localStorage.
+ */
+export function resolveSettingsDefaults(
+  storeProvider: string | undefined,
+  storeModel: string | undefined,
+  legacyProvider: string | null | undefined,
+  legacyModel: string | null | undefined,
+): SettingsDefaults {
+  return {
+    defaultProvider: storeProvider?.trim() || legacyProvider?.trim() || '',
+    defaultModel: storeModel?.trim() || legacyModel?.trim() || '',
+  };
+}
+
+/**
  * Resolve the provider + model a NEW chat should default to.
  *
  * Priority for the provider:
- *   (a) the settings default provider IF it has a valid key in `apiKeys`;
- *   (b) else the first provider in `apiKeys` with `isValid === true`;
+ *   (a) the settings default provider IF it is in the candidate pool;
+ *   (b) else the first provider in the candidate pool;
  *   (c) else null — leave the chat's provider unset so AIChatViewer's existing
  *       `?? 'anthropic'` fallback still drives the "add a key" experience.
+ *
+ * The candidate pool is normally every provider in `apiKeys` with
+ * `isValid === true`. But `isValid` only means "a key is present", not "the key
+ * works". Two refinements use live-check results when available:
+ *   - providers in `invalidProviders` (rejected by a live check) are EXCLUDED,
+ *     so a key we already know is bad is never chosen;
+ *   - when at least one remaining provider is in `verifiedProviders`, the pool
+ *     narrows to those verified providers, so a present-but-expired key (e.g. a
+ *     stale Anthropic key) is no longer chosen ahead of a freshly verified one.
+ * When nothing is known either way (a fresh install, or keys only loaded from
+ * legacy storage), the pool stays the full available list so no one is ever
+ * locked out. If every available provider is known-invalid, this returns null,
+ * leaving the provider unset so the "add a key" experience takes over.
  *
  * Model: the settings default model if it belongs to the chosen provider, else
  * the provider's first available model (cache → defaults), else the hardcoded
@@ -157,14 +189,29 @@ export interface SettingsDefaults {
 export function resolveNewChatDefault(
   apiKeys: APIKey[],
   settings: SettingsDefaults = {},
+  verifiedProviders?: Set<string>,
+  invalidProviders?: Set<string>,
 ): DefaultResolution | null {
   const available = resolveAvailableProviders(apiKeys);
-  const firstAvailable = available[0];
+  // Drop providers a live check already rejected (bad / expired key).
+  const eligible =
+    invalidProviders && invalidProviders.size > 0
+      ? available.filter((p) => !invalidProviders.has(p))
+      : available;
+  if (eligible.length === 0) return null;
+
+  // Prefer verified providers when we know of any among the eligible ones.
+  const verifiedEligible =
+    verifiedProviders && verifiedProviders.size > 0
+      ? eligible.filter((p) => verifiedProviders.has(p))
+      : [];
+  const pool = verifiedEligible.length > 0 ? verifiedEligible : eligible;
+  const firstAvailable = pool[0];
   if (!firstAvailable) return null;
 
   const settingsProvider = settings.defaultProvider?.trim();
   const provider: ChatProvider =
-    settingsProvider && available.includes(settingsProvider as ChatProvider)
+    settingsProvider && pool.includes(settingsProvider as ChatProvider)
       ? (settingsProvider as ChatProvider)
       : firstAvailable;
 

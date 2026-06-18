@@ -36,6 +36,7 @@ import {
   validateApiKeyLive,
   type ValidationProvider,
 } from '@/platform/providers/apiKeyValidation';
+import { markKeyVerified, markKeyInvalid, clearKeyStatus } from '@/platform/providers/keyVerification';
 
 /** The subset of KeychainService this surface needs. */
 export interface ApiKeyManagerKeychain {
@@ -155,8 +156,12 @@ export function ApiKeyManager({
       // leave it unverified rather than mislabel a possibly-good key as invalid.
       if (result.outcome === 'ok') {
         setRowStatus(provider, 'working');
+        // Remember this provider is verified so a new chat prefers it.
+        markKeyVerified(provider);
       } else if (result.outcome === 'rejected' || result.outcome === 'malformed') {
         setRowStatus(provider, 'invalid');
+        // The stored key is bad, so a new chat must never default to it.
+        markKeyInvalid(provider);
       } else {
         setRowStatus(provider, 'unverified');
       }
@@ -172,6 +177,7 @@ export function ApiKeyManager({
       abortRefs.current.get(provider)?.abort();
       abortRefs.current.delete(provider);
       await keychainService.deleteKey(provider);
+      clearKeyStatus(provider);
       await loadRows();
       onKeyRemoved?.(provider);
     },

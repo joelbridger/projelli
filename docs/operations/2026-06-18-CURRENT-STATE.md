@@ -4,6 +4,43 @@
 > work. Companion: memory `reference_keepance_email_oauth.md` (the fast validation loop
 > + every gotcha). Branch `keepance-3.0`, version **3.3.5**, tree clean, synced (HEAD `52216d5`).
 
+## TL;DR (round 5 — picker follow-ups closed before the build, 2026-06-18)
+Jameson chose "polish first, then build", so the four minor picker follow-ups left open in
+round 4 were closed before cutting v3.3.5 (one build covers everything). All frontend-only; **no
+Rust touched**, so the cargo gate is unaffected. Gates: **typecheck 0 · vitest 3289 passed / 3
+skipped (+14 new)** · lint introduces nothing new (ApiKeyWizard back to its 9 pre-existing
+findings). Still v3.3.5, **NO build cut yet** — that remains Jameson's explicit go.
+- **Verified-provider preference (+ known-invalid exclusion).** A new chat now prefers a provider
+  whose key actually passed a live check, and never defaults to one a live check already rejected.
+  Per-provider markers (`src/platform/providers/keyVerification.ts`, mutually-exclusive
+  verified/invalid) are written by the wizard's validate-on-save (only AFTER the key is persisted)
+  and the manager's "Check" (which checks the stored key: working => verified, rejected =>
+  invalid). `resolveNewChatDefault` drops known-invalid providers, then narrows to verified ones
+  when any remain, then falls back to all present providers when nothing is known (no lockout);
+  if every present provider is known-invalid it returns null so "add a key" takes over. Fixes the
+  "stale Anthropic key chosen first and fails on message 1" case.
+- **Ollama auto-detection in the chat picker.** The picker pings a running Ollama on mount and
+  lists its installed models even with no apiKeys entry; local-only mode still hides cloud; fails
+  closed off the desktop. (Contained to `ChatModelPicker.tsx`; does NOT touch the cloud
+  key/model-fetch path.)
+- **Legacy `keepance_default_*` fallback.** The new-chat default now consults the older
+  profession-model localStorage keys when the settings-store default is empty
+  (`resolveSettingsDefaults`).
+- **Manual click-through DONE (the round-4 gap).** Drove the running dev server (Playwright,
+  `?testMode=true&mailFixture=1`): with Anthropic present-but-unverified + OpenAI verified, the new
+  chat defaulted to **OpenAI** (not Anthropic); the picker dropdown listed all keyed providers
+  **plus auto-detected Ollama (llama3.1:8b / llama3.2:3b, "On this computer")**; switching to a
+  Claude model updated the header to "Anthropic · claude-sonnet-4-6". Only console error is the
+  known `/api/anthropic 401` (expired/fake key model-list fetch). Screenshot: `~/keepance-picker-followups-verified.png`.
+- **Codex (gpt-5.5) independent adversarial review** of the whole diff found two valid P2s, both
+  fixed + tested: (1) a rejected key could still be re-chosen via the fallback -> added the
+  known-invalid marker + exclusion above; (2) the verified marker was written before the save
+  succeeded -> moved all marker writes to after a successful save (and the wizard no longer touches
+  markers on a rejected *typed candidate*, which would have demoted a good stored key). Codex
+  cleared the Ollama picker + legacy-default fallback.
+- Commits + CHANGELOG updated under `[Unreleased]`. **NEXT is unchanged: cut the v3.3.5 build on
+  Jameson's go**, then this UX wave gets exercised on real Windows alongside the email connectors.
+
 ## TL;DR (round 4 — full user-test + UX fix wave, 2026-06-18)
 Beyond the email connectors, Jameson asked for a full "drive it like a user" test and then to
 fix everything found, autonomously. Done; committed `52216d5`; gates green (typecheck 0, vitest

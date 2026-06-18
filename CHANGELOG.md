@@ -11,10 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **AI chat provider/model picker** - The chat header now has a clickable picker (replacing the display-only model chip) to choose the AI provider and model for a chat. Lists only providers with a valid API key, groups models per provider, and hides cloud providers when the matter is "On this computer only" (local-only confidentiality mode). Selecting a model sets both provider and model in one save.
   - New: `src/features/ask/chat/ChatModelPicker.tsx`, `src/features/ask/chat/providerModelResolution.ts`
   - Tests: `tests/unit/chat-model-picker.test.tsx`
+- **The chat picker now finds a local model on its own.** If you have Ollama running, its installed models appear in the chat picker automatically, even without adding anything in Account. Detection is local-only and fails quietly when no local model is running, so nothing changes off the desktop.
+  - Files modified: `src/features/ask/chat/ChatModelPicker.tsx`
 
 ### Fixed
 - **New chats now default to a provider the user actually has a valid key for** - Previously every new chat hardcoded Anthropic via `chatData.provider ?? 'anthropic'`, so a user whose only valid key was OpenAI or Gemini (or whose Anthropic key was bad) could not use chat at all. AIChatViewer now seeds a new chat's provider/model once on mount from the settings default (when its key is valid) or the first valid key, persisting via the existing `onSave`. The `?? 'anthropic'` fallback remains as the last resort that drives the "add a key" experience when no valid key exists.
   - Files modified: `src/features/ask/AIChatViewer.tsx`
+- **A new chat now prefers a provider whose key actually works.** Saving or checking a key records that it passed a live check; a new chat then prefers a verified provider over one that merely has a key saved, so a stale or expired key (for example an old Anthropic key) is no longer picked ahead of a working one and made to fail on the first message. When nothing has been verified yet, behavior is unchanged, so no one is ever locked out.
+  - New: `src/platform/providers/keyVerification.ts`; Tests: `tests/unit/key-verification.test.ts`
+  - Files modified: `src/features/ask/chat/providerModelResolution.ts`, `src/features/ask/AIChatViewer.tsx`, `src/features/onboarding/ApiKeyWizard.tsx`, `src/features/settings/ApiKeyManager.tsx`
+- **A saved default model is honored even if it was set in an older version.** The new chat default now also reads the older `keepance_default_*` preference when the current setting is empty, so a previously chosen default provider/model still applies.
+  - Files modified: `src/features/ask/chat/providerModelResolution.ts`, `src/features/ask/AIChatViewer.tsx`
 
 ## [3.3.5] - 2026-06-18
 

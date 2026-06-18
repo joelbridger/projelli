@@ -39,6 +39,7 @@ import { openExternal } from '@/platform/utils/openExternal';
 import { ExternalLink, Eye, EyeOff, Check, CheckCircle, XCircle, Loader2, AlertCircle, ArrowLeft, ArrowRight, RefreshCw, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
+import { markKeyVerified, clearKeyStatus } from '@/platform/providers/keyVerification';
 import {
   validateApiKeyLive,
   type ValidationProvider,
@@ -261,7 +262,10 @@ export function ApiKeyWizard({
     }
 
     // A clearly rejected key (bad/expired) must NOT be treated as a success.
-    // Keep the wizard open so the user can paste a corrected key.
+    // Keep the wizard open so the user can paste a corrected key. We do NOT
+    // touch the verified/invalid markers here: this is about the just-typed
+    // candidate, which is not saved, so any previously stored key for this
+    // provider (and its status) must be left exactly as it was.
     if (result.outcome === 'rejected' || result.outcome === 'malformed') {
       setValidation(result);
       setSubmitting(false);
@@ -279,8 +283,18 @@ export function ApiKeyWizard({
         : { outcome: 'ok', message: 'Key verified.' },
     );
 
+    // `provider` is narrowed to a cloud provider here (the ollama path returned
+    // earlier), so it is always a verifiable provider.
     try {
       await onSaveKey(provider, trimmedKey);
+      // Only record the status AFTER the key is actually persisted, so a marker
+      // can never point at a key the chat won't use. 'ok' => verified; 'network'
+      // => unknown (clear any stale marker so it lands in the unverified pool).
+      if (result.outcome === 'ok') {
+        markKeyVerified(provider);
+      } else {
+        clearKeyStatus(provider);
+      }
       // Close on successful save.
       onOpenChange(false);
       reset();

@@ -17,7 +17,7 @@
  * window and matches the rest of the header.
  */
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, Check, Cpu, Cloud } from 'lucide-react';
 import {
   DropdownMenu,
@@ -30,6 +30,8 @@ import {
 import { cn } from '@/lib/utils';
 import { providerDisplayName, isLocalProvider } from '@/platform/privacy/egress';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { detectOllama } from '@/platform/providers/OllamaProvider';
+import type { ModelInfo } from '@/platform/providers/ModelListService';
 import type { APIKey } from '@/features/ask/AIChatViewer';
 import {
   resolveAvailableProviders,
@@ -60,11 +62,49 @@ export function ChatModelPicker({
   const confidentialityMode = useConfidentialityMode();
   const localOnly = confidentialityMode === 'local-only';
 
-  // Providers the user can use, filtered by confidentiality mode.
+  // Live local-model detection: ping a running Ollama daemon on mount so a
+  // local model shows up in the picker even with no explicit apiKeys entry.
+  // Fails closed (reachable:false) when the daemon isn't there or fetch is
+  // blocked (e.g. the browser dev server), so nothing breaks off the desktop.
+  const [ollama, setOllama] = useState<{ reachable: boolean; models: string[] }>({
+    reachable: false,
+    models: [],
+  });
+  useEffect(() => {
+    let cancelled = false;
+    void detectOllama().then((result) => {
+      if (!cancelled) setOllama(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Providers the user can use, filtered by confidentiality mode. Ollama is
+  // added when the daemon is reachable (it's local, so it's allowed in both
+  // local-only and cloud modes), de-duplicated against any apiKeys entry.
   const providers = useMemo(() => {
     const available = resolveAvailableProviders(apiKeys);
-    return localOnly ? available.filter((p) => isLocalProvider(p)) : available;
-  }, [apiKeys, localOnly]);
+    const withLocal =
+      ollama.reachable && !available.includes('ollama')
+        ? [...available, 'ollama' as ChatProvider]
+        : available;
+    return localOnly ? withLocal.filter((p) => isLocalProvider(p)) : withLocal;
+  }, [apiKeys, localOnly, ollama.reachable]);
+
+  // Models for a provider, narrowed to what the menu renders (id + label).
+  // Ollama uses its live-detected tags; everything else uses the
+  // cache → defaults → fallback resolution.
+  const modelsFor = useMemo(
+    () =>
+      (p: ChatProvider): Array<Pick<ModelInfo, 'id' | 'displayName'>> => {
+        if (p === 'ollama' && ollama.models.length > 0) {
+          return ollama.models.map((id) => ({ id, displayName: id }));
+        }
+        return resolveModelsForProvider(p);
+      },
+    [ollama.models],
+  );
 
   // Trigger label: "OpenAI · gpt-4o-mini", or just the provider when no model,
   // or "Choose a model" when nothing is set yet.
@@ -109,7 +149,7 @@ export function ChatModelPicker({
           </div>
         ) : (
           providers.map((p, idx) => {
-            const models = resolveModelsForProvider(p);
+            const models = modelsFor(p);
             const local = isLocalProvider(p);
             return (
               <div key={p}>

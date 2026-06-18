@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 // useConfidentialityMode reads the settings store; mock it so each test drives
 // the mode directly without touching localStorage-backed settings.
@@ -20,11 +20,21 @@ vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
   useConfidentialityMode: () => confidentialityMock.mode,
 }));
 
+// detectOllama hits 127.0.0.1:11434; mock it so tests are deterministic and
+// don't depend on a real daemon (or jsdom's fetch).
+const ollamaMock = vi.hoisted(() => ({
+  result: { reachable: false, models: [] as string[] },
+}));
+vi.mock('@/platform/providers/OllamaProvider', () => ({
+  detectOllama: () => Promise.resolve(ollamaMock.result),
+}));
+
 import { ChatModelPicker } from '@/features/ask/chat/ChatModelPicker';
 import {
   resolveNewChatDefault,
   resolveAvailableProviders,
   resolveModelsForProvider,
+  resolveSettingsDefaults,
 } from '@/features/ask/chat/providerModelResolution';
 import type { APIKey } from '@/features/ask/AIChatViewer';
 
@@ -34,6 +44,7 @@ function key(provider: string, isValid: boolean): APIKey {
 
 beforeEach(() => {
   confidentialityMock.mode = 'direct';
+  ollamaMock.result = { reachable: false, models: [] };
   localStorage.clear();
 });
 
@@ -135,6 +146,63 @@ describe('ChatModelPicker', () => {
     // still selectable (provider with empty model).
     expect(screen.getByTestId('chat-model-option-ollama-default')).toBeInTheDocument();
   });
+
+  it('auto-detects a running Ollama and lists its models with no apiKeys entry', async () => {
+    ollamaMock.result = { reachable: true, models: ['llama3.2:3b'] };
+    render(
+      <ChatModelPicker
+        provider={undefined}
+        model={undefined}
+        apiKeys={[]} // no ollama entry — detection alone should surface it
+        onSelect={() => {}}
+      />,
+    );
+    fireEvent.keyDown(screen.getByTestId('chat-model-picker'), { key: 'Enter' });
+    // The detected tag appears as a selectable option once the effect resolves.
+    expect(
+      await screen.findByTestId('chat-model-option-ollama-llama3.2:3b'),
+    ).toBeInTheDocument();
+  });
+
+  it('does NOT add ollama when the daemon is unreachable', async () => {
+    ollamaMock.result = { reachable: false, models: [] };
+    render(
+      <ChatModelPicker
+        provider="openai"
+        model="gpt-4o-mini"
+        apiKeys={[key('openai', true)]}
+        onSelect={() => {}}
+      />,
+    );
+    fireEvent.keyDown(screen.getByTestId('chat-model-picker'), { key: 'Enter' });
+    // Give the detection effect a tick; ollama must not appear.
+    await waitFor(() =>
+      expect(screen.getByTestId('chat-model-option-openai-gpt-4o')).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('chat-model-option-ollama-default')).toBeNull();
+  });
+});
+
+describe('resolveSettingsDefaults', () => {
+  it('prefers the settings-store value over the legacy localStorage value', () => {
+    expect(
+      resolveSettingsDefaults('openai', 'gpt-4o', 'anthropic', 'claude-x'),
+    ).toEqual({ defaultProvider: 'openai', defaultModel: 'gpt-4o' });
+  });
+
+  it('falls back to the legacy keepance_default_* values when the store is empty', () => {
+    expect(resolveSettingsDefaults('', '', 'google', 'gemini-1.5-pro')).toEqual({
+      defaultProvider: 'google',
+      defaultModel: 'gemini-1.5-pro',
+    });
+  });
+
+  it('returns empty strings when neither source has a value', () => {
+    expect(resolveSettingsDefaults(undefined, undefined, null, null)).toEqual({
+      defaultProvider: '',
+      defaultModel: '',
+    });
+  });
 });
 
 describe('resolveAvailableProviders', () => {
@@ -211,5 +279,75 @@ describe('resolveNewChatDefault (the must-fix)', () => {
   it('returns null when there is no valid key at all (leave provider unset)', () => {
     const apiKeys = [key('anthropic', false), key('openai', false)];
     expect(resolveNewChatDefault(apiKeys)).toBeNull();
+  });
+
+  it('prefers a VERIFIED provider over a merely-present (possibly expired) one', () => {
+    // Both present, but only OpenAI has passed a live check. Anthropic is first
+    // in the list yet must NOT win.
+    const apiKeys = [key('anthropic', true), key('openai', true)];
+    const result = resolveNewChatDefault(apiKeys, {}, new Set(['openai']));
+    expect(result!.provider).toBe('openai');
+  });
+
+  it('ignores the settings default when that provider is present but NOT verified', () => {
+    const apiKeys = [key('anthropic', true), key('openai', true)];
+    // Settings wants anthropic, but only openai is verified -> openai wins.
+    const result = resolveNewChatDefault(
+      apiKeys,
+      { defaultProvider: 'anthropic' },
+      new Set(['openai']),
+    );
+    expect(result!.provider).toBe('openai');
+  });
+
+  it('falls back to all present providers when NONE of them are verified', () => {
+    // verified set names a provider the user does not have -> no narrowing,
+    // so the first present provider wins (no lockout).
+    const apiKeys = [key('anthropic', true), key('openai', true)];
+    const result = resolveNewChatDefault(apiKeys, {}, new Set(['google']));
+    expect(result!.provider).toBe('anthropic');
+  });
+
+  it('honors the settings default when that provider IS verified', () => {
+    const apiKeys = [key('openai', true), key('google', true)];
+    const result = resolveNewChatDefault(
+      apiKeys,
+      { defaultProvider: 'google' },
+      new Set(['openai', 'google']),
+    );
+    expect(result!.provider).toBe('google');
+  });
+
+  it('EXCLUDES a known-invalid provider from the fallback pool', () => {
+    // Anthropic is present but a live check rejected it; OpenAI is present but
+    // unchecked. Nothing is verified, so without the invalid set anthropic (the
+    // first present provider) would win. The invalid set must push it past.
+    const apiKeys = [key('anthropic', true), key('openai', true)];
+    const result = resolveNewChatDefault(
+      apiKeys,
+      {},
+      undefined,
+      new Set(['anthropic']),
+    );
+    expect(result!.provider).toBe('openai');
+  });
+
+  it('returns null when the only present provider is known-invalid', () => {
+    // No good provider to pick -> leave it unset so "add a key" takes over,
+    // rather than defaulting to a key we already know fails.
+    const apiKeys = [key('anthropic', true)];
+    const result = resolveNewChatDefault(apiKeys, {}, undefined, new Set(['anthropic']));
+    expect(result).toBeNull();
+  });
+
+  it('ignores the settings default when that provider is known-invalid', () => {
+    const apiKeys = [key('anthropic', true), key('openai', true)];
+    const result = resolveNewChatDefault(
+      apiKeys,
+      { defaultProvider: 'anthropic' },
+      undefined,
+      new Set(['anthropic']),
+    );
+    expect(result!.provider).toBe('openai');
   });
 });
