@@ -29,43 +29,59 @@ export function VaultControlCard() {
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const resetVaultFlow = useVaultStore((s) => s.reset);
   const [status, setStatus] = useState<VaultStatus | null>(null);
-  const [checking, setChecking] = useState(false);
   const [enableOpen, setEnableOpen] = useState(false);
   const [disableOpen, setDisableOpen] = useState(false);
 
+  // Load (and reset) vault status whenever the workspace changes. `status === null`
+  // means "not yet known": we render a neutral checking state and NEVER offer
+  // "Enable vault" until we have confirmed the workspace is actually unvaulted.
+  // (vault_create overwrites metadata + the master key, so enabling a vault that
+  // already exists would orphan its encrypted files — the control must never
+  // appear on a stale or unknown status.) The ignore flag drops a response that
+  // arrives after rootPath has changed.
+  useEffect(() => {
+    if (!isTauri() || !rootPath) {
+      setStatus(null);
+      return undefined;
+    }
+    let ignore = false;
+    setStatus(null);
+    vaultStatus(rootPath)
+      .then((s) => { if (!ignore) setStatus(s); })
+      .catch(() => { if (!ignore) setStatus(null); });
+    return () => { ignore = true; };
+  }, [rootPath]);
+
+  // Re-check after an enable/disable action (or a cancelled enable that may have
+  // written metadata before the ceremony) so the card reflects the real on-disk
+  // state, not a stale one.
   const refresh = useCallback(async () => {
     if (!isTauri() || !rootPath) {
       setStatus(null);
       return;
     }
-    setChecking(true);
     try {
       setStatus(await vaultStatus(rootPath));
     } catch {
-      // A status query can fail on a brand-new workspace or a platform without a
-      // keychain backend. Treat that as "no vault info" rather than surfacing an
-      // error on the privacy surface.
       setStatus(null);
-    } finally {
-      setChecking(false);
     }
   }, [rootPath]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
 
   // Vault is desktop-only; render nothing in the browser or with no workspace.
   if (!isTauri() || !rootPath) return null;
 
+  const loaded = status !== null;
   const enabled = status?.enabled ?? false;
   const locked = status?.locked ?? false;
 
   const closeEnable = () => {
     setEnableOpen(false);
     // VaultEnableFlow holds its phase in the shared vault store; reset it so a
-    // dismissed-mid-flow dialog doesn't reopen on a stale phase.
+    // dismissed-mid-flow dialog doesn't reopen on a stale phase. Re-check status
+    // too: enableVault writes vault metadata before the recovery ceremony, so a
+    // cancel mid-flow can leave the workspace marked enabled — surface that.
     resetVaultFlow();
+    void refresh();
   };
 
   return (
@@ -126,7 +142,7 @@ export function VaultControlCard() {
             : t('vault.enable.subtitle')}
         </p>
 
-        {checking && status === null ? (
+        {!loaded ? (
           <span
             style={{
               display: 'inline-flex',

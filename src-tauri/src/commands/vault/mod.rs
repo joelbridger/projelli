@@ -289,6 +289,10 @@ pub enum VaultCommandError {
     /// have the KPV1 magic header (are still encrypted). The vault cannot be
     /// disabled until every file has been decrypted via `vault_decrypt_all`.
     FilesStillEncrypted(String),
+    /// `vault_create` was called for a workspace that already has a
+    /// `.keepance-vault.json`. Creating again would overwrite the existing master
+    /// key and permanently orphan already-encrypted files; disable first.
+    AlreadyEnabled(String),
 }
 
 impl std::fmt::Display for VaultCommandError {
@@ -303,6 +307,7 @@ impl std::fmt::Display for VaultCommandError {
             VaultCommandError::InvalidPhrase(m) => write!(f, "invalid_phrase: {m}"),
             VaultCommandError::RecoveryFailed(m) => write!(f, "recovery_failed: {m}"),
             VaultCommandError::FilesStillEncrypted(m) => write!(f, "files_still_encrypted: {m}"),
+            VaultCommandError::AlreadyEnabled(m) => write!(f, "vault_already_enabled: {m}"),
         }
     }
 }
@@ -415,6 +420,16 @@ pub async fn vault_create(
     escrow: bool,
 ) -> Result<VaultCreated, VaultCommandError> {
     let root = Path::new(&workspace);
+
+    // Refuse to create a vault where one already exists. vault_create writes new
+    // metadata and stores a fresh VMK; doing that over an existing vault would
+    // overwrite the key and permanently orphan any files already encrypted under
+    // the old one (a data-loss path). Callers must disable the existing vault first.
+    if root.join(METADATA_FILENAME).exists() {
+        return Err(VaultCommandError::AlreadyEnabled(format!(
+            "a vault already exists for this workspace ({workspace}); disable it before creating a new one"
+        )));
+    }
 
     // 1. Generate a 32-byte VMK using OsRng (spec §4.1 mandates OS entropy source).
     let mut vmk = [0u8; 32];
@@ -946,6 +961,32 @@ mod tests {
         assert!(
             id.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()),
             "workspace_id must be lowercase hex"
+        );
+    }
+
+    // ── vault_create idempotency guard ────────────────────────────────────────
+
+    /// vault_create must refuse when a vault already exists, so it can never
+    /// overwrite the existing master key and orphan already-encrypted files.
+    #[tokio::test]
+    async fn vault_create_refuses_when_already_enabled() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        // A pre-existing metadata file is all the guard checks for; its contents
+        // are irrelevant because the guard returns before any parsing or keychain
+        // I/O.
+        std::fs::write(root.join(METADATA_FILENAME), b"{}").unwrap();
+
+        let result = vault_create(root.to_string_lossy().into_owned(), false).await;
+        assert!(
+            matches!(result, Err(VaultCommandError::AlreadyEnabled(_))),
+            "vault_create must refuse to overwrite an existing vault, got: {result:?}"
+        );
+        // The guard must not have mutated the existing metadata.
+        assert_eq!(
+            std::fs::read(root.join(METADATA_FILENAME)).unwrap(),
+            b"{}",
+            "vault_create must not touch existing metadata when it refuses"
         );
     }
 

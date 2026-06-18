@@ -269,6 +269,12 @@ export default {
     // the decrypt/disable itself runs through the native commands below.
     await app.gotoSurface(session, 'Privacy Center');
     await session.testid('vault-disable-trigger', 20_000);
+    // Regression guard (data-loss): an already-enabled vault must NOT offer
+    // "Enable vault" — re-running vault_create would overwrite the master key and
+    // orphan the encrypted files.
+    if (await session.hasTestid('vault-enable-trigger', 1_000)) {
+      throw new Error('vault-enable-trigger must not appear when the vault is already enabled');
+    }
 
     await invokeOrBlockOnKeychain(
       session,
