@@ -398,4 +398,30 @@ mod tests {
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("refresh_token"), "error must mention refresh_token: {msg}");
     }
+
+    // Live OAuth smoke test for server-side connector validation (no signed build
+    // needed). Ignored by default; run manually in two phases:
+    //   Phase 1 (no MS_CODE env): prints MS_VERIFIER + MS_AUTH_URL.
+    //   Phase 2 (MS_CODE + MS_VERIFIER env): exchanges the real code for tokens.
+    #[tokio::test]
+    #[ignore]
+    async fn outlook_live_smoke() {
+        use crate::commands::mail::gmail::oauth::gen_pkce;
+        let cid = std::env::var("KEEPANCE_MS_CLIENT_ID")
+            .unwrap_or_else(|_| "845ddba0-70ab-4f90-88ba-e3522157e37a".to_string());
+        // Personal Microsoft accounts require "localhost" (not "127.0.0.1") for
+        // the loopback redirect to match the http://localhost app registration.
+        let redirect = "http://localhost:7777";
+        if let Ok(code) = std::env::var("MS_CODE") {
+            let verifier = std::env::var("MS_VERIFIER").expect("set MS_VERIFIER");
+            match ms_exchange_code(&cid, &code, &verifier, redirect, MS_TOKEN_ENDPOINT).await {
+                Ok(t) => eprintln!("MS_RESULT=OK refresh_len={}", t.refresh.len()),
+                Err(e) => eprintln!("MS_RESULT=FAIL err={e}"),
+            }
+        } else {
+            let (verifier, challenge) = gen_pkce();
+            eprintln!("MS_VERIFIER={verifier}");
+            eprintln!("MS_AUTH_URL={}", build_ms_auth_url(&cid, redirect, &challenge, "smoke"));
+        }
+    }
 }

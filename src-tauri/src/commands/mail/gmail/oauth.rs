@@ -718,4 +718,28 @@ mod tests {
             body.len()
         );
     }
+
+    // Live OAuth smoke test for server-side connector validation (no signed build
+    // needed). Ignored by default; run manually in two phases:
+    //   Phase 1 (no GMAIL_CODE env): prints GMAIL_VERIFIER + GMAIL_AUTH_URL.
+    //   Phase 2 (GMAIL_CODE + GMAIL_VERIFIER env): exchanges the real code for tokens.
+    #[tokio::test]
+    #[ignore]
+    async fn gmail_live_smoke() {
+        let cid = std::env::var("KEEPANCE_GMAIL_CLIENT_ID").expect("set KEEPANCE_GMAIL_CLIENT_ID");
+        let redirect = "http://127.0.0.1:7777";
+        if let Ok(code) = std::env::var("GMAIL_CODE") {
+            let verifier = std::env::var("GMAIL_VERIFIER").expect("set GMAIL_VERIFIER");
+            let secret =
+                std::env::var("KEEPANCE_GMAIL_CLIENT_SECRET").expect("set KEEPANCE_GMAIL_CLIENT_SECRET");
+            match GoogleOAuth::new(cid, secret).exchange_code(&code, &verifier, redirect).await {
+                Ok(t) => eprintln!("GMAIL_RESULT=OK refresh_present={}", t.refresh.is_some()),
+                Err(e) => eprintln!("GMAIL_RESULT=FAIL err={e}"),
+            }
+        } else {
+            let (verifier, challenge) = gen_pkce();
+            eprintln!("GMAIL_VERIFIER={verifier}");
+            eprintln!("GMAIL_AUTH_URL={}", build_auth_url(&cid, redirect, &challenge, "smoke"));
+        }
+    }
 }

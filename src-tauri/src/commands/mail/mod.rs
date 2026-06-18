@@ -798,7 +798,11 @@ pub async fn outlook_connect() -> Result<(), String> {
 
     let (verifier, challenge) = gen_pkce();
     let state_token = gen_state();
-    let (listener, redirect_uri) = bind_loopback().await.map_err(|e| e.to_string())?;
+    let (listener, loopback_uri) = bind_loopback().await.map_err(|e| e.to_string())?;
+    // Personal Microsoft accounts reject a numeric 127.0.0.1 loopback redirect;
+    // they require "localhost" to match the registered http://localhost redirect.
+    // localhost resolves to 127.0.0.1, so the bound listener still receives it.
+    let redirect_uri = loopback_uri.replace("127.0.0.1", "localhost");
     let url = build_ms_auth_url(&client_id(), &redirect_uri, &challenge, &state_token);
     open_browser(&url);
     let code = await_redirect_code(listener, &state_token, std::time::Duration::from_secs(300))

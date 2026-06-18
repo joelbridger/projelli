@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.3] - 2026-06-18
+
+Completes the Outlook connector fix, validated end to end against the live providers.
+
+### Fixed
+- Outlook now connects for personal Microsoft accounts. The loopback sign-in uses a localhost redirect, which personal Microsoft accounts require (the numeric address was rejected). Confirmed against real Google and Microsoft sign-ins.
+
+### Added
+- A server-side OAuth validation harness (ignored dev tests) so the Gmail and Outlook connectors can be verified against the real providers without a signed build.
+
 ## [3.3.2] - 2026-06-17
 
 Email connection fixes, from Windows testing.
