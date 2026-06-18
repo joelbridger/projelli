@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { invokeMock } = vi.hoisted(() => ({
+const { invokeMock, isTauriMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
+  isTauriMock: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: invokeMock,
+  isTauri: isTauriMock,
 }));
 
 import { createKeychainService } from '@/platform/providers/KeychainService';
@@ -29,6 +31,7 @@ describe('KeychainService backend selection', () => {
     localStorage.clear();
     keychainStore.clear();
     setTauriRuntime(false);
+    isTauriMock.mockReturnValue(false);
     vi.stubEnv('ANTHROPIC_API_KEY', '');
     vi.stubEnv('VITE_ANTHROPIC_API_KEY', '');
     invokeMock.mockReset();

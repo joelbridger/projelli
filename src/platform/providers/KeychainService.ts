@@ -1,9 +1,14 @@
 // Keychain Service
 // Secure API key storage with multiple backend support
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 
 export type KeyProvider = 'anthropic' | 'openai' | 'google';
+
+const KEY_PROVIDERS: KeyProvider[] = ['anthropic', 'openai', 'google'];
+const LEGACY_API_KEY_PREFIX = 'apiKey_';
+const API_KEY_MIGRATION_SENTINEL = 'keepance_apikeys_migrated_v1';
+const KEYCHAIN_METADATA_KEY = 'bos_key_metadata';
 
 export interface StoredKey {
   provider: KeyProvider;
@@ -181,6 +186,102 @@ class EnvBackend implements KeyStorageBackend {
 
 export type KeychainBackendType = 'localStorage' | 'memory' | 'env' | 'tauri';
 
+function loadStoredKeyMetadata(): Map<KeyProvider, StoredKey> {
+  const metadata = new Map<KeyProvider, StoredKey>();
+  if (typeof localStorage === 'undefined') return metadata;
+
+  try {
+    const data = localStorage.getItem(KEYCHAIN_METADATA_KEY);
+    if (!data) return metadata;
+
+    const parsed = JSON.parse(data) as StoredKey[];
+    for (const item of parsed) {
+      const storedKey: StoredKey = {
+        ...item,
+        addedAt: new Date(item.addedAt),
+      };
+      if (item.lastUsed) {
+        storedKey.lastUsed = new Date(item.lastUsed);
+      }
+      metadata.set(item.provider, storedKey);
+    }
+  } catch {
+    // Ignore malformed metadata. Key material is stored separately.
+  }
+
+  return metadata;
+}
+
+function saveStoredKeyMetadata(metadata: Map<KeyProvider, StoredKey>): void {
+  if (typeof localStorage === 'undefined') return;
+
+  try {
+    localStorage.setItem(KEYCHAIN_METADATA_KEY, JSON.stringify(Array.from(metadata.values())));
+  } catch {
+    // Ignore metadata write failures; keychain storage is the source of truth.
+  }
+}
+
+function upsertStoredKeyMetadata(provider: KeyProvider, key: string): void {
+  const metadata = loadStoredKeyMetadata();
+  const existing = metadata.get(provider);
+  const storedKey: StoredKey = {
+    provider,
+    keyPrefix: key.slice(0, 8),
+    addedAt: existing?.addedAt ?? new Date(),
+  };
+  if (existing?.lastUsed) {
+    storedKey.lastUsed = existing.lastUsed;
+  }
+  metadata.set(provider, storedKey);
+  saveStoredKeyMetadata(metadata);
+}
+
+/**
+ * One-time desktop migration for API keys saved by older builds under
+ * `apiKey_<provider>` in renderer localStorage.
+ */
+export async function migrateLocalStorageApiKeysToKeychain(): Promise<void> {
+  if (!isTauri()) return;
+  if (typeof localStorage === 'undefined') return;
+  if (localStorage.getItem(API_KEY_MIGRATION_SENTINEL)) return;
+
+  const backend = new TauriKeychainBackend();
+  let migrationComplete = true;
+
+  for (const provider of KEY_PROVIDERS) {
+    const legacyStorageKey = `${LEGACY_API_KEY_PREFIX}${provider}`;
+    const encodedKey = localStorage.getItem(legacyStorageKey);
+    if (encodedKey === null) continue;
+
+    let decodedKey: string;
+    try {
+      decodedKey = atob(encodedKey);
+    } catch {
+      migrationComplete = false;
+      continue;
+    }
+
+    try {
+      await backend.set(provider, decodedKey);
+      const verifiedKey = await backend.get(provider);
+      if (verifiedKey !== decodedKey) {
+        migrationComplete = false;
+        continue;
+      }
+
+      upsertStoredKeyMetadata(provider, decodedKey);
+      localStorage.removeItem(legacyStorageKey);
+    } catch {
+      migrationComplete = false;
+    }
+  }
+
+  if (migrationComplete) {
+    localStorage.setItem(API_KEY_MIGRATION_SENTINEL, 'true');
+  }
+}
+
 /**
  * KeychainService manages API keys securely
  */
@@ -188,7 +289,7 @@ export class KeychainService {
   private backend: KeyStorageBackend;
   private envBackend: EnvBackend;
   private metadata: Map<KeyProvider, StoredKey> = new Map();
-  private readonly metadataKey = 'bos_key_metadata';
+  private readonly metadataKey = KEYCHAIN_METADATA_KEY;
 
   constructor(backendType: KeychainBackendType = isTauriRuntime() ? 'tauri' : 'localStorage') {
     switch (backendType) {

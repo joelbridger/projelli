@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Files modified: `src/features/ask/chat/ChatModelPicker.tsx`
 
 ### Fixed
+- **Desktop now migrates legacy API keys out of renderer localStorage.** On first desktop launch after the OS-keychain update, Keepance moves old `apiKey_<provider>` entries into the operating system keychain, verifies each write by reading it back, and removes the localStorage copy only after that provider is safely stored. Browser builds are unchanged.
+  - Files modified: `src/platform/providers/KeychainService.ts`, `src/App.tsx`, `src/platform/providers/KeychainService.migration.test.ts`, `vitest.config.ts`
 - **Trash restore collisions now restore the deleted file instead of doing nothing.** When a trashed file is restored and the original path is already occupied, Keepance writes a `_restored_<timestamp>` copy, removes the trash payload, and clears the trash metadata entry.
   - Files modified: `src/platform/history/TrashService.ts`, `src/platform/hooks/useTrash.ts`, `tests/unit/trash-service.test.ts`, `tests/desktop/specs/11-trash-destructive.mjs`
 - **TypeScript can resolve the OCR engine package again during local checks.** Added the local `tesseract-wasm` declaration the OCR seam already expected, matching the package's published types while working around its package-exports metadata.
