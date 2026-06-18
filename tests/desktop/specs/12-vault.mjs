@@ -1,12 +1,12 @@
 /**
  * 12-vault — encrypted workspace vault, driven through the real Tauri app.
  *
- * Current product gap, documented in the 2026-06-18 inventory:
- * VaultEnableFlow exists but is not mounted in a reachable production UI. This
- * spec therefore uses the registered Tauri vault commands as setup for enable /
- * disable, then drives the real locked-workspace recovery prompt through the UI.
- * It throws BLOCKED at the end so the suite does not report false full UI
- * coverage for the missing enable and unlocked escape-hatch surfaces.
+ * Verifies the full vault lifecycle: the reachable enable + escape-hatch entry
+ * points in the Privacy Center (VaultEnableFlow / VaultEscapeHatchDialog), plus
+ * the real locked-workspace recovery prompt. The actual crypto round-trip
+ * (create -> encrypt -> lock -> recover -> decrypt -> disable) is driven through
+ * the registered Tauri vault commands so the on-disk assertions stay
+ * deterministic, while the UI entry points are exercised through the real shell.
  */
 
 import fs from 'node:fs';
@@ -186,7 +186,7 @@ async function clickButtonByText(session, app, text, timeoutMs = 20_000) {
 
 export default {
   name: '12-vault',
-  async run({ session, workspace, app, log }) {
+  async run({ session, workspace, app }) {
     seedFixtures(workspace);
     assertPlaintextMatches(workspace, 'seed');
 
@@ -199,10 +199,17 @@ export default {
     await session.waitForBodyText('client-intake.txt', { timeoutMs: 15_000 });
     await session.waitForBodyText('matter-notes', { timeoutMs: 15_000 });
 
-    const enableUiPresent = (await session.bodyText()).includes('Enable vault');
-    if (!enableUiPresent) {
-      log('Vault enable UI is not mounted; using native vault commands as setup and blocking at the end.');
-    }
+    // The reachable vault entry point lives in the Privacy Center ("Where your
+    // data is"). With no vault yet it must offer "Enable vault" and open the real
+    // VaultEnableFlow. Verify that wiring end-to-end, then cancel — the crypto
+    // round-trip below is driven through the native commands for determinism.
+    await app.gotoSurface(session, 'Privacy Center');
+    await session.testid('vault-enable-trigger', 20_000);
+    await session.clickTestid('vault-enable-trigger', 10_000);
+    await session.testid('vault-enable-explain', 15_000);
+    await session.clickTestid('vault-enable-cancel', 10_000);
+    await app.gotoSurface(session, 'Documents');
+    await session.testid('documents-toolbar', 15_000);
 
     const created = await invokeOrBlockOnKeychain(
       session,
@@ -257,10 +264,11 @@ export default {
 
     assertEncryptedOnDisk(workspace);
 
-    const escapeHatchUiPresent = (await session.bodyText()).includes('Turn off vault and decrypt files');
-    if (!escapeHatchUiPresent) {
-      log('Unlocked escape-hatch UI is not mounted; using native decrypt/disable commands and blocking at the end.');
-    }
+    // With the vault unlocked, the Privacy Center must offer the escape hatch
+    // ("Turn off vault and decrypt files"). Verify the entry point is reachable;
+    // the decrypt/disable itself runs through the native commands below.
+    await app.gotoSurface(session, 'Privacy Center');
+    await session.testid('vault-disable-trigger', 20_000);
 
     await invokeOrBlockOnKeychain(
       session,
@@ -276,17 +284,6 @@ export default {
     const disabledStatus = await invokeTauri(session, 'vault_status', { workspace });
     if (disabledStatus.enabled || disabledStatus.locked) {
       throw new Error(`vault should be disabled after decrypt/disable: ${JSON.stringify(disabledStatus)}`);
-    }
-
-    const blocked = [];
-    if (!enableUiPresent) {
-      blocked.push('a production-mounted VaultEnableFlow entry point with stable open/enable/ceremony/progress/done test IDs');
-    }
-    if (!escapeHatchUiPresent) {
-      blocked.push('a reachable unlocked vault escape-hatch UI, or a recovery-aware locked escape hatch that restores the VMK before decrypting');
-    }
-    if (blocked.length > 0) {
-      throw new Error(`BLOCKED: needs ${blocked.join('; ')}.`);
     }
   },
 };

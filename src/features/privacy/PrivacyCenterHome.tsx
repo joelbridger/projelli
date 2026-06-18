@@ -12,6 +12,7 @@ import type { Matter } from '@/platform/types/matter';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button } from '@/ui/kp';
 import { DataMapContent } from '@/platform/privacy/ui/DataMapDialog';
+import { VaultControlCard } from '@/features/firm/vault/VaultControlCard';
 import { ConfidentialityReportDialog } from '@/platform/privacy/ui/ConfidentialityReportDialog';
 import { buildConfidentialityReport } from '@/platform/privacy/confidentialityReport';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
@@ -100,6 +101,7 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
 
       {/* Data Map content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--kp-space-md) var(--kp-gutter)' }}>
+        <VaultControlCard />
         <DataMapContent variant="expanded" />
       </div>
 

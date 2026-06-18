@@ -59,7 +59,7 @@ export function VaultEnableFlow({
   // ── Explain (initial) ────────────────────────────────────────────────────────
   if (!phase || phase === 'explain') {
     return (
-      <div className="flex flex-col gap-5 p-1">
+      <div className="flex flex-col gap-5 p-1" data-testid="vault-enable-explain">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
             <Lock className="h-5 w-5 text-blue-600" aria-hidden />
@@ -85,11 +85,12 @@ export function VaultEnableFlow({
         )}
 
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={handleCancel} className="border-slate-300 text-slate-700">
+          <Button type="button" data-testid="vault-enable-cancel" variant="outline" onClick={handleCancel} className="border-slate-300 text-slate-700">
             {t('vault.enable.cancel')}
           </Button>
           <Button
             type="button"
+            data-testid="vault-enable-button"
             onClick={() => { void handleStart(); }}
             disabled={status === 'loading'}
             className="bg-blue-600 text-white hover:bg-blue-700"
@@ -111,7 +112,7 @@ export function VaultEnableFlow({
       return <p className="text-sm text-slate-500">{t('vault.enable.loading-phrase')}</p>;
     }
     return (
-      <div className="flex flex-col gap-4 p-1">
+      <div className="flex flex-col gap-4 p-1" data-testid="vault-enable-ceremony">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
             <KeyRound className="h-5 w-5 text-amber-600" aria-hidden />
@@ -155,7 +156,7 @@ export function VaultEnableFlow({
   // ── Encrypting ────────────────────────────────────────────────────────────────
   if (phase === 'encrypting') {
     return (
-      <div className="flex flex-col items-center gap-4 py-8">
+      <div className="flex flex-col items-center gap-4 py-8" data-testid="vault-enable-progress">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" aria-hidden />
         <div className="text-center">
           <p className="font-medium text-slate-800">{t('vault.enable.encrypting-title')}</p>
@@ -168,7 +169,7 @@ export function VaultEnableFlow({
 
   // ── Done ──────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col items-center gap-4 py-8 p-1">
+    <div className="flex flex-col items-center gap-4 py-8 p-1" data-testid="vault-enable-done">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
         <ShieldCheck className="h-6 w-6 text-green-600" aria-hidden />
       </div>

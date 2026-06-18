@@ -18,6 +18,15 @@ export async function seedReadyState(session, workspacePath, { workspaceName = '
       localStorage.setItem('keepance_profession', 'legal');
       localStorage.setItem('keepance_feature_tour_dismissed', 'true');
       localStorage.setItem('keepance_feature_tour_completed', 'true');
+      // The feature tour is actually gated by the Zustand settings store
+      // (featuresTourCompleted), persisted under 'keepance:settings' — NOT the
+      // legacy keepance_feature_tour_* keys above. Seed the store flag so the
+      // tour never auto-mounts; otherwise it can appear after the shell loads
+      // and intercept the first nav click (an "element not interactable" flake).
+      localStorage.setItem('keepance:settings', JSON.stringify({
+        state: { featuresTourCompleted: true, _migrated: true },
+        version: 0,
+      }));
       localStorage.setItem('keepance_recent_workspaces', JSON.stringify([{
         path: arguments[0],
         name: arguments[1],

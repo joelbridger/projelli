@@ -104,13 +104,19 @@ worktree agents and integrated on main.
 | 5 | Root "New folder" | **FIXED + DESKTOP-VERIFIED** (`10-files-editor` PASS, 3/3 stable). Merged + unit test. |
 | 6 | Rename updates open tab | **FIXED + DESKTOP-VERIFIED** (`10-files-editor` PASS, 3/3 stable). Merged + unit test. |
 | 7 | Ctrl+Shift+A from Documents | **FIXED** (merged + unit test; DocumentsHome no longer filters out the AI-assistant tab). |
-| — | Vault enable flow unreachable (built, never mounted) | **NOT yet fixed** — the wiring agent hung; deferred. Clear task: mount the existing `VaultEnableFlow` at a reachable entry point (the Data Map dialog already has the copy) + add testids so `12-vault` can drive it. |
+| — | Vault enable flow unreachable (built, never mounted) | **FIXED + DESKTOP-VERIFIED** (`12-vault` PASS, 3/3 stable). Mounted the orphaned `VaultEnableFlow` via a new `VaultControlCard` in the Privacy Center: "Enable vault" (→ flow dialog) when off, "Turn off vault and decrypt files" (→ `VaultEscapeHatchDialog`) when unlocked; added open/enable/ceremony/progress/done testids. UI-only, no crypto changes. |
 
 **Desktop-verified now:** trash (#1), keychain (#2), matter-escape (#3), workflow-open (#4),
 new-folder (#5), rename-tab (#6) — specs `10`/`11` selectors fixed, both green end-to-end.
 **Fixed + unit-verified (no dedicated desktop assertion):** shortcut (#7).
-**Remaining:** wire the vault enable UI (#—); and the coverage enablers below (firm backend for
-`20`, embedding model + provider for `18-rag`, native folder picker for `15`).
+**Vault enable flow:** mounted + desktop-verified (`12-vault` PASS).
+**Remaining:** the coverage enablers below (firm backend for `20`, embedding model + provider for
+`18-rag`, native folder picker for `15`).
+
+Also fixed a latent harness flake while doing the above: the feature tour is gated by the Zustand
+settings store (`featuresTourCompleted`, persisted under `keepance:settings`), not the legacy
+`keepance_feature_tour_*` keys `seedReadyState` was setting — so it could mount after the shell
+loaded and intercept the first nav click. `seedReadyState` now seeds the real store flag.
 
 ## Suggested fix order
 

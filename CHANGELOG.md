@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **You can now turn on the encrypted workspace vault from the Privacy Center.** "Where your data is" shows a vault card: when the workspace is unencrypted it offers "Enable vault" (which runs the recovery-phrase setup and encrypts every file at rest with AES-256), and when the vault is on it offers "Turn off vault and decrypt files". The vault setup flow existed but was never reachable from the running app; this wires it to a real entry point. Desktop only.
+  - New: `src/features/firm/vault/VaultControlCard.tsx`
+  - Files modified: `src/features/privacy/PrivacyCenterHome.tsx`, `src/features/firm/vault/VaultEnableFlow.tsx` (test ids), `src/locales/en.json`, `tests/desktop/specs/12-vault.mjs`
 - **AI chat provider/model picker** - The chat header now has a clickable picker (replacing the display-only model chip) to choose the AI provider and model for a chat. Lists only providers with a valid API key, groups models per provider, and hides cloud providers when the matter is "On this computer only" (local-only confidentiality mode). Selecting a model sets both provider and model in one save.
   - New: `src/features/ask/chat/ChatModelPicker.tsx`, `src/features/ask/chat/providerModelResolution.ts`
   - Tests: `tests/unit/chat-model-picker.test.tsx`

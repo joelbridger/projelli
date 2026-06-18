@@ -1087,6 +1087,12 @@
     }
   },
   "vault": {
+    "control": {
+      "checking": "Checking vault status",
+      "on-title": "Vault is on",
+      "on-body": "This workspace's files are encrypted at rest. Keepance decrypts them transparently, so your work is unchanged.",
+      "locked-note": "This vault is locked. Reopen the workspace to unlock it with your recovery phrase."
+    },
     "ceremony": {
       "cannot-recover-warning": "Keepance cannot recover this for you. If you lose this phrase and your device's keychain, your encrypted files will be permanently inaccessible.",
       "phrase-label": "Your 24-word recovery phrase",
