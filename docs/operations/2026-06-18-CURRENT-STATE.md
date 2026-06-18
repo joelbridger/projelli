@@ -34,6 +34,29 @@ Last PUBLISHED release is still **v3.3.0**; v3.3.4 remains a superseded draft.
    were pre-rebrand artwork (no text to grep; baked into the NSIS bitmaps). Fix: regenerated both
    as Keepance (navy shield + wordmark), verified visually, correct 24-bit BMP dimensions.
 
+## TL;DR (round 3 — live validation + 3 more fixes, still v3.3.5)
+Jameson asked me to actually USE it, not just unit-test. I imported BOTH his real
+mailboxes through the real pipeline (no signed build, via the `*_live_import` harnesses +
+driving the logged-in Chrome through consent) AND drove the real UI in a browser
+(Playwright on the Vite dev server, `?testMode=true&mailFixture=1`). Found + fixed three
+more things:
+- **Both mailboxes import clean:** Outlook **5,425** (Sent 4,919 / Inbox 38 / Deleted Items
+  466 / Archive 2) and Gmail **966** — all listable, 0 empty subjects/senders/dates, 0
+  errors. Proves "imported but not showing" was the window-refresh bug (fixed round 2), not
+  the import.
+- **Outlook was importing Deleted Items (466)** into confidential search → FIXED (`graph.rs`
+  excludes well-known `deleteditems`+`junkemail`, locale-safe; test added).
+- **Gmail switched to one All-Mail pass** (Jameson greenlit the matter-mapping tradeoff):
+  catches archived mail, no per-label overlap, faster. Proven before→after on the real
+  account: 28 labels / 1041 fetches / 811 unique / 233s → **1 folder / 966 fetches / 966
+  unique / 211s** (the +155 were archived mail the per-label walk MISSED).
+- **Em dash removed** from the Gmail panel copy (house style).
+- **UI looks good:** app shell, Email workspace + message list, and the Account→Connections
+  panels (M365 + Gmail) all render clean/light/polished. Browser limits (connect + read-body
+  are Tauri-only) degrade gracefully; per-provider isolation is component-tested.
+Still v3.3.5, NO build cut. New commits: `9d9157b` (Outlook Deleted Items + em dash),
+`30b0abe` (All-Mail Gmail).
+
 ## TL;DR (round 1 — v3.3.4, superseded draft)
 A round of email-connector + onboarding fixes (from earlier Windows testing) is built into
 **desktop v3.3.4**, which is **built (signed, all platforms) but NOT published** — it's
@@ -101,8 +124,12 @@ Full details + gotchas: memory `reference_keepance_email_oauth.md`.
   installer — re-point or stop it once a 3.3.5 installer exists).
 - Draft releases v3.3.1/3.3.2/3.3.3/3.3.4 are superseded by v3.3.5.
 
-## Gates (all green, round 2)
+## Gates (all green)
 `npm run typecheck` = 0 · `npx vitest run` = **283 files / 3252 passed / 3 skipped** (+8 new) ·
-`cargo check` clean · `cargo test --lib commands::mail` = **183 passed / 0 failed / 2 ignored**
-(the 2 ignored are the live-OAuth smoke tests). New tests: `tests/unit/mail/mail-store-per-provider`,
-`mail-connector-isolation`, `email-refresh-on-import`; cargo `should_sync_provider_*`.
+`cargo check` clean · `cargo test --lib commands::mail` = **green / 0 failed / 4 ignored** (the 4
+ignored are the live-OAuth/import harnesses: `gmail_live_smoke`, `gmail_live_import`,
+`outlook_live_smoke`, `outlook_live_import`). New unit tests across rounds:
+`tests/unit/mail/{mail-store-per-provider, mail-connector-isolation, email-refresh-on-import}`;
+cargo `should_sync_provider_*`, `list_folders_excludes_deleted_and_junk` (graph),
+`list_folders_returns_single_all_mail`, `all_mail_backfill_omits_label_filter` (gmail).
+**Live-validated against the real mailboxes** (see round-3 TL;DR).
