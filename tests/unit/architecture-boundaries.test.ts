@@ -39,6 +39,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'documents->firm',      // file navigator shows privilege/vault affordances
   'onboarding->firm',     // onboarding explains firm/SSO setup
   'onboarding->settings', // onboarding hands off to settings sections
+  'privacy->firm',        // Privacy Center hosts the vault enable/disable control
   'settings->ask',        // AI/model settings touch Ask config
   'settings->dictation',  // voice-output settings
   'settings->email',      // mail-account settings

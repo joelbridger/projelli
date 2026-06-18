@@ -56,6 +56,7 @@ vi.mock('@/platform/providers/KeychainService', () => ({
     isEnvKey: vi.fn(async () => false),
     getStoredKeys: vi.fn(() => []),
   }),
+  migrateLocalStorageApiKeysToKeychain: vi.fn(async () => {}),
 }));
 
 import App from '@/App';

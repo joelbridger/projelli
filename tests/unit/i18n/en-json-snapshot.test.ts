@@ -70,7 +70,7 @@ describe('en.json structure snapshot', () => {
         "shortcuts-overlay": 2,
         "tts": 1,
         "updater": 2,
-        "vault": 49,
+        "vault": 53,
         "version": 17,
         "whats-new": 4,
         "whiteboard": 1,
@@ -82,8 +82,8 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    // 824 = 814 + the 10 new settings.privacy.design-partner.* keys (WS6, design-partner diagnostics).
-    expect(flat.length).toBe(824);
+    // 828 = 824 + the 4 new vault.control.* keys (the Privacy Center vault control card).
+    expect(flat.length).toBe(828);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
