@@ -156,10 +156,12 @@ honest test artifact and shifted two results that are **not** related to this se
 
 - **PASS:** `00`, `10` (fixed), `12-vault` (fixed), `14`, `16`, `19`. Zero process leak after the run;
   the three other-service 1280x1024 Xvfb stayed up.
-- **`11-trash` FAIL — flaky, pre-existing.** Fails with *varying* errors across runs ("Trash button
-  not found", then "stale element reference") — a race in the spec, not a product bug, unrelated to
-  this session (it tests trash; nothing here touches it). Needs the same settle/retry hardening `10`
-  got. **Follow-up.**
+- **`11-trash` — FIXED (now 4/4 stable).** Was flaky with *varying* errors ("Trash button not found",
+  "stale element reference") — spec races, not a product bug. Hardened like `10`: the row-menu and
+  trash-action helpers now retry (were single-shot `execute`s); `activateFilesView`/`activateTrashView`
+  use a settle-window + new `docs-files-toggle`/`docs-trash-toggle` testids to beat the editor-takeover
+  race and stale-element clicks; and the restore assertions wait for the metadata.json update (a
+  separate write from the payload move) instead of checking it immediately.
 - **`13-workflows` BLOCKED — provider dependency.** Blocks on "needs a configured AI provider / Ollama
   pinned to llama3.2:3b". Ollama is up with that model, so it's an in-app provider-detection/config
   dependency (honest infra block, like `18-rag`); its earlier PASS was opportunistic detection.

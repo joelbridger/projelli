@@ -55,54 +55,79 @@ async function fillPrompt(session, app, value, confirmText = 'OK') {
   await clickDialogButtonText(session, app, confirmText, 10_000);
 }
 
+// Land on the Files BROWSER surface in files+tree view, robustly. Clicking the
+// pinned "Files" tab can race with a just-renamed file auto-opening as the active
+// editor (DocumentsHome navigates back to the editor a beat later), so require the
+// Files/Trash toggle — which renders only on the browser surface — to STAY mounted
+// across a settle window; if it flips, the outer retry re-clicks the chip.
 async function activateFilesView(session, app) {
-  const files = await session.find(
-    'xpath',
-    `//button[normalize-space()=${app.xpathLiteral('Files')}]`,
-    15_000,
+  await session.waitFor(
+    async () => {
+      const filesTab = await session.find(
+        'xpath',
+        `//*[@role="tablist"]//button[normalize-space()=${app.xpathLiteral('Files')}]`,
+        15_000,
+      );
+      await session.click(filesTab);
+      for (let i = 0; i < 6; i += 1) {
+        await sleep(200);
+        if (!(await session.hasTestid('docs-files-toggle', 200))) return false;
+      }
+      return true;
+    },
+    { timeoutMs: 30_000, intervalMs: 250, label: 'Files browser surface (stable)' },
   );
-  await session.click(files);
-  await session.testid('documents-toolbar', 15_000);
-  await session.clickTestid('docs-view-tree', 15_000);
+  await session.clickTestid('docs-files-toggle', 10_000); // ensure files mode (not trash)
+  await session.clickTestid('docs-view-tree', 10_000);    // ensure tree view
 }
 
 async function activateTrashView(session, app) {
   await activateFilesView(session, app);
-  const trash = await session.find(
-    'xpath',
-    `//button[.//text()[normalize-space()=${app.xpathLiteral('Trash')}]]`,
-    15_000,
+  // Switch to trash; confirm by the files-only Tree/Grid toggle disappearing while
+  // the Files/Trash toggle stays — i.e. we are in trash mode on the browser surface.
+  await session.waitFor(
+    async () => {
+      await session.clickTestid('docs-trash-toggle', 5_000).catch(() => {});
+      await sleep(200);
+      return (
+        !(await session.hasTestid('docs-view-toggle', 300)) &&
+        (await session.hasTestid('docs-trash-toggle', 300))
+      );
+    },
+    { timeoutMs: 20_000, intervalMs: 400, label: 'trash view active' },
   );
-  await session.click(trash);
   await session.waitForBodyText('Trash', { timeoutMs: 15_000 });
 }
 
 async function openTreeRowMenu(session, fileName) {
-  const opened = await session.execute(
-    `
-      const name = arguments[0];
-      const rows = Array.from(document.querySelectorAll('[role="treeitem"]'));
-      const row = rows.find((el) => (el.textContent || '').includes(name));
-      if (!row) return false;
-      const button = row.querySelector('button[aria-label="File options"]');
-      if (!button) return false;
-      row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-      row.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-      button.dispatchEvent(new PointerEvent('pointerdown', {
-        bubbles: true,
-        cancelable: true,
-        pointerType: 'mouse',
-        button: 0,
-        buttons: 1,
-      }));
-      button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
-      button.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0 }));
-      button.click();
-      return true;
-    `,
-    [fileName],
+  // Retry until the row (and its hover-revealed "File options" button) renders.
+  await session.waitFor(
+    async () => session.execute(
+      `
+        const name = arguments[0];
+        const rows = Array.from(document.querySelectorAll('[role="treeitem"]'));
+        const row = rows.find((el) => (el.textContent || '').includes(name));
+        if (!row) return false;
+        row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        row.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+        const button = row.querySelector('button[aria-label="File options"]');
+        if (!button) return false;
+        button.dispatchEvent(new PointerEvent('pointerdown', {
+          bubbles: true,
+          cancelable: true,
+          pointerType: 'mouse',
+          button: 0,
+          buttons: 1,
+        }));
+        button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+        button.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0 }));
+        button.click();
+        return true;
+      `,
+      [fileName],
+    ),
+    { timeoutMs: 15_000, intervalMs: 300, label: `file-tree row menu for ${fileName}` },
   );
-  if (!opened) throw new Error(`Could not open file-tree row menu for ${fileName}`);
 }
 
 async function clickMenuItem(session, app, label) {
@@ -141,38 +166,41 @@ async function deleteFileToTrash(session, app, workspace, fileName) {
 }
 
 async function clickTrashRowAction(session, name, title) {
-  const clicked = await session.execute(
-    `
-      const name = arguments[0];
-      const title = arguments[1];
-      const buttons = Array.from(document.querySelectorAll('button[title]'));
-      for (const button of buttons) {
-        if (button.getAttribute('title') !== title) continue;
-        let node = button.parentElement;
-        while (node && node !== document.body) {
-          if ((node.textContent || '').includes(name)) {
-            node.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-            node.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-            button.dispatchEvent(new PointerEvent('pointerdown', {
-              bubbles: true,
-              cancelable: true,
-              pointerType: 'mouse',
-              button: 0,
-              buttons: 1,
-            }));
-            button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
-            button.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0 }));
-            button.click();
-            return true;
+  // Retry until the trash row + its titled action button render.
+  await session.waitFor(
+    async () => session.execute(
+      `
+        const name = arguments[0];
+        const title = arguments[1];
+        const buttons = Array.from(document.querySelectorAll('button[title]'));
+        for (const button of buttons) {
+          if (button.getAttribute('title') !== title) continue;
+          let node = button.parentElement;
+          while (node && node !== document.body) {
+            if ((node.textContent || '').includes(name)) {
+              node.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+              node.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+              button.dispatchEvent(new PointerEvent('pointerdown', {
+                bubbles: true,
+                cancelable: true,
+                pointerType: 'mouse',
+                button: 0,
+                buttons: 1,
+              }));
+              button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+              button.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0 }));
+              button.click();
+              return true;
+            }
+            node = node.parentElement;
           }
-          node = node.parentElement;
         }
-      }
-      return false;
-    `,
-    [name, title],
+        return false;
+      `,
+      [name, title],
+    ),
+    { timeoutMs: 15_000, intervalMs: 300, label: `trash action "${title}" for ${name}` },
   );
-  if (!clicked) throw new Error(`Could not click trash action "${title}" for ${name}`);
 }
 
 export default {
@@ -195,13 +223,16 @@ export default {
     await activateTrashView(session, app);
     await session.waitForBodyText('restore-me.txt', { timeoutMs: 15_000 });
     await clickTrashRowAction(session, 'restore-me.txt', 'Restore');
+    // The payload move and the metadata.json update are separate writes; wait for
+    // BOTH (file back, payload gone, metadata entry cleared) rather than asserting
+    // the metadata immediately after the payload disappears.
     await waitForDisk(
-      () => fs.existsSync(path.join(workspace, 'restore-me.txt')) && !fs.existsSync(restoreEntry.trashPath),
-      'restore-me.txt restored from trash',
+      () =>
+        fs.existsSync(path.join(workspace, 'restore-me.txt')) &&
+        !fs.existsSync(restoreEntry.trashPath) &&
+        !trashEntryFor(workspace, 'restore-me.txt'),
+      'restore-me.txt restored from trash (file back, payload + metadata cleared)',
     );
-    if (trashEntryFor(workspace, 'restore-me.txt')) {
-      throw new Error('restore-me.txt still appears in trash metadata after restore');
-    }
 
     // Permanently delete a single trashed item.
     const permanentEntry = await deleteFileToTrash(session, app, workspace, 'permanent.txt');
@@ -265,8 +296,9 @@ export default {
     if (!fs.readFileSync(path.join(workspace, restoredCollision), 'utf8').includes('original collision')) {
       throw new Error('Restore collision copy did not preserve the trashed file content');
     }
-    if (fs.existsSync(collisionEntry.trashPath) || trashEntryFor(workspace, 'collision.txt')) {
-      throw new Error('collision.txt still has a trash payload or metadata entry after collision restore');
-    }
+    await waitForDisk(
+      () => !fs.existsSync(collisionEntry.trashPath) && !trashEntryFor(workspace, 'collision.txt'),
+      'collision.txt trash payload + metadata cleared after collision restore',
+    );
   },
 };

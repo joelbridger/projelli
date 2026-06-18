@@ -564,6 +564,7 @@ export function DocumentsHome({
           >
             <button
               type="button"
+              data-testid="docs-files-toggle"
               className={`kp-segmented__item${activeView === 'files' ? ' is-active' : ''}`}
               aria-pressed={activeView === 'files'}
               onClick={() => { setActiveView('files'); }}
@@ -572,6 +573,7 @@ export function DocumentsHome({
             </button>
             <button
               type="button"
+              data-testid="docs-trash-toggle"
               className={`kp-segmented__item${activeView === 'trash' ? ' is-active' : ''}`}
               aria-pressed={activeView === 'trash'}
               onClick={() => { setActiveView('trash'); }}
