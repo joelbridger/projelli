@@ -22,6 +22,10 @@ export interface AppCommandDeps {
   setSidebarCollapsed: (updater: (v: boolean) => boolean) => void;
   setShowWorkspaceSelector: (v: boolean) => void;
   setSidebarActiveTab: (tab: AppSurface) => void;
+  /** Opens the AI Assistant as a main-panel tab. The reimagined 3.0 sidebar has
+   *  no 'ai-assistant' surface, so the old setSidebarActiveTab('ai-assistant')
+   *  was a no-op (it set a sidebar tab that does not exist). */
+  openAIAssistantTab: () => void;
   setShowSettingsModal: (v: boolean) => void;
   prompt: (message: string, defaultValue?: string, options?: Omit<PromptOptions, 'defaultValue'>) => Promise<string | null>;
 }
@@ -41,7 +45,7 @@ export function useAppCommands(deps: AppCommandDeps): PaletteCommand[] {
     sidebarActiveTab,
     setSidebarCollapsed,
     setShowWorkspaceSelector,
-    setSidebarActiveTab,
+    openAIAssistantTab,
     setShowSettingsModal,
     prompt,
   } = deps;
@@ -131,7 +135,7 @@ export function useAppCommands(deps: AppCommandDeps): PaletteCommand[] {
         label: 'Open AI Assistant',
         shortcut: 'Ctrl+Shift+A',
         category: 'view',
-        action: () => setSidebarActiveTab('ai-assistant'),
+        action: () => openAIAssistantTab(),
       },
       {
         id: 'open-settings',
@@ -157,5 +161,5 @@ export function useAppCommands(deps: AppCommandDeps): PaletteCommand[] {
       },
     ];
     return [...appCommands, ...baseCommands];
-  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, sidebarActiveTab]);
+  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, sidebarActiveTab, openAIAssistantTab]);
 }

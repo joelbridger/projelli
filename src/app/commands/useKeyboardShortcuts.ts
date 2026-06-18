@@ -85,7 +85,7 @@ export function useKeyboardShortcuts(deps: KeyboardShortcutDeps): void {
       }
 
       // Command Palette: Ctrl+K or Ctrl+Shift+P
-      if ((isMod && e.key === 'k') || (isMod && e.shiftKey && e.key === 'p')) {
+      if ((isMod && e.key === 'k') || (isMod && e.shiftKey && e.key.toLowerCase() === 'p')) {
         e.preventDefault();
         setShowCommandPalette(true);
         return;
@@ -120,7 +120,8 @@ export function useKeyboardShortcuts(deps: KeyboardShortcutDeps): void {
       }
 
       // Toggle outline: Ctrl+Shift+O
-      if (isMod && e.shiftKey && e.key === 'o') {
+      // (e.key is uppercase 'O' when Shift is held, so compare case-insensitively.)
+      if (isMod && e.shiftKey && e.key.toLowerCase() === 'o') {
         e.preventDefault();
         toggleOutline();
         return;
@@ -153,7 +154,9 @@ export function useKeyboardShortcuts(deps: KeyboardShortcutDeps): void {
       // already open we just focus it; otherwise we create a fresh one.
       // The legacy sidebar button still flips the sidebar to the AI pane,
       // so power users who liked the sidebar layout keep their workflow.
-      if (isMod && e.shiftKey && e.key === 'a') {
+      // (e.key is uppercase 'A' when Shift is held, so compare case-insensitively
+      // — otherwise this core shortcut, the only way to open AI chat, never fires.)
+      if (isMod && e.shiftKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         openAIAssistantTab();
         return;

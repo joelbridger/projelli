@@ -934,7 +934,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
 
   // Command-palette commands. See src/app/commands/useAppCommands.ts.
-  const commands = useAppCommands({ openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, sidebarActiveTab, setSidebarCollapsed, setShowWorkspaceSelector, setSidebarActiveTab, setShowSettingsModal, prompt });
+  const commands = useAppCommands({ openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, sidebarActiveTab, setSidebarCollapsed, setShowWorkspaceSelector, setSidebarActiveTab, openAIAssistantTab, setShowSettingsModal, prompt });
 
   // Global keyboard shortcuts. See src/app/commands/useKeyboardShortcuts.ts.
   useKeyboardShortcuts({
