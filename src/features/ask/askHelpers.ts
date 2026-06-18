@@ -87,11 +87,11 @@ export function sourceLocator(s: WorkspaceSource): string {
  * Returns true when the user has at least one valid cloud API key
  * (Anthropic, OpenAI, or Google). Ollama is not considered a cloud key.
  * This mirrors the priority order in buildProviderAsync but returns a boolean
- * synchronously-from-localStorage so the demo branch can short-circuit before
- * any async work.
+ * through the keychain service so desktop reads the OS keychain and browser
+ * mode reads localStorage.
  */
 export async function hasCloudKey(): Promise<boolean> {
-  const kc = new KeychainService('localStorage');
+  const kc = new KeychainService();
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) return true;
   const openaiKey = await kc.getKey('openai');
@@ -102,7 +102,7 @@ export async function hasCloudKey(): Promise<boolean> {
 }
 
 export async function buildProviderAsync(): Promise<Provider> {
-  const kc = new KeychainService('localStorage');
+  const kc = new KeychainService();
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) {
     return new ClaudeProvider({ apiKey: anthropicKey.trim() });

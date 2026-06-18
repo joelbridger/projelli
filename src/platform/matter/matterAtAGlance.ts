@@ -47,7 +47,7 @@ export interface MatterAtAGlanceResult {
  * stored. Ollama is not a cloud key. Mirrors hasCloudKey() in Ask.
  */
 export async function hasCloudKeyForGlance(): Promise<boolean> {
-  const kc = new KeychainService('localStorage');
+  const kc = new KeychainService();
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) return true;
   const openaiKey = await kc.getKey('openai');
@@ -62,7 +62,7 @@ export async function hasCloudKeyForGlance(): Promise<boolean> {
  * Anthropic -> OpenAI -> Google -> OllamaProvider fallback.
  */
 export async function buildProviderForGlance(): Promise<Provider> {
-  const kc = new KeychainService('localStorage');
+  const kc = new KeychainService();
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) {
     return new ClaudeProvider({ apiKey: anthropicKey.trim() });

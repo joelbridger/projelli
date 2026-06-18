@@ -1,6 +1,6 @@
 const WORKSPACE_NAME = 'settings-keys-workspace';
 const INVALID_WIZARD_KEY = 'definitely-not-a-real-anthropic-key';
-const SEEDED_BAD_KEY = 'sk-ant-bad';
+const SEEDED_BAD_KEY = 'sk-ant-api03-desktop-persistence-bad-key';
 
 export default {
   name: '16-settings-keys',
@@ -63,20 +63,30 @@ export default {
     await session.clickTestid('api-key-manager-check-anthropic', 10_000);
     await session.testid('api-key-manager-status-invalid', 15_000);
 
+    await closeDialog(session, app, 'api-key-manager');
+    await assertNoLocalStorageSecret(session);
+    await session.close();
+
+    // Reopen the same isolated desktop profile. The non-secret metadata stays
+    // in localStorage, but the actual key must round-trip through the OS
+    // keychain and still be readable by the manager after relaunch.
+    await session.newSession();
+    await session.testid('welcome-dialog-pitch', 30_000);
+    await openSeededRecentWorkspace(session, workspace, app);
+    await app.gotoSurface(session, 'Settings');
+    await session.clickTestid('settings-category-ai-privacy', 15_000);
+    await session.testid('setting-manageApiKeys', 15_000);
+    await openApiKeyManager(session, app);
+
+    await session.testid('api-key-manager-list', 15_000);
+    await session.testid('api-key-manager-row-anthropic', 15_000);
+    await session.testid('api-key-manager-status-unverified', 10_000);
+    await assertNoLocalStorageSecret(session);
+
     await session.execute('window.confirm = () => true;');
     await session.clickTestid('api-key-manager-remove-anthropic', 10_000);
     await session.testid('api-key-manager-empty', 15_000);
     await closeDialog(session, app, 'api-key-manager');
-
-    // The app currently constructs the API-key manager/wizard keychain with
-    // createKeychainService(), whose implementation stores provider keys in
-    // renderer localStorage metadata. Rust Tauri OS-keychain commands exist in
-    // src-tauri/src/commands/keychain.rs and src/platform/utils/tauri-commands.ts,
-    // but this API-key UI path is not wired to them. A real relaunch persistence
-    // assertion would be dishonest until the UI uses those commands.
-    throw new Error(
-      'BLOCKED: needs API-key manager/wizard wired to the Tauri OS-keychain commands before headless relaunch persistence can be verified.',
-    );
   },
 };
 
@@ -167,16 +177,56 @@ async function closeDialog(session, app, dialogTestid) {
 }
 
 async function seedSavedAnthropicKey(session, key) {
-  await session.execute(
+  const result = await session.execute(
     `
-      localStorage.setItem('bos_key_anthropic', btoa(arguments[0]));
-      localStorage.setItem('bos_key_metadata', JSON.stringify([{
-        provider: 'anthropic',
-        keyPrefix: arguments[0].slice(0, 8),
-        addedAt: new Date().toISOString(),
-        lastUsed: new Date().toISOString()
-      }]));
+      const key = arguments[0];
+      const invoke =
+        window.__TAURI_INTERNALS__?.invoke ||
+        window.__TAURI__?.core?.invoke ||
+        window.__TAURI__?.invoke;
+
+      if (typeof invoke !== 'function') {
+        return { ok: false, error: 'Tauri invoke bridge missing from the desktop webview' };
+      }
+
+      return Promise.resolve(invoke('keychain_set', {
+        service: undefined,
+        key: 'bos_key_anthropic',
+        value: key
+      })).then(
+        () => {
+          localStorage.removeItem('bos_key_anthropic');
+          localStorage.setItem('bos_key_metadata', JSON.stringify([{
+            provider: 'anthropic',
+            keyPrefix: key.slice(0, 8),
+            addedAt: new Date().toISOString(),
+            lastUsed: new Date().toISOString()
+          }]));
+          return { ok: true };
+        },
+        (error) => ({
+          ok: false,
+          error: error && typeof error === 'object'
+            ? JSON.parse(JSON.stringify(error))
+            : String(error)
+        })
+      );
     `,
     [key],
   );
+
+  if (!result?.ok) {
+    throw new Error(`Failed to seed Anthropic key through OS keychain: ${JSON.stringify(result?.error)}`);
+  }
+}
+
+async function assertNoLocalStorageSecret(session) {
+  const localStorageSecret = await session.execute(
+    `
+      return localStorage.getItem('bos_key_anthropic');
+    `,
+  );
+  if (localStorageSecret !== null) {
+    throw new Error('Anthropic API key secret was stored in localStorage instead of the OS keychain.');
+  }
 }

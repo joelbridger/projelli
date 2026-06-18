@@ -1,6 +1,8 @@
 // Keychain Service
 // Secure API key storage with multiple backend support
 
+import { invoke } from '@tauri-apps/api/core';
+
 export type KeyProvider = 'anthropic' | 'openai' | 'google';
 
 export interface StoredKey {
@@ -56,6 +58,56 @@ class LocalStorageBackend implements KeyStorageBackend {
   async has(provider: KeyProvider): Promise<boolean> {
     if (typeof localStorage === 'undefined') return false;
     return localStorage.getItem(this.prefix + provider) !== null;
+  }
+}
+
+function isTauriRuntime(): boolean {
+  return typeof window !== 'undefined' && '__TAURI__' in window;
+}
+
+function isKeychainNotFound(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'kind' in error) {
+    return (error as { kind?: unknown }).kind === 'notFound';
+  }
+  return false;
+}
+
+/**
+ * Tauri backend for desktop builds
+ * Keys are stored in the OS keychain through the Rust keychain_* commands.
+ */
+class TauriKeychainBackend implements KeyStorageBackend {
+  private readonly prefix = 'bos_key_';
+
+  async get(provider: KeyProvider): Promise<string | null> {
+    try {
+      return await invoke<string>('keychain_get', {
+        service: undefined,
+        key: this.prefix + provider,
+      });
+    } catch (error) {
+      if (isKeychainNotFound(error)) return null;
+      throw error;
+    }
+  }
+
+  async set(provider: KeyProvider, key: string): Promise<void> {
+    await invoke<void>('keychain_set', {
+      service: undefined,
+      key: this.prefix + provider,
+      value: key,
+    });
+  }
+
+  async delete(provider: KeyProvider): Promise<void> {
+    await invoke<void>('keychain_delete', {
+      service: undefined,
+      key: this.prefix + provider,
+    });
+  }
+
+  async has(provider: KeyProvider): Promise<boolean> {
+    return (await this.get(provider)) !== null;
   }
 }
 
@@ -127,7 +179,7 @@ class EnvBackend implements KeyStorageBackend {
   }
 }
 
-export type KeychainBackendType = 'localStorage' | 'memory' | 'env';
+export type KeychainBackendType = 'localStorage' | 'memory' | 'env' | 'tauri';
 
 /**
  * KeychainService manages API keys securely
@@ -138,10 +190,13 @@ export class KeychainService {
   private metadata: Map<KeyProvider, StoredKey> = new Map();
   private readonly metadataKey = 'bos_key_metadata';
 
-  constructor(backendType: KeychainBackendType = 'localStorage') {
+  constructor(backendType: KeychainBackendType = isTauriRuntime() ? 'tauri' : 'localStorage') {
     switch (backendType) {
       case 'localStorage':
         this.backend = new LocalStorageBackend();
+        break;
+      case 'tauri':
+        this.backend = new TauriKeychainBackend();
         break;
       case 'memory':
         this.backend = new MemoryBackend();
