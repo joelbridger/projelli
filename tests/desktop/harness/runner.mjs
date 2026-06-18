@@ -57,7 +57,12 @@ const ctx = {
 
 const safeName = specName.replace(/[^a-z0-9._-]+/gi, '_');
 const started = Date.now();
-let failed = false;
+
+// Exit codes: 0 = PASS, 1 = FAIL (real failure / product bug / harness break),
+// 2 = BLOCKED (honest: the journey needs infra not available locally — a test
+// backend, a model download, OS keychain, live OAuth). A spec signals BLOCKED by
+// throwing an Error whose message starts with "BLOCKED".
+let code = 0;
 
 try {
   await spec.run(ctx);
@@ -66,12 +71,19 @@ try {
   try { await session.screenshot(path.join(KP_EVIDENCE_DIR, `${safeName}.pass.png`)); } catch {}
   console.log(`PASS ${specName} (${ms}ms)`);
 } catch (err) {
-  failed = true;
   const ms = Date.now() - started;
-  try { await session.screenshot(path.join(KP_EVIDENCE_DIR, `${safeName}.FAIL.png`)); } catch {}
-  console.error(`FAIL ${specName} (${ms}ms): ${err?.stack || err?.message || err}`);
+  const msg = err?.message ?? String(err);
+  const blocked = /^\s*BLOCKED/i.test(msg);
+  code = blocked ? 2 : 1;
+  const shot = blocked ? `${safeName}.BLOCKED.png` : `${safeName}.FAIL.png`;
+  try { await session.screenshot(path.join(KP_EVIDENCE_DIR, shot)); } catch {}
+  if (blocked) {
+    console.log(`BLOCKED ${specName} (${ms}ms): ${msg}`);
+  } else {
+    console.error(`FAIL ${specName} (${ms}ms): ${err?.stack || msg}`);
+  }
 } finally {
   await session.close();
 }
 
-process.exit(failed ? 1 : 0);
+process.exit(code);

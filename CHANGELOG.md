@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Files modified: `src/features/ask/chat/ChatModelPicker.tsx`
 
 ### Fixed
+- **The headless desktop vault test now uses a fresh Tauri driver instead of accidentally attaching to a stale one.** The L2 runner refuses occupied driver ports, starts the driver stack in its own process group, cleans up the app/WebKit/DBus/keyring processes together, and returns success for honest BLOCKED outcomes when no real test failed.
+  - Files modified: `tests/desktop/run.sh`
 - **New chats now default to a provider the user actually has a valid key for** - Previously every new chat hardcoded Anthropic via `chatData.provider ?? 'anthropic'`, so a user whose only valid key was OpenAI or Gemini (or whose Anthropic key was bad) could not use chat at all. AIChatViewer now seeds a new chat's provider/model once on mount from the settings default (when its key is valid) or the first valid key, persisting via the existing `onSave`. The `?? 'anthropic'` fallback remains as the last resort that drives the "add a key" experience when no valid key exists.
   - Files modified: `src/features/ask/AIChatViewer.tsx`
 - **A new chat now prefers a provider whose key actually works.** Saving or checking a key records that it passed a live check; a new chat then prefers a verified provider over one that merely has a key saved, so a stale or expired key (for example an old Anthropic key) is no longer picked ahead of a working one and made to fail on the first message. When nothing has been verified yet, behavior is unchanged, so no one is ever locked out.

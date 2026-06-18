@@ -36,6 +36,20 @@ command -v tauri-driver >/dev/null || { echo "ERROR: tauri-driver missing (cargo
 [[ -x "$WEBKIT_DRIVER" ]] || { echo "ERROR: WebKitWebDriver not executable: $WEBKIT_DRIVER" >&2; exit 1; }
 command -v xvfb-run >/dev/null || { echo "ERROR: xvfb-run missing" >&2; exit 1; }
 
+ensure_driver_ports_free() {
+  local busy=0
+  for port in "$TAURI_DRIVER_PORT" "$TAURI_NATIVE_PORT"; do
+    if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+      echo "ERROR: desktop harness port :$port is already in use; refusing to attach to a stale tauri-driver." >&2
+      lsof -nP -iTCP:"$port" -sTCP:LISTEN >&2 || true
+      busy=1
+    fi
+  done
+  [[ $busy -eq 0 ]] || exit 1
+}
+
+ensure_driver_ports_free
+
 # --- shared Vite (frontend) ------------------------------------------------
 VITE_PID=""
 if curl -fsS "http://127.0.0.1:$VITE_PORT/" 2>/dev/null | grep -q '<title>Keepance</title>'; then
@@ -51,7 +65,11 @@ else
   curl -fsS "http://127.0.0.1:$VITE_PORT/" >/dev/null 2>&1 || { echo "ERROR: Vite not ready (see $EVIDENCE_DIR/vite.log)" >&2; exit 1; }
 fi
 
-cleanup_vite() { [[ -n "$VITE_PID" ]] && { kill "$VITE_PID" 2>/dev/null || true; wait "$VITE_PID" 2>/dev/null || true; }; }
+cleanup_vite() {
+  [[ -n "$VITE_PID" ]] || return 0
+  kill "$VITE_PID" 2>/dev/null || true
+  wait "$VITE_PID" 2>/dev/null || true
+}
 trap cleanup_vite EXIT
 
 # --- select specs ----------------------------------------------------------
@@ -69,7 +87,7 @@ fi
 echo "Running ${#SPECS[@]} spec(s) against $APP_BIN"
 echo
 
-PASS=0; FAIL=0; FAILED_NAMES=()
+PASS=0; FAIL=0; BLOCKED=0; FAILED_NAMES=(); BLOCKED_NAMES=()
 
 for SPEC in "${SPECS[@]}"; do
   NAME="$(basename "$SPEC")"
@@ -80,7 +98,13 @@ for SPEC in "${SPECS[@]}"; do
   # tauri-driver inherits this env (and passes it to the app it spawns), giving
   # each spec a fully isolated profile.
   DRIVER_LOG="$EVIDENCE_DIR/${NAME}.tauri-driver.log"
-  xvfb-run -a --server-args='-screen 0 1366x900x24' env \
+  # Each spec runs inside its own dbus session with an unlocked gnome-keyring,
+  # so the app's OS-keychain path (vault master key, mail tokens, RAG vector key,
+  # saved API keys) actually works headlessly. The fresh temp HOME means the
+  # keyring is created clean per spec. Run the driver stack in its own process
+  # group so cleanup kills tauri-driver, WebKitWebDriver, the app, DBus, and the
+  # per-spec keyring together.
+  setsid xvfb-run -a --server-args='-screen 0 1366x900x24' env \
     HOME="$TMPROOT/home" \
     XDG_DATA_HOME="$TMPROOT/xdg-data" \
     XDG_CONFIG_HOME="$TMPROOT/xdg-config" \
@@ -88,8 +112,21 @@ for SPEC in "${SPECS[@]}"; do
     WEBKIT_DISABLE_COMPOSITING_MODE=1 \
     WEBKIT_DISABLE_DMABUF_RENDERER=1 \
     GDK_BACKEND=x11 \
-    tauri-driver --port "$TAURI_DRIVER_PORT" --native-port "$TAURI_NATIVE_PORT" --native-driver "$WEBKIT_DRIVER" \
-    > "$DRIVER_LOG" 2>&1 &
+    TAURI_DRIVER_PORT="$TAURI_DRIVER_PORT" \
+    TAURI_NATIVE_PORT="$TAURI_NATIVE_PORT" \
+    WEBKIT_DRIVER="$WEBKIT_DRIVER" \
+    dbus-run-session -- bash -c '
+      printf "\n" | gnome-keyring-daemon --unlock --components=secrets >/dev/null 2>&1
+      gnome-keyring-daemon --start --components=secrets >/dev/null 2>&1 &
+      # Prime the DEFAULT collection: this creates + UNLOCKS it (with the empty
+      # login password) so the app does not hit "locked collection", and doubles
+      # as a readiness gate for the Secret Service.
+      for _ in $(seq 1 40); do
+        printf "prime" | secret-tool store --label=kp-prime kpkc prime >/dev/null 2>&1 && break
+        sleep 0.25
+      done
+      exec tauri-driver --port "$TAURI_DRIVER_PORT" --native-port "$TAURI_NATIVE_PORT" --native-driver "$WEBKIT_DRIVER"
+    ' > "$DRIVER_LOG" 2>&1 &
   DRIVER_PID="$!"
 
   ready=""
@@ -112,17 +149,25 @@ for SPEC in "${SPECS[@]}"; do
     node "$DESKTOP_DIR/harness/runner.mjs"
     rc=$?
     set -e
-    if [[ $rc -eq 0 ]]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); FAILED_NAMES+=("$NAME"); fi
+    case $rc in
+      0) PASS=$((PASS+1)) ;;
+      2) BLOCKED=$((BLOCKED+1)); BLOCKED_NAMES+=("$NAME") ;;
+      *) FAIL=$((FAIL+1)); FAILED_NAMES+=("$NAME") ;;
+    esac
   fi
 
-  kill "$DRIVER_PID" 2>/dev/null || true
+  kill -TERM -- "-$DRIVER_PID" 2>/dev/null || true
+  sleep 0.2
+  kill -KILL -- "-$DRIVER_PID" 2>/dev/null || true
   wait "$DRIVER_PID" 2>/dev/null || true
   rm -rf "$TMPROOT"
   echo
 done
 
 echo "================ L2 desktop suite ================"
-echo "PASS: $PASS   FAIL: $FAIL"
-[[ $FAIL -gt 0 ]] && printf 'Failed: %s\n' "${FAILED_NAMES[*]}"
+echo "PASS: $PASS   FAIL: $FAIL   BLOCKED: $BLOCKED"
+[[ $FAIL -gt 0 ]] && printf 'Failed:  %s\n' "${FAILED_NAMES[*]}"
+[[ $BLOCKED -gt 0 ]] && printf 'Blocked: %s\n' "${BLOCKED_NAMES[*]}"
 echo "Evidence: $EVIDENCE_DIR"
+# Only a real FAIL fails the suite; BLOCKED is an honest "needs infra" outcome.
 exit $(( FAIL > 0 ? 1 : 0 ))
