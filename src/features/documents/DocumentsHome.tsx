@@ -115,7 +115,7 @@ export interface DocumentsHomeProps {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-const REAL_FILE_TYPES = new Set(['file', 'browser', 'email']);
+const REAL_FILE_TYPES = new Set(['file', 'browser', 'email', 'workflow-execution']);
 
 function isRealFileTab(type: string): boolean {
   return REAL_FILE_TYPES.has(type);

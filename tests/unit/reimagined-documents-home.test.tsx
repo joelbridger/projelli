@@ -781,6 +781,25 @@ describe('DocumentsHome — documentsView landing (Fix 1)', () => {
     });
   });
 
+  it("documentsView='editor' with an active workflow record shows the execution view", async () => {
+    mockActiveTabPath = '/workspace/Runs/client-intake.workflow';
+    mockOpenTabs = [
+      {
+        path: '/workspace/Runs/client-intake.workflow',
+        name: 'client-intake.workflow',
+        type: 'workflow-execution',
+      },
+    ];
+    render(
+      <DocumentsHome {...buildDefaultProps()} documentsView="editor" />,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
+      expect(screen.getByTestId('main-panel')).toBeTruthy();
+    });
+    expect(screen.queryByTestId('document-grid-view')).toBeNull();
+  });
+
   it('remounting with documentsView=browser (a nav click) returns to the Files browser', async () => {
     // Mirror the real flow: editor is open (documentsView='editor'), the surface
     // unmounts on nav away, then REMOUNTS with documentsView='browser' because the

@@ -63,6 +63,11 @@ export default {
     await openWorkflowFolderFromDocuments(session, record);
     await session.waitForBodyText('CLIENT_INTAKE_PACKAGE.docx', { timeoutMs: 30_000 });
     await session.waitForBodyText(path.basename(record.file), { timeoutMs: 30_000 });
+    await session.clickTestid(`grid-card-${workflowRelativePath(record, path.basename(record.file))}`, 30_000);
+    await session.testid('workflow-execution-tab-wrapper', 30_000);
+    await assertWorkspaceSelectorNotMounted(session);
+
+    await app.gotoSurface(session, 'Documents');
     await session.clickTestid(`grid-card-${workflowRelativePath(record, 'CLIENT_INTAKE_PACKAGE.docx')}`, 30_000);
     await session.testid('docx-run', 30_000);
   },
@@ -119,6 +124,13 @@ async function openWorkflowFolderFromDocuments(session, record) {
 function workflowRelativePath(record, filename) {
   const folderName = path.basename(record.workflowFolderPath ?? path.dirname(record.file));
   return `${folderName}/${filename}`;
+}
+
+async function assertWorkspaceSelectorNotMounted(session) {
+  const selectorVisible = await session.hasTestid('welcome-dialog-pitch', 1_000);
+  if (selectorVisible) {
+    throw new Error('Opening a saved .workflow record returned to the workspace selector.');
+  }
 }
 
 async function fillClientIntakeInterview(session) {
