@@ -77,6 +77,7 @@ interface EditorState {
   closeTabsByPath: (path: string) => void; // Close all tabs for a deleted file
   setActiveTab: (path: string) => void;
   updateContent: (path: string, content: string) => void;
+  renameOpenTab: (oldPath: string, newPath: string, newName: string) => void;
   markSaved: (path: string) => void;
   setLayout: (layout: PaneLayout) => void;
   reorderTabs: (fromIndex: number, toIndex: number) => void;
@@ -302,6 +303,38 @@ export const useEditorStore = create<EditorState>()(
         t.path === path ? { ...t, content, isDirty: true } : t
       ),
     }));
+  },
+
+  renameOpenTab: (oldPath, newPath, newName) => {
+    set((state) => {
+      const normalizedOldPath = oldPath.replace(/\/+/g, '/').replace(/\/$/, '');
+      const normalizedNewPath = newPath.replace(/\/+/g, '/').replace(/\/$/, '');
+      const hasMatchingTab = state.openTabs.some((t) => {
+        const normalizedTabPath = t.path.replace(/\/+/g, '/').replace(/\/$/, '');
+        return normalizedTabPath === normalizedOldPath;
+      });
+
+      if (!hasMatchingTab) {
+        return state;
+      }
+
+      return {
+        openTabs: state.openTabs.map((t) => {
+          const normalizedTabPath = t.path.replace(/\/+/g, '/').replace(/\/$/, '');
+          return normalizedTabPath === normalizedOldPath
+            ? { ...t, path: normalizedNewPath, name: newName }
+            : t;
+        }),
+        activeTabPath:
+          state.activeTabPath?.replace(/\/+/g, '/').replace(/\/$/, '') === normalizedOldPath
+            ? normalizedNewPath
+            : state.activeTabPath,
+        secondaryTabPath:
+          state.secondaryTabPath?.replace(/\/+/g, '/').replace(/\/$/, '') === normalizedOldPath
+            ? normalizedNewPath
+            : state.secondaryTabPath,
+      };
+    });
   },
 
   markSaved: (path) => {

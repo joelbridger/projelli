@@ -339,6 +339,39 @@ describe('DocumentsHome — email-open flow', () => {
   });
 });
 
+// ── AI Assistant tab flow ──────────────────────────────────────────────────
+
+describe('DocumentsHome — AI Assistant tab flow', () => {
+  beforeEach(() => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+  });
+
+  it('opening an AI Assistant tab from the Files browser shows the editor surface', async () => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    const { rerender } = render(<DocumentsHome {...buildDefaultProps()} documentsView="browser" />);
+
+    expect(screen.getByTestId('document-grid-view')).toBeTruthy();
+
+    mockActiveTabPath = '__ai_assistant__test';
+    mockOpenTabs = [
+      {
+        path: '__ai_assistant__test',
+        name: 'AI Assistant',
+        type: 'ai-assistant',
+      },
+    ];
+    rerender(<DocumentsHome {...buildDefaultProps()} documentsView="browser" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
+      expect(screen.getByTestId('main-panel')).toBeTruthy();
+      expect(screen.getByTestId('documents-tab-strip').textContent).toContain('AI Assistant');
+    });
+  });
+});
+
 // ── Add files / import affordance ─────────────────────────────────────────
 
 describe('DocumentsHome — Add files button', () => {
@@ -712,6 +745,15 @@ describe('DocumentsHome — create in current folder (R6-1)', () => {
     expect(onCreateDefaultDocument).toHaveBeenCalledTimes(1);
     // At root, currentFolderPath is null → undefined parentPath.
     expect(onCreateDefaultDocument).toHaveBeenCalledWith(undefined);
+  });
+
+  it('at root, "New folder" creates at the workspace root', () => {
+    const onCreateFolder = vi.fn();
+    render(<DocumentsHome {...buildDefaultProps({ onCreateFolder })} />);
+
+    const newFolderBtn = screen.getByRole('button', { name: /new folder/i });
+    fireEvent.click(newFolderBtn);
+    expect(onCreateFolder).toHaveBeenCalledWith('/workspace');
   });
 
   it('after drilling into a folder, "New document" passes that folder as parentPath', () => {

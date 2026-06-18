@@ -33,6 +33,7 @@ import { FolderOpen, FolderTree, FileText, X, Plus, Upload, ListTree, LayoutGrid
 import { IconButton, Callout, Button, SearchField, SurfaceToolbar } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { useEditorStore } from '@/platform/state/editorStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { getFileIcon } from '@/platform/utils/fileIcons';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
@@ -115,10 +116,10 @@ export interface DocumentsHomeProps {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-const REAL_FILE_TYPES = new Set(['file', 'browser', 'email', 'workflow-execution']);
+const EDITOR_TAB_TYPES = new Set(['file', 'browser', 'email', 'workflow-execution', 'ai-assistant']);
 
-function isRealFileTab(type: string): boolean {
-  return REAL_FILE_TYPES.has(type);
+function isEditorSurfaceTab(type: string): boolean {
+  return EDITOR_TAB_TYPES.has(type);
 }
 
 function hasTrustBeenShown(): boolean {
@@ -316,6 +317,7 @@ export function DocumentsHome({
   const openTabs = useEditorStore((s) => s.openTabs);
   const setActiveTab = useEditorStore((s) => s.setActiveTab);
   const closeTab = useEditorStore((s) => s.closeTab);
+  const rootPath = useWorkspaceStore((s) => s.rootPath);
 
   // Trust banner state
   const [showTrustBanner, setShowTrustBanner] = useState(false);
@@ -334,8 +336,8 @@ export function DocumentsHome({
 
   // "userOnFiles" tracks whether the user explicitly clicked the "Files" tab.
   // When false, the active document tab in editorStore drives what is shown.
-  // When a new real-file tab becomes active externally (email-open flow, grid
-  // card click), we flip back to false via a ref — no setState inside an effect.
+  // When a new editor-surface tab becomes active externally (email-open flow,
+  // AI shortcut, grid card click), we flip back to false via a ref — no setState inside an effect.
   // Initialize from documentsView on mount. Because this component remounts on
   // every nav, the useState initializer is the reliable place to honor the
   // intent: 'browser' => show the Files list; 'editor'/undefined => editor
@@ -346,7 +348,7 @@ export function DocumentsHome({
   // without capturing a stale closure.
   const userOnFilesRef = useRef(initialOnFiles);
 
-  // Track the last real-file path the store told us about; when it changes
+  // Track the last editor-surface path the store told us about; when it changes
   // externally, flip userOnFiles off via a ref comparison (no setState in the
   // effect body — we apply it on the NEXT render via queueMicrotask).
   // Seed with the mount-time active path so the effect does NOT treat the
@@ -358,10 +360,10 @@ export function DocumentsHome({
     if (activeTabPath === null) return;
     const matchingTab = openTabs.find((t) => t.path === activeTabPath);
     if (!matchingTab) return;
-    if (!isRealFileTab(matchingTab.type ?? 'file')) return;
+    if (!isEditorSurfaceTab(matchingTab.type ?? 'file')) return;
     if (prevActivePathRef.current === activeTabPath) return;
     prevActivePathRef.current = activeTabPath;
-    // A real-file tab became active externally: navigate away from the Files
+    // An editor-surface tab became active externally: navigate away from the Files
     // grid to show the editor. Use queueMicrotask so the setState is deferred
     // out of the effect synchronous execution (satisfies react-hooks/set-state-in-effect).
     if (userOnFilesRef.current) {
@@ -414,7 +416,7 @@ export function DocumentsHome({
       // If we just closed the active tab and there's nothing left, go to Files.
       if (tabPath === activeTabPath) {
         const remaining = openTabs.filter(
-          (t) => t.path !== tabPath && isRealFileTab(t.type ?? 'file'),
+          (t) => t.path !== tabPath && isEditorSurfaceTab(t.type ?? 'file'),
         );
         if (remaining.length === 0) {
           userOnFilesRef.current = true;
@@ -463,17 +465,17 @@ export function DocumentsHome({
   }, [currentFolderPath, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
 
   const handleCreateFolder = useCallback(() => {
-    onCreateFolder(currentFolderPath ?? '');
-  }, [currentFolderPath, onCreateFolder]);
+    onCreateFolder(currentFolderPath ?? rootPath ?? '');
+  }, [currentFolderPath, rootPath, onCreateFolder]);
 
   const trashBadgeCount = trashStats.itemCount;
 
   // ── Derived content state ────────────────────────────────────────────────
 
-  // Only real-file tabs appear in the strip.
-  const visibleTabs = openTabs.filter((t) => isRealFileTab(t.type ?? 'file'));
+  // Only tabs that MainPanel can render in the Documents surface appear here.
+  const visibleTabs = openTabs.filter((t) => isEditorSurfaceTab(t.type ?? 'file'));
 
-  // Show the grid when: user explicitly clicked Files, OR no real-file tabs exist.
+  // Show the grid when: user explicitly clicked Files, OR no editor-surface tabs exist.
   const showFilesGrid = userOnFiles || visibleTabs.length === 0;
 
   // The "selected" tab path for highlight purposes in the strip.

@@ -159,8 +159,19 @@ export default {
       throw new Error('Created .docx did not open in the OOXML editor');
     }
 
-    // Create a folder, then create a markdown file inside it from the tree row menu.
+    // Create a folder at the workspace root from the Documents toolbar.
     await activateFilesTab(session, app);
+    await clickButtonText(session, app, 'New folder');
+    await session.waitForBodyText('Create Folder', { timeoutMs: 15_000 });
+    await fillPrompt(session, app, 'Root L2 Folder');
+    const rootFolderPath = path.join(workspace, 'Root L2 Folder');
+    await waitForDisk(
+      () => fs.existsSync(rootFolderPath) && fs.statSync(rootFolderPath).isDirectory(),
+      'created root folder on disk',
+    );
+    await session.waitForBodyText('Root L2 Folder', { timeoutMs: 15_000 });
+
+    // Create a folder inside docs, then create a markdown file inside it from the tree row menu.
     // The current Documents toolbar creates inside the active folder context.
     // Drill into the real `docs` folder so the on-disk target is explicit.
     await openGridFolder(session, app, 'docs');
@@ -215,6 +226,25 @@ export default {
       throw new Error('Renamed markdown file lost its autosaved content');
     }
     await session.waitForBodyText('renamed-notes.md', { timeoutMs: 15_000 });
+    await session.waitFor(
+      async () => {
+        const result = await session.execute(
+          `
+            const tabs = Array.from(document.querySelectorAll('[role="tablist"] button'));
+            return {
+              hasRenamed: tabs.some((tab) => (tab.textContent || '').trim() === 'renamed-notes.md'),
+              hasOld: tabs.some((tab) => (tab.textContent || '').trim() === 'notes.md'),
+            };
+          `,
+        );
+        return result.hasRenamed && !result.hasOld;
+      },
+      {
+        timeoutMs: 10_000,
+        intervalMs: 250,
+        label: 'renamed open markdown tab label',
+      },
+    );
 
     // Switch tabs between the renamed markdown file and an existing text file.
     await openTreeRowMenu(session, 'switch-target.txt');
@@ -232,7 +262,7 @@ export default {
 
     const mdTab = await session.find(
       'xpath',
-      `//*[@role="tablist"]//button[normalize-space()=${app.xpathLiteral('notes.md')}]`,
+      `//*[@role="tablist"]//button[normalize-space()=${app.xpathLiteral('renamed-notes.md')}]`,
       15_000,
     );
     await session.click(mdTab);

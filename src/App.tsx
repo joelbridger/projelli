@@ -679,6 +679,8 @@ function App() {
   // new tabs, then fall back to creating a fresh one. The sidebar AI pane
   // keeps working independently — this is purely additive.
   const openAIAssistantTab = useCallback(() => {
+    setDocumentsView('editor');
+    setSidebarActiveTab('files');
     const existing = useEditorStore
       .getState()
       .openTabs.find((t) => t.type === 'ai-assistant');

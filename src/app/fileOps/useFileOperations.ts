@@ -45,8 +45,6 @@ export function useFileOperations(options: UseFileOperationsOptions) {
     setFileTree,
     markSaved,
     contentIndex,
-    openTabs,
-    closeTab,
     renameHistoryRef,
     undoStackRef,
   } = options;
@@ -136,15 +134,18 @@ export function useFileOperations(options: UseFileOperationsOptions) {
   // Handle create new folder
   const handleCreateFolder = useCallback(
     async (parentPath: string) => {
+      const targetParentPath = parentPath || useWorkspaceStore.getState().rootPath;
+      if (!targetParentPath) return;
+
       const name = await prompt('Enter folder name:', '', {
         title: 'Create Folder',
         placeholder: 'my-folder',
         // UX-15: also show destination for folder creation.
-        destinationPath: `${parentPath}/`,
+        destinationPath: `${targetParentPath}/`,
       });
       if (!name || !workspaceServiceRef.current) return;
 
-      const folderPath = `${parentPath}/${name}`;
+      const folderPath = `${targetParentPath}/${name}`;
       try {
         await workspaceServiceRef.current.mkdir(folderPath);
         const fileTree = await workspaceServiceRef.current.getFileTree();
@@ -182,6 +183,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         // call `rename(newPath, oldName)` without re-deriving anything.
         const parent = path.substring(0, path.lastIndexOf('/'));
         const newPath = `${parent}/${newName}`;
+        useEditorStore.getState().renameOpenTab(path, newPath, newName);
         renameHistoryRef.current.push({ fromPath: path, toPath: newPath });
         // UX-29: track the kind of action so Ctrl+Z can undo the most
         // recent destructive change (either rename OR delete), not just
@@ -210,20 +212,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         // Update the tab name in the editor store
         const oldPath = path;
         const newPath = path.substring(0, path.lastIndexOf('/') + 1) + newName;
-
-        // Close old tab and open new one with same content if it was open.
-        // Preserve the tab's group membership across the close/reopen so
-        // renaming from the Tab Group Manager modal (or the dropdown) does
-        // not drop the tab out of its group.
-        const tab = openTabs.find(t => t.path === oldPath);
-        if (tab) {
-          const preservedGroupId = tab.groupId;
-          closeTab(oldPath);
-          await handleFileOpen(newPath, newName);
-          if (preservedGroupId) {
-            useEditorStore.getState().moveTabToGroup(newPath, preservedGroupId);
-          }
-        }
+        useEditorStore.getState().renameOpenTab(oldPath, newPath, newName);
 
         // UX-16: track the rename for session-level Ctrl+Z undo.
         renameHistoryRef.current.push({ fromPath: oldPath, toPath: newPath });
@@ -235,7 +224,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         window.alert("I couldn't rename that file. Make sure it isn't open in another app, then try again.");
       }
     },
-    [setFileTree, openTabs, closeTab, handleFileOpen]
+    [setFileTree]
   );
 
 
