@@ -259,6 +259,21 @@ impl MailProvider for GraphProvider {
     fn kind(&self) -> &'static str { "m365" }
 
     async fn list_folders(&self) -> anyhow::Result<Vec<RemoteFolder>> {
+        // Resolve the junk folders (Deleted Items + Junk Email) by their stable
+        // well-known names, so they can be excluded regardless of mailbox
+        // language. A confidential mail search must not surface deleted or junk
+        // mail (the equivalent of Gmail's SPAM/TRASH exclusion). Best-effort: if a
+        // lookup fails we simply don't add it to the skip set.
+        let mut skip_ids = std::collections::HashSet::new();
+        for well_known in ["deleteditems", "junkemail"] {
+            let url = format!("{}/v1.0/me/mailFolders/{}?$select=id", self.client.base(), well_known);
+            if let Ok(j) = self.client.get_json(&url).await {
+                if let Some(id) = j.get("id").and_then(|s| s.as_str()) {
+                    skip_ids.insert(id.to_string());
+                }
+            }
+        }
+
         let mut folders = Vec::new();
         let mut next = Some(format!("{}/v1.0/me/mailFolders?$top=200", self.client.base()));
         while let Some(url) = next {
@@ -266,6 +281,7 @@ impl MailProvider for GraphProvider {
             if let Some(arr) = page.get("value").and_then(|v| v.as_array()) {
                 for f in arr {
                     if let Some(id) = f.get("id").and_then(|s| s.as_str()) {
+                        if skip_ids.contains(id) { continue; } // skip Deleted Items / Junk Email
                         let name = f.get("displayName").and_then(|s| s.as_str()).unwrap_or(id).to_string();
                         folders.push(RemoteFolder { id: id.to_string(), display_name: name });
                     }
@@ -338,6 +354,36 @@ mod tests {
         let page = client.get_json(&url).await.expect("page");
         assert_eq!(page_continuation(&page), Continuation::Delta("https://x/d?$deltatoken=tok".into()));
         assert_eq!(page["value"][0]["id"], "m1");
+    }
+
+    #[tokio::test]
+    async fn list_folders_excludes_deleted_and_junk() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+        let server = MockServer::start().await;
+        // The two well-known junk-folder lookups resolve their (locale-independent) ids.
+        Mock::given(method("GET")).and(path("/v1.0/me/mailFolders/deleteditems"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({ "id": "DEL_ID" })))
+            .mount(&server).await;
+        Mock::given(method("GET")).and(path("/v1.0/me/mailFolders/junkemail"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({ "id": "JUNK_ID" })))
+            .mount(&server).await;
+        // The folder list contains Inbox, Deleted Items, Junk Email, and Sent Items.
+        Mock::given(method("GET")).and(path("/v1.0/me/mailFolders"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "value": [
+                    { "id": "INBOX_ID", "displayName": "Inbox" },
+                    { "id": "DEL_ID",   "displayName": "Deleted Items" },
+                    { "id": "JUNK_ID",  "displayName": "Junk Email" },
+                    { "id": "SENT_ID",  "displayName": "Sent Items" }
+                ]
+            }))).mount(&server).await;
+
+        let provider = GraphProvider::new_with_base("AT".into(), server.uri());
+        let folders = provider.list_folders().await.expect("list_folders");
+        let ids: Vec<&str> = folders.iter().map(|f| f.id.as_str()).collect();
+        // Deleted Items + Junk Email are excluded; Inbox + Sent Items are kept.
+        assert_eq!(ids, vec!["INBOX_ID", "SENT_ID"]);
     }
 
     #[test]

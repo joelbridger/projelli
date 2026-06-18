@@ -63,7 +63,7 @@ export function MailGmailConnect() {
         <div className="mt-3 space-y-3">
           <p className="text-xs text-slate-500">
             A browser window will open to sign in to Google. You may see an "unverified app"
-            notice (this is expected while in testing) — choose Continue.
+            notice (this is expected while in testing). Choose Continue.
           </p>
 
           {connectError && (
