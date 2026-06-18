@@ -104,11 +104,17 @@ impl MailProvider for GmailProvider {
         "gmail"
     }
 
-    /// List all Gmail labels as `RemoteFolder` entries.
+    /// List Gmail labels as `RemoteFolder` entries, EXCLUDING the junk system
+    /// labels we never import: SPAM and TRASH (a confidential mail search must not
+    /// surface spam or deleted mail), and CHAT (Hangouts chat, not email). This
+    /// mirrors Gmail's own `messages.list` default (`includeSpamTrash=false`).
+    /// User labels named e.g. "[Imap]/Trash" are NOT system labels and are kept.
     async fn list_folders(&self) -> anyhow::Result<Vec<RemoteFolder>> {
+        const SKIP_LABELS: [&str; 3] = ["SPAM", "TRASH", "CHAT"];
         let labels = self.client.list_labels().await?;
         Ok(labels
             .into_iter()
+            .filter(|(id, _)| !SKIP_LABELS.contains(&id.as_str()))
             .map(|(id, name)| RemoteFolder { id, display_name: name })
             .collect())
     }
@@ -348,6 +354,9 @@ mod tests {
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "labels": [
                     { "id": "INBOX", "name": "INBOX", "type": "system" },
+                    { "id": "SPAM", "name": "SPAM", "type": "system" },
+                    { "id": "TRASH", "name": "TRASH", "type": "system" },
+                    { "id": "CHAT", "name": "CHAT", "type": "system" },
                     { "id": "Label_42", "name": "Legal", "type": "user" }
                 ]
             })))
@@ -356,9 +365,11 @@ mod tests {
 
         let provider = GmailProvider::new_with_base("AT".into(), "user@gmail.com".into(), server.uri());
         let folders = provider.list_folders().await.expect("list_folders");
+        // SPAM, TRASH, and CHAT are excluded; INBOX + user labels are kept.
         assert_eq!(folders.len(), 2);
         assert_eq!(folders[0], RemoteFolder { id: "INBOX".into(), display_name: "INBOX".into() });
         assert_eq!(folders[1], RemoteFolder { id: "Label_42".into(), display_name: "Legal".into() });
+        assert!(!folders.iter().any(|f| f.id == "SPAM" || f.id == "TRASH" || f.id == "CHAT"));
     }
 
     // ── backfill: single page (no nextPageToken) -> done=true + hist: cursor ─

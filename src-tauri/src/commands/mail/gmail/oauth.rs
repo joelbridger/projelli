@@ -767,4 +767,118 @@ mod tests {
             eprintln!("GMAIL_AUTH_URL={}", build_auth_url(&cid, redirect, &challenge, "smoke"));
         }
     }
+
+    // Live END-TO-END Gmail import: pulls real Gmail through the real sync pipeline
+    // (the same code the desktop app runs) into a TEMP encrypted store, then queries
+    // it the way the Email tab does. Ignored; two phases like gmail_live_smoke.
+    // Needs KEEPANCE_GMAIL_CLIENT_ID/_SECRET.
+    //   Phase 1 (no GMAIL_CODE):               prints GMAIL_VERIFIER + GMAIL_AUTH_URL.
+    //   Phase 2 (GMAIL_CODE + GMAIL_VERIFIER): exchanges, imports, reports.
+    // Optional env: IMPORT_FOLDER_CAP=N, IMPORT_SEARCH=word.
+    #[tokio::test]
+    #[ignore]
+    async fn gmail_live_import() {
+        use crate::commands::mail::gmail::GmailProvider;
+        use crate::commands::mail::provider::MailProvider;
+        use crate::commands::mail::store::{EncryptedMailStore, MailListQuery, MailStore};
+        use crate::commands::mail::sync::sync_folder_provider;
+        use crate::commands::rag::store::UNASSIGNED_MATTER;
+
+        let cid = std::env::var("KEEPANCE_GMAIL_CLIENT_ID").expect("set KEEPANCE_GMAIL_CLIENT_ID");
+        let redirect = "http://127.0.0.1:7777";
+
+        let code = match std::env::var("GMAIL_CODE") {
+            Ok(c) => c,
+            Err(_) => {
+                let (verifier, challenge) = gen_pkce();
+                eprintln!("GMAIL_VERIFIER={verifier}");
+                eprintln!("GMAIL_AUTH_URL={}", build_auth_url(&cid, redirect, &challenge, "import"));
+                return;
+            }
+        };
+        let verifier = std::env::var("GMAIL_VERIFIER").expect("set GMAIL_VERIFIER");
+        let secret = std::env::var("KEEPANCE_GMAIL_CLIENT_SECRET").expect("set KEEPANCE_GMAIL_CLIENT_SECRET");
+
+        // 1. Exchange for a real access token.
+        let tokens = GoogleOAuth::new(cid, secret)
+            .exchange_code(&code, &verifier, redirect)
+            .await
+            .expect("token exchange failed");
+        eprintln!("IMPORT: token OK (access_len={}, refresh_present={})", tokens.access.len(), tokens.refresh.is_some());
+
+        // 2. Real provider + a throwaway encrypted workspace (fixed key, no keychain).
+        let provider = GmailProvider::new(tokens.access.clone(), "default".to_string());
+        let dir = tempfile::TempDir::new().unwrap();
+        let workspace = dir.path();
+        let key = [7u8; 32];
+        let store = EncryptedMailStore::open_with_key(workspace, &key).expect("open store");
+
+        // 3. Import every label (no-op RAG/tombstone callbacks). NOTE: Gmail labels
+        //    OVERLAP (a message can carry INBOX + a custom label + All Mail), and
+        //    upsert is by message id, so the sum of per-label `written` is >= the
+        //    unique row count in the store.
+        let folders = provider.list_folders().await.expect("list folders");
+        eprintln!("IMPORT: {} folders/labels", folders.len());
+        let noop_index = |_id: &str, _t: &str, _m: &str| {};
+        let noop_tomb = |_id: &str| {};
+        let noop_emit = |_w: u32, _r: u32| {};
+        let folder_cap: usize = std::env::var("IMPORT_FOLDER_CAP").ok()
+            .and_then(|s| s.parse().ok()).unwrap_or(usize::MAX);
+        let mut grand_written = 0u32;
+        let mut folder_errors = 0u32;
+        for (i, folder) in folders.iter().enumerate() {
+            if i >= folder_cap { eprintln!("IMPORT: stopping at folder cap {folder_cap}"); break; }
+            match sync_folder_provider(
+                &provider, &store, workspace, folder, "default", UNASSIGNED_MATTER,
+                &key, &noop_emit, &noop_index, &noop_tomb,
+            ).await {
+                Ok(stats) => {
+                    eprintln!("IMPORT: '{}' ({}) -> written={} removed={}",
+                        folder.display_name, folder.id, stats.written, stats.removed);
+                    grand_written += stats.written;
+                }
+                Err(e) => { eprintln!("IMPORT: '{}' ERROR: {e:#}", folder.display_name); folder_errors += 1; }
+            }
+        }
+        eprintln!("IMPORT: total writes={grand_written} (incl. label overlap), folder_errors={folder_errors}");
+
+        // 4. Query the store exactly like the Email tab does (date desc, page 1).
+        let store_count = store.count().expect("count");
+        eprintln!("VERIFY: unique store row count={store_count}");
+        let q = |keyword: Option<String>, limit: i64| MailListQuery {
+            keyword, folder_id: None, provider: None, account: None,
+            date_from: None, date_to: None, has_attachments: None,
+            sort_by: "date".into(), sort_desc: true, limit, offset: 0,
+        };
+        let page = store.list_messages(&q(None, 12)).expect("list");
+        eprintln!("VERIFY: list total={} (showing {})", page.total, page.items.len());
+        let mut empty_subject = 0u32;
+        let mut empty_from = 0u32;
+        let mut null_date = 0u32;
+        let mut with_attach = 0u32;
+        for it in &page.items {
+            if it.subject.trim().is_empty() { empty_subject += 1; }
+            if it.from_addr.trim().is_empty() && it.from_name.trim().is_empty() { empty_from += 1; }
+            if it.received_date_time.is_none() { null_date += 1; }
+            if it.has_attachments { with_attach += 1; }
+            eprintln!("  - [{}] \"{}\" | {} <{}> | folder={} | attach={} | snippet={:?}",
+                it.received_date_time.as_deref().unwrap_or("NULL"),
+                it.subject, it.from_name, it.from_addr, it.folder_id, it.has_attachments,
+                it.snippet.chars().take(60).collect::<String>());
+        }
+        eprintln!("HEALTH(first page): empty_subject={empty_subject} empty_from={empty_from} null_date={null_date} with_attach={with_attach}");
+
+        if let Ok(kw) = std::env::var("IMPORT_SEARCH") {
+            let hits = store.list_messages(&q(Some(kw.clone()), 5)).expect("search");
+            eprintln!("SEARCH '{kw}': {} hits", hits.total);
+            for it in &hits.items {
+                eprintln!("  > \"{}\" | {} <{}>", it.subject, it.from_name, it.from_addr);
+            }
+        }
+
+        // Hard checks: import produced searchable mail; the list returns every stored row.
+        assert!(grand_written > 0, "no mail was imported");
+        assert!(store_count > 0, "store is empty after import");
+        assert_eq!(page.total, store_count, "list total != unique store rows (list query drops rows)");
+    }
 }

@@ -424,4 +424,118 @@ mod tests {
             eprintln!("MS_AUTH_URL={}", build_ms_auth_url(&cid, redirect, &challenge, "smoke"));
         }
     }
+
+    // Live END-TO-END import: actually pulls real Outlook mail through the real
+    // sync pipeline (the same code the desktop app runs) into a TEMP encrypted
+    // store, then queries it the way the Email tab does — to surface real problems
+    // no unit test can. Ignored; two phases like outlook_live_smoke:
+    //   Phase 1 (no MS_CODE):              prints MS_VERIFIER + MS_AUTH_URL.
+    //   Phase 2 (MS_CODE + MS_VERIFIER):   exchanges, imports every folder, reports.
+    // Optional env: IMPORT_FOLDER_CAP=N (limit folders), IMPORT_SEARCH=word.
+    #[tokio::test]
+    #[ignore]
+    async fn outlook_live_import() {
+        use crate::commands::mail::gmail::oauth::gen_pkce;
+        use crate::commands::mail::graph::GraphProvider;
+        use crate::commands::mail::provider::MailProvider;
+        use crate::commands::mail::store::{EncryptedMailStore, MailListQuery, MailStore};
+        use crate::commands::mail::sync::sync_folder_provider;
+        use crate::commands::rag::store::UNASSIGNED_MATTER;
+
+        let cid = std::env::var("KEEPANCE_MS_CLIENT_ID")
+            .unwrap_or_else(|_| "845ddba0-70ab-4f90-88ba-e3522157e37a".to_string());
+        let redirect = "http://localhost:7777";
+
+        let code = match std::env::var("MS_CODE") {
+            Ok(c) => c,
+            Err(_) => {
+                let (verifier, challenge) = gen_pkce();
+                eprintln!("MS_VERIFIER={verifier}");
+                eprintln!("MS_AUTH_URL={}", build_ms_auth_url(&cid, redirect, &challenge, "import"));
+                return;
+            }
+        };
+        let verifier = std::env::var("MS_VERIFIER").expect("set MS_VERIFIER");
+
+        // 1. Exchange the real code for a real access token.
+        let tokens = ms_exchange_code(&cid, &code, &verifier, redirect, MS_TOKEN_ENDPOINT)
+            .await
+            .expect("token exchange failed");
+        eprintln!("IMPORT: token OK (access_len={}, refresh_len={})", tokens.access.len(), tokens.refresh.len());
+
+        // 2. Real provider + a throwaway encrypted workspace (fixed key, no keychain).
+        let provider = GraphProvider::new(tokens.access.clone());
+        let dir = tempfile::TempDir::new().unwrap();
+        let workspace = dir.path();
+        let key = [7u8; 32];
+        let store = EncryptedMailStore::open_with_key(workspace, &key).expect("open store");
+
+        // 3. Import every folder (no-op RAG/tombstone callbacks: we are exercising
+        //    the import + metadata store + keyword list, not the embedder).
+        let folders = provider.list_folders().await.expect("list folders");
+        eprintln!("IMPORT: {} folders", folders.len());
+        let noop_index = |_id: &str, _t: &str, _m: &str| {};
+        let noop_tomb = |_id: &str| {};
+        let noop_emit = |_w: u32, _r: u32| {};
+        let folder_cap: usize = std::env::var("IMPORT_FOLDER_CAP").ok()
+            .and_then(|s| s.parse().ok()).unwrap_or(usize::MAX);
+        let mut grand_written = 0u32;
+        let mut folder_errors = 0u32;
+        for (i, folder) in folders.iter().enumerate() {
+            if i >= folder_cap { eprintln!("IMPORT: stopping at folder cap {folder_cap}"); break; }
+            match sync_folder_provider(
+                &provider, &store, workspace, folder, "default", UNASSIGNED_MATTER,
+                &key, &noop_emit, &noop_index, &noop_tomb,
+            ).await {
+                Ok(stats) => {
+                    eprintln!("IMPORT: '{}' ({}) -> written={} removed={}",
+                        folder.display_name, folder.id, stats.written, stats.removed);
+                    grand_written += stats.written;
+                }
+                Err(e) => { eprintln!("IMPORT: '{}' ERROR: {e:#}", folder.display_name); folder_errors += 1; }
+            }
+        }
+        eprintln!("IMPORT: total written={grand_written}, folder_errors={folder_errors}");
+
+        // 4. Query the store exactly like the Email tab does (date desc, page 1).
+        let store_count = store.count().expect("count");
+        eprintln!("VERIFY: store row count={store_count}");
+        let q = |keyword: Option<String>, limit: i64| MailListQuery {
+            keyword, folder_id: None, provider: None, account: None,
+            date_from: None, date_to: None, has_attachments: None,
+            sort_by: "date".into(), sort_desc: true, limit, offset: 0,
+        };
+        let page = store.list_messages(&q(None, 12)).expect("list");
+        eprintln!("VERIFY: list total={} (showing {})", page.total, page.items.len());
+        // Data-health counters across the first page.
+        let mut empty_subject = 0u32;
+        let mut empty_from = 0u32;
+        let mut null_date = 0u32;
+        let mut with_attach = 0u32;
+        for it in &page.items {
+            if it.subject.trim().is_empty() { empty_subject += 1; }
+            if it.from_addr.trim().is_empty() && it.from_name.trim().is_empty() { empty_from += 1; }
+            if it.received_date_time.is_none() { null_date += 1; }
+            if it.has_attachments { with_attach += 1; }
+            eprintln!("  - [{}] \"{}\" | {} <{}> | folder={} | attach={} | snippet={:?}",
+                it.received_date_time.as_deref().unwrap_or("NULL"),
+                it.subject, it.from_name, it.from_addr, it.folder_id, it.has_attachments,
+                it.snippet.chars().take(60).collect::<String>());
+        }
+        eprintln!("HEALTH(first page): empty_subject={empty_subject} empty_from={empty_from} null_date={null_date} with_attach={with_attach}");
+
+        // 5. Keyword search (exercise the search path that powers the Email tab).
+        if let Ok(kw) = std::env::var("IMPORT_SEARCH") {
+            let hits = store.list_messages(&q(Some(kw.clone()), 5)).expect("search");
+            eprintln!("SEARCH '{kw}': {} hits", hits.total);
+            for it in &hits.items {
+                eprintln!("  > \"{}\" | {} <{}>", it.subject, it.from_name, it.from_addr);
+            }
+        }
+
+        // Hard assertions: the import must have produced searchable mail.
+        assert!(grand_written > 0, "no mail was imported");
+        assert_eq!(store_count as u32, grand_written, "store row count != written (lost rows)");
+        assert_eq!(page.total as u32, grand_written, "list total != written (list query drops rows)");
+    }
 }

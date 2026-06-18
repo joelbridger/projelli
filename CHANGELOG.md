@@ -17,6 +17,7 @@ Fixes for the email-connector issues found while testing 3.3.4 on Windows.
 - **The import count no longer looks like it restarts.** While importing an account with several folders or labels, the running total now keeps climbing instead of resetting to zero at each folder, so a large Gmail import reads as one continuous count.
 - **Imported mail now appears in the Email tab on its own.** The email list refreshes when an import finishes and when you return to the main window, so messages show up without having to change a filter to force a reload.
 - **The Windows installer and uninstaller now show the Keepance name and logo.** They previously still showed the old "Projelli" branding from before the rename.
+- **Spam and deleted mail are no longer imported.** A Gmail import now skips the Spam and Trash folders (and Google Chat), matching how Gmail itself works, so a confidential mail search never surfaces spam or deleted messages. Found by running a real Gmail account (811 messages) through the import end to end.
 
 ## [3.3.4] - 2026-06-18
 
