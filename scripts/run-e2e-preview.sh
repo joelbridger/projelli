@@ -25,11 +25,18 @@ shift || true  # remaining args forwarded to playwright
 PREVIEW_PORT=4173
 PREVIEW_URL="http://localhost:${PREVIEW_PORT}"
 
+# Bake /api/firm into the built bundle so firm calls route through the preview
+# proxy (→ FIRM_BACKEND_TARGET) instead of falling through to production
+# https://api.keepance.com.  Without this, a production build sees
+# import.meta.env.DEV=false and picks the prod URL regardless of the proxy.
+export VITE_FIRM_API_BASE="${VITE_FIRM_API_BASE:-/api/firm}"
+export FIRM_BACKEND_TARGET="${FIRM_BACKEND_TARGET:-http://127.0.0.1:5290}"
+
 echo "==> Building app for E2E (config: vite.config.e2e.ts)…"
 npx vite build --config vite.config.e2e.ts
 
 echo "==> Starting preview server on :${PREVIEW_PORT}…"
-npx vite preview --config vite.config.e2e.ts --port "${PREVIEW_PORT}" \
+npx vite preview --config vite.config.e2e.ts --port "${PREVIEW_PORT}" --strictPort \
   >/tmp/keepance-e2e-preview.log 2>&1 &
 PREVIEW_PID=$!
 

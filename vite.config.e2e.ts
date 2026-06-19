@@ -64,8 +64,17 @@ function previewApiProxy(): Plugin {
 
       server.middlewares.use('/api/firm', firmProxy);
 
-      // Forward HTTP upgrade events (WebSocket handshakes) to the firm proxy.
-      server.httpServer?.on('upgrade', firmProxy.upgrade as Parameters<typeof server.httpServer.on>[1]);
+      // Forward HTTP upgrade events (WebSocket handshakes) to the firm proxy,
+      // but ONLY for requests targeting /api/firm — otherwise every WS upgrade
+      // (e.g. Vite HMR) would be incorrectly forwarded to the firm backend.
+      server.httpServer?.on(
+        'upgrade',
+        (req: import('http').IncomingMessage, socket: import('stream').Duplex, head: Buffer) => {
+          if (req.url?.startsWith('/api/firm')) {
+            (firmProxy.upgrade as (req: import('http').IncomingMessage, socket: import('stream').Duplex, head: Buffer) => void)?.(req, socket, head);
+          }
+        },
+      );
     },
   };
 }

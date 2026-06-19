@@ -420,9 +420,10 @@ test.describe('Firm shared matter notes — two-client convergence', () => {
     }
 
     // Two isolated browser contexts — separate localStorage, separate device keys.
-    contextA = await browser.newContext({ baseURL: `http://localhost:5173` });
-    contextB = await browser.newContext({ baseURL: `http://localhost:5173` });
-    contextWalled = await browser.newContext({ baseURL: `http://localhost:5173` });
+    const appBaseURL = process.env['E2E_BASE_URL'] ?? 'http://localhost:5173';
+    contextA = await browser.newContext({ baseURL: appBaseURL });
+    contextB = await browser.newContext({ baseURL: appBaseURL });
+    contextWalled = await browser.newContext({ baseURL: appBaseURL });
     pageA = await contextA.newPage();
     pageB = await contextB.newPage();
     pageWalled = await contextWalled.newPage();
