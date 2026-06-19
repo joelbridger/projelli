@@ -17,6 +17,7 @@ on:
   push:
     branches:
       - master
+      - keepance-3.0
 
 jobs:
   quality:
