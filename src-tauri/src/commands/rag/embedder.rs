@@ -324,9 +324,20 @@ mod tests {
     fn resolve_cache_dir_agrees_with_writable_cache_dir_without_bundle() {
         let exe = std::env::current_exe().expect("current_exe");
         let exe_dir = exe.parent().expect("exe has parent");
-        let bundled = exe_dir.join("resources").join("embeddings");
-        if super::model_download::model_files_cached(&bundled) {
-            return; // a real populated bundle is adjacent; invariant doesn't apply
+        // Mirror BOTH candidate paths that resolve_cache_dir() checks so the
+        // skip guard stays in sync with the production logic.  On Windows the
+        // exe lives one level deeper (deps/), so the ".." candidate can be
+        // populated even when the first one isn't — without checking both we'd
+        // run the assert on a machine where resolve_cache_dir correctly returns
+        // the second candidate, causing a spurious failure.
+        let candidates = [
+            exe_dir.join("resources").join("embeddings"),
+            exe_dir.join("..").join("Resources").join("embeddings"),
+        ];
+        for cand in &candidates {
+            if super::model_download::model_files_cached(cand) {
+                return; // a real populated bundle is adjacent; invariant doesn't apply
+            }
         }
         assert_eq!(
             resolve_cache_dir(),

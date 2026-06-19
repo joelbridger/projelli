@@ -1059,7 +1059,10 @@ mod tests {
     fn open_to_json_accepts_absolute_path() {
         // Use a path that is absolute but does not exist — we just want to confirm
         // the relative-path guard does NOT fire for an absolute path.
-        let abs = std::path::Path::new("/nonexistent/absolute/path/file.docx");
+        // NOTE: "/nonexistent/..." is NOT absolute on Windows; use temp_dir() instead
+        // so the path is platform-absolute on all OSes.
+        let abs_buf = std::env::temp_dir().join("kp_nonexistent_dir").join("file.docx");
+        let abs = abs_buf.as_path();
         let result = open_to_json(abs);
         // Must be Err (file doesn't exist) but NOT the "relative path" error.
         assert!(result.is_err(), "non-existent file must still error");
@@ -1100,7 +1103,10 @@ mod tests {
     /// relative-path error).
     #[test]
     fn save_from_json_accepts_absolute_path() {
-        let abs = std::path::Path::new("/nonexistent/path/matter.docx");
+        // NOTE: "/nonexistent/..." is NOT absolute on Windows; use temp_dir() instead
+        // so the path is platform-absolute on all OSes.
+        let abs_buf = std::env::temp_dir().join("kp_nonexistent_dir").join("matter.docx");
+        let abs = abs_buf.as_path();
         // The body is valid JSON — only the path is tested here.
         let json = keepance_docx::document_to_value(&keepance_docx::fixture::build_fixture_model()).unwrap();
         let result = save_from_json(abs, json);
