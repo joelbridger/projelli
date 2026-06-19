@@ -7,9 +7,7 @@
 import { test, expect } from '@playwright/test';
 import {
   waitForTestModeLoad,
-  hardClick,
   openAIAssistantPane,
-  switchAITab,
 } from './helpers/test-utils';
 
 test.describe('AI Chat', () => {
@@ -104,19 +102,10 @@ test.describe('AI Chat', () => {
       await page.goto('/?testMode=true');
       await waitForTestModeLoad(page);
       await openAIAssistantPane(page);
-      await switchAITab(page, 'chats');
 
-      // Check any existing chat items
-      const chatTitles = page.locator('[data-testid^="chat-title-"]');
-      const count = await chatTitles.count();
-
-      if (count > 0) {
-        for (let i = 0; i < count; i++) {
-          const title = await chatTitles.nth(i).textContent();
-          // Title should NOT be a date like "2024-01-15"
-          expect(title).not.toMatch(/^\d{4}-\d{2}-\d{2}/);
-        }
-      }
+      const title = await page.getByTestId('chat-title').textContent();
+      expect(title).toBeTruthy();
+      expect(title).not.toMatch(/^\d{4}-\d{2}-\d{2}/);
     });
   });
 

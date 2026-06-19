@@ -8,12 +8,29 @@
 import { test, expect } from '@playwright/test';
 import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
 
+async function openDocumentsFiles(page: import('@playwright/test').Page) {
+  await hardClick(page.getByTestId('spine-nav-files'));
+  await hardClick(page.getByRole('tab', { name: 'Files' }));
+  await expect(page.getByTestId('documents-toolbar')).toBeVisible();
+}
+
+async function showTreeView(page: import('@playwright/test').Page) {
+  await openDocumentsFiles(page);
+  await hardClick(page.getByTestId('docs-view-tree'));
+  await expect(page.getByTestId('documents-tree-view')).toBeVisible();
+}
+
+async function showGridView(page: import('@playwright/test').Page) {
+  await openDocumentsFiles(page);
+  await hardClick(page.getByTestId('docs-view-grid'));
+  await expect(page.getByTestId('document-grid-view')).toBeVisible();
+}
+
 test.describe('File Tree', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
-    // Make sure we're on the files tab
-    await hardClick(page.getByTestId('sidebar-tab-files'));
+    await showTreeView(page);
   });
 
   test.describe('Fix #2: Open on Desktop Button', () => {
@@ -40,15 +57,18 @@ test.describe('File Tree', () => {
   });
 
   test.describe('File Tree Toolbar', () => {
-    test('toolbar buttons are present', async ({ page }) => {
+    test('Documents toolbar buttons are present', async ({ page }) => {
       const fileTree = page.getByTestId('file-tree');
       await expect(fileTree).toBeVisible();
 
-      await expect(page.getByTestId('new-file-menu-trigger')).toBeVisible();
-      await expect(page.getByTestId('new-folder-button')).toBeVisible();
+      const toolbar = page.getByTestId('documents-toolbar');
+      await expect(toolbar.getByRole('button', { name: 'New document' })).toBeVisible();
+      await expect(toolbar.getByRole('button', { name: 'New folder' })).toBeVisible();
+      await expect(toolbar.getByTestId('add-files-btn')).toBeVisible();
+      await expect(toolbar.getByTestId('docs-view-toggle')).toBeVisible();
     });
 
-    test('visual snapshot: file tree', async ({ page }) => {
+    test('visual snapshot: Documents tree view', async ({ page }) => {
       const fileTree = page.getByTestId('file-tree');
       await expect(fileTree).toBeVisible();
       await expect(fileTree).toHaveScreenshot('file-tree.png');
@@ -60,37 +80,28 @@ test.describe('Fix #8: Breadcrumb Drag-Drop (Grid View)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
-    await hardClick(page.getByTestId('sidebar-tab-files'));
+    await showGridView(page);
   });
 
   test('grid view button exists', async ({ page }) => {
-    const gridViewBtn = page.getByTestId('grid-view-button');
-    // Grid view button may not appear until workspace is loaded
-    if (await gridViewBtn.isVisible()) {
-      await expect(gridViewBtn).toBeEnabled();
-    }
+    await expect(page.getByTestId('docs-view-grid')).toBeVisible();
+    await expect(page.getByTestId('docs-view-grid')).toBeEnabled();
+    await expect(page.getByTestId('docs-view-grid')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  test('breadcrumb root button exists in grid view', async ({ page }) => {
-    const gridViewBtn = page.getByTestId('grid-view-button');
-    if (await gridViewBtn.isVisible()) {
-      await hardClick(gridViewBtn);
+  test('breadcrumb root button exists after opening a folder in grid view', async ({ page }) => {
+    await hardClick(page.getByTestId('grid-card-/test-workspace/docs'));
 
-      const breadcrumbRoot = page.getByTestId('breadcrumb-root');
-      await expect(breadcrumbRoot).toBeVisible();
-      await expect(breadcrumbRoot).toContainText('Root');
-    }
+    const breadcrumbRoot = page.getByTestId('breadcrumb-crumb-0');
+    await expect(breadcrumbRoot).toBeVisible();
+    await expect(breadcrumbRoot).toContainText('All files');
   });
 
   test('visual snapshot: grid view breadcrumbs', async ({ page }) => {
-    const gridViewBtn = page.getByTestId('grid-view-button');
-    if (await gridViewBtn.isVisible()) {
-      await hardClick(gridViewBtn);
+    await hardClick(page.getByTestId('grid-card-/test-workspace/docs'));
 
-      const breadcrumbNav = page.getByTestId('breadcrumb-nav');
-      if (await breadcrumbNav.isVisible()) {
-        await expect(breadcrumbNav).toHaveScreenshot('breadcrumb-nav.png');
-      }
-    }
+    const breadcrumbRoot = page.getByTestId('breadcrumb-crumb-0');
+    await expect(breadcrumbRoot).toBeVisible();
+    await expect(page.getByTestId('document-grid-view')).toHaveScreenshot('breadcrumb-nav.png');
   });
 });

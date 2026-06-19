@@ -131,10 +131,9 @@ test.describe('Document Viewers (Phase 1)', () => {
     );
   });
 
-  test('renders a .docx file inside the editable TipTap surface', async ({ page }) => {
-    // Phase 3: the docx route became editable, so MainPanel wires in
-    // DocxEditor (TipTap) by default. The content is extracted via mammoth
-    // and rendered inside the editor's contenteditable surface.
+  test('renders a .docx file in the browser read-only preview', async ({ page }) => {
+    // In the redesigned 3.0 app, browser mode shows a read-only Word preview.
+    // Full tracked-change editing is desktop-only.
     const dataUrl = readFixtureAsDataUrl('test.docx', MIME.docx);
     await openFixtureTab(page, {
       path: '/test-workspace/fixtures/test.docx',
@@ -144,10 +143,15 @@ test.describe('Document Viewers (Phase 1)', () => {
 
     const editor = page.getByTestId('docx-editor');
     await expect(editor).toBeVisible({ timeout: 20_000 });
+    await expect(editor).toHaveAttribute('data-mode', 'readonly-fallback');
+    await expect(page.getByTestId('docx-editor-readonly-banner')).toContainText(
+      'read-only preview'
+    );
 
-    const content = page.getByTestId('docx-editor-content');
-    await expect(content).toContainText('Investor Update', { timeout: 20_000 });
-    await expect(content).toContainText('Next Steps');
+    const viewer = page.getByTestId('docx-viewer');
+    await expect(viewer).toBeVisible();
+    await expect(page.getByText('Investor Update — January')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Next Steps')).toBeVisible();
   });
 
   test('shows the docx error state when given invalid bytes', async ({ page }) => {
@@ -159,7 +163,8 @@ test.describe('Document Viewers (Phase 1)', () => {
       content: garbage,
     });
 
-    await expect(page.getByTestId('docx-editor-error')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('docx-error')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("Couldn't open broken.docx")).toBeVisible();
   });
 
   test('legacy .doc files show a friendly fallback with download button', async ({ page }) => {

@@ -73,12 +73,16 @@ export async function isWorkspaceSelectorVisible(page: Page): Promise<boolean> {
 }
 
 /**
- * Navigate to the AI Assistant pane via sidebar
+ * Navigate to the current AI Assistant surface.
+ *
+ * Keepance 3.0 moved AI chat out of the old sidebar pane and into a main
+ * editor tab opened by Ctrl+Shift+A.
  */
 export async function openAIAssistantPane(page: Page) {
-  const aiTab = page.getByTestId('sidebar-tab-ai-assistant');
-  await hardClick(aiTab);
-  await expect(page.getByTestId('ai-assistant-pane')).toBeVisible();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+Shift+a');
+  await expect(page.getByTestId('ai-assistant-tab')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('ai-chat-viewer')).toBeVisible({ timeout: 10_000 });
 }
 
 /**

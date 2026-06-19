@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 
 import { test, expect } from '@playwright/test';
 
-import { hardClick, waitForTestModeLoad } from './helpers/test-utils';
+import { waitForTestModeLoad, openAIAssistantPane } from './helpers/test-utils';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(here, '..', 'fixtures');
@@ -51,19 +51,6 @@ async function openFixtureTab(
     }
     fn(a.path, a.name, a.content);
   }, args);
-}
-
-/**
- * Duplicate of `pathToTestId` from TabBar.tsx so the spec stays
- * self-contained. Both sides must stay in sync — if you change one, change
- * the other. The mapping is narrow (alphanum + `._-` preserved, everything
- * else collapsed to dashes) and deterministic.
- */
-function pathToTestId(path: string): string {
-  return path
-    .replace(/[^A-Za-z0-9_.-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase();
 }
 
 type StoreState = {
@@ -136,83 +123,25 @@ test.describe('AI Ambient File Context (Phase 2)', () => {
     expect(ctx!.tokenEstimate).toBeGreaterThan(0);
   });
 
-  test('toggling the chip removes the file from active contexts', async ({ page }) => {
-    const path = '/test-workspace/fixtures/toggle.xlsx';
+  test('current chat surface shows the open file context indicator', async ({ page }) => {
+    const path = '/test-workspace/Client A/context.xlsx';
     const dataUrl = readFixtureAsDataUrl('test.xlsx', MIME.xlsx);
     await openFixtureTab(page, {
       path,
-      name: 'toggle.xlsx',
-      content: dataUrl,
-    });
-
-    // Wait for the extraction to land + the chip to appear
-    await expectContextEventually(page, path, (ctx) => Boolean(ctx));
-    const toggle = page.getByTestId(`ai-context-toggle-${pathToTestId(path)}`);
-    await expect(toggle).toBeVisible({ timeout: 15_000 });
-
-    // Default: enabled → attribute reflects it, active contexts include path
-    await expect(toggle).toHaveAttribute('data-ai-enabled', 'true');
-
-    const beforeState = await readStore(page);
-    expect(beforeState.disabledPaths[path]).toBeUndefined();
-
-    await hardClick(toggle);
-
-    // After toggling off the chip flips visual state and the store has the
-    // path recorded as disabled.
-    await expect(toggle).toHaveAttribute('data-ai-enabled', 'false');
-    const afterState = await readStore(page);
-    expect(afterState.disabledPaths[path]).toBe(true);
-
-    const activeCount = await page.evaluate((p) => {
-      const store = (window as unknown as {
-        __fileContextStore?: {
-          getState: () => {
-            getActiveContexts: () => Array<{ path: string }>;
-            isEnabled: (path: string) => boolean;
-          };
-        };
-      }).__fileContextStore;
-      const state = store!.getState();
-      return {
-        enabled: state.isEnabled(p),
-        inActive: state.getActiveContexts().some((c) => c.path === p),
-      };
-    }, path);
-
-    expect(activeCount.enabled).toBe(false);
-    expect(activeCount.inActive).toBe(false);
-  });
-
-  test('toggle preference persists across a page reload', async ({ page }) => {
-    const path = '/test-workspace/fixtures/persist.xlsx';
-    const dataUrl = readFixtureAsDataUrl('test.xlsx', MIME.xlsx);
-    await openFixtureTab(page, {
-      path,
-      name: 'persist.xlsx',
+      name: 'context.xlsx',
       content: dataUrl,
     });
 
     await expectContextEventually(page, path, (ctx) => Boolean(ctx));
-    const toggle = page.getByTestId(`ai-context-toggle-${pathToTestId(path)}`);
-    await expect(toggle).toBeVisible({ timeout: 15_000 });
-    await hardClick(toggle);
+    await openAIAssistantPane(page);
 
-    // localStorage should have the path recorded
-    const pre = await page.evaluate(() => localStorage.getItem('file-context-storage'));
-    expect(pre).toBeTruthy();
-    expect(pre!).toContain('persist.xlsx');
-
-    await page.reload();
-    await waitForTestModeLoad(page);
-
-    // On a fresh load the tab is gone (no persistence of open tabs in test
-    // mode for ad-hoc fixtures), but the disabled entry should remain.
-    const post = await readStore(page);
-    expect(post.disabledPaths[path]).toBe(true);
+    await expect(page.getByTestId('ai-context-indicator')).toBeVisible();
+    await expect(page.getByTestId('ai-context-file-list')).toContainText('AI can see');
+    const contextCount = await page.getByTestId('ai-context-indicator').getAttribute('data-context-count');
+    expect(Number(contextCount)).toBeGreaterThan(0);
   });
 
-  test('unsupported file types do not produce a context or a toggle chip', async ({ page }) => {
+  test('unsupported file types do not produce a context', async ({ page }) => {
     const path = '/test-workspace/fixtures/slide.pdf';
     // PDF header bytes — valid enough to pass as "binary" yet we never parse it.
     const fakePdf = 'data:application/pdf;base64,' +
@@ -246,9 +175,6 @@ test.describe('AI Ambient File Context (Phase 2)', () => {
       }
     }
     expect(found).toBe(false);
-
-    const toggle = page.getByTestId(`ai-context-toggle-${pathToTestId(path)}`);
-    await expect(toggle).toHaveCount(0);
   });
 
   test('system prompt carries the extracted file text into the AI baseRole', async ({ page }) => {
@@ -278,10 +204,18 @@ test.describe('AI Ambient File Context (Phase 2)', () => {
     expect(prompt).toContain('=== Sheet: Revenue ===');
     expect(prompt).toContain('11000');
 
-    // Toggle off — the file should drop out of the prompt entirely.
-    const toggle = page.getByTestId(`ai-context-toggle-${pathToTestId(path)}`);
-    await expect(toggle).toBeVisible({ timeout: 15_000 });
-    await hardClick(toggle);
+    // The old per-file chip was removed from the 3.0 UI, but the existing
+    // persisted opt-out store still controls whether a file reaches the prompt.
+    await page.evaluate((p) => {
+      const store = (window as unknown as {
+        __fileContextStore?: {
+          getState: () => {
+            togglePath: (path: string) => void;
+          };
+        };
+      }).__fileContextStore;
+      store!.getState().togglePath(p);
+    }, path);
 
     const promptAfter = await page.evaluate(() => {
       const fn = (window as unknown as {

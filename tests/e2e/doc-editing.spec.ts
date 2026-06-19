@@ -24,7 +24,6 @@ import { fileURLToPath } from 'node:url';
 
 import { test, expect } from '@playwright/test';
 import * as XLSX from 'xlsx';
-import mammoth from 'mammoth';
 
 import { waitForTestModeLoad } from './helpers/test-utils';
 
@@ -33,18 +32,10 @@ const fixturesDir = join(here, '..', 'fixtures');
 
 const MIME = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  csv: 'text/csv',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 } as const;
 
 function readFixtureBytes(name: string): Buffer {
   return readFileSync(join(fixturesDir, name));
-}
-
-function readFixtureAsDataUrl(name: string, mime: string): string {
-  const bytes = readFixtureBytes(name);
-  const base64 = bytes.toString('base64');
-  return `data:${mime};base64,${base64}`;
 }
 
 function dataUrlToBuffer(dataUrl: string): Buffer {
@@ -230,53 +221,6 @@ test.describe('Document Editing (Phase 3)', () => {
     expect((ws['A3'] as XLSX.CellObject | undefined)?.v).toBe('Jan-Updated');
   });
 
-  test('editing a docx updates the tab content and round-trips through mammoth', async ({ page }) => {
-    const path = '/test-workspace/edit-doc.docx';
-    const bytes = readFixtureBytes('test.docx');
-    await seedMockFs(page, path, bytes);
-    await openFixtureTab(page, {
-      path,
-      name: 'edit-doc.docx',
-      content: `data:${MIME.docx};base64,${bytes.toString('base64')}`,
-    });
-
-    const editor = page.getByTestId('docx-editor');
-    await expect(editor).toBeVisible({ timeout: 20_000 });
-
-    // Wait for TipTap content to populate from the fixture.
-    const content = page.getByTestId('docx-editor-content');
-    await expect(content).toContainText('Investor Update', { timeout: 20_000 });
-
-    // Place cursor at end and type new text. Ctrl+End is the most reliable
-    // way to land at the end of a ProseMirror document.
-    await content.focus();
-    await page.keyboard.press('Control+End');
-    await page.keyboard.type(' APPENDED_TOKEN');
-
-    // Wait for the 2s debounce + serialize. Poll the tab content until it
-    // changes from the original fixture data URL.
-    const originalDataUrl = `data:${MIME.docx};base64,${bytes.toString('base64')}`;
-    await expect
-      .poll(
-        async () => {
-          const c = await getTabContent(page, path);
-          return c && c !== originalDataUrl && c.startsWith(`data:${MIME.docx};base64,`)
-            ? 'ok'
-            : 'waiting';
-        },
-        { timeout: 20_000 }
-      )
-      .toBe('ok');
-
-    const updated = await getTabContent(page, path);
-    expect(updated).toBeDefined();
-
-    // Parse the new data URL's bytes via mammoth on the node side.
-    const newBytes = dataUrlToBuffer(updated!);
-    const result = await mammoth.extractRawText({ buffer: newBytes });
-    expect(result.value).toContain('APPENDED_TOKEN');
-  });
-
   test('backup is written on first edit and skipped on subsequent edits', async ({ page }) => {
     const path = '/test-workspace/backup-target.xlsx';
     const bytes = readFixtureBytes('test.xlsx');
@@ -343,24 +287,4 @@ test.describe('Document Editing (Phase 3)', () => {
     expect(stayed).toBe(true);
   });
 
-  test('docx editor shows an advanced-formatting banner that can be dismissed', async ({ page }) => {
-    const path = '/test-workspace/banner.docx';
-    const bytes = readFixtureBytes('test.docx');
-    await openFixtureTab(page, {
-      path,
-      name: 'banner.docx',
-      content: `data:${MIME.docx};base64,${bytes.toString('base64')}`,
-    });
-
-    const editor = page.getByTestId('docx-editor');
-    await expect(editor).toBeVisible({ timeout: 20_000 });
-
-    const banner = page.getByTestId('docx-editor-banner');
-    await expect(banner).toBeVisible();
-    await expect(banner).toContainText('advanced formatting');
-
-    const dismiss = page.getByTestId('docx-editor-banner-dismiss');
-    await dismiss.click();
-    await expect(banner).toHaveCount(0);
-  });
 });
