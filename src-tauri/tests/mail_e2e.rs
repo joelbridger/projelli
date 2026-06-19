@@ -5,13 +5,17 @@
 //
 // It prints a device code, polls Microsoft until you authorize that code in a
 // browser (microsoft.com/devicelogin), then pulls the FIRST page of the Inbox
-// via the real GraphClient + apply_page, writing real Markdown files to a temp
-// workspace. Bounded to one page so it can't pull an entire mailbox.
+// via the real GraphClient and runs the real messages through the production
+// parse + render pipeline (MailMessage::from_graph -> to_markdown). Bounded to
+// one page so it can't pull an entire mailbox. The local ENCRYPTED write step
+// (apply_page_enc / EncryptedMailStore) is covered by unit tests; this live
+// smoke validates the OAuth + Graph + parse path that can only be exercised
+// against a real mailbox.
 
 use keepance_lib::commands::mail::graph::GraphClient;
+use keepance_lib::commands::mail::model::MailMessage;
+use keepance_lib::commands::mail::normalize::to_markdown;
 use keepance_lib::commands::mail::oauth::{OAuth, TokenOutcome};
-use keepance_lib::commands::mail::store::{MailStore, SqliteMailStore};
-use keepance_lib::commands::mail::sync::apply_page;
 
 const CLIENT_ID: &str = "845ddba0-70ab-4f90-88ba-e3522157e37a";
 
@@ -47,26 +51,28 @@ async fn live_inbox_first_page_import() {
     let n = page.get("value").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
     println!("===E2E=== inbox delta page 1 returned {n} message(s)");
 
-    // Real store + real file writes into a temp workspace.
-    let ws = std::path::PathBuf::from("/tmp/keepance-mail-e2e");
-    let _ = std::fs::remove_dir_all(&ws);
-    std::fs::create_dir_all(&ws).unwrap();
-    let store = SqliteMailStore::open(&ws).expect("open store");
-    let stats = apply_page(&store, &ws, "inbox", &page).expect("apply page");
-
-    println!("===E2E=== WROTE {} file(s), removed {}", stats.written, stats.removed);
-    println!("===E2E=== store now tracks {} message(s)", store.count().unwrap());
-    println!("===E2E=== files under: {}/Mail/inbox/", ws.display());
-
-    // Show one real file as proof the pipeline produced usable Markdown.
-    if let Ok(rd) = std::fs::read_dir(ws.join("Mail").join("inbox")) {
-        if let Some(Ok(first)) = rd.into_iter().next() {
-            let body = std::fs::read_to_string(first.path()).unwrap_or_default();
-            let preview: String = body.lines().take(12).collect::<Vec<_>>().join("\n");
-            println!("===E2E=== SAMPLE FILE ({}):\n{}\n===E2E=== (truncated)", first.file_name().to_string_lossy(), preview);
+    // Run the REAL messages through the production parse + render pipeline —
+    // the same MailMessage::from_graph -> to_markdown path mail sync uses — so
+    // this proves real provider data flows through our code end to end.
+    let items = page.get("value").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let mut parsed = 0usize;
+    let mut sample = String::new();
+    for item in &items {
+        if let Some(m) = MailMessage::from_graph(item) {
+            let md = to_markdown(&m);
+            if !md.trim().is_empty() {
+                parsed += 1;
+                if sample.is_empty() {
+                    sample = md.lines().take(12).collect::<Vec<_>>().join("\n");
+                }
+            }
         }
     }
+    println!("===E2E=== parsed {parsed} message(s) into Markdown");
+    if !sample.is_empty() {
+        println!("===E2E=== SAMPLE MESSAGE (Markdown):\n{sample}\n===E2E=== (truncated)");
+    }
 
-    assert!(stats.written > 0 || n == 0, "expected to write files when messages were returned");
+    assert!(parsed > 0 || n == 0, "expected to parse messages into Markdown when the inbox returned any");
     println!("===E2E=== PASS");
 }
