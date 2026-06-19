@@ -585,6 +585,22 @@ Expected: the run completes; log ends with `RESULT: PASS` (or a real failure to 
 
 ---
 
+### Task 8b: Fold the real-OS benches (Windows + Mac) into the nightly run
+
+**Files:** Create `scripts/nightly-bench-tests.sh`; call it from `scripts/nightly-tests.sh` (a `run` step, non-fatal/reported like the others).
+
+**Why (plain):** we now have two always-on real-OS test machines — the Legion (Windows) and the M1 (Mac). The nightly run should also build + test Keepance on BOTH, so Windows/Mac-only breakage is caught automatically, not just on the Linux server. **Read `docs/operations/2026-06-19-test-bench-operations-guide.md` first and heed its gotchas** (esp. §5: never wrap a long remote job in a short `timeout` — it orphans the remote process; the OS keychain can't be tested over SSH).
+
+- [ ] **Step 1:** Sync the current source to each bench before testing (the benches hold a synced *copy*, not a git checkout): tar the repo excluding `node_modules/target/.git/dist/...`, `scp` over Tailscale, extract into the bench's keepance dir. (Reuse the pattern in the ops guide §4.1.)
+- [ ] **Step 2:** Windows (Legion, `ssh james@100.127.67.22`): in PowerShell set `$env:Path="$env:USERPROFILE\.cargo\bin;C:\Strawberry\perl\bin;C:\Strawberry\c\bin;"+$env:Path`, then `Set-Location C:\keepance\src-tauri; cargo test`. Capture pass/fail. Run it as a non-killed background command or with a generous timeout — NOT a short one.
+- [ ] **Step 3:** Mac (M1, `ssh keepancebench@100.113.42.26`): `cd ~/keepance/src-tauri; export PATH="$HOME/.cargo/bin:$HOME/node/bin:$HOME/protoc/bin:$PATH"; cargo test`. (Keychain-dependent vault tests need the interactive desktop session — they're excluded from a plain SSH `cargo test`, which is fine.)
+- [ ] **Step 4:** On any bench failure, `notify-jameson` (plain language, `--level critical --channel email,telegram`) with which OS failed + the log path. Don't fail the whole nightly on a transient bench-offline (treat unreachable as a warning, not a hard fail).
+- [ ] **Step 5:** Wire `scripts/nightly-bench-tests.sh` into `scripts/nightly-tests.sh` as an additional `run` step, and commit.
+
+> The nightly server job (Task 8) covers Linux + the browser/desktop suites; this adds real Windows + macOS coverage every night. Together they make the gate genuinely cross-platform.
+
+---
+
 ## Phase 5 — Kill the browser-suite memory tax at the root
 
 ### Task 9: Run Playwright L1 against a built preview server (remove the sharding need)
