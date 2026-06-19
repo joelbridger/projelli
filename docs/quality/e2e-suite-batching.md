@@ -1,9 +1,8 @@
-# Browser (L1) E2E suite — run it in batches
+# Browser (L1) E2E suite — run strategy
 
 **TL;DR:** run the Playwright browser suite with
-`./scripts/run-e2e-suite.sh` (sequential shards), not as one giant
-`npx playwright test` invocation. The single-invocation run reds ~42 tests
-that are not actually broken.
+`./scripts/run-e2e-preview.sh` (build once, serve statically, one pass).
+For CI or emergency fallback use `./scripts/run-e2e-suite.sh` (sequential shards).
 
 ## What was happening
 
@@ -35,7 +34,60 @@ between shards and keeps every shard small enough to stay green.
 > window). Those are real fixes, already merged. Batching is only for the
 > remaining scale flakiness.
 
-## How to run it
+---
+
+## Primary path — preview-server runner (no sharding needed)
+
+`scripts/run-e2e-preview.sh` is the **primary way to run the full suite**.
+
+It:
+1. Builds the app once with `vite.config.e2e.ts`.
+2. Serves the static output via `vite preview` on :4173.
+3. Runs the entire Playwright suite in **one pass** against
+   `E2E_BASE_URL=http://localhost:4173`.
+
+Because `vite preview` serves a pre-built static bundle (no on-demand
+compilation), the memory spike that caused the ~42 tail failures is gone.
+The stress specs that were previously failing are proved green in one pass
+(66/66 passed on 2026-06-19, 50s, project=en).
+
+The `vite.config.e2e.ts` wires all four dev-time proxy routes into the preview
+server via `configurePreviewServer` + `http-proxy-middleware`:
+
+| Route | Target |
+|-------|--------|
+| `/api/anthropic` | `https://api.anthropic.com` |
+| `/api/openai` | `https://api.openai.com` |
+| `/api/google` | `https://generativelanguage.googleapis.com` |
+| `/api/firm` | `FIRM_BACKEND_TARGET` (default `http://127.0.0.1:5290`), with WebSocket upgrade forwarding |
+
+The firm backend `/api/firm` proxy also forwards WebSocket upgrade events so
+matter-sync sockets work correctly.
+
+### Usage
+
+```bash
+# Full suite, English project (most common):
+./scripts/run-e2e-preview.sh en
+
+# Different project:
+./scripts/run-e2e-preview.sh chromium
+
+# Specific files only (e.g. just the stress specs):
+./scripts/run-e2e-preview.sh en tests/e2e/v1.5-canvas-stress.spec.ts
+```
+
+`playwright.config.ts` respects `E2E_BASE_URL`: when set it skips
+auto-starting the dev server (the preview script manages its own server),
+and derives all per-project `?lang=*` baseURLs from that env var too.
+
+---
+
+## Fallback — sharded runner
+
+`scripts/run-e2e-suite.sh` runs the suite in sequential shards against the
+**dev server** (still on :5173). Use it if the preview-server path is
+unavailable (e.g. a build break that blocks serving the static bundle).
 
 ```bash
 # Whole suite, English project, 6 sequential shards (default):
@@ -50,19 +102,24 @@ The script reuses a dev server if one is already on :5173 (and leaves it
 running); otherwise it starts one for the run and stops it at the end. It exits
 non-zero if any shard fails.
 
+---
+
 ## When you just want one area
 
 For day-to-day work, run the relevant file(s) directly — they are reliable at
-small scale:
+small scale (dev server is fine for a single file):
 
 ```bash
 npx playwright test --project=en tests/e2e/<file>.spec.ts
 ```
 
-## Future option (not done)
+---
 
-A deeper fix would remove the dev-server-under-load variable entirely by
-testing against a built/preview server instead of `npm run dev`. That is a
-larger change (the dev server's `/api/*` proxies that some specs rely on would
-need to be reproduced for `vite preview`), so for now the batched runner is the
-supported way to get a clean full-suite pass.
+## Historical notes
+
+- **2026-06-19:** Preview-server path implemented (`vite.config.e2e.ts` +
+  `scripts/run-e2e-preview.sh`). All 66 v1.5-*/v1.6-* stress specs passed in a
+  single 50s pass. Two `v1.6-feature-tour.spec.ts` failures were traced to
+  hardcoded `http://localhost:5173` URLs in the spec (fixed in same commit by
+  using relative `/?…` paths). Preview path is now primary; sharded runner is
+  the fallback.

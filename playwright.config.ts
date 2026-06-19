@@ -9,7 +9,19 @@ import { defineConfig, devices } from '@playwright/test';
  * - No waitForTimeout - use locator assertions instead
  * - Visual snapshots for layout regression detection
  * - Accessibility tests with axe-core
+ *
+ * E2E_BASE_URL:
+ *   When set (e.g. "http://localhost:4173" for the preview server), Playwright
+ *   points all projects at that server and skips auto-starting the dev webServer
+ *   (the preview script manages its own server lifecycle). Per-project ?lang=*
+ *   URLs are derived from E2E_BASE_URL so they also point at preview, not :5173.
+ *
+ *   When unset, the default dev-server behavior (localhost:5173, auto-start via
+ *   `npm run dev`) is preserved unchanged.
  */
+
+const E2E_BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:5173';
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
@@ -22,7 +34,7 @@ export default defineConfig({
   timeout: 60_000, // Per-test timeout (cold start can be slow)
 
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: E2E_BASE_URL,
     trace: 'on-first-retry',
     video: 'retain-on-failure',
     screenshot: 'only-on-failure',
@@ -46,7 +58,7 @@ export default defineConfig({
       name: 'en',
       use: {
         ...devices['Desktop Chrome'],
-        baseURL: 'http://localhost:5173/?lang=en',
+        baseURL: `${E2E_BASE_URL}/?lang=en`,
         locale: 'en-US',
       },
     },
@@ -54,7 +66,7 @@ export default defineConfig({
       name: 'es',
       use: {
         ...devices['Desktop Chrome'],
-        baseURL: 'http://localhost:5173/?lang=es',
+        baseURL: `${E2E_BASE_URL}/?lang=es`,
         locale: 'es-ES',
       },
     },
@@ -62,17 +74,20 @@ export default defineConfig({
       name: 'de',
       use: {
         ...devices['Desktop Chrome'],
-        baseURL: 'http://localhost:5173/?lang=de',
+        baseURL: `${E2E_BASE_URL}/?lang=de`,
         locale: 'de-DE',
       },
     },
   ],
 
-  // Run dev server before tests
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-  },
+  // Run dev server before tests — skipped when E2E_BASE_URL is set because the
+  // preview script (scripts/run-e2e-preview.sh) manages its own server.
+  webServer: process.env['E2E_BASE_URL']
+    ? undefined
+    : {
+        command: 'npm run dev',
+        url: 'http://localhost:5173',
+        reuseExistingServer: !process.env.CI,
+        timeout: 120000,
+      },
 });
