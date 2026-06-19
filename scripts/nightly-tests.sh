@@ -39,6 +39,9 @@ fi
 echo ""
 
 # ── Git-state guard ──────────────────────────────────────────────────────────
+# Fix 5: TREE_CAVEAT is set inside the git-guard block; initialise here so it's
+# always defined even in --dry-run mode (set -u would error on unbound variable).
+TREE_CAVEAT=""
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "[git-guard] DRY-RUN: skipping fetch and sync. Current branch + commit logged above."
 else
@@ -56,8 +59,15 @@ Next: Check what switched the branch and run the nightly script manually to conf
     exit 1
   fi
 
+  # Fix 3: use explicit refspec to update the remote-tracking ref; check for failure
   echo "[git-guard] Fetching origin/$TARGET_BRANCH ..."
-  git fetch origin "$TARGET_BRANCH"
+  FETCH_OK=0
+  if ! git fetch origin "+refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH"; then
+    echo "[git-guard] WARNING: fetch failed — comparing against possibly-stale origin ref; will NOT fast-forward."
+    FETCH_OK=0
+  else
+    FETCH_OK=1
+  fi
 
   AHEAD=$(git rev-list --count "origin/${TARGET_BRANCH}..HEAD")
   BEHIND=$(git rev-list --count "HEAD..origin/${TARGET_BRANCH}")
@@ -66,16 +76,21 @@ Next: Check what switched the branch and run the nightly script manually to conf
   TRACKED_DIRTY=0
   git diff --quiet && git diff --cached --quiet || TRACKED_DIRTY=1
 
-  echo "[git-guard] Ahead of origin: $AHEAD   Behind origin: $BEHIND   Tracked-dirty: $TRACKED_DIRTY"
+  echo "[git-guard] Ahead of origin: $AHEAD   Behind origin: $BEHIND   Tracked-dirty: $TRACKED_DIRTY   Fetch-ok: $FETCH_OK"
 
-  if [[ "$BEHIND" -gt 0 && "$AHEAD" -eq 0 && "$TRACKED_DIRTY" -eq 0 ]]; then
+  # Fix 5: set a caveat flag when the tree is non-clean so the RESULT line is qualified
+  TREE_CAVEAT=""
+
+  if [[ "$BEHIND" -gt 0 && "$AHEAD" -eq 0 && "$TRACKED_DIRTY" -eq 0 && "$FETCH_OK" -eq 1 ]]; then
     echo "[git-guard] Strictly behind origin and tracked tree is clean — fast-forwarding."
     if ! git merge --ff-only "origin/$TARGET_BRANCH"; then
       echo "[git-guard] WARNING: fast-forward failed. Testing current tree as-is."
+      TREE_CAVEAT="CAVEAT: fast-forward failed, testing pre-merge tree — AHEAD=$AHEAD TRACKED_DIRTY=$TRACKED_DIRTY"
     fi
   elif [[ "$AHEAD" -gt 0 || "$TRACKED_DIRTY" -eq 1 ]]; then
     echo "[git-guard] WARNING: tree is ahead, diverged, or tracked-dirty. Testing current tree as-is."
     echo "[git-guard] This is not a false-green: the exact commit is logged below."
+    TREE_CAVEAT="CAVEAT: tested a non-clean tree — AHEAD=$AHEAD TRACKED_DIRTY=$TRACKED_DIRTY"
   else
     echo "[git-guard] Up to date with origin."
   fi
@@ -110,7 +125,8 @@ run "Vitest (full)"                       npx vitest run
 run "Backend Bun tests"                   bash -c 'cd backend && bun test'
 
 if [[ "$DRY_RUN" -eq 0 ]]; then
-  run "L1 browser E2E"    ./scripts/run-e2e-suite.sh en 6
+  # Wire-up: point at the proven preview-server runner (run-e2e-suite.sh kept as documented fallback)
+  run "L1 browser E2E (preview server)" ./scripts/run-e2e-preview.sh en
   run "L2 desktop harness" npm run test:desktop
 
   # ── Real-OS bench step (Windows + macOS) ─────────────────────────────────
@@ -132,7 +148,12 @@ echo ">>> TESTED COMMIT: $COMMIT_SHA — $COMMIT_SUBJECT <<<"
 echo ""
 
 if [[ "$fail" -ne 0 ]]; then
-  echo "RESULT: FAIL"
+  # Fix 5: qualify FAIL line with tree caveat when applicable
+  if [[ -n "${TREE_CAVEAT:-}" ]]; then
+    echo "RESULT: FAIL (${TREE_CAVEAT} @ ${COMMIT_SHA})"
+  else
+    echo "RESULT: FAIL"
+  fi
   if [[ "$DRY_RUN" -eq 0 ]]; then
     notify-jameson \
       --subject "[Keepance] NEED YOU: nightly tests failed" \
@@ -145,5 +166,10 @@ Next: Open a Claude session, have it read the log, and fix the failing tests." \
   exit 1
 fi
 
-echo "RESULT: PASS"
+# Fix 5: qualify PASS line when the tree was not pristine (ahead/dirty/fetch-failed)
+if [[ -n "${TREE_CAVEAT:-}" ]]; then
+  echo "RESULT: PASS (${TREE_CAVEAT} @ ${COMMIT_SHA}; not a pristine origin commit)"
+else
+  echo "RESULT: PASS"
+fi
 exit 0
