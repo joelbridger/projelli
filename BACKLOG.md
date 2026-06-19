@@ -3,12 +3,32 @@
 
 ---
 
-> **CURRENT STATE (2026-06-03): read `docs/operations/SESSION_HANDOFF_2026-06-03.md` first.**
-> **v2.1.3 CI in progress** (Windows/Linux/macOS ARM ✅; macOS Intel rerun queued — transient network error, not code). Download flow overhauled: all CTAs now route to `/download/` page. SmartScreen guidance live. App: icons (jellybean→Keepance shield), accent color (coral→navy), tour copy (founder→ICP examples). **Bottleneck: Jameson approve 7 reviewer drafts at crm.jameworld.com.**
-> Revenue loop NOT closed yet: license-server tier mapping (#2) is **code-complete + unit-tested (staged, not
-> yet live — goes live on the next restart once Jameson provides the LS creds)**; remaining is the site
-> subscription pricing + checkout wiring (#3, deploy-gated), and on Jameson the LemonSqueezy API key/webhook
-> secret + the Founding 100-seat cap. Advisors + bio still open. The handoff doc has the exact next steps.
+> **CURRENT STATE: read `docs/operations/2026-06-19-CURRENT-STATE.md` first** (3.0 era,
+> branch `keepance-3.0`). It supersedes the older v2.x handoffs below for current state.
+> (Note: the 2026-06-03 banner that lived here was pre-3.0-launch and is stale — LemonSqueezy
+> subscriptions + the firm backend are live as of v3.0; see the current-state doc.)
+
+---
+
+## Known issues / deferred
+
+### KNOWN-I18N-01 — i18n only partially wired — DEFERRED (Jameson, 2026-06-19)
+Non-English (es/de) support is **incomplete**. The translation files
+(`src/locales/{en,es,de}.json`) are ~95% populated and key-parity passes
+(`tests/unit/i18n` 29/29), but much of the visible UI is **hardcoded English,
+not `t()`** — `src/app/shell/layout/Spine.tsx` (the primary nav) has no i18n
+import, and only ~93/216 components use `useTranslation`. So switching the app to
+German/Spanish leaves a large share of the UI in English. Finishing it is a
+sizable effort (wire ~half the components to `t()` + add the missing keys to all
+three locales + bump the en-json snapshot). **Jameson deferred this 2026-06-19**
+(ICP is US firms). Full finding: `docs/quality/2026-06-19-linux-vs-windows-coverage.md` (item 4).
+
+### KNOWN-A11Y-01 — closeable-tab tablist axe suppression — accepted
+One axe rule (`aria-required-children` on the document tab strip) is narrowly
+suppressed in `tests/e2e/accessibility.spec.ts`: a close `<button>` can't nest in
+the tab `<button>`, and moving it into a `div[role=tab]` only trades for
+`nested-interactive`; the suite also relies on the tablist+button structure. A
+known hard ARIA case. All other a11y is enforced (logo + welcome contrast fixed).
 
 ---
 
