@@ -42,6 +42,30 @@ use keepance_lib::commands::rag::Verdict;
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
+/// Returns true when the e5-small model cache is provisioned and the embedder
+/// can initialize. Uses the same path resolution as the production embedder so
+/// the check is identical to what the app sees at runtime.
+fn model_is_provisioned() -> bool {
+    use keepance_lib::commands::rag::embedder::resolve_cache_dir;
+    use keepance_lib::commands::rag::model_download::model_files_cached;
+    model_files_cached(&resolve_cache_dir())
+}
+
+/// Skip a model-dependent test when the e5-small cache is absent.
+/// CI runners do not have the model; local dev and the nightly server job do.
+macro_rules! skip_without_model {
+    () => {
+        if !model_is_provisioned() {
+            eprintln!(
+                "SKIP {}: e5-small model cache not provisioned \
+                 (expected on CI; runs locally/nightly)",
+                module_path!()
+            );
+            return;
+        }
+    };
+}
+
 const MATTER_JOHNSON: &str = "matter-johnson";
 const MATTER_ACME_B: &str = "matter-acme-b";
 
@@ -347,6 +371,7 @@ async fn assert_cited_passage(
 
 #[tokio::test]
 async fn c1_transcript_side_personal_email_retrieves_and_verifies() {
+    skip_without_model!();
     let f = fixture().await;
     assert_cited_passage(
         &f,
@@ -360,6 +385,7 @@ async fn c1_transcript_side_personal_email_retrieves_and_verifies() {
 
 #[tokio::test]
 async fn c1_summary_side_company_servers_only_retrieves_and_verifies() {
+    skip_without_model!();
     let f = fixture().await;
     // Needle matches the fixture's EXACT words incl. its hard line wrap
     // (incident-summary-johnson.md:29-30 — "…**all relevant documents\n
@@ -385,6 +411,7 @@ async fn c1_summary_side_company_servers_only_retrieves_and_verifies() {
 
 #[tokio::test]
 async fn c2_deadline_both_sides_retrievable_each_with_verifying_citation() {
+    skip_without_model!();
     let f = fixture().await;
     let q = embed("what deadline was Johnson given to submit his written response about the expense review").await;
     let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false).await.unwrap();
@@ -418,6 +445,7 @@ async fn c2_deadline_both_sides_retrievable_each_with_verifying_citation() {
 
 #[tokio::test]
 async fn c3_severance_both_sides_retrievable_each_with_verifying_citation() {
+    skip_without_model!();
     let f = fixture().await;
     let q = embed("how many weeks of severance was Johnson offered when he was terminated").await;
     let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false).await.unwrap();
@@ -454,6 +482,7 @@ async fn c3_severance_both_sides_retrievable_each_with_verifying_citation() {
 
 #[tokio::test]
 async fn johnson_contradiction_queries_scoped_to_acme_return_no_johnson_content() {
+    skip_without_model!();
     let f = fixture().await;
     for query in [
         "did Johnson forward any documents to his personal email",
@@ -483,6 +512,7 @@ async fn johnson_contradiction_queries_scoped_to_acme_return_no_johnson_content(
 
 #[tokio::test]
 async fn acme_query_scoped_to_johnson_returns_no_acme_content() {
+    skip_without_model!();
     let f = fixture().await;
     // Acme-flavored queries (the second targets the intake memo's shipment
     // narrative — the VG-2b .docx member) scoped to JOHNSON: zero Acme
@@ -523,6 +553,7 @@ async fn acme_query_scoped_to_johnson_returns_no_acme_content() {
 
 #[tokio::test]
 async fn office_docx_clause_retrieves_and_verifies() {
+    skip_without_model!();
     let f = fixture().await;
     assert_cited_passage(
         &f,
@@ -536,6 +567,7 @@ async fn office_docx_clause_retrieves_and_verifies() {
 
 #[tokio::test]
 async fn acme_intake_memo_never_leaks_into_johnson_scope() {
+    skip_without_model!();
     let f = fixture().await;
     // The contract-rate query under JOHNSON scope: the Acme intake memo (a
     // .docx in ANOTHER matter, contract-flavored content) must never appear.
@@ -582,6 +614,7 @@ fn parse_locator(loc: &str) -> ((u32, u32), (u32, u32)) {
 
 #[tokio::test]
 async fn certified_transcript_chunks_carry_page_line_locators() {
+    skip_without_model!();
     let f = fixture().await;
     let q = embed("when did the litigation hold notice go out to the infrastructure team").await;
     let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false).await.unwrap();
@@ -628,6 +661,7 @@ async fn certified_transcript_chunks_carry_page_line_locators() {
 
 #[tokio::test]
 async fn certified_transcript_stays_out_of_acme_scope() {
+    skip_without_model!();
     // The new corpus member obeys the same isolation invariant as everything
     // else: Weston content never surfaces under the Acme matter.
     let f = fixture().await;
@@ -669,6 +703,7 @@ Prior statements: ";
 
 #[tokio::test]
 async fn finder_retrieval_query_at_top_k_12_feeds_both_sides_of_all_three_contradictions() {
+    skip_without_model!();
     let f = fixture().await;
     let q = embed(FINDER_QUERY).await;
     // topK 12 = the template's own setting (DepositionContradictionFinder.ts:128).
