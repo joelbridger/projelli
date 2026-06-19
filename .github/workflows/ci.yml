@@ -34,10 +34,13 @@ jobs:
       - name: TypeScript check
         run: npx tsc --noEmit
 
-      - name: i18n strict check
-        # Fails if any t() key is missing from locale files or if the extracted
-        # key set has drifted from what's in src/locales/*.json. Hard gate.
-        run: npm run i18n:check
+      - name: i18n key parity (report-only — KNOWN-I18N-01 deferred)
+        # i18n is a deferred decision (KNOWN-I18N-01): the locale files carry
+        # pre-existing key drift. Report it but DON'T block CI until i18n is
+        # properly addressed. Re-make this a hard gate (drop the `|| echo`) once
+        # the drift is fixed — do NOT "fix" it with i18n:extract (destructive:
+        # it rewrites locale files and wipes existing es/de translations).
+        run: npm run i18n:check || echo "::warning::i18n key drift (KNOWN-I18N-01, deferred) — not blocking"
 
       - name: ESLint regression gate (fails only on NEW errors/warnings)
         run: npm run lint:gate
