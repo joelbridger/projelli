@@ -1098,7 +1098,13 @@
       "firm-remove-error": "No pude eliminar a este miembro. {{error}}",
       "firm-leave-error": "No pude dejar de compartir. {{error}}",
       "firm-invite-user-exists": "{{email}} ya tiene una cuenta. Usa la consola de administración para añadirlo, o pídele que acepte una invitación.",
-      "open-notes-action": "Abrir notas compartidas"
+      "open-notes-action": "Abrir notas compartidas",
+      "archive": "Archive matter",
+      "archive__sourceHash": "",
+      "restore": "Restore",
+      "restore__sourceHash": "",
+      "archived-section-label": "Archived",
+      "archived-section-label__sourceHash": ""
     },
     "sync": {
       "live-tooltip": "Sincronizado con la firma",
@@ -1121,6 +1127,14 @@
       "status-offline": "Sin conexión",
       "status-error": "Error de sincronización",
       "status-idle": "Sin sincronizar"
+    },
+    "home": {
+      "archive": "Archive",
+      "archive__sourceHash": "",
+      "restore": "Restore",
+      "restore__sourceHash": "",
+      "archived-section-label": "Archived matters",
+      "archived-section-label__sourceHash": ""
     }
   },
   "firm": {

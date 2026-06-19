@@ -56,7 +56,7 @@ describe('en.json structure snapshot', () => {
         "layout": 40,
         "mail": 5,
         "marketplace": 14,
-        "matter": 96,
+        "matter": 102,
         "media": 77,
         "memory": 3,
         "model-download": 9,
@@ -82,8 +82,8 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    // 828 = 824 + the 4 new vault.control.* keys (the Privacy Center vault control card).
-    expect(flat.length).toBe(828);
+    // 834 = 828 + 6 new matter archive/restore keys.
+    expect(flat.length).toBe(834);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

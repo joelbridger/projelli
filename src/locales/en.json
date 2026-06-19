@@ -909,7 +909,10 @@
       "isolated-confirm-action": "Isolate this matter",
       "isolated-confirm-cancel": "Cancel",
       "isolated-affirmation": "This matter is now isolated. AI requests stay on this computer, and outside network connections are blocked so nothing can leave this matter.",
-      "isolated-off-hint": "Network lockdown turned off for this matter."
+      "isolated-off-hint": "Network lockdown turned off for this matter.",
+      "archive": "Archive matter",
+      "restore": "Restore",
+      "archived-section-label": "Archived"
     },
     "sync": {
       "live-tooltip": "Synced with firm",
@@ -932,6 +935,11 @@
       "status-offline": "Offline",
       "status-error": "Sync error",
       "status-idle": "Not synced"
+    },
+    "home": {
+      "archive": "Archive",
+      "restore": "Restore",
+      "archived-section-label": "Archived matters"
     }
   },
   "firm": {

@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { useMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
+import { useActiveMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import type { MatterSyncStatus } from '@/platform/matter/matterSyncStore';
@@ -51,6 +51,9 @@ function SyncBadge({
 
   if (status === 'idle') return null;
 
+  // All union values of MatterSyncStatus are covered above; the fallback guards
+  // against future additions to the union that slip through before the switch is updated.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   const { dotClass, tooltip } = {
     live: {
       dotClass: 'bg-emerald-500',
@@ -112,7 +115,7 @@ export function MatterScopeSelector({
   className,
 }: MatterScopeSelectorProps) {
   const { t } = useTranslation();
-  const matters = useMatters();
+  const matters = useActiveMatters();
   const activeMatterId = useActiveMatterId();
   const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
 

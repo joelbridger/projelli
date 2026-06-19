@@ -90,6 +90,18 @@ export interface Matter {
    * created before this field landed parse cleanly (treated as `false`).
    */
   isSample?: boolean;
+
+  /**
+   * Whether the matter is archived. Archiving is purely an ORGANIZATIONAL
+   * concept — an archived matter is hidden from the active matter list and the
+   * chat scope picker so old/closed matters stop cluttering the day-to-day UI.
+   * It is NOT deletion: the matter, its folder/mail mappings, and its indexed
+   * data are all preserved, so files under an archived matter still resolve to
+   * it for RAG, and it can be restored at any time. Optional so matters created
+   * before this field landed parse cleanly (a missing value is treated as
+   * `false` / not archived).
+   */
+  archived?: boolean;
 }
 
 /**

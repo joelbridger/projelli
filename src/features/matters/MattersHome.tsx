@@ -12,8 +12,9 @@
  */
 
 import { useEffect, useState, useMemo } from 'react';
-import { Briefcase, Lock, Plus, FolderOpen, Scale, CheckCircle2, Circle, MessageSquare, FileText, Mail, ChevronUp, ChevronDown } from 'lucide-react';
-import { useMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
+import { useTranslation } from 'react-i18next';
+import { Briefcase, Lock, Plus, FolderOpen, Scale, CheckCircle2, Circle, MessageSquare, FileText, Mail, ChevronUp, ChevronDown, Archive, ArchiveRestore } from 'lucide-react';
+import { useMatters, useActiveMatters, useArchivedMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { MatterHub } from '@/features/matters/MatterHub';
 import { useApiKeys } from '@/platform/hooks/useApiKeys';
@@ -226,12 +227,14 @@ interface MatterRowProps {
   matter: Matter;
   isActive: boolean;
   onSelect: (id: string) => void;
+  onArchive: (id: string) => void;
 }
 
 /** Allowed surfaces for matter-launch quick-actions. */
 type MatterSurface = 'search' | 'files' | 'email';
 
-function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
+function MatterRow({ matter, isActive, onSelect, onArchive }: MatterRowProps) {
+  const { t } = useTranslation();
   const label = matterLabel(matter);
   const folderCount = matter.folderPaths.length;
   const [hovered, setHovered] = useState(false);
@@ -406,6 +409,17 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
         >
           Email
         </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          data-testid={`matter-archive-${matter.id}`}
+          aria-label={t('matter.home.archive')}
+          iconLeft={Archive}
+          onClick={(e) => { e.stopPropagation(); onArchive(matter.id); }}
+          style={{ marginLeft: 'auto' }}
+        >
+          {t('matter.home.archive')}
+        </Button>
       </div>
     </div>
   );
@@ -564,11 +578,15 @@ function TableHeader({ entityOneLabel, sort, onSort }: TableHeaderProps) {
 // ── Main export ────────────────────────────────────────────────────────────
 
 export function MattersHome() {
-  const matters = useMatters();
+  const { t } = useTranslation();
+  const activeMatters = useActiveMatters();
+  const archivedMatters = useArchivedMatters();
   const activeMatterId = useActiveMatterId();
   const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
+  const setMatterArchived = useMatterStore((s) => s.setMatterArchived);
   const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
   const entityLabel = useEntityLabel();
+  const [archivedExpanded, setArchivedExpanded] = useState(false);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -584,19 +602,19 @@ export function MattersHome() {
     );
   };
 
-  const openCount = matters.length;
-  const totalFolders = matters.reduce((sum, m) => sum + m.folderPaths.length, 0);
+  const openCount = activeMatters.length;
+  const totalFolders = activeMatters.reduce((sum, m) => sum + m.folderPaths.length, 0);
 
-  // Filter by search query
+  // Filter by search query (active matters only)
   const filteredMatters = useMemo(() => {
-    if (!searchQuery.trim()) return matters;
+    if (!searchQuery.trim()) return activeMatters;
     const q = searchQuery.trim().toLowerCase();
-    return matters.filter((m) => {
+    return activeMatters.filter((m) => {
       const name = matterLabel(m).toLowerCase();
       const client = m.client.toLowerCase();
       return name.includes(q) || client.includes(q);
     });
-  }, [matters, searchQuery]);
+  }, [activeMatters, searchQuery]);
 
   // Sort filtered matters
   const sortedMatters = useMemo(() => {
@@ -619,7 +637,7 @@ export function MattersHome() {
     });
   }, [filteredMatters, sort]);
 
-  const showSearch = matters.length > SEARCH_THRESHOLD;
+  const showSearch = activeMatters.length > SEARCH_THRESHOLD;
 
   // If a hub is open, render MatterHub instead of the table
   if (selectedMatterId !== null) {
@@ -688,39 +706,130 @@ export function MattersHome() {
           overflow: 'hidden',
         }}
       >
-        {matters.length === 0 ? (
+        {activeMatters.length === 0 && archivedMatters.length === 0 ? (
           <MattersEmptyState entityOne={entityLabel.one} entityOther={entityLabel.other} />
         ) : (
           <>
-            <TableHeader entityOneLabel={entityLabel.One} sort={sort} onSort={toggleSort} />
-            <div>
-              {sortedMatters.length === 0 ? (
-                <div
-                  data-testid="matters-no-search-results"
+            {activeMatters.length > 0 && (
+              <>
+                <TableHeader entityOneLabel={entityLabel.One} sort={sort} onSort={toggleSort} />
+                <div>
+                  {sortedMatters.length === 0 ? (
+                    <div
+                      data-testid="matters-no-search-results"
+                      style={{
+                        padding: '24px 20px',
+                        fontSize: 'var(--kp-font-sm)',
+                        color: 'var(--color-muted-foreground)',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+                      No {entityLabel.other} match your search.
+                    </div>
+                  ) : (
+                    sortedMatters.map((m) => (
+                      <MatterRow
+                        key={m.id}
+                        matter={m}
+                        isActive={m.id === activeMatterId}
+                        onSelect={(id) => {
+                          setActiveMatter(id);
+                          setSelectedMatterId(id);
+                        }}
+                        onArchive={(id) => { setMatterArchived(id, true); }}
+                      />
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Archived matters section — only shown when there are archived matters */}
+            {archivedMatters.length > 0 && (
+              <div
+                data-testid="archived-matters-section"
+                style={{
+                  borderTop: activeMatters.length > 0 ? '1px solid var(--color-border)' : undefined,
+                }}
+              >
+                <button
+                  type="button"
+                  data-testid="archived-matters-toggle"
+                  onClick={() => { setArchivedExpanded((v) => !v); }}
                   style={{
-                    padding: '24px 20px',
-                    fontSize: 'var(--kp-font-sm)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                    padding: '10px 20px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 'var(--kp-font-xs)',
                     color: 'var(--color-muted-foreground)',
-                    textAlign: 'center',
+                    fontWeight: 500,
                   }}
                 >
-                  {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
-                  No {entityLabel.other} match your search.
-                </div>
-              ) : (
-                sortedMatters.map((m) => (
-                  <MatterRow
-                    key={m.id}
-                    matter={m}
-                    isActive={m.id === activeMatterId}
-                    onSelect={(id) => {
-                      setActiveMatter(id);
-                      setSelectedMatterId(id);
-                    }}
-                  />
-                ))
-              )}
-            </div>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Archive style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', flex: 'none' }} aria-hidden />
+                    {t('matter.home.archived-section-label')} ({archivedMatters.length})
+                  </span>
+                  {archivedExpanded
+                    ? <ChevronUp style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', flex: 'none' }} aria-hidden />
+                    : <ChevronDown style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', flex: 'none' }} aria-hidden />}
+                </button>
+
+                {archivedExpanded && (
+                  <div>
+                    {archivedMatters.map((m) => (
+                      <div
+                        key={m.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          padding: '10px 20px',
+                          borderTop: '1px solid var(--color-border)',
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontSize: 'var(--kp-font-sm)',
+                            fontWeight: 500,
+                            color: 'var(--color-muted-foreground)',
+                            overflow: 'hidden',
+                            whiteSpace: 'nowrap',
+                            textOverflow: 'ellipsis',
+                          }}>
+                            {m.name || m.id}
+                          </div>
+                          {m.client && m.client !== m.name && (
+                            <div style={{
+                              fontSize: 'var(--kp-font-xs)',
+                              color: 'var(--color-muted-foreground)',
+                              opacity: 0.7,
+                            }}>
+                              {m.client}
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          data-testid={`matter-restore-${m.id}`}
+                          iconLeft={ArchiveRestore}
+                          onClick={() => { setMatterArchived(m.id, false); }}
+                          aria-label={t('matter.home.restore')}
+                        >
+                          {t('matter.home.restore')}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
       </Card>

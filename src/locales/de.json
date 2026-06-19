@@ -1098,7 +1098,13 @@
       "firm-remove-error": "Konnte dieses Mitglied nicht entfernen. {{error}}",
       "firm-leave-error": "Konnte das Teilen nicht beenden. {{error}}",
       "firm-invite-user-exists": "{{email}} hat bereits ein Konto. Verwenden Sie die Administratorkonsole, um die Person hinzuzufugen, oder bitten Sie sie, eine Einladung anzunehmen.",
-      "open-notes-action": "Geteilte Notizen offnen"
+      "open-notes-action": "Geteilte Notizen offnen",
+      "archive": "Archive matter",
+      "archive__sourceHash": "",
+      "restore": "Restore",
+      "restore__sourceHash": "",
+      "archived-section-label": "Archived",
+      "archived-section-label__sourceHash": ""
     },
     "sync": {
       "live-tooltip": "Mit der Kanzlei synchronisiert",
@@ -1121,6 +1127,14 @@
       "status-offline": "Offline",
       "status-error": "Synchronisierungsfehler",
       "status-idle": "Nicht synchronisiert"
+    },
+    "home": {
+      "archive": "Archive",
+      "archive__sourceHash": "",
+      "restore": "Restore",
+      "restore__sourceHash": "",
+      "archived-section-label": "Archived matters",
+      "archived-section-label__sourceHash": ""
     }
   },
   "firm": {

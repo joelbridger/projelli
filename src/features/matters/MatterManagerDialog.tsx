@@ -34,6 +34,10 @@ import {
   Share2,
   LogOut,
   RefreshCw,
+  Archive,
+  ArchiveRestore,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   Dialog,
@@ -46,7 +50,7 @@ import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { cn } from '@/lib/utils';
-import { useMatters, useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
+import { useMatters, useActiveMatters, useArchivedMatters, useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { mailConnectedAccounts, type ConnectedAccount } from '@/platform/utils/mail-commands';
 import { mailFolderKey } from '@/platform/rag/matterResolver';
@@ -77,6 +81,8 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
   const { t } = useTranslation();
   const entityLabel = useEntityLabel();
   const matters = useMatters();
+  const activeMatters = useActiveMatters();
+  const archivedMatters = useArchivedMatters();
   const {
     createMatter,
     renameMatter,
@@ -86,9 +92,13 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
     addMailFolderPath,
     removeMailFolderPath,
     setMatterPrivileged,
+    setMatterArchived,
     linkFirmMatter,
     unlinkFirmMatter,
   } = useMatterStore();
+
+  // Archive section collapse state
+  const [archivedExpanded, setArchivedExpanded] = useState(false);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const fileTree = useWorkspaceStore((s) => s.fileTree);
 
@@ -469,14 +479,14 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
           </div>
         )}
 
-        {/* Existing matters */}
+        {/* Existing matters (non-archived only) */}
         <div className="space-y-3" data-testid="matter-list">
-          {matters.length === 0 ? (
+          {activeMatters.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2">
               {`No ${entityLabel.other} yet. Create your first ${entityLabel.one} above.`}
             </p>
           ) : (
-            matters.map((m) => (
+            activeMatters.map((m) => (
               <div
                 key={m.id}
                 data-testid={`matter-row-${m.id}`}
@@ -530,6 +540,17 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                       aria-label={t('matter.manager.client-name')}
                       disabled={m.id === SAMPLE_MATTER_ID}
                     />
+                    <Button
+                      data-testid={`matter-archive-${m.id}`}
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-accent"
+                      onClick={() => { setMatterArchived(m.id, true); }}
+                      aria-label={t('matter.manager.archive')}
+                      title={t('matter.manager.archive')}
+                    >
+                      <Archive className="h-4 w-4" />
+                    </Button>
                     <Button
                       data-testid={`matter-delete-${m.id}`}
                       variant="ghost"
@@ -869,6 +890,59 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
             ))
           )}
         </div>
+
+        {/* ── Archived matters section ── */}
+        {archivedMatters.length > 0 && (
+          <div
+            data-testid="archived-matters-section"
+            className="rounded-md border border-border/60 overflow-hidden"
+          >
+            <button
+              type="button"
+              data-testid="archived-matters-toggle"
+              className="flex w-full items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-accent/50 transition-colors"
+              onClick={() => { setArchivedExpanded((v) => !v); }}
+            >
+              <span className="flex items-center gap-2">
+                <Archive className="h-3.5 w-3.5" aria-hidden />
+                {t('matter.manager.archived-section-label')} ({archivedMatters.length})
+              </span>
+              {archivedExpanded
+                ? <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+                : <ChevronDown className="h-3.5 w-3.5" aria-hidden />}
+            </button>
+
+            {archivedExpanded && (
+              <div className="divide-y divide-border/40">
+                {archivedMatters.map((m) => (
+                  <div
+                    key={m.id}
+                    className="flex items-center justify-between px-3 py-2 text-xs"
+                  >
+                    <span className="flex-1 min-w-0">
+                      <span className="block truncate font-medium text-foreground">{m.name || m.id}</span>
+                      {m.client && (
+                        <span className="block truncate text-muted-foreground">{m.client}</span>
+                      )}
+                    </span>
+                    <Button
+                      data-testid={`matter-restore-${m.id}`}
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 gap-1 text-xs shrink-0"
+                      onClick={() => { setMatterArchived(m.id, false); }}
+                      aria-label={t('matter.manager.restore')}
+                      title={t('matter.manager.restore')}
+                    >
+                      <ArchiveRestore className="h-3.5 w-3.5" aria-hidden />
+                      {t('matter.manager.restore')}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

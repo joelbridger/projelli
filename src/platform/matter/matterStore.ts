@@ -115,6 +115,11 @@ interface MatterState {
   // `modules/privacy/privilegedMatterMode`).
   setMatterPrivileged: (id: string, privileged: boolean) => void;
 
+  // Archive / restore. Archiving hides a matter from the active list + scope
+  // picker without deleting it (folders/mail/index are preserved). Archiving the
+  // ACTIVE matter clears the active selection (falls back to all-matters scope).
+  setMatterArchived: (id: string, archived: boolean) => void;
+
   // Active matter
   setActiveMatter: (id: string | null) => void;
 
@@ -352,6 +357,18 @@ export const useMatterStore = create<MatterState>()(
         }));
       },
 
+      setMatterArchived: (id, archived) => {
+        set((state) => ({
+          matters: state.matters.map((m) =>
+            m.id === id ? { ...m, archived } : m,
+          ),
+          // Don't leave the active scope pointing at a just-archived matter —
+          // fall back to the explicit all-matters scope (same as deleteMatter).
+          activeMatterId:
+            archived && state.activeMatterId === id ? null : state.activeMatterId,
+        }));
+      },
+
       setActiveMatter: (id) => {
         set({ activeMatterId: id });
       },
@@ -577,9 +594,21 @@ export function getActiveScope(): MatterScope {
 // Reactive selectors
 // ─────────────────────────────────────────────────────────────────────
 
-/** Subscribe to the list of matters. */
+/** Subscribe to the FULL list of matters (incl. archived). RAG path resolution
+ *  and any "everything" view must use this so archived matters still resolve. */
 export function useMatters(): Matter[] {
   return useMatterStore((s) => s.matters);
+}
+
+/** Subscribe to the non-archived matters — the day-to-day list the matter
+ *  manager and chat scope picker show by default. */
+export function useActiveMatters(): Matter[] {
+  return useMatterStore(useShallow((s) => s.matters.filter((m) => !m.archived)));
+}
+
+/** Subscribe to the archived matters (for a "show archived" / restore view). */
+export function useArchivedMatters(): Matter[] {
+  return useMatterStore(useShallow((s) => s.matters.filter((m) => m.archived)));
 }
 
 /** Subscribe to the active matter id (or null). */
