@@ -69,6 +69,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2
+      - name: Stage Piper sidecar stub (tauri externalBin existence check)
+        # The gate runs cargo test before the build job stages the real Piper;
+        # tauri validates binaries/piper exists before compiling, so stub it.
+        run: |
+          mkdir -p src-tauri/binaries
+          printf '#!/bin/sh\nexit 0\n' > src-tauri/binaries/piper-x86_64-unknown-linux-gnu
+          chmod +x src-tauri/binaries/piper-x86_64-unknown-linux-gnu
       - name: Rust tests
         working-directory: ./src-tauri
         env: { CI: '1' }
