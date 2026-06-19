@@ -176,9 +176,23 @@ campaign targeted is green; the remaining 1 FAIL + 3 BLOCKED are infra gaps, not
   (`firm-email-display`, then the seat-activation selectors) target the *Account-window* FirmSignIn
   component, but the post-claim surface here is the **onboarding "Your firm" console** (firm-name field
   + Matters/Seats/SSO), a different layout. The run() is single-instance (claim → seat → onboarding →
-  reopen → hydrate), so the earlier "needs a 2nd driver port" note was wrong. **Follow-up:** map the
-  onboarding firm-console testids and re-point `claimOrgThroughUi`/`activateSeatThroughUi` at them
-  (start the backend first).
+  reopen → hydrate), so the earlier "needs a 2nd driver port" note was wrong.
+  **Follow-up — the exact rewrite map** (verified by partial-rewriting + running it through each step;
+  reverted to keep the spec clean):
+  1. **Claim success indicator** = `firm-admin-content` testid (the onboarding "You are signed in as a
+     firm admin" console), NOT `firm-email-display`. Wait for `firm-admin-content || firm-claim-error`.
+  2. **Org-name check**: the claimed org name appears as a *placeholder* in the `firm-branding-name`
+     input, not as page text — don't assert it via `waitForBodyText`. `firm-admin-content` is enough.
+  3. **Re-open after onboarding**: `openSeededRecentWorkspace` looks for the workspace by the seeded
+     `WORKSPACE_NAME` (`firm-lifecycle-<id>`), but after onboarding the recent entry shows under the
+     real temp-dir name **`workspace`** (the `KP_WORKSPACE` basename) — match that (or click the only
+     recent row) instead.
+  4. **Seat activation is a different screen**: `firm-license-key`/`firm-machine-label`/
+     `firm-activate-submit`/`firm-seat-status`/`firm-seat-id` live in the **Account-window Firm tab**
+     (`FirmSignIn.tsx`), not onboarding. So reorder run() to: claim → `finishOnboardingAndOpenWorkspace`
+     → `openAccountFirmTab` → `activateSeatThroughUi` → `assertFirmHydrated`.
+  5. Not yet reached/verified beyond step 3: the Account-tab seat-activation + hydration steps may need
+     their own selector touch-ups. Start `run-firm-backend-local.sh` first; the feature itself works.
 - **`18-rag` FAIL** is the one deep item: its `model_ensure` downloads the 470MB e5-small model into
   each isolated profile's app-data (a host prefetch into `resources/embeddings/` doesn't satisfy the
   per-profile path), and the cited-ask chat-viewer flow needs the model ready first. A real harness
