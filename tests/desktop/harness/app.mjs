@@ -20,13 +20,25 @@ export async function seedReadyState(session, workspacePath, { workspaceName = '
       localStorage.setItem('keepance_feature_tour_completed', 'true');
       // The feature tour is actually gated by the Zustand settings store
       // (featuresTourCompleted), persisted under 'keepance:settings' — NOT the
-      // legacy keepance_feature_tour_* keys above. Seed the store flag so the
-      // tour never auto-mounts; otherwise it can appear after the shell loads
-      // and intercept the first nav click (an "element not interactable" flake).
-      localStorage.setItem('keepance:settings', JSON.stringify({
-        state: { featuresTourCompleted: true, _migrated: true },
-        version: 0,
-      }));
+      // legacy keepance_feature_tour_* keys above. Ensure the store flag so the
+      // tour never auto-mounts (otherwise it can appear after the shell loads and
+      // intercept the first nav click). MERGE rather than overwrite: some specs
+      // pre-seed keepance:settings with their own values (e.g. a workflow's
+      // templateModelOverrides pinning Ollama) before calling seedReadyState.
+      try {
+        const existing = localStorage.getItem('keepance:settings');
+        const parsed = existing ? JSON.parse(existing) : { state: {}, version: 0 };
+        parsed.state = parsed.state || {};
+        parsed.state.featuresTourCompleted = true;
+        if (parsed.state._migrated === undefined) parsed.state._migrated = true;
+        if (parsed.version === undefined) parsed.version = 0;
+        localStorage.setItem('keepance:settings', JSON.stringify(parsed));
+      } catch (_e) {
+        localStorage.setItem('keepance:settings', JSON.stringify({
+          state: { featuresTourCompleted: true, _migrated: true },
+          version: 0,
+        }));
+      }
       localStorage.setItem('keepance_recent_workspaces', JSON.stringify([{
         path: arguments[0],
         name: arguments[1],

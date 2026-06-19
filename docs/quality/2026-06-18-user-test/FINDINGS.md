@@ -149,22 +149,28 @@ After mounting the vault UI, an independent Codex review of the session diff sur
   `KeychainService` mock (needed the new migration export). All fixed. **Suite: 3306 passed / 3 skipped
   / 0 failed.**
 
-### Final L2 board (against a rebuilt debug binary): 6 PASS · 2 FAIL · 4 BLOCKED
+### Final L2 board: 8 PASS · 1 FAIL · 3 BLOCKED
 
-The Jun-17 debug binary was **stale**; rebuilding it to current source (for the vault guard) is the
-honest test artifact and shifted two results that are **not** related to this session's changes:
+Against a debug binary rebuilt to current source (the honest artifact). Every high-risk journey this
+campaign targeted is green; the remaining 1 FAIL + 3 BLOCKED are infra gaps, not product bugs.
 
-- **PASS:** `00`, `10` (fixed), `12-vault` (fixed), `14`, `16`, `19`. Zero process leak after the run;
-  the three other-service 1280x1024 Xvfb stayed up.
+- **PASS (8):** `00`, `10`, `11`, `12-vault`, `13-workflows`, `14`, `16`, `19`. Zero process leak after
+  the run; the three other-service 1280x1024 Xvfb stayed up.
 - **`11-trash` — FIXED (now 4/4 stable).** Was flaky with *varying* errors ("Trash button not found",
   "stale element reference") — spec races, not a product bug. Hardened like `10`: the row-menu and
   trash-action helpers now retry (were single-shot `execute`s); `activateFilesView`/`activateTrashView`
   use a settle-window + new `docs-files-toggle`/`docs-trash-toggle` testids to beat the editor-takeover
   race and stale-element clicks; and the restore assertions wait for the metadata.json update (a
   separate write from the payload move) instead of checking it immediately.
-- **`13-workflows` BLOCKED — provider dependency.** Blocks on "needs a configured AI provider / Ollama
-  pinned to llama3.2:3b". Ollama is up with that model, so it's an in-app provider-detection/config
-  dependency (honest infra block, like `18-rag`); its earlier PASS was opportunistic detection.
-  **Follow-up.**
-- **BLOCKED (unchanged honest infra):** `15` (native folder picker), `17` (live OAuth), `20` (firm
-  backend). `18-rag` FAIL is the same embedding-model/provider infra gap.
+- **`13-workflows` — FIXED.** It blocked on "no AI provider configured" with Ollama up. Root cause was
+  a regression introduced THIS session: the tour-suppression seed made `seedReadyState` *overwrite*
+  `keepance:settings`, wiping the `templateModelOverrides` (Ollama pin) the spec seeds just before.
+  `seedReadyState` now MERGES, preserving spec-seeded settings. Now PASS (runs the real Ollama
+  llama3.2:3b workflow, ~48s). The "stale binary" theory was a red herring.
+- **BLOCKED (honest infra):** `15` (native folder picker — desktop-only-manual), `17` (live OAuth),
+  `20` (firm backend at :5290 — `run-firm-backend-local.sh` ready, also needs a 2nd driver port for the
+  two-instance co-editing path). **`18-rag` FAIL** is the one deep item: its `model_ensure` downloads
+  the 470MB e5-small model into each isolated profile's app-data (a host prefetch into
+  `resources/embeddings/` doesn't satisfy the per-profile path), and the cited-ask chat-viewer flow
+  needs the model ready first. A real harness investment (cache the model per profile + verify the ask
+  flow), not a product bug. **Follow-up.**
