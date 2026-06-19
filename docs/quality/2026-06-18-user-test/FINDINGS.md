@@ -167,10 +167,19 @@ campaign targeted is green; the remaining 1 FAIL + 3 BLOCKED are infra gaps, not
   `keepance:settings`, wiping the `templateModelOverrides` (Ollama pin) the spec seeds just before.
   `seedReadyState` now MERGES, preserving spec-seeded settings. Now PASS (runs the real Ollama
   llama3.2:3b workflow, ~48s). The "stale binary" theory was a red herring.
-- **BLOCKED (honest infra):** `15` (native folder picker — desktop-only-manual), `17` (live OAuth),
-  `20` (firm backend at :5290 — `run-firm-backend-local.sh` ready, also needs a 2nd driver port for the
-  two-instance co-editing path). **`18-rag` FAIL** is the one deep item: its `model_ensure` downloads
-  the 470MB e5-small model into each isolated profile's app-data (a host prefetch into
-  `resources/embeddings/` doesn't satisfy the per-profile path), and the cited-ask chat-viewer flow
-  needs the model ready first. A real harness investment (cache the model per profile + verify the ask
-  flow), not a product bug. **Follow-up.**
+- **BLOCKED (honest infra):** `15` (native folder picker — desktop-only-manual, can't be driven by
+  WebDriver), `17` (live OAuth — needs real creds + the L3 `*_live_import` harnesses).
+- **`20-firm` — backend path PROVEN, spec needs a flow rewrite (no 2nd port after all).** Starting
+  `./scripts/run-firm-backend-local.sh` (:5290) un-blocks it: the Vite `/api/firm` proxy forwards to the
+  backend by default (verified), and the **org-claim UI succeeds** — the app signs in as firm admin and
+  shows the onboarding firm console. The spec times out only because its post-claim assertions
+  (`firm-email-display`, then the seat-activation selectors) target the *Account-window* FirmSignIn
+  component, but the post-claim surface here is the **onboarding "Your firm" console** (firm-name field
+  + Matters/Seats/SSO), a different layout. The run() is single-instance (claim → seat → onboarding →
+  reopen → hydrate), so the earlier "needs a 2nd driver port" note was wrong. **Follow-up:** map the
+  onboarding firm-console testids and re-point `claimOrgThroughUi`/`activateSeatThroughUi` at them
+  (start the backend first).
+- **`18-rag` FAIL** is the one deep item: its `model_ensure` downloads the 470MB e5-small model into
+  each isolated profile's app-data (a host prefetch into `resources/embeddings/` doesn't satisfy the
+  per-profile path), and the cited-ask chat-viewer flow needs the model ready first. A real harness
+  investment (cache the model per profile + verify the ask flow), not a product bug. **Follow-up.**
