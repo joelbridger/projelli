@@ -44,8 +44,39 @@ on:
   workflow_dispatch:  # allow manual triggering for testing
 
 jobs:
+  gate:
+    name: Pre-release gate (must be green before any build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'npm' }
+      - run: npm ci
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: i18n key parity
+        run: npm run i18n:check
+      - name: Unit tests
+        run: npm test -- --run
+      - name: ESLint regression gate
+        run: npm run lint:gate
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with: { workspaces: './src-tauri -> target' }
+      - name: protoc + webkit deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2
+      - name: Rust tests
+        working-directory: ./src-tauri
+        env: { CI: '1' }
+        run: cargo test --workspace --locked
+
   # Mac + Linux jobs: tauri-action handles build + sign (Mac) + upload
   build:
+    needs: gate
     permissions:
       contents: write
     env:
@@ -354,6 +385,7 @@ jobs:
   # signCommand. Build with raw npm + sign with Microsoft's official action
   # + upload via gh CLI.
   build-windows:
+    needs: gate
     permissions:
       contents: write
     env:
