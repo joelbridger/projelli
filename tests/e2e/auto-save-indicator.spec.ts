@@ -14,7 +14,20 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
+import { waitForTestModeLoad } from './helpers/test-utils';
+
+async function openTextFile(
+  page: import('@playwright/test').Page,
+  args: { path: string; name: string; content: string }
+) {
+  await page.evaluate((a) => {
+    const fn = (window as unknown as {
+      __openTestFile?: (p: string, n: string, c: string) => void;
+    }).__openTestFile;
+    if (!fn) throw new Error('__openTestFile missing');
+    fn(a.path, a.name, a.content);
+  }, args);
+}
 
 test.describe('Auto-save indicator (UX-17)', () => {
   test('shows "Saved" (idle state) when no file is open', async ({ page }) => {
@@ -33,38 +46,24 @@ test.describe('Auto-save indicator (UX-17)', () => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
-    // Open a markdown file from the tree if one exists; otherwise skip.
-    await hardClick(page.getByTestId('sidebar-tab-files'));
-    const files = page.getByTestId('file-tree').locator('[role="treeitem"]');
-    const count = await files.count();
-    if (count === 0) {
-      test.skip(true, 'No files to open in test-mode fixture');
-      return;
-    }
+    await openTextFile(page, {
+      path: '/test-workspace/autosave-dirty.md',
+      name: 'autosave-dirty.md',
+      content: '# Autosave dirty test',
+    });
 
-    // Seed a dirty tab via the editor store (avoids brittle textarea typing).
+    // Seed a dirty tab via the editor store (avoids brittle CodeMirror typing).
     await page.evaluate(() => {
       const editor = (window as any).__editorStore?.getState?.();
-      if (!editor?.openTabs?.length) {
-        editor?.openFile?.('/tmp/t.md', 't.md', '# hello');
-      }
       const current = (window as any).__editorStore?.getState?.();
-      const first = current?.openTabs?.[0];
-      if (first) {
-        current.updateContent(first.path, first.content + ' edited');
+      const tab = current?.openTabs?.find((t: any) => t.path === '/test-workspace/autosave-dirty.md');
+      if (tab) {
+        current.updateContent(tab.path, `${tab.content}\n\nEdited.`);
       }
     });
 
     const indicator = page.getByTestId('auto-save-indicator');
-    const state = await indicator.getAttribute('data-state');
-    // If the test-mode store isn't exposed, the editor didn't receive our
-    // edit — skip the assertion rather than fail.
-    if (!['dirty', 'saved-recent', 'idle'].includes(state || '')) {
-      test.skip(true, 'Editor store not exposed; state transitions untestable');
-      return;
-    }
-    if (state === 'dirty') {
-      await expect(indicator).toContainText('Unsaved');
-    }
+    await expect(indicator).toHaveAttribute('data-state', 'dirty');
+    await expect(indicator).toContainText('Unsaved');
   });
 });

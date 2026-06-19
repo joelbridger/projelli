@@ -18,16 +18,19 @@ test.describe('Destructive actions (UX-16)', () => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
-    await hardClick(page.getByTestId('sidebar-tab-files'));
+    await hardClick(page.getByTestId('spine-nav-files'));
+    await hardClick(page.getByRole('tab', { name: 'Files' }));
+    await hardClick(page.getByTestId('docs-view-tree'));
+
     const items = page.getByTestId('file-tree').locator('[role="treeitem"]');
     const count = await items.count();
-    if (count === 0) {
+    if (count < 2) {
       test.skip(true, 'No deletable files in test-mode fixture');
       return;
     }
 
-    // Hover the first file to reveal the context menu trigger.
-    const firstItem = items.first();
+    // The first item is the seeded docs folder; use its first child file.
+    const firstItem = items.nth(1);
     await firstItem.hover();
     const moreBtn = firstItem.getByRole('button', { name: 'File options' });
     const moreCount = await moreBtn.count();
@@ -42,7 +45,7 @@ test.describe('Destructive actions (UX-16)', () => {
 
     // ConfirmDialog appears — click its Delete button.
     const confirmDelete = page
-      .getByRole('dialog')
+      .getByRole('alertdialog', { name: 'Delete File' })
       .getByRole('button', { name: 'Delete' });
     await hardClick(confirmDelete);
 

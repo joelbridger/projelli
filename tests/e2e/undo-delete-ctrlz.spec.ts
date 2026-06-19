@@ -20,7 +20,10 @@ test.describe('Undo delete with Ctrl+Z (UX-29)', () => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
-    await hardClick(page.getByTestId('sidebar-tab-files'));
+    await hardClick(page.getByTestId('spine-nav-files'));
+    await hardClick(page.getByTestId('documents-tab-strip').getByRole('tab', { name: 'Files' }));
+    await hardClick(page.getByTestId('docs-files-toggle'));
+    await hardClick(page.getByTestId('docs-view-tree'));
 
     // Tree should show at least one file; the test-mode fixture seeds a
     // mock workspace with demo tabs but the tree-on-disk may be empty —
@@ -44,7 +47,7 @@ test.describe('Undo delete with Ctrl+Z (UX-29)', () => {
     const deleteItem = page.getByRole('menuitem', { name: 'Delete' });
     await hardClick(deleteItem);
 
-    const confirmDelete = page.getByRole('dialog').getByRole('button', { name: 'Delete' });
+    const confirmDelete = page.getByRole('button', { name: 'Delete', exact: true });
     await hardClick(confirmDelete);
 
     // Toast should appear…
@@ -81,7 +84,9 @@ test.describe('Undo delete with Ctrl+Z (UX-29)', () => {
     await page.reload();
     await waitForTestModeLoad(page);
 
-    await hardClick(page.getByTestId('sidebar-tab-trash'));
+    await hardClick(page.getByTestId('spine-nav-files'));
+    await hardClick(page.getByTestId('documents-tab-strip').getByRole('tab', { name: 'Files' }));
+    await hardClick(page.getByTestId('docs-trash-toggle'));
 
     // The default is now 30 days (UX-29); copy should reference that number.
     const emptyState = page.getByTestId('empty-state-trash');

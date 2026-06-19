@@ -14,16 +14,14 @@ import { test, expect } from '@playwright/test';
 import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
 
 async function openAnyMarkdownFile(page: import('@playwright/test').Page) {
-  // Test mode seeds a workspace with sample files. Open Files tab and click
-  // the first markdown file in the tree if one exists.
-  await hardClick(page.getByTestId('sidebar-tab-files'));
-  const mdFiles = page.getByTestId('file-tree').locator('[role="treeitem"]');
-  const count = await mdFiles.count();
-  if (count > 0) {
-    await hardClick(mdFiles.first());
-    // Wait for the toolbar to be rendered (indicates a tab is open)
-    await expect(page.getByTestId('main-panel-toolbar')).toBeVisible();
-  }
+  await page.evaluate(() => {
+    const fn = (window as unknown as {
+      __openTestFile?: (p: string, n: string, c: string) => void;
+    }).__openTestFile;
+    if (!fn) throw new Error('__openTestFile missing');
+    fn('/test-workspace/toolbar-overflow.md', 'toolbar-overflow.md', '# Toolbar overflow');
+  });
+  await expect(page.getByTestId('main-panel-toolbar')).toBeVisible();
 }
 
 test.describe('Editor toolbar overflow', () => {

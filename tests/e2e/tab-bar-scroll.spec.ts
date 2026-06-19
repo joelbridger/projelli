@@ -1,11 +1,8 @@
 /**
  * Tab Bar Horizontal Scroll E2E Tests (Phase 7)
  *
- * The tab strip now scrolls horizontally instead of wrapping onto a second
- * row. Verifies that:
- *   - Opening enough tabs triggers overflow (scrollWidth > clientWidth)
- *   - The scroll-right button appears when there's content to the right
- *   - Clicking the scroll-right button advances the strip
+ * The redesigned Documents surface owns the visible tab strip. It scrolls
+ * horizontally instead of wrapping onto a second row.
  */
 
 import { test, expect } from '@playwright/test';
@@ -44,7 +41,8 @@ test.describe('Tab Bar Horizontal Scroll', () => {
       await openSyntheticTab(page, i);
     }
 
-    const strip = page.getByTestId('tab-bar-scroll');
+    await page.getByTestId('spine-nav-files').click();
+    const strip = page.getByTestId('documents-tab-strip');
     await expect(strip).toBeVisible();
 
     // The strip should now overflow horizontally.
@@ -55,23 +53,12 @@ test.describe('Tab Bar Horizontal Scroll', () => {
     }));
     expect(overflow.scrollWidth).toBeGreaterThan(overflow.clientWidth);
 
-    // The "scroll right" button should be visible when we can still scroll
-    // further right. Since the most recently opened tab is active and
-    // scrolled into view, we expect to be near the RIGHT edge, meaning the
-    // LEFT button should be visible.
-    await expect(page.getByTestId('tab-bar-scroll-left')).toBeVisible();
-
-    // Clicking the left scroll button should change scrollLeft.
-    const leftButton = page.getByTestId('tab-bar-scroll-left');
     const before = await strip.evaluate((el) => el.scrollLeft);
-    await leftButton.click();
+    await strip.evaluate((el) => {
+      el.scrollBy({ left: 240, behavior: 'auto' });
+    });
     await expect
       .poll(async () => strip.evaluate((el) => el.scrollLeft), { timeout: 2_000 })
-      .toBeLessThan(before);
-
-    // And the right scroll button should now be visible (there's content to
-    // the right of our current position). Wait for scroll state to settle
-    // — smooth scroll + ResizeObserver need a frame or two to propagate.
-    await expect(page.getByTestId('tab-bar-scroll-right')).toBeVisible({ timeout: 5_000 });
+      .toBeGreaterThan(before);
   });
 });
