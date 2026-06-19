@@ -17,8 +17,8 @@
  *   - Ollama "Check connection" button can be clicked and re-triggers
  *     the probe.
  *   - Ollama "Install Ollama" link is correctly targeted at ollama.com.
- *   - Voice + Ollama sections co-render cleanly (Voice under Voice
- *     category, Ollama under Integrations).
+ *   - Voice + Ollama sections co-render cleanly (Voice under Settings → Voice,
+ *     Ollama under Account → Connections).
  *
  * The Tauri-only bits — real sidecar probe, mic permission prompt,
  * press-to-talk key binding, MediaRecorder handoff — are covered by the
@@ -38,10 +38,10 @@ async function openVoiceSettings(page: import('@playwright/test').Page) {
   await expect(page.getByTestId('voice-status')).toBeVisible();
 }
 
-async function openIntegrationsSettings(page: import('@playwright/test').Page) {
-  await hardClick(page.getByTestId('settings-gear'));
-  await expect(page.getByTestId('settings-modal')).toBeVisible();
-  await hardClick(page.getByTestId('settings-category-integrations'));
+async function openAccountConnections(page: import('@playwright/test').Page) {
+  await hardClick(page.getByTestId('account-identity'));
+  await expect(page.getByTestId('account-window')).toBeVisible();
+  await hardClick(page.getByTestId('account-tab-connections'));
   await expect(page.getByTestId('ollama-settings-section')).toBeVisible();
 }
 
@@ -142,7 +142,7 @@ test.describe('v1.5 Flag 4 — Voice + Ollama stress', () => {
   test('Ollama status pill settles on `unavailable` when daemon is down', async ({
     page,
   }) => {
-    await openIntegrationsSettings(page);
+    await openAccountConnections(page);
 
     const pill = page.getByTestId('ollama-status');
     await expect(pill).toBeVisible();
@@ -166,7 +166,7 @@ test.describe('v1.5 Flag 4 — Voice + Ollama stress', () => {
   test('Ollama "Check connection" button can be re-clicked to retry the probe', async ({
     page,
   }) => {
-    await openIntegrationsSettings(page);
+    await openAccountConnections(page);
 
     const btn = page.getByTestId('ollama-check-connection');
     await expect(btn).toBeVisible();
@@ -191,7 +191,7 @@ test.describe('v1.5 Flag 4 — Voice + Ollama stress', () => {
   test('Ollama "Install Ollama" link appears when daemon is unavailable', async ({
     page,
   }) => {
-    await openIntegrationsSettings(page);
+    await openAccountConnections(page);
 
     // Wait for the probe to finish.
     const pill = page.getByTestId('ollama-status');
@@ -218,13 +218,13 @@ test.describe('v1.5 Flag 4 — Voice + Ollama stress', () => {
     }
   });
 
-  test('Ollama + MCP share Integrations category without clobbering each other', async ({
+  test('Ollama + MCP share Account → Connections without clobbering each other', async ({
     page,
   }) => {
     // Both the MCP bundle section and the Ollama detection section live
-    // under Settings → Integrations. This test protects against a future
+    // under Account → Connections. This test protects against a future
     // refactor where one accidentally hides the other (e.g. tabs).
-    await openIntegrationsSettings(page);
+    await openAccountConnections(page);
 
     await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
     await expect(page.getByTestId('ollama-settings-section')).toBeVisible();

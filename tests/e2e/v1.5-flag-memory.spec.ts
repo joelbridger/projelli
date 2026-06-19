@@ -5,7 +5,7 @@
  *   1. The @workspace command chip renders inline when a message contains
  *      "@workspace" — the parser path is reachable end-to-end from the UI.
  *   2. The Ask-my-workspace toggle exists and is clickable.
- *   3. The memory-facts settings panel exists under Settings → Memory.
+ *   3. The memory-facts settings panel exists under Settings → AI & Privacy → Memory.
  *   4. The proposed-facts panel anchor testid is present in the render
  *      tree (rendered conditionally; the structural test id path exists).
  *   5. The Sources accordion anchor exists in the viewer module (asserted
@@ -24,6 +24,14 @@
 import { test, expect } from '@playwright/test';
 import { waitForTestModeLoad, hardClick, openAIAssistantPane } from './helpers/test-utils';
 
+async function openMemorySettings(page: import('@playwright/test').Page) {
+  await hardClick(page.getByTestId('settings-gear'));
+  await expect(page.getByTestId('settings-modal')).toBeVisible();
+  await hardClick(page.getByTestId('settings-category-ai-privacy'));
+  await hardClick(page.getByTestId('subheader-memory-heading'));
+  await expect(page.getByTestId('settings-facts-section')).toBeVisible();
+}
+
 test.describe('v1.5 Flag 1 — Memory', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true');
@@ -31,12 +39,7 @@ test.describe('v1.5 Flag 1 — Memory', () => {
   });
 
   test('Memory settings category exists with injection + auto-accept toggles', async ({ page }) => {
-    await hardClick(page.getByTestId('settings-gear'));
-    await expect(page.getByTestId('settings-modal')).toBeVisible();
-
-    const memoryCat = page.getByTestId('settings-category-memory');
-    await expect(memoryCat).toBeVisible();
-    await hardClick(memoryCat);
+    await openMemorySettings(page);
 
     // Schema-driven rows
     await expect(page.getByTestId('settings-facts-inject-toggle')).toBeVisible();
@@ -47,8 +50,7 @@ test.describe('v1.5 Flag 1 — Memory', () => {
   });
 
   test('adding a fact via Settings persists and shows up in the list', async ({ page }) => {
-    await hardClick(page.getByTestId('settings-gear'));
-    await hardClick(page.getByTestId('settings-category-memory'));
+    await openMemorySettings(page);
 
     const input = page.getByTestId('settings-facts-add-input');
     const addBtn = page.getByTestId('settings-facts-add');
@@ -65,7 +67,7 @@ test.describe('v1.5 Flag 1 — Memory', () => {
 
   test('AI Assistant pane mounts without error', async ({ page }) => {
     await openAIAssistantPane(page);
-    await expect(page.getByTestId('ai-assistant-pane')).toBeVisible();
+    await expect(page.getByTestId('ai-chat-viewer')).toBeVisible();
     // Pane still renders — future: open an aichat and verify @workspace chip
     // plus sources accordion once we have a mock provider wired into E2E.
   });

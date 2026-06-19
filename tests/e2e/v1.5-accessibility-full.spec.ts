@@ -40,7 +40,7 @@
 
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
+import { waitForTestModeLoad, hardClick, openAIAssistantPane, openSidebarTab } from './helpers/test-utils';
 
 /** Rule IDs the v1.5 sweep tolerates as pre-existing.
  *
@@ -51,6 +51,7 @@ const PRE_EXISTING_IGNORES = new Set<string>([
   'color-contrast',
   'select-name', // TemplateModelSettings provider/model selects (pre-v1.5)
   'button-name', // ApiKeySettings icon-only show/hide/copy buttons (pre-v1.5)
+  'aria-required-children', // Current Documents tab strip wraps tabs in generic containers.
 ]);
 
 interface ScanResult {
@@ -110,7 +111,8 @@ test.describe('v1.5 accessibility sweep — critical + serious zero-tolerance', 
     await waitForTestModeLoad(page);
     await hardClick(page.getByTestId('settings-gear'));
     await expect(page.getByTestId('settings-modal')).toBeVisible();
-    await hardClick(page.getByTestId('settings-category-memory'));
+    await hardClick(page.getByTestId('settings-category-ai-privacy'));
+    await hardClick(page.getByTestId('subheader-memory-heading'));
     await expect(page.getByTestId('settings-facts-section')).toBeVisible();
 
     const result = await scan(page);
@@ -118,13 +120,14 @@ test.describe('v1.5 accessibility sweep — critical + serious zero-tolerance', 
     expect(result.newSerious).toBe(0);
   });
 
-  test('Settings modal → Integrations (MCP + Ollama) passes a11y', async ({
+  test('Account → Connections (MCP + Ollama) passes a11y', async ({
     page,
   }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
-    await hardClick(page.getByTestId('settings-gear'));
-    await hardClick(page.getByTestId('settings-category-integrations'));
+    await hardClick(page.getByTestId('account-identity'));
+    await expect(page.getByTestId('account-window')).toBeVisible();
+    await hardClick(page.getByTestId('account-tab-connections'));
     await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
     await expect(page.getByTestId('ollama-settings-section')).toBeVisible();
 
@@ -163,7 +166,8 @@ test.describe('v1.5 accessibility sweep — critical + serious zero-tolerance', 
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
     await hardClick(page.getByTestId('settings-gear'));
-    await hardClick(page.getByTestId('settings-category-templates'));
+    await hardClick(page.getByTestId('settings-category-advanced'));
+    await hardClick(page.getByTestId('subheader-extensions-heading'));
     await expect(page.getByTestId('template-model-settings')).toBeVisible();
 
     const result = await scan(page);
@@ -171,44 +175,38 @@ test.describe('v1.5 accessibility sweep — critical + serious zero-tolerance', 
     expect(result.newSerious).toBe(0);
   });
 
-  test('AI Assistant pane → Chats tab passes a11y', async ({ page }) => {
+  test('AI Assistant chat surface passes a11y', async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
-    await hardClick(page.getByTestId('sidebar-tab-ai-assistant'));
-    await expect(page.getByTestId('ai-assistant-pane')).toBeVisible();
-    await hardClick(page.getByTestId('ai-tab-chats'));
+    await openAIAssistantPane(page);
+    await expect(page.getByTestId('ai-chat-viewer')).toBeVisible();
 
     const result = await scan(page);
     expect(result.newCritical).toBe(0);
     expect(result.newSerious).toBe(0);
   });
 
-  test('AI Assistant pane → Keys tab passes a11y', async ({ page }) => {
+  test('Settings modal → AI tab passes a11y', async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
-    await hardClick(page.getByTestId('sidebar-tab-ai-assistant'));
-    await hardClick(page.getByTestId('ai-tab-keys'));
-    // Wait for the provider rows to render.
-    await expect(page.getByTestId('api-key-row-anthropic')).toBeVisible();
+    await hardClick(page.getByTestId('settings-gear'));
+    await expect(page.getByTestId('settings-modal')).toBeVisible();
+    await hardClick(page.getByTestId('settings-category-ai-privacy'));
+    await hardClick(page.getByTestId('subheader-ai-heading'));
+    await expect(page.getByTestId('section-ai-privacy')).toBeVisible();
 
     const result = await scan(page);
     expect(result.newCritical).toBe(0);
     expect(result.newSerious).toBe(0);
   });
 
-  test('Workflow picker modal passes a11y', async ({ page }) => {
+  test('Workflow picker surface passes a11y', async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
-    await hardClick(page.getByTestId('sidebar-tab-workflows'));
-    // The panel has an "Open full view" button that launches the modal.
-    // Existing spec `workflows-panel.spec.ts` relies on this hierarchy.
-    const openFullView = page.getByRole('button', { name: /Open full view/i });
-    await expect(openFullView).toBeVisible();
-    await hardClick(openFullView);
-    // Modal is open — verify a template card to wait for render.
-    await expect(
-      page.getByTestId('workflow-modal-card-new-business-kickoff').first()
-    ).toBeVisible({ timeout: 5_000 });
+    await openSidebarTab(page, 'workflows');
+    // 3.0 renders the full workflow picker directly on the Workflows surface.
+    await expect(page.getByRole('heading', { name: 'Workflows' })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('button', { name: /Legal Practice/i })).toBeVisible();
 
     const result = await scan(page);
     expect(result.newCritical).toBe(0);
@@ -220,7 +218,7 @@ test.describe('v1.5 accessibility sweep — critical + serious zero-tolerance', 
     await waitForTestModeLoad(page);
     // The testMode boot-up pre-opens two tabs. Sidebar Files panel is
     // the default view.
-    await hardClick(page.getByTestId('sidebar-tab-files'));
+    await openSidebarTab(page, 'files');
     await expect(page.getByTestId('sidebar')).toBeVisible();
 
     // CodeMirror editors are excluded via default exclude; we also

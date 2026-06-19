@@ -7,16 +7,15 @@
  * use, so any UI rename that breaks a flag spec will also break the
  * relevant integration flow here.
  *
- *   1. Founder flow: Settings → add fact → Workflows → run ClientIntakeSynthesizer
- *      (template exists, picker opens). The real run needs a live provider
+ *   1. Founder flow: Settings → add fact → Workflows → ClientIntakeSynthesizer
+ *      (template exists in the picker). The real run needs a live provider
  *      which the harness doesn't have, so we stop at "interview renders".
  *
- *   2. Memory-aware Settings: open Memory settings, add a fact, switch to
- *      Integrations, switch back, verify fact survives. Protects against a
- *      SettingsModal remount bug that would wipe the facts table.
+ *   2. Memory-aware Settings: open Memory settings, add a fact, open
+ *      Account → Connections, switch back, verify fact survives.
  *
- *   3. MCP settings co-render with Memory: open Integrations, scroll to
- *      Ollama, switch to Memory, add a fact, switch back to Integrations,
+ *   3. MCP settings co-render with Memory: open Account → Connections,
+ *      switch to Memory, add a fact, switch back to Account → Connections,
  *      verify MCP + Ollama sections both still render.
  *
  *   4. Cross-category search: with the settings search box filtering,
@@ -32,7 +31,49 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
+import { waitForTestModeLoad, hardClick, openSidebarTab, openAIAssistantPane } from './helpers/test-utils';
+
+async function openSettingsModal(page: import('@playwright/test').Page) {
+  await hardClick(page.getByTestId('settings-gear'));
+  await expect(page.getByTestId('settings-modal')).toBeVisible();
+}
+
+async function showMemorySettings(page: import('@playwright/test').Page) {
+  if (!(await page.getByTestId('settings-modal').isVisible().catch(() => false))) {
+    await openSettingsModal(page);
+  }
+  await hardClick(page.getByTestId('settings-category-ai-privacy'));
+  await hardClick(page.getByTestId('subheader-memory-heading'));
+  await expect(page.getByTestId('settings-facts-section')).toBeVisible();
+}
+
+async function showVoiceSettings(page: import('@playwright/test').Page) {
+  if (!(await page.getByTestId('settings-modal').isVisible().catch(() => false))) {
+    await openSettingsModal(page);
+  }
+  await hardClick(page.getByTestId('settings-category-voice'));
+  await hardClick(page.getByTestId('subheader-voice-input-heading'));
+  await expect(page.getByTestId('voice-status')).toBeVisible();
+}
+
+async function openAccountConnections(page: import('@playwright/test').Page) {
+  if (await page.getByTestId('settings-modal').isVisible().catch(() => false)) {
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('settings-modal')).not.toBeVisible();
+  }
+  await hardClick(page.getByTestId('account-identity'));
+  await expect(page.getByTestId('account-window')).toBeVisible();
+  await hardClick(page.getByTestId('account-tab-connections'));
+  await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
+  await expect(page.getByTestId('ollama-settings-section')).toBeVisible();
+}
+
+async function closeAccountWindow(page: import('@playwright/test').Page) {
+  if (await page.getByTestId('account-window').isVisible().catch(() => false)) {
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('account-window')).not.toBeVisible();
+  }
+}
 
 test.describe('v1.5 multi-feature integration flows', () => {
   test.beforeEach(async ({ page }) => {
@@ -46,8 +87,7 @@ test.describe('v1.5 multi-feature integration flows', () => {
     // Step 1: open Settings and add a fact that represents "my practice
     // context" — the sort of durable memory an attorney would seed before
     // running a workflow.
-    await hardClick(page.getByTestId('settings-gear'));
-    await hardClick(page.getByTestId('settings-category-memory'));
+    await showMemorySettings(page);
     const input = page.getByTestId('settings-facts-add-input');
     const marker = `founder-flow-${Date.now()}`;
     await input.fill(`${marker} — I'm building a local-first AI workspace`);
@@ -58,32 +98,31 @@ test.describe('v1.5 multi-feature integration flows', () => {
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('settings-modal')).not.toBeVisible();
 
-    // Step 3: open the Workflows sidebar tab, then the full modal.
-    await hardClick(page.getByTestId('sidebar-tab-workflows'));
-    const openFullView = page.getByRole('button', { name: /Open full view/i });
-    await expect(openFullView).toBeVisible();
-    await hardClick(openFullView);
+    // Step 3: open the Workflows surface. In 3.0 this is already the full picker.
+    await openSidebarTab(page, 'workflows');
 
-    // Step 4: Verify the ClientIntakeSynthesizer template exists in the modal
+    const showAll = page.getByRole('button', { name: /Show all/i });
+    if (await showAll.isVisible().catch(() => false)) {
+      await hardClick(showAll);
+    }
+
+    // Step 4: Verify the ClientIntakeSynthesizer template exists in the picker
     // — this is the legal workflow the practice flow description targets.
-    const intakeCard = page.getByTestId(
-      'workflow-modal-card-legal-client-intake-synthesizer'
-    );
-    await expect(intakeCard).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText('Client Intake Synthesizer')).toBeVisible({
+      timeout: 5_000,
+    });
 
-    // Step 5: Close the modal cleanly with Escape. The marker fact should
-    // still be in Settings (no "whole-app remount" side effects).
-    await page.keyboard.press('Escape');
-    await hardClick(page.getByTestId('settings-gear'));
-    await hardClick(page.getByTestId('settings-category-memory'));
+    // Step 5: The marker fact should still be in Settings (no "whole-app
+    // remount" side effects).
+    await openSettingsModal(page);
+    await showMemorySettings(page);
     await expect(page.getByTestId('settings-facts-table')).toContainText(marker);
   });
 
   test('adding a fact survives category switches within Settings', async ({
     page,
   }) => {
-    await hardClick(page.getByTestId('settings-gear'));
-    await hardClick(page.getByTestId('settings-category-memory'));
+    await showMemorySettings(page);
 
     const input = page.getByTestId('settings-facts-add-input');
     const marker = `cross-cat-${Date.now()}`;
@@ -91,24 +130,20 @@ test.describe('v1.5 multi-feature integration flows', () => {
     await hardClick(page.getByTestId('settings-facts-add'));
     await expect(page.getByTestId('settings-facts-table')).toContainText(marker);
 
-    // Switch to Integrations, then Voice, then back to Memory.
-    await hardClick(page.getByTestId('settings-category-integrations'));
-    await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
+    // MCP/Ollama moved from Settings to Account → Connections in 3.0.
+    await openAccountConnections(page);
+    await closeAccountWindow(page);
 
-    await hardClick(page.getByTestId('settings-category-voice'));
-    await expect(page.getByTestId('voice-status')).toBeVisible();
+    await showVoiceSettings(page);
 
-    await hardClick(page.getByTestId('settings-category-memory'));
+    await showMemorySettings(page);
     await expect(page.getByTestId('settings-facts-table')).toContainText(marker);
   });
 
-  test('Integrations section re-renders correctly after switching to Memory and back', async ({
+  test('Account Connections re-renders correctly after switching to Memory and back', async ({
     page,
   }) => {
-    await hardClick(page.getByTestId('settings-gear'));
-    await hardClick(page.getByTestId('settings-category-integrations'));
-    await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
-    await expect(page.getByTestId('ollama-settings-section')).toBeVisible();
+    await openAccountConnections(page);
 
     // Wait for the initial Ollama probe.
     await expect(page.getByTestId('ollama-status')).toHaveAttribute(
@@ -117,13 +152,13 @@ test.describe('v1.5 multi-feature integration flows', () => {
       { timeout: 5_000 }
     );
 
-    // Switch away to Memory.
-    await hardClick(page.getByTestId('settings-category-memory'));
-    await expect(page.getByTestId('settings-facts-section')).toBeVisible();
+    // Switch away to Memory in Settings.
+    await closeAccountWindow(page);
+    await showMemorySettings(page);
 
-    // Switch back to Integrations. The probe should re-run (or the cached
+    // Switch back to Connections. The probe should re-run (or the cached
     // result should re-render) and BOTH sections must remount cleanly.
-    await hardClick(page.getByTestId('settings-category-integrations'));
+    await openAccountConnections(page);
     await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
     await expect(page.getByTestId('ollama-settings-section')).toBeVisible();
     await expect(page.getByTestId('mcp-server-status')).toBeVisible();
@@ -138,20 +173,15 @@ test.describe('v1.5 multi-feature integration flows', () => {
     // probe isn't cancelled on unmount, the previous run could setState
     // on the new mount's state. The symptom would be a pill stuck on
     // "checking" until the next mount.
-    await hardClick(page.getByTestId('settings-gear'));
+    await openSettingsModal(page);
+    await hardClick(page.getByTestId('settings-category-workspace'));
+    await hardClick(page.getByTestId('settings-category-ai-privacy'));
+    await hardClick(page.getByTestId('subheader-memory-heading'));
+    await hardClick(page.getByTestId('settings-category-voice'));
+    await closeAccountWindow(page);
+    await openAccountConnections(page);
 
-    for (const cat of [
-      'general',
-      'integrations',
-      'memory',
-      'integrations',
-      'voice',
-      'integrations',
-    ]) {
-      await hardClick(page.getByTestId(`settings-category-${cat}`));
-    }
-
-    // Finally land on Integrations. The pill must settle to a non-
+    // Finally land on Account → Connections. The pill must settle to a non-
     // "checking" value within 5s (just like a fresh mount).
     await expect(page.getByTestId('ollama-status')).toHaveAttribute(
       'data-status',
@@ -166,17 +196,15 @@ test.describe('v1.5 multi-feature integration flows', () => {
     // This guards against a z-index / focus-trap regression where
     // opening Settings while the AI Assistant pane is visible would hide
     // the pane or misdirect focus.
-    await hardClick(page.getByTestId('sidebar-tab-ai-assistant'));
-    await expect(page.getByTestId('ai-assistant-pane')).toBeVisible();
+    await openAIAssistantPane(page);
 
-    await hardClick(page.getByTestId('settings-gear'));
-    await expect(page.getByTestId('settings-modal')).toBeVisible();
+    await openSettingsModal(page);
 
     // Close Settings with Escape. The AI Assistant pane should still be
     // mounted (sidebar tab state preserved).
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('settings-modal')).not.toBeVisible();
-    await expect(page.getByTestId('ai-assistant-pane')).toBeVisible();
+    await expect(page.getByTestId('ai-chat-viewer')).toBeVisible();
   });
 
   test('add three facts and confirm they all survive Settings close + reopen', async ({
@@ -186,8 +214,7 @@ test.describe('v1.5 multi-feature integration flows', () => {
     // but specifically framed as an integration flow: do multiple
     // facts correctly round-trip when the user takes a detour to
     // another Settings category?
-    await hardClick(page.getByTestId('settings-gear'));
-    await hardClick(page.getByTestId('settings-category-memory'));
+    await showMemorySettings(page);
 
     const markers: string[] = [];
     for (let i = 0; i < 3; i += 1) {
@@ -198,9 +225,10 @@ test.describe('v1.5 multi-feature integration flows', () => {
       await expect(page.getByTestId('settings-facts-table')).toContainText(m);
     }
 
-    // Visit Integrations briefly, then back to Memory.
-    await hardClick(page.getByTestId('settings-category-integrations'));
-    await hardClick(page.getByTestId('settings-category-memory'));
+    // Visit Account → Connections briefly, then back to Memory.
+    await openAccountConnections(page);
+    await closeAccountWindow(page);
+    await showMemorySettings(page);
 
     // All three facts still present.
     for (const m of markers) {
@@ -209,8 +237,7 @@ test.describe('v1.5 multi-feature integration flows', () => {
 
     // Close and reopen Settings entirely.
     await page.keyboard.press('Escape');
-    await hardClick(page.getByTestId('settings-gear'));
-    await hardClick(page.getByTestId('settings-category-memory'));
+    await showMemorySettings(page);
     for (const m of markers) {
       await expect(page.getByTestId('settings-facts-table')).toContainText(m);
     }

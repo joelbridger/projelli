@@ -2,7 +2,7 @@
  * v1.5 Flag 2 — MCP server + `.mcpb` Desktop Extension bundle — E2E smoke tests
  *
  * Scope:
- *   1. The Settings → Integrations category renders.
+ *   1. The Account → Connections tab renders.
  *   2. The McpSettingsSection mounts with its testid skeleton present:
  *      status pill, download button, install readme.
  *   3. The status pill reports "Bundle not available" in dev mode (no
@@ -21,21 +21,21 @@
 import { test, expect } from '@playwright/test';
 import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
 
+async function openAccountConnections(page: import('@playwright/test').Page) {
+  await hardClick(page.getByTestId('account-identity'));
+  await expect(page.getByTestId('account-window')).toBeVisible();
+  await hardClick(page.getByTestId('account-tab-connections'));
+  await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
+}
+
 test.describe('v1.5 Flag 2 — MCP server', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
   });
 
-  test('Settings → Integrations shows the MCP settings section', async ({ page }) => {
-    await hardClick(page.getByTestId('settings-gear'));
-    await expect(page.getByTestId('settings-modal')).toBeVisible();
-
-    const integrationsCat = page.getByTestId('settings-category-integrations');
-    await expect(integrationsCat).toBeVisible();
-    await hardClick(integrationsCat);
-
-    await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
+  test('Account → Connections shows the MCP settings section', async ({ page }) => {
+    await openAccountConnections(page);
 
     // Status pill resolves to one of the known states. In dev / browser
     // mode the bundle isn't on disk, so we expect `unavailable` or
@@ -51,8 +51,7 @@ test.describe('v1.5 Flag 2 — MCP server', () => {
   });
 
   test('MCP download button exists under the status pill', async ({ page }) => {
-    await hardClick(page.getByTestId('settings-gear'));
-    await hardClick(page.getByTestId('settings-category-integrations'));
+    await openAccountConnections(page);
 
     const downloadBtn = page.getByTestId('mcp-download-mcpb');
     await expect(downloadBtn).toBeVisible();
@@ -62,11 +61,10 @@ test.describe('v1.5 Flag 2 — MCP server', () => {
     await expect(downloadBtn).toBeDisabled();
   });
 
-  test('Ollama settings section also renders under Integrations', async ({ page }) => {
-    // Q7 adds the Ollama provider under the same Integrations category.
+  test('Ollama settings section also renders under Account → Connections', async ({ page }) => {
+    // Q7 adds the Ollama provider under the same Account connection tab.
     // Verify it co-exists with the MCP section without breaking layout.
-    await hardClick(page.getByTestId('settings-gear'));
-    await hardClick(page.getByTestId('settings-category-integrations'));
+    await openAccountConnections(page);
 
     await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
     await expect(page.getByTestId('ollama-settings-section')).toBeVisible();

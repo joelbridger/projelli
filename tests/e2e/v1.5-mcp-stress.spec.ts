@@ -24,10 +24,10 @@
 import { test, expect } from '@playwright/test';
 import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
 
-async function openIntegrationsSettings(page: import('@playwright/test').Page) {
-  await hardClick(page.getByTestId('settings-gear'));
-  await expect(page.getByTestId('settings-modal')).toBeVisible();
-  await hardClick(page.getByTestId('settings-category-integrations'));
+async function openAccountConnections(page: import('@playwright/test').Page) {
+  await hardClick(page.getByTestId('account-identity'));
+  await expect(page.getByTestId('account-window')).toBeVisible();
+  await hardClick(page.getByTestId('account-tab-connections'));
   await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
 }
 
@@ -40,7 +40,7 @@ test.describe('v1.5 Flag 2 — MCP + .mcpb stress', () => {
   test('status pill resolves to `unavailable` in dev harness (no .mcpb on disk)', async ({
     page,
   }) => {
-    await openIntegrationsSettings(page);
+    await openAccountConnections(page);
 
     const status = page.getByTestId('mcp-server-status');
     await expect(status).toBeVisible();
@@ -53,14 +53,13 @@ test.describe('v1.5 Flag 2 — MCP + .mcpb stress', () => {
       timeout: 5_000,
     });
 
-    // The install-readme copy should mention Claude Desktop and the
-    // `build-mcpb.mjs` helper — this is the text the user reads when
-    // the bundle isn't available.
-    await expect(status).toContainText(/Bundle not available|build-mcpb\.mjs/);
+    // The browser harness cannot use the desktop MCP bridge. The current
+    // account window explains that MCP requires the desktop app.
+    await expect(status).toContainText(/not available in this build|desktop app/i);
   });
 
   test('download button is disabled when bundle is unavailable', async ({ page }) => {
-    await openIntegrationsSettings(page);
+    await openAccountConnections(page);
 
     const btn = page.getByTestId('mcp-download-mcpb');
     await expect(btn).toBeVisible();
@@ -71,7 +70,7 @@ test.describe('v1.5 Flag 2 — MCP + .mcpb stress', () => {
   test('install instructions walk through the Claude Desktop handoff', async ({
     page,
   }) => {
-    await openIntegrationsSettings(page);
+    await openAccountConnections(page);
 
     const section = page.getByTestId('mcp-settings-section');
     await expect(section).toBeVisible();
@@ -89,7 +88,7 @@ test.describe('v1.5 Flag 2 — MCP + .mcpb stress', () => {
   test('MCP settings section docstring anchor (What\'s MCP) is a valid external link', async ({
     page,
   }) => {
-    await openIntegrationsSettings(page);
+    await openAccountConnections(page);
 
     // The "What's MCP?" link points at the user-facing MCP quickstart.
     // We can't follow the link (would leave the harness), but we can
@@ -101,10 +100,10 @@ test.describe('v1.5 Flag 2 — MCP + .mcpb stress', () => {
     await expect(link).toHaveAttribute('target', '_blank');
   });
 
-  test('MCP + Ollama sections coexist under Integrations without clobbering each other', async ({
+  test('MCP + Ollama sections coexist under Account → Connections without clobbering each other', async ({
     page,
   }) => {
-    await openIntegrationsSettings(page);
+    await openAccountConnections(page);
 
     // Both sections must render in the same scroll region. This catches
     // the regression where a future refactor accidentally hides one behind
