@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Files modified: `src/features/ask/chat/ChatModelPicker.tsx`
 
 ### Fixed
+- **Windows-style workspace paths are now handled more safely.** The path validator now treats Windows drive-letter paths case-insensitively, uses the same workspace-boundary check for relative conversion as it uses for validation, and rejects Windows-reserved file names plus names ending in a dot or space.
+  - Files modified: `src/platform/fs/PathValidator.ts`
+  - Tests: `tests/unit/workspace/PathValidator.windows.test.ts`, `tests/unit/workspace/WorkspaceService.windows.test.ts`
 - **Accessibility: the app logo and the welcome screen now pass WCAG AA checks.** The decorative logo wrapper had an `aria-label` on a roleless `<div>` (prohibited); it is now `role="img"`. The welcome / workspace-selector screen used a too-light gray (slate-400, ~2.8:1 on white) for muted text and footer links; it is now slate-600 (~7:1), still a light theme. Both are now enforced by the axe test (their prior suppressions were removed). (The one remaining known item — closeable document tabs inside an ARIA tablist — keeps a tightly-scoped, documented suppression because the fix conflicts with `nested-interactive`.)
   - Files modified: `src/ui/brand/KeepanceLogo.tsx`, `src/features/documents/workspace/WorkspaceSelector.tsx`, `tests/e2e/accessibility.spec.ts`
 - **Desktop now migrates legacy API keys out of renderer localStorage.** On first desktop launch after the OS-keychain update, Keepance moves old `apiKey_<provider>` entries into the operating system keychain, verifies each write by reading it back, and removes the localStorage copy only after that provider is safely stored. Browser builds are unchanged.

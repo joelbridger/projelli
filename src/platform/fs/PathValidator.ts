@@ -59,7 +59,7 @@ export class PathValidator {
    */
   getRelativePath(absolutePath: string): string {
     const normalized = this.normalizePath(absolutePath);
-    if (!normalized.startsWith(this.rootPath)) {
+    if (!this.isWithinWorkspace(normalized)) {
       throw new SecurityError(
         `Path is outside workspace: ${absolutePath}`,
         absolutePath,
@@ -80,7 +80,7 @@ export class PathValidator {
     const normalized = this.normalizePath(relativePath);
 
     // If already absolute and within workspace, return as-is
-    if (normalized.startsWith(this.rootPath)) {
+    if (this.isWithinWorkspace(normalized)) {
       return normalized;
     }
 
@@ -205,21 +205,34 @@ export class PathValidator {
   isWithinWorkspace(path: string): boolean {
     const normalized = this.normalizePath(path);
     const normalizedRoot = this.normalizePath(this.rootPath);
+    const comparablePath = this.getComparablePath(normalized);
+    const comparableRoot = this.getComparablePath(normalizedRoot);
 
     // Path must start with root path
-    if (!normalized.startsWith(normalizedRoot)) {
+    if (!comparablePath.startsWith(comparableRoot)) {
       return false;
     }
 
     // Ensure it's not just a prefix match (e.g., /workspace-evil matching /workspace)
-    if (normalized.length > normalizedRoot.length) {
-      const nextChar = normalized.charAt(normalizedRoot.length);
+    if (comparablePath.length > comparableRoot.length) {
+      const nextChar = comparablePath.charAt(comparableRoot.length);
       if (nextChar !== '/') {
         return false;
       }
     }
 
     return true;
+  }
+
+  /**
+   * Windows paths are case-insensitive. Keep POSIX paths case-sensitive.
+   */
+  private getComparablePath(path: string): string {
+    return this.isWindowsDrivePath(path) ? path.toLowerCase() : path;
+  }
+
+  private isWindowsDrivePath(path: string): boolean {
+    return /^[a-zA-Z]:\//.test(path);
   }
 
   /**
@@ -251,6 +264,14 @@ export class PathValidator {
     if (!name || name.trim().length === 0) {
       throw new SecurityError(
         'Name cannot be empty',
+        name,
+        'INVALID_PATH'
+      );
+    }
+
+    if (name !== name.trim()) {
+      throw new SecurityError(
+        'Name cannot start or end with whitespace',
         name,
         'INVALID_PATH'
       );
@@ -288,6 +309,26 @@ export class PathValidator {
     if (/[\x00-\x1f\x7f]/.test(name)) {
       throw new SecurityError(
         'Name cannot contain control characters',
+        name,
+        'INVALID_PATH'
+      );
+    }
+
+    if (name.endsWith('.')) {
+      throw new SecurityError(
+        'Name cannot end with a dot',
+        name,
+        'INVALID_PATH'
+      );
+    }
+
+    const windowsReservedName = name.split('.')[0]?.toUpperCase();
+    if (
+      windowsReservedName &&
+      /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/.test(windowsReservedName)
+    ) {
+      throw new SecurityError(
+        'Name is reserved on Windows',
         name,
         'INVALID_PATH'
       );
