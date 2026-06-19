@@ -1,72 +1,62 @@
 /**
- * Sidebar accessibility (UX-03)
+ * Spine navigation accessibility.
  *
- * The sidebar section switcher is a tablist. Each section button must have
- * role="tab" with aria-selected that tracks the active tab, and the content
- * pane must be a tabpanel labelled by the active tab. Arrow keys must move
- * focus between tabs following the native tablist keyboard pattern.
+ * Keepance 3.0 replaced the old tablist sidebar with a primary navigation
+ * spine. The current contract is page-style navigation: each item is a normal
+ * button, the selected surface uses aria-current="page", and keyboard users
+ * can focus and activate each nav item.
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad } from './helpers/test-utils';
+import { hardClick, waitForTestModeLoad } from './helpers/test-utils';
 
-test.describe('Sidebar nav tablist semantics', () => {
+const SPINE_ITEMS = [
+  { id: 'matters', label: 'Matters' },
+  { id: 'search', label: 'Search' },
+  { id: 'files', label: 'Documents' },
+  { id: 'email', label: 'Email' },
+  { id: 'workflows', label: 'Workflows' },
+  { id: 'audit', label: 'Activity Log' },
+  { id: 'privacy', label: 'Privacy Center' },
+  { id: 'settings', label: 'Settings' },
+] as const;
+
+test.describe('Spine nav accessibility', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
   });
 
-  test('sidebar tab container has role="tablist" with vertical orientation', async ({ page }) => {
-    const tablist = page.getByRole('tablist', { name: 'Sidebar sections' });
-    await expect(tablist).toBeVisible();
-    await expect(tablist).toHaveAttribute('aria-orientation', 'vertical');
+  test('primary spine navigation is labelled and exposes every destination', async ({ page }) => {
+    await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
+
+    for (const item of SPINE_ITEMS) {
+      const button = page.getByTestId(`spine-nav-${item.id}`);
+      await expect(button).toBeVisible();
+      await expect(button).toBeEnabled();
+      await expect(button).toContainText(item.label);
+    }
   });
 
-  test('each sidebar tab has role="tab" and correct aria-selected', async ({ page }) => {
-    // Files tab starts active
-    const filesTab = page.getByTestId('sidebar-tab-files');
-    await expect(filesTab).toHaveAttribute('role', 'tab');
-    await expect(filesTab).toHaveAttribute('aria-selected', 'true');
+  test('the active destination is marked with aria-current', async ({ page }) => {
+    const files = page.getByTestId('spine-nav-files');
+    await expect(files).toHaveAttribute('aria-current', 'page');
 
-    // Other tabs are not selected
-    const searchTab = page.getByTestId('sidebar-tab-search');
-    await expect(searchTab).toHaveAttribute('role', 'tab');
-    await expect(searchTab).toHaveAttribute('aria-selected', 'false');
+    const search = page.getByTestId('spine-nav-search');
+    await expect(search).not.toHaveAttribute('aria-current', 'page');
 
-    // Activating a different tab flips aria-selected
-    await searchTab.click();
-    await expect(searchTab).toHaveAttribute('aria-selected', 'true');
-    await expect(filesTab).toHaveAttribute('aria-selected', 'false');
+    await hardClick(search);
+    await expect(search).toHaveAttribute('aria-current', 'page');
+    await expect(files).not.toHaveAttribute('aria-current', 'page');
   });
 
-  test('active content pane is a tabpanel labelled by the active tab', async ({ page }) => {
-    const content = page.getByTestId('sidebar-content');
-    await expect(content).toHaveAttribute('role', 'tabpanel');
-    // When Files is active, the panel should be labelled by the Files tab's id
-    await expect(content).toHaveAttribute('aria-labelledby', 'sidebar-tab-files');
+  test('keyboard users can focus and activate spine destinations', async ({ page }) => {
+    const settings = page.getByTestId('spine-nav-settings');
+    await settings.focus();
+    await expect(settings).toBeFocused();
 
-    await page.getByTestId('sidebar-tab-workflows').click();
-    await expect(content).toHaveAttribute('aria-labelledby', 'sidebar-tab-workflows');
-  });
-
-  test('arrow-down moves focus to the next tab', async ({ page }) => {
-    const filesTab = page.getByTestId('sidebar-tab-files');
-    await filesTab.focus();
-    await expect(filesTab).toBeFocused();
-
-    await page.keyboard.press('ArrowDown');
-    await expect(page.getByTestId('sidebar-tab-search')).toBeFocused();
-
-    await page.keyboard.press('ArrowDown');
-    await expect(page.getByTestId('sidebar-tab-workflows')).toBeFocused();
-  });
-
-  test('arrow-up moves focus to the previous tab', async ({ page }) => {
-    const workflowsTab = page.getByTestId('sidebar-tab-workflows');
-    await workflowsTab.focus();
-    await expect(workflowsTab).toBeFocused();
-
-    await page.keyboard.press('ArrowUp');
-    await expect(page.getByTestId('sidebar-tab-search')).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(settings).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('settings-page')).toBeVisible();
   });
 });

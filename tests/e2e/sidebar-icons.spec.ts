@@ -1,69 +1,57 @@
 /**
- * Sidebar icon consistency (UX-11)
+ * Spine icon consistency.
  *
- * Every sidebar tab icon should have the same computed color in its inactive
- * state (driven by the parent Button's `text-muted-foreground` class). No
- * single tab — in particular Research or Whiteboard, which previously used
- * accent colors elsewhere in the codebase — should be permanently tinted.
- *
- * The test also confirms that the currently active tab's icon takes a
- * different color than the inactive tabs (so we're not regressing to a
- * flat no-active-state look).
+ * The redesigned 3.0 spine no longer gives each SVG its own test id. Icons
+ * inherit their color from the spine button, so the test reads the icon color
+ * through the current `spine-nav-*` button handles.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator } from '@playwright/test';
 import { waitForTestModeLoad } from './helpers/test-utils';
 
-const TAB_IDS = [
-  'files',
+const SPINE_IDS = [
+  'matters',
   'search',
+  'files',
+  'email',
   'workflows',
-  'ai-assistant',
-  'research',
-  'whiteboard',
   'audit',
-  'trash',
+  'privacy',
+  'settings',
 ] as const;
 
-test.describe('Sidebar tab icons (UX-11)', () => {
-  test('inactive tab icons all share the same computed color', async ({ page }) => {
+async function iconColor(button: Locator): Promise<string> {
+  await expect(button).toBeVisible();
+  return button.evaluate((el) => {
+    const icon = el.querySelector('svg');
+    if (!icon) throw new Error('Spine nav button is missing its icon');
+    return window.getComputedStyle(icon).color;
+  });
+}
+
+test.describe('Spine nav icons', () => {
+  test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
+  });
 
-    // Files is the default active tab. Grab the computed color of each INACTIVE
-    // tab icon and confirm they match each other. Research (BookOpen) is the
-    // one we most care about — it used to render in a permanent orange/brown.
-    const colors = await Promise.all(
-      TAB_IDS.filter((id) => id !== 'files').map(async (id) => {
-        const icon = page.getByTestId(`sidebar-tab-${id}-icon`);
-        await expect(icon).toBeVisible();
-        return icon.evaluate((el) => window.getComputedStyle(el).color);
-      })
+  test('inactive nav icons all share the same computed color', async ({ page }) => {
+    const inactiveColors = await Promise.all(
+      SPINE_IDS.filter((id) => id !== 'files').map((id) =>
+        iconColor(page.getByTestId(`spine-nav-${id}`))
+      )
     );
 
-    const first = colors[0];
+    const first = inactiveColors[0];
     expect(first).toBeTruthy();
-    for (const c of colors) {
-      expect(c).toBe(first);
+    for (const color of inactiveColors) {
+      expect(color).toBe(first);
     }
   });
 
-  test('active tab icon color differs from inactive tab icon color', async ({ page }) => {
-    await page.goto('/?testMode=true');
-    await waitForTestModeLoad(page);
-
-    const activeIcon = page.getByTestId('sidebar-tab-files-icon');
-    const inactiveIcon = page.getByTestId('sidebar-tab-research-icon');
-
-    await expect(activeIcon).toBeVisible();
-    await expect(inactiveIcon).toBeVisible();
-
-    const activeColor = await activeIcon.evaluate(
-      (el) => window.getComputedStyle(el).color
-    );
-    const inactiveColor = await inactiveIcon.evaluate(
-      (el) => window.getComputedStyle(el).color
-    );
+  test('active nav icon color differs from inactive nav icon color', async ({ page }) => {
+    const activeColor = await iconColor(page.getByTestId('spine-nav-files'));
+    const inactiveColor = await iconColor(page.getByTestId('spine-nav-search'));
 
     expect(activeColor).not.toBe(inactiveColor);
   });

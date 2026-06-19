@@ -1,62 +1,41 @@
 /**
- * Collapsed sidebar tooltips (UX-23)
+ * Collapsed spine labels.
  *
- * When the sidebar is collapsed, each section icon has no label next to it.
- * Hovering or focusing the icon should surface a Radix tooltip with the
- * label + (if defined) keyboard shortcut.
+ * The old sidebar used Radix tooltip nodes. The 3.0 spine uses compact icon
+ * buttons with native `title` labels when collapsed, so this verifies the
+ * current accessible label behavior instead of removed tooltip elements.
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
+import { hardClick, waitForTestModeLoad } from './helpers/test-utils';
 
-test.describe('Collapsed sidebar tooltips (UX-23)', () => {
-  test('Files tab shows a tooltip when sidebar is collapsed', async ({
-    page,
-  }) => {
+test.describe('Collapsed spine labels', () => {
+  test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
-
-    // Collapse the sidebar.
-    await hardClick(page.getByTestId('sidebar-collapse-button'));
-
-    // Hover the Files icon — tooltip should appear.
-    const filesTab = page.getByTestId('sidebar-tab-files');
-    await filesTab.hover();
-
-    const tooltip = page.getByTestId('sidebar-tab-files-tooltip');
-    await expect(tooltip).toBeVisible();
-    await expect(tooltip).toContainText('Files');
   });
 
-  test('AI Assistant tooltip includes its keyboard shortcut', async ({
-    page,
-  }) => {
-    await page.goto('/?testMode=true');
-    await waitForTestModeLoad(page);
+  test('Documents nav exposes a title label when the spine is collapsed', async ({ page }) => {
+    await hardClick(page.getByRole('button', { name: 'Collapse sidebar' }));
 
-    await hardClick(page.getByTestId('sidebar-collapse-button'));
-
-    const aiTab = page.getByTestId('sidebar-tab-ai-assistant');
-    await aiTab.hover();
-
-    const tooltip = page.getByTestId('sidebar-tab-ai-assistant-tooltip');
-    await expect(tooltip).toBeVisible();
-    await expect(tooltip).toContainText('AI Assistant');
-    // Shortcut text is platform-dependent; on Linux/Windows the app uses
-    // plus-joined "Ctrl+Shift+A". On macOS the tests still run on the
-    // webserver process's platform (headless Chrome → Linux in CI).
-    await expect(tooltip).toContainText(/Ctrl\+Shift\+A|⌘⇧A/);
+    const documents = page.getByTestId('spine-nav-collapsed-files');
+    await expect(documents).toBeVisible();
+    await expect(documents).toHaveAttribute('title', 'Documents');
   });
 
-  test('tooltips do not appear when sidebar is expanded', async ({ page }) => {
-    await page.goto('/?testMode=true');
-    await waitForTestModeLoad(page);
+  test('collapsed spine preserves the active destination state', async ({ page }) => {
+    await hardClick(page.getByRole('button', { name: 'Collapse sidebar' }));
 
-    // Do NOT collapse. Hover — no tooltip should show because the label
-    // is already visible inline.
-    await page.getByTestId('sidebar-tab-files').hover();
-    await expect(
-      page.getByTestId('sidebar-tab-files-tooltip')
-    ).toBeHidden();
+    const documents = page.getByTestId('spine-nav-collapsed-files');
+    await expect(documents).toHaveAttribute('aria-current', 'page');
+
+    await hardClick(page.getByTestId('spine-nav-collapsed-settings'));
+    await expect(page.getByTestId('spine-nav-collapsed-settings')).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('settings-page')).toBeVisible();
+  });
+
+  test('expanded spine shows inline labels and no collapsed icon buttons', async ({ page }) => {
+    await expect(page.getByTestId('spine-nav-files')).toContainText('Documents');
+    await expect(page.getByTestId('spine-nav-collapsed-files')).toHaveCount(0);
   });
 });

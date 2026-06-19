@@ -36,35 +36,41 @@ test.describe('App Layout', () => {
   });
 });
 
-test.describe('Sidebar Navigation (test mode)', () => {
+test.describe('Spine Navigation (test mode)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
   });
 
-  test('sidebar has all navigation tabs', async ({ page }) => {
-    const expectedTabs = ['files', 'search', 'workflows', 'ai-assistant', 'research', 'whiteboard', 'audit', 'trash'];
+  test('spine has all current navigation destinations', async ({ page }) => {
+    const expectedTabs = ['matters', 'search', 'files', 'email', 'workflows', 'audit', 'privacy', 'settings'];
     for (const tabId of expectedTabs) {
-      await expect(page.getByTestId(`sidebar-tab-${tabId}`)).toBeVisible();
+      await expect(page.getByTestId(`spine-nav-${tabId}`)).toBeVisible();
     }
   });
 
-  test('sidebar collapse button works', async ({ page }) => {
-    const collapseBtn = page.getByTestId('sidebar-collapse-button');
-    await expect(collapseBtn).toBeVisible();
+  test('spine collapse and expand buttons work', async ({ page }) => {
+    const collapseBtn = page.getByRole('button', { name: 'Collapse sidebar' });
     await hardClick(collapseBtn);
-    // After collapse, content area should not be visible
-    await expect(page.getByTestId('sidebar-content')).not.toBeVisible();
+    await expect(page.getByTestId('spine-nav-collapsed-files')).toBeVisible();
+
+    const expandBtn = page.getByRole('button', { name: 'Expand' });
+    await hardClick(expandBtn);
+    await expect(page.getByTestId('spine-nav-files')).toBeVisible();
   });
 
-  test('clicking sidebar tabs switches content', async ({ page }) => {
-    // Click AI Assistant tab
-    await hardClick(page.getByTestId('sidebar-tab-ai-assistant'));
-    await expect(page.getByTestId('ai-assistant-pane')).toBeVisible();
+  test('clicking spine tabs switches content', async ({ page }) => {
+    await hardClick(page.getByTestId('spine-nav-search'));
+    await expect(page.getByRole('heading', { name: 'Search' })).toBeVisible();
+    await expect(page.getByTestId('ask-composer-input')).toBeVisible();
 
-    // Click Files tab
-    await hardClick(page.getByTestId('sidebar-tab-files'));
-    await expect(page.getByTestId('file-tree')).toBeVisible();
+    await hardClick(page.getByTestId('spine-nav-workflows'));
+    await expect(page.getByTestId('associate-home')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Workflows' })).toBeVisible();
+
+    await hardClick(page.getByTestId('spine-nav-files'));
+    await expect(page.getByRole('heading', { name: 'Documents' })).toBeVisible();
+    await expect(page.getByTestId('documents-tab-strip')).toBeVisible();
   });
 
   test('visual snapshot: main app in test mode', async ({ page }) => {

@@ -1,104 +1,73 @@
 /**
- * Onboarding API key setup card tests (UX-04)
+ * Guided onboarding AI setup tests.
  *
- * When a user lands in a workspace without any AI keys configured, the main
- * panel should surface a prominent "Next step: add your AI key" card. The
- * card must:
- *   1. Appear in the main panel when: rootPath is set AND no API keys exist
- *      AND no tab is open AND it hasn't been dismissed this session.
- *   2. Clicking "Add API key" jumps to AI Assistant → Keys sub-tab.
- *   3. Clicking the dismiss X hides the card for the rest of the session
- *      (sessionStorage-backed, so page reload brings it back).
- *
- * Uses ?testMode=true which seeds a mock workspace but no API keys.
+ * The old main-panel "add your API key" card is no longer part of the
+ * reachable 3.0 flow. The live onboarding route is the full-screen guided
+ * setup, where the AI setup step offers own-account, local, and later paths.
  */
 
-import { test, expect } from '@playwright/test';
-import {
-  waitForTestModeLoad,
-  hardClick,
-} from './helpers/test-utils';
+import { test, expect, type Page } from '@playwright/test';
+import { hardClick, safeFill, waitForTestModeLoad } from './helpers/test-utils';
 
-test.describe('API key setup card (UX-04)', () => {
-  test.beforeEach(async ({ page }) => {
-    // Start from a clean slate: no API keys, no dismissal flag. Each fresh
-    // browser context already starts clean, but be explicit.
-    await page.goto('/?testMode=true');
-    await waitForTestModeLoad(page);
-    await page.evaluate(() => {
-      // Remove any leftover keys from previous tests in the same worker
-      ['anthropic', 'openai', 'google'].forEach((p) => {
-        localStorage.removeItem(`apiKey_${p}`);
-      });
-      sessionStorage.removeItem('keepance:apiKeyCardDismissed');
-    });
-    // Soft reload to make the app pick up the cleared state
-    await page.reload();
-    await waitForTestModeLoad(page);
+async function openAiSetupStep(page: Page) {
+  await page.goto('/?testMode=true&forceOnboarding=true');
+  await waitForTestModeLoad(page);
 
-    // Test mode pre-opens two demo tabs; close them so the MainPanel is in
-    // its "no file open" slot where the API key card renders.
-    await page.evaluate(() => {
-      const store = (window as unknown as {
-        __editorStore?: { getState: () => { openTabs: { path: string }[]; closeTab: (p: string) => void } };
-      }).__editorStore;
-      if (!store) return;
-      const state = store.getState();
-      const paths = state.openTabs.map((t) => t.path);
-      for (const p of paths) {
-        state.closeTab(p);
-      }
-    });
+  await expect(page.getByTestId('onboarding-step-welcome')).toBeVisible({ timeout: 15_000 });
+  await hardClick(page.getByTestId('onboarding-next-welcome'));
+
+  await expect(page.getByTestId('onboarding-step-profession')).toBeVisible();
+  await hardClick(page.getByTestId('profession-card-legal'));
+  await hardClick(page.getByTestId('onboarding-next-profession'));
+
+  await expect(page.getByTestId('onboarding-step-identity')).toBeVisible();
+  await hardClick(page.getByTestId('onboarding-identity-next'));
+
+  await expect(page.getByTestId('onboarding-step-workspace')).toBeVisible();
+  await expect(page.getByTestId('workspace-choice-documents')).toBeVisible();
+  await hardClick(page.getByTestId('onboarding-workspace-next'));
+
+  await expect(page.getByTestId('onboarding-step-trust')).toBeVisible();
+  await hardClick(page.getByTestId('onboarding-data-continue'));
+
+  await expect(page.getByTestId('onboarding-step-ai-key')).toBeVisible();
+  await expect(page.getByTestId('ai-setup-step')).toBeVisible();
+}
+
+test.describe('Guided onboarding AI setup', () => {
+  test('AI setup step shows the three current setup paths', async ({ page }) => {
+    await openAiSetupStep(page);
+
+    await expect(page.getByTestId('ai-path-own-account')).toBeVisible();
+    await expect(page.getByTestId('ai-path-own-account')).toContainText('Connect your AI provider account');
+    await expect(page.getByTestId('ai-path-local')).toBeVisible();
+    await expect(page.getByTestId('ai-path-local')).toContainText('Keep everything on your computer');
+    await expect(page.getByTestId('ai-path-later')).toBeVisible();
+    await expect(page.getByTestId('ai-path-later')).toContainText('Skip for now');
   });
 
-  test('card is visible in the main panel when no API keys are set', async ({ page }) => {
-    const card = page.getByTestId('api-key-setup-card');
-    await expect(card).toBeVisible();
+  test('own-account path exposes provider tabs and key-entry guidance', async ({ page }) => {
+    await openAiSetupStep(page);
+    await hardClick(page.getByTestId('ai-path-own-account'));
 
-    // The card's primary CTA
-    const cta = page.getByTestId('api-key-setup-card-cta');
-    await expect(cta).toBeVisible();
-    await expect(cta).toBeEnabled();
-    await expect(cta).toHaveText(/Add API key/);
+    await expect(page.getByTestId('ai-provider-tab-anthropic')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('ai-provider-tab-openai')).toContainText('OpenAI');
+    await expect(page.getByTestId('ai-provider-tab-google')).toContainText('Gemini');
+    await expect(page.getByTestId('ai-open-console-anthropic')).toBeVisible();
+    await expect(page.getByTestId('ai-get-key-step-anthropic-1')).toBeVisible();
+
+    const save = page.getByTestId('ai-setup-save-key');
+    await expect(save).toBeDisabled();
+    await safeFill(page.getByTestId('ai-setup-key-input'), 'sk-ant-test-1234567890');
+    await expect(save).toBeEnabled();
   });
 
-  test('clicking "Add API key" opens AI Assistant on the Keys sub-tab', async ({ page }) => {
-    const cta = page.getByTestId('api-key-setup-card-cta');
-    await hardClick(cta);
+  test('skip-for-now path advances onboarding without blocking setup', async ({ page }) => {
+    await openAiSetupStep(page);
+    await hardClick(page.getByTestId('ai-path-later'));
 
-    // Sidebar should switch to AI Assistant
-    const aiSidebarTab = page.getByTestId('sidebar-tab-ai-assistant');
-    await expect(aiSidebarTab).toHaveAttribute('aria-selected', 'true');
-
-    // The Keys sub-tab inside AI Assistant should now be active
-    const keysSubTab = page.getByTestId('ai-tab-keys');
-    await expect(keysSubTab).toBeVisible();
-    // The help button only renders on the Keys sub-tab, so its visibility
-    // pins that we're on the right sub-tab.
-    await expect(page.getByTestId('api-key-help-button')).toBeVisible();
-  });
-
-  test('dismissing the card hides it for the rest of the session', async ({ page }) => {
-    const card = page.getByTestId('api-key-setup-card');
-    await expect(card).toBeVisible();
-
-    const dismiss = page.getByTestId('api-key-setup-card-dismiss');
-    await hardClick(dismiss);
-
-    // Card should disappear immediately
-    await expect(card).not.toBeVisible();
-
-    // Navigating away and back should NOT bring it back (session-scoped)
-    const searchTab = page.getByTestId('sidebar-tab-search');
-    await hardClick(searchTab);
-    const filesTab = page.getByTestId('sidebar-tab-files');
-    await hardClick(filesTab);
-    await expect(card).not.toBeVisible();
-
-    // Verify the sessionStorage flag was set
-    const flag = await page.evaluate(() =>
-      sessionStorage.getItem('keepance:apiKeyCardDismissed')
-    );
-    expect(flag).toBe('true');
+    await expect(page.getByTestId('onboarding-step-email')).toBeVisible();
+    const deferred = await page.evaluate(() => localStorage.getItem('keepance_ai_setup_deferred'));
+    expect(deferred).toBe('true');
   });
 });

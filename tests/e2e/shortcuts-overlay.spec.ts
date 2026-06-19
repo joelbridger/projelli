@@ -78,11 +78,9 @@ test.describe('Shortcuts Overlay (UX-10)', () => {
   });
 
   test('"?" pressed while focused in an input does NOT open overlay', async ({ page }) => {
-    // Focus an input somewhere in the app. The AI Assistant Keys panel has
-    // input fields that are reliably present in test mode.
-    await hardClick(page.getByTestId('sidebar-tab-ai-assistant'));
-    await hardClick(page.getByTestId('ai-tab-keys'));
-    const input = page.getByTestId('api-key-input-anthropic');
+    // Focus a real input in the current 3.0 shell.
+    await hardClick(page.getByTestId('spine-nav-search'));
+    const input = page.getByTestId('ask-composer-input');
     await expect(input).toBeVisible();
     await input.focus();
 

@@ -35,11 +35,6 @@ test.describe('Fix #6: Status Bar Project Name', () => {
     }
   });
 
-  test('status bar shows matter scope indicator', async ({ page }) => {
-    const matter = page.getByTestId('status-bar-matter');
-    await expect(matter).toBeVisible();
-  });
-
   test('visual snapshot: status bar', async ({ page }) => {
     const statusBar = page.getByTestId('status-bar');
     await expect(statusBar).toBeVisible();
