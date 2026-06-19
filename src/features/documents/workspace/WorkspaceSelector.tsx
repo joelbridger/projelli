@@ -72,7 +72,7 @@ function RecentWorkspacesSection({
         data-testid="recent-workspaces-toggle"
         type="button"
         className="flex items-center gap-2 text-sm font-medium mb-3 group"
-        style={{ color: '#94A3B8' }}
+        style={{ color: '#475569' }}
         onClick={() => setExpanded((prev) => !prev)}
       >
         <ChevronRight
@@ -107,7 +107,7 @@ function RecentWorkspacesSection({
                   <div className="font-medium text-sm" style={{ color: '#111F35' }}>
                     {workspace.name}
                   </div>
-                  <div className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>
+                  <div className="text-xs mt-0.5" style={{ color: '#475569' }}>
                     {formatDate(workspace.lastOpened)}
                     {!isTauri && ' \u00B7 Re-select folder to reopen'}
                   </div>
@@ -120,7 +120,7 @@ function RecentWorkspacesSection({
             <button
               type="button"
               className="w-full px-4 py-2 text-xs text-left transition-colors hover:bg-slate-50"
-              style={{ color: '#94A3B8' }}
+              style={{ color: '#475569' }}
               onClick={() => setExpanded(true)}
             >
               Show all ({workspaces.length})
@@ -130,7 +130,7 @@ function RecentWorkspacesSection({
       )}
 
       {expanded && !isTauri && (
-        <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>
+        <p className="text-xs mt-2" style={{ color: '#475569' }}>
           {t('workspace.selector.browser-reselect-note')}
         </p>
       )}
@@ -386,7 +386,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
           type="button"
           aria-label="Close"
           className="absolute top-4 right-4 p-2 rounded-md transition-colors hover:bg-slate-100"
-          style={{ color: '#94A3B8' }}
+          style={{ color: '#475569' }}
           onClick={onDismiss}
         >
           <span className="sr-only">Close</span>
@@ -498,7 +498,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
             <div className="font-semibold text-sm mb-1" style={{ color: '#111F35' }}>
               Open Existing
             </div>
-            <div className="text-xs" style={{ color: '#94A3B8' }}>
+            <div className="text-xs" style={{ color: '#475569' }}>
               {t('workspace.selector.open-existing-hint')}
             </div>
           </button>
@@ -541,7 +541,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
             <div
               data-testid="new-workspace-structure-preview"
               className="text-xs"
-              style={{ color: '#94A3B8' }}
+              style={{ color: '#475569' }}
             >
               {PREVIEW_STRUCTURE_FOLDERS.join(', ')}
             </div>
@@ -563,14 +563,14 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
       </div>
 
       {/* Footer */}
-      <footer className="flex items-center justify-center gap-3 pb-6 text-xs" style={{ color: '#94A3B8' }}>
+      <footer className="flex items-center justify-center gap-3 pb-6 text-xs" style={{ color: '#475569' }}>
         <button
           data-testid="welcome-dialog-learn-more"
           type="button"
           className="inline-flex items-center gap-1 transition-colors hover:underline underline-offset-2"
-          style={{ color: '#94A3B8' }}
+          style={{ color: '#475569' }}
           onMouseEnter={(e) => { e.currentTarget.style.color = '#475569'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#94A3B8'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#475569'; }}
           onClick={() => {
             openExternal(GETTING_STARTED_URL).catch((err) => {
               console.error('[WorkspaceSelector] Failed to open docs:', err);
@@ -584,9 +584,9 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         <button
           type="button"
           className="transition-colors hover:underline underline-offset-2"
-          style={{ color: '#94A3B8' }}
+          style={{ color: '#475569' }}
           onMouseEnter={(e) => { e.currentTarget.style.color = '#475569'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#94A3B8'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#475569'; }}
           onClick={() => {
             openExternal('https://keepance.com/privacy').catch(() => {});
           }}
@@ -597,9 +597,9 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         <button
           type="button"
           className="transition-colors hover:underline underline-offset-2"
-          style={{ color: '#94A3B8' }}
+          style={{ color: '#475569' }}
           onMouseEnter={(e) => { e.currentTarget.style.color = '#475569'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = '#94A3B8'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#475569'; }}
           onClick={() => {
             openExternal('https://keepance.com/terms').catch(() => {});
           }}

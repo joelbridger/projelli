@@ -79,7 +79,7 @@ export function KeepanceLogo({
   className = '',
 }: KeepanceLogoProps) {
   return (
-    <div className={`flex flex-col items-center gap-3 ${className}`} aria-label="Keepance">
+    <div className={`flex flex-col items-center gap-3 ${className}`} role="img" aria-label="Keepance">
       <KeepanceIcon size={iconSize} />
       <KeepanceWordmark height={wordmarkHeight} />
     </div>

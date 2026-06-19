@@ -15,40 +15,22 @@ function withoutKnownCurrentSourceDebt(
   return violations
     .map((violation) => {
       const nodes = violation.nodes.filter((node) => {
-        // Current 3.0 source issue: document tabs put close buttons inside the
-        // ARIA tablist. The source needs restructuring; this spec cannot fix it.
+        // KNOWN HARD CASE — closeable tabs in an ARIA tablist. The document tab
+        // strip is role="tablist" with each tab a <button role="tab"> (the rest
+        // of the suite relies on that structure). A tab needs a visible close
+        // (X) button, but: a close <button> CANNOT nest inside the tab <button>
+        // (invalid HTML), so it sits as a sibling inside the tablist → axe
+        // flags aria-required-children ("tablist may only contain tab"). Moving
+        // the close INSIDE a div[role=tab] instead trades this for
+        // nested-interactive (a focusable control inside a focusable tab, which
+        // a negative tabindex does not satisfy either). This is a documented,
+        // widely-hit ARIA limitation for closeable tabs. We scope the
+        // suppression to exactly this node so every OTHER serious a11y issue —
+        // including the logo aria-label and welcome-screen contrast, both now
+        // FIXED in source — is still enforced.
         if (
           violation.id === 'aria-required-children' &&
           node.html.includes('data-testid="documents-tab-strip"')
-        ) {
-          return false;
-        }
-
-        // Current 3.0 source issue: the welcome/workspace selector has a few
-        // low-contrast helper links and one decorative logo wrapper with
-        // aria-label on a div. Keep axe active for every other serious issue.
-        if (
-          violation.id === 'aria-prohibited-attr' &&
-          node.html.includes('aria-label="Keepance"')
-        ) {
-          return false;
-        }
-        if (
-          violation.id === 'color-contrast' &&
-          (
-            node.target.some((target) =>
-              target.includes('open-existing-workspace') ||
-              target.includes('new-workspace') ||
-              target.includes('welcome-dialog-learn-more')
-            ) ||
-            node.html.includes('data-testid="welcome-dialog-learn-more"') ||
-            node.html.includes('data-testid="new-workspace-structure-preview"') ||
-            node.html.includes('Privacy</button>') ||
-            node.html.includes('Terms</button>') ||
-            JSON.stringify(node).includes('data-testid="open-existing-workspace"') ||
-            JSON.stringify(node).includes('data-testid="new-workspace"') ||
-            JSON.stringify(node).includes('data-testid="workspace-selector-dialog"')
-          )
         ) {
           return false;
         }
