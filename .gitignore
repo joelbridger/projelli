@@ -65,8 +65,9 @@ advisor-packet/
 # Local screenshots/assets (not for public repo)
 Assets/
 
-# Local Claude Code config
-.claude/
+# Local Claude Code config (but track shared project skills)
+.claude/*
+!.claude/skills/
 
 scripts/recordings/
 

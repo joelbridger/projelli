@@ -379,6 +379,16 @@ A pre-push hook runs typecheck + unit tests automatically before every push; byp
 
 ---
 
+## Project skills (this repo)
+
+A few Claude Code skills live under `.claude/skills/` (auto-discovered in any session here). Adapted from Matt Pocock's "skills for real engineers", trimmed to fit this repo:
+
+- **`diagnosing-bugs`** — for any bug or "this is broken / slow", prefer this over the generic global debug skill. Its rule: build the **smallest fast command, test, or test-bench action** that proves the bug is real and later proves it fixed, **before** theorizing. The ~60–90 min signed build is never that loop — use Vitest / `cargo test` / Playwright / the desktop harness / a real test-bench app.
+- **`tdd`** — the red-green habit for new features and fixes (one behavior test → implement → repeat). Tuned so it does not nag for permission; covers both Rust (`cargo test`) and the frontend (Vitest).
+- **`codebase-design`** *(installed globally)* — shared vocabulary for deep modules: small interface, real seam, test through the interface, avoid shallow pass-through modules. Reach for it when designing or refactoring on either the Rust or React side.
+
+---
+
 ## Changelog Updates
 
 **After EVERY implemented change, update CHANGELOG.md:**
