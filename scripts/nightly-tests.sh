@@ -112,6 +112,18 @@ run "Backend Bun tests"                   bash -c 'cd backend && bun test'
 if [[ "$DRY_RUN" -eq 0 ]]; then
   run "L1 browser E2E"    ./scripts/run-e2e-suite.sh en 6
   run "L2 desktop harness" npm run test:desktop
+
+  # ── Real-OS bench step (Windows + macOS) ─────────────────────────────────
+  # Runs cargo test on both always-on test machines via Tailscale and reports
+  # per-OS results. This step is INFORMATIONAL only: bench failures are handled
+  # by the bench script's own notify-jameson (with soft-fail escalation and a
+  # status file). We do NOT flip the local `fail` flag here — the parent
+  # runner's "nightly tests failed" alert stays reserved for the core Linux
+  # suites so Jameson never gets double-notified for the same outage.
+  echo ""
+  echo "##### Real-OS bench tests (Windows + macOS) #####"
+  bash "$HOME/keepance/scripts/nightly-bench-tests.sh" || true
+  echo "##### End bench step #####"
 fi
 
 # ── Result ───────────────────────────────────────────────────────────────────
