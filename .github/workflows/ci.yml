@@ -45,8 +45,16 @@ jobs:
       - name: ESLint regression gate (fails only on NEW errors/warnings)
         run: npm run lint:gate
 
-      - name: Unit tests
-        run: npm test -- --run
+      - name: Frontend unit tests + coverage floor (src/** only; Rust coverage is separate)
+        run: npm run test:coverage
+
+      - name: Upload frontend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: coverage/
+          retention-days: 14
 
   rust:
     runs-on: ubuntu-latest
