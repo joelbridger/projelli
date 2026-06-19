@@ -18,21 +18,38 @@ test.describe('v1.6 feature tour', () => {
 
     await expect(page.getByTestId('feature-tour-center')).toBeVisible({ timeout: 5000 });
 
-    // Use keyboard arrows + Enter — more reliable than clicking through
-    // anchored-bubble transitions in headless E2E.
-    for (let i = 0; i < 9; i++) {
+    // Advance with ArrowRight (avoids flaky anchored-bubble button clicks on the
+    // middle steps), but POLL for the last step's Finish control instead of a
+    // fixed number of presses — under full-suite load step transitions are slow
+    // enough that a fixed ArrowRight×N + Enter raced ahead and never reached the
+    // finish step, so the tour closed without persisting completion.
+    const finishBtn = page.getByTestId('feature-tour-finish');
+    for (let i = 0; i < 20; i++) {
+      if (await finishBtn.isVisible().catch(() => false)) break;
       await page.keyboard.press('ArrowRight');
-      await page.waitForTimeout(150);
+      await page.waitForTimeout(200);
     }
-    await page.keyboard.press('Enter');
+    // Finish via the explicit button: its onClick calls onComplete directly, so
+    // unlike pressing Enter it cannot lose to the keydown-listener rebind race.
+    await expect(finishBtn).toBeVisible({ timeout: 5000 });
+    await finishBtn.click();
 
     await expect(page.getByTestId('feature-tour-center')).not.toBeVisible({ timeout: 3000 });
 
-    const completed = await page.evaluate(() => {
-      const raw = localStorage.getItem('keepance:settings') ?? '{}';
-      return JSON.parse(raw).state?.featuresTourCompleted;
-    });
-    expect(completed).toBe(true);
+    // featuresTourCompleted is persisted asynchronously (Zustand persist), so
+    // poll rather than reading once — under parallel-suite load the write can
+    // land a tick after the tour closes (this is why the test flaked only at
+    // full-suite scale, never in isolation).
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const raw = localStorage.getItem('keepance:settings') ?? '{}';
+            return JSON.parse(raw).state?.featuresTourCompleted;
+          }),
+        { timeout: 5000 },
+      )
+      .toBe(true);
   });
 
   test('Esc skips the tour', async ({ page }) => {

@@ -237,3 +237,48 @@ ai-chat-viewer flow, then verify the end-to-end cited answer.**
 Real email-provider OAuth logins (Gmail/M365 connect), and the signed-build-only auto-updater
 *mechanism* (its browser-state UI is already tested). The native folder picker (open/create workspace)
 is a native OS dialog WebDriver can't drive — easiest to spot-check by hand on a real install.
+
+## Follow-up session (2026-06-19, later) — the three remaining items closed
+
+**1. `18-rag-cited-ask` — FIXED + PASS (stable, 4+ runs).** The blocker was three
+test-flow bugs, not the app: (a) it opened the seeded `.aichat` via a fragile text-xpath that
+clicked a non-opening container — switched to the proven `grid-card-<path>` testid; (b) the fixture
+asked a small local model for a "codeword in a classified document", which triggered a safety
+*refusal* — replaced with a benign "matter file number" lookup (`MARIGOLD-4820`); (c) the final
+assertion looked for a `tab-<absolute-path>` testid with `data-active`, but the Documents tab strip
+uses `role="tab"` + `aria-selected` chips — assert the selected tab's label instead; plus scroll the
+citation chip into view before clicking, and make the prompt + model pick deterministic (instruct an
+exact reply, prefer an 8B Ollama model) so the plumbing smoke test doesn't flake on local-model
+variance. The real pipeline is still fully exercised (retrieval runs; the app independently verifies
+the cited paragraph against the retrieved source). Commit `71e0e00`.
+
+**2. Browser (L1) suite — the "42 scale failures" were a MIX, both halves now resolved.**
+   - **~8 `v1.5-*` files were genuinely STALE** (failed even run alone): they navigated to the
+     pre-3.0 flat settings categories (`settings-category-memory`/`-mcp`/`-integrations`) the 3.0
+     redesign removed. Repaired to the current UI (Memory → Settings ▸ AI & Privacy ▸ Memory;
+     MCP/Ollama → the **Account ▸ Connections** window, which IS reachable in the browser harness, so
+     nothing was deleted; `flag-voice`/`canvas-stress` were already current). Verified passing in
+     isolation. Commit `d0ee063`.
+   - **The rest is real full-suite-scale interference** (pass alone, fail at the tail of one giant
+     run; a fresh dev server gives the identical count → cumulative memory/load, not stale state).
+     Fixed with a **batched runner** `scripts/run-e2e-suite.sh` (sequential shards) + doc
+     `docs/quality/e2e-suite-batching.md`. One genuinely-flaky test (`v1.6-feature-tour`) was hardened
+     to **poll** for the async-persisted `featuresTourCompleted` flag instead of reading it once.
+     **Full `en` suite now passes green via the batch runner (6 shards).**
+
+**3. Optional product fixes — BOTH done (Jameson asked for both).**
+   - **Accessibility:** the decorative logo's prohibited `aria-label` on a `<div>` → `role="img"`;
+     welcome-screen low-contrast text (slate-400 ≈ 2.8:1) → slate-600 (≈ 7:1, still light theme).
+     Both now ENFORCED in `accessibility.spec.ts` (their suppressions removed). The third item —
+     closeable document tabs inside an ARIA tablist — is a known hard ARIA case (a close `<button>`
+     can't nest in the tab `<button>`, and moving it into a `div[role=tab]` only trades
+     `aria-required-children` for `nested-interactive`; the whole suite also relies on the
+     tablist+button structure), so that ONE node keeps a tightly-scoped, documented suppression.
+     Commit `56b184b`.
+   - **Archive a matter (MATTER-12):** implemented. Optional `Matter.archived` flag +
+     `setMatterArchived` (clears the active selection if the active matter is archived) +
+     `useActiveMatters`/`useArchivedMatters` selectors (`useMatters` still returns ALL so RAG
+     resolution is unaffected). UI: per-matter Archive action + a collapsible "Archived" section with
+     Restore in the Matter Manager and Matters home; the chat scope picker excludes archived matters.
+     i18n added to en/es/de. Verified live (archive → matter leaves the active list → Archived section
+     → Restore) and by a new `archiveMatterUi` unit test. Commit `b912882`.
