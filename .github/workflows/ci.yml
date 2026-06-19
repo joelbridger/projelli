@@ -52,3 +52,27 @@ jobs:
 
       - name: Unit tests
         run: npm test -- --run
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+      - name: Install Linux/webkit deps
+        run: sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2
+      - name: Build sidecar dep stubs (protoc available)
+        run: protoc --version
+      - name: cargo test (hermetic; ignored/live/stress tests excluded by default)
+        working-directory: ./src-tauri
+        env:
+          CI: '1'
+        run: cargo test --workspace --locked
