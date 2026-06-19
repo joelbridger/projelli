@@ -134,15 +134,12 @@ async function seedRecentWorkspaceAndForceOnboarding(session, workspace) {
   );
 }
 
-async function openSeededRecentWorkspace(session, app) {
+async function openSeededRecentWorkspace(session, _app) {
   await session.testid('workspace-selector-dialog', 30_000);
   await session.clickTestid('recent-workspaces-toggle', 15_000);
-  const recent = await session.find(
-    'xpath',
-    `//button[.//div[normalize-space()=${app.xpathLiteral(WORKSPACE_NAME)}]]`,
-    20_000,
-  );
-  await session.click(recent);
+  // After onboarding the recent entry shows under the real workspace folder name,
+  // not the seeded display name, so open the recent row by its testid.
+  await session.clickTestid('recent-workspace-row', 20_000);
   await session.testid('spine-nav', 45_000);
   await session.testid('status-bar', 15_000);
   await session.maybeClickTestid('feature-tour-skip');
@@ -189,18 +186,22 @@ async function claimOrgThroughUi(session) {
   await session.typeTestid('firm-claim-org-name', CLAIM_ORG_NAME, 15_000);
   await session.clickTestid('firm-claim-submit', 15_000);
 
+  // A successful claim in onboarding lands on the firm-admin console
+  // (firm-admin-content). The transient firm-claim-success message is quickly
+  // replaced by it, so accept either. firm-email-display + the seat tools live on
+  // the Account-window Firm tab and are verified there after onboarding.
   await session.waitFor(
-    async (s) => (await s.hasTestid('firm-claim-success', 500)) || (await s.hasTestid('firm-claim-error', 500)),
-    { timeoutMs: 30_000, label: 'org claim success or error' },
+    async (s) =>
+      (await s.hasTestid('firm-admin-content', 500)) ||
+      (await s.hasTestid('firm-claim-success', 500)) ||
+      (await s.hasTestid('firm-claim-error', 500)),
+    { timeoutMs: 30_000, label: 'firm claim admin console or error' },
   );
   if (await session.hasTestid('firm-claim-error', 500)) {
     const body = await session.bodyText();
     throw new Error(`firm org claim failed in UI. Visible body:\n${body}`);
   }
-
-  await session.testid('firm-email-display', 20_000);
-  await session.waitForBodyText(CLAIM_EMAIL, { timeoutMs: 15_000 });
-  await session.waitForBodyText(CLAIM_ORG_NAME, { timeoutMs: 15_000 });
+  await session.testid('firm-admin-content', 20_000);
 }
 
 async function activateSeatThroughUi(session) {
@@ -272,10 +273,11 @@ export default {
     log(`Provisioned disposable local org ${CLAIM_ORG_NAME} with license ${CLAIM_LICENSE_KEY}.`);
 
     await claimOrgThroughUi(session);
-    await activateSeatThroughUi(session);
     await finishOnboardingAndOpenWorkspace(session, app);
 
+    // Seat activation + the full firm console live in the Account window Firm tab.
     await openAccountFirmTab(session);
+    await activateSeatThroughUi(session);
     await assertFirmHydrated(session);
 
     await session.close();

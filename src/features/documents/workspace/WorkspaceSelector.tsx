@@ -99,6 +99,7 @@ function RecentWorkspacesSection({
             {visible.map((workspace) => (
               <li key={workspace.path}>
                 <button
+                  data-testid="recent-workspace-row"
                   className="w-full px-4 py-3 text-left transition-colors hover:bg-slate-50"
                   disabled={isLoading || !isTauri}
                   onClick={() => onOpen(workspace.path)}

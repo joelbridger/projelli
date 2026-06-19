@@ -149,13 +149,14 @@ After mounting the vault UI, an independent Codex review of the session diff sur
   `KeychainService` mock (needed the new migration export). All fixed. **Suite: 3306 passed / 3 skipped
   / 0 failed.**
 
-### Final L2 board: 8 PASS · 1 FAIL · 3 BLOCKED
+### Final L2 board: 9 PASS · 1 FAIL · 2 BLOCKED (with the local firm backend running)
 
-Against a debug binary rebuilt to current source (the honest artifact). Every high-risk journey this
-campaign targeted is green; the remaining 1 FAIL + 3 BLOCKED are infra gaps, not product bugs.
+Against a debug binary rebuilt to current source (the honest artifact). 8 pass with no setup; `20-firm`
+makes 9 once `./scripts/run-firm-backend-local.sh` is up (it BLOCKs honestly otherwise). The remaining
+1 FAIL + 2 BLOCKED are infra gaps, not product bugs.
 
-- **PASS (8):** `00`, `10`, `11`, `12-vault`, `13-workflows`, `14`, `16`, `19`. Zero process leak after
-  the run; the three other-service 1280x1024 Xvfb stayed up.
+- **PASS (9 w/ firm backend):** `00`, `10`, `11`, `12-vault`, `13-workflows`, `14`, `16`, `19`,
+  `20-firm`. Zero process leak after the run; the three other-service 1280x1024 Xvfb stayed up.
 - **`11-trash` — FIXED (now 4/4 stable).** Was flaky with *varying* errors ("Trash button not found",
   "stale element reference") — spec races, not a product bug. Hardened like `10`: the row-menu and
   trash-action helpers now retry (were single-shot `execute`s); `activateFilesView`/`activateTrashView`
@@ -169,30 +170,21 @@ campaign targeted is green; the remaining 1 FAIL + 3 BLOCKED are infra gaps, not
   llama3.2:3b workflow, ~48s). The "stale binary" theory was a red herring.
 - **BLOCKED (honest infra):** `15` (native folder picker — desktop-only-manual, can't be driven by
   WebDriver), `17` (live OAuth — needs real creds + the L3 `*_live_import` harnesses).
-- **`20-firm` — backend path PROVEN, spec needs a flow rewrite (no 2nd port after all).** Starting
-  `./scripts/run-firm-backend-local.sh` (:5290) un-blocks it: the Vite `/api/firm` proxy forwards to the
-  backend by default (verified), and the **org-claim UI succeeds** — the app signs in as firm admin and
-  shows the onboarding firm console. The spec times out only because its post-claim assertions
-  (`firm-email-display`, then the seat-activation selectors) target the *Account-window* FirmSignIn
-  component, but the post-claim surface here is the **onboarding "Your firm" console** (firm-name field
-  + Matters/Seats/SSO), a different layout. The run() is single-instance (claim → seat → onboarding →
-  reopen → hydrate), so the earlier "needs a 2nd driver port" note was wrong.
-  **Follow-up — the exact rewrite map** (verified by partial-rewriting + running it through each step;
-  reverted to keep the spec clean):
-  1. **Claim success indicator** = `firm-admin-content` testid (the onboarding "You are signed in as a
-     firm admin" console), NOT `firm-email-display`. Wait for `firm-admin-content || firm-claim-error`.
-  2. **Org-name check**: the claimed org name appears as a *placeholder* in the `firm-branding-name`
-     input, not as page text — don't assert it via `waitForBodyText`. `firm-admin-content` is enough.
-  3. **Re-open after onboarding**: `openSeededRecentWorkspace` looks for the workspace by the seeded
-     `WORKSPACE_NAME` (`firm-lifecycle-<id>`), but after onboarding the recent entry shows under the
-     real temp-dir name **`workspace`** (the `KP_WORKSPACE` basename) — match that (or click the only
-     recent row) instead.
-  4. **Seat activation is a different screen**: `firm-license-key`/`firm-machine-label`/
-     `firm-activate-submit`/`firm-seat-status`/`firm-seat-id` live in the **Account-window Firm tab**
-     (`FirmSignIn.tsx`), not onboarding. So reorder run() to: claim → `finishOnboardingAndOpenWorkspace`
-     → `openAccountFirmTab` → `activateSeatThroughUi` → `assertFirmHydrated`.
-  5. Not yet reached/verified beyond step 3: the Account-tab seat-activation + hydration steps may need
-     their own selector touch-ups. Start `run-firm-backend-local.sh` first; the feature itself works.
+- **`20-firm` — FIXED (PASS, 3/3 stable, ~10s) when the firm backend is running.** Start
+  `./scripts/run-firm-backend-local.sh` (:5290) and the spec drives the whole real journey: provision a
+  disposable org → claim it in the app → finish onboarding → reopen the workspace → activate a paid seat
+  in the Account window → confirm the firm + seat hydrate back, including after a full close/reopen. The
+  Vite `/api/firm` proxy forwards to :5290 by default. The spec rewrite that got it there:
+  1. **Claim success** = the `firm-admin-content` console (onboarding "signed in as a firm admin"), not
+     the Account-window `firm-email-display`.
+  2. Dropped the body-text org-name check (the name is a placeholder in the `firm-branding-name` input).
+  3. `openSeededRecentWorkspace` clicks the recent row by a new `recent-workspace-row` testid (the
+     post-onboarding entry shows under the real folder name, not the seeded one).
+  4. Reordered run() so seat activation happens in the **Account-window Firm tab** (`FirmSignIn` —
+     `firm-license-key`/`firm-activate-submit`/`firm-seat-status`), not onboarding: claim →
+     finishOnboarding → openAccountFirmTab → activateSeat → assertHydrated.
+  The two-instance co-editing / ethical-wall path is still a separate, larger harness add (needs a 2nd
+  driver port) — out of scope for this single-instance lifecycle spec.
 - **`18-rag` FAIL** is the one deep item: its `model_ensure` downloads the 470MB e5-small model into
   each isolated profile's app-data (a host prefetch into `resources/embeddings/` doesn't satisfy the
   per-profile path), and the cited-ask chat-viewer flow needs the model ready first. A real harness
