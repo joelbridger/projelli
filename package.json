@@ -29,6 +29,7 @@
     "gate": "bash scripts/gate.sh",
     "gate:full": "bash scripts/gate.sh --full",
     "lint:gate": "node scripts/eslint-gate.mjs",
+    "prepare": "bash scripts/install-git-hooks.sh || true",
     "i18n:check": "node ./node_modules/.bin/i18next --config i18next-parser.check.config.js --fail-on-warnings",
     "i18n:extract": "node ./node_modules/.bin/i18next --config i18next-parser.config.js",
     "extract-i18n": "node ./node_modules/.bin/i18next --config i18next-parser.config.js",

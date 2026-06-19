@@ -369,6 +369,14 @@ npm run test:coverage     # With coverage
 npx playwright test       # E2E
 ```
 
+### Gate (full pre-merge / pre-release check):
+```bash
+npm run gate        # typecheck + i18n + vitest + ESLint + Rust cargo tests
+npm run gate:full   # also runs browser E2E + desktop harness (slow)
+```
+
+A pre-push hook runs typecheck + unit tests automatically before every push; bypass for docs-only pushes with `git push --no-verify`.
+
 ---
 
 ## Changelog Updates

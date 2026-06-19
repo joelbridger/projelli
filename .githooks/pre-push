@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Fast pre-push gate. Skip with: git push --no-verify (use sparingly).
+set -uo pipefail
+echo "pre-push: fast gate (typecheck + unit tests)…"
+npm run typecheck || { echo "❌ typecheck failed — push blocked"; exit 1; }
+npx vitest run    || { echo "❌ unit tests failed — push blocked"; exit 1; }
+echo "✅ fast gate passed"
