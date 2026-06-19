@@ -89,7 +89,9 @@ export async function openAIAssistantPane(page: Page) {
  * Navigate to a sidebar tab
  */
 export async function openSidebarTab(page: Page, tabId: string) {
-  const tab = page.getByTestId(`sidebar-tab-${tabId}`);
+  const tab = page
+    .getByTestId(`spine-nav-${tabId}`)
+    .or(page.getByTestId(`sidebar-tab-${tabId}`));
   await hardClick(tab);
 }
 

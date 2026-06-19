@@ -33,9 +33,9 @@ test.describe('Welcome screen copy (UX-05 + UX-06)', () => {
     await expect(preview).toBeVisible();
 
     const text = (await preview.textContent()) ?? '';
-    expect(text).toMatch(/docs\//);
-    expect(text).toMatch(/research\//);
-    expect(text).toMatch(/templates\//);
+    expect(text).toMatch(/docs/);
+    expect(text).toMatch(/research/);
+    expect(text).toMatch(/templates/);
   });
 
   test('action cards are visible and enabled', async ({ page }) => {

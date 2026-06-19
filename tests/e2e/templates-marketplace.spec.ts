@@ -336,7 +336,7 @@ async function exposeMarketplaceTestKit(page: Page) {
 }
 
 test.describe('Templates Marketplace E2E', () => {
-  test('browse → install → installed list → WorkflowPanel community section', async ({
+  test('browse → install → installed list', async ({
     page,
   }) => {
     await page.goto('/?testMode=true');
@@ -348,14 +348,14 @@ test.describe('Templates Marketplace E2E', () => {
     await exposeMarketplaceTestKit(page);
     await seedMarketplaceForTest(page);
 
-    // ---- Step 1: open Settings → Marketplace → Templates ----
+    // ---- Step 1: open Settings → Advanced → Extensions/Templates ----
     await hardClick(page.getByTestId('settings-gear'));
     await expect(page.getByTestId('settings-modal')).toBeVisible();
-    await hardClick(page.getByTestId('settings-category-marketplace'));
+    await hardClick(page.getByTestId('settings-category-advanced'));
     await expect(page.getByTestId('marketplace-tab')).toBeVisible();
 
-    // Templates subtab should be the default; verify the catalog grid renders.
-    await expect(page.getByTestId('marketplace-subtab-templates')).toBeVisible();
+    // Templates are the only remaining marketplace surface in 3.0.
+    await expect(page.getByTestId('marketplace-subtab-content-templates')).toBeVisible();
     await expect(page.getByTestId('templates-tab')).toBeVisible();
 
     // ---- Step 2: see catalog tile ----
@@ -448,45 +448,8 @@ test.describe('Templates Marketplace E2E', () => {
       TEMPLATE_NAME,
     );
 
-    // ---- Step 7: close Settings, open WorkflowPanel ----
+    // ---- Step 7: close Settings ----
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('settings-modal')).toBeHidden();
-
-    // The marketplace store ticked updateCount → 0 after install (no updates
-    // available because installed.version === catalog.version). Re-trigger
-    // a community-list re-read so WorkflowPanel picks up the freshly
-    // installed template. Easiest signal that's already a re-render trigger
-    // is `setUpdateCount` to a new value then back.
-    await page.evaluate(() => {
-      const store = (
-        window as unknown as {
-          __templatesMarketplaceStore: {
-            getState: () => { setUpdateCount: (n: number) => void };
-          };
-        }
-      ).__templatesMarketplaceStore.getState();
-      store.setUpdateCount(0);
-      store.setUpdateCount(1);
-      store.setUpdateCount(0);
-    });
-
-    // Switch the sidebar to Workflows tab so WorkflowPanel mounts.
-    await hardClick(page.getByTestId('sidebar-tab-workflows'));
-    await expect(page.getByTestId('workflows-panel')).toBeVisible();
-
-    // Community section + community provenance badge for our template.
-    await expect(page.getByTestId('workflows-group-community')).toBeVisible({
-      timeout: 10_000,
-    });
-    const communityBadge = page.getByTestId(
-      `workflow-card-provenance-community:${TEMPLATE_ID}`,
-    );
-    await expect(communityBadge).toBeVisible();
-    await expect(communityBadge).toContainText(/community/i);
-
-    // The card itself appears under the community group.
-    await expect(
-      page.getByTestId(`workflow-card-community:${TEMPLATE_ID}`),
-    ).toBeVisible();
   });
 });

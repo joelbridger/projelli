@@ -9,6 +9,9 @@
 
 import { test, expect } from '@playwright/test';
 import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
+import { currentChangelog } from '../../src/content/changelog';
+
+const CURRENT_CHANGELOG_VERSION = currentChangelog()?.version ?? '0.0.0';
 
 test.describe("What's new toast (UX-20)", () => {
   test('first-time user sees no toast', async ({ page }) => {
@@ -83,16 +86,14 @@ test.describe("What's new toast (UX-20)", () => {
   });
 
   test('same version shows nothing', async ({ page }) => {
-    // Inject a matching version. We use the package.json version because
-    // that's what we pinned the changelog to. If the numbers diverge the
-    // test will legitimately fail.
-    await page.addInitScript(() => {
+    // Inject the same version the app reads from the bundled changelog.
+    await page.addInitScript((version) => {
       try {
-        localStorage.setItem('keepance:lastSeenVersion', '1.0.7');
+        localStorage.setItem('keepance:lastSeenVersion', version);
       } catch {
         /* no-op */
       }
-    });
+    }, CURRENT_CHANGELOG_VERSION);
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 

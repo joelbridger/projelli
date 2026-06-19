@@ -94,8 +94,8 @@ async function installTauriMock(
 }
 
 test.describe('PowerPoint Viewer (Phase 6)', () => {
-  test('browser: shows desktop-only fallback with download button', async ({ page }) => {
-    // No Tauri mock — real browser. `isTauriEnvironment()` returns false.
+  test('browser: shows basic slide preview fallback', async ({ page }) => {
+    // No Tauri mock: the browser uses the pure-JS basic preview path.
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
@@ -108,17 +108,13 @@ test.describe('PowerPoint Viewer (Phase 6)', () => {
     const viewer = page.getByTestId('presentation-viewer');
     await expect(viewer).toBeVisible({ timeout: 20_000 });
 
-    // Browser branch: no install message, no loading spinner visible after
-    // mount, just a Download File button.
-    await expect(viewer).toContainText('only available in the Keepance desktop app');
+    await expect(page.getByTestId('presentation-fallback-banner')).toBeVisible();
+    await expect(page.getByTestId('fallback-slide-1')).toContainText('Q1 Review');
+    await expect(page.getByTestId('fallback-slide-2')).toContainText('Revenue');
     await expect(page.getByTestId('presentation-install-libreoffice')).toHaveCount(0);
-
-    const download = page.getByRole('button', { name: 'Download File' });
-    await expect(download).toBeVisible();
-    await expect(download).toBeEnabled();
   });
 
-  test('tauri + libreoffice NOT detected: shows install message, no Try again', async ({
+  test('tauri + libreoffice NOT detected: shows basic slide preview, no conversion', async ({
     page,
   }) => {
     await installTauriMock(page, {
@@ -137,17 +133,14 @@ test.describe('PowerPoint Viewer (Phase 6)', () => {
     const viewer = page.getByTestId('presentation-viewer');
     await expect(viewer).toBeVisible({ timeout: 20_000 });
 
-    await expect(page.getByTestId('presentation-install-libreoffice')).toBeVisible({
+    await expect(page.getByTestId('presentation-fallback-banner')).toBeVisible({
       timeout: 10_000,
     });
+    await expect(page.getByTestId('fallback-slide-1')).toContainText('Q1 Review');
+    await expect(page.getByTestId('presentation-install-libreoffice')).toHaveCount(0);
 
-    // libreoffice.org link present + download hatch
-    const link = page.getByRole('link', { name: /libreoffice\.org/i });
-    await expect(link).toBeVisible();
-    const download = page.getByRole('button', { name: 'Download File' });
-    await expect(download).toBeVisible();
-
-    // The conversion command should NOT be invoked when detection returned null.
+    // The conversion command should NOT be invoked when detection returned null;
+    // the viewer uses the basic preview instead.
     const invokeCalls = await page.evaluate(
       () => (window as unknown as { __invokeCalls?: string[] }).__invokeCalls ?? []
     );
