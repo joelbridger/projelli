@@ -43,6 +43,30 @@ use keepance_lib::commands::rag::{RetrievalScope, Verdict};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
+/// Returns true when the e5-small model cache is provisioned and the embedder
+/// can initialize. Uses the same path resolution as the production embedder so
+/// the check is identical to what the app sees at runtime.
+fn model_is_provisioned() -> bool {
+    use keepance_lib::commands::rag::embedder::resolve_cache_dir;
+    use keepance_lib::commands::rag::model_download::model_files_cached;
+    model_files_cached(&resolve_cache_dir())
+}
+
+/// Skip a model-dependent test when the e5-small cache is absent.
+/// CI runners do not have the model; local dev and the nightly server job do.
+macro_rules! skip_without_model {
+    () => {
+        if !model_is_provisioned() {
+            eprintln!(
+                "SKIP {}: e5-small model cache not provisioned \
+                 (expected on CI; runs locally/nightly)",
+                module_path!()
+            );
+            return;
+        }
+    };
+}
+
 const MATTER_ACME: &str = "matter-acme";
 const MATTER_GLOBEX: &str = "matter-globex";
 /// Fixed vector-store key for ALL rows (documents + mail), so the tests never
@@ -265,6 +289,7 @@ async fn embed(query: &str) -> Vec<f32> {
 
 #[tokio::test]
 async fn p1_document_query_returns_exact_source_with_citation() {
+    skip_without_model!();
     let f = fixture().await;
     let q = embed("what is the purchase price in the share purchase agreement").await;
     // Unscoped here just to confirm recall of the right document; isolation is P2.
@@ -281,6 +306,7 @@ async fn p1_document_query_returns_exact_source_with_citation() {
 
 #[tokio::test]
 async fn p1_email_source_is_retrievable_and_carries_matter_scope() {
+    skip_without_model!();
     let f = fixture().await;
     // Wire/routing content lives only in an email; confirm mail chunks are
     // reachable and carry matter_id + a "mail:" source_id.
@@ -301,6 +327,7 @@ async fn p1_email_source_is_retrievable_and_carries_matter_scope() {
 
 #[tokio::test]
 async fn p2_scoped_query_returns_only_in_scope_matter() {
+    skip_without_model!();
     let f = fixture().await;
     let q = embed("deposit and security at closing").await;
     let hits = nearest(&f.table, &q, 8, Some(MATTER_ACME), false).await.expect("retrieve");
@@ -318,6 +345,7 @@ async fn p2_scoped_query_returns_only_in_scope_matter() {
 
 #[tokio::test]
 async fn p2_adversarial_confusable_term_does_not_leak_across_matters() {
+    skip_without_model!();
     let f = fixture().await;
     // THE ADVERSARIAL CASE: "closing date" appears in near-identical phrasing in
     // BOTH acme-spa (March 14) and globex-lease (September 2). Pure similarity
@@ -366,6 +394,7 @@ async fn p2_adversarial_confusable_term_does_not_leak_across_matters() {
 
 #[tokio::test]
 async fn p2_isolation_holds_with_large_top_k_covering_whole_corpus() {
+    skip_without_model!();
     let f = fixture().await;
     // Asking for far more rows than the matter contains must never spill into the
     // other matter (the prefilter shrinks the candidate set; it does not pad from
@@ -440,6 +469,7 @@ async fn verify(table: &lancedb::Table, id: &str, claimed: &str, quoted: &str) -
 
 #[tokio::test]
 async fn p3_valid_citation_verifies() {
+    skip_without_model!();
     let f = fixture().await;
     let q = embed("purchase price share purchase agreement").await;
     let hits = nearest(&f.table, &q, 3, Some(MATTER_ACME), false).await.unwrap();
@@ -456,6 +486,7 @@ async fn p3_valid_citation_verifies() {
 
 #[tokio::test]
 async fn p3_fabricated_chunk_id_is_not_found() {
+    skip_without_model!();
     let f = fixture().await;
     let verdict = verify(
         &f.table,
@@ -469,6 +500,7 @@ async fn p3_fabricated_chunk_id_is_not_found() {
 
 #[tokio::test]
 async fn p3_misquoted_text_fails_verification() {
+    skip_without_model!();
     let f = fixture().await;
     let q = embed("purchase price").await;
     let hits = nearest(&f.table, &q, 3, Some(MATTER_ACME), false).await.unwrap();
@@ -485,6 +517,7 @@ async fn p3_misquoted_text_fails_verification() {
 
 #[tokio::test]
 async fn p3_citation_against_wrong_matter_is_rejected() {
+    skip_without_model!();
     let f = fixture().await;
     // A real Globex chunk, but the citation claims it is an Acme chunk. Even if
     // the quote would match, the cross-matter claim must be rejected.
@@ -504,6 +537,7 @@ async fn p3_citation_against_wrong_matter_is_rejected() {
 
 #[tokio::test]
 async fn p3_scoped_lookup_is_prefiltered_not_postfiltered() {
+    skip_without_model!();
     let f = fixture().await;
     // PREFILTER-NOT-POSTFILTER regression at the lookup layer: a chunk that
     // exists under Globex must be INVISIBLE to a lookup scoped to Acme — i.e. the
@@ -532,6 +566,7 @@ async fn p3_scoped_lookup_is_prefiltered_not_postfiltered() {
 
 #[tokio::test]
 async fn scoped_query_uses_prefilter_excludes_out_of_scope_from_candidate_set() {
+    skip_without_model!();
     let f = fixture().await;
     // Construct a query vector pointed at Globex's closing content, then scope to
     // Acme with a tiny top_k=1. If scoping were a POSTFILTER (search first, then
@@ -585,6 +620,7 @@ async fn migration_marker_round_trips_and_gates_reindex() {
 
 #[tokio::test]
 async fn unassigned_sentinel_is_scopeable() {
+    skip_without_model!();
     // Content indexed under the UNASSIGNED sentinel must be findable when scoped
     // to "unassigned" and excluded from a real matter's scope — proving the
     // sentinel behaves like any other matter (never a wildcard).
@@ -617,6 +653,7 @@ async fn unassigned_sentinel_is_scopeable() {
 
 #[tokio::test]
 async fn priv_privileged_doc_is_not_returned_by_default_even_when_top_hit() {
+    skip_without_model!();
     let f = fixture().await;
     // ADVERSARIAL: this query targets the attorney-client privileged strategy memo
     // far more directly than any non-privileged Acme doc.
@@ -657,6 +694,7 @@ async fn priv_privileged_doc_is_not_returned_by_default_even_when_top_hit() {
 
 #[tokio::test]
 async fn priv_include_privileged_true_returns_privileged_content() {
+    skip_without_model!();
     let f = fixture().await;
     let q = embed("attorney-client privileged litigation strategy memo settlement range").await;
     // Opt-in: the privileged memo is retrievable and correctly labelled.
@@ -671,6 +709,7 @@ async fn priv_include_privileged_true_returns_privileged_content() {
 
 #[tokio::test]
 async fn priv_work_product_excluded_by_default_included_on_opt_in() {
+    skip_without_model!();
     let f = fixture().await;
     let q = embed("attorney work product mental impressions litigation theory CAM overcharges").await;
 
@@ -699,6 +738,7 @@ async fn priv_work_product_excluded_by_default_included_on_opt_in() {
 
 #[tokio::test]
 async fn priv_exclusion_holds_with_large_top_k() {
+    skip_without_model!();
     let f = fixture().await;
     // Even asking for the whole corpus, default retrieval never pads with a
     // privileged row to reach the limit.
@@ -721,6 +761,7 @@ async fn priv_exclusion_holds_with_large_top_k() {
 
 #[tokio::test]
 async fn priv_default_excludes_privileged_even_cross_matter() {
+    skip_without_model!();
     let f = fixture().await;
     // Cross-matter (AllMatters → scope None) is still privilege-excluded by default:
     // a conflicts-style search across every matter must not surface privileged docs.
@@ -737,6 +778,7 @@ async fn priv_default_excludes_privileged_even_cross_matter() {
 
 #[tokio::test]
 async fn priv_composed_prefilter_is_matter_and_privilege() {
+    skip_without_model!();
     // REGRESSION: the retrieval predicate is the composition of matter AND
     // privilege, built by build_retrieval_predicate. This is the standing guard
     // that the two boundaries are AND-ed into a single prefilter (not applied as
@@ -778,6 +820,7 @@ async fn priv_composed_prefilter_is_matter_and_privilege() {
 
 #[tokio::test]
 async fn priv_retag_flips_exclusion_in_place() {
+    skip_without_model!();
     // WS-PRIV: retag_privilege_for_path flips a source from non-privileged to
     // privileged in place (no re-embed), and that immediately changes whether it
     // is returned by default retrieval.
@@ -840,6 +883,7 @@ async fn priv_retag_flips_exclusion_in_place() {
 /// data into .lance fragment files), recursively, for the secret bytes.
 #[tokio::test]
 async fn vec_chunk_text_is_encrypted_on_disk() {
+    skip_without_model!();
     let dir = tempfile::tempdir().unwrap();
     let conn = store::open_connection(dir.path()).await.unwrap();
     let table = store::open_or_create_table(&conn).await.unwrap();
@@ -885,6 +929,7 @@ async fn vec_chunk_text_is_encrypted_on_disk() {
 /// does) yields the exact original plaintext fact.
 #[tokio::test]
 async fn vec_retrieval_returns_correct_decrypted_text() {
+    skip_without_model!();
     let f = fixture().await;
     let q = embed("what is the purchase price in the share purchase agreement").await;
     let hits = nearest(&f.table, &q, 5, Some(MATTER_ACME), false).await.unwrap();
