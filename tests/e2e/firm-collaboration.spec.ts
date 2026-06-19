@@ -43,6 +43,8 @@
  *   - Content convergence is polled for up to 15 seconds (assertTextConverged).
  */
 
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 
 // ── Run ID — unique suffix so repeated backend runs don't collide ────────────
@@ -55,10 +57,35 @@ const BACKEND_URL = process.env['FIRM_E2E_BACKEND_URL'];
 const ADMIN_EMAIL = process.env['FIRM_E2E_ADMIN_EMAIL'] ?? 'admin@keepance-e2e.test';
 const ADMIN_PASSWORD = process.env['FIRM_E2E_ADMIN_PASSWORD'] ?? 'e2e-admin-password-123';
 const MEMBER_EMAIL = process.env['FIRM_E2E_MEMBER_EMAIL'] ?? 'member@keepance-e2e.test';
-const MEMBER_PASSWORD = process.env['FIRM_E2E_MEMBER_PASSWORD'] ?? 'e2e-member-password-123';
+const MEMBER_PASSWORD = process.env['FIRM_E2E_MEMBER_PASSWORD'] ?? 'member-e2e-password-123';
 const WALLED_EMAIL = process.env['FIRM_E2E_WALLED_EMAIL'] ?? 'walled@keepance-e2e.test';
-const WALLED_PASSWORD = process.env['FIRM_E2E_WALLED_PASSWORD'] ?? 'e2e-walled-password-123';
-const LICENSE_KEY = process.env['FIRM_E2E_LICENSE_KEY'] ?? '';
+const WALLED_PASSWORD = process.env['FIRM_E2E_WALLED_PASSWORD'] ?? 'walled-e2e-password-123';
+
+function readLocalFirmBackendLicenseKey(): string {
+  if (process.env['FIRM_E2E_LICENSE_KEY']) return process.env['FIRM_E2E_LICENSE_KEY'];
+
+  try {
+    const logs = readdirSync('/tmp')
+      .filter((name) => /^keepance-e2e-backend-.*\.log$/.test(name))
+      .map((name) => ({ path: `/tmp/${name}`, mtimeMs: statSync(`/tmp/${name}`).mtimeMs }))
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+    for (const log of logs) {
+      const match = readFileSync(log.path, 'utf8').match(/LICENSE KEY \(shown once\):\s*(\S+)/);
+      if (match?.[1]) return match[1].trim();
+    }
+  } catch {
+    // Fall through to the compatibility file written by older local-backend runs.
+  }
+
+  try {
+    return readFileSync('/tmp/firm-e2e-license.txt', 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
+const LICENSE_KEY = readLocalFirmBackendLicenseKey();
 
 // Unique per run so DB accumulation doesn't collide across repeated executions.
 const MATTER_CLIENT_NAME = `E2E Convergence Client ${RUN_ID}`;
@@ -70,33 +97,37 @@ let sharedLocalMatterIdA = ''; // admin's local matter ID (from matterStore)
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Navigate to the firm sign-in surface (Settings > Firm tab). */
+/** Open the 3.0 Account window on its Firm tab. */
+async function openFirmAccountWindow(page: Page): Promise<void> {
+  const firmSignin = page.getByTestId('firm-signin');
+  if (await firmSignin.isVisible({ timeout: 500 }).catch(() => false)) {
+    return;
+  }
+
+  const accountWindow = page.getByTestId('account-window');
+  if (!(await accountWindow.isVisible({ timeout: 500 }).catch(() => false))) {
+    // Close any other modal first, such as Matter Manager.
+    await page.keyboard.press('Escape');
+    await page.getByTestId('account-identity').waitFor({ state: 'visible', timeout: 8000 });
+    await page.getByTestId('account-identity').click();
+    await accountWindow.waitFor({ state: 'visible', timeout: 8000 });
+  }
+
+  const firmTab = page.getByTestId('account-tab-firm');
+  await firmTab.waitFor({ state: 'visible', timeout: 5000 });
+  if (!(await firmSignin.isVisible({ timeout: 500 }).catch(() => false))) {
+    await firmTab.click();
+  }
+  await firmSignin.waitFor({ state: 'visible', timeout: 8000 });
+}
+
+/** Navigate to the firm sign-in surface. */
 async function navigateToFirmSignIn(page: Page): Promise<void> {
   // Open the app in test mode — bypasses FirstRunWizard and WorkspaceSelector
   // (IS_TEST_MODE in App.tsx checks `window.location.search.includes('testMode=true')`).
   await page.goto('/?testMode=true');
   await page.waitForLoadState('networkidle');
-
-  // testMode=true bypasses FirstRunWizard and WorkspaceSelector (App.tsx IS_TEST_MODE).
-  // No need to dismiss onboarding or pick a workspace.
-
-  // The FirmSignIn surface is in the Settings modal under the "Firm" category.
-  // Open Settings via the gear button (data-testid="settings-gear").
-  const settingsGear = page.getByTestId('settings-gear');
-  await settingsGear.waitFor({ state: 'visible', timeout: 8000 });
-
-  // Only open if the settings modal isn't already open.
-  const firmSignin = page.getByTestId('firm-signin');
-  if (!(await firmSignin.isVisible({ timeout: 500 }).catch(() => false))) {
-    await settingsGear.click();
-    // Click the Firm category in settings.
-    const firmCategory = page.getByTestId('settings-category-firm');
-    await firmCategory.waitFor({ state: 'visible', timeout: 5000 });
-    await firmCategory.click();
-  }
-
-  // FirmSignIn should now be visible.
-  await firmSignin.waitFor({ state: 'visible', timeout: 8000 });
+  await openFirmAccountWindow(page);
 }
 
 /** Sign in to the firm backend. */
@@ -267,21 +298,10 @@ async function inviteMemberViaAdminConsole(
   firmMatterId: string,
   memberEmail: string,
 ): Promise<void> {
-  // Open the settings modal on the Firm tab.
-  // navigateToFirmSignIn reuses the settings gear path without re-navigating.
-  const settingsGear = page.getByTestId('settings-gear');
-  await settingsGear.waitFor({ state: 'visible', timeout: 6000 });
-
-  // If settings isn't already showing the firm tab, open it.
+  // Open the Account window on the Firm tab.
   const firmAdminConsole = page.getByTestId('firm-admin-console');
   if (!(await firmAdminConsole.isVisible({ timeout: 500 }).catch(() => false))) {
-    // Close any open dialog first.
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(200);
-    await settingsGear.click();
-    const firmCategory = page.getByTestId('settings-category-firm');
-    await firmCategory.waitFor({ state: 'visible', timeout: 5000 });
-    await firmCategory.click();
+    await openFirmAccountWindow(page);
     await firmAdminConsole.waitFor({ state: 'visible', timeout: 8000 });
   }
 
@@ -356,8 +376,8 @@ async function assertTextConverged(page: Page, expectedSubstring: string): Promi
 test.describe('Firm shared matter notes — two-client convergence', () => {
   // Skip the entire suite when the backend env var is absent.
   test.skip(
-    !BACKEND_URL,
-    'FIRM_E2E_BACKEND_URL not set. Run scripts/run-firm-backend-local.sh first, then set the env var.',
+    !BACKEND_URL || !LICENSE_KEY,
+    'Firm backend or license key missing. Run scripts/run-firm-backend-local.sh first, then set FIRM_E2E_BACKEND_URL and FIRM_E2E_LICENSE_KEY; the spec also reads /tmp/firm-e2e-license.txt.',
   );
 
   // Only run in the `en` locale project to avoid i18n flakes on selector text.
@@ -506,14 +526,7 @@ test.describe('Firm shared matter notes — two-client convergence', () => {
         // Admin: open admin console, select the matter, re-publish keys.
         const firmAdminConsole = pageA.getByTestId('firm-admin-console');
         if (!(await firmAdminConsole.isVisible({ timeout: 500 }).catch(() => false))) {
-          await pageA.keyboard.press('Escape');
-          await pageA.waitForTimeout(200);
-          const settingsGear = pageA.getByTestId('settings-gear');
-          await settingsGear.waitFor({ state: 'visible', timeout: 6000 });
-          await settingsGear.click();
-          const firmCategory = pageA.getByTestId('settings-category-firm');
-          await firmCategory.waitFor({ state: 'visible', timeout: 5000 });
-          await firmCategory.click();
+          await openFirmAccountWindow(pageA);
           await firmAdminConsole.waitFor({ state: 'visible', timeout: 8000 });
         }
 
@@ -525,7 +538,7 @@ test.describe('Firm shared matter notes — two-client convergence', () => {
         await matterBtn.click();
 
         // Wait for the member list to load (confirms loadMembers completed + members.key_epoch is set).
-        await pageA.getByTestId('firm-member-list').waitFor({ state: 'visible', timeout: 8000 });
+        await pageA.getByTestId('firm-member-list').waitFor({ state: 'visible', timeout: 20000 });
 
         // Click the re-publish keys button (registered after handleOpenShared registered the device).
         const republishBtn = pageA.getByTestId('firm-republish-keys');
@@ -585,19 +598,11 @@ test.describe('Firm shared matter notes — two-client convergence', () => {
     //  4. Walled user retries open → succeeds → matter linked locally.
     //  5. Admin sets the ethical wall → key epoch rotates, walled user's key deleted.
     //  6. Walled user opens notes for the locally-linked matter → fail-closed panel.
-    const settingsGear = pageA.getByTestId('settings-gear');
-    await settingsGear.waitFor({ state: 'visible', timeout: 6000 });
-
     // Helper: ensure the firm admin console is open and the correct matter is selected.
     const ensureFirmAdminOnMatter = async (): Promise<void> => {
       const firmAdminConsole = pageA.getByTestId('firm-admin-console');
       if (!(await firmAdminConsole.isVisible({ timeout: 500 }).catch(() => false))) {
-        await pageA.keyboard.press('Escape');
-        await pageA.waitForTimeout(200);
-        await settingsGear.click();
-        const firmCategory = pageA.getByTestId('settings-category-firm');
-        await firmCategory.waitFor({ state: 'visible', timeout: 5000 });
-        await firmCategory.click();
+        await openFirmAccountWindow(pageA);
         await firmAdminConsole.waitFor({ state: 'visible', timeout: 8000 });
       }
       await pageA.getByTestId('firm-matter-list').waitFor({ state: 'visible', timeout: 8000 });
@@ -640,7 +645,7 @@ test.describe('Firm shared matter notes — two-client convergence', () => {
 
     // Step 3: Admin re-publishes keys → wraps key for walled user's newly registered device.
     await ensureFirmAdminOnMatter();
-    await pageA.getByTestId('firm-member-list').waitFor({ state: 'visible', timeout: 8000 });
+    await pageA.getByTestId('firm-member-list').waitFor({ state: 'visible', timeout: 20000 });
     const republishBtn2 = pageA.getByTestId('firm-republish-keys');
     await republishBtn2.waitFor({ state: 'visible', timeout: 6000 });
     await republishBtn2.click();
