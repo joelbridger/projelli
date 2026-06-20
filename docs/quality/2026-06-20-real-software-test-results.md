@@ -81,3 +81,12 @@ Beyond the in-app CDP bridge, native OS dialogs + the browser are now driven by 
 - [ ] **Ask a real question → verify a real cited answer** (now that an AI key is connected) — pending.
 
 _(Results appended as the live test proceeds.)_
+
+## Rebuild + live-confirm of the fixes (Legion, autonomous via CDP) — 2026-06-20
+Pushed the fixed frontend to the Legion, restarted the dev app fresh, reopened the workspace (via the Recent list — no native picker needed), and drove the real app to confirm the two sweep bugs are fixed.
+
+- ✅ **BUG-001 CONFIRMED FIXED on real Windows.** In Privacy Center, every provider indicator now reads **"Sent to your OpenAI account"** — the trust bar and the Privacy Center "Current mode" agree (before the fix the Privacy Center wrongly said "Anthropic" while the trust bar said "OpenAI"). The remaining "Anthropic/OpenAI/Google" text on the page is generic explanatory copy, not the live indicator. The shared `useActiveEgressProvider` hook works.
+- ✅ **BUG-007 fix CONFIRMED firing on real Windows.** Opening the Email tab now shows a **"Sync now"** button (was entirely absent before) and it **auto-switches to "Syncing…" on open** — i.e. the connected account auto-syncs on mount, exactly as the fix intends. (Before the fix: "No email synced yet" with no control anywhere.)
+- 🐞 **NEW finding → BUG-008 (logged).** The auto-sync then sits on **"Syncing…" indefinitely (2.5+ min, 0 mail, no error, no timeout, no reconnect prompt)**. The most likely reason for *no mail* is a **stale/expired Microsoft 365 token** on this test account (the OAuth connect was done a while ago) — proving full import end-to-end needs Jameson to reconnect Outlook. But the **product gap is real and independent of the token**: a stuck sync gives the user zero feedback and looks broken forever. Logged in the backlog with a fix plan (add a sync timeout → surface an error → offer "reconnect"). The earlier headline result still stands: cited Ask was already proven working on Windows; this is purely the email-sync feedback path.
+
+**Bottom line of the rebuild+confirm:** both bugs the sweep found are fixed and verified live; the email work surfaced one more honest gap (BUG-008), now tracked. See `2026-06-20-windows-desktop-test-plan.md` for the full Windows coverage tracker and what remains to drive.

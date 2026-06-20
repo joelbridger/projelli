@@ -35,11 +35,14 @@ docs/
 
 ## Quality (testing + DoD)
 
+**➡️ Start here: [quality/README.md](quality/README.md) — the testing index.** It maps the whole test pyramid, every current testing doc, the live trackers, and how to run each layer. Read it first for anything testing-related.
+
 | File | What it covers |
 |---|---|
-| [DEFINITION_OF_DONE.md](quality/DEFINITION_OF_DONE.md) | What "done" means before merging |
-| [PLAYWRIGHT_TESTING.md](quality/PLAYWRIGHT_TESTING.md) | E2E testing patterns and conventions |
-| [MANUAL_TESTING_CHECKLIST.md](quality/MANUAL_TESTING_CHECKLIST.md) | 200+ item Windows desktop manual test checklist |
+| [quality/README.md](quality/README.md) | **The testing index — current state, the pyramid, how to run, what's left** |
+| [DEFINITION_OF_DONE.md](quality/DEFINITION_OF_DONE.md) | What "done" means before merging (note: pre-3.0 branding, due a refresh) |
+| (archived) `archive/quality/PLAYWRIGHT_TESTING.md` | E2E patterns — superseded by `playwright.config.ts` + the full-user-test playbook |
+| (archived) `archive/quality/MANUAL_TESTING_CHECKLIST.md` | v1.0-era manual checklist — superseded by the full-user-test playbook + Windows test plan |
 
 ## Archive (historical, kept for reference)
 

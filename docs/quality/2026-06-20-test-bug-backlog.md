@@ -7,15 +7,16 @@ Status key: 🔴 open · 🟡 fix planned · 🟢 fixed (commit) · ⚪ needs-co
 ## Status summary (after the real-Windows desktop sweep + fixes, 2026-06-20)
 | ID | What | Status |
 |----|------|--------|
-| BUG-001 | Inconsistent AI-provider indicators across the UI | 🟢 **FIXED `f7e70fa`** — the desktop sweep caught it (Privacy Center showed "Anthropic" vs trust bar "OpenAI"). Root: Privacy Center hardcoded "Anthropic"; fix extracts a shared `useActiveEgressProvider` hook so the trust bar + Privacy Center always agree (8 tests green). |
+| BUG-001 | Inconsistent AI-provider indicators across the UI | 🟢 **FIXED `f7e70fa` + CONFIRMED LIVE on Windows (2026-06-20)** — drove the rebuilt app: Privacy Center + trust bar now both read "Sent to your OpenAI account" (agreed). Root was Privacy Center hardcoding "Anthropic"; shared `useActiveEgressProvider` hook (8 tests green). |
 | BUG-002 | Ask composer clears the question on error | 🟢 **FIXED** `4d3b086` (input now preserved on error; 2 tests RED→GREEN). |
 | BUG-003 | Misleading "couldn't reach AI provider" copy | 🟢 **browser-only** — that path is the RAG index being browser-only; on desktop RAG works and the message doesn't fire. Minor. |
 | BUG-004 | Default provider = Anthropic regardless of keys | 🟢 **browser/injection-only** — desktop follows the added key correctly (confirmed: added OpenAI in onboarding → app uses OpenAI). Not a desktop bug. |
 | BUG-005 | Nightly bench wipes the interactive dev dir | 🟢 **FIXED** `393a2ce` (syncs to a separate bench dir + stubs Piper; never touches the dev bench). |
-| BUG-007 | Connected mail never syncs after restart + no Sync button | 🟢 **FIXED `69e0e4c`** — Email tab now auto-syncs a connected account on open + a visible "Sync now" button (desktop-only; 4 tests green). |
+| BUG-007 | Connected mail never syncs after restart + no Sync button | 🟢 **FIXED `69e0e4c` + CONFIRMED LIVE on Windows (2026-06-20)** — drove the rebuilt app: Email tab now shows a "Sync now" button (was absent) and auto-fires "Syncing…" on open (4 tests green). Full mail import still blocked by BUG-008 (stale token / no feedback). |
+| BUG-008 | Email sync spins on "Syncing…" forever — no timeout, no error, no reconnect prompt | 🟡 **OPEN, fix planned** — found 2026-06-20 confirming BUG-007. Auto-sync fires but sits "Syncing…" 2.5+ min with 0 mail and zero user feedback (likely a stale MS365 token). See fix plan below. |
 | CAP-001 | Native dialogs not driveable | 🟢 **RESOLVED** — built the full-desktop control agent; drove the native folder picker end-to-end. Native dialogs + the browser are now driveable. |
 
-**Net: ALL real bugs found are now FIXED — BUG-001 (`f7e70fa`), BUG-002 (`4d3b086`), BUG-005 (`393a2ce`), BUG-007 (`69e0e4c`) — every one test-verified.** 2 apparent bugs (BUG-003/004) were browser-test-environment-only (not real). The CAP-001 native-dialog gap was resolved by building full desktop control. The headline "answers-you-back with cited sources" feature is validated working on real Windows. **Zero known real bugs remain open.**
+**Net (updated 2026-06-20 after the rebuild + live-confirm): BUG-001 / BUG-002 / BUG-005 / BUG-007 are FIXED and the two desktop-facing ones (BUG-001, BUG-007) are now CONFIRMED LIVE on real Windows.** 2 apparent bugs (BUG-003/004) were browser-test-environment-only. CAP-001 resolved (full desktop control built). Confirming BUG-007 surfaced **one new open bug — BUG-008** (email sync spins forever with no feedback), now logged with a fix plan. The headline cited-answer feature remains validated on real Windows. **Open: BUG-008 (fix planned). Everything else found so far: fixed + confirmed.**
 
 ---
 
@@ -54,6 +55,13 @@ Status key: 🔴 open · 🟡 fix planned · 🟢 fixed (commit) · ⚪ needs-co
 **Found:** building/using the desktop-driving bridge. CDP drives the WebView2 DOM (click/type/snapshot/screenshot all work on the real desktop app), but **native OS dialogs are outside the webview** — e.g. the workspace **folder picker** ("New Workspace" / "Open Existing"), file save/open pickers, and OS auth prompts. Clicking "New Workspace" opens a native picker the bridge cannot interact with, blocking fully-autonomous setup of a real workspace.
 **Impact:** the full desktop sweep can't reach a real indexed workspace (needed for RAG/headline tests) without either (a) Jameson clicking the native picker once, or (b) a bypass.
 **Fix plan:** add a small **dev/test hook** so a workspace can be set WITHOUT the native picker — e.g. a `?devWorkspacePath=<abs path>` URL param (gated to dev/testMode) or a Tauri test command that sets/creates the workspace at a given path, so the bridge can drive end-to-end hands-off. (Alternative: drive native dialogs via Windows UI Automation — a separate, heavier integration.) Until then: Jameson does the one folder-pick (a "native moment", like a login), Claude drives everything else.
+
+## BUG-008 — Email sync spins on "Syncing…" forever with no timeout/error/reconnect  ·  Severity: Important (UX)  ·  🟡 fix planned
+**Found + CONFIRMED on real Windows (2026-06-20)** while live-confirming BUG-007. Opening the Email tab correctly auto-triggers a sync (BUG-007 fix working) — the button shows "Syncing…". But it then **stays "Syncing…" for 2.5+ minutes with 0 emails imported, no error message, no timeout, and no "reconnect" prompt.** No alert/toast anywhere. The "Sync now" button is disabled the whole time, so the user can't even retry.
+**Likely root of the *empty* result:** the connected Microsoft 365 account's OAuth token is stale/expired (the original sign-in was a while ago), so the sync authenticates-or-fetches nothing. Proving full mail import end-to-end needs Jameson to reconnect Outlook (a one-time 🖐️ login) — that's a separate confirmation, not this bug.
+**The bug itself (independent of the token):** a sync that can't complete must not leave the user on an infinite silent spinner. **Impact:** any user with an expired token (a normal occurrence) sees a permanently "broken" Email tab with no recourse.
+**Fix plan:** (a) put a timeout on `mail_sync_all` (or detect an auth failure) so the sync resolves; (b) on failure/timeout, replace "Syncing…" with a clear error state ("Couldn't sync — your Microsoft 365 sign-in may have expired") + a **"Reconnect"** action that re-runs the OAuth connect; (c) re-enable "Sync now" once the attempt ends so the user can retry; (d) a Rust/unit test on the timeout + error-surfacing path. (Relates to the v3.3.5 fault-isolation work, but this is specifically the *no-feedback-on-stuck-sync* gap.)
+**Confirm:** after Jameson reconnects Outlook, re-drive: sync should complete with real mail (also validates the v3.3.x Deleted-Items/Junk-exclusion + per-provider progress).
 
 ---
 
