@@ -1,5 +1,7 @@
 # Keepance Master Plan — From Build to Traction (2026-06-17)
 
+> ⚠️ **OUTDATED CONCLUSION — corrected 2026-06-20.** This plan's central claim — "the product is mature; stop building; the only binding constraint is distribution, not engineering" — was overturned by real hands-on Windows testing, which found MANY unfinished and broken areas. The traction analysis (≈zero users, distribution/trust gap) still holds, but **the product is NOT finished**: finishing and hardening it is real work, alongside (not after) distribution. For current truth, see the Keepance `CLAUDE.md` reality-check note and the board dashboard (board.jameworld.com).
+
 > **What this is.** A single integrated plan that fuses two independent reviews that landed on the same day:
 > 1. **The engineering review** (`docs/operations/2026-06-17-reorg-fresh-eyes-review.md`) — a fresh-eyes audit of the just-finished feature-first reorg.
 > 2. **The strategic evaluation** (a separate session, via the Venture OS tool): `docs/strategy/2026-06-17-build-session-handoff-and-product-recommendations.md` + its two cited companion memos (`…-keepance-evaluation-path-to-traction.md`, `…-email-search-standalone-viability.md`).

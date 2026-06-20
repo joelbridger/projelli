@@ -10,49 +10,50 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#f6f7f9;
-    --bg-soft:#eef1f5;
-    --card:#ffffff;
-    --ink:#1b2330;
-    --ink-soft:#475063;
-    --muted:#7b8595;
-    --line:#e4e8ee;
-    --navy:#16294b;
-    --navy-soft:#27406b;
-    --accent:#2f6df0;
+    --bg:#f6f7f9; --bg-soft:#eef1f5; --card:#ffffff;
+    --ink:#1b2330; --ink-soft:#475063; --muted:#7b8595; --line:#e4e8ee;
+    --navy:#16294b; --navy-soft:#27406b; --accent:#2f6df0;
     --good:#15803d; --good-bg:#e7f6ec;
     --warn:#b45309; --warn-bg:#fdf1e1;
     --gap:#b42318;  --gap-bg:#fdecea;
+    --info:#1d4ed8; --info-bg:#e8f0fe;
     --shadow:0 1px 2px rgba(16,28,51,.04), 0 6px 24px rgba(16,28,51,.06);
     --radius:16px;
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
-  body{
-    margin:0; background:var(--bg); color:var(--ink);
+  body{margin:0; background:var(--bg); color:var(--ink);
     font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    line-height:1.55; -webkit-font-smoothing:antialiased;
-  }
+    line-height:1.55; -webkit-font-smoothing:antialiased;}
   a{color:inherit}
   .wrap{max-width:1060px; margin:0 auto; padding:0 20px}
 
-  /* Hero */
-  .hero{background:linear-gradient(160deg,var(--navy) 0%,var(--navy-soft) 100%); color:#fff; padding:40px 0 30px}
-  .hero .wrap{position:relative}
+  .hero{background:linear-gradient(160deg,var(--navy) 0%,var(--navy-soft) 100%); color:#fff; padding:36px 0 26px}
   .eyebrow{display:inline-flex; align-items:center; gap:8px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#aebfdd; font-weight:600; margin:0 0 12px}
   .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:#5bd08a;box-shadow:0 0 0 3px rgba(91,208,138,.25)}
   h1{font-family:"Fraunces",Georgia,serif; font-weight:600; font-size:clamp(28px,4.4vw,44px); line-height:1.08; margin:0 0 6px; letter-spacing:-.01em}
   .subtitle{font-size:clamp(15px,2vw,18px); color:#d7e0f2; margin:0 0 18px; font-weight:500}
   .meta-row{display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; font-size:13px; color:#bcc9e4}
   .meta-row b{color:#fff; font-weight:600}
-  .headline{margin:22px 0 0; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-left:4px solid #5bd08a; border-radius:12px; padding:14px 16px; font-size:15px; color:#eef2fb}
+  .headline{margin:22px 0 0; background:rgba(255,180,90,.12); border:1px solid rgba(255,180,90,.28); border-left:4px solid #f0a84b; border-radius:12px; padding:14px 16px; font-size:15px; color:#fbeede}
   .updaterule{margin:12px 0 0; font-size:12.5px; color:#aebbd8}
   .updaterule b{color:#dbe5f8}
 
-  /* At a glance */
-  .glance{margin:-18px 0 8px; position:relative; z-index:2}
-  .glance-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px}
-  .tile{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 13px; text-decoration:none; box-shadow:var(--shadow); transition:transform .12s ease, border-color .12s ease}
+  /* Tab bar */
+  nav.tabs{position:sticky; top:0; z-index:5; background:rgba(246,247,249,.9); backdrop-filter:saturate(140%) blur(8px); border-bottom:1px solid var(--line)}
+  nav.tabs .wrap{display:flex; gap:4px; overflow-x:auto; padding:8px 20px; scrollbar-width:thin}
+  nav.tabs button{white-space:nowrap; font-family:inherit; font-size:14px; font-weight:600; color:var(--ink-soft); background:transparent; border:0; cursor:pointer; padding:9px 14px; border-radius:9px}
+  nav.tabs button:hover{background:var(--bg-soft); color:var(--ink)}
+  nav.tabs button.active{background:var(--navy); color:#fff}
+
+  main{padding:24px 0 64px}
+  .panel{display:none}
+  .panel.active{display:block; animation:fade .18s ease}
+  @keyframes fade{from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:none}}
+
+  /* Overview */
+  .glance-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:10px}
+  .tile{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 13px; text-align:left; box-shadow:var(--shadow); transition:transform .12s ease, border-color .12s ease; cursor:pointer; font-family:inherit}
   .tile:hover{transform:translateY(-2px); border-color:#cfd8e6}
   .tile .t-top{display:flex; align-items:center; gap:8px; font-weight:600; font-size:13.5px; color:var(--ink)}
   .tile .t-emoji{font-size:16px}
@@ -60,16 +61,11 @@
   .chip.good{color:var(--good); background:var(--good-bg)}
   .chip.warn{color:var(--warn); background:var(--warn-bg)}
   .chip.gap{color:var(--gap); background:var(--gap-bg)}
+  .chip.info{color:var(--info); background:var(--info-bg)}
+  .ov-note{margin:18px 0 0; color:var(--muted); font-size:13px}
 
-  /* TOC */
-  nav.toc{position:sticky; top:0; z-index:5; background:rgba(246,247,249,.86); backdrop-filter:saturate(140%) blur(8px); border-bottom:1px solid var(--line); margin-top:22px}
-  nav.toc .wrap{display:flex; gap:4px; overflow-x:auto; padding:9px 20px; scrollbar-width:thin}
-  nav.toc a{white-space:nowrap; font-size:13px; font-weight:500; color:var(--ink-soft); text-decoration:none; padding:6px 11px; border-radius:8px}
-  nav.toc a:hover{background:var(--bg-soft); color:var(--ink)}
-
-  /* Sections */
-  main{padding:26px 0 60px}
-  section.area{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:24px 26px; margin:0 0 18px; scroll-margin-top:64px}
+  /* Section cards */
+  section.area{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:24px 26px; margin:0 0 18px}
   .area-head{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px}
   .area-emoji{font-size:24px; width:42px; height:42px; display:grid; place-items:center; background:var(--bg-soft); border-radius:11px; flex:none}
   .area-title{font-family:"Fraunces",Georgia,serif; font-weight:600; font-size:22px; margin:0; letter-spacing:-.01em}
@@ -78,13 +74,28 @@
   .cols{display:grid; grid-template-columns:1fr 1fr; gap:22px}
   .col h3{display:flex; align-items:center; gap:7px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700; margin:0 0 9px}
   .col h3 .mark{width:14px;height:14px;border-radius:4px;display:inline-block}
-  .mark.dec{background:#2f6df0}
-  .mark.ins{background:#7c5cff}
+  .mark.dec{background:#2f6df0}.mark.ins{background:#7c5cff}
   ul.list{list-style:none; margin:0; padding:0}
   ul.list li{position:relative; padding:0 0 0 18px; margin:0 0 9px; font-size:14px; color:var(--ink)}
   ul.list li::before{content:""; position:absolute; left:0; top:9px; width:6px; height:6px; border-radius:50%; background:#c2ccdb}
-  ul.list.dec li::before{background:#2f6df0}
-  ul.list.ins li::before{background:#7c5cff}
+  ul.list.dec li::before{background:#2f6df0}ul.list.ins li::before{background:#7c5cff}
+
+  /* Testing platform rows */
+  .plat{display:flex; gap:14px; padding:16px 0; border-top:1px solid var(--line)}
+  .plat:first-of-type{border-top:0}
+  .plat .p-emoji{font-size:26px; width:44px; flex:none; text-align:center}
+  .plat .p-body{flex:1}
+  .plat .p-top{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 5px}
+  .plat .p-os{font-weight:700; font-size:16px}
+  .plat .p-detail{font-size:14px; color:var(--ink-soft); margin:0}
+
+  /* Questions */
+  .q{padding:16px 0; border-top:1px solid var(--line)}
+  .q:first-of-type{border-top:0}
+  .q-top{display:flex; gap:10px; align-items:flex-start}
+  .q-text{font-weight:600; font-size:16px; margin:0; flex:1}
+  .q-ans{margin:8px 0 0; font-size:14px; color:var(--ink-soft)}
+  .q-ans.empty{color:var(--muted); font-style:italic}
 
   footer{border-top:1px solid var(--line); padding:22px 0 40px; color:var(--muted); font-size:13px}
   footer b{color:var(--ink-soft)}
@@ -98,25 +109,18 @@
 </style>
 </head>
 <body>
-  <header class="hero">
-    <div class="wrap">
-      <p class="eyebrow"><span class="dot"></span> Private board view</p>
-      <h1 id="h-title">Keepance — Board Dashboard</h1>
-      <p class="subtitle" id="h-subtitle"></p>
-      <div class="meta-row">
-        <span id="h-framing"></span>
-        <span>Last updated: <b id="h-updated"></b></span>
-      </div>
-      <div class="headline" id="h-headline"></div>
-      <p class="updaterule" id="h-rule"></p>
-    </div>
-  </header>
+  <header class="hero"><div class="wrap">
+    <p class="eyebrow"><span class="dot"></span> Private board view</p>
+    <h1 id="h-title">Keepance — Board Dashboard</h1>
+    <p class="subtitle" id="h-subtitle"></p>
+    <div class="meta-row"><span id="h-framing"></span><span>Last updated: <b id="h-updated"></b></span></div>
+    <div class="headline" id="h-headline"></div>
+    <p class="updaterule" id="h-rule"></p>
+  </div></header>
 
-  <div class="glance"><div class="wrap"><div class="glance-grid" id="glance"></div></div></div>
+  <nav class="tabs"><div class="wrap" id="tabbar"></div></nav>
 
-  <nav class="toc"><div class="wrap" id="toc"></div></nav>
-
-  <main><div class="wrap" id="sections"><div class="loading">Loading the board…</div></div></main>
+  <main><div class="wrap" id="panels"><div class="loading">Loading the board…</div></div></main>
 
   <footer><div class="wrap">
     <p><b>How this stays current:</b> the source of truth lives inside the Keepance project (<code>docs/board/board-data.json</code>). Jameson updates it freely; a Claude session only adds to it for a major decision, a validated insight, a strategy shift, or a real milestone. Edit the data file, then redeploy.</p>
@@ -124,17 +128,67 @@
   </div></footer>
 
 <script>
-  // tone per section id → status chip colour
+  // Status-chip colour per section id
   var TONE = {
     strategy:"good", marketing:"warn", sales:"gap", growth:"gap",
-    competitive:"good", engineering:"good", ux:"good", ui:"good", finance:"warn"
+    competitive:"good", engineering:"gap", ux:"warn", ui:"good",
+    testing:"warn", finance:"warn", questions:"info"
   };
-  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-  function chip(id,status){return '<span class="chip '+(TONE[id]||'good')+'">'+esc(status)+'</span>';}
+  // Tab grouping (Overview is special; others list their section ids)
+  var TABS = [
+    { id:"overview",  label:"Overview" },
+    { id:"strategy",  label:"Strategy",      sections:["strategy","competitive"] },
+    { id:"gtm",       label:"Go-to-Market",  sections:["marketing","sales","growth"] },
+    { id:"product",   label:"Product",       sections:["engineering","ux","ui"] },
+    { id:"testing",   label:"Testing",       sections:["testing"] },
+    { id:"finance",   label:"Finance",       sections:["finance"] },
+    { id:"questions", label:"Questions",     sections:["questions"] }
+  ];
 
-  fetch('board-data.json',{cache:'no-store'}).then(function(r){
-    if(!r.ok) throw new Error('status '+r.status); return r.json();
-  }).then(function(d){
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function chip(cls,txt){return '<span class="chip '+cls+'">'+esc(txt)+'</span>';}
+
+  function renderStandard(s){
+    var dec=(s.decisions||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('');
+    var ins=(s.insights||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('');
+    return '<p class="now">'+esc(s.now)+'</p><div class="cols">'
+      +'<div class="col"><h3><span class="mark dec"></span>Recent key decisions</h3><ul class="list dec">'+dec+'</ul></div>'
+      +'<div class="col"><h3><span class="mark ins"></span>Insights &amp; open ideas</h3><ul class="list ins">'+ins+'</ul></div></div>';
+  }
+  function renderTesting(s){
+    var rows=(s.platforms||[]).map(function(p){
+      return '<div class="plat"><div class="p-emoji">'+(p.icon||'•')+'</div><div class="p-body">'
+        +'<div class="p-top"><span class="p-os">'+esc(p.os)+'</span>'+chip(p.tone||'warn',p.status)+'</div>'
+        +'<p class="p-detail">'+esc(p.detail)+'</p></div></div>';
+    }).join('');
+    return '<p class="now">'+esc(s.now)+'</p>'+rows;
+  }
+  function renderQuestions(s){
+    var rows=(s.questions||[]).map(function(q){
+      var ans = q.answer && q.answer.trim()
+        ? '<p class="q-ans">'+esc(q.answer)+'</p>'
+        : '<p class="q-ans empty">— open; to explore with AI —</p>';
+      return '<div class="q"><div class="q-top"><p class="q-text">'+esc(q.q)+'</p>'+chip(q.status==='answered'?'good':'info', q.status||'open')+'</div>'+ans+'</div>';
+    }).join('');
+    return '<p class="now">'+esc(s.now)+'</p>'+rows;
+  }
+  function renderSection(s){
+    var body = s.type==='testing' ? renderTesting(s) : s.type==='questions' ? renderQuestions(s) : renderStandard(s);
+    return '<section class="area" id="sec-'+s.id+'">'
+      +'<div class="area-head"><div class="area-emoji">'+(s.icon||'•')+'</div>'
+      +'<h2 class="area-title">'+esc(s.title)+'</h2>'+chip(TONE[s.id]||'info', s.status)+'</div>'+body+'</section>';
+  }
+
+  var byId = {};
+  function activateTab(id){
+    var found=false;
+    document.querySelectorAll('.panel').forEach(function(p){ var on=p.dataset.tab===id; p.classList.toggle('active',on); if(on) found=true; });
+    document.querySelectorAll('#tabbar button').forEach(function(b){ b.classList.toggle('active', b.dataset.tab===id); });
+    if(found && location.hash!=='#'+id){ history.replaceState(null,'','#'+id); }
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+
+  fetch('board-data.json',{cache:'no-store'}).then(function(r){ if(!r.ok) throw new Error('status '+r.status); return r.json(); }).then(function(d){
     var m=d.meta||{};
     document.getElementById('h-title').textContent=m.title||'Board Dashboard';
     document.title=m.title||'Board Dashboard';
@@ -144,28 +198,44 @@
     document.getElementById('h-headline').textContent=m.headline||'';
     document.getElementById('h-rule').innerHTML='<b>Update rule —</b> '+esc(m.updateRule||'');
 
-    var glance='', toc='', secs='';
-    (d.sections||[]).forEach(function(s){
-      glance+='<a class="tile" href="#'+s.id+'"><span class="t-top"><span class="t-emoji">'+(s.icon||'•')+'</span>'+esc(s.title)+'</span>'+chip(s.id,s.status)+'</a>';
-      toc+='<a href="#'+s.id+'">'+(s.icon||'')+' '+esc(s.title)+'</a>';
-      var dec=(s.decisions||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('');
-      var ins=(s.insights||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('');
-      secs+=''
-        +'<section class="area" id="'+s.id+'">'
-        +  '<div class="area-head"><div class="area-emoji">'+(s.icon||'•')+'</div>'
-        +    '<h2 class="area-title">'+esc(s.title)+'</h2>'+chip(s.id,s.status)+'</div>'
-        +  '<p class="now">'+esc(s.now)+'</p>'
-        +  '<div class="cols">'
-        +    '<div class="col"><h3><span class="mark dec"></span>Recent key decisions</h3><ul class="list dec">'+dec+'</ul></div>'
-        +    '<div class="col"><h3><span class="mark ins"></span>Insights &amp; open ideas</h3><ul class="list ins">'+ins+'</ul></div>'
-        +  '</div>'
-        +'</section>';
+    (d.sections||[]).forEach(function(s){ byId[s.id]=s; });
+
+    // tab bar
+    document.getElementById('tabbar').innerHTML = TABS.map(function(t){
+      return '<button data-tab="'+t.id+'">'+esc(t.label)+'</button>';
+    }).join('');
+
+    // panels
+    var panelsHtml = '';
+    TABS.forEach(function(t){
+      if(t.id==='overview'){
+        var tiles = (d.sections||[]).map(function(s){
+          return '<button class="tile" data-goto="'+s.id+'"><span class="t-top"><span class="t-emoji">'+(s.icon||'•')+'</span>'+esc(s.title)+'</span>'+chip(TONE[s.id]||'info',s.status)+'</button>';
+        }).join('');
+        panelsHtml += '<div class="panel" data-tab="overview"><div class="glance-grid">'+tiles+'</div>'
+          +'<p class="ov-note">Tap any tile, or use the tabs above, to jump to a section.</p></div>';
+      } else {
+        var secs = (t.sections||[]).map(function(id){ return byId[id] ? renderSection(byId[id]) : ''; }).join('');
+        panelsHtml += '<div class="panel" data-tab="'+t.id+'">'+secs+'</div>';
+      }
     });
-    document.getElementById('glance').innerHTML=glance;
-    document.getElementById('toc').innerHTML=toc;
-    document.getElementById('sections').innerHTML=secs;
+    document.getElementById('panels').innerHTML = panelsHtml;
+
+    // wiring
+    document.querySelectorAll('#tabbar button').forEach(function(b){ b.addEventListener('click',function(){ activateTab(b.dataset.tab); }); });
+    document.querySelectorAll('.tile[data-goto]').forEach(function(t){
+      t.addEventListener('click',function(){
+        var sid=t.dataset.goto;
+        var tab=TABS.find(function(x){ return x.sections && x.sections.indexOf(sid)>=0; });
+        activateTab(tab?tab.id:'overview');
+      });
+    });
+
+    // initial tab from hash
+    var start = (location.hash||'').replace('#','');
+    activateTab(TABS.some(function(t){return t.id===start;}) ? start : 'overview');
   }).catch(function(e){
-    document.getElementById('sections').innerHTML='<div class="error">Could not load the board content ('+esc(e.message)+').<br>Check that <code>board-data.json</code> sits next to this page.</div>';
+    document.getElementById('panels').innerHTML='<div class="error">Could not load the board content ('+esc(e.message)+').<br>Check that <code>board-data.json</code> sits next to this page.</div>';
   });
 </script>
 </body>

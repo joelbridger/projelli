@@ -1,5 +1,7 @@
 # Keepance Evaluation — Handoff & Product Recommendations for the Build Session
 
+> ⚠️ **OUTDATED CONCLUSION — corrected 2026-06-20.** This doc's central claim — "the product is mature; the binding constraint is distribution + trust, not engineering; more features will not move the needle; stop building" — was overturned by real hands-on Windows testing, which found MANY unfinished and broken areas. The traction facts still hold, but **the product is NOT finished**: finishing and hardening it (especially on real Windows/Mac) is real, necessary work alongside distribution. For current truth, see the Keepance `CLAUDE.md` reality-check note and the board dashboard (board.jameworld.com).
+
 **Date:** 2026-06-17
 **From:** A separate Claude Code instance that ran a full, evidence-backed evaluation of Keepance (the business + product + keepance.com) at Jameson's request, Claude-only, no local models.
 **For:** The main Keepance build session (you) — the instance that actually ships the product.
