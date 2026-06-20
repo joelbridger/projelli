@@ -47,11 +47,13 @@ done
 # ── Bench config ──────────────────────────────────────────────────────────────
 WIN_USER="james"
 WIN_HOST="100.127.67.22"
-# Windows code dir on the bench: C:\keepance (hardcoded in the remote commands below)
+# BUG-005: Use C:\keepance-bench (NOT C:\keepance) so the nightly sync never wipes the
+# interactive dev directory the desktop-driving setup uses. The bench dir is dedicated to
+# this script and is always wiped+re-extracted here; the dev dir is never touched.
 
 MAC_USER="keepancebench"
 MAC_HOST="100.113.42.26"
-# macOS code dir on the bench: ~/keepance (keepancebench's home; hardcoded in remote commands below)
+# BUG-005: Use ~/keepance-bench (NOT ~/keepance) for the same reason as the Windows comment above.
 
 # ── Status file ──────────────────────────────────────────────────────────────
 STATUS_DIR="$HOME/.local/share/keepance-bench"
@@ -246,7 +248,7 @@ if probe_reachable "$WIN_USER" "$WIN_HOST"; then
         echo "[windows] Extracting + running cargo test (this takes ~7 min; no short timeout) ..."
         WIN_OUTPUT="$(ssh -o BatchMode=yes -o StrictHostKeyChecking=no \
           "${WIN_USER}@${WIN_HOST}" \
-          'powershell -NonInteractive -Command { $env:Path = $env:USERPROFILE + "\.cargo\bin;C:\Strawberry\perl\bin;C:\Strawberry\c\bin;" + $env:Path; Remove-Item -Recurse -Force C:\keepance -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force C:\keepance | Out-Null; tar -xzf ($env:USERPROFILE + "\keepance-src.tgz") -C C:\keepance; Remove-Item ($env:USERPROFILE + "\keepance-src.tgz") -ErrorAction SilentlyContinue; if (-not (Test-Path "C:\keepance\src-tauri\Cargo.toml")) { Write-Output "[bench] FATAL: src-tauri/Cargo.toml missing after extract — aborting"; Write-Output "__BENCH_RC_1__"; exit 1 }; Set-Location C:\keepance\src-tauri; cargo test --workspace 2>&1; Write-Output "__BENCH_RC_$LASTEXITCODE__" }' \
+          'powershell -NonInteractive -Command { $env:Path = $env:USERPROFILE + "\.cargo\bin;C:\Strawberry\perl\bin;C:\Strawberry\c\bin;" + $env:Path; Remove-Item -Recurse -Force C:\keepance-bench -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force C:\keepance-bench | Out-Null; tar -xzf ($env:USERPROFILE + "\keepance-src.tgz") -C C:\keepance-bench; Remove-Item ($env:USERPROFILE + "\keepance-src.tgz") -ErrorAction SilentlyContinue; if (-not (Test-Path "C:\keepance-bench\src-tauri\Cargo.toml")) { Write-Output "[bench] FATAL: src-tauri/Cargo.toml missing after extract — aborting"; Write-Output "__BENCH_RC_1__"; exit 1 }; New-Item -ItemType Directory -Force C:\keepance-bench\src-tauri\binaries | Out-Null; Copy-Item C:\Windows\System32\where.exe C:\keepance-bench\src-tauri\binaries\piper-x86_64-pc-windows-msvc.exe -ErrorAction SilentlyContinue; Set-Location C:\keepance-bench\src-tauri; cargo test --workspace 2>&1; Write-Output "__BENCH_RC_$LASTEXITCODE__" }' \
           2>&1 || true)"
 
         echo "$WIN_OUTPUT"
@@ -345,16 +347,19 @@ if probe_reachable "$MAC_USER" "$MAC_HOST"; then
         MAC_OUTPUT="$(ssh -o BatchMode=yes -o StrictHostKeyChecking=no \
           "${MAC_USER}@${MAC_HOST}" \
           'export PATH="$HOME/.cargo/bin:$HOME/node/bin:$HOME/protoc/bin:$PATH";
-           rm -rf ~/keepance;
-           mkdir -p ~/keepance;
-           tar -xzf ~/keepance-src.tgz -C ~/keepance;
+           rm -rf ~/keepance-bench;
+           mkdir -p ~/keepance-bench;
+           tar -xzf ~/keepance-src.tgz -C ~/keepance-bench;
            rm -f ~/keepance-src.tgz;
-           if [[ ! -f ~/keepance/src-tauri/Cargo.toml ]]; then
+           if [[ ! -f ~/keepance-bench/src-tauri/Cargo.toml ]]; then
              echo "[bench] FATAL: src-tauri/Cargo.toml missing after extract — aborting";
              echo "__BENCH_RC_1__";
              exit 1;
            fi;
-           cd ~/keepance/src-tauri;
+           mkdir -p ~/keepance-bench/src-tauri/binaries;
+           printf '"'"'#!/bin/sh\nexit 0\n'"'"' > ~/keepance-bench/src-tauri/binaries/piper-aarch64-apple-darwin;
+           chmod +x ~/keepance-bench/src-tauri/binaries/piper-aarch64-apple-darwin;
+           cd ~/keepance-bench/src-tauri;
            cargo test --workspace 2>&1;
            echo "__BENCH_RC_$?__"' \
           2>&1 || true)"
