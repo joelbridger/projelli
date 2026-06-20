@@ -30,9 +30,20 @@ export function MailConnect() {
       setSyncStalled(false);
       return;
     }
+    // Clear any prior stall warning on each progress event, so a sync that
+    // resumes drops the "may have expired" message instead of leaving it stuck.
+    setSyncStalled(false);
     const timer = setTimeout(() => setSyncStalled(true), 90_000);
     return () => clearTimeout(timer);
   }, [progress?.status, progress?.written]);
+
+  // Reconnect: a stale/hung sync holds the backend single-sync guard, so cancel
+  // any in-flight sync before re-authenticating — otherwise the post-reconnect
+  // re-sync is rejected with "a sync is already in progress".
+  async function reconnect() {
+    try { await mailCancelSync(); } catch { /* best-effort; reconnect anyway */ }
+    await connect();
+  }
 
   async function connect() {
     setConnecting(true);
@@ -120,7 +131,7 @@ export function MailConnect() {
             type="button"
             data-testid="mail-m365-reconnect"
             disabled={connecting}
-            onClick={() => void connect()}
+            onClick={() => void reconnect()}
             className="mt-2 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
           >
             {connecting ? 'Reconnecting…' : 'Reconnect'}
