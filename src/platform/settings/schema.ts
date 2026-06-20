@@ -402,9 +402,9 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'ai-privacy',
     label: 'Include PDFs in workspace index',
     description:
-      'When on, PDFs in your workspace are searchable via @workspace and considered for AI context. Indexing runs in the background after you toggle this on. Adds CPU work during indexing. Defaults to off.',
+      'When on, PDFs in your workspace (including scanned PDFs, read with OCR) are searchable and considered for AI context. Indexing runs in the background. Defaults to on; turn it off to skip PDF indexing and save CPU.',
     type: 'toggle',
-    defaultValue: false,
+    defaultValue: true,
   },
   {
     key: 'ocrScannedPdfs',

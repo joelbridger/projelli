@@ -22,8 +22,8 @@ describe('includePdfsInWorkspaceIndex setting', () => {
     expect(resolveSection('memory')).toBe('ai-privacy');
   });
 
-  it('defaults to false', () => {
-    expect(entry?.defaultValue).toBe(false);
+  it('defaults to true (PDF search on out of the box; BUG-015 follow-up, 2026-06-20)', () => {
+    expect(entry?.defaultValue).toBe(true);
   });
 
   it('is a toggle type', () => {
