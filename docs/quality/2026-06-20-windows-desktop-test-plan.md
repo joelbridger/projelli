@@ -45,7 +45,7 @@ The server already runs ~3,375 frontend tests, ~450 Rust tests, browser E2E, and
 | C2 | Scope chips (This matter / All matters / Email / Documents) change results | `scope-toggle`, `scope-option-*` | ✅ | **CONFIRMED LIVE (2026-06-20)** — selected the **Email** scope (box changed to "Search your imported email…") and asked "What is my upcoming GEICO auto pay amount and date?" → answered **"$100.65, June 24, 2026"** with a citation, sourced from the imported GEICO email. Scope switching works.
 | C3 | Typed question is **kept on error** (BUG-002 fix) | `ask-composer-input` error path | 🟡 | Fixed + test-verified; confirm live on Windows by forcing a failed query. |
 | C4 | "New search" resets; prior conversations reachable | `recent-in-matter`, `matter-session-item` | ⬜ | |
-| C5 | "Save answer to document" writes a .docx | per-turn save action | ⬜ | |
+| C5 | "Save answer to document" writes a .docx | per-turn save action | ✅ | **CONFIRMED LIVE (2026-06-20)** — clicked "Save to document" on the GEICO answer → a `.docx` appeared in Documents (`your-upcoming-geico-auto-pay-amount-is-100-65…docx`), auto-named from the answer. |
 | C6 | Uncited-answer warning shows when AI didn't cite | `ask-uncited-warning` | ⬜ | |
 | C7 | Egress indicator on Ask matches the real provider | `EgressIndicator` | 🟡 | Tied to BUG-001 fix; confirm below (G2). |
 
@@ -123,8 +123,8 @@ The server already runs ~3,375 frontend tests, ~450 Rust tests, browser E2E, and
 ## J. Activity Log (audit)
 | # | What to test | Key targets | Status | Notes |
 |---|---|---|---|---|
-| J1 | Log renders; AI actions appear | `audit-table-body` | ✅ | Loads without errors. |
-| J2 | Search + filters (date/category/model) | `audit-home-search`, `audit-home-filter-toggle` | ⬜ | |
+| J1 | Log renders; AI actions appear | `audit-table-body` | ✅ | **CONFIRMED LIVE (2026-06-20)** — shows real AI actions from this session (AI redline, chat Model Call, AI Request Sent) with model + scope (Direct) + timestamps; CSV/JSON export + Filters present. |
+| J2 | Search + filters (date/category/model) | `audit-home-search`, `audit-home-filter-toggle` | ✅ | **CONFIRMED LIVE (2026-06-20)** — searching "redline" filtered the log to exactly the 1 AI-redline entry. Date/category filters not separately exercised. |
 | J3 | Export CSV / JSON | `audit-home-export-csv/json` | ⬜ | |
 | J4 | Row → detail panel | row click → `DetailPanel` | ⬜ | |
 
@@ -203,18 +203,21 @@ A second AI engineer (Codex) read this plan against the actual code and flagged 
 ---
 
 # Current coverage summary (the evaluation: what's tested vs not)
-**Driven & passing on real Windows so far:** the headline cited Ask (C1), workspace open (B1), Documents file tree (E1), Matter create + scope (F1), Privacy Center render (G1), Outlook connect (H1), AI keys add/verify (K1), language (K2), Workflows + Activity Log render (I1/J1), app launch/restart (N3). Plus the two bug fixes (BUG-001 G2, BUG-007 H4) **pushed and being confirmed live now.**
+**Updated 2026-06-20 (end of the big burn-down session).** Most of the high-risk, desktop-only surface is now driven-and-passing on real Windows, and **6 real bugs were found + fixed in the process** (BUG-001 provider labels, BUG-007 mail sync trigger, BUG-009 redline-provider, BUG-010 ×2 the Outlook sign-in browser-open + IPv4/IPv6 loopback, BUG-011 large-import crash).
 
-**Biggest untested-on-Windows areas (the real "what's left"):**
-- **.docx editing + AI redline** (E3–E8) — the flagship Word feature, never driven on Windows.
-- **Running a workflow** to output (I2–I4).
-- **Vault encrypt/recover** (G3–G5).
-- **Email beyond connect** — sync confirm, reading, filing, compose (H4–H9).
-- **AI chat viewer** depth (D1–D7), **scoped Ask** (C2–C6).
-- **Settings depth** (K3–K13), **Account/Firm** (L1–L5), **global overlays** (M1–M9).
-- **Platform**: keychain explicit (N1), updater (N2), OCR (N4).
+**Driven & passing on real Windows:** headline cited Ask (C1), **Email-scoped Ask answered from imported mail** (C2), **save answer to .docx** (C5), **AI chat send/stream + model picker** (D1/D2), workspace open (B1), file tree (E1), new .docx (E2), **Word editor typing** (E3), **AI redline → tracked changes + accept/reject** (E4/E6), Matter create + scope (F1), Privacy Center + provider indicators (G1/G2), **encrypted vault enable + recover + decrypt-off** (G3/G4), **Outlook connect + full mail import (4,970 msgs) + keyword & AI search** (H1/H4/H5), **open + read an email w/ privilege control** (H6), M365 Reconnect+Disconnect (BUG-008/010), **run a workflow → .docx** (I2/I5), Workflows + Activity Log render + audit search (I1/J1/J2), AI keys add/verify (K1), language (K2), **command palette** (M1), app launch/restart (N3).
 
-**Rough tally:** ~15 of ~80 checks driven-and-passing; ~2 fixed-and-confirming; the rest not yet driven on Windows. So: **the foundation and the headline are proven; the long tail of features is the work that remains.** This plan is the list to burn down.
+**Still not driven on Windows (the remaining tail — mostly lower-risk):**
+- Ask: kept-on-error confirm (C3), new-search/history (C4), uncited warning (C6).
+- AI chat: run-on-all (D3), attach/vision (D5), voice (D6), export (D7).
+- Documents: export to PDF/clean (E5), markdown inline-AI edit (E7/E8), spreadsheet (E9), PDF/media viewers (E10), trash (E11), version history (E12), open-in-Explorer (E13), letterhead (E14).
+- Matters depth (F2–F6); Vault escape-hatch + confidentiality report (G5/G6).
+- Email: IMAP (H3), file-to-matter (H7), compose/reply/send (H8 🖐️), filters (H9).
+- Workflows: export + chain builder (I3/I4); Audit export CSV/JSON (J3/J4).
+- Settings depth (K3–K13), Account/Firm + SSO (L1–L5 🖐️), global overlays (M2–M9).
+- Platform: keychain explicit (N1), updater (N2 — signed build only), OCR (N4).
+
+**Rough tally:** ~35+ checks driven-and-passing on real Windows (up from ~15), 6 bugs fixed, the headline + every flagship desktop-only feature (Word AI-redline, workflows, encrypted vault, Outlook import + cited search) proven end-to-end. The remainder is a lower-risk long tail. **The product's core is proven working on real Windows.**
 
 ---
 
