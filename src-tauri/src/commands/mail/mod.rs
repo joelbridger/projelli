@@ -1215,6 +1215,19 @@ fn mark_rag_backfill_needed(
     result
 }
 
+/// Cap on concurrent mail RAG indexing tasks (BUG-011). Each indexed message
+/// runs a CPU-heavy embedding (ONNX, which itself spawns inference threads).
+/// `spawn_mail_rag_index` is fire-and-forget per message, so a large mailbox
+/// import (thousands of messages arriving faster than embedding completes) used
+/// to spawn thousands of simultaneous embedding tasks at once → memory/thread
+/// exhaustion → allocation failure → the whole app aborted mid-import (this
+/// happened with 22 GB free, i.e. it was unbounded concurrency, not low RAM).
+/// Every spawned task now waits on this semaphore before doing heavy work, so at
+/// most N embeddings run concurrently; the rest queue cheaply (holding only
+/// their text). 4 keeps throughput while staying far from the thousands that
+/// crashed; `const_new` lets it be a plain static (no lazy init).
+static MAIL_INDEX_SEMAPHORE: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
+
 /// Fire-and-forget mail RAG indexing, shared by every sync `index_callback`
 /// (M365 / IMAP / Gmail). On failure it logs the FULL error chain, and when
 /// the failure is the Option B "model not downloaded yet" gate it sets the
@@ -1228,6 +1241,10 @@ fn spawn_mail_rag_index(
     enc_key: [u8; 32],
 ) {
     let _ = tokio::task::spawn(async move {
+        // Bound concurrent embedding work (BUG-011). Held for the whole index
+        // call; if the semaphore is ever closed (it never is — it's a static)
+        // we still proceed rather than silently dropping the message.
+        let _permit = MAIL_INDEX_SEMAPHORE.acquire().await.ok();
         if let Err(e) =
             index_mail_text_internal(&workspace, &path_key, &text, &matter_id).await
         {
