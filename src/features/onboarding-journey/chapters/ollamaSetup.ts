@@ -29,7 +29,7 @@ export interface WaitForOllamaOpts {
   signal?: AbortSignal;
   /** How often to poll (ms). Default: 2000 */
   intervalMs?: number;
-  /** How long before giving up and resolving 'unreachable' (ms). Default: 120_000 */
+  /** How long before giving up and resolving 'unreachable' (ms). Default: 600_000 */
   timeoutMs?: number;
 }
 
@@ -43,7 +43,7 @@ export interface WaitForOllamaOpts {
  * resolves with 'unreachable' so callers can enter the error state.
  */
 export async function waitForOllama(opts: WaitForOllamaOpts = {}): Promise<WaitForOllamaResult> {
-  const { signal, intervalMs = 2000, timeoutMs = 120_000 } = opts;
+  const { signal, intervalMs = 2000, timeoutMs = 600_000 } = opts;
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {

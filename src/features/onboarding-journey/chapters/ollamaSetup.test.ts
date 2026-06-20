@@ -260,4 +260,45 @@ describe('pullOllamaModel', () => {
     // 3/3 = 100 but the 'success' line at 100 is also called
     expect(calls.some((c) => c.percent === 100)).toBe(true);
   });
+
+  it('parses NDJSON progress correctly when a JSON object is split across two stream chunks', async () => {
+    // Build a single progress line split in the middle of the JSON object.
+    const encoder = new TextEncoder();
+    const fullLine = JSON.stringify({ status: 'downloading', completed: 500, total: 1000 });
+    const successLine = JSON.stringify({ status: 'success' });
+
+    // Split the first line at an arbitrary mid-point to exercise the partial-line buffer.
+    const splitAt = Math.floor(fullLine.length / 2);
+    const firstHalf = fullLine.slice(0, splitAt);
+    const secondHalfPlusNewline = fullLine.slice(splitAt) + '\n';
+
+    const splitStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        // Chunk 1: first half of the JSON (no newline — incomplete line)
+        controller.enqueue(encoder.encode(firstHalf));
+        // Chunk 2: rest of the JSON + newline, then the success line
+        controller.enqueue(encoder.encode(secondHalfPlusNewline + successLine + '\n'));
+        controller.close();
+      },
+    });
+
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: splitStream,
+    } as unknown as Response);
+
+    const calls: Array<{ percent: number; status: string }> = [];
+    await expect(
+      pullOllamaModel('llama3.2:3b', {
+        onProgress: (p) => { calls.push(p); },
+        baseUrl: 'http://127.0.0.1:11434',
+      }),
+    ).resolves.toBeUndefined();
+
+    // The split progress event must have been parsed and reported (not silently dropped).
+    const downloadCall = calls.find((c) => c.status === 'downloading');
+    expect(downloadCall).toBeDefined();
+    expect(downloadCall?.percent).toBe(50); // 500/1000 = 50%
+  });
 });
