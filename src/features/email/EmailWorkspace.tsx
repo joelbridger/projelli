@@ -38,20 +38,23 @@ import {
   X,
   PenLine,
   Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, SurfaceToolbar, Callout } from '@/ui/kp';
-import { useActiveMatter } from '@/platform/matter/matterStore';
+import { useActiveMatter, getMatters } from '@/platform/matter/matterStore';
 import { useMailStore } from './mailStore';
 import {
   mailListMessages,
   mailConnectedAccounts,
   mailSend,
+  mailSyncAll,
   MAIL_SYNC_EVENT,
   type MailListItem,
   type ConnectedAccount,
   type MailAttachmentInput,
   type MailSyncProgress,
 } from '@/platform/utils/mail-commands';
+import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 import { listen } from '@tauri-apps/api/event';
 import { isTauri } from '@tauri-apps/api/core';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
@@ -86,6 +89,9 @@ export function EmailWorkspace({
 
   // First-connect TTV callout — shown once after the first account is connected.
   const { firstConnectCalloutSeen, dismissFirstConnectCallout } = useMailStore();
+
+  // Track whether a manual/startup sync is in flight (cross-provider aggregate).
+  const [syncing, setSyncing] = useState(false);
 
   // Scope toggle: "This matter" vs "All email" — only effective in Ask AI mode
   const [scopeAllEmail, setScopeAllEmail] = useState(false);
@@ -191,6 +197,25 @@ export function EmailWorkspace({
       window.removeEventListener('focus', load);
     };
   }, []);
+
+  // BUG-007: Auto-sync on mount when already connected but no sync has run yet.
+  // `mail_sync_all` only fires at connect-time; after an app restart the account
+  // shows as Connected but the Email tab is empty with no way to refresh. This
+  // effect fires once after accounts are resolved: if there are connected accounts
+  // and we're running inside Tauri (desktop-only), kick off a background sync.
+  // Guard: skip if already syncing (prevents double-fire on HMR / strict-mode).
+  const startupSyncFiredRef = useRef(false);
+  useEffect(() => {
+    if (!isTauri()) return;
+    if (!accountsLoaded) return;
+    if (accounts.length === 0) return;
+    if (startupSyncFiredRef.current) return;
+    startupSyncFiredRef.current = true;
+    setSyncing(true);
+    mailSyncAll(buildMailMatterMap(getMatters()))
+      .catch(() => { /* surfaced via the MAIL_SYNC_EVENT error status */ })
+      .finally(() => { setSyncing(false); });
+  }, [accountsLoaded, accounts.length]);
 
   // Re-query the message list when a sync finishes or this window regains focus.
   // The connectors live in a SEPARATE window, so mail imported there lands in the
@@ -437,6 +462,17 @@ export function EmailWorkspace({
     setRetryCount((c) => c + 1);
   }, []);
 
+  // BUG-007: Manual "Sync now" — calls mailSyncAll for all connected providers.
+  // Disabled while a sync is already in flight (syncing state) or outside Tauri.
+  const handleSyncNow = useCallback(() => {
+    if (!isTauri()) return;
+    if (syncing) return;
+    setSyncing(true);
+    mailSyncAll(buildMailMatterMap(getMatters()))
+      .catch(() => { /* error status surfaced via MAIL_SYNC_EVENT listener */ })
+      .finally(() => { setSyncing(false); });
+  }, [syncing]);
+
   const handleClearQuery = useCallback(() => {
     setQuery('');
     setOffset(0);
@@ -579,6 +615,24 @@ export function EmailWorkspace({
             label="Filters"
             data-testid="filters-toggle"
           />
+        )}
+
+        {/* 4b. Sync now button — desktop only, when accounts are connected */}
+        {accountsLoaded && accounts.length > 0 && (
+          <Button
+            variant="ghost"
+            size="md"
+            iconLeft={syncing ? Loader2 : RefreshCw}
+            data-testid="email-sync-now"
+            disabled={syncing}
+            onClick={handleSyncNow}
+            aria-label="Sync email now"
+            style={syncing ? { opacity: 0.6 } : undefined}
+          >
+            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            {syncing ? 'Syncing…' : 'Sync now'}
+            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          </Button>
         )}
 
         {/* 5. Search field — grows to fill remaining space, always last */}
