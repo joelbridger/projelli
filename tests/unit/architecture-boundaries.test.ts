@@ -45,6 +45,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'settings->email',      // mail-account settings
   'settings->onboarding', // settings can relaunch onboarding flows
   'settings->workflows',  // settings hosts the templates marketplace tab
+  'onboarding-journey->onboarding', // journey chapters reuse onboarding sub-components (ApiKeyTester, ApiKeyExplainer, ProviderTutorialSteps, useProfessionCopy, aiSetupState)
 ]);
 
 function walk(dir: string, acc: string[] = []): string[] {
