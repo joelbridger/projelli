@@ -154,6 +154,36 @@ export const JOURNEY_STRINGS = {
       continueBtn: 'Continue',
     },
   },
+  ch6: {
+    title: 'Bring in your email',
+    body: 'Keepance can read and search your email next to your files, all on your computer. No more fighting slow inbox search.',
+    sceneLabel: 'Your email, searchable on your own computer',
+    connectLaterBtn: 'Connect later',
+    continueBtn: 'Continue',
+  },
+
+  ch7: {
+    title: 'Just you, or a team?',
+    sceneLabel: 'Solo, or a shared firm workspace',
+    soloLabel: 'I work solo',
+    soloDescription: 'Everything stays local to your computer.',
+    createLabel: 'Create a firm',
+    createDescription: 'Set up a shared workspace for your team. You become the admin.',
+    joinLabel: 'Join a firm',
+    joinDescription: 'Your firm already uses Keepance. Enter your invite code to join.',
+    inviteCodeLabel: 'Invite code',
+    inviteCodePlaceholder: 'Enter the code your admin sent you',
+    changeNote: 'You can change this any time in Settings.',
+  },
+
+  ch8: {
+    title: "You're set",
+    sceneLabel: 'Every answer comes with its sources',
+    samplesToggleLabel: 'Add a sample case so I can try things before using real client work.',
+    recapLine: 'Your files stay on your computer. Every answer shows its sources. You are in control.',
+    continueLabelSamples: 'Open the sample case',
+    continueLabelNoSamples: 'Create my first matter',
+  },
 } as const;
 
 export type JourneyStrings = typeof JOURNEY_STRINGS;

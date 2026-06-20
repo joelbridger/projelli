@@ -18,6 +18,8 @@ export interface JourneyData {
   aiProvider?: ProviderId;
   emailConnected?: boolean;
   firmChoice?: FirmChoice;
+  /** Invite code entered when firmChoice === 'join'. Captured only; wired later in Settings. */
+  firmInviteCode?: string;
   addSamples?: boolean;
 }
 
