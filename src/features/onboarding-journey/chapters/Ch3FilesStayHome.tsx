@@ -94,6 +94,7 @@ function Ch3View({ ctx }: Ch3ViewProps) {
       scene={scene}
       onBack={ctx.goBack}
       onContinue={ctx.advance}
+      continueLabel={S.continueBtn}
       continueDisabled={!canAdvance}
       testId="ch3-root"
     >

@@ -61,7 +61,6 @@ export function ChapterLayout({
       {/* Scene */}
       {scene && (
         <div
-          aria-hidden="true"
           style={{ display: 'flex', justifyContent: 'center' }}
         >
           {scene}

@@ -124,4 +124,9 @@ describe('ch3FilesStayHome — render & interaction', () => {
     fireEvent.click(screen.getByTestId('chapter-back'));
     expect(ctx.goBack).toHaveBeenCalledOnce();
   });
+
+  it('shows the synced-folder note on initial render before any folder is chosen', () => {
+    render(ch3FilesStayHome.render(makeCtx()));
+    expect(screen.getByText(/A synced folder like Dropbox/i)).toBeInTheDocument();
+  });
 });
