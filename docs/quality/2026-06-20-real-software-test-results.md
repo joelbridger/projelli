@@ -152,3 +152,29 @@ Created a throwaway `trash-test.docx`, deleted it via the row kebab → "Delete"
 After a dev-server restart, the workspace selector showed "Recent (2)"; expanding it and clicking the KeepanceTest row reopened the workspace with no native picker. **B3 PASS.**
 
 **Net this batch:** B3, E5, E7, E8, E11, E12 → PASS; **BUG-012 found + fixed + re-verified live** (inline AI edit was dead for everyone). Note: an independent Codex review/investigation was attempted twice but hung with no output on this box this session (killed per the watch rule); the fix was instead verified by 5 unit tests + typecheck + live end-to-end driving.
+
+### ✅ H9 — email filters + pagination · ✅ H7 — file email to matter (single + bulk)
+Over the 4,970 imported emails:
+- **H9 filters:** the "Has attachment" filter took "Showing 50 of 4970" → "of 939"; a From-date filter (2026-06-19) narrowed the list to 5 rows; **load-more** paged 50 → 100 rows. **H9 PASS.** (Provider filter present in the panel; one provider connected, so not separately exercised.)
+- **H7 single:** opened an email → clicked the Garcia-matter button → "Filed successfully." **H7 bulk:** hover-checkbox-selected 2 rows → "2 selected" bulk action bar → "File to matter" → picked Garcia → bar cleared + selection reset. Filing persists via `mailRetagMessageMatter`. **H7 PASS.**
+- **🐞 BUG-013 (minor UX) logged:** reopening a filed email shows no persistent "filed to X" state (the success line is transient; matter buttons don't reflect the current association). Filing works; the gap is the missing filed-state display. Fix plan recorded in the backlog.
+
+### ✅ K3 confidentiality mode · ✅ K5 memory/facts/OCR · ✅ K11 updates (settings depth)
+- **K3:** "Where AI requests go" = "On this computer only" vs "Cloud AI (your account)". Switching to **Local-only flipped the trust bar to "On your machine. Nothing leaves…"** and back to "Sent to your OpenAI account" on Cloud — the egress indicator honors the mode. Privileged-matter + Network-lockdown toggles present. (Assured = firm-tier only.)
+- **K5:** memory on; **added a fact → row appeared → deleted → empty**; OCR toggle present + ON ("local OCR … runs entirely on your machine").
+- **K11:** channel "Stable", auto-update ON, "Check for updates now" clickable with no error/crash (dev build has no feed; real updater = signed build, N2).
+
+All three PASS.
+
+### ✅ M2 quick-open · ✅ M3 shortcuts overlay · ✅ M7 bug report (global overlays)
+- **M2:** Ctrl+P → Quick Open; typing "fee" fuzzy-matched `fee-agreement.md`.
+- **M3:** "?" → Keyboard-shortcuts overlay (FILE → Save File Ctrl+S, Close Tab, …) with search.
+- **M7:** status-bar bug button → "Report a bug" dialog (required message + optional email + include-context). Renders correctly; not submitted (real endpoint).
+
+All three PASS.
+
+### ✅ N1 keychain (explicit) · 🐞 N4 OCR (not confirmed — found BUG-014 + BUG-015)
+- **N1 PASS (explicit):** read the Windows Credential Manager from the *interactive* session — 6 real Keepance entries: OpenAI API key (`bos_key_openai`), M365 mail refresh token (`ms-refresh-token.keepance-mail-ms`), the vault key (`vmk-v1…vault`), + encryption master keys for mail/vectors/audit. All in the OS keychain, not a file. (`cmdkey` over SSH can't see them — session isolation; ran it via an interactive scheduled task.)
+- **N4 NOT confirmed:** OCR engine fully present (tesseract-wasm + eng.traineddata + worker + WASM bundled on the bench), wired (`MemoryService.indexPdfFile`), toggle ON. But a real image-only scanned PDF ("ZEBRAFOX"/$73,250) placed in the workspace never became searchable — Ask returned "no information," and no runtime PDF-index/OCR call reached Rust. **Found BUG-014** ("Add files" opens New-Document instead of importing — no import path) and **BUG-015** (added PDF wasn't indexed; watcher missed the external copy; reopen didn't index; PDF-index errors silently swallowed). Also a trust observation **BUG-016** (a loose phrasing produced a confident "$8,760,000" cited-but-unverified answer for content not in the corpus; precise phrasing correctly declined — needs a verify-citation re-test).
+
+**Net this batch:** N1 PASS (explicit). N4 not confirmed → 2 real bugs (BUG-014 Important — broken file import; BUG-015 — OCR-to-search/indexing gap) + 1 trust observation (BUG-016, needs-confirm).

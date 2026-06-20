@@ -107,9 +107,9 @@ The server already runs ~3,375 frontend tests, ~450 Rust tests, browser E2E, and
 | H4 | **Mail actually syncs** after restart + **"Sync now"** works (BUG-007 fix) | `email-sync-now`, mail list | ✅ | **CONFIRMED LIVE 2026-06-20 — real Outlook mail IMPORTS.** After fixing the sign-in (BUG-010: ShellExecuteW + bind `localhost`), Jameson reconnected with his passkey and mail imported for real (count climbed 84→194→504→… messages). "Sync now" present + auto-fires on open (BUG-007). The earlier "spins forever" (BUG-008) was the stale token; with a fresh sign-in it imports normally. |
 | H5 | Keyword search vs AI search modes | `mode-keyword`, `mode-ask`, `email-search-input` | ✅ | **CONFIRMED LIVE (2026-06-20)** — keyword search over the full imported mailbox ("invoice" → 21 real matches), AND AI search over mail proven via the Email-scoped Ask (GEICO "$100.65, June 24 2026" cited answer from the imported email). |
 | H6 | Open an email → read body, attachments, privilege control | `open-email-*`, `email-viewer-*`, `attachment-download-*` | ✅ | **CONFIRMED LIVE (2026-06-20)** — opened a real imported email; viewer shows subject/from/to/date, full body, a **privilege control** (Not privileged / Attorney-Client / Work Product), and **File-to-matter**. |
-| H7 | File an email to a matter (single + bulk) | `file-to-matter-*`, `bulk-file-to-matter` | ⬜ | |
+| H7 | File an email to a matter (single + bulk) | `file-to-matter-*`, `bulk-file-to-matter` | ✅ | **CONFIRMED LIVE (2026-06-20).** Single: opened an email → clicked the Garcia-matter button → "Filed successfully." Bulk: hover-checkbox-selected 2 rows → "2 selected" bulk-action-bar → "File to matter" → picked Garcia → bar cleared + selection reset (success). Filing persists via `mailRetagMessageMatter`. **Minor UX gap logged (BUG-013):** the viewer shows no *persistent* "filed to X" state on reopen (the "Filed successfully" is transient; the matter buttons never reflect the current association). |
 | H8 | Compose + AI-draft a reply; send | `compose-*`, `reply-draft-ai-btn`, `reply-send-btn` | ⬜🖐️ | Sending hits a real mailbox — care. |
-| H9 | Filters (provider/date/attachment), pagination | `filters-toggle`, `filter-row`, `load-more` | ⬜ | |
+| H9 | Filters (provider/date/attachment), pagination | `filters-toggle`, `filter-row`, `load-more` | ✅ | **CONFIRMED LIVE (2026-06-20).** Filters panel = From/To date + "Has attachment". Attachment filter: "Showing 50 of 4970" → "of 939". Date filter From=2026-06-19 → narrowed to 5 rows. Pagination: "load-more" took 50 → 100 rows. (Provider filter present in the panel; not separately exercised — only one provider connected.) |
 
 ## I. Workflows (AI document templates)
 | # | What to test | Key targets | Status | Notes |
@@ -133,15 +133,15 @@ The server already runs ~3,375 frontend tests, ~450 Rust tests, browser E2E, and
 |---|---|---|---|---|
 | K1 | AI keys: add (wizard), check (live verify), remove | `api-key-manager-*`, `api-key-wizard-*` | ✅ | Add + live "Check" verified (OpenAI → Working) on Windows. |
 | K2 | Language switch (EN/ES/DE) applies | `setting-language`, `language-picker-select` | ✅ | Works instantly; correct English default on clean slate. |
-| K3 | Confidentiality mode (Local/Direct/Assured) + privileged-forces-Local | `confidentiality-mode-*`, `privileged-matter-mode-switch` | ⬜ | |
+| K3 | Confidentiality mode (Local/Direct/Assured) + privileged-forces-Local | `confidentiality-mode-*`, `privileged-matter-mode-switch` | ✅ | **CONFIRMED LIVE (2026-06-20).** "Where AI requests go" = "On this computer only" vs "Cloud AI (your account)" [Recommended]. Switching to **Local-only changed the trust bar to "On your machine. Nothing leaves…"**; switching back to Cloud reverted to "Sent to your OpenAI account" — the egress indicator honors the mode (BUG-001 family agrees). Privileged-matter-mode toggle + Network-lockdown toggle present. (Assured is firm-tier only — not shown solo.) |
 | K4 | Editor/files/general prefs (autosave, font, default file type, etc.) | `section-workspace` keys | ⬜ | |
-| K5 | Memory & facts (enable, facts table add/delete, PDF/OCR toggles) | `setting-memoryEnabled`, `settings-facts-*`, `setting-ocrScannedPdfs` | ⬜ | OCR is desktop-only. |
+| K5 | Memory & facts (enable, facts table add/delete, PDF/OCR toggles) | `setting-memoryEnabled`, `settings-facts-*`, `setting-ocrScannedPdfs` | ✅ | **CONFIRMED LIVE (2026-06-20).** Memory enabled (on); **added a fact via the facts table → it appeared as a row → deleted it → table empty again.** OCR toggle present and ON ("Read scanned PDFs with local OCR … Runs entirely on your machine"). Inject-facts + auto-accept + include-PDFs toggles present. (Functional OCR-of-a-scanned-PDF = N4.) |
 | K6 | Voice input + TTS settings | `section-voice` keys | ⬜ | |
 | K7 | Telemetry opt-out, design-partner toggle, Ollama check | `privacy-telemetry-toggle`, `ollama-check-connection` | ⬜ | |
 | K8 | Extensions/marketplace: browse, install, uninstall a template | `marketplace-tab`, `template-detail-install/uninstall` | ⬜ | |
 | K9 | Per-template model override | `settings-template-model-*` | ⬜ | |
 | K10 | MCP: status, download .mcpb, approval modal | `mcp-settings-section`, `mcp-approval-modal` | ⬜ | |
-| K11 | Updates: channel, manual check now | `setting-updateChannel`, `setting-manualCheckNow` | ⬜ | Auto-updater is Windows-real; worth a check. |
+| K11 | Updates: channel, manual check now | `setting-updateChannel`, `setting-manualCheckNow` | ✅ | **CONFIRMED LIVE (2026-06-20)** — Advanced → Updates: channel = "Stable" (Beta reserved), auto-update ON, "Check for updates now" present and clickable (ran without error/crash; the dev build has no real feed, so no visible result — actual update = signed build only, see N2). |
 | K12 | Settings search, export/import/reset | `settings-search`, `settings-export/import/reset` | ⬜ | |
 | K13 | Shortcuts list + About/version | `setting-shortcut-*`, `settings-about-version` | ⬜ | |
 
@@ -158,22 +158,22 @@ The server already runs ~3,375 frontend tests, ~450 Rust tests, browser E2E, and
 | # | What to test | Key targets | Status | Notes |
 |---|---|---|---|---|
 | M1 | Command palette (Ctrl+K) | `CommandPalette` | ✅ | **CONFIRMED LIVE (2026-06-20)** — Ctrl+K opens a searchable palette (New Document, Save, Toggle Sidebar, Split Editor, Open AI Assistant…) with shortcuts. |
-| M2 | Quick open (fuzzy file) | `QuickOpen` | ⬜ | |
-| M3 | Shortcuts overlay | `ShortcutsOverlay` | ⬜ | |
+| M2 | Quick open (fuzzy file) | `QuickOpen` | ✅ | **CONFIRMED LIVE (2026-06-20)** — Ctrl+P opened Quick Open ("Find a file by fuzzy matching its name"); typing "fee" matched `fee-agreement.md`. |
+| M3 | Shortcuts overlay | `ShortcutsOverlay` | ✅ | **CONFIRMED LIVE (2026-06-20)** — pressing "?" opened the Keyboard-shortcuts overlay (FILE → Save File Ctrl+S, Close Tab, …) with a search box. |
 | M4 | What's New dialog | `WhatsNew` | ⬜ | |
 | M5 | Global drag-and-drop import | `GlobalDropOverlay` | ⬜ | Needs a real OS drag (agent can do it). |
 | M6 | Undo toast after destructive action | `UndoToast` | ⬜ | |
-| M7 | Bug report dialog | `status-bar-bug-report` | ⬜ | |
+| M7 | Bug report dialog | `status-bar-bug-report` | ✅ | **CONFIRMED LIVE (2026-06-20)** — the status-bar bug button opens "Report a bug" (required "What happened?" + optional email + include-context). Renders correctly; not submitted (it POSTs to the real keepance.com bug-report endpoint). |
 | M8 | Status bar: breadcrumbs, dirty indicator, egress pulse, trial chip | `status-bar-*`, `egress-activity-pulse` | 🟡 | Seen rendering; not exercised. |
 | M9 | Sidebar collapse/expand | `spine-nav` chevron | ⬜ | |
 
 ## N. System / platform (Windows-real)
 | # | What to test | Key targets | Status | Notes |
 |---|---|---|---|---|
-| N1 | OS keychain stores/reads AI keys + mail key + vault key | Tauri `keychain_*` | 🟡 | Implied working (key + mail connect persisted); verify explicitly. |
+| N1 | OS keychain stores/reads AI keys + mail key + vault key | Tauri `keychain_*` | ✅ | **CONFIRMED EXPLICITLY (2026-06-20).** Windows Credential Manager (read from the interactive session) holds 6 real Keepance entries: the **OpenAI API key** (`bos_key_openai.com.keepance.app`), the **M365 mail refresh token** (`ms-refresh-token.keepance-mail-ms`), the **vault key** (`vmk-v1.com.keepance.vault.*`), plus encryption master keys for mail/vectors/audit. All in the OS keychain, not a file. (Note: `cmdkey` over an SSH network-logon can't see them — must run in the interactive session.) |
 | N2 | Auto-updater checks the feed (manual check) | Tauri updater | ⬜ | Only the **signed** build truly updates; dev build can still hit the check path. |
 | N3 | App launch/quit/relaunch stability; window resize/maximize | — | ✅ | Launches + runs; restarts cleanly. |
-| N4 | OCR a scanned PDF into the index | `setting-ocrScannedPdfs` | ⬜ | Desktop-only Rust OCR. |
+| N4 | OCR a scanned PDF into the index | `setting-ocrScannedPdfs` | 🐞 | **NOT functionally confirmed (2026-06-20) — surfaced BUG-014 + BUG-015.** OCR engine is fully present & wired: `tesseract-wasm` + `eng.traineddata` + worker + WASM bundled and ON the bench (`public/ocr/`), `MemoryService.indexPdfFile` runs OCR for scanned pages, citation-disclosure ("scanned"/"low-confidence") plumbed, OCR toggle ON. **But** a real image-only scanned PDF (no text layer; distinctive "ZEBRAFOX"/$73,250) placed in the workspace never became searchable — Ask correctly returned "no information" for its content, and NO runtime PDF-index/OCR call reached the Rust layer. Root: the normal import button "Add files" is broken (**BUG-014** — it opens New-Document instead of importing), an external file copy wasn't picked up for indexing, and even a workspace reopen didn't index it; PDF-index errors are silently swallowed (`.catch(()=>{})`). Logged as **BUG-015** (OCR-to-search not confirmed / added-PDF indexing not triggered) for proper investigation (likely needs the real drag-drop import path or a fixed Add-files). |
 
 ---
 
@@ -203,21 +203,21 @@ A second AI engineer (Codex) read this plan against the actual code and flagged 
 ---
 
 # Current coverage summary (the evaluation: what's tested vs not)
-**Updated 2026-06-20 (end of the big burn-down session).** Most of the high-risk, desktop-only surface is now driven-and-passing on real Windows, and **6 real bugs were found + fixed in the process** (BUG-001 provider labels, BUG-007 mail sync trigger, BUG-009 redline-provider, BUG-010 ×2 the Outlook sign-in browser-open + IPv4/IPv6 loopback, BUG-011 large-import crash).
+**Updated 2026-06-20 (continuation — lower-risk tail burn-down).** The earlier session fixed 6 bugs (BUG-001 provider labels, BUG-007 mail sync trigger, BUG-009 redline-provider, BUG-010 ×2 Outlook sign-in, BUG-011 large-import crash). **This continuation drove the tail and found 3 more bugs + 1 trust observation:** **BUG-012** (markdown inline AI edit dead for everyone — **fixed + shipped + re-verified**), **BUG-013** (email viewer no persistent filed-to-matter state — minor UX), **BUG-014** (the "Add files" button doesn't import — opens New-Document; **Important, open**), **BUG-015** (a scanned PDF added to the workspace never got OCR-indexed/searchable — open), and **BUG-016** (a phrasing-dependent confident-wrong cited answer — needs-confirm).
 
-**Driven & passing on real Windows:** headline cited Ask (C1), **Email-scoped Ask answered from imported mail** (C2), **save answer to .docx** (C5), **AI chat send/stream + model picker** (D1/D2), workspace open (B1), file tree (E1), new .docx (E2), **Word editor typing** (E3), **AI redline → tracked changes + accept/reject** (E4/E6), Matter create + scope (F1), Privacy Center + provider indicators (G1/G2), **encrypted vault enable + recover + decrypt-off** (G3/G4), **Outlook connect + full mail import (4,970 msgs) + keyword & AI search** (H1/H4/H5), **open + read an email w/ privilege control** (H6), M365 Reconnect+Disconnect (BUG-008/010), **run a workflow → .docx** (I2/I5), Workflows + Activity Log render + audit search (I1/J1/J2), AI keys add/verify (K1), language (K2), **command palette** (M1), app launch/restart (N3).
+**Driven & passing on real Windows:** headline cited Ask (C1), Email-scoped Ask (C2), save answer to .docx (C5), AI chat send/stream + model picker (D1/D2), workspace open (B1), **recent-workspaces reopen (B3)**, file tree (E1), new .docx (E2), Word editor typing (E3), AI redline + accept/reject (E4/E6), **document export Word/clean/clean-final + PDF graceful-missing-converter (E5)**, **markdown inline AI edit + streaming diff hunks (E7/E8 — after the BUG-012 fix)**, **trash delete→restore (E11)**, **text version history (E12)**, Matter create + scope (F1), Privacy Center + provider indicators (G1/G2), encrypted vault enable+recover+decrypt-off (G3/G4), Outlook connect + 4,970-msg import + keyword & AI search (H1/H4/H5), open+read email w/ privilege (H6), **file email to matter single+bulk (H7)**, **email filters + pagination (H9)**, M365 Reconnect+Disconnect (BUG-008/010), run a workflow → .docx (I2/I5), Workflows + Activity Log + audit search (I1/J1/J2), AI keys add/verify (K1), language (K2), **confidentiality mode switch changes egress (K3)**, **memory/facts add+delete + OCR toggle (K5)**, **updates channel + manual check (K11)**, command palette (M1), **quick-open (M2)**, **shortcuts overlay (M3)**, **bug-report dialog (M7)**, app launch/restart (N3), **OS keychain explicit — 6 entries incl. AI key, mail token, vault key (N1)**.
 
 **Still not driven on Windows (the remaining tail — mostly lower-risk):**
 - Ask: kept-on-error confirm (C3), new-search/history (C4), uncited warning (C6).
 - AI chat: run-on-all (D3), attach/vision (D5), voice (D6), export (D7).
-- Documents: export to PDF/clean (E5), markdown inline-AI edit (E7/E8), spreadsheet (E9), PDF/media viewers (E10), trash (E11), version history (E12), open-in-Explorer (E13), letterhead (E14).
+- Documents: spreadsheet (E9), PDF/media viewers (E10), open-in-Explorer (E13), letterhead (E14); **.docx binary version restore (E12 binary half).**
 - Matters depth (F2–F6); Vault escape-hatch + confidentiality report (G5/G6).
-- Email: IMAP (H3), file-to-matter (H7), compose/reply/send (H8 🖐️), filters (H9).
+- Email: IMAP (H3), compose/reply/send (H8 🖐️ — needs Jameson).
 - Workflows: export + chain builder (I3/I4); Audit export CSV/JSON (J3/J4).
-- Settings depth (K3–K13), Account/Firm + SSO (L1–L5 🖐️), global overlays (M2–M9).
-- Platform: keychain explicit (N1), updater (N2 — signed build only), OCR (N4).
+- Settings depth (K4, K6–K10, K12–K13), Account/Firm + SSO (L1–L5 🖐️ — needs Jameson), other overlays (M4–M6, M8–M9).
+- Platform: updater real flow (N2 — signed build only), **OCR functional (N4 — BUG-015, blocked by BUG-014)**.
 
-**Rough tally:** ~35+ checks driven-and-passing on real Windows (up from ~15), 6 bugs fixed, the headline + every flagship desktop-only feature (Word AI-redline, workflows, encrypted vault, Outlook import + cited search) proven end-to-end. The remainder is a lower-risk long tail. **The product's core is proven working on real Windows.**
+**Rough tally:** ~55+ checks driven-and-passing on real Windows (up from ~35), 7 bugs fixed total (BUG-012 this session), 3 new open bugs (BUG-013/014/015) + 1 trust observation (BUG-016). Headline + flagship desktop-only features proven; the main NEW gaps are **file import (BUG-014)** and **OCR-to-search (BUG-015/N4)**. Remaining hands-required items: Firm SSO/admin (L3–L5) and email send (H8). **The product's core remains proven working on real Windows; the import + OCR-ingest path is the notable hole.**
 
 ---
 
