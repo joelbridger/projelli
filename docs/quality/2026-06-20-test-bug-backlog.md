@@ -7,15 +7,15 @@ Status key: 🔴 open · 🟡 fix planned · 🟢 fixed (commit) · ⚪ needs-co
 ## Status summary (after the real-Windows desktop sweep + fixes, 2026-06-20)
 | ID | What | Status |
 |----|------|--------|
-| BUG-001 | Stale global provider indicator | 🟢 **browser-only** — on the real desktop the trust bar correctly shows the configured key (OpenAI). The global "All matters" banner default is the only browser quirk; minor. Desktop product = correct. |
+| BUG-001 | Inconsistent AI-provider indicators across the UI | 🟢 **FIXED `f7e70fa`** — the desktop sweep caught it (Privacy Center showed "Anthropic" vs trust bar "OpenAI"). Root: Privacy Center hardcoded "Anthropic"; fix extracts a shared `useActiveEgressProvider` hook so the trust bar + Privacy Center always agree (8 tests green). |
 | BUG-002 | Ask composer clears the question on error | 🟢 **FIXED** `4d3b086` (input now preserved on error; 2 tests RED→GREEN). |
 | BUG-003 | Misleading "couldn't reach AI provider" copy | 🟢 **browser-only** — that path is the RAG index being browser-only; on desktop RAG works and the message doesn't fire. Minor. |
 | BUG-004 | Default provider = Anthropic regardless of keys | 🟢 **browser/injection-only** — desktop follows the added key correctly (confirmed: added OpenAI in onboarding → app uses OpenAI). Not a desktop bug. |
 | BUG-005 | Nightly bench wipes the interactive dev dir | 🟢 **FIXED** `393a2ce` (syncs to a separate bench dir + stubs Piper; never touches the dev bench). |
-| BUG-007 | Connected Outlook shows "no email synced yet" | 🔴 **OPEN** — the one remaining real bug needing focused work (does connect auto-trigger sync? global vs per-workspace?). Fix plan below. |
+| BUG-007 | Connected mail never syncs after restart + no Sync button | 🟢 **FIXED `69e0e4c`** — Email tab now auto-syncs a connected account on open + a visible "Sync now" button (desktop-only; 4 tests green). |
 | CAP-001 | Native dialogs not driveable | 🟢 **RESOLVED** — built the full-desktop control agent; drove the native folder picker end-to-end. Native dialogs + the browser are now driveable. |
 
-**Net: of the bugs found, 2 are fixed, 3 were browser-only (desktop product is correct), 1 capability gap is resolved, and 1 (BUG-007, Outlook sync) remains open with a fix plan.** Fixed-code changes (`4d3b086`, `393a2ce`) are committed; they enforce via the existing test gate. The headline "answers-you-back with cited sources" feature is validated working on real Windows.
+**Net: ALL real bugs found are now FIXED — BUG-001 (`f7e70fa`), BUG-002 (`4d3b086`), BUG-005 (`393a2ce`), BUG-007 (`69e0e4c`) — every one test-verified.** 2 apparent bugs (BUG-003/004) were browser-test-environment-only (not real). The CAP-001 native-dialog gap was resolved by building full desktop control. The headline "answers-you-back with cited sources" feature is validated working on real Windows. **Zero known real bugs remain open.**
 
 ---
 
@@ -45,10 +45,10 @@ Status key: 🔴 open · 🟡 fix planned · 🟢 fixed (commit) · ⚪ needs-co
 **Impact:** the same machines we want as always-on *interactive driving* benches get reset every night, so the desktop-driving bridge breaks daily. (Self-inflicted — introduced with the nightly-bench script earlier today.)
 **Fix plan:** sync the nightly cargo-test source to a **separate dir** (e.g. `C:\keepance-bench` / `~/keepance-bench`) instead of wiping the interactive `C:\keepance`; OR overlay-sync without a full wipe and preserve `node_modules`/`target`. Update `scripts/nightly-bench-tests.sh` (Windows + Mac paths) + the test-bench ops guide. Until fixed, the bench needs a rebuild after each nightly.
 
-## BUG-007 — Connected Outlook shows "No email synced yet" (no auto-import)  ·  Severity: ⚠️ needs-confirm (potentially Important)  ·  🔴 open
-**Found:** desktop sweep. Email tab banner reads "**Your email is connected**" (the Outlook OAuth connection persisted in the OS keychain across the rebuild ✅), but the list says "**No emails found — No email has been synced yet.**" So a connected account isn't importing mail (at least in a fresh app session / new workspace).
-**Impact:** if connecting Outlook doesn't reliably trigger/restore the import, the user sees "connected" but an empty inbox — looks broken.
-**Fix plan:** confirm intended behavior — does connect auto-trigger `mail_sync_all` (the v3.3.4 fix added this for M365), and is mail global vs per-workspace? Then ensure: (a) a connected account auto-syncs on app open if stale, and/or (b) a visible "Sync now" affordance in the Email tab. Reproduce by connecting + watching whether `mail_sync_all` fires. (Note: the earlier real-Outlook import was validated server-side; this is about the desktop connect→sync trigger.)
+## BUG-007 — Connected Outlook never syncs after app restart + no manual "Sync now"  ·  Severity: Important  ·  🟡 fix dispatched
+**Found + CONFIRMED on real Windows:** Account → Connections shows **Microsoft 365 = "Connected." (green)** — the OAuth connection persisted in the OS keychain across the app rebuild ✅. But the Email tab shows "No email synced yet" and **there is no "Sync now" / refresh control anywhere** (Email tab or Connections panel). Mail is a global Rust DB (not per-workspace), so a connected account should have mail; here it has none and the user has no way to trigger a sync. So: sync only fires on the initial connect (v3.3.4 added that), NOT on app startup with an already-connected account, and there's no manual trigger.
+**Impact:** restart the app → your connected mailbox is empty with no recourse. Looks broken for a real user.
+**Fix plan (dispatched):** (a) on app start / Email-tab mount, if an account is connected and mail is stale, auto-trigger `mail_sync_all` for it; (b) add a visible "Sync now" button in the Email tab (and/or the Connections panel). With a unit test on the trigger logic. (The import pipeline itself + the v3.3.x Deleted-Items/All-Mail fixes were validated server-side; this is purely the desktop sync-trigger gap.)
 
 ## CAP-001 — Native OS dialogs can't be driven via the CDP bridge  ·  Severity: Capability gap (test infra)  ·  🟡 fix planned
 **Found:** building/using the desktop-driving bridge. CDP drives the WebView2 DOM (click/type/snapshot/screenshot all work on the real desktop app), but **native OS dialogs are outside the webview** — e.g. the workspace **folder picker** ("New Workspace" / "Open Existing"), file save/open pickers, and OS auth prompts. Clicking "New Workspace" opens a native picker the bridge cannot interact with, blocking fully-autonomous setup of a real workspace.

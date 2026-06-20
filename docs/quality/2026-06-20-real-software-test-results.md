@@ -63,7 +63,14 @@ Beyond the in-app CDP bridge, native OS dialogs + the browser are now driven by 
 - ✅ **AI provider follows the configured key** on desktop (trust bar = "Sent to your OpenAI account", the OS-keychain key from onboarding) — so **BUG-001/BUG-004 appear browser/injection-only**, NOT desktop product bugs. (Re-confirm + downgrade in backlog.)
 - ✅ **Citation verification** works (claims marked "Verified" against the source file).
 - ✅ Workspace load + RAG indexing + Search surface all functional on desktop.
-- (continuing: Outlook import, Documents/.docx, Matters, Workflows, Privacy/Vault, Activity Log...)
+- ✅ **Documents** — file tree shows the workspace files; Documents view works.
+- ✅ **Matters** — created "Garcia v. Meridian Properties / Roberto Garcia" via the form; it auto-created folders (AI Chats, Audio Recordings, docs), mapped the Microsoft 365 account to the matter, and shows per-matter Network Lockdown + scoping. Solid.
+- ✅ **Email connection** persists (Account → Connections: Microsoft 365 = "Connected." green) — but no mail synced + no Sync control → **BUG-007** (fix dispatched).
+- ✅ **Privacy Center / Data Map** — renders clean + comprehensive ("Where your data is", Confidentiality Report, **Enable vault** (AES-256), plain-language data-map sections). **But** "Current mode" shows **Anthropic** while the trust bar shows **OpenAI** → **BUG-001 reproduces on desktop** (real, was wrongly dismissed as browser-only; fix to be dispatched).
+- ✅ **Workflows, Activity Log** — load without errors.
+- Not yet exercised: enabling the encrypted **vault** end-to-end (encrypt + recovery — disruptive, deferred); **`.docx`** Word-native editing (needs a .docx in the workspace); a full Outlook **import** (blocked by BUG-007 until the sync trigger lands or a re-connect).
+
+**Sweep verdict:** the app is genuinely solid on real Windows. Real bugs found by the desktop sweep: **BUG-001** (provider indicators disagree) and **BUG-007** (connected mail never syncs / no Sync button) — both real, both now being fixed. Everything else worked.
 
 ### Live onboarding test (Legion, with Jameson) — IN PROGRESS
 - [x] **Onboarding steps 1–6 walk-through** ✅ — all completed cleanly (green checks); no breakage reported.
