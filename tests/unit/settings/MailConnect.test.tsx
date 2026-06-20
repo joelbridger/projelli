@@ -5,11 +5,13 @@ const mockOutlookConnect = vi.fn();
 const mockMailSyncAll = vi.fn();
 const mockMailCancelSync = vi.fn();
 const mockMailIsConnected = vi.fn();
+const mockMailDisconnect = vi.fn();
 const mockMailFdeStatus = vi.fn();
 
 vi.mock('@/platform/utils/mail-commands', () => ({
   get outlookConnect() { return mockOutlookConnect; },
   get mailIsConnected() { return mockMailIsConnected; },
+  get mailDisconnect() { return mockMailDisconnect; },
   get mailSyncAll() { return mockMailSyncAll; },
   get mailCancelSync() { return mockMailCancelSync; },
   get mailFdeStatus() { return mockMailFdeStatus; },
@@ -131,6 +133,47 @@ describe('MailConnect — BUG-008 Reconnect button', () => {
     fireEvent.click(btn);
     await waitFor(() => expect(btn).toHaveTextContent('Reconnecting…'));
     expect(btn).toBeDisabled();
+  });
+});
+
+// BUG-008 follow-up: M365 Disconnect button (parity with the Gmail panel).
+describe('MailConnect — BUG-008 follow-up Disconnect button', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockProgress = undefined;
+    mockMailIsConnected.mockResolvedValue(true);
+    mockOutlookConnect.mockResolvedValue(undefined);
+    mockMailDisconnect.mockResolvedValue(undefined);
+    mockMailSyncAll.mockResolvedValue(undefined);
+    mockMailCancelSync.mockResolvedValue(undefined);
+    mockMailFdeStatus.mockResolvedValue({ status: 'unknown', platform: 'Linux', detail: null });
+  });
+
+  it('shows a Disconnect button when connected', async () => {
+    render(<MailConnect />);
+    await waitFor(() => expect(mockMailIsConnected).toHaveBeenCalled());
+    expect(await screen.findByTestId('mail-m365-disconnect')).toHaveTextContent('Disconnect');
+  });
+
+  it('clicking Disconnect cancels sync, calls mailDisconnect, and returns to the Connect state', async () => {
+    render(<MailConnect />);
+    await waitFor(() => expect(mockMailIsConnected).toHaveBeenCalled());
+    fireEvent.click(await screen.findByTestId('mail-m365-disconnect'));
+    await waitFor(() => expect(mockMailDisconnect).toHaveBeenCalledTimes(1));
+    expect(mockMailCancelSync).toHaveBeenCalled();
+    // Back to the disconnected state: the Connect button reappears.
+    expect(await screen.findByRole('button', { name: /connect microsoft 365/i })).toBeInTheDocument();
+  });
+
+  it('stays honest if mailDisconnect rejects: shows an error and does NOT show a disconnected screen', async () => {
+    mockMailDisconnect.mockRejectedValue(new Error('keychain locked'));
+    // mailIsConnected resolves true (token still there) — the re-check keeps us connected.
+    render(<MailConnect />);
+    await waitFor(() => expect(mockMailIsConnected).toHaveBeenCalled());
+    fireEvent.click(await screen.findByTestId('mail-m365-disconnect'));
+    // The failure surfaces and we do NOT fall back to the "Connect" screen.
+    await waitFor(() => expect(screen.getByText(/keychain locked/i)).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /connect microsoft 365/i })).not.toBeInTheDocument();
   });
 });
 

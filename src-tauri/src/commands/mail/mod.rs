@@ -866,6 +866,24 @@ pub async fn mail_is_connected() -> Result<bool, String> {
     Ok(entry.get_password().is_ok())
 }
 
+/// Disconnect the Microsoft 365 account: delete its refresh token from the OS
+/// keychain. Mirrors `gmail_disconnect`. Idempotent (succeeds if already gone).
+/// After this, `mail_is_connected` returns false and the user can connect anew —
+/// the BUG-008 follow-up so a stale Microsoft sign-in can be removed, not only
+/// re-authenticated. Imported mail in the local DB is left intact.
+#[tauri::command]
+pub async fn mail_disconnect() -> Result<(), String> {
+    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
+        .map_err(|e| e.to_string())?;
+    // Surface a genuine deletion failure instead of swallowing it — otherwise the
+    // UI could claim "disconnected" while the token actually remains. Already-gone
+    // (NoEntry) is success (idempotent).
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 async fn fresh_access_token() -> Result<String, String> {
     let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
         .map_err(|e| e.to_string())?;

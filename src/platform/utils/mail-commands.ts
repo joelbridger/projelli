@@ -299,6 +299,14 @@ export async function outlookConnect(): Promise<void> {
   return invoke<void>('outlook_connect');
 }
 
+// Disconnect the Microsoft 365 account (delete its refresh token from the
+// keychain). Mirrors gmailDisconnect; the BUG-008 follow-up so a stale M365
+// sign-in can be removed, not only re-authenticated.
+export async function mailDisconnect(): Promise<void> {
+  if (!isTauri()) return;
+  return invoke<void>('mail_disconnect');
+}
+
 // Gmail native provider (loopback PKCE OAuth)
 export async function gmailConnect(): Promise<void> {
   if (!isTauri()) throw new Error('Gmail connect is only available in the desktop app.');

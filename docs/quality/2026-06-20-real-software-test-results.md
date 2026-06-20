@@ -101,3 +101,24 @@ The flagship Word-native feature, never before driven on real Windows.
 - ✅ **Accept/reject controls (E6):** accept-all cleared the prior change earlier, accept-one made "its" permanent (2→1), reject-one reverted "Payment are due" (1→0). All worked.
 
 **Bottom line:** the Word AI-redline feature is proven working on real Windows — and fixing it removed a bug that would have made it unusable for the majority of BYOK users (anyone not on Anthropic). Full suite still green (3398 frontend tests); lint gate + CI restored to green (the BUG-008 connector changes had drifted the baseline; also removed an em dash from the connector warning copy).
+
+## Run a workflow end-to-end (I2) — driven live on Windows, 2026-06-20
+Drove the Workflows catalog (19 legal templates render cleanly) and ran **Case Timeline Builder** all the way through:
+- ✅ Clicking "Run" opened the **Workflow Questions** interview form; its **required-field validation works** (Continue refused with "This field is required" until every required field had a value).
+- ✅ On Continue it made a **real OpenAI call** and produced a proper, well-structured **`CASE_TIMELINE.docx`** in a new dedicated folder ("Case Timeline Builder - <timestamp>"), correctly using every input: title "Case Timeline: Garcia v. Meridian Properties LLC", case type, jurisdiction, trial date, a Parties Quick Reference table, and a Chronological Timeline grouping the events into phases with "Parties involved / Significance / Source" for each.
+- ✅ The output opens in the same Word-native editor (Export / Revise with AI / Review pane), so it can be redlined further.
+- ✅ The completed run appears in **Recent Runs** with a green check (I5).
+- Notes (not user bugs): the InterviewForm inputs have no `data-testid`s (a testability gap — drove them by placeholder + React-aware fill); the shared "**Draft document** — Review and edit…" disclaimer baked into the workflow templates contains an em dash (minor copy style, lives in generated-document output rather than app UI; the no-em-dash rule de-scopes repo-wide hunts, so left as-is).
+
+**Bottom line:** workflows work end-to-end on real Windows — interview → real AI → a correct, editable .docx artifact. **I2 PASS.**
+
+## Encrypted vault — enable + recover (G3/G4) — driven live on Windows, 2026-06-20
+The data-loss-sensitive flagship, tested on a **throwaway** workspace (`C:\kp-vault-test`, one file containing a fake "secret settlement figure"), never the real test data.
+- ✅ Created the throwaway workspace via the **native folder picker driven end-to-end** (workspace switcher → Open Project → Open Existing → native dialog: Ctrl+L → path → Select Folder). Confirms B-series native-picker driving too.
+- ✅ **Enable (G3):** Privacy Center → "Encrypt this workspace" → honest 2-step ceremony (clear warning that Keepance can't recover the phrase), a 24-word recovery phrase shown once, a confirm-3-specific-words gate, Activate → "Workspace encrypted." **Verified the encryption is real at the disk level (over SSH):** the file's bytes became ciphertext starting with the `KPV1` magic header, and the secret plaintext was gone. Folder names stayed readable, as the dialog promises.
+- ✅ **Recover (G4):** via the app's own `vault_unlock_with_recovery` command — a **wrong** phrase was rejected ("failed BIP39 checksum validation"); the **correct** saved phrase unlocked; then reading the encrypted file decrypted it back to the exact original secret. So the 24-word phrase genuinely recovers the key and the data.
+- ✅ **Off-ramp:** "Turn off vault and decrypt files" → confirm → the file was restored to plaintext on disk and `.keepance-vault.json` was removed (vault_status enabled=false).
+- Cleaned up: switched back to the real test workspace and deleted the throwaway folder + the local copy of the phrase.
+- Note: I tested the recovery *cryptography* directly rather than the locked-state UI prompt, because there is no in-app "lock" button and the OS keychain that holds the unlocked key isn't reachable from the SSH session to force the locked state. The substance — wrong-phrase rejection, correct-phrase recovery, real on-disk encryption, clean decrypt-and-disable — is fully proven.
+
+**Bottom line:** the encrypted vault genuinely protects data at rest (real ciphertext) and the recovery phrase genuinely brings it back. **G3/G4 PASS.**

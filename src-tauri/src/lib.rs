@@ -111,6 +111,7 @@ pub fn run() {
             commands::mail::mail_begin_login,
             commands::mail::mail_poll_login,
             commands::mail::mail_is_connected,
+            commands::mail::mail_disconnect,
             commands::mail::mail_sync_all,
             commands::mail::mail_cancel_sync,
             // Keepance 3.0 email viewer — fetch + decrypt one stored message.

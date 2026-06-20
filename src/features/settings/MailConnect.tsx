@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { outlookConnect, mailIsConnected, mailSyncAll, mailCancelSync, mailFdeStatus } from '@/platform/utils/mail-commands';
+import { outlookConnect, mailIsConnected, mailDisconnect, mailSyncAll, mailCancelSync, mailFdeStatus } from '@/platform/utils/mail-commands';
 import { useMailSync } from '@/features/email/useMailSync';
 import { useMailStore } from '@/features/email/mailStore';
 import { getMatters } from '@/platform/matter/matterStore';
@@ -65,6 +65,28 @@ export function MailConnect() {
     }
   }
 
+  // Disconnect: cancel any in-flight sync, drop the Microsoft 365 refresh token
+  // from the keychain, and return to the disconnected state. The BUG-008
+  // follow-up — gives a stale account a way out (remove + reconnect), matching
+  // the Gmail panel. Imported mail stays in the local DB.
+  async function disconnect() {
+    try { await mailCancelSync(); } catch { /* best-effort */ }
+    setConnectError(null);
+    try {
+      await mailDisconnect();
+      setConnected(false);
+      setSyncStalled(false);
+    } catch (err) {
+      // Don't lie: if removing the saved sign-in failed (e.g. the keychain
+      // refused), surface it and re-check the real state rather than showing a
+      // disconnected screen while the token may still be there.
+      setConnectError(
+        typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not disconnect. Please try again.',
+      );
+      mailIsConnected().then(setConnected).catch(() => {});
+    }
+  }
+
   function stopSync() {
     mailCancelSync().catch(() => {});
   }
@@ -127,15 +149,27 @@ export function MailConnect() {
             <p className="mt-1 text-red-700">Mail sync ran into a problem. Open this panel again to retry.</p>
           )}
           {progress && progress.status === 'cancelled' && <p className="mt-1 text-slate-500">Import stopped.</p>}
-          <button
-            type="button"
-            data-testid="mail-m365-reconnect"
-            disabled={connecting}
-            onClick={() => void reconnect()}
-            className="mt-2 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-          >
-            {connecting ? 'Reconnecting…' : 'Reconnect'}
-          </button>
+          {connectError && <p className="mt-1 text-red-700">Something went wrong: {connectError}</p>}
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              data-testid="mail-m365-reconnect"
+              disabled={connecting}
+              onClick={() => void reconnect()}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            >
+              {connecting ? 'Reconnecting…' : 'Reconnect'}
+            </button>
+            <button
+              type="button"
+              data-testid="mail-m365-disconnect"
+              disabled={connecting}
+              onClick={() => void disconnect()}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            >
+              Disconnect
+            </button>
+          </div>
         </div>
       )}
     </section>

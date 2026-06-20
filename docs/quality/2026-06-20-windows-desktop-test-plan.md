@@ -93,8 +93,8 @@ The server already runs ~3,375 frontend tests, ~450 Rust tests, browser E2E, and
 |---|---|---|---|---|
 | G1 | Privacy Center renders: data map accordion + confidentiality report | `privacy-center-report-button`, `DataMapContent` | ✅ | Renders clean + comprehensive. |
 | G2 | **All provider indicators agree** (Privacy "Current mode" == trust bar == Ask) — BUG-001 fix | `EgressIndicator`, `TrustBar`, `useActiveEgressProvider` | ✅ | **CONFIRMED LIVE 2026-06-20** — Privacy Center + trust bar both read "Sent to your OpenAI account". BUG-001 fixed. |
-| G3 | **Vault enable** (AES-256) + recovery-phrase ceremony | `vault-enable-trigger`, `vault-enable-ceremony` | ⬜🖐️ | Disruptive (encrypts the workspace). Do on a throwaway workspace. |
-| G4 | **Vault lock → unlock** with the phrase | `recovery-phrase-input`, `vault-unlock-error` | ⬜ | The data-loss-sensitive path; test recover carefully. |
+| G3 | **Vault enable** (AES-256) + recovery-phrase ceremony | `vault-enable-trigger`, `vault-enable-ceremony` | ✅ | **CONFIRMED LIVE on a throwaway workspace (2026-06-20).** Enabled the vault: honest 2-step ceremony, 24-word phrase shown once, confirm-3-words gate, Activate → "Workspace encrypted". **Verified at the disk level over SSH:** the test file became real ciphertext (starts with the `KPV1` magic header; the secret plaintext was gone). Folder names stayed visible, as promised. |
+| G4 | **Vault lock → unlock** with the phrase | `recovery-phrase-input`, `vault-unlock-error` | ✅ | **CONFIRMED LIVE (2026-06-20)** via the app's own recovery command: a **wrong** phrase was rejected (BIP39 checksum), the **correct** phrase recovered the key, and the encrypted file then decrypted back to the exact original secret. Also drove "Turn off vault and decrypt" → files restored to plaintext + vault metadata removed. (Note: tested the recovery *cryptography* path directly — there's no in-app "lock" affordance and the OS keychain isn't reachable from the SSH session to force the locked-UI prompt; the substance of recovery is proven.) |
 | G5 | Vault "lost my phrase" escape hatch | `VaultEscapeHatchDialog` | ⬜ | |
 | G6 | Confidentiality report prints for a matter | `ConfidentialityReportDialog` | ⬜ | |
 
@@ -115,10 +115,10 @@ The server already runs ~3,375 frontend tests, ~450 Rust tests, browser E2E, and
 | # | What to test | Key targets | Status | Notes |
 |---|---|---|---|---|
 | I1 | Workflow catalog renders, filter by practice, search | `associate-home`, `associate-practice-filter`, `associate-search` | ✅ | Loads without errors. |
-| I2 | **Run a workflow** end-to-end (Q&A interview → .docx output) | `associate-run-*`, InterviewForm, `workflow-execution-tab-wrapper` | ⬜ | The actual value of workflows; not yet driven. |
+| I2 | **Run a workflow** end-to-end (Q&A interview → .docx output) | `associate-run-*`, InterviewForm, `workflow-execution-tab-wrapper` | ✅ | **CONFIRMED LIVE (2026-06-20)** — ran "Case Timeline Builder": Q&A interview (required-field validation enforced) → real OpenAI call → created a folder + a real `CASE_TIMELINE.docx` correctly built from the inputs (parties, jurisdiction, trial date, events organized into phases with significance + source per event), opening in the Word editor. Run shows in Recent Runs (green ✓). Minor note: the InterviewForm fields have no data-testids (testability gap, not a user bug); workflow-template disclaimers contain em dashes (minor copy style, in generated-doc output not UI chrome). |
 | I3 | Export workflow output (.docx/.pptx) | `workflow-export-*` | ⬜ | |
 | I4 | Chain builder (multi-step) | `chain-builder-modal`, `chain-*` | ⬜ | |
-| I5 | Recent runs history | `associate-recent-runs` | ⬜ | |
+| I5 | Recent runs history | `associate-recent-runs` | ✅ | Confirmed (2026-06-20) — the completed Case Timeline Builder run appears in "Recent Runs" with a green completed check + relative timestamp. |
 
 ## J. Activity Log (audit)
 | # | What to test | Key targets | Status | Notes |
