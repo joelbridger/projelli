@@ -55,6 +55,16 @@ Lesson applied: test from a **clean slate through real flows**, not injected sta
 **One boundary found → CAP-001:** native OS dialogs (the workspace **folder picker**, file save/open, OS auth) are outside the webview and can't be CDP-driven. So fully-autonomous setup of a *real* workspace needs the test hook in CAP-001, or one folder-pick from Jameson. Everything inside the app is fully drivable by Claude.
 **Mac:** same approach with a WebKit bridge for WKWebView — next, after Windows is exercised.
 
+## Full computer control — BUILT (CDP + desktop agent)
+Beyond the in-app CDP bridge, native OS dialogs + the browser are now driven by a **desktop agent** on the Legion (`/tmp/legion_agent.py` → `C:\agent\legion_agent.py`): a tiny pyautogui HTTP service running in the logged-in session (started by the `LegionAgent` scheduled task), reached from the server via `ssh -L 8766:127.0.0.1:8765`. It does whole-screen screenshots + real mouse/keyboard anywhere. **Proven:** drove the native "Select Workspace Folder" picker (Ctrl+L → type path → Select Folder) to open a real workspace — closing the CAP-001 gap. Now: CDP for precise in-app clicks (by testid) + agent for native dialogs/browser. = control the whole machine like a user.
+
+## Desktop sweep — RESULTS (driven autonomously via CDP + agent)
+- ✅✅ **HEADLINE FEATURE WORKS.** Loaded `C:\KeepanceTest` (3 sample matter files) → app auto-**indexed for RAG** → asked "answer deadline + contingency fee" in Search → got a **correct answer with VERIFIED citations** ("July 14, 2026"; "33.3% / 40%"; CITATION 1 ✓ Verified → `fee-agreement.md`). The product's core value prop confirmed end-to-end on real Windows.
+- ✅ **AI provider follows the configured key** on desktop (trust bar = "Sent to your OpenAI account", the OS-keychain key from onboarding) — so **BUG-001/BUG-004 appear browser/injection-only**, NOT desktop product bugs. (Re-confirm + downgrade in backlog.)
+- ✅ **Citation verification** works (claims marked "Verified" against the source file).
+- ✅ Workspace load + RAG indexing + Search surface all functional on desktop.
+- (continuing: Outlook import, Documents/.docx, Matters, Workflows, Privacy/Vault, Activity Log...)
+
 ### Live onboarding test (Legion, with Jameson) — IN PROGRESS
 - [x] **Onboarding steps 1–6 walk-through** ✅ — all completed cleanly (green checks); no breakage reported.
 - [x] **Step 6 "Connect AI"** ✅ — real key added through the proper flow; step marked complete.
