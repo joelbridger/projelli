@@ -104,7 +104,7 @@ The server already runs ~3,375 frontend tests, ~450 Rust tests, browser E2E, and
 | H1 | Connect Microsoft 365 (OAuth in system browser) | `MailConnect` | ✅🖐️ | Connected on real Windows with Jameson (first time ever). Persists across restart. |
 | H2 | Connect Gmail (OAuth) | `MailGmailConnect` | 🖐️ | Dev build lacks baked Google creds (expected); needs the signed build or creds injected. Validated server-side already. |
 | H3 | Connect IMAP (manual host/port form) | `MailImapConnect` | ⬜ | |
-| H4 | **Mail actually syncs** after restart + **"Sync now"** works (BUG-007 fix) | `email-sync-now`, mail list | ✅/🐞 | **BUG-007 fix CONFIRMED LIVE 2026-06-20** — "Sync now" button present + auto-fires on open. BUT sync then spins forever with 0 mail/no feedback → **BUG-008** (likely stale token; needs Jameson reconnect to prove full import). |
+| H4 | **Mail actually syncs** after restart + **"Sync now"** works (BUG-007 fix) | `email-sync-now`, mail list | ✅ | **CONFIRMED LIVE 2026-06-20 — real Outlook mail IMPORTS.** After fixing the sign-in (BUG-010: ShellExecuteW + bind `localhost`), Jameson reconnected with his passkey and mail imported for real (count climbed 84→194→504→… messages). "Sync now" present + auto-fires on open (BUG-007). The earlier "spins forever" (BUG-008) was the stale token; with a fresh sign-in it imports normally. |
 | H5 | Keyword search vs AI search modes | `mode-keyword`, `mode-ask`, `email-search-input` | ⬜ | |
 | H6 | Open an email → read body, attachments, privilege control | `open-email-*`, `email-viewer-*`, `attachment-download-*` | ⬜ | |
 | H7 | File an email to a matter (single + bulk) | `file-to-matter-*`, `bulk-file-to-matter` | ⬜ | |

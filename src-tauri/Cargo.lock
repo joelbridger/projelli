@@ -4617,6 +4617,7 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "walkdir",
+ "windows-sys 0.59.0",
  "wiremock",
  "zeroize",
  "zip",

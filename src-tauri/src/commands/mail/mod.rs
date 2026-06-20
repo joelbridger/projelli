@@ -798,17 +798,19 @@ pub async fn mail_backfill_rag(
 #[tauri::command]
 pub async fn outlook_connect() -> Result<(), String> {
     use crate::commands::mail::gmail::oauth::{
-        bind_loopback, gen_pkce, gen_state, open_browser, await_redirect_code,
+        bind_loopback_host, gen_pkce, gen_state, open_browser, await_redirect_code,
     };
     use crate::commands::mail::oauth::{build_ms_auth_url, ms_exchange_code, MS_TOKEN_ENDPOINT};
 
     let (verifier, challenge) = gen_pkce();
     let state_token = gen_state();
-    let (listener, loopback_uri) = bind_loopback().await.map_err(|e| e.to_string())?;
     // Personal Microsoft accounts reject a numeric 127.0.0.1 loopback redirect;
-    // they require "localhost" to match the registered http://localhost redirect.
-    // localhost resolves to 127.0.0.1, so the bound listener still receives it.
-    let redirect_uri = loopback_uri.replace("127.0.0.1", "localhost");
+    // they require the "localhost" redirect that matches the app's registered
+    // http://localhost. We BIND to "localhost" too (not 127.0.0.1) so the
+    // listener is on whatever address the browser resolves "localhost" to — on
+    // Windows that's ::1 (IPv6), and binding 127.0.0.1 there gave the user
+    // "localhost refused to connect" and a timeout (BUG-010).
+    let (listener, redirect_uri) = bind_loopback_host("localhost").await.map_err(|e| e.to_string())?;
     let url = build_ms_auth_url(&client_id(), &redirect_uri, &challenge, &state_token);
     open_browser(&url);
     let code = await_redirect_code(listener, &state_token, std::time::Duration::from_secs(300))

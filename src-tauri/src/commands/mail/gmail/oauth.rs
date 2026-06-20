@@ -264,9 +264,26 @@ fn parse_token_response(status: u16, v: &serde_json::Value) -> anyhow::Result<Go
 /// `"http://127.0.0.1:<port>"` — suitable to pass to Google and to
 /// `exchange_code`.
 pub async fn bind_loopback() -> anyhow::Result<(tokio::net::TcpListener, String)> {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+    bind_loopback_host("127.0.0.1").await
+}
+
+/// Bind an ephemeral loopback listener for an OAuth redirect on a SPECIFIC host
+/// ("127.0.0.1" or "localhost"), returning the listener and the matching
+/// `http://<host>:<port>` redirect URI.
+///
+/// Why the host matters (BUG-010): the redirect URI host and the bound listener
+/// host must be the SAME name, because the browser resolves the redirect host
+/// and connects there. On Windows, "localhost" resolves to ::1 (IPv6) first —
+/// so binding 127.0.0.1 (IPv4) while redirecting to "localhost" left the browser
+/// hitting a dead ::1 port ("localhost refused to connect") and the listener
+/// never received the code. Binding the literal "localhost" makes tokio resolve
+/// it the same way the browser will, so they always meet. Microsoft personal
+/// accounts require the "localhost" redirect (they reject a numeric 127.0.0.1
+/// loopback); Gmail keeps 127.0.0.1.
+pub async fn bind_loopback_host(host: &str) -> anyhow::Result<(tokio::net::TcpListener, String)> {
+    let listener = tokio::net::TcpListener::bind(format!("{host}:0")).await?;
     let port = listener.local_addr()?.port();
-    let redirect_uri = format!("http://127.0.0.1:{port}");
+    let redirect_uri = format!("http://{host}:{port}");
     Ok((listener, redirect_uri))
 }
 

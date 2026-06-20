@@ -158,6 +158,14 @@ quick-xml = "0.38"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 
+# Windows-only: ShellExecuteW, the canonical way to open a URL in the default
+# browser (BUG-010). `rundll32 url.dll,FileProtocolHandler` silently fails to
+# launch some default browsers, and `cmd /C start` mangles `&`/`%` in OAuth
+# URLs (the `&` is read as a command separator). ShellExecuteW passes the URL as
+# a real wide-string argument with no shell parsing, so the OAuth URL stays intact.
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.59", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
 # Integration tests for the `keepance-mcp` sidecar need a throwaway workspace
