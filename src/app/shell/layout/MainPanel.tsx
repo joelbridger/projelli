@@ -75,6 +75,7 @@ import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode'
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import type { ChatProviderId } from '@/platform/providers/providerFactory';
 import { resolveRedlineProvider } from './resolveRedlineProvider';
+import { resolveInlineEditProvider } from './resolveInlineEditProvider';
 import { modeRestrictsToLocal } from '@/platform/privacy/egress';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
 import { isAudioFile, getFileExtension, shouldVersionFile, isDiskVersioned } from './mainPanelHelpers';
@@ -810,6 +811,20 @@ export function MainPanel({
             onFileTreeChange?.();
           }}
           hasWorkspace={() => Boolean(workspaceServiceRef?.current)}
+          // BUG-012 — wire the inline "Ask AI" edit to the SAME resolved
+          // provider the redline + trust bar use. Without this getAiProvider
+          // the hook's getProvider() was null and the inline edit silently
+          // no-opped for every user. Local-only mode uses the detected Ollama
+          // model so nothing leaves the machine.
+          getAiProvider={() =>
+            resolveInlineEditProvider({
+              provider: redlineProvider,
+              apiKeys,
+              ...(redlineLocalOnly && redlineOllamaModel
+                ? { model: redlineOllamaModel }
+                : {}),
+            })
+          }
         />
       );
     };

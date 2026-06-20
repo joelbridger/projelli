@@ -130,3 +130,25 @@ The email connector was the hardest remaining surface, and driving it to complet
 - **Verified end-to-end after both fixes:** re-ran the import → it sailed past the old ~1,400 crash point and **settled at 4,970 messages with the app alive** (the ~455 vs the ~5,425 mailbox total are the deliberately-excluded Deleted Items/Junk). Then **keyword search over the imported mail works** — "invoice" returned 21 real matches with correct subjects/senders.
 
 **Bottom line:** Outlook on Windows now connects, imports a full real mailbox without crashing, and is searchable. **H1/H4 PASS; H5 keyword PASS.** Three customer-facing bugs (BUG-010 ×2 causes + BUG-011) found and fixed in the process.
+
+## Lower-risk tail burn-down (continuation session) — 2026-06-20
+Drove the next batch of surfaces on the real Legion. **Found + fixed one real, customer-facing bug (BUG-012) and proved several editing surfaces; recorded everything below.**
+
+### 🐞→✅ BUG-012 — inline "Ask AI" edit on Markdown/text was dead for EVERY user (found + fixed live)
+Driving **E7** (select text in a `.md` → "Ask AI" → edit), the edit silently did nothing — no change, no diff, no error. Root cause: `MainPanel` rendered `<MarkdownEditor>` with **no `getAiProvider`**, so `useInlineAiEdit`'s provider was always null and the submit handler took a silent early return (its own comment: *"We could show a toast here; for now just abort gracefully."*). Broader than BUG-009 (which only hit non-Anthropic users) — here the provider was null for everyone. **Fixed:** added a tested pure helper `resolveInlineEditProvider` that builds a real `Provider` from the SAME resolved provider as the redline/trust bar (`redlineProvider`) + the user's keys (local keyless; cloud only with a valid key; else null), and wired `getAiProvider` in `MainPanel`. 5 unit tests + typecheck. **Re-verified live:** select word → Ask AI → streaming diff overlay ("AI edit · 1 hunk", `- contingency` / `+ contingent-fee`) → accept hunk → applied. (Investigation confirmed `PlainTextEditor` also uses the hook but is **never rendered** — dead code, not a live bug.) **E7/E8 PASS.**
+
+### ✅ E5 — document export (Word / clean / clean-final / PDF)
+- **Word export** → real `.docx` on disk, valid OOXML zip (magic `50 4B 03 04`). **Clean-final** export → "changes accepted, comments and hidden metadata removed."
+- **PDF export with no LibreOffice (the high-value Windows case):** instead of a silent fail, a clear plain-language notice — *"PDF export needs LibreOffice … a free program. Nothing leaves your machine."* + download link + Copy-link. Exactly the graceful behavior a real user needs.
+- The actual PDF *conversion* couldn't be exercised: LibreOffice won't silent-install on this bench (MSI 1603/1402 — a Windows registry-permission quirk in the non-interactive SSH session; tried plain, ALLUSERS, and an elevated scheduled task; unrelated to Keepance), and the server has no `soffice`. The convert path is shared cross-platform code. **E5 PASS** (graceful-missing-converter — the real customer risk — proven; live conversion is a documented bench gap).
+
+### ✅ E11 — trash (delete → restore)
+Created a throwaway `trash-test.docx`, deleted it via the row kebab → "Delete" → a confirm dialog → file left Files and the **Trash badge showed "1"**. The Trash view listed it (size/date), with Empty-Trash + a 30-day retention setting. **Restore** put it back in Files and emptied the trash. **E11 PASS.** (Permanent-delete present, not separately exercised.)
+
+### ✅ E12 — version history (text)
+`fee-agreement.md` history panel listed **2 versions** with rich metadata (timestamp, a correct **"AI edit"** label for the inline edit, byte size, size-delta) and per-version Restore; Restore showed a confirm and applied cleanly. (Both snapshots had identical content so the revert wasn't separately visible — not a defect.) The **.docx binary** history UI exists but `redline-test.docx` reads "History (0)"; its on-disk `.backup-*` files are a separate redundancy mechanism. **E12 PASS** (text); binary-version restore not separately exercised.
+
+### ✅ B3 — recent-workspaces reopen
+After a dev-server restart, the workspace selector showed "Recent (2)"; expanding it and clicking the KeepanceTest row reopened the workspace with no native picker. **B3 PASS.**
+
+**Net this batch:** B3, E5, E7, E8, E11, E12 → PASS; **BUG-012 found + fixed + re-verified live** (inline AI edit was dead for everyone). Note: an independent Codex review/investigation was attempted twice but hung with no output on this box this session (killed per the watch rule); the fix was instead verified by 5 unit tests + typecheck + live end-to-end driving.
