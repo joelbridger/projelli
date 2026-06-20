@@ -33,6 +33,8 @@ interface UndoToastSpec {
   message: string;
   onUndo: () => void | Promise<void>;
   ttlMs?: number;
+  /** Label for the action button. Defaults to "Undo" (the original use). */
+  actionLabel?: string;
 }
 
 interface UndoToastState extends UndoToastSpec {
@@ -115,7 +117,7 @@ export function UndoToastRenderer({ controller, className }: UndoToastRendererPr
         className="h-7 px-3 text-xs"
         onClick={invokeUndo}
       >
-        Undo
+        {state.actionLabel ?? 'Undo'}
       </Button>
       <Button
         data-testid="undo-toast-dismiss"

@@ -66,7 +66,9 @@ import {
 import { FileSystemWatcher, createFileTreeSnapshot } from '@/platform/fs/FileSystemWatcher';
 
 import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/platform/utils/file-utils';
-import { writeDroppedFiles } from '@/platform/utils/fileDrop';
+import { writeDroppedFiles, importPickedFiles } from '@/platform/utils/fileDrop';
+import { MemoryService } from '@/platform/rag/MemoryService';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 
 
 import { useTrash } from '@/platform/hooks/useTrash';
@@ -879,6 +881,87 @@ function App() {
     [rootPath, setFileTree, handleFileOpen]
   );
 
+  // BUG-014 — "Add files" import. Opens the native file picker, copies the
+  // chosen files into the workspace, and EXPLICITLY indexes each (so search
+  // works without relying on the file-watcher). Surfaces per-file failures.
+  const handleImportFiles = useCallback(
+    async (folderPath?: string | null) => {
+      const service = workspaceServiceRef.current;
+      if (!service || !rootPath) return;
+      let selected: string | string[] | null = null;
+      try {
+        const { open } = await import('@tauri-apps/plugin-dialog');
+        selected = await open({
+          multiple: true,
+          directory: false,
+          title: 'Add files to your workspace',
+        });
+      } catch (err) {
+        console.error('[App] Add files: native picker unavailable', err);
+        return;
+      }
+      if (!selected) return;
+      const paths = Array.isArray(selected) ? selected : [selected];
+      if (paths.length === 0) return;
+
+      const { readFile } = await import('@tauri-apps/plugin-fs');
+      const readBinary = (p: string) =>
+        service.readFileBinary
+          ? service.readFileBinary(p)
+          : Promise.reject(new Error('binary read unsupported'));
+      const binaryWs = { readBinary };
+
+      const results = await importPickedFiles({
+        service,
+        targetFolder: folderPath ?? rootPath,
+        paths,
+        readBytes: async (p) => {
+          const u8 = await readFile(p);
+          const buf = new ArrayBuffer(u8.byteLength);
+          new Uint8Array(buf).set(u8);
+          return buf;
+        },
+        indexFile: (p) => MemoryService.indexFile(p),
+        indexPdf: async (p) => {
+          const r = await MemoryService.indexPdfFile(p, binaryWs);
+          return { indexed: r.indexed, ...(r.reason ? { reason: r.reason } : {}) };
+        },
+      });
+
+      const tree = await service.getFileTree();
+      setFileTree(tree);
+      for (const r of results) {
+        if (!r.error) {
+          // eslint-disable-next-line no-await-in-loop
+          await handleFileOpen(r.path, r.name);
+        }
+      }
+      if (results.length > 0) {
+        const last = results[results.length - 1]!;
+        if (!last.error) useEditorStore.getState().setActiveTab(last.path);
+      }
+      const failed = results.filter((r) => r.error);
+      if (failed.length > 0) {
+        console.error('[App] Add files: some files could not be imported', failed);
+      }
+      // BUG-015 — a PDF was imported but won't be searchable because PDF
+      // indexing is off (the default). Don't fail silently: tell the user and
+      // offer a one-tap enable (flipping the setting auto-triggers indexing).
+      const pdfUnindexed = results.some((r) => r.reason === 'pdf-indexing-disabled');
+      if (pdfUnindexed) {
+        undoToast.show({
+          message: 'Added — but PDF search is off, so this PDF will not be searchable yet.',
+          actionLabel: 'Turn on PDF search',
+          ttlMs: 15_000,
+          onUndo: () => {
+            useSettingsStore.getState().setSetting('includePdfsInWorkspaceIndex', true);
+          },
+        });
+      }
+    },
+    [rootPath, setFileTree, handleFileOpen, undoToast]
+  );
+
   const { isDragging: isFileDragging } = useGlobalFileDrop({
     onDrop: handleGlobalFileDrop,
     enabled: !!rootPath && !showWorkspaceSelector,
@@ -1229,6 +1312,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
           handleMove={handleMove}
           handleDownload={handleDownload}
           handleCreateDefaultDocument={handleCreateDefaultDocument}
+          handleImportFiles={handleImportFiles}
           handleCreateDocxAtRoot={handleCreateDocxAtRoot}
           handleCreateTextFileAtRoot={handleCreateTextFileAtRoot}
           handleCreateFolderAtRoot={handleCreateFolderAtRoot}

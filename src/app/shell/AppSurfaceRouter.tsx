@@ -68,6 +68,7 @@ export interface AppSurfaceRouterProps {
   handleMove: (sourcePath: string, targetPath: string) => Promise<void>;
   handleDownload: (path: string, name: string) => void;
   handleCreateDefaultDocument: (parentPath?: string) => void;
+  handleImportFiles: (folderPath?: string | null) => Promise<void>;
   handleCreateDocxAtRoot: (parentPath?: string) => Promise<void>;
   handleCreateTextFileAtRoot: () => Promise<void>;
   handleCreateFolderAtRoot: () => Promise<void>;
@@ -123,6 +124,7 @@ export function AppSurfaceRouter({
   handleMove,
   handleDownload,
   handleCreateDefaultDocument,
+  handleImportFiles,
   handleCreateDocxAtRoot,
   handleCreateTextFileAtRoot,
   handleCreateFolderAtRoot,
@@ -204,6 +206,7 @@ export function AppSurfaceRouter({
           onMove={handleMove}
           onDownload={handleDownload}
           onCreateDefaultDocument={handleCreateDefaultDocument}
+          onImportFiles={handleImportFiles}
           onCreateDocxAtRoot={handleCreateDocxAtRoot}
           onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
           onCreateFolderAtRoot={handleCreateFolderAtRoot}

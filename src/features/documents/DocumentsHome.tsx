@@ -101,6 +101,8 @@ export interface DocumentsHomeProps {
   onMove: (sourcePath: string, targetPath: string) => Promise<void>;
   onDownload: (path: string, name: string) => void;
   onCreateDefaultDocument?: (parentPath?: string) => void;
+  /** BUG-014 — import existing files via the native picker into `folderPath`. */
+  onImportFiles?: (folderPath?: string | null) => void | Promise<void>;
   onCreateDocxAtRoot?: (parentPath?: string) => void;
   /**
    * R6-1: the vertical expanding tree view (FileTree) shares the Files surface
@@ -308,6 +310,7 @@ export function DocumentsHome({
   onMove,
   onDownload,
   onCreateDefaultDocument,
+  onImportFiles,
   onCreateDocxAtRoot,
   onCreateTextFileAtRoot,
   onCreateFolderAtRoot,
@@ -427,31 +430,39 @@ export function DocumentsHome({
     [closeTab, activeTabPath, openTabs],
   );
 
+  // ── Toolbar folder state ──────────────────────────────────────────────────
+  // The drilled-into folder (null = root), lifted from DocumentGridView so the
+  // toolbar's create/import buttons land items in the folder you're viewing.
+  const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
+
   // ── Add-files / trust-note logic ─────────────────────────────────────────
 
+  // BUG-014 — "Add files" now IMPORTS existing files (it previously, wrongly,
+  // opened the New-Document dialog — there was no import at all). The native
+  // picker → copy into the current folder → index runs in `onImportFiles`.
+  // Falls back to creating a document only when no import handler is wired
+  // (e.g. the browser/test build with no native picker).
   const handleAddFiles = useCallback(() => {
     if (!hasTrustBeenShown()) {
       setShowTrustBanner(true);
       markTrustShown();
     }
-    if (onCreateDefaultDocument) {
+    if (onImportFiles) {
+      void onImportFiles(currentFolderPath);
+    } else if (onCreateDefaultDocument) {
       onCreateDefaultDocument();
     } else if (onCreateDocxAtRoot) {
       onCreateDocxAtRoot();
     } else {
       onCreateFile('');
     }
-  }, [onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
+  }, [onImportFiles, currentFolderPath, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
 
   const handleDismissTrust = useCallback(() => {
     setShowTrustBanner(false);
   }, []);
 
   // ── Toolbar action handlers (lifted from DocumentGridView) ────────────────
-
-  // The drilled-into folder (null = root), lifted from DocumentGridView so the
-  // toolbar's create buttons land new items in the folder you're viewing.
-  const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
 
   const handleCreateDocument = useCallback(() => {
     const parentPath = currentFolderPath ?? undefined;

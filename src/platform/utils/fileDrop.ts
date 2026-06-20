@@ -116,6 +116,100 @@ export function deriveFilenameFromMessage(content: string): string {
   return `${base}.md`;
 }
 
+/** Basename of a path, tolerant of both `/` and `\` separators (native
+ *  pickers return OS-native paths — Windows uses backslashes). */
+function baseName(p: string): string {
+  const parts = p.split(/[\\/]/);
+  return parts[parts.length - 1] ?? p;
+}
+
+export interface ImportedFileResult {
+  /** Destination path inside the workspace. */
+  path: string;
+  /** Final (possibly de-duplicated) file name. */
+  name: string;
+  /** Whether the file was indexed for search. */
+  indexed: boolean;
+  /** Why indexing didn't happen (e.g. a scanned PDF with OCR off). */
+  reason?: string;
+  /** Set when the copy itself failed (the file was skipped). */
+  error?: string;
+}
+
+export interface ImportPickedFilesOptions {
+  service: WorkspaceWriter;
+  /** Folder inside the workspace to import into. */
+  targetFolder: string;
+  /** Absolute source paths chosen in the native picker. */
+  paths: string[];
+  /** Reads the bytes of a SOURCE path (Tauri fs in the app; a fake in tests). */
+  readBytes: (sourcePath: string) => Promise<ArrayBuffer>;
+  /** Index a non-PDF file already written into the workspace. */
+  indexFile: (path: string) => Promise<void>;
+  /** Index a PDF written into the workspace; returns whether it indexed + why not. */
+  indexPdf: (path: string) => Promise<{ indexed: boolean; reason?: string }>;
+}
+
+/**
+ * BUG-014 — bring existing files (chosen via the native "Add files" picker)
+ * INTO the workspace and index them. Mirrors `writeDroppedFiles`' dedup rules,
+ * but works from source PATHS (the picker gives paths, not File objects) and —
+ * crucially — EXPLICITLY indexes each file rather than relying on the
+ * file-watcher (which can miss writes). Per-file failures are recorded, not
+ * thrown, so one bad file doesn't abort the batch.
+ */
+export async function importPickedFiles({
+  service,
+  targetFolder,
+  paths,
+  readBytes,
+  indexFile,
+  indexPdf,
+}: ImportPickedFilesOptions): Promise<ImportedFileResult[]> {
+  const results: ImportedFileResult[] = [];
+  for (const sourcePath of paths) {
+    const name = baseName(sourcePath);
+    // eslint-disable-next-line no-await-in-loop -- sequential dedup + IO
+    const finalName = await resolveUniqueName(service, targetFolder, name);
+    const dest = `${targetFolder}/${finalName}`;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const bytes = await readBytes(sourcePath);
+      // eslint-disable-next-line no-await-in-loop
+      await service.writeFileBinary(dest, bytes);
+    } catch (err) {
+      results.push({
+        path: dest,
+        name: finalName,
+        indexed: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      continue;
+    }
+    // Index explicitly so search works without depending on the watcher.
+    try {
+      if (finalName.toLowerCase().endsWith('.pdf')) {
+        // eslint-disable-next-line no-await-in-loop
+        const r = await indexPdf(dest);
+        results.push({ path: dest, name: finalName, indexed: r.indexed, ...(r.reason ? { reason: r.reason } : {}) });
+      } else {
+        // eslint-disable-next-line no-await-in-loop
+        await indexFile(dest);
+        results.push({ path: dest, name: finalName, indexed: true });
+      }
+    } catch (err) {
+      // The file IS imported; only indexing failed. Surface it, don't lose the file.
+      results.push({
+        path: dest,
+        name: finalName,
+        indexed: false,
+        reason: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  return results;
+}
+
 export async function writeDroppedFiles({
   service,
   targetFolder,
