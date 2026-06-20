@@ -42,7 +42,7 @@ The server already runs ~3,375 frontend tests, ~450 Rust tests, browser E2E, and
 | # | What to test | Key targets | Status | Notes |
 |---|---|---|---|---|
 | C1 | Ask a question → get a correct answer **with verified citations** | `ask-composer-input`, `ask-citation-chip-*`, `verify-citation-btn`, `verify-verdict` | ✅✅ | **Confirmed on real Windows** — loaded a 3-file matter, app auto-indexed, asked, got a correct cited answer ("July 14, 2026"; "33.3%/40%"), citation marked Verified against the source. The core value prop. |
-| C2 | Scope chips (This matter / All matters / Email / Documents) change results | `scope-toggle`, `scope-option-*` | ⬜ | |
+| C2 | Scope chips (This matter / All matters / Email / Documents) change results | `scope-toggle`, `scope-option-*` | ✅ | **CONFIRMED LIVE (2026-06-20)** — selected the **Email** scope (box changed to "Search your imported email…") and asked "What is my upcoming GEICO auto pay amount and date?" → answered **"$100.65, June 24, 2026"** with a citation, sourced from the imported GEICO email. Scope switching works.
 | C3 | Typed question is **kept on error** (BUG-002 fix) | `ask-composer-input` error path | 🟡 | Fixed + test-verified; confirm live on Windows by forcing a failed query. |
 | C4 | "New search" resets; prior conversations reachable | `recent-in-matter`, `matter-session-item` | ⬜ | |
 | C5 | "Save answer to document" writes a .docx | per-turn save action | ⬜ | |
@@ -52,10 +52,10 @@ The server already runs ~3,375 frontend tests, ~450 Rust tests, browser E2E, and
 ## D. AI chat viewer (the in-document assistant)
 | # | What to test | Key targets | Status | Notes |
 |---|---|---|---|---|
-| D1 | Send a chat message, streaming reply, Stop button | `chat-input`, `chat-send-button`, `chat-stop-button` | ⬜ | |
-| D2 | Per-chat model picker lists all configured providers | `chat-model-picker` | ⬜ | |
+| D1 | Send a chat message, streaming reply, Stop button | `chat-input`, `chat-send-button`, `chat-stop-button` | ✅ | **CONFIRMED LIVE (2026-06-20)** — opened AI Assistant (Ctrl+Shift+A / command palette), sent a question, got a streamed answer ("A statute of limitations is a legal time limit…"). |
+| D2 | Per-chat model picker lists all configured providers | `chat-model-picker` | ✅ | **CONFIRMED (2026-06-20)** — chat header shows a model picker ("OpenAI · gpt-3.5-turbo"). |
 | D3 | "Run on all providers" comparison mode | `run-on-all-button` | ⬜ | |
-| D4 | Cost chip + context meter + compress-old-turns offer | `chat-cost-chip`, `context-meter-*`, `compression-confirm-modal` | ⬜ | |
+| D4 | Cost chip + context meter + compress-old-turns offer | `chat-cost-chip`, `context-meter-*`, `compression-confirm-modal` | 🟡 | Cost chip ("$0.00 this chat") + context meter ("43 of 200K") seen live (2026-06-20); compress-offer not yet exercised. |
 | D5 | Attach a file for vision (paperclip) | `chat-paperclip-button`, `attachment-tiles-strip` | ⬜ | |
 | D6 | Voice press-to-talk | `chat-voice-button` | ⬜ | Needs mic; lower priority. |
 | D7 | Export chat to file | `chat-export-button` | ⬜ | |
@@ -105,8 +105,8 @@ The server already runs ~3,375 frontend tests, ~450 Rust tests, browser E2E, and
 | H2 | Connect Gmail (OAuth) | `MailGmailConnect` | 🖐️ | Dev build lacks baked Google creds (expected); needs the signed build or creds injected. Validated server-side already. |
 | H3 | Connect IMAP (manual host/port form) | `MailImapConnect` | ⬜ | |
 | H4 | **Mail actually syncs** after restart + **"Sync now"** works (BUG-007 fix) | `email-sync-now`, mail list | ✅ | **CONFIRMED LIVE 2026-06-20 — real Outlook mail IMPORTS.** After fixing the sign-in (BUG-010: ShellExecuteW + bind `localhost`), Jameson reconnected with his passkey and mail imported for real (count climbed 84→194→504→… messages). "Sync now" present + auto-fires on open (BUG-007). The earlier "spins forever" (BUG-008) was the stale token; with a fresh sign-in it imports normally. |
-| H5 | Keyword search vs AI search modes | `mode-keyword`, `mode-ask`, `email-search-input` | 🟡 | **Keyword search CONFIRMED LIVE (2026-06-20)** over the full imported mailbox — searching "invoice" returned 21 real matches with correct subjects/senders. AI-search mode not yet driven. |
-| H6 | Open an email → read body, attachments, privilege control | `open-email-*`, `email-viewer-*`, `attachment-download-*` | ⬜ | |
+| H5 | Keyword search vs AI search modes | `mode-keyword`, `mode-ask`, `email-search-input` | ✅ | **CONFIRMED LIVE (2026-06-20)** — keyword search over the full imported mailbox ("invoice" → 21 real matches), AND AI search over mail proven via the Email-scoped Ask (GEICO "$100.65, June 24 2026" cited answer from the imported email). |
+| H6 | Open an email → read body, attachments, privilege control | `open-email-*`, `email-viewer-*`, `attachment-download-*` | ✅ | **CONFIRMED LIVE (2026-06-20)** — opened a real imported email; viewer shows subject/from/to/date, full body, a **privilege control** (Not privileged / Attorney-Client / Work Product), and **File-to-matter**. |
 | H7 | File an email to a matter (single + bulk) | `file-to-matter-*`, `bulk-file-to-matter` | ⬜ | |
 | H8 | Compose + AI-draft a reply; send | `compose-*`, `reply-draft-ai-btn`, `reply-send-btn` | ⬜🖐️ | Sending hits a real mailbox — care. |
 | H9 | Filters (provider/date/attachment), pagination | `filters-toggle`, `filter-row`, `load-more` | ⬜ | |
@@ -157,7 +157,7 @@ The server already runs ~3,375 frontend tests, ~450 Rust tests, browser E2E, and
 ## M. Global shell & overlays
 | # | What to test | Key targets | Status | Notes |
 |---|---|---|---|---|
-| M1 | Command palette (Ctrl+K) | `CommandPalette` | ⬜ | |
+| M1 | Command palette (Ctrl+K) | `CommandPalette` | ✅ | **CONFIRMED LIVE (2026-06-20)** — Ctrl+K opens a searchable palette (New Document, Save, Toggle Sidebar, Split Editor, Open AI Assistant…) with shortcuts. |
 | M2 | Quick open (fuzzy file) | `QuickOpen` | ⬜ | |
 | M3 | Shortcuts overlay | `ShortcutsOverlay` | ⬜ | |
 | M4 | What's New dialog | `WhatsNew` | ⬜ | |
