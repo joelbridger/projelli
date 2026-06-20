@@ -56,6 +56,19 @@ jobs:
           path: coverage/
           retention-days: 14
 
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install backend deps
+        working-directory: ./backend
+        run: bun install --frozen-lockfile
+      - name: Backend tests
+        working-directory: ./backend
+        run: bun test
+
   rust:
     runs-on: ubuntu-latest
     steps:

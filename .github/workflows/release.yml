@@ -37,14 +37,32 @@ name: Release Tauri builds
 #     AZURE_TRUSTED_SIGNING_ACCOUNT    artifact signing account name (keepance-signing)
 #     AZURE_TRUSTED_SIGNING_CERT_PROFILE  certificate profile name (keepance-public-trust)
 
+# Normal releases: push a tag (e.g. `git tag v1.0.2 && git push --tags`).
+# Manual dispatch: now requires typing "release" in the confirm input — this
+# prevents the 60-90 min signed multi-OS build from firing via a stray button
+# click. The tag-push path is unaffected.
+#
+# TODO (Jameson — GitHub settings change): for stronger protection, create a
+# GitHub Environment named "release-signing" on the keepance/keepance repo
+# (Settings → Environments → New environment), add yourself as a required
+# reviewer, then assign that environment to the `gate` job below. That forces
+# a manual approval pop-up in the GitHub UI before any build runs, even on
+# tag pushes. This requires a repo-settings change and cannot be done from a
+# workflow file alone.
 on:
   push:
     tags:
-      - 'v*'  # e.g. v1.0.2, v1.1.0-beta.1
-  workflow_dispatch:  # allow manual triggering for testing
+      - 'v*'  # e.g. v1.0.2 — the NORMAL release path (deliberate tag push)
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "release" to confirm a SIGNED multi-OS build (~60-90 min + signing). Normal path is a tag push.'
+        required: true
+        default: ''
 
 jobs:
   gate:
+    if: ${{ github.event_name == 'push' || github.event.inputs.confirm == 'release' }}
     name: Pre-release gate (must be green before any build)
     runs-on: ubuntu-latest
     steps:
