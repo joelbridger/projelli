@@ -16,6 +16,7 @@ import { VaultControlCard } from '@/features/firm/vault/VaultControlCard';
 import { ConfidentialityReportDialog } from '@/platform/privacy/ui/ConfidentialityReportDialog';
 import { buildConfidentialityReport } from '@/platform/privacy/confidentialityReport';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import type { ConfidentialityReport } from '@/platform/privacy/confidentialityReport';
 
@@ -27,6 +28,7 @@ export interface PrivacyCenterHomeProps {
 export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterHomeProps) {
   const [reportOpen, setReportOpen] = useState(false);
   const confidentialityMode = useConfidentialityMode();
+  const activeProvider = useActiveEgressProvider(confidentialityMode);
   const [builtReport, setBuiltReport] = useState<ConfidentialityReport | null>(null);
 
   const buildReport = useCallback((): ConfidentialityReport => {
@@ -91,7 +93,7 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
         <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', fontWeight: 'var(--kp-weight-medium)' }}>
           Current mode:
         </span>
-        <EgressIndicator provider="anthropic" mode={confidentialityMode} variant="compact" />
+        <EgressIndicator provider={activeProvider} mode={confidentialityMode} variant="compact" />
         {activeMatter && (
           <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', marginLeft: 'auto' }}>
             Scoped to: <strong style={{ color: 'var(--kp-navy)' }}>{activeMatter.name}</strong>
