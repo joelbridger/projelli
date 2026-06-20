@@ -50,7 +50,10 @@ Lesson applied: test from a **clean slate through real flows**, not injected sta
 ### Still to verify — DESKTOP ONLY (needs the real app)
 - **Headline feature end-to-end:** ask a question in the desktop app → real **cited** answer.
 - **Outlook import:** does the connected Outlook actually pull mail into the Email tab (and exclude Deleted Items/Junk per the v3.3.x fixes)?
-- The desktop app cannot be remote-driven by Claude without a WebView2 debugging bridge (not yet set up); these need that bridge or Jameson's hands.
+### ✅ Desktop-driving bridge — BUILT & WORKING (the vision: Claude drives the real Windows/Mac app)
+`scripts/desktop-drive.mjs` connects Playwright to the desktop app's WebView2 over a Tailscale SSH tunnel and drives it by the app's own `data-testid`s. **Proven end-to-end on the Legion:** launched the app with `--remote-debugging-port=9223`, tunneled it (IPv4 `127.0.0.1` — `localhost` resolves to IPv6 and breaks), connected, and drove the real desktop app — full DOM snapshot, click/type, JS eval, and **clean full-window screenshots via CDP** (better than the old BenchShot partial captures). Commands: `pages | url | snapshot | click <id> | type <id> "<text>" [--submit] | eval "<js>" | screenshot <path> | waitfor "<text>"`.
+**One boundary found → CAP-001:** native OS dialogs (the workspace **folder picker**, file save/open, OS auth) are outside the webview and can't be CDP-driven. So fully-autonomous setup of a *real* workspace needs the test hook in CAP-001, or one folder-pick from Jameson. Everything inside the app is fully drivable by Claude.
+**Mac:** same approach with a WebKit bridge for WKWebView — next, after Windows is exercised.
 
 ### Live onboarding test (Legion, with Jameson) — IN PROGRESS
 - [x] **Onboarding steps 1–6 walk-through** ✅ — all completed cleanly (green checks); no breakage reported.

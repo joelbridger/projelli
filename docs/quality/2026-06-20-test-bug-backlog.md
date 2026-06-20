@@ -32,9 +32,14 @@ Status key: 🔴 open · 🟡 fix planned · 🟢 fixed (commit) · ⚪ needs-co
 **Impact:** the same machines we want as always-on *interactive driving* benches get reset every night, so the desktop-driving bridge breaks daily. (Self-inflicted — introduced with the nightly-bench script earlier today.)
 **Fix plan:** sync the nightly cargo-test source to a **separate dir** (e.g. `C:\keepance-bench` / `~/keepance-bench`) instead of wiping the interactive `C:\keepance`; OR overlay-sync without a full wipe and preserve `node_modules`/`target`. Update `scripts/nightly-bench-tests.sh` (Windows + Mac paths) + the test-bench ops guide. Until fixed, the bench needs a rebuild after each nightly.
 
+## CAP-001 — Native OS dialogs can't be driven via the CDP bridge  ·  Severity: Capability gap (test infra)  ·  🟡 fix planned
+**Found:** building/using the desktop-driving bridge. CDP drives the WebView2 DOM (click/type/snapshot/screenshot all work on the real desktop app), but **native OS dialogs are outside the webview** — e.g. the workspace **folder picker** ("New Workspace" / "Open Existing"), file save/open pickers, and OS auth prompts. Clicking "New Workspace" opens a native picker the bridge cannot interact with, blocking fully-autonomous setup of a real workspace.
+**Impact:** the full desktop sweep can't reach a real indexed workspace (needed for RAG/headline tests) without either (a) Jameson clicking the native picker once, or (b) a bypass.
+**Fix plan:** add a small **dev/test hook** so a workspace can be set WITHOUT the native picker — e.g. a `?devWorkspacePath=<abs path>` URL param (gated to dev/testMode) or a Tauri test command that sets/creates the workspace at a given path, so the bridge can drive end-to-end hands-off. (Alternative: drive native dialogs via Windows UI Automation — a separate, heavier integration.) Until then: Jameson does the one folder-pick (a "native moment", like a login), Claude drives everything else.
+
 ---
 
-## To verify on the desktop (driving bridge being built) — may surface more bugs
+## To verify on the desktop (driving bridge BUILT + working) — may surface more bugs
 - Headline "answers-you-back with citations" end-to-end (real cited answer).
 - Outlook import actually pulling mail + excluding Deleted Items/Junk.
 - BUG-001/003/004 reproduction in the real keychain/provider/RAG environment.
