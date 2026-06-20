@@ -41,7 +41,6 @@ import {
 } from '@/features/onboarding/ProviderTutorialSteps';
 import { ApiKeyTester } from '@/features/onboarding/ApiKeyTester';
 import { useProfessionCopy } from '@/features/onboarding/useProfessionCopy';
-import { KeychainService } from '@/platform/providers/KeychainService';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
 import { openExternal } from '@/platform/utils/openExternal';
 import { clearAiSetupDeferred } from '@/features/onboarding/aiSetupState';
@@ -103,6 +102,7 @@ function Ch5View({ ctx }: Ch5ViewProps) {
       {view === 'cloud' && (
         <CloudView
           reducedMotion={ctx.reducedMotion}
+          saveApiKey={ctx.actions.saveApiKey}
           onBack={() => { setView('choose'); }}
           onSaved={(provider) => {
             ctx.setData({ aiChoice: 'cloud', aiProvider: provider });
@@ -114,6 +114,7 @@ function Ch5View({ ctx }: Ch5ViewProps) {
       {view === 'local' && (
         <LocalView
           reducedMotion={ctx.reducedMotion}
+          setConfidentialityMode={ctx.actions.setConfidentialityMode}
           onBack={() => { setView('choose'); }}
           onConfirm={() => {
             ctx.setData({ aiChoice: 'local' });
@@ -266,13 +267,13 @@ function ChoiceCard({ testId, scene, title, badge, body, onClick, prominent, mut
 
 interface CloudViewProps {
   reducedMotion: boolean;
+  /** Host-provided: stores the key AND refreshes live app key state + model list. */
+  saveApiKey: (provider: ProviderId, key: string) => Promise<void>;
   onBack: () => void;
   onSaved: (provider: ProviderId) => void;
 }
 
-const keychainService = new KeychainService();
-
-function CloudView({ reducedMotion: _reducedMotion, onBack, onSaved }: CloudViewProps) {
+function CloudView({ reducedMotion: _reducedMotion, saveApiKey, onBack, onSaved }: CloudViewProps) {
   const [provider, setProvider] = useState<ProviderId>('anthropic');
   const [keyText, setKeyText] = useState('');
   const [saving, setSaving] = useState(false);
@@ -284,7 +285,9 @@ function CloudView({ reducedMotion: _reducedMotion, onBack, onSaved }: CloudView
     setError(null);
     setSaving(true);
     try {
-      await keychainService.setKey(provider, keyText.trim());
+      // Route through the host actions channel so the real app's key state and
+      // model list are refreshed (and the provider_connected diagnostic fires).
+      await saveApiKey(provider, keyText.trim());
       clearAiSetupDeferred();
       onSaved(provider);
     } catch (e) {
@@ -424,25 +427,37 @@ type OllamaStatus =
 
 interface LocalViewProps {
   reducedMotion: boolean;
+  /** Host-provided: sets the confidentiality mode in the live app. */
+  setConfidentialityMode: (mode: 'local-only' | 'direct' | 'assured') => void;
   onBack: () => void;
   onConfirm: () => void;
 }
 
-function LocalView({ reducedMotion: _reducedMotion, onBack, onConfirm }: LocalViewProps) {
+function LocalView({ reducedMotion: _reducedMotion, setConfidentialityMode, onBack, onConfirm }: LocalViewProps) {
   const [status, setStatus] = useState<OllamaStatus>({ kind: 'checking' });
 
   useEffect(() => {
-    void Promise.resolve().then(async () => {
-      const result = await detectOllama();
-      if (result.reachable && result.models.length > 0) {
-        setStatus({ kind: 'ready', models: result.models });
-      } else {
-        setStatus({ kind: 'not-ready' });
-      }
-    });
+    // Mounted flag: prevents a late-resolving detectOllama() from calling
+    // setStatus after this sub-view has already unmounted.
+    let alive = true;
+    detectOllama()
+      .then((result) => {
+        if (!alive) return;
+        if (result.reachable && result.models.length > 0) {
+          setStatus({ kind: 'ready', models: result.models });
+        } else {
+          setStatus({ kind: 'not-ready' });
+        }
+      })
+      .catch(() => {
+        if (alive) setStatus({ kind: 'not-ready' });
+      });
+    return () => { alive = false; };
   }, []);
 
   const handleConfirm = () => {
+    // Set local-only confidentiality mode in the live app before advancing.
+    setConfidentialityMode('local-only');
     clearAiSetupDeferred();
     onConfirm();
   };

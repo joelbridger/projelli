@@ -14,7 +14,7 @@
  * Test pattern follows JourneyHost.test.tsx: stub ctx, render chapter.render(ctx).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ChapterContext, JourneyData } from '../engine/types';
 
@@ -22,11 +22,12 @@ import type { ChapterContext, JourneyData } from '../engine/types';
 // Module mocks (must be top-level before any imports that use them)
 // ---------------------------------------------------------------------------
 
-// Mock KeychainService so we never touch real storage
-const mockSetKey = vi.fn().mockResolvedValue(undefined);
+// Mock KeychainService — Ch5 no longer calls it directly, but it is imported by
+// ApiKeyTester and potentially other sub-components, so we keep the mock to
+// prevent any real storage access during tests.
 vi.mock('@/platform/providers/KeychainService', () => {
   function KeychainService() { /* constructor stub */ }
-  KeychainService.prototype.setKey = (...args: unknown[]) => mockSetKey(...args);
+  KeychainService.prototype.setKey = vi.fn().mockResolvedValue(undefined);
   return { KeychainService };
 });
 
@@ -79,6 +80,10 @@ function makeCtx(overrides: Partial<ChapterContext> & { data?: JourneyData } = {
     setData: vi.fn(),
     data: {},
     reducedMotion: true, // disable animations in tests
+    actions: {
+      saveApiKey: vi.fn().mockResolvedValue(undefined),
+      setConfidentialityMode: vi.fn(),
+    },
     ...overrides,
   };
 }
@@ -167,11 +172,6 @@ describe('ch5 — navigate from choose to cloud view', () => {
 });
 
 describe('ch5 — cloud view: save key', () => {
-  beforeEach(() => {
-    mockSetKey.mockClear();
-    mockSetKey.mockResolvedValue(undefined);
-  });
-
   it('Save and continue is disabled when the key input is empty', () => {
     renderCh5();
     fireEvent.click(screen.getByTestId('ch5-card-cloud'));
@@ -187,7 +187,7 @@ describe('ch5 — cloud view: save key', () => {
     expect(screen.getByTestId('ch5-save-key')).not.toBeDisabled();
   });
 
-  it('on save calls KeychainService.setKey with the correct provider and key', async () => {
+  it('on save calls ctx.actions.saveApiKey (not KeychainService directly) with the correct provider and key', async () => {
     const { ctx } = renderCh5();
     fireEvent.click(screen.getByTestId('ch5-card-cloud'));
     const input = screen.getByTestId('ch5-key-input');
@@ -195,7 +195,7 @@ describe('ch5 — cloud view: save key', () => {
     fireEvent.click(screen.getByTestId('ch5-save-key'));
 
     await waitFor(() => {
-      expect(mockSetKey).toHaveBeenCalledWith('anthropic', 'sk-ant-api03-abc');
+      expect(ctx.actions.saveApiKey).toHaveBeenCalledWith('anthropic', 'sk-ant-api03-abc');
     });
 
     // After a successful save, ctx.setData should record aiChoice='cloud' and provider
@@ -219,9 +219,14 @@ describe('ch5 — cloud view: save key', () => {
     expect(screen.getByText(/465 MB/)).toBeInTheDocument();
   });
 
-  it('shows an error when KeychainService.setKey rejects', async () => {
-    mockSetKey.mockRejectedValue(new Error('Keychain unavailable'));
-    renderCh5();
+  it('shows an error when saveApiKey rejects', async () => {
+    const ctx = makeCtx({
+      actions: {
+        saveApiKey: vi.fn().mockRejectedValue(new Error('Key save failed')),
+        setConfidentialityMode: vi.fn(),
+      },
+    });
+    render(ch5ChooseYourBrain.render(ctx));
     fireEvent.click(screen.getByTestId('ch5-card-cloud'));
     const input = screen.getByTestId('ch5-key-input');
     fireEvent.change(input, { target: { value: 'sk-ant-api03-fail' } });
@@ -281,6 +286,17 @@ describe('ch5 — navigate to local view', () => {
     await waitFor(() => {
       expect(screen.getByTestId('ch5-wrap-view')).toBeInTheDocument();
     });
+  });
+
+  it('Use local AI calls ctx.actions.setConfidentialityMode("local-only") before advancing', async () => {
+    mockDetectOllama.mockResolvedValue({ reachable: true, models: ['llama3.2:3b'] });
+    const { ctx } = renderCh5();
+    fireEvent.click(screen.getByTestId('ch5-card-local'));
+    await waitFor(() => {
+      expect(screen.getByTestId('ch5-use-local-btn')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('ch5-use-local-btn'));
+    expect(ctx.actions.setConfidentialityMode).toHaveBeenCalledWith('local-only');
   });
 
   it('Back button in local view returns to choose view', async () => {

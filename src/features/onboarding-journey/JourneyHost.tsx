@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useJourney } from './engine/useJourney';
 import { buildProgressSteps } from './engine/progress';
-import type { Chapter, ChapterContext, JourneyData } from './engine/types';
+import type { Chapter, ChapterContext, JourneyActions, JourneyData } from './engine/types';
 import { Button } from '@/ui/kp';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
@@ -12,6 +12,8 @@ export interface JourneyHostProps {
   onComplete: (data: JourneyData) => void;
   /** Called when the user confirms "Skip setup". */
   onExit: (data: JourneyData) => void;
+  /** Real app callbacks chapters route side-effects through (key save, mode change). */
+  actions: JourneyActions;
 }
 
 /**
@@ -21,7 +23,7 @@ export interface JourneyHostProps {
  * The host is the only piece allowed to touch window.matchMedia — the engine
  * (useJourney) stays pure and testable.
  */
-export function JourneyHost({ chapters, reducedMotion: reducedMotionProp, onComplete, onExit }: JourneyHostProps) {
+export function JourneyHost({ chapters, reducedMotion: reducedMotionProp, onComplete, onExit, actions }: JourneyHostProps) {
   // Derive reducedMotion from the OS preference when the prop is not provided
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => {
     if (typeof reducedMotionProp === 'boolean') return reducedMotionProp;
@@ -62,6 +64,7 @@ export function JourneyHost({ chapters, reducedMotion: reducedMotionProp, onComp
     setData,
     data,
     reducedMotion,
+    actions,
   };
 
   const handleSkipConfirm = useCallback(() => {

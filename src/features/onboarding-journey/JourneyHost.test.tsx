@@ -28,6 +28,11 @@ const ch3 = makeChapter('ch3', 'All Set');
 
 const THREE = [ch1, ch2, ch3];
 
+const stubActions = {
+  saveApiKey: vi.fn().mockResolvedValue(undefined),
+  setConfidentialityMode: vi.fn(),
+};
+
 function renderHost(chapters = THREE, onComplete = vi.fn(), onExit = vi.fn()) {
   render(
     <JourneyHost
@@ -35,6 +40,7 @@ function renderHost(chapters = THREE, onComplete = vi.fn(), onExit = vi.fn()) {
       reducedMotion={true}
       onComplete={onComplete}
       onExit={onExit}
+      actions={stubActions}
     />,
   );
   return { onComplete, onExit };
