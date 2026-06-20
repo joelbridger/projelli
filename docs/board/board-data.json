@@ -1,0 +1,176 @@
+{
+  "meta": {
+    "title": "Keepance — Board Dashboard",
+    "subtitle": "The private intelligence layer for a law practice",
+    "framing": "Jameson = Board of Directors  ·  Claude = CEO reporting in",
+    "lastUpdated": "2026-06-20",
+    "headline": "One honest truth runs through everything below: Keepance is a finished, well-built product with essentially zero customers. The job now is distribution and trust — getting in front of lawyers and earning their belief — not building more.",
+    "updateRule": "High bar: a Claude session only updates this for a MAJOR decision, a validated insight, a strategy shift, or a real milestone. Routine work never touches it. Jameson maintains it freely."
+  },
+  "sections": [
+    {
+      "id": "strategy",
+      "title": "Strategy & Vision",
+      "icon": "🧭",
+      "status": "Clear & set",
+      "now": "Keepance is sharpened from a general 'private AI workspace' into one clear identity: the private intelligence layer for a law practice — a desktop app where a lawyer's documents, email, and matters live on their own machine, stay private by design, and answer questions back with citations they can click and verify. The lead audience is deliberately narrow: solo and small-firm litigation lawyers first. The product vision itself is essentially complete and shipped.",
+      "decisions": [
+        "Repositioned to law-first (2026-06-09): one audience, one job — 'find anything across a matter with a citation you can click.'",
+        "Sequencing (2026-06-17): finish the product vision first, then run the whole 'go sell it' reorientation as one block. Lead niche locked as litigation solo/small-firm.",
+        "The reorientation was actually executed (2026-06-17): fixed honesty problems in the product's claims, made the privacy story visible, hardened the AI against confident-but-wrong answers."
+      ],
+      "insights": [
+        "Two independent reviews (one engineering, one strategic) landed on the same conclusion the same day: the #1 priority is being trustworthy and being found, not adding features.",
+        "The core thesis ('lawyers will pay for local-first private AI') is real but a tiebreaker, not a category-killer — and slowly narrowing as cloud rivals add their own privacy features.",
+        "Open board question: set a kill-criterion — a fixed window of hand-selling to lawyers, with an honest agreement that no customers + no testimonials may mean pivot (to accountants) or accept it as a small lifestyle business.",
+        "Honest tension to protect: 'nothing leaves your machine' is fully true only in the slower local-AI mode; the recommended higher-quality mode sends data to the lawyer's own AI provider. The product already frames this honestly as a privacy spectrum."
+      ]
+    },
+    {
+      "id": "marketing",
+      "title": "Marketing",
+      "icon": "📣",
+      "status": "Built, not distributing",
+      "now": "There is a large, well-organized marketing library — channel playbooks, email sequences, press kit, comparison pages, battlecards — but almost none of it is currently driving traffic. The website drew ~225 visitors over a recent ten-week stretch, nearly all typing the address in directly, meaning search, social, and referrals send almost nobody. Channels were re-pointed (2026-05-27) away from startup/tech sites toward where lawyers actually look.",
+      "decisions": [
+        "Channel pivot (2026-05-27): primary channels are now legal-industry outlets (ABA TECHSHOW, Lawyerist, Above the Law, IPWatchdog), not Product Hunt / Hacker News.",
+        "'Marketing-led only' model (2026-06-06): assumes no personal network and no warm intros — every tactic must work cold.",
+        "All public copy bound to a strict voice guide (first-person, plain, no AI-cliché words, no em dashes, every claim linked)."
+      ],
+      "insights": [
+        "Blunt diagnosis: the website's convert-the-visitor page is strong, so the failure is upstream — almost nobody arrives. A distribution problem, not a wording problem.",
+        "Credibility play: own an empty lane — 'private by architecture, not by promise.' No analyst currently champions local-first legal AI; open thought-leadership territory.",
+        "Near-term move: pitch the leading legal-tech journalist (Bob Ambrogi / LawSites) and apply to a conference startup showcase (ABA TECHSHOW Startup Alley).",
+        "Claim free directory listings lawyers use to vet tools (Clio App Directory, Capterra, G2, Software Advice) so Keepance 'exists' when checked — hold paid ads until a sales motion is proven."
+      ]
+    },
+    {
+      "id": "sales",
+      "title": "Sales",
+      "icon": "🤝",
+      "status": "No motion yet",
+      "now": "There is no sales motion yet and no paying customers. The agreed plan is founder-led hand-selling, not self-serve signups or ads: pick one type of lawyer, run live 10–20 minute demos on the prospect's own real case file, and sell the outcome. Pricing, demo content, and objection scripts are prepared; what's missing is the selling activity itself, which is Jameson's to drive.",
+      "decisions": [
+        "Sell by hand, not by funnel (2026-06-17): this market buys on peer trust, referrals, and live demos — hand-sell the first ~10 customers one at a time.",
+        "Recruit 3–5 'design-partner' lawyers on free pilots, to convert into the named testimonials future buyers require.",
+        "Win solo lawyers first, not firms: the firm tier needs trust credentials Keepance doesn't have yet.",
+        "Demo weighting: ~70% on the outcome (does the work, won't waive privilege or leak client data), ~30% on the privacy architecture."
+      ],
+      "insights": [
+        "Four objections mapped for every demo: AI quality, IT setup burden, 'a DIY box is less secure,' and 'no security certification yet' — each with a prepared answer.",
+        "The strongest real pain signal in the whole record came from a financial advisor (Jameson's wife), NOT a litigator — so the chosen audience has technically never been validated. Flagged as a genuine risk.",
+        "Checkout snag for real sales: buy buttons still route through a shared store branded 'projelli,' so a lawyer sees an unrelated brand at checkout. Needs its own branded store before any real sale."
+      ]
+    },
+    {
+      "id": "growth",
+      "title": "Growth & Traction",
+      "icon": "📈",
+      "status": "Pre-traction",
+      "now": "The honest weak point. By every measurable signal, Keepance is at idea-validation stage commercially despite a finished product. Verified directly from the systems (not estimated): zero real paying customers, zero genuine license activations (only Jameson's own tests), an empty firm-accounts database, ~225 website visitors in ten weeks (almost all direct), ~17 downloads of the latest version, a handful of 'buy' clicks ever, and empty email signup lists.",
+      "decisions": [
+        "Name the reality plainly: 'a finished product meeting an untested market' — treat distribution + trust as the real problem.",
+        "Stop treating a sales problem as a build problem — the single biggest risk is polishing a product nobody has bought.",
+        "Define an explicit success/failure test (the kill-criterion) so 'keep building' can't quietly become the escape hatch from selling."
+      ],
+      "insights": [
+        "The math is encouraging IF reach is solved: customers bring their own AI key, so cost per customer is near zero — even a modest number becomes real income.",
+        "Binding constraints, in order: (1) reach/distribution, (2) demo-to-close rate, (3) retention. Price is NOT the constraint.",
+        "A 'lifestyle business' income is reachable at a fairly small customer count; a 'real company' would need the firm tier (needs trust credentials) or a repeatable channel to hundreds of solo lawyers.",
+        "Structural risk: one non-developer operator, no sales experience yet, and a privacy angle that wins as a tiebreaker rather than a must-have."
+      ]
+    },
+    {
+      "id": "competitive",
+      "title": "Competitive & Market",
+      "icon": "♟️",
+      "status": "Unique lane",
+      "now": "Keepance occupies a genuinely unique spot: the only tool across legal, tax, consulting, and advisor AI offering a true local / nothing-leaves-your-machine option (competitor sweep, 2026-06-08). Incumbents (Clio Duo, Thomson Reuters CoCounsel, Microsoft Copilot, LexisNexis) are all cloud-based; the closest local rival (Elephas) is Mac-only with no legal features. But the market's default answer is 'cloud with strong assurances,' and lawyers are mostly moving toward the cloud, not away.",
+      "decisions": [
+        "Keep a running competitor-watch log — the one event that most threatens Keepance is an incumbent adding a local or zero-egress option.",
+        "Frame the pitch as 'the most provably-private way to get AI's benefits,' NOT 'the cloud is unsafe' — the absolutist anti-cloud framing alienates the ~75% of lawyers already cloud-comfortable.",
+        "Keep competitor-comparison pages reconciled to current facts (CoCounsel pricing, LexisNexis's partial privacy feature)."
+      ],
+      "insights": [
+        "Encroachment to watch: LexisNexis 'Protégé' (Feb–May 2026) added customer-held encryption keys for big firms. Honest counter: it still routes data through their cloud; only a local model removes the trip entirely.",
+        "Well-funded rivals are mostly in adjacent categories (Jump $80M, Zocks $45M for advisors; Blue J $300M+ for tax) — they prove the space is hot but don't attack the local-first wedge.",
+        "Two citable legal angles strengthen the story: a Florida Bar opinion (local AI removes client-consent paperwork) and a 2026 federal ruling, U.S. v. Heppner (consumer-AI chats aren't privileged, so local = no waiver risk). Heppner is real — never delete it from materials.",
+        "Counter-pressure: 'bring your own key' is no longer unique to local-first, and a self-hosted box with no certification can be harder to defend to a cautious firm than hardened cloud — a real objection."
+      ]
+    },
+    {
+      "id": "engineering",
+      "title": "Engineering",
+      "icon": "⚙️",
+      "status": "Mature & solid",
+      "now": "The product is mature and genuinely solid — version 3.x, with signed auto-updating installers for Windows, Mac, and Linux and a deep feature set (Word editing with AI tracked-changes, ask-across-your-files-with-citations, email import/search, single sign-on, an encrypted vault, live multi-person co-editing). Driven hard as a real user on actual Windows hardware (2026-06-20), the headline feature — ask a question, get a correct answer with verified citations — worked end-to-end. A fresh-eyes structural review found the codebase sound.",
+      "decisions": [
+        "Stop building net-new features; redirect effort to trust, honesty, and the email feature (the reorientation).",
+        "Fixed the product's self-contradictions (2026-06-17): a removed feature was still shown to paying customers, and a paid tier advertised credentials that don't exist yet — both corrected, with an automatic guard to prevent drift.",
+        "Customer-safety hardening: fixed places where a file-save or audit-log write could fail silently, and tightened the AI against attacker-controlled email content.",
+        "Latest fixes are written and tested but NOT yet released — cutting a new signed build is a slow, costly step that waits for Jameson's explicit go-ahead."
+      ],
+      "insights": [
+        "New capability (this week): Claude can now drive the real desktop app on a Windows test machine like a user — far faster/cheaper bug-finding than the old hour-plus build-and-check loop.",
+        "Recent real bugs found and fixed live: privacy indicators that disagreed on the active AI provider; email that connected but never synced. One open gap (BUG-008): a stuck email sync shows no error, so it looks broken forever — fix planned.",
+        "Connectors to outside legal systems (Clio, iManage, Office add-ins) are blocked waiting on those vendors granting access — outside Keepance's control, deliberately deferred.",
+        "Multi-language support is partly wired and deferred — target customers are US firms."
+      ]
+    },
+    {
+      "id": "ux",
+      "title": "UX",
+      "icon": "🧩",
+      "status": "Polished",
+      "now": "The app is reshaped around the law-practice identity with a clean, navy-railed layout organized by what a lawyer does (Matters, Search, Documents, Email, Workflows, Activity Log, Settings). A long polish pass (2026-06-16) tightened onboarding, account setup, and settings. A standout theme is making privacy visible and inspectable: an always-on indicator of where data is going, a plain-language 'Where your data is' map, and a one-click printable Confidentiality Report for the client file.",
+      "decisions": [
+        "Trust as a visible product surface (2026-06-17): turned the privacy story from talking points into things a prospect can see and screenshot.",
+        "Hallucination guardrails in the experience: uncited answers carry a 'verify before relying on this' warning, and a one-click 'verify against source' flags fabricated or mismatched citations.",
+        "Honest onboarding: recommends the higher-quality bring-your-own-key mode as default, and presents max-privacy local mode honestly as 'more private, less capable for legal work.'"
+      ],
+      "insights": [
+        "Defensibility hinges on never quietly being wrong — a confidently-wrong answer is a malpractice/sanctions risk, so citation + verification is core, not cosmetic.",
+        "The email feature is the daily-use beachhead ('import your mail and actually find anything, with a citation, even when Outlook search fails') — make it a strong first-run, time-to-value moment.",
+        "A few UX papercuts logged (a failed search clears your typed question; a stuck email sync gives no feedback) — small but they hit first impressions.",
+        "Open idea: an opt-in, off-by-default 'design-partner' mode that learns from real usage without breaking the no-spying promise (structure only, never content)."
+      ]
+    },
+    {
+      "id": "ui",
+      "title": "UI",
+      "icon": "🎨",
+      "status": "Design system in place",
+      "now": "There's a real two-layer design system (built 2026-06-15): a foundation of shared style tokens (color, spacing, type, shadows) and a matching library of reusable building blocks (buttons, toggles, search fields, cards, badges). It covers the whole app — all seven main screens plus settings and the nav rail — so the same control looks and behaves identically everywhere. The theme is a polished light look (light background, dark text, navy accent).",
+      "decisions": [
+        "Adopt the shared design system everywhere; stop using one-off hand-styled elements so the UI can't drift.",
+        "A fixed layout law for every screen: header, then one tools row (buttons → toggles → filters → search), then content.",
+        "Rebrand cleanup: replaced leftover 'projelli' branding (jellybean icon, installer images, window titles) with the correct Keepance shield identity — confirmed on real Windows."
+      ],
+      "insights": [
+        "The design-system push was triggered by concrete inconsistencies (two differently-sized 'New' buttons; clashing filters) — fixing the system fixed the symptoms by construction.",
+        "Because Keepance sells trust, visual consistency is a trust signal — a sloppy interface reads to a lawyer as an unreliable product.",
+        "Open polish items are minor and non-blocking (a default-tab preference; some code-cleanliness debt).",
+        "Genuinely Windows-only visual checks (real Word interop, native folder picker, the auto-updater) still want a real-hardware spot-check."
+      ]
+    },
+    {
+      "id": "finance",
+      "title": "Finance & Metrics",
+      "icon": "💰",
+      "status": "No revenue yet · ~95% margin",
+      "now": "There is no real revenue and no live customer metrics — the honest state. The old financial plan (one-time price, a target with no customer-cost math) was retired as fiction; a new model was built (2026-06-17) around the real pricing. Pricing is per-seat ANNUAL: Solo $468 / Professional $948 / Firm $1,548 per seat (min 3 seats). A founding cohort gets 30% off for life; pre-3.0 one-time buyers are grandfathered forever.",
+      "decisions": [
+        "Move to per-seat annual subscriptions in three tiers (2026-06-09) — well below specialized legal AI, at-or-above generic productivity AI.",
+        "Protect the local-first soul with a 'your files are always yours' guarantee — cancelling turns off AI features and updates, never your data.",
+        "Rebuild the financial model as a decision tool, not a forecast (2026-06-17): every conversion/churn/cost number is labeled an assumption to test.",
+        "Treat acquisition cost as time-bound, not cash-bound: spend is ~$0; the real cost is founder hours. Defer paid lead-gen until a sales motion is proven."
+      ],
+      "insights": [
+        "The one durable bright spot: customers bring and pay for their own AI key, so cost per customer is near zero — roughly 95% gross margin, far above typical AI software. The only number in the model that isn't an assumption.",
+        "Rough scenario framing (assumptions, not forecasts): first ~10 customers ≈ $5–9K/yr (proves the thesis); a comfortable lifestyle level ≈ $60–90K/yr at a modest count; a 'real company' ($250K+) needs the firm tier or a repeatable channel.",
+        "The firm tier can't scale on 'trust me' — company-scale revenue depends on a trust moat (formed entity, a data-processing agreement, a SOC 2 certification, named references) that doesn't exist yet but is documented and ready to pursue when a deal demands it.",
+        "Re-run the whole model with real numbers only after the first ~10 customers; until then, don't steer by it."
+      ]
+    }
+  ]
+}

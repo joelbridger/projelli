@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Keepance — Board Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --bg-soft:#eef1f5;
+    --card:#ffffff;
+    --ink:#1b2330;
+    --ink-soft:#475063;
+    --muted:#7b8595;
+    --line:#e4e8ee;
+    --navy:#16294b;
+    --navy-soft:#27406b;
+    --accent:#2f6df0;
+    --good:#15803d; --good-bg:#e7f6ec;
+    --warn:#b45309; --warn-bg:#fdf1e1;
+    --gap:#b42318;  --gap-bg:#fdecea;
+    --shadow:0 1px 2px rgba(16,28,51,.04), 0 6px 24px rgba(16,28,51,.06);
+    --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit}
+  .wrap{max-width:1060px; margin:0 auto; padding:0 20px}
+
+  /* Hero */
+  .hero{background:linear-gradient(160deg,var(--navy) 0%,var(--navy-soft) 100%); color:#fff; padding:40px 0 30px}
+  .hero .wrap{position:relative}
+  .eyebrow{display:inline-flex; align-items:center; gap:8px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#aebfdd; font-weight:600; margin:0 0 12px}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:#5bd08a;box-shadow:0 0 0 3px rgba(91,208,138,.25)}
+  h1{font-family:"Fraunces",Georgia,serif; font-weight:600; font-size:clamp(28px,4.4vw,44px); line-height:1.08; margin:0 0 6px; letter-spacing:-.01em}
+  .subtitle{font-size:clamp(15px,2vw,18px); color:#d7e0f2; margin:0 0 18px; font-weight:500}
+  .meta-row{display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; font-size:13px; color:#bcc9e4}
+  .meta-row b{color:#fff; font-weight:600}
+  .headline{margin:22px 0 0; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-left:4px solid #5bd08a; border-radius:12px; padding:14px 16px; font-size:15px; color:#eef2fb}
+  .updaterule{margin:12px 0 0; font-size:12.5px; color:#aebbd8}
+  .updaterule b{color:#dbe5f8}
+
+  /* At a glance */
+  .glance{margin:-18px 0 8px; position:relative; z-index:2}
+  .glance-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px}
+  .tile{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 13px; text-decoration:none; box-shadow:var(--shadow); transition:transform .12s ease, border-color .12s ease}
+  .tile:hover{transform:translateY(-2px); border-color:#cfd8e6}
+  .tile .t-top{display:flex; align-items:center; gap:8px; font-weight:600; font-size:13.5px; color:var(--ink)}
+  .tile .t-emoji{font-size:16px}
+  .chip{display:inline-block; font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; margin-top:9px; line-height:1.3}
+  .chip.good{color:var(--good); background:var(--good-bg)}
+  .chip.warn{color:var(--warn); background:var(--warn-bg)}
+  .chip.gap{color:var(--gap); background:var(--gap-bg)}
+
+  /* TOC */
+  nav.toc{position:sticky; top:0; z-index:5; background:rgba(246,247,249,.86); backdrop-filter:saturate(140%) blur(8px); border-bottom:1px solid var(--line); margin-top:22px}
+  nav.toc .wrap{display:flex; gap:4px; overflow-x:auto; padding:9px 20px; scrollbar-width:thin}
+  nav.toc a{white-space:nowrap; font-size:13px; font-weight:500; color:var(--ink-soft); text-decoration:none; padding:6px 11px; border-radius:8px}
+  nav.toc a:hover{background:var(--bg-soft); color:var(--ink)}
+
+  /* Sections */
+  main{padding:26px 0 60px}
+  section.area{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:24px 26px; margin:0 0 18px; scroll-margin-top:64px}
+  .area-head{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px}
+  .area-emoji{font-size:24px; width:42px; height:42px; display:grid; place-items:center; background:var(--bg-soft); border-radius:11px; flex:none}
+  .area-title{font-family:"Fraunces",Georgia,serif; font-weight:600; font-size:22px; margin:0; letter-spacing:-.01em}
+  .area-head .chip{margin:0 0 0 auto}
+  .now{font-size:15px; color:var(--ink-soft); margin:0 0 18px}
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:22px}
+  .col h3{display:flex; align-items:center; gap:7px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700; margin:0 0 9px}
+  .col h3 .mark{width:14px;height:14px;border-radius:4px;display:inline-block}
+  .mark.dec{background:#2f6df0}
+  .mark.ins{background:#7c5cff}
+  ul.list{list-style:none; margin:0; padding:0}
+  ul.list li{position:relative; padding:0 0 0 18px; margin:0 0 9px; font-size:14px; color:var(--ink)}
+  ul.list li::before{content:""; position:absolute; left:0; top:9px; width:6px; height:6px; border-radius:50%; background:#c2ccdb}
+  ul.list.dec li::before{background:#2f6df0}
+  ul.list.ins li::before{background:#7c5cff}
+
+  footer{border-top:1px solid var(--line); padding:22px 0 40px; color:var(--muted); font-size:13px}
+  footer b{color:var(--ink-soft)}
+  .loading,.error{padding:60px 0; text-align:center; color:var(--muted)}
+
+  @media (max-width:680px){
+    .cols{grid-template-columns:1fr; gap:16px}
+    section.area{padding:20px 18px}
+    .area-head .chip{margin:8px 0 0; order:3; width:100%}
+  }
+</style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <p class="eyebrow"><span class="dot"></span> Private board view</p>
+      <h1 id="h-title">Keepance — Board Dashboard</h1>
+      <p class="subtitle" id="h-subtitle"></p>
+      <div class="meta-row">
+        <span id="h-framing"></span>
+        <span>Last updated: <b id="h-updated"></b></span>
+      </div>
+      <div class="headline" id="h-headline"></div>
+      <p class="updaterule" id="h-rule"></p>
+    </div>
+  </header>
+
+  <div class="glance"><div class="wrap"><div class="glance-grid" id="glance"></div></div></div>
+
+  <nav class="toc"><div class="wrap" id="toc"></div></nav>
+
+  <main><div class="wrap" id="sections"><div class="loading">Loading the board…</div></div></main>
+
+  <footer><div class="wrap">
+    <p><b>How this stays current:</b> the source of truth lives inside the Keepance project (<code>docs/board/board-data.json</code>). Jameson updates it freely; a Claude session only adds to it for a major decision, a validated insight, a strategy shift, or a real milestone. Edit the data file, then redeploy.</p>
+    <p style="margin-top:6px">Keepance · CEO → Board reporting line · this page is private and not indexed.</p>
+  </div></footer>
+
+<script>
+  // tone per section id → status chip colour
+  var TONE = {
+    strategy:"good", marketing:"warn", sales:"gap", growth:"gap",
+    competitive:"good", engineering:"good", ux:"good", ui:"good", finance:"warn"
+  };
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function chip(id,status){return '<span class="chip '+(TONE[id]||'good')+'">'+esc(status)+'</span>';}
+
+  fetch('board-data.json',{cache:'no-store'}).then(function(r){
+    if(!r.ok) throw new Error('status '+r.status); return r.json();
+  }).then(function(d){
+    var m=d.meta||{};
+    document.getElementById('h-title').textContent=m.title||'Board Dashboard';
+    document.title=m.title||'Board Dashboard';
+    document.getElementById('h-subtitle').textContent=m.subtitle||'';
+    document.getElementById('h-framing').textContent=m.framing||'';
+    document.getElementById('h-updated').textContent=m.lastUpdated||'';
+    document.getElementById('h-headline').textContent=m.headline||'';
+    document.getElementById('h-rule').innerHTML='<b>Update rule —</b> '+esc(m.updateRule||'');
+
+    var glance='', toc='', secs='';
+    (d.sections||[]).forEach(function(s){
+      glance+='<a class="tile" href="#'+s.id+'"><span class="t-top"><span class="t-emoji">'+(s.icon||'•')+'</span>'+esc(s.title)+'</span>'+chip(s.id,s.status)+'</a>';
+      toc+='<a href="#'+s.id+'">'+(s.icon||'')+' '+esc(s.title)+'</a>';
+      var dec=(s.decisions||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('');
+      var ins=(s.insights||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('');
+      secs+=''
+        +'<section class="area" id="'+s.id+'">'
+        +  '<div class="area-head"><div class="area-emoji">'+(s.icon||'•')+'</div>'
+        +    '<h2 class="area-title">'+esc(s.title)+'</h2>'+chip(s.id,s.status)+'</div>'
+        +  '<p class="now">'+esc(s.now)+'</p>'
+        +  '<div class="cols">'
+        +    '<div class="col"><h3><span class="mark dec"></span>Recent key decisions</h3><ul class="list dec">'+dec+'</ul></div>'
+        +    '<div class="col"><h3><span class="mark ins"></span>Insights &amp; open ideas</h3><ul class="list ins">'+ins+'</ul></div>'
+        +  '</div>'
+        +'</section>';
+    });
+    document.getElementById('glance').innerHTML=glance;
+    document.getElementById('toc').innerHTML=toc;
+    document.getElementById('sections').innerHTML=secs;
+  }).catch(function(e){
+    document.getElementById('sections').innerHTML='<div class="error">Could not load the board content ('+esc(e.message)+').<br>Check that <code>board-data.json</code> sits next to this page.</div>';
+  });
+</script>
+</body>
+</html>
