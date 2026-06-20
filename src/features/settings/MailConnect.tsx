@@ -119,7 +119,7 @@ export function MailConnect() {
           )}
           {syncStalled && (
             <p data-testid="mail-m365-stalled" className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
-              This is taking longer than expected — your Microsoft 365 sign-in may have expired. Try Reconnect.
+              This is taking longer than expected. Your Microsoft 365 sign-in may have expired. Try Reconnect.
             </p>
           )}
           {progress && progress.status === 'done' && <p className="mt-1">All mail imported and searchable.</p>}

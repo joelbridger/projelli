@@ -1,7 +1,7 @@
 // Main Panel Component
 // Contains the editor area with tabs, split panes, and side panels
 
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ApiKeySetupCard,
@@ -72,6 +72,9 @@ import { markdownToDocxBytes } from '@/platform/utils/docx-io';
 import { markdownToPptxBytes } from '@/platform/utils/pptx-io';
 import { withShortcut } from '@/platform/utils/shortcuts';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
+import type { ChatProviderId } from '@/platform/providers/providerFactory';
+import { resolveRedlineProvider } from './resolveRedlineProvider';
 import { modeRestrictsToLocal } from '@/platform/privacy/egress';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
 import { isAudioFile, getFileExtension, shouldVersionFile, isDiskVersioned } from './mainPanelHelpers';
@@ -302,10 +305,30 @@ export function MainPanel({
   // WS-C honesty — confidentiality mode for the DOCX AI redline. In Local-only
   // mode the redline must run on a LOCAL model (Ollama), so we route the
   // DocxEditor's redline provider to 'ollama' and discover a local model to
-  // use. Outside Local-only the redline stays on the default cloud provider
-  // (unchanged behaviour). This keeps redlining inside Local-only on-machine —
-  // nothing leaves the device, matching the egress promise.
-  const redlineLocalOnly = modeRestrictsToLocal(useConfidentialityMode());
+  // use. Outside Local-only the redline uses the SAME resolved provider the
+  // rest of the app does (trust bar / egress) — NOT a hardcoded default.
+  // Without this, DocxEditor falls back to its 'anthropic' default, so a BYOK
+  // user whose only valid key is non-Anthropic (e.g. OpenAI) gets "add a key"
+  // and the redline button stays disabled despite a working key. The hook
+  // returns 'ollama' in Local-only mode (matching redlineLocalOnly) and the
+  // resolved cloud provider otherwise, so all surfaces agree.
+  const confidentialityMode = useConfidentialityMode();
+  const redlineLocalOnly = modeRestrictsToLocal(confidentialityMode);
+  const activeEgressProvider = useActiveEgressProvider(confidentialityMode) as ChatProviderId;
+  // Resolve the redline provider reactively from the user's actual keys so the
+  // button is never dead when a usable key exists (a key added this session, or
+  // a stale higher-priority key masking a valid one). Prefers the trust-bar
+  // provider when it has a valid key, so the surfaces still agree. See
+  // resolveRedlineProvider for the full rule order (BUG-009).
+  const redlineProvider = useMemo(
+    () =>
+      resolveRedlineProvider({
+        localOnly: redlineLocalOnly,
+        egressProvider: activeEgressProvider,
+        apiKeys,
+      }),
+    [redlineLocalOnly, activeEgressProvider, apiKeys],
+  );
   const [redlineOllamaModel, setRedlineOllamaModel] = useState<string | undefined>(undefined);
   useEffect(() => {
     if (!redlineLocalOnly) {
@@ -735,7 +758,7 @@ export function MainPanel({
                 onFirstEdit={() => writeBackupIfNeeded(tab.path)}
                 onAfterSave={handleDocxAfterSave}
                 apiKeys={apiKeys}
-                {...(redlineLocalOnly ? { aiProvider: 'ollama' as const } : {})}
+                aiProvider={redlineProvider}
                 {...(redlineLocalOnly && redlineOllamaModel ? { aiModel: redlineOllamaModel } : {})}
                 {...(onAuditLog ? { onAuditLog } : {})}
               />
