@@ -64,9 +64,9 @@ The server already runs ~3,375 frontend tests, ~450 Rust tests, browser E2E, and
 | # | What to test | Key targets | Status | Notes |
 |---|---|---|---|---|
 | E1 | File tree shows workspace files; open a file | `file-tree`, `tab-*` | ✅ | Confirmed during the sweep. |
-| E2 | New file menu (.docx/.pptx/.xlsx/.csv), new folder, upload | `new-file-type-*`, `new-folder-button`, `upload-button` | ⬜ | Upload uses the native file dialog. |
-| E3 | **.docx Word-native editor** — type, autosave, page render | `docx-editor`, `docx-canvas`, `docx-page` | ⬜ | Desktop-only, in-house engine. Important. |
-| E4 | **AI redline** on a .docx (revise-with-AI → tracked changes) | `docx-revise-with-ai`, `docx-redline-*`, `docx-accept-all/reject-all` | ⬜ | Headline Word feature; not yet driven. |
+| E2 | New file menu (.docx/.pptx/.xlsx/.csv), new folder, upload | `new-file-type-*`, `new-folder-button`, `upload-button` | 🟡 | **"New document" → Create Word Document dialog → .docx created cleanly (2026-06-20).** Folder/upload not yet driven. |
+| E3 | **.docx Word-native editor** — type, autosave, page render | `docx-editor`, `docx-canvas`, `docx-page` | ✅ | **CONFIRMED rendering on Windows (2026-06-20)** — opened a new .docx; page canvas, topbar (Export / Revise with AI / Reviewing toggle), and the Review pane (Accept/Reject all, "CHANGES (0)") all render clean. (Typing into the custom canvas needs the agent screen-coordinate mapping solved — a driving-tooling task, not an app issue.) |
+| E4 | **AI redline** on a .docx (revise-with-AI → tracked changes) | `docx-revise-with-ai`, `docx-redline-*`, `docx-accept-all/reject-all` | 🟡 | All controls present + reachable; blocked only on typing content into the canvas (see E3 tooling note). Next up. |
 | E5 | Export .docx → Word / PDF / clean / clean-final | `docx-export-*` | ⬜ | |
 | E6 | Tracked-changes review pane (accept/reject one/all, comments) | `docx-review-pane`, `docx-accept-one`, `docx-comment-*` | ⬜ | |
 | E7 | Markdown/txt editor + inline AI edit (select text → edit) | `markdown-editor-*`, `inline-chat-*` | ⬜ | |
