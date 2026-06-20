@@ -290,4 +290,99 @@ mod tests {
     fn _silence_writes(mut w: impl Write) {
         let _ = w.write_all(b"");
     }
+
+    // ── Windows-style path shapes fed to sanitize_relative on Linux ─────────
+    // These tests document the Rust-layer contract: sanitize_relative rejects
+    // NUL bytes, `..`, and absolute paths, but does NOT check Windows reserved
+    // device names (CON/NUL/PRN/AUX/COM1-COM9/LPT1-LPT9). That responsibility
+    // belongs entirely to the TS PathValidator layer, which runs before any IPC
+    // call reaches the Rust layer.  Running on Linux, these names are just
+    // ordinary file-name strings with no special meaning, so they pass through.
+
+    /// sanitize_relative accepts a path component named "CON" on Linux.
+    /// On Windows a file literally named "CON" cannot be created, but the Rust
+    /// guard's job is traversal/NUL/absolute rejection only — not OS-reserved-
+    /// name rejection (which is the TS layer's job).
+    #[test]
+    fn sanitize_relative_accepts_windows_reserved_names_on_linux() {
+        let reserved_names = ["CON", "NUL", "PRN", "AUX", "COM1", "COM9", "LPT1", "LPT9"];
+        for name in &reserved_names {
+            let p = std::path::Path::new(name);
+            let result = sanitize_relative(p);
+            assert!(
+                result.is_ok(),
+                "sanitize_relative should accept {name} on Linux (reserved-name guard is TS-layer only), got: {:?}",
+                result
+            );
+            assert_eq!(
+                result.unwrap(),
+                std::path::PathBuf::from(name),
+                "sanitize_relative should return {name} unchanged"
+            );
+        }
+    }
+
+    /// sanitize_relative accepts a very long path (>260 chars) on Linux without
+    /// panicking. Windows MAX_PATH is 260 chars, but Linux has a much higher
+    /// limit (typically PATH_MAX = 4096). The Rust guard never imposes a 260-char
+    /// cap; that is intentional — Keepance on Windows relies on the OS to surface
+    /// the error naturally when a path is too long, rather than a pre-emptive cap
+    /// that could incorrectly reject valid Linux paths.
+    #[test]
+    fn sanitize_relative_accepts_long_paths_on_linux() {
+        // Build a path whose total string length exceeds Windows MAX_PATH (260).
+        let long_name = "a".repeat(270);
+        let long_path_str = format!("deeply/nested/{long_name}/brief.txt");
+        assert!(long_path_str.len() > 260, "fixture must be >260 chars");
+
+        let p = std::path::Path::new(&long_path_str);
+        let result = sanitize_relative(p);
+        assert!(
+            result.is_ok(),
+            "sanitize_relative should not reject a >260-char path on Linux, got: {:?}",
+            result
+        );
+    }
+
+    /// sanitize_relative rejects a Windows-style backslash-separated path as an
+    /// ordinary NUL-byte check: on Linux, backslashes are valid filename chars,
+    /// so the whole string is a single path component containing backslashes —
+    /// it passes through unchanged.  This is the expected Linux behavior.
+    #[test]
+    fn sanitize_relative_treats_backslash_as_ordinary_char_on_linux() {
+        // On Linux, "a\\b\\file.docx" is ONE filename (with literal backslashes),
+        // not three components. sanitize_relative sees it as a single Normal
+        // component and accepts it. This documents the cross-platform gap: the
+        // TS layer normalizes all backslashes to forward slashes before the path
+        // ever reaches the Rust layer.
+        let p = std::path::Path::new("a\\b\\file.docx");
+        let result = sanitize_relative(p);
+        assert!(
+            result.is_ok(),
+            "backslash path should be treated as a single component on Linux"
+        );
+    }
+
+    /// sanitize_relative rejects a Windows-drive-absolute path like "C:\\Users\\x"
+    /// when the OS parses it as an absolute path. On Linux this string does NOT
+    /// parse as absolute (Linux needs a leading '/'); it parses as a single
+    /// Normal component ("C:\\Users\\x" with literal backslashes and colon).
+    /// This test documents that the Rust layer's absolute-path guard fires only
+    /// for POSIX-absolute paths — not Windows-drive paths — when running on Linux.
+    #[test]
+    fn sanitize_relative_treats_windows_drive_path_as_normal_component_on_linux() {
+        // On Linux, std::path::Path::new("C:\\Users\\Jane\\brief.docx") has exactly
+        // ONE component of type Normal (the entire string with literal backslashes).
+        // It is NOT treated as absolute. This means a Windows drive path smuggled
+        // into a tarball passes the Rust guard on Linux — but is harmless, because
+        // the TS layer always resolves and validates the workspace-relative path
+        // before building the tarball in the first place.
+        let p = std::path::Path::new("C:\\Users\\Jane\\brief.docx");
+        let result = sanitize_relative(p);
+        // Must not crash; behavior documents the Linux-only gap (no drive prefix guard).
+        assert!(
+            result.is_ok(),
+            "Windows drive path treated as single Normal component on Linux, should not error"
+        );
+    }
 }
