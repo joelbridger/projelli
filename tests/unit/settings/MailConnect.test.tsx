@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 
 const mockOutlookConnect = vi.fn();
 const mockMailSyncAll = vi.fn();
@@ -17,11 +17,19 @@ vi.mock('@/platform/utils/mail-commands', () => ({
 }));
 vi.mock('@/features/email/useMailSync', () => ({ useMailSync: () => {} }));
 
+// useMailStore is a Zustand store — mock it so we can control progress in tests.
+let mockProgress: { status: string; written: number; provider?: string } | undefined = undefined;
+vi.mock('@/features/email/mailStore', () => ({
+  useMailStore: (selector: (s: { progressByProvider: Record<string, unknown> }) => unknown) =>
+    selector({ progressByProvider: mockProgress ? { m365: mockProgress } : {} }),
+}));
+
 import { MailConnect } from '@/features/settings/MailConnect';
 
 describe('MailConnect (one-click M365 flow)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockProgress = undefined;
     mockMailIsConnected.mockResolvedValue(false);
     mockOutlookConnect.mockResolvedValue(undefined);
     mockMailSyncAll.mockResolvedValue(undefined);
@@ -83,5 +91,87 @@ describe('MailConnect (one-click M365 flow)', () => {
     render(<MailConnect />);
     await waitFor(() => expect(mockMailFdeStatus).toHaveBeenCalled());
     expect(screen.queryByText(/full.disk encryption/i)).not.toBeInTheDocument();
+  });
+});
+
+// BUG-008: Reconnect button (no fake timers needed — just needs connected state)
+describe('MailConnect — BUG-008 Reconnect button', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockProgress = undefined;
+    mockMailIsConnected.mockResolvedValue(true);
+    mockOutlookConnect.mockResolvedValue(undefined);
+    mockMailSyncAll.mockResolvedValue(undefined);
+    mockMailCancelSync.mockResolvedValue(undefined);
+    mockMailFdeStatus.mockResolvedValue({ status: 'unknown', platform: 'Linux', detail: null });
+  });
+
+  it('shows Reconnect button when connected', async () => {
+    render(<MailConnect />);
+    // Wait for the mount effect (mailIsConnected) to resolve and set connected=true.
+    await waitFor(() => expect(mockMailIsConnected).toHaveBeenCalled());
+    expect(await screen.findByTestId('mail-m365-reconnect')).toBeInTheDocument();
+    expect(screen.getByTestId('mail-m365-reconnect')).toHaveTextContent('Reconnect');
+  });
+
+  it('clicking Reconnect calls outlookConnect again', async () => {
+    render(<MailConnect />);
+    await waitFor(() => expect(mockMailIsConnected).toHaveBeenCalled());
+    const btn = await screen.findByTestId('mail-m365-reconnect');
+    fireEvent.click(btn);
+    await waitFor(() => expect(mockOutlookConnect).toHaveBeenCalledTimes(1));
+  });
+
+  it('Reconnect button is disabled and shows "Reconnecting…" while connecting', async () => {
+    // outlookConnect never resolves so connecting stays true
+    mockOutlookConnect.mockReturnValue(new Promise(() => {}));
+    render(<MailConnect />);
+    await waitFor(() => expect(mockMailIsConnected).toHaveBeenCalled());
+    const btn = await screen.findByTestId('mail-m365-reconnect');
+    fireEvent.click(btn);
+    await waitFor(() => expect(btn).toHaveTextContent('Reconnecting…'));
+    expect(btn).toBeDisabled();
+  });
+});
+
+// BUG-008: sync-stall watchdog (uses fake timers)
+describe('MailConnect — BUG-008 stall watchdog', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockMailIsConnected.mockResolvedValue(true);
+    mockOutlookConnect.mockResolvedValue(undefined);
+    mockMailSyncAll.mockResolvedValue(undefined);
+    mockMailCancelSync.mockResolvedValue(undefined);
+    mockMailFdeStatus.mockResolvedValue({ status: 'unknown', platform: 'Linux', detail: null });
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('does NOT show stalled warning before 90 seconds', async () => {
+    mockProgress = { status: 'syncing', written: 100, provider: 'm365' };
+    render(<MailConnect />);
+    // Flush initial mount effects and render with syncing progress.
+    await act(async () => { await Promise.resolve(); });
+    act(() => { vi.advanceTimersByTime(89_000); });
+    expect(screen.queryByTestId('mail-m365-stalled')).not.toBeInTheDocument();
+  });
+
+  it('shows stalled warning after 90 seconds with no progress', async () => {
+    mockProgress = { status: 'syncing', written: 100, provider: 'm365' };
+    render(<MailConnect />);
+    await act(async () => { await Promise.resolve(); });
+    act(() => { vi.advanceTimersByTime(90_000); });
+    expect(screen.getByTestId('mail-m365-stalled')).toBeInTheDocument();
+  });
+
+  it('does not show stalled warning when status is done', async () => {
+    mockProgress = { status: 'done', written: 500, provider: 'm365' };
+    render(<MailConnect />);
+    await act(async () => { await Promise.resolve(); });
+    act(() => { vi.advanceTimersByTime(90_000); });
+    expect(screen.queryByTestId('mail-m365-stalled')).not.toBeInTheDocument();
   });
 });

@@ -13,10 +13,22 @@ export function MailGmailConnect() {
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [syncStalled, setSyncStalled] = useState(false);
 
   useEffect(() => {
     gmailIsConnected().then(setConnected).catch(() => {});
   }, []);
+
+  // Sync-stall watchdog: if progress is 'syncing' and written count hasn't changed
+  // for 90 seconds, show an amber warning prompting the user to Reconnect.
+  useEffect(() => {
+    if (progress?.status !== 'syncing') {
+      setSyncStalled(false);
+      return;
+    }
+    const timer = setTimeout(() => setSyncStalled(true), 90_000);
+    return () => clearTimeout(timer);
+  }, [progress?.status, progress?.written]);
 
   async function connect() {
     setConnecting(true);
@@ -95,18 +107,34 @@ export function MailGmailConnect() {
               </button>
             </div>
           )}
+          {syncStalled && (
+            <p data-testid="mail-gmail-stalled" className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
+              This is taking longer than expected — your Google sign-in may have expired. Try Reconnect.
+            </p>
+          )}
           {progress && progress.status === 'done' && <p className="mt-1">All mail imported and searchable.</p>}
           {progress && progress.status === 'error' && (
             <p className="mt-1 text-red-700">Mail sync ran into a problem. Open this panel again to retry.</p>
           )}
           {connectError && <p className="mt-1 text-red-700">Something went wrong: {connectError}</p>}
-          <button
-            type="button"
-            onClick={() => void disconnect()}
-            className="mt-2 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Disconnect
-          </button>
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              data-testid="mail-gmail-reconnect"
+              disabled={connecting}
+              onClick={() => void connect()}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            >
+              {connecting ? 'Reconnecting…' : 'Reconnect'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void disconnect()}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Disconnect
+            </button>
+          </div>
         </div>
       )}
     </section>
