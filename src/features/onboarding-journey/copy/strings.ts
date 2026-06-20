@@ -11,6 +11,53 @@
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 
 export const JOURNEY_STRINGS = {
+  ch1: {
+    title: 'Welcome to Keepance',
+    body: 'A private workroom where powerful AI helps with your real work. Nothing ever leaves your computer.',
+    tagline: "Let's set it up together. About three minutes.",
+    startBtn: 'Start',
+    sceneLabel: 'Your files, safe on your own computer',
+  },
+
+  ch2: {
+    title: 'A bit about you',
+    professionQuestion: 'What kind of work do you do?',
+    professionSub: 'So Keepance speaks your language.',
+    professions: [
+      { label: 'Legal practice', id: 'legal' },
+      { label: 'Tax and accounting', id: 'tax' },
+      { label: 'Consulting and strategy', id: 'consulting' },
+      { label: 'Financial advisor or wealth', id: 'financial' },
+      { label: 'Something else', id: 'other' },
+    ] as const,
+    nameQuestion: 'What should we call you?',
+    namePlaceholder: 'Your name',
+    photoLabel: 'Add a photo',
+    photoNote: 'This stays on your computer, just for your sidebar.',
+    backBtn: 'Back',
+    continueBtn: 'Continue',
+  },
+
+  ch3: {
+    title: 'Your files stay home',
+    body: "Most apps copy your work to their servers. Keepance keeps your files on your own computer. We never get a copy.",
+    folderQuestion: 'Where should Keepance keep your files?',
+    chooseFolderBtn: 'Choose a folder',
+    folderNote: 'A synced folder like Dropbox copies files there too. Your most private work is happiest in a folder that stays on this computer.',
+    sceneLabel: 'Your files stay on your computer, not in the cloud',
+    backBtn: 'Back',
+    continueBtn: 'Continue',
+  },
+
+  ch4: {
+    title: 'Meet the AI',
+    body1: "Think of AI as a brain you plug in. Keepance doesn't come with one. You pick yours, and you can change it any time.",
+    body2: "Whatever you ask, the AI reads your own files to answer. And it shows its receipts. Every answer points back to the page it came from, so you can check it.",
+    sceneLabel: 'The AI reads your files and shows its sources',
+    backBtn: 'Back',
+    continueBtn: 'Show me my choices',
+  },
+
   ch5: {
     // -----------------------------------------------------------------------
     // 'choose' view

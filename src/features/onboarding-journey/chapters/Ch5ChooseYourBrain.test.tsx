@@ -83,6 +83,7 @@ function makeCtx(overrides: Partial<ChapterContext> & { data?: JourneyData } = {
     actions: {
       saveApiKey: vi.fn().mockResolvedValue(undefined),
       setConfidentialityMode: vi.fn(),
+      chooseWorkspaceFolder: vi.fn().mockResolvedValue('/tmp/ws'),
     },
     ...overrides,
   };
@@ -224,6 +225,7 @@ describe('ch5 — cloud view: save key', () => {
       actions: {
         saveApiKey: vi.fn().mockRejectedValue(new Error('Key save failed')),
         setConfidentialityMode: vi.fn(),
+        chooseWorkspaceFolder: vi.fn().mockResolvedValue('/tmp/ws'),
       },
     });
     render(ch5ChooseYourBrain.render(ctx));

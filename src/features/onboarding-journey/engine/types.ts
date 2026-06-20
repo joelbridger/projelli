@@ -38,6 +38,11 @@ export interface JourneyActions {
    * local AI). Uses the real union from the platform privacy layer.
    */
   setConfidentialityMode: (mode: ConfidentialityMode) => void;
+  /**
+   * Open a native folder picker and return the chosen path, or null if the
+   * user cancels. The real implementation is wired by the App at cutover time.
+   */
+  chooseWorkspaceFolder: () => Promise<string | null>;
 }
 
 export interface ChapterContext {

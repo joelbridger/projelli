@@ -31,6 +31,7 @@ const THREE = [ch1, ch2, ch3];
 const stubActions = {
   saveApiKey: vi.fn().mockResolvedValue(undefined),
   setConfidentialityMode: vi.fn(),
+  chooseWorkspaceFolder: vi.fn().mockResolvedValue('/tmp/ws'),
 };
 
 function renderHost(chapters = THREE, onComplete = vi.fn(), onExit = vi.fn()) {

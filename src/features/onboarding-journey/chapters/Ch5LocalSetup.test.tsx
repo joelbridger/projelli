@@ -97,6 +97,7 @@ function makeCtx(overrides: Partial<ChapterContext> & { data?: JourneyData } = {
     actions: {
       saveApiKey: vi.fn().mockResolvedValue(undefined),
       setConfidentialityMode: vi.fn(),
+      chooseWorkspaceFolder: vi.fn().mockResolvedValue('/tmp/ws'),
     },
     ...overrides,
   };
