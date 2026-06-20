@@ -175,19 +175,47 @@ export function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
     const userMsg = messages[i];
     const assistantMsg = messages[i + 1];
     if (userMsg && assistantMsg && userMsg.role === 'user' && assistantMsg.role === 'assistant') {
-      if (assistantMsg.askCitations && assistantMsg.askCitations.length > 0) {
-        // Citations were persisted: keep the {n} markers so chips render, and
-        // restore the full citation + source data. This is the path that makes
-        // reloaded/navigated answers keep their clickable chips and source panel.
+      // BUG-016: a turn saved BEFORE the grounding fix may carry ungrounded
+      // citations. Two bad classes exist: (1) a fabricated source with
+      // path:null / verified:false; and (2) the subtler one — the old binder
+      // resolved a fabricated claim to a REAL file by basename and saved it as
+      // verified:true with a real path but a paragraph/page that was never
+      // retrieved. We must NOT trust the persisted `verified` flag. Instead
+      // re-ground each citation against the turn's own persisted sources: keep
+      // it only when a saved source exists at the exact cited locator (path AND
+      // paragraphIndex OR pageNumber). Anything else is dropped and its marker
+      // stripped, so no stale bad answer can re-render a fake chip/source title
+      // or trip the green attestation on reload.
+      const restoredSources = assistantMsg.askSources ?? [];
+      const groundedCitations = (assistantMsg.askCitations ?? []).filter((c) => {
+        if (c.path == null) return false;
+        return restoredSources.some((s) => {
+          if (s.path !== c.path) return false;
+          // Pre-WS3 citations have no locator — re-ground by path only (the best
+          // we can do; the saved source still proves the file was retrieved).
+          if (c.paragraphIndex === undefined) return true;
+          // Locator present: it must match a saved source's paragraph OR page,
+          // so a stale "real file + fabricated paragraph" citation is dropped.
+          return s.paragraphIndex === c.paragraphIndex || s.pageNumber === c.paragraphIndex;
+        });
+      });
+      if (groundedCitations.length > 0) {
+        const keep = new Set(groundedCitations.map((c) => c.n));
+        // Strip markers for any dropped citation; keep survivors' markers intact.
+        const answer = assistantMsg.content.replace(/\s*\{(\d+)\}/g, (m, nStr: string) =>
+          keep.has(Number.parseInt(nStr, 10)) ? m : '',
+        );
         turns.push({
           question: userMsg.content,
-          answer: assistantMsg.content,
-          citations: assistantMsg.askCitations,
-          sources: assistantMsg.askSources ?? [],
+          answer,
+          citations: groundedCitations,
+          sources: restoredSources,
         });
       } else {
-        // Legacy messages (pre-fix) have no persisted citations. Strip the {n}
-        // markers so raw tokens don't appear in plain-text restored prose.
+        // No grounded citations (legacy messages with none persisted, OR a
+        // pre-fix turn whose citations were all ungrounded). Strip every {n}
+        // marker so raw tokens don't appear in plain-text restored prose, and
+        // restore as an uncited answer.
         turns.push({
           question: userMsg.content,
           answer: assistantMsg.content.replace(/\s*\{\d+\}/g, ''),

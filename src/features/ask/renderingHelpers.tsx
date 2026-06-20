@@ -211,7 +211,9 @@ export function renderMessageWithCitations(
     // (Task 5 review); fall back to path-only.
     const matchedSource =
       (sources ?? []).find(
-        (s) => s.path === resolved && s.paragraphIndex === cite.paragraphIndex,
+        (s) =>
+          s.path === resolved &&
+          (s.paragraphIndex === cite.paragraphIndex || s.pageNumber === cite.paragraphIndex),
       ) ?? (sources ?? []).find((s) => s.path === resolved);
     // VG-2b/(f): page-keyed sources label "p. N" / "sheet N" / "slide N".
     // VG-2: OCR-read sources disclose "(scanned)" / "(low-confidence scan)".

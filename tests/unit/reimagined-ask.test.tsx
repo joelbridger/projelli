@@ -251,6 +251,7 @@ describe('Ask', () => {
       path: '/workspace/Sample - Matter Overview.md',
       locator: 'Sample - Matter Overview.md §Client Notes',
       verified: true,
+      paragraphIndex: 4,
     };
     mockSessions['ask-global'] = {
       chatId: 'ask-global',
@@ -261,7 +262,11 @@ describe('Ask', () => {
           content: 'The fee is $350/hr with a $3,000 retainer. {1}',
           timestamp: '2026-01-01T00:00:00Z',
           askCitations: [storedCitation],
-          askSources: [],
+          // BUG-016: citations now re-ground against the saved sources on reload,
+          // so a real persisted turn carries its source (as it does in practice).
+          askSources: [
+            { path: '/workspace/Sample - Matter Overview.md', chunkText: 'Fee arrangement: hourly at $350/hr', score: 0.9, paragraphIndex: 4 },
+          ],
         },
       ],
       isLoading: false,

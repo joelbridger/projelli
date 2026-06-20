@@ -36,6 +36,16 @@ import {
   filterHitsByScope,
 } from './askHelpers';
 
+/**
+ * BUG-016: the single decline message shown when the answer is NOT in the
+ * user's indexed files. Used both by the retrieval-evidence gate (when nothing
+ * is retrieved) and referenced in the answer prompt (so the model declines with
+ * identical wording), keeping the experience uniform whether the gate or the
+ * model produces the decline.
+ */
+const NO_EVIDENCE_DECLINE =
+  "I couldn't find anything about that in your documents.";
+
 export interface UseAskProps {
   onSaveToDocument?: (content: string) => Promise<void>;
   /** When non-null, prefills the composer with the given question and optionally auto-submits. */
@@ -357,13 +367,39 @@ export function useAsk({
           : { kind: 'allMatters' };
 
       let hits: RagHit[] = [];
-      if (isMemoryEnabled()) {
+      const memoryEnabled = isMemoryEnabled();
+      if (memoryEnabled) {
         const rawHits = await MemoryService.retrieve(q, DEFAULT_WORKSPACE_TOP_K, retrievalScope, false);
         // Apply client-side type filter for Email/Documents scopes.
         hits = filterHitsByScope(rawHits, askScope);
       }
 
       if (abort.signal.aborted) return;
+
+      /* BUG-016: retrieval-evidence gate.
+       * When indexing IS on but retrieval found nothing in scope, decline
+       * instead of calling the model — otherwise the model free-associates a
+       * confident answer and (worse) a fabricated citation, presented under the
+       * "Answered over your own files" banner. Declining here, before the model
+       * runs, makes "no evidence" an honest "I couldn't find this" rather than a
+       * hallucinated, fake-cited answer. (When indexing is OFF we leave the
+       * existing behaviour: the UI already warns that documents aren't indexed.)
+       */
+      if (memoryEnabled && hits.length === 0) {
+        const declineTurn: AskTurn = {
+          question: q,
+          answer: NO_EVIDENCE_DECLINE,
+          citations: [],
+          sources: [],
+        };
+        const nowDecline = new Date().toISOString();
+        addMessage(chatId, { role: 'user', content: q, timestamp: nowDecline });
+        addMessage(chatId, { role: 'assistant', content: NO_EVIDENCE_DECLINE, timestamp: nowDecline });
+        setTurns((prev) => [...prev, declineTurn]);
+        setStreamingTurn(null);
+        setStatus('done');
+        return;
+      }
 
       /* Step 2: call the AI provider */
       setStatus('answering');
@@ -377,11 +413,18 @@ export function useAsk({
       // Build history from completed turns (last 6)
       const historyBlock = buildHistoryBlock(turns, 6);
 
+      // BUG-016: the answer prompt is hardened to refuse fabrication. The model
+      // must answer ONLY from the retrieved context, decline with the exact
+      // NO_EVIDENCE_DECLINE wording when the context doesn't contain the answer,
+      // and never state a figure/date/name or cite a source that isn't present
+      // in the context. This is the model-side half of the grounding fix; the
+      // citation-binding step below structurally drops any citation that still
+      // doesn't resolve to a retrieved chunk.
       const systemPrompt = [
         matterHint,
-        "You are a legal research assistant. Answer the attorney's question concisely in prose.",
-        "After every factual claim, cite the source document using the format [filename paragraph N] (the exact filename and paragraph number from the context block below).",
-        'Never invent citations. If the context does not contain enough information, say so honestly.',
+        "You are a legal research assistant. Answer the attorney's question using ONLY the information in the context block below — the attorney's own files. Do not use outside knowledge.",
+        `If the context block does not contain the answer, reply with exactly this sentence and nothing else: "${NO_EVIDENCE_DECLINE}" Do not guess, and never state a dollar amount, figure, date, deadline, or name that does not appear in the context block.`,
+        "After every factual claim, cite the source in square brackets, copying the filename and its location EXACTLY as they appear in the matching source header in the context block — e.g. [contract.docx paragraph 3] or [filing.pdf page 2]. Only cite filenames that appear in the context block, and only the paragraph/page actually shown there. Never invent a citation or a source.",
         'Respond in 3-6 sentences maximum.',
         workspaceBlock,
         historyBlock,
@@ -428,16 +471,49 @@ export function useAsk({
         ...(h.matterId !== undefined ? { matterId: h.matterId } : {}),
       }));
 
+      /* BUG-016 — citation grounding.
+       * A citation is only kept (and shown as a chip / counted toward the
+       * "Answered over your own files" banner) when it resolves to an ACTUAL
+       * retrieved chunk — matched by the file AND the exact locator the chunk
+       * was retrieved at (paragraph for text, page for PDF). This closes two
+       * fabrication paths:
+       *   - the model cites a file that wasn't retrieved at all (fake source);
+       *   - the model cites a REAL retrieved file but attaches the claim to a
+       *     paragraph/page that was never in the context (a real filename can't
+       *     launder a fabricated claim).
+       * Anything else is dropped and its marker stripped from the prose, so it
+       * can never render a chip, populate the source panel with a (real or fake)
+       * title, or trip the green attestation. We do this in two passes so chip
+       * numbers run in reading order while text edits run back-to-front (edits
+       * never shift an earlier, not-yet-processed match).
+       */
       const citationMap = new Map<string, number>();
       const citations: AnswerCitation[] = [];
       let chipCounter = 0;
-      let rewritten = answerText;
-      const sorted = [...parsed].sort((a, b) => b.start - a.start);
+      // Pass 1 (reading order): decide keep/drop + assign chip numbers.
+      const decisions: { start: number; end: number; n: number | null }[] = [];
+      const inOrder = [...parsed].sort((a, b) => a.start - b.start);
 
-      for (const cite of sorted) {
+      for (const cite of inOrder) {
         const resolvedPath = resolveCitationPath(cite, hits);
-        const key = `${resolvedPath ?? cite.basename}:${String(cite.paragraphIndex)}`;
+        // The cited LOCATOR must be a real retrieved chunk. The parsed number is
+        // matched against a chunk's paragraphIndex (text) OR pageNumber (PDF),
+        // so a model that writes "paragraph 3" or "page 3" for a page-3 source
+        // both ground correctly, while a fabricated "paragraph 99" does not.
+        const matchedHit = resolvedPath === null
+          ? undefined
+          : hits.find(
+              (h) =>
+                h.path === resolvedPath &&
+                (h.paragraphIndex === cite.paragraphIndex || h.pageNumber === cite.paragraphIndex),
+            );
 
+        if (!matchedHit) {
+          decisions.push({ start: cite.start, end: cite.end, n: null });
+          continue;
+        }
+
+        const key = matchedHit.id ?? `${matchedHit.path}:${String(matchedHit.paragraphIndex)}`;
         let n: number;
         if (citationMap.has(key)) {
           n = citationMap.get(key) ?? chipCounter;
@@ -446,32 +522,41 @@ export function useAsk({
           n = chipCounter;
           citationMap.set(key, n);
 
-          const matchedSource =
-            sources.find((s) => s.path === resolvedPath && s.paragraphIndex === cite.paragraphIndex) ??
-            sources.find((s) => s.path === resolvedPath);
-
-          // WS3: forward id + matterId from the matched hit so the SourcePanel
-          // can call ragVerifyCitation for on-demand source verification.
-          // Also forward paragraphIndex so CitationText chip click can open
-          // the file directly at the cited passage (one-click navigation).
-          const matchedHit = hits.find(
-            (h) => h.path === resolvedPath && h.paragraphIndex === cite.paragraphIndex,
-          ) ?? hits.find((h) => h.path === resolvedPath);
+          const matchedSource = sources.find(
+            (s) => s.path === matchedHit.path && s.paragraphIndex === matchedHit.paragraphIndex,
+          );
           citations.push({
             n,
-            label: citationBasename(resolvedPath ?? cite.basename),
-            excerpt: matchedSource?.chunkText ?? '',
-            path: resolvedPath,
-            locator: matchedSource ? sourceLocator(matchedSource) : cite.basename,
-            verified: resolvedPath !== null,
-            paragraphIndex: cite.paragraphIndex,
-            ...(matchedHit?.id !== undefined ? { id: matchedHit.id } : {}),
-            ...(matchedHit?.matterId !== undefined ? { matterId: matchedHit.matterId } : {}),
+            label: citationBasename(matchedHit.path),
+            // Excerpt + locator come from the matched RETRIEVED chunk, never
+            // from the model's text, so the source panel always shows real
+            // retrieved content.
+            excerpt: matchedHit.chunkText,
+            path: matchedHit.path,
+            locator: matchedSource ? sourceLocator(matchedSource) : citationBasename(matchedHit.path),
+            verified: true,
+            paragraphIndex: matchedHit.paragraphIndex,
+            // WS3: forward id + matterId so the SourcePanel can call
+            // ragVerifyCitation for on-demand source verification.
+            ...(matchedHit.id !== undefined ? { id: matchedHit.id } : {}),
+            ...(matchedHit.matterId !== undefined ? { matterId: matchedHit.matterId } : {}),
           });
         }
+        decisions.push({ start: cite.start, end: cite.end, n });
+      }
 
-        rewritten =
-          rewritten.slice(0, cite.start) + `{${String(n)}}` + rewritten.slice(cite.end);
+      // Pass 2 (back-to-front): rewrite kept markers to {n}, strip dropped ones.
+      let rewritten = answerText;
+      for (const d of [...decisions].sort((a, b) => b.start - a.start)) {
+        if (d.n === null) {
+          let start = d.start;
+          // Swallow a single leading space so a dropped citation doesn't leave a
+          // double space or a " ." gap behind it.
+          if (start > 0 && rewritten[start - 1] === ' ') start -= 1;
+          rewritten = rewritten.slice(0, start) + rewritten.slice(d.end);
+        } else {
+          rewritten = rewritten.slice(0, d.start) + `{${String(d.n)}}` + rewritten.slice(d.end);
+        }
       }
 
       citations.sort((a, b) => a.n - b.n);

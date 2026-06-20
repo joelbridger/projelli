@@ -149,6 +149,17 @@ describe('parseCitations', () => {
     });
   });
 
+  it('parses the [filename page N] form (PDF/scan sources, BUG-016)', () => {
+    // PDF/scan sources are labelled "page N" in the context block, so a model
+    // that copies that label must still produce a parseable citation.
+    const cites = parseCitations('The award was $73,250 [filing.pdf page 2].');
+    expect(cites).toHaveLength(1);
+    expect(cites[0]).toMatchObject({
+      basename: 'filing.pdf',
+      paragraphIndex: 2,
+    });
+  });
+
   it('returns empty for a message with no citations', () => {
     expect(parseCitations('Just a normal reply.')).toEqual([]);
   });

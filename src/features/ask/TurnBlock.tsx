@@ -37,6 +37,15 @@ export function TurnBlock({
   const isThisTurnSelected = selectedTurnIdx === turnIdx;
   const selectedForThisTurn = isThisTurnSelected ? selected : null;
 
+  // BUG-016: the "Answered over your own files" attestation must reflect a
+  // grounded, verifiable citation — not merely the presence of any citation.
+  // The Ask pipeline now drops citations that don't resolve to a retrieved
+  // chunk, so every rendered citation is verified; this `.some(verified)` gate
+  // is the defense-in-depth that guarantees an unverified citation can never
+  // trigger the green banner (and that such an answer shows the uncited
+  // warning instead).
+  const hasGroundedCitation = turn.citations.some((c) => c.verified);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>
       {/* User bubble */}
@@ -97,7 +106,7 @@ export function TurnBlock({
             A2: shown only when citations exist, so it is never contradicted
             by the "No indexed sources" note below — the two are mutually exclusive.
             WS3: add data-testid so tests can assert its presence. */}
-        {!isStreaming && turn.answer && turn.citations.length > 0 && (
+        {!isStreaming && turn.answer && hasGroundedCitation && (
           <div
             data-testid="ask-cited-attestation"
             style={{
@@ -123,7 +132,7 @@ export function TurnBlock({
             visible Callout so an uncited answer looks clearly LESS trustworthy
             than a cited one. Mutually exclusive with the attestation above.
             A2 guarantee preserved: only shown when there are no citations. */}
-        {!isStreaming && turn.citations.length === 0 && turn.answer && (
+        {!isStreaming && !hasGroundedCitation && turn.answer && (
           <div data-testid="ask-uncited-warning">
             <Callout variant="warning" icon={AlertTriangle}>
               {/* eslint-disable keepance-i18n/no-hardcoded-string */}

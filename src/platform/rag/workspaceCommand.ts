@@ -169,10 +169,12 @@ export interface ParsedCitation {
   paragraphIndex: number;
 }
 
-/** Regex matching citations in either
- *  `[filename paragraph N]` or `[filename §N]` form. */
+/** Regex matching citations in `[filename paragraph N]`, `[filename page N]`,
+ *  or `[filename §N]` form. PDF/scan sources are labelled "page N" in the
+ *  context block (buildWorkspaceContextBlock), so the parser must accept it or
+ *  a legitimate scanned-PDF answer would render uncited (BUG-016 review). */
 const CITATION_RE =
-  /\[([^\[\]\n]+?)\s+(?:paragraph\s+|§\s*)(\d+)\]/gi;
+  /\[([^\[\]\n]+?)\s+(?:paragraph\s+|page\s+|§\s*)(\d+)\]/gi;
 
 /**
  * Scan a message for inline citations. Returns them in source order,
@@ -255,8 +257,13 @@ export function resolveCitationPath(
       citation.basename.toLowerCase(),
   );
   if (byBasename.length === 0) return null;
+  // Match the cited number against a chunk's paragraphIndex (text) OR pageNumber
+  // (PDF/scan), so "[file.pdf page 2]" resolves to the page-2 chunk rather than
+  // the first retrieved chunk of that file (BUG-016 review, Finding B).
   const exact = byBasename.find(
-    (h) => h.paragraphIndex === citation.paragraphIndex,
+    (h) =>
+      h.paragraphIndex === citation.paragraphIndex ||
+      h.pageNumber === citation.paragraphIndex,
   );
   return (exact ?? byBasename[0])?.path ?? null;
 }
@@ -308,7 +315,9 @@ export async function verifyCitations(
         citationBasename(s.path).toLowerCase() === cite.basename.toLowerCase(),
     );
     const source =
-      candidates.find((s) => s.paragraphIndex === cite.paragraphIndex) ??
+      candidates.find(
+        (s) => s.paragraphIndex === cite.paragraphIndex || s.pageNumber === cite.paragraphIndex,
+      ) ??
       candidates[0];
     if (!source || !source.id || !source.matterId) continue;
 

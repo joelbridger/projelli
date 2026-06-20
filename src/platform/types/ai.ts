@@ -48,6 +48,16 @@ export interface PersistedCitation {
   locator: string;
   /** Whether the source was returned from the verified RAG store. */
   verified: boolean;
+  /**
+   * WS3 — paragraph index of the cited chunk. Persisted so chip-click
+   * navigation works after reload and so citations can be RE-GROUNDED against
+   * the saved sources on reload (BUG-016). Absent on pre-WS3 citations.
+   */
+  paragraphIndex?: number;
+  /** WS3 — content-addressed chunk id (for ragVerifyCitation). Absent pre-WS3. */
+  id?: string;
+  /** WS3 — matter scope of the cited chunk. Absent pre-WS3. */
+  matterId?: string;
 }
 
 /**
