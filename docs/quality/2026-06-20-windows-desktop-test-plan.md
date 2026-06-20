@@ -105,7 +105,7 @@ The server already runs ~3,375 frontend tests, ~450 Rust tests, browser E2E, and
 | H2 | Connect Gmail (OAuth) | `MailGmailConnect` | 🖐️ | Dev build lacks baked Google creds (expected); needs the signed build or creds injected. Validated server-side already. |
 | H3 | Connect IMAP (manual host/port form) | `MailImapConnect` | ⬜ | |
 | H4 | **Mail actually syncs** after restart + **"Sync now"** works (BUG-007 fix) | `email-sync-now`, mail list | ✅ | **CONFIRMED LIVE 2026-06-20 — real Outlook mail IMPORTS.** After fixing the sign-in (BUG-010: ShellExecuteW + bind `localhost`), Jameson reconnected with his passkey and mail imported for real (count climbed 84→194→504→… messages). "Sync now" present + auto-fires on open (BUG-007). The earlier "spins forever" (BUG-008) was the stale token; with a fresh sign-in it imports normally. |
-| H5 | Keyword search vs AI search modes | `mode-keyword`, `mode-ask`, `email-search-input` | ⬜ | |
+| H5 | Keyword search vs AI search modes | `mode-keyword`, `mode-ask`, `email-search-input` | 🟡 | **Keyword search CONFIRMED LIVE (2026-06-20)** over the full imported mailbox — searching "invoice" returned 21 real matches with correct subjects/senders. AI-search mode not yet driven. |
 | H6 | Open an email → read body, attachments, privilege control | `open-email-*`, `email-viewer-*`, `attachment-download-*` | ⬜ | |
 | H7 | File an email to a matter (single + bulk) | `file-to-matter-*`, `bulk-file-to-matter` | ⬜ | |
 | H8 | Compose + AI-draft a reply; send | `compose-*`, `reply-draft-ai-btn`, `reply-send-btn` | ⬜🖐️ | Sending hits a real mailbox — care. |
