@@ -8,7 +8,7 @@ Status key: 🔴 open · 🟡 fix planned · 🟢 fixed (commit) · ⚪ needs-co
 | ID | What | Status |
 |----|------|--------|
 | BUG-001 | Inconsistent AI-provider indicators across the UI | 🟢 **FIXED `f7e70fa` + CONFIRMED LIVE on Windows (2026-06-20)** — drove the rebuilt app: Privacy Center + trust bar now both read "Sent to your OpenAI account" (agreed). Root was Privacy Center hardcoding "Anthropic"; shared `useActiveEgressProvider` hook (8 tests green). |
-| BUG-002 | Ask composer clears the question on error | 🟢 **FIXED** `4d3b086` (input now preserved on error; 2 tests RED→GREEN). |
+| BUG-002 | Ask composer clears the question on error | 🟢 **FIXED** `164bd68` (input now preserved on error; 2 tests RED→GREEN). |
 | BUG-003 | Misleading "couldn't reach AI provider" copy | 🟢 **browser-only** — that path is the RAG index being browser-only; on desktop RAG works and the message doesn't fire. Minor. |
 | BUG-004 | Default provider = Anthropic regardless of keys | 🟢 **browser/injection-only** — desktop follows the added key correctly (confirmed: added OpenAI in onboarding → app uses OpenAI). Not a desktop bug. |
 | BUG-005 | Nightly bench wipes the interactive dev dir | 🟢 **FIXED** `393a2ce` (syncs to a separate bench dir + stubs Piper; never touches the dev bench). |
