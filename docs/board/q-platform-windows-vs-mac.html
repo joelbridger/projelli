@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Do our target users use Mac or Windows more? — Board Research</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--ink:#1b2330;--ink-soft:#475063;--muted:#7b8595;--line:#e4e8ee;--navy:#16294b;--navy-soft:#27406b;--accent:#2f6df0;--good:#15803d;--good-bg:#e7f6ec;--warn:#b45309;--warn-bg:#fdf1e1;--shadow:0 1px 2px rgba(16,28,51,.04),0 6px 24px rgba(16,28,51,.06)}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:820px;margin:0 auto;padding:0 22px}
+  a{color:var(--accent)}
+  .hero{background:linear-gradient(160deg,var(--navy),var(--navy-soft));color:#fff;padding:30px 0 26px}
+  .back{display:inline-block;color:#bcc9e4;text-decoration:none;font-size:13px;font-weight:600;margin:0 0 14px}
+  .back:hover{color:#fff}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#aebfdd;font-weight:600;margin:0 0 8px}
+  h1{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:clamp(24px,3.6vw,34px);line-height:1.12;margin:0 0 8px}
+  .sub{color:#d7e0f2;font-size:15px;margin:0}
+  main{padding:28px 0 64px}
+  .tldr{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:14px;box-shadow:var(--shadow);padding:20px 22px;margin:0 0 28px}
+  .tldr h2{margin:0 0 10px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .tldr p{margin:0 0 10px;color:var(--ink);font-weight:500}
+  h2.sec{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:23px;margin:34px 0 8px;letter-spacing:-.01em}
+  p{margin:0 0 12px;color:var(--ink-soft)}
+  table{width:100%;border-collapse:collapse;margin:8px 0 16px;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:14.5px}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
+  th{background:#f0f3f8;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  tr:last-child td{border-bottom:0}
+  td.win{font-weight:700;color:var(--navy)}
+  .bar{display:inline-block;height:10px;border-radius:5px;background:var(--accent);vertical-align:middle;margin-right:8px}
+  .callout{background:var(--good-bg);border:1px solid #bfe6cb;border-radius:12px;padding:14px 16px;margin:14px 0;color:#14532d;font-size:14.5px}
+  .caveat{background:var(--warn-bg);border:1px solid #f3dcb5;border-radius:12px;padding:14px 16px;margin:14px 0;color:#7c3a06;font-size:14.5px}
+  ul{margin:0 0 14px;padding-left:20px}li{margin:0 0 7px;color:var(--ink-soft)}
+  ol.src{font-size:13.5px;color:var(--ink-soft)}ol.src li{margin:0 0 6px}
+  footer{border-top:1px solid var(--line);padding:18px 0 40px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<header class="hero"><div class="wrap">
+  <a class="back" href="./#questions">← Back to the board</a>
+  <p class="eyebrow">Board research · Jameson's Questions</p>
+  <h1>Do our target users use Mac or Windows more?</h1>
+  <p class="sub">A research note · 2026-06-20 · multi-source, fact-checked (ABA surveys + corroborating data)</p>
+</div></header>
+
+<main><div class="wrap">
+
+  <div class="tldr">
+    <h2>Bottom line</h2>
+    <p><b>Windows, by a wide margin.</b> Among U.S. solo and small-firm lawyers — exactly our target — roughly <b>4 out of 5 are on Windows (~81%)</b> and only about <b>1 in 9 are on Mac (~11%)</b>, per the ABA's authoritative survey.</p>
+    <p>But Mac is concentrated in <b>our</b> slice: <b>solo lawyers are the most Mac-friendly group of all (~16%, about 1 in 6)</b>, and Mac use drops as firms get bigger. Mac rose into 2021 but has been <b>flat and choppy since</b> — there's no rising-Mac trend to bet on.</p>
+    <p><b>What to do:</b> polish <b>Windows first</b> (it covers ~80% of users), support <b>Mac well as a strong second</b> (1 in 6 solos, plus a loud, influential Mac-lawyer community), and keep <b>Linux as a low-priority long tail.</b> This matches the priorities already in the Testing tab.</p>
+  </div>
+
+  <h2 class="sec">The numbers</h2>
+  <p>The gold-standard source is the <b>ABA Legal Technology Survey Report / TechReport</b> (the 2023 Solo &amp; Small Firm edition). It asks lawyers their primary operating system:</p>
+  <table>
+    <tr><th>Operating system</th><th>Share of solo/small-firm lawyers (2023)</th></tr>
+    <tr><td class="win">Windows (all versions)</td><td class="win"><span class="bar" style="width:200px"></span>~81%</td></tr>
+    <tr><td>— of which Windows 10</td><td>71%</td></tr>
+    <tr><td>Mac OS</td><td><span class="bar" style="width:27px"></span>11%</td></tr>
+    <tr><td>Chrome OS</td><td>0.2%</td></tr>
+  </table>
+
+  <h2 class="sec">Mac is concentrated in our exact target (solos)</h2>
+  <p>Mac usage isn't even across firm sizes — it's <b>highest among solos</b>, which is precisely Keepance's core user. By primary OS = Mac (ABA 2023):</p>
+  <table>
+    <tr><th>Firm size</th><th>On Mac</th></tr>
+    <tr><td><b>Solo</b></td><td><b>16%</b> (highest of any size)</td></tr>
+    <tr><td>2–9 attorneys</td><td>12%</td></tr>
+    <tr><td>100+ attorneys</td><td>8%</td></tr>
+    <tr><td>10–49 attorneys</td><td>5%</td></tr>
+  </table>
+  <p>So for our litigation-solo focus, Mac realistically runs around <b>1 in 6</b> — small, but not negligible, and worth supporting well.</p>
+
+  <h2 class="sec">Is Mac on the rise? Not reliably.</h2>
+  <p>Mac adoption among solos climbed through the mid-2010s and <b>peaked near 21% in 2021</b> — but it's been volatile, not a steady climb:</p>
+  <ul>
+    <li>2020: <b>16%</b> → 2021: <b>21%</b> (peak) → 2022: <b>8%</b> → 2023: <b>16%</b></li>
+    <li>Net over that window: roughly flat. These are small, noisy survey samples.</li>
+  </ul>
+  <p><b>Implication:</b> you can't bet on Mac overtaking Windows in this segment. Windows is the safe, durable priority.</p>
+
+  <div class="callout"><b>Independent corroboration.</b> A Florida Bar tech-helpline consultant's ~400 real solo/small-firm interactions broke down ~<b>78% Windows / 16% Mac / 5% mixed</b> — almost exactly matching the ABA survey. (Notably this came from a <em>pro-Mac</em> podcast, which makes the Windows figure more credible, not less.)</p>
+
+  <h2 class="sec">A nuance worth knowing</h2>
+  <p>Lawyers love their <b>iPhones</b> (61% of solos use one), and laptops have overtaken desktops as the main work computer. But <b>iPhone affinity does not translate into desktop Mac use</b> — it's a weak signal at best. The desktop split above is what matters for a desktop app like Keepance.</p>
+
+  <div class="caveat"><b>One honest gap.</b> We have <b>no first-party data</b> on what OS <em>our own</em> visitors/users run — our traffic is too low and mostly direct (i.e., largely us testing). Recommendation: turn on operating-system tracking in our analytics so that, as real prospects arrive, we can confirm this industry picture against our actual audience.</p>
+
+  <h2 class="sec">What this means for Keepance</h2>
+  <ul>
+    <li><b>Windows = priority.</b> ~80% of target users. This is already where the recent testing focus is — keep it there. Getting Windows genuinely solid covers the large majority of the market.</li>
+    <li><b>Mac = strong second tier, not optional.</b> ~1 in 6 solos, and the Mac-using-lawyer community (MILOFest, "Macs in Law") is small but vocal and influential — good word-of-mouth per Mac user. Support it well; don't lead with it.</li>
+    <li><b>Linux = low-priority long tail.</b> Keep building it (it's our dev platform anyway), but it's a rounding error among lawyers.</li>
+  </ul>
+
+</div></main>
+
+<footer><div class="wrap">
+  <h2 class="sec" style="margin-top:0;font-size:18px">Sources</h2>
+  <ol class="src">
+    <li>ABA Legal Technology Survey Report — 2023 Solo &amp; Small Firm TechReport (primary). <a href="https://www.americanbar.org/groups/law_practice/resources/tech-report/2023/2023-solo-and-small-firm/" target="_blank" rel="noopener">americanbar.org</a></li>
+    <li>ABA TechReport 2021 — Solo &amp; Small Firm. <a href="https://www.lawtechnologytoday.org/2021/12/techreport-2021-solo-small-firm/" target="_blank" rel="noopener">lawtechnologytoday.org</a></li>
+    <li>ABA TechReport archive (historical solo/small-firm). <a href="https://www.americanbar.org/groups/law_practice/resources/tech-report/archive/solo-small-firm1/" target="_blank" rel="noopener">americanbar.org</a></li>
+    <li>Legal Talk Network — "The All-Mac Edition" (Florida Bar helpline data). <a href="https://legaltalknetwork.com/podcasts/new-solo/2023/07/the-all-mac-edition-the-episode-for-mac-curious-attorneys/" target="_blank" rel="noopener">legaltalknetwork.com</a></li>
+    <li>Oklahoma Bar — "The Rise of the Mac-Loving Lawyer." <a href="https://www.okbar.org/cm_articles/from-courtrooms-to-coffee-shops-the-rise-of-the-mac-loving-lawyer/" target="_blank" rel="noopener">okbar.org</a></li>
+    <li>Attorney at Work — Mac law-office primer / lawyers who use Macs. <a href="https://www.attorneyatwork.com/mac-law-office-primer/" target="_blank" rel="noopener">attorneyatwork.com</a></li>
+    <li>Clio Legal Trends (solo/small-firm). <a href="https://www.clio.com/resources/legal-trends/2026-solo-small-firm-report/" target="_blank" rel="noopener">clio.com</a></li>
+  </ol>
+  Method: 5 search angles → 18 sources fetched → 59 claims → top 25 adversarially fact-checked (3-vote). Confidence high on the core split. · <a href="./#questions">Back to the board</a>
+</div></footer>
+</body>
+</html>

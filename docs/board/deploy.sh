@@ -18,6 +18,6 @@ if command -v node >/dev/null 2>&1; then
     || { echo "✗ board-data.json is invalid — fix it before deploying"; exit 1; }
 fi
 
-cp "$SRC/index.html" "$SRC/board-data.json" "$DEST/"
+cp "$SRC"/*.html "$SRC/board-data.json" "$DEST/"
 echo "✓ Published to $DEST"
 echo "  View (logged in): https://board.jameworld.com"

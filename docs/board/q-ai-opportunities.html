@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>What else could I do with AI to push Keepance forward? — Board Research</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--ink:#1b2330;--ink-soft:#475063;--muted:#7b8595;--line:#e4e8ee;--navy:#16294b;--navy-soft:#27406b;--accent:#2f6df0;--good:#15803d;--good-bg:#e7f6ec;--warn:#b45309;--warn-bg:#fdf1e1;--shadow:0 1px 2px rgba(16,28,51,.04),0 6px 24px rgba(16,28,51,.06)}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:820px;margin:0 auto;padding:0 22px}
+  a{color:var(--accent)}
+  .hero{background:linear-gradient(160deg,var(--navy),var(--navy-soft));color:#fff;padding:30px 0 26px}
+  .back{display:inline-block;color:#bcc9e4;text-decoration:none;font-size:13px;font-weight:600;margin:0 0 14px}
+  .back:hover{color:#fff}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#aebfdd;font-weight:600;margin:0 0 8px}
+  h1{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:clamp(24px,3.6vw,34px);line-height:1.12;margin:0 0 8px}
+  .sub{color:#d7e0f2;font-size:15px;margin:0}
+  main{padding:28px 0 64px}
+  .tldr{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:14px;box-shadow:var(--shadow);padding:20px 22px;margin:0 0 28px}
+  .tldr h2{margin:0 0 10px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .tldr ol{margin:0;padding-left:20px}.tldr li{margin:0 0 8px;font-weight:500}
+  h2.sec{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:23px;margin:34px 0 6px;letter-spacing:-.01em}
+  h3{font-size:17px;margin:20px 0 4px}
+  p{margin:0 0 12px;color:var(--ink-soft)}p.lead{color:var(--ink)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:16px 18px;margin:0 0 12px}
+  .card h3{margin:0 0 4px;color:var(--ink)}
+  .tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:8px;vertical-align:middle}
+  .tag.now{color:var(--good);background:var(--good-bg)}.tag.soon{color:var(--warn);background:var(--warn-bg)}
+  .how{font-size:13.5px;color:var(--muted);margin:6px 0 0}
+  .avoid{background:#fdecea;border:1px solid #f6c9c4;border-radius:12px;padding:16px 18px;margin:18px 0}
+  .avoid b{color:#b42318}
+  footer{border-top:1px solid var(--line);padding:18px 0 40px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<header class="hero"><div class="wrap">
+  <a class="back" href="./#questions">← Back to the board</a>
+  <p class="eyebrow">Board research · Jameson's Questions</p>
+  <h1>What else could I be doing with AI to push Keepance forward?</h1>
+  <p class="sub">A research note · 2026-06-20 · grounded in our own setup + an independent Codex review</p>
+</div></header>
+
+<main><div class="wrap">
+
+  <div class="tldr">
+    <h2>Bottom line — the 3 highest-leverage moves</h2>
+    <ol>
+      <li><b>Make AI test the real app like a lawyer, every day.</b> Point it at the Windows machine to run the same "lawyer demo" start-to-finish and report what's broken — in plain English, with screenshots. This attacks your #1 product risk: it isn't finished on the platform users actually run.</li>
+      <li><b>Build a fake litigation case file.</b> One realistic (but invented) set of pleadings, depositions, emails and scanned PDFs that becomes both your testing yardstick <em>and</em> your sales demo — so you never need a real client's files to show it off.</li>
+      <li><b>Run an AI "lead-finding engine," not a content firehose.</b> Have AI find 25–50 specific solo/small-firm litigation lawyers a week, with a one-line reason each and a ready first email — you just review the best ones.</li>
+    </ol>
+  </div>
+
+  <p class="lead">You already use AI for a lot — building and reviewing code (Claude + Codex), finding bugs by driving the app, writing marketing copy, and competitive research. So this note focuses on what you're <em>not</em> yet doing. The key shift in mindset: <b>AI is a tireless workforce; the real limit is your hours and your judgment, not how much AI labor you can spend.</b> The best uses below take work off your plate and only ask you for the decisions a human must make.</p>
+
+  <h2 class="sec">1 · Finish the product faster</h2>
+  <p>Recent Windows testing showed the app isn't actually done. AI can close that gap without you reading code.</p>
+  <div class="card"><h3>Daily "lawyer demo path" test on real Windows<span class="tag now">do now</span></h3>
+    <p>Have AI install and drive the real Windows app through the exact path a lawyer would: open a matter → import documents → ask a question → click a citation → make a Word redline → sync email → export a report. Every failure comes back as a plain-English bug report with a screenshot, not a log.</p>
+    <p class="how">Setup: your Legion laptop as a Windows "test bench" (already started), reached over your private network, with Claude or Codex driving it. Use fast unsigned builds for this — save the hour-long signed build for real releases.</p></div>
+  <div class="card"><h3>Screenshot → bug brief intake<span class="tag now">do now</span></h3>
+    <p>When you spot something wrong, just drop a screenshot on the server. AI turns it into "what broke, why it matters to a lawyer, how to reproduce it, how serious it is," then hands it to Claude/Codex to fix — only after the problem is reproduced. This plays exactly to your strength: you can judge quality by eye; AI does the translating.</p></div>
+
+  <h2 class="sec">2 · The fake case file (your proving ground)</h2>
+  <div class="card"><h3>One invented litigation workspace<span class="tag now">do now</span></h3>
+    <p>AI builds a believable but fake case: pleadings, deposition excerpts, emails, a couple of scanned PDFs, a privileged document, a planted contradiction, a missing piece of evidence. Then every new build is tested against it with the same questions ("What changed in the witness's story?" "Find contradictions." "Draft a privilege log."). It doubles as the demo you show prospects — so the first call never needs their real, confidential files.</p></div>
+
+  <h2 class="sec">3 · Distribution &amp; getting found</h2>
+  <p>This is the real business problem (≈zero users, almost no traffic). AI labor is your unfair advantage here since you have no ad budget and no network.</p>
+  <div class="card"><h3>AI lead-finding engine<span class="tag now">do now</span></h3>
+    <p>Each week, AI finds 25–50 highly specific solo/small-firm litigation lawyers — ideally ones who write or speak about AI, privacy, privilege, discovery, or solo practice. For each: one sentence on why they're a fit, a short tailored first email, and the objection they'll likely raise. You review only the top handful before anything sends.</p>
+    <p class="how">Setup: AI works through your logged-in Chrome, email, CRM, LinkedIn, bar directories, firm sites, and legal podcasts/newsletters — all tools you already have running.</p></div>
+  <div class="card"><h3>Public proof, not content volume<span class="tag soon">when ready</span></h3>
+    <p>The highest-value asset isn't another blog post — it's one recorded demo on the fake case, one lawyer-reviewed sample document, and one honest "here's exactly where your data goes" teardown. Save the journalist pitch for after the product is genuinely solid.</p></div>
+
+  <h2 class="sec">4 · Sales copilot</h2>
+  <div class="card"><h3>Call briefs, follow-ups, and objection cards<span class="tag soon">when selling</span></h3>
+    <p>Before each demo, AI prepares a one-page brief: who the lawyer is, their practice area, likely pain, what to show, and what <em>not</em> to claim. Afterward it turns your notes into CRM updates and follow-up emails. It also keeps short, current answers to the four objections every legal buyer raises ("Will this waive privilege?", "Where does my data go?", "Why trust a solo founder?", "Does it work with Word?"), each tied to a real screenshot. The single best proof asset: a tailored "Confidentiality Report" for a specific prospect showing what stays local, what goes to their own AI, and what Keepance never sees.</p></div>
+
+  <h2 class="sec">5 · Always-on intelligence</h2>
+  <div class="card"><h3>Weekly legal-tech radar<span class="tag soon">set + forget</span></h3>
+    <p>AI watches competitors, bar opinions, AI-privilege rulings, and Clio/Lexis/Thomson updates, and reports only the changes that affect your pitch, roadmap, or risk. This keeps your claims accurate and gives you timely, credible things to say in outreach.</p></div>
+
+  <h2 class="sec">6 · AI features inside the product</h2>
+  <p>Focus on litigation pain, not generic chat. The strongest candidates, once the basics (cited recall, scanned-PDF reading, email import, Word output) work reliably on Windows:</p>
+  <div class="card">
+    <p style="margin:0;color:var(--ink)"><b>Matter brief</b> (cited facts of a case) · <b>deposition contradiction finder</b> · <b>discovery gap map</b> (what evidence is missing) · <b>privilege-log draft</b> · <b>one-click "verify this citation"</b> · <b>email-to-matter recall</b> · <b>"what changed since last week?"</b></p>
+  </div>
+
+  <div class="avoid">
+    <p style="margin:0"><b>What to skip (for now) — likely distractions:</b> daily AI-generated social posts, broad SEO blog spam, sweeping "future of legal AI" essays, Product-Hunt-style launch noise, and big autonomous "agent" features inside the product. None of these move the needle while the product isn't finished and you have no users yet.</p>
+  </div>
+
+  <h2 class="sec">Why these, for you specifically</h2>
+  <p>Every recommendation is shaped by three facts about your situation: you're a <b>designer, not an engineer</b> (so AI must translate, not hand you code); you run a <b>server with Claude + Codex + a logged-in browser + email + CRM</b> (so you can spend a lot of AI labor cheaply); and your <b>real bottleneck is finishing the product and reaching lawyers</b>, not generating more code. The moves above turn AI from "a coder" into "a tester, a researcher, a lead-finder, and a sales assistant" — the roles a solo founder usually can't afford.</p>
+
+</div></main>
+
+<footer><div class="wrap">
+  Basis: our own project docs + current tooling (internal scan), an independent strategic review by Codex (OpenAI gpt-5.5), and this session's prior research on autonomous "loops" and AI-driven testing. A board research note — directional, to act on selectively. · <a href="./#questions">Back to the board</a>
+</div></footer>
+</body>
+</html>

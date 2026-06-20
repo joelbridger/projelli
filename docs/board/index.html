@@ -64,12 +64,18 @@
   .chip.info{color:var(--info); background:var(--info-bg)}
   .ov-note{margin:18px 0 0; color:var(--muted); font-size:13px}
 
-  /* Section cards */
-  section.area{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:24px 26px; margin:0 0 18px}
-  .area-head{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px}
-  .area-emoji{font-size:24px; width:42px; height:42px; display:grid; place-items:center; background:var(--bg-soft); border-radius:11px; flex:none}
-  .area-title{font-family:"Fraunces",Georgia,serif; font-weight:600; font-size:22px; margin:0; letter-spacing:-.01em}
-  .area-head .chip{margin:0 0 0 auto}
+  /* Section cards (collapsible) */
+  section.area{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); margin:0 0 14px; overflow:hidden}
+  .area-head{display:flex; align-items:center; gap:12px; width:100%; padding:18px 24px; background:transparent; border:0; cursor:pointer; font-family:inherit; text-align:left; color:inherit}
+  .area-head:hover{background:var(--bg-soft)}
+  .area-emoji{font-size:22px; width:40px; height:40px; display:grid; place-items:center; background:var(--bg-soft); border-radius:11px; flex:none}
+  .area-head:hover .area-emoji{background:#fff}
+  .area-title{font-family:"Fraunces",Georgia,serif; font-weight:600; font-size:21px; margin:0; letter-spacing:-.01em; min-width:0}
+  .area-head .chip{margin:0 0 0 auto; flex:none}
+  .chev{flex:none; color:var(--muted); font-size:20px; line-height:1; transition:transform .18s ease}
+  section.area.collapsed .chev{transform:rotate(-90deg)}
+  .area-body{padding:0 24px 22px}
+  section.area.collapsed .area-body{display:none}
   .now{font-size:15px; color:var(--ink-soft); margin:0 0 18px}
   .cols{display:grid; grid-template-columns:1fr 1fr; gap:22px}
   .col h3{display:flex; align-items:center; gap:7px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700; margin:0 0 9px}
@@ -96,6 +102,9 @@
   .q-text{font-weight:600; font-size:16px; margin:0; flex:1}
   .q-ans{margin:8px 0 0; font-size:14px; color:var(--ink-soft)}
   .q-ans.empty{color:var(--muted); font-style:italic}
+  .q-link{margin:8px 0 0; font-size:14px}
+  .q-link a{color:var(--accent); font-weight:600; text-decoration:none}
+  .q-link a:hover{text-decoration:underline}
 
   footer{border-top:1px solid var(--line); padding:22px 0 40px; color:var(--muted); font-size:13px}
   footer b{color:var(--ink-soft)}
@@ -103,8 +112,9 @@
 
   @media (max-width:680px){
     .cols{grid-template-columns:1fr; gap:16px}
-    section.area{padding:20px 18px}
-    .area-head .chip{margin:8px 0 0; order:3; width:100%}
+    .area-head{padding:16px 16px}
+    .area-body{padding:0 16px 18px}
+    .area-title{font-size:19px}
   }
 </style>
 </head>
@@ -168,15 +178,19 @@
       var ans = q.answer && q.answer.trim()
         ? '<p class="q-ans">'+esc(q.answer)+'</p>'
         : '<p class="q-ans empty">— open; to explore with AI —</p>';
-      return '<div class="q"><div class="q-top"><p class="q-text">'+esc(q.q)+'</p>'+chip(q.status==='answered'?'good':'info', q.status||'open')+'</div>'+ans+'</div>';
+      var link = q.doc ? '<p class="q-link"><a href="'+esc(q.doc)+'" target="_blank" rel="noopener">Read the full research →</a></p>' : '';
+      return '<div class="q"><div class="q-top"><p class="q-text">'+esc(q.q)+'</p>'+chip(q.status==='answered'?'good':'info', q.status||'open')+'</div>'+ans+link+'</div>';
     }).join('');
     return '<p class="now">'+esc(s.now)+'</p>'+rows;
   }
-  function renderSection(s){
+  function renderSection(s, collapsed){
     var body = s.type==='testing' ? renderTesting(s) : s.type==='questions' ? renderQuestions(s) : renderStandard(s);
-    return '<section class="area" id="sec-'+s.id+'">'
-      +'<div class="area-head"><div class="area-emoji">'+(s.icon||'•')+'</div>'
-      +'<h2 class="area-title">'+esc(s.title)+'</h2>'+chip(TONE[s.id]||'info', s.status)+'</div>'+body+'</section>';
+    return '<section class="area'+(collapsed?' collapsed':'')+'" id="sec-'+s.id+'">'
+      +'<button class="area-head" type="button" aria-expanded="'+(collapsed?'false':'true')+'">'
+      +'<span class="area-emoji">'+(s.icon||'•')+'</span>'
+      +'<span class="area-title">'+esc(s.title)+'</span>'+chip(TONE[s.id]||'info', s.status)
+      +'<span class="chev">⌄</span></button>'
+      +'<div class="area-body">'+body+'</div></section>';
   }
 
   var byId = {};
@@ -215,7 +229,7 @@
         panelsHtml += '<div class="panel" data-tab="overview"><div class="glance-grid">'+tiles+'</div>'
           +'<p class="ov-note">Tap any tile, or use the tabs above, to jump to a section.</p></div>';
       } else {
-        var secs = (t.sections||[]).map(function(id){ return byId[id] ? renderSection(byId[id]) : ''; }).join('');
+        var secs = (t.sections||[]).map(function(id){ return byId[id] ? renderSection(byId[id], (t.sections.length>1)) : ''; }).join('');
         panelsHtml += '<div class="panel" data-tab="'+t.id+'">'+secs+'</div>';
       }
     });
@@ -223,6 +237,7 @@
 
     // wiring
     document.querySelectorAll('#tabbar button').forEach(function(b){ b.addEventListener('click',function(){ activateTab(b.dataset.tab); }); });
+    document.querySelectorAll('.area-head').forEach(function(h){ h.addEventListener('click',function(){ var sec=h.closest('.area'); var c=sec.classList.toggle('collapsed'); h.setAttribute('aria-expanded', String(!c)); }); });
     document.querySelectorAll('.tile[data-goto]').forEach(function(t){
       t.addEventListener('click',function(){
         var sid=t.dataset.goto;

@@ -188,11 +188,11 @@
       "title": "Jameson's Questions",
       "icon": "❓",
       "type": "questions",
-      "status": "2 open",
-      "now": "Big questions where I (Jameson) use AI to help me think them through and understand them. Placeholders to come back to — add answers and notes over time.",
+      "status": "2 answered",
+      "now": "Big questions where I (Jameson) use AI to help me think them through and understand them. Each has a short overview here and links to a full research write-up.",
       "questions": [
-        { "q": "Do our target users use Mac or Windows more?", "status": "open", "answer": "" },
-        { "q": "What else could I be doing with AI to push this project forward?", "status": "open", "answer": "" }
+        { "q": "Do our target users use Mac or Windows more?", "status": "answered", "answer": "Windows, by a wide margin. The ABA's solo/small-firm survey puts ~81% of these lawyers on Windows vs ~11% on Mac — and among solos specifically (our core user) Mac is highest at ~16%, about 1 in 6. Mac rose into 2021 but has been flat/volatile since, so there's no rising-Mac trend to bet on. Takeaway: polish Windows first (~4 of 5 users), support Mac well as a strong second (small but vocal, influential community), keep Linux a low-priority long tail — which matches our Testing priorities. Caveat: we have no first-party data yet (our traffic is too low and mostly us); worth turning on OS tracking.", "doc": "q-platform-windows-vs-mac.html" },
+        { "q": "What else could I be doing with AI to push this project forward?", "status": "answered", "answer": "A lot — and the highest-leverage moves aren't 'write more code.' Top 3: (1) have AI test the real Windows app like a lawyer every day and report breakages in plain English with screenshots; (2) build one fake litigation case file to use as both the testing yardstick and the sales demo; (3) run an AI 'lead-finding engine' that surfaces 25–50 specific litigation lawyers a week with tailored outreach you just approve. Also: an AI sales copilot (call briefs, follow-ups, objection cards), a weekly legal-tech radar, and in-product features aimed at litigation pain (contradiction finder, privilege-log draft, citation verify). Skip the low-value stuff: daily social spam, generic SEO blogs, big autonomous agents.", "doc": "q-ai-opportunities.html" }
       ]
     },
     {
