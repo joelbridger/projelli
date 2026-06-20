@@ -15,6 +15,46 @@ import { SceneFrame } from './SceneFrame';
 import { motionClass } from './reducedMotion';
 
 // ---------------------------------------------------------------------------
+// Brain — unique gradient ids when multiple instances render simultaneously
+// ---------------------------------------------------------------------------
+describe('Brain — gradient id uniqueness', () => {
+  it('two Brain instances rendered together have distinct linearGradient ids', () => {
+    const { container } = render(
+      <>
+        <Brain />
+        <Brain />
+      </>,
+    );
+    const gradients = container.querySelectorAll('linearGradient');
+    expect(gradients.length).toBe(2);
+    const ids = Array.from(gradients).map((g) => g.getAttribute('id'));
+    // Both ids must exist and must be different
+    expect(ids[0]).toBeTruthy();
+    expect(ids[1]).toBeTruthy();
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it('fill references in each Brain point to that instance\'s own gradient id', () => {
+    const { container } = render(
+      <>
+        <Brain />
+        <Brain />
+      </>,
+    );
+    const gradients = container.querySelectorAll('linearGradient');
+    const ids = Array.from(gradients).map((g) => g.getAttribute('id') ?? '');
+    // Every url(#...) fill inside each SVG should reference only its sibling gradient
+    const svgs = container.querySelectorAll('svg');
+    expect(svgs.length).toBe(2);
+    svgs.forEach((svg, i) => {
+      const gradId = ids[i];
+      const urlFills = svg.querySelectorAll(`[fill="url(#${gradId})"]`);
+      expect(urlFills.length).toBeGreaterThan(0);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // motionClass helper
 // ---------------------------------------------------------------------------
 describe('motionClass', () => {

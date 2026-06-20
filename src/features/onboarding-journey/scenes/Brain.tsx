@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import './sceneKeyframes.css';
 import { motionClass } from './reducedMotion';
 
@@ -11,6 +12,8 @@ export interface BrainProps {
  * Brain — the AI you "plug in". A friendly glowing brain with a small plug connector.
  */
 export function Brain({ reducedMotion = false, className = '', size = 80 }: BrainProps) {
+  const uid = useId();
+  const gradId = `brain-grad-${uid}`;
   const w = size;
   const h = size;
   const cx = w / 2;
@@ -55,7 +58,7 @@ export function Brain({ reducedMotion = false, className = '', size = 80 }: Brai
         cx={cx}
         cy={cy}
         r={r}
-        fill="url(#brain-grad)"
+        fill={`url(#${gradId})`}
         stroke="var(--kp-navy)"
         strokeWidth={1.5}
       />
@@ -95,7 +98,7 @@ export function Brain({ reducedMotion = false, className = '', size = 80 }: Brai
 
       {/* Gradient def */}
       <defs>
-        <linearGradient id="brain-grad" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="var(--kp-pink)" stopOpacity="0.3" />
           <stop offset="100%" stopColor="var(--kp-blue)" stopOpacity="0.3" />
         </linearGradient>

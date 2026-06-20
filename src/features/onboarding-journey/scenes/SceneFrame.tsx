@@ -3,8 +3,6 @@ import type { ReactNode } from 'react';
 export interface SceneFrameProps {
   /** Plain-language description of what this scene shows. Used as aria-label. */
   label: string;
-  /** When true, pass through to child shapes so they render their static frame. */
-  reducedMotion?: boolean;
   className?: string;
   children: ReactNode;
 }
@@ -17,7 +15,7 @@ export interface SceneFrameProps {
  * flood of decorative SVG details. The inner content is marked aria-hidden
  * so assistive technology ignores it entirely.
  */
-export function SceneFrame({ label, reducedMotion: _reducedMotion, className, children }: SceneFrameProps) {
+export function SceneFrame({ label, className, children }: SceneFrameProps) {
   return (
     <div
       role="img"

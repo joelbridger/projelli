@@ -47,11 +47,13 @@
 }
 
 /* ── Ambient drift: a very slow, subtle float for decorative shapes ── */
+/* Uses top (not transform) for position, per spec: transform is reserved for rotate/scale. */
 @keyframes scene-drift-kf {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-4px); }
+  0%, 100% { top: 0px; }
+  50%       { top: -4px; }
 }
 .scene-drift {
+  position: relative;
   animation: scene-drift-kf 3600ms ease-in-out infinite;
 }
 
