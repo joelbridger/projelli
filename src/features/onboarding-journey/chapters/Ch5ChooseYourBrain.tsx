@@ -11,14 +11,14 @@
  * Sub-views (useState):
  *   'choose' — three metaphor cards
  *   'cloud'  — provider pick + key paste + test + save
- *   'local'  — Ollama detect (minimal; full guided install is Task 4)
+ *   'local'  — guided local setup (Ch5LocalSetup; no terminal instructions)
  *   'wrap'   — 465 MB reassurance, shown for every path
  */
 
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 
-import { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { cn } from '@/lib/utils';
@@ -41,9 +41,9 @@ import {
 } from '@/features/onboarding/ProviderTutorialSteps';
 import { ApiKeyTester } from '@/features/onboarding/ApiKeyTester';
 import { useProfessionCopy } from '@/features/onboarding/useProfessionCopy';
-import { detectOllama } from '@/platform/providers/OllamaProvider';
 import { openExternal } from '@/platform/utils/openExternal';
 import { clearAiSetupDeferred } from '@/features/onboarding/aiSetupState';
+import { Ch5LocalSetup } from './Ch5LocalSetup';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -112,11 +112,10 @@ function Ch5View({ ctx }: Ch5ViewProps) {
       )}
 
       {view === 'local' && (
-        <LocalView
-          reducedMotion={ctx.reducedMotion}
-          setConfidentialityMode={ctx.actions.setConfidentialityMode}
+        <Ch5LocalSetup
+          ctx={ctx}
           onBack={() => { setView('choose'); }}
-          onConfirm={() => {
+          onReady={() => {
             ctx.setData({ aiChoice: 'local' });
             goToWrap();
           }}
@@ -411,123 +410,6 @@ function CloudView({ reducedMotion: _reducedMotion, saveApiKey, onBack, onSaved 
         >
           {saving ? S.cloud.savingBtn : S.cloud.saveBtn}
         </Button>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Sub-view: local (minimal — full guided install is Task 4)
-// ---------------------------------------------------------------------------
-
-type OllamaStatus =
-  | { kind: 'checking' }
-  | { kind: 'ready'; models: string[] }
-  | { kind: 'not-ready' };
-
-interface LocalViewProps {
-  reducedMotion: boolean;
-  /** Host-provided: sets the confidentiality mode in the live app. */
-  setConfidentialityMode: (mode: 'local-only' | 'direct' | 'assured') => void;
-  onBack: () => void;
-  onConfirm: () => void;
-}
-
-function LocalView({ reducedMotion: _reducedMotion, setConfidentialityMode, onBack, onConfirm }: LocalViewProps) {
-  const [status, setStatus] = useState<OllamaStatus>({ kind: 'checking' });
-
-  useEffect(() => {
-    // Mounted flag: prevents a late-resolving detectOllama() from calling
-    // setStatus after this sub-view has already unmounted.
-    let alive = true;
-    detectOllama()
-      .then((result) => {
-        if (!alive) return;
-        if (result.reachable && result.models.length > 0) {
-          setStatus({ kind: 'ready', models: result.models });
-        } else {
-          setStatus({ kind: 'not-ready' });
-        }
-      })
-      .catch(() => {
-        if (alive) setStatus({ kind: 'not-ready' });
-      });
-    return () => { alive = false; };
-  }, []);
-
-  const handleConfirm = () => {
-    // Set local-only confidentiality mode in the live app before advancing.
-    setConfidentialityMode('local-only');
-    clearAiSetupDeferred();
-    onConfirm();
-  };
-
-  return (
-    <div className="space-y-5" data-testid="ch5-local-view">
-      <div>
-        <h2
-          className="text-3xl font-bold tracking-tight"
-          style={{ color: 'var(--kp-navy)' }}
-        >
-          {S.local.title}
-        </h2>
-        <p className="text-base text-muted-foreground mt-1">{S.local.sub}</p>
-      </div>
-
-      <div className="rounded-lg border border-border p-4" data-testid="ch5-ollama-status">
-        {status.kind === 'checking' && (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <RefreshCw className="h-4 w-4 animate-spin" />
-            Checking your computer...
-          </p>
-        )}
-
-        {status.kind === 'ready' && (
-          <div className="space-y-1" data-testid="ch5-ollama-ready">
-            <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
-              <Check className="h-4 w-4" />
-              {S.local.readyMsg}
-            </p>
-            <p className="text-xs text-muted-foreground">{S.local.readyDetail}</p>
-          </div>
-        )}
-
-        {status.kind === 'not-ready' && (
-          <div className="space-y-2" data-testid="ch5-ollama-not-ready">
-            <p className="text-sm font-medium text-foreground">{S.local.notReadyMsg}</p>
-            <p className="text-xs text-muted-foreground">{S.local.notReadyDetail}</p>
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between gap-2 pt-4 border-t border-border">
-        <Button variant="ghost" onClick={onBack} className="gap-1.5">
-          <ArrowLeft className="h-4 w-4" />
-          {S.local.backBtn}
-        </Button>
-
-        {status.kind === 'ready' ? (
-          <Button
-            onClick={handleConfirm}
-            size="lg"
-            data-testid="ch5-use-local-btn"
-          >
-            {S.local.useLocalBtn}
-          </Button>
-        ) : (
-          /* Placeholder: Task 4 wires this */
-          <Button
-            size="lg"
-            variant="outline"
-            disabled={status.kind === 'checking'}
-            data-testid="ch5-local-setup-placeholder"
-            onClick={() => {
-              /* intentional no-op — Task 4 wires guided install */
-            }}
-          >
-            {S.local.setupBtn}
-          </Button>
-        )}
       </div>
     </div>
   );

@@ -247,21 +247,21 @@ describe('ch5 — navigate to local view', () => {
     });
   });
 
-  it('shows "We\'ll help you set this up in a moment." when Ollama is not detected', async () => {
+  it('shows "Let\'s set up your private AI" when Ollama is not detected', async () => {
     mockDetectOllama.mockResolvedValue({ reachable: false, models: [] });
     renderCh5();
     fireEvent.click(screen.getByTestId('ch5-card-local'));
     await waitFor(() => {
-      expect(screen.getByText(/we'll help you set this up in a moment/i)).toBeInTheDocument();
+      expect(screen.getByText(/Let's set up your private AI/)).toBeInTheDocument();
     });
   });
 
-  it('shows "Set it up for me" placeholder button when Ollama not detected (no-op)', async () => {
+  it('shows "Set it up for me" button when Ollama not detected', async () => {
     mockDetectOllama.mockResolvedValue({ reachable: false, models: [] });
     renderCh5();
     fireEvent.click(screen.getByTestId('ch5-card-local'));
     await waitFor(() => {
-      expect(screen.getByTestId('ch5-local-setup-placeholder')).toBeInTheDocument();
+      expect(screen.getByTestId('ch5-local-setup-btn')).toBeInTheDocument();
     });
   });
 

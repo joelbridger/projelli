@@ -64,6 +64,38 @@ export const JOURNEY_STRINGS = {
       useLocalBtn: 'Use local AI',
       setupBtn: 'Set it up for me',
       backBtn: 'Other options',
+
+      // --- Guided local setup states (Ch5LocalSetup) ---
+
+      needsInstall: {
+        title: 'Let\'s set up your private AI',
+        body: 'We\'ll download a free AI that runs entirely on your computer. Nothing ever leaves your machine.',
+        btn: 'Set it up for me',
+      },
+
+      waiting: {
+        msg: 'Waiting for the installer to finish. This continues on its own once it\'s ready.',
+      },
+
+      downloading: {
+        title: 'Downloading your private AI',
+        percentSuffix: '%',
+      },
+
+      ready: {
+        msg: 'Your private AI is ready.',
+        btn: 'Use local AI',
+      },
+
+      error: {
+        msg: 'Something interrupted the setup.',
+        retryBtn: 'Try again',
+        openBtn: 'Open Ollama',
+      },
+
+      checking: {
+        msg: 'Checking your computer...',
+      },
     },
 
     // -----------------------------------------------------------------------
