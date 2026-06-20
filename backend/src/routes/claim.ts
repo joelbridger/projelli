@@ -73,7 +73,7 @@ export async function handleOrgClaim(req: Request, store: Store): Promise<Respon
     store.claimOrg(org.org_id, orgName ? { name: orgName } : undefined);
     return store.createUser({
       org_id: org.org_id,
-      email: body.email.trim(),
+      email: (body.email as string).trim(),
       password_hash: passwordHash,
       role: "admin",
     });

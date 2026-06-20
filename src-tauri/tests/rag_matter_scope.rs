@@ -54,9 +54,20 @@ fn model_is_provisioned() -> bool {
 
 /// Skip a model-dependent test when the e5-small cache is absent.
 /// CI runners do not have the model; local dev and the nightly server job do.
+///
+/// When REQUIRE_RAG_MODEL is set (non-empty) AND the model is not provisioned,
+/// panics loudly so the nightly run fails visibly rather than silently skipping.
+/// When REQUIRE_RAG_MODEL is unset (the default, used in CI), keeps the skip
+/// behaviour so model-absent CI jobs still pass.
 macro_rules! skip_without_model {
     () => {
         if !model_is_provisioned() {
+            if std::env::var("REQUIRE_RAG_MODEL").ok().filter(|v| !v.is_empty()).is_some() {
+                panic!(
+                    "REQUIRE_RAG_MODEL set but e5-small cache missing — \
+                     refusing to silently skip RAG tests"
+                );
+            }
             eprintln!(
                 "SKIP {}: e5-small model cache not provisioned \
                  (expected on CI; runs locally/nightly)",

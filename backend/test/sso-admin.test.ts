@@ -36,7 +36,7 @@ test("admin can set, get (secret-free), and delete SSO config; member is forbidd
 
   const get = await post("/org/sso/config/get", {}, adminToken);
   expect(get.status).toBe(200);
-  const view = await get.json();
+  const view = await get.json() as any;
   expect(view.configured).toBe(true);
   expect(view.client_id).toBe("client-abc");
   expect(view.has_secret).toBe(true);
@@ -53,7 +53,7 @@ test("admin can set, get (secret-free), and delete SSO config; member is forbidd
   const del = await post("/org/sso/config/delete", {}, adminToken);
   expect(del.status).toBe(200);
   const get2 = await post("/org/sso/config/get", {}, adminToken);
-  expect((await get2.json()).configured).toBe(false);
+  expect((await get2.json() as any).configured).toBe(false);
 });
 
 test("update SSO config without client_secret keeps the existing secret (keep-existing path)", async () => {
@@ -65,7 +65,7 @@ test("update SSO config without client_secret keeps the existing secret (keep-ex
   expect(set1.status).toBe(200);
 
   // Confirm secret is saved.
-  const view1 = await (await post("/org/sso/config/get", {}, adminToken)).json();
+  const view1 = await (await post("/org/sso/config/get", {}, adminToken)).json() as any;
   expect(view1.has_secret).toBe(true);
   expect(view1.enabled).toBe(true);
 
@@ -78,7 +78,7 @@ test("update SSO config without client_secret keeps the existing secret (keep-ex
   expect(set2.status).toBe(200);
 
   // The secret must still be present and enabled must have changed.
-  const view2 = await (await post("/org/sso/config/get", {}, adminToken)).json();
+  const view2 = await (await post("/org/sso/config/get", {}, adminToken)).json() as any;
   expect(view2.has_secret).toBe(true);
   expect(view2.enabled).toBe(false);
   expect(view2.client_id).toBe("client-keep");
@@ -90,7 +90,7 @@ test("update SSO config without client_secret keeps the existing secret (keep-ex
   }, adminToken);
   expect(set3.status).toBe(200);
 
-  const view3 = await (await post("/org/sso/config/get", {}, adminToken)).json();
+  const view3 = await (await post("/org/sso/config/get", {}, adminToken)).json() as any;
   expect(view3.has_secret).toBe(true);
   expect(view3.enabled).toBe(true);
 
@@ -100,7 +100,7 @@ test("update SSO config without client_secret keeps the existing secret (keep-ex
 
 test("first-time SSO setup with no client_secret returns 400 invalid_client_secret", async () => {
   // Ensure no config exists for this org (deleted in previous test).
-  const check = await (await post("/org/sso/config/get", {}, adminToken)).json();
+  const check = await (await post("/org/sso/config/get", {}, adminToken)).json() as any;
   expect(check.configured).toBe(false);
 
   // First-time setup without a secret — must be rejected.
@@ -110,7 +110,7 @@ test("first-time SSO setup with no client_secret returns 400 invalid_client_secr
     // client_secret omitted
   }, adminToken);
   expect(res.status).toBe(400);
-  const body = await res.json();
+  const body = await res.json() as any;
   expect(body.error).toBe("invalid_client_secret");
 
   // Same with explicit empty string.
@@ -119,7 +119,7 @@ test("first-time SSO setup with no client_secret returns 400 invalid_client_secr
     client_id: "client-first", client_secret: "", enabled: true,
   }, adminToken);
   expect(res2.status).toBe(400);
-  expect((await res2.json()).error).toBe("invalid_client_secret");
+  expect((await res2.json() as any).error).toBe("invalid_client_secret");
 
   // Same with whitespace-only.
   const res3 = await post("/org/sso/config/set", {
@@ -127,5 +127,5 @@ test("first-time SSO setup with no client_secret returns 400 invalid_client_secr
     client_id: "client-first", client_secret: "   ", enabled: true,
   }, adminToken);
   expect(res3.status).toBe(400);
-  expect((await res3.json()).error).toBe("invalid_client_secret");
+  expect((await res3.json() as any).error).toBe("invalid_client_secret");
 });

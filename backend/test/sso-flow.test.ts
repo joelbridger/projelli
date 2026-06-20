@@ -72,7 +72,7 @@ test("full SSO flow authenticates a known member and rejects an unknown email", 
     body: JSON.stringify({ email: "jane@weston.com", loopback_port: 49222 }),
   });
   expect(startRes.status).toBe(200);
-  const { auth_url } = await startRes.json();
+  const { auth_url } = await startRes.json() as any;
   const au = new URL(auth_url);
   expect(au.origin + au.pathname).toBe(idpIssuer + "/authorize");
   const state = au.searchParams.get("state")!;
@@ -94,7 +94,7 @@ test("full SSO flow authenticates a known member and rejects an unknown email", 
     body: JSON.stringify({ sso_code: ssoCode }),
   });
   expect(exRes.status).toBe(200);
-  const login = await exRes.json();
+  const login = await exRes.json() as any;
   expect(login.user.email).toBe("jane@weston.com");
   expect(typeof login.access_token).toBe("string");
 
@@ -113,7 +113,7 @@ test("POST /auth/sso/start with unknown email returns 404 sso_unavailable", asyn
     body: JSON.stringify({ email: "nobody@nowhere.invalid", loopback_port: 49333 }),
   });
   expect(res.status).toBe(404);
-  const body = await res.json();
+  const body = await res.json() as any;
   expect(body.error).toBe("sso_unavailable");
 });
 
@@ -125,7 +125,7 @@ test("sso_exchange with fabricated sso_code returns 401", async () => {
     body: JSON.stringify({ sso_code: garbage }),
   });
   expect(res.status).toBe(401);
-  const body = await res.json();
+  const body = await res.json() as any;
   expect(body.error).toBe("invalid_sso_code");
 });
 
@@ -134,6 +134,6 @@ test("callback with invalid state returns 400 sso_failed", async () => {
   const res = await fetch(base + `/auth/sso/callback?code=somecode&state=not-a-real-state`, { redirect: "manual" });
   // No loopback port known when state is invalid — returns JSON error, not a redirect
   expect(res.status).toBe(400);
-  const body = await res.json();
+  const body = await res.json() as any;
   expect(body.error).toBe("sso_failed");
 });

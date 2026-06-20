@@ -564,7 +564,7 @@ describe("doc_id stream partitioning", () => {
     // Default pull (no doc_id) must return only _notes
     const notes = unitStore.getMatterUpdatesSince(matter.matter_id, 0);
     expect(notes.length).toBe(1);
-    expect(notes[0].blob_id).toBe("notes-blob");
+    expect(notes[0]!.blob_id).toBe("notes-blob");
   });
 
   test("idempotency unique key is per (matter_id, doc_id, blob_id) — same blob_id on different doc_ids are distinct rows", () => {

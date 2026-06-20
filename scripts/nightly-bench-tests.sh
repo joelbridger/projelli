@@ -25,6 +25,10 @@
 #   both benches to have a recent passing run before cutting a signed build.
 #   See the update_status() / read_status() helpers below.
 #
+# NOTE: REQUIRE_RAG_MODEL is deliberately NOT set here — Windows and Mac benches may legitimately
+#   lack the e5-small model cache, so RAG tests are allowed to skip silently on those machines.
+#   The Linux server nightly (nightly-tests.sh) is the authoritative RAG gate.
+#
 # Safety rules (from ops guide §5 — violating these wasted 49 minutes last time):
 #   - NEVER wrap the actual remote build/test in a short timeout; it orphans the remote process.
 #     Only the reachability PROBE uses ConnectTimeout=15.

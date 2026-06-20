@@ -120,7 +120,7 @@ run() {
 
 # Build the debug desktop binary that the L2 harness needs.
 run "build debug binary"                  bash -c 'cd src-tauri && cargo build --workspace'
-run "full Rust suite (incl. integration)" bash -c 'cd src-tauri && cargo test --workspace'
+run "full Rust suite (incl. integration)" bash -c 'cd src-tauri && REQUIRE_RAG_MODEL=1 cargo test --workspace'
 run "Vitest (full)"                       npx vitest run
 run "Backend Bun tests"                   bash -c 'cd backend && bun test'
 

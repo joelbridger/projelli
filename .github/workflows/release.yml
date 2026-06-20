@@ -74,8 +74,8 @@ jobs:
         run: npx tsc --noEmit
       - name: i18n key parity
         run: npm run i18n:check
-      - name: Unit tests
-        run: npm test -- --run
+      - name: Unit tests + coverage floor
+        run: npm run test:coverage
       - name: ESLint regression gate
         run: npm run lint:gate
       - name: Install Rust

@@ -56,7 +56,15 @@ const results = JSON.parse(raw);
  * - ruleId: the ESLint rule name, or 'unknown' if absent
  * - message: the human-readable lint message text
  * Severity is intentionally excluded so warning↔error swaps don't break the baseline.
- * Line/column intentionally excluded so pure refactors don't break the baseline.
+ *
+ * WHY line/column/severity are excluded from the fingerprint key:
+ *   Including line number re-introduces the exact line-fragility we designed out:
+ *   every edit that shifts code lines would create a "new" fingerprint for an
+ *   unchanged violation, causing phantom regressions on routine refactors. The
+ *   accepted residual risk is that a NEW violation with an identical
+ *   (file + rule + message) tuple replacing an old one at the same count would
+ *   go undetected — this is the robustness tradeoff we deliberately accept for
+ *   cross-environment + cross-edit stability.
  */
 /**
  * Strip the absolute repo root from any string so machine-specific paths
@@ -76,7 +84,10 @@ function buildFingerprintMap(eslintResults) {
   const map = {};
   for (const file of eslintResults) {
     // Make the path relative to the repo root so it's the same on any machine.
-    const relPath = relative(repoRoot, file.filePath);
+    // Normalize backslashes to forward slashes so Windows-generated keys match
+    // the Linux-generated baseline (Windows path separators would otherwise
+    // produce keys like "src\App.tsx|..." that never match "src/App.tsx|...").
+    const relPath = relative(repoRoot, file.filePath).replace(/\\/g, '/');
     for (const msg of file.messages) {
       const ruleId = msg.ruleId ?? 'unknown';
       // Strip any embedded absolute paths from the message text so the fingerprint

@@ -65,6 +65,9 @@ jobs:
       - name: Install backend deps
         working-directory: ./backend
         run: bun install --frozen-lockfile
+      - name: Backend typecheck
+        working-directory: ./backend
+        run: bun run typecheck
       - name: Backend tests
         working-directory: ./backend
         run: bun test
