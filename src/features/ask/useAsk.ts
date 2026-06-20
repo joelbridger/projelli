@@ -511,6 +511,10 @@ export function useAsk({
       setErrorMsg(friendlyErrorMessage(raw));
       setStreamingTurn(null);
       setStatus('error');
+      // BUG-002: restore the typed question so the user can retry without
+      // re-typing. The input was cleared optimistically before the try block;
+      // on error we put it back.
+      setQuestion(q);
     }
   }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope, profession]);
 
