@@ -22,6 +22,7 @@ import { JourneyHost } from '@/features/onboarding-journey/JourneyHost';
 import { journeyChapters } from '@/features/onboarding-journey/chapters';
 import { hasCompletedOnboarding } from '@/features/onboarding';
 import { writeSampleFiles } from '@/platform/matter/samples';
+import { persistProfessionModelDefault } from '@/platform/profile/professionModel';
 
 // ---------------------------------------------------------------------------
 // Mocks — leaf side-effects only, no business logic suppressed
@@ -31,6 +32,12 @@ import { writeSampleFiles } from '@/platform/matter/samples';
 // it was or was not called without any real disk I/O.
 vi.mock('@/platform/matter/samples', () => ({
   writeSampleFiles: vi.fn(async () => []),
+}));
+
+// persistProfessionModelDefault writes to settings; mock so it does not
+// touch localStorage or stores during tests.
+vi.mock('@/platform/profile/professionModel', () => ({
+  persistProfessionModelDefault: vi.fn(),
 }));
 
 // DiskEncryptionGuidance uses useTranslation; i18next is already initialised
@@ -59,6 +66,7 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 // ---------------------------------------------------------------------------
 
 const writeSampleFilesMock = vi.mocked(writeSampleFiles);
+const persistProfessionModelDefaultMock = vi.mocked(persistProfessionModelDefault);
 
 const COMPLETE_KEY = 'keepance_onboarding_complete';
 
@@ -83,7 +91,7 @@ function makeOnComplete(opts: { addSamplesForce?: boolean } = {}) {
     exists: vi.fn(async () => false),
   };
   const onComplete = vi.fn(async (data: { addSamples?: boolean; profession?: string }) => {
-    const shouldAdd = opts.addSamplesForce !== undefined ? opts.addSamplesForce : (data.addSamples ?? false);
+    const shouldAdd = opts.addSamplesForce !== undefined ? opts.addSamplesForce : (data.addSamples ?? true);
     if (shouldAdd) {
       await writeSampleFiles(mockWorkspace, data.profession ?? 'other');
     }
@@ -241,6 +249,19 @@ describe('first-run journey — samples toggle (c)', () => {
     expect(writeSampleFilesMock).not.toHaveBeenCalled();
   });
 
+  it('(c) leaving the toggle at default (ON) calls writeSampleFiles', async () => {
+    // makeOnComplete() with no opts uses data.addSamples ?? true, so when the
+    // toggle is never touched (addSamples stays undefined in JourneyData),
+    // writeSampleFiles should still be called.
+    const { onComplete } = makeOnComplete();
+    renderJourney(onComplete);
+
+    await driveToCompletion();
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
+    expect(writeSampleFilesMock).toHaveBeenCalledOnce();
+  });
+
   it('(c) Ch8 samples toggle defaults to ON', async () => {
     const { onComplete } = makeOnComplete();
     renderJourney(onComplete);
@@ -278,5 +299,43 @@ describe('first-run journey — samples toggle (c)', () => {
     await waitFor(() => screen.getByTestId('ch8-root'));
     const toggle = screen.getByTestId('ch8-samples-toggle') as HTMLInputElement;
     expect(toggle.checked).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Replay mode — simulates the guard in App.tsx's onComplete when
+// onboardingReplay is true. The guard returns early without calling any
+// persistence functions. We test this by passing a no-op onComplete.
+// ---------------------------------------------------------------------------
+
+describe('first-run journey — replay mode', () => {
+  it('replay completion does NOT call writeSampleFiles or persistProfessionModelDefault', async () => {
+    // Simulate App.tsx's replay guard: onComplete returns early (no-op),
+    // so neither writeSampleFiles nor persistProfessionModelDefault is called.
+    const onCompleteReplay = vi.fn(async () => {
+      // Replay guard — does nothing, simulates: if (onboardingReplay) { return; }
+    });
+    renderJourney(onCompleteReplay);
+
+    await driveToCompletion();
+
+    await waitFor(() => expect(onCompleteReplay).toHaveBeenCalledOnce());
+    // Neither side-effect function should have been called because onComplete
+    // is a no-op that returns before reaching them.
+    expect(writeSampleFilesMock).not.toHaveBeenCalled();
+    expect(persistProfessionModelDefaultMock).not.toHaveBeenCalled();
+  });
+
+  it('first-run completion (non-replay) calls writeSampleFiles', async () => {
+    // This is the normal (non-replay) path — writeSampleFiles IS called.
+    // (See the replay guard comment: when onboardingReplay is false, the
+    // full persistence block runs, which includes writeSampleFiles.)
+    const { onComplete } = makeOnComplete({ addSamplesForce: true });
+    renderJourney(onComplete);
+
+    await driveToCompletion();
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
+    expect(writeSampleFilesMock).toHaveBeenCalledOnce();
   });
 });

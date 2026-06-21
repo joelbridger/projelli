@@ -135,3 +135,13 @@ describe('JourneyHost – progress strip aria', () => {
     expect(liveRegion).toBeInTheDocument();
   });
 });
+
+describe('JourneyHost — modal accessibility', () => {
+  it('root has role="dialog" and aria-modal="true"', () => {
+    renderHost();
+    const host = document.querySelector('.kp-journey-host');
+    expect(host).toHaveAttribute('role', 'dialog');
+    expect(host).toHaveAttribute('aria-modal', 'true');
+    expect(host).toHaveAttribute('aria-label', 'Set up Keepance');
+  });
+});

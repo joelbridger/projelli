@@ -123,12 +123,20 @@ describe('ch8SeeItWork — final button calls ctx.complete()', () => {
     expect(ctx.advance).not.toHaveBeenCalled();
   });
 
-  it('Continue also calls ctx.setData({ addSamples }) with the current toggle state', () => {
+  it('onChange on the toggle calls ctx.setData({ addSamples }) (not handleContinue)', () => {
     const ctx = makeCtx();
     render(ch8SeeItWork.render(ctx));
-    // Default is true; click Continue right away
+    // Click the toggle to uncheck it — setData is called by onChange, not by Continue.
+    fireEvent.click(screen.getByTestId('ch8-samples-toggle'));
+    expect(ctx.setData).toHaveBeenCalledWith({ addSamples: false });
+  });
+
+  it('Continue does NOT call ctx.setData (setData is committed by onChange)', () => {
+    const ctx = makeCtx();
+    render(ch8SeeItWork.render(ctx));
+    // Click Continue without touching the toggle — setData should NOT be called.
     fireEvent.click(screen.getByTestId('chapter-continue'));
-    expect(ctx.setData).toHaveBeenCalledWith({ addSamples: true });
+    expect(ctx.setData).not.toHaveBeenCalled();
   });
 
   it('does NOT write to localStorage', () => {

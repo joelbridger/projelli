@@ -137,6 +137,7 @@ function App() {
   // workspace (matching the wizard's documented first-run condition), and
   // suppressed in test/demo modes. `?forceOnboarding=true` forces it for QA.
   const [showFirstRun, setShowFirstRun] = useState(false);
+  const [onboardingReplay, setOnboardingReplay] = useState(false);
 
   // Anonymous telemetry: emit one app_launch event per session, gated
   // by user consent. Other lifecycle events (trial_start, trial_end,
@@ -1123,6 +1124,13 @@ This file contains rules and guidelines for AI assistants in this workspace.
       chapters={journeyChapters}
       actions={journeyActions}
       onComplete={async (data) => {
+        if (onboardingReplay) {
+          // Replay: just close the overlay, no destructive writes.
+          setOnboardingReplay(false);
+          setShowFirstRun(false);
+          return;
+        }
+
         // Map 'financial' (journey profession) -> 'advisor' (samples/model type)
         // for full compatibility. Compute once and reuse for both the model
         // default and the sample files so both callers see the same value.
@@ -1149,7 +1157,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
         // user to an empty sample matter (matches old GuidedOnboarding behavior).
         const sampleProfession = mappedProfession ?? 'other';
         let didWriteSamples = false;
-        if (data.addSamples && workspaceServiceRef.current && rootPath) {
+        if ((data.addSamples ?? true) && workspaceServiceRef.current && rootPath) {
           try {
             await writeSampleFiles(workspaceServiceRef.current, sampleProfession);
             didWriteSamples = true;
@@ -1177,6 +1185,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
         }
       }}
       onExit={(_data) => {
+        if (onboardingReplay) {
+          // Replay: just close the overlay, no destructive writes.
+          setOnboardingReplay(false);
+          setShowFirstRun(false);
+          return;
+        }
         // User skipped — mark complete so the overlay never re-prompts.
         localStorage.setItem('keepance_onboarding_complete', 'true');
         setShowFirstRun(false);
@@ -1190,22 +1204,26 @@ This file contains rules and guidelines for AI assistants in this workspace.
     const canDismiss = Boolean(rootPath);
     return (
       <>
-        {/* One-time embedding-model download banner: mounted here as well as
-            in the main shell (same both-branches pattern as firstRunOverlay
-            below — the branches are exclusive, so only one instance ever
-            exists). Mounting runs useModelStatus's probe, so a brand-new
-            user's download starts during onboarding rather than after it,
-            and returning to the selector mid-download keeps the progress
-            visible. The selector is a fixed full-viewport page (z-50), so
-            the banner needs its own fixed top-of-screen layer above it. */}
-        <div className="fixed inset-x-0 top-0 z-[60]">
-          <ModelDownloadCard />
+        {/* Background content: inert when the onboarding overlay is open so
+            keyboard/screen-reader focus is trapped inside the JourneyHost. */}
+        <div {...(showFirstRun ? { inert: '' } : {})}>
+          {/* One-time embedding-model download banner: mounted here as well as
+              in the main shell (same both-branches pattern as firstRunOverlay
+              below — the branches are exclusive, so only one instance ever
+              exists). Mounting runs useModelStatus's probe, so a brand-new
+              user's download starts during onboarding rather than after it,
+              and returning to the selector mid-download keeps the progress
+              visible. The selector is a fixed full-viewport page (z-50), so
+              the banner needs its own fixed top-of-screen layer above it. */}
+          <div className="fixed inset-x-0 top-0 z-[60]">
+            <ModelDownloadCard />
+          </div>
+          <WorkspaceSelector
+            open={true}
+            onWorkspaceSelected={handleWorkspaceSelected}
+            onDismiss={canDismiss ? () => setShowWorkspaceSelector(false) : undefined}
+          />
         </div>
-        <WorkspaceSelector
-          open={true}
-          onWorkspaceSelected={handleWorkspaceSelected}
-          onDismiss={canDismiss ? () => setShowWorkspaceSelector(false) : undefined}
-        />
         {firstRunOverlay}
       </>
     );
@@ -1238,6 +1256,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
     }
   };
   const handleSettingsRestartOnboarding = () => {
+    setOnboardingReplay(true);
     setShowFirstRun(true);
   };
 
@@ -1245,7 +1264,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
   const currentProjectName = rootPath?.split('/').pop() ?? 'Unnamed Project';
 
   return (
-    <div className="h-screen flex flex-col bg-background text-foreground" data-testid="app-container">
+    <>
+    <div
+      className="h-screen flex flex-col bg-background text-foreground"
+      data-testid="app-container"
+      {...(showFirstRun ? { inert: '' } : {})}
+    >
       {/* Accessibility: skip link so keyboard users can bypass the nav */}
       <a
         href="#main-content"
@@ -1499,6 +1523,8 @@ This file contains rules and guidelines for AI assistants in this workspace.
         setShowWhatsNewModalDirect={setShowWhatsNewModalDirect}
       />
     </div>
+    {firstRunOverlay}
+    </>
   );
 }
 

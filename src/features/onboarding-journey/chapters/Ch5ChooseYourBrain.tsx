@@ -15,6 +15,8 @@
  *   'wrap'   — 465 MB reassurance, shown for every path
  */
 
+// Ch5 intentionally skips ChapterLayout: it manages its own multi-subview layout (choose/cloud/local/wrap).
+
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 
 import { useState, useRef, useEffect } from 'react';

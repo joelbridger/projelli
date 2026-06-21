@@ -62,6 +62,10 @@ export function useJourney(
     onSkip(data);
   }, [data, onSkip]);
 
+  // complete() reads `data` from closure. Do NOT call setData(...) and
+  // complete() in the same synchronous handler and expect complete() to see
+  // the new value — setData schedules a re-render; only the *next* render's
+  // closure sees the updated data. Set data in onChange/earlier handlers.
   const complete = useCallback(() => {
     onComplete(data);
   }, [data, onComplete]);

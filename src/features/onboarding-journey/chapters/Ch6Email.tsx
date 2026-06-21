@@ -14,6 +14,8 @@
  * flag. This mirrors exactly how GuidedOnboarding step 6 works.
  */
 
+// Ch6 intentionally skips ChapterLayout: it is full-width (tabs + provider panels) without the standard scene/body layout.
+
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 
 import { useState, useRef, useEffect } from 'react';

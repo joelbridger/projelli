@@ -60,7 +60,7 @@ describe('en.json structure snapshot', () => {
         "media": 77,
         "memory": 3,
         "model-download": 9,
-        "onboarding": 65,
+        "onboarding": 25,
         "plugins": 4,
         "privacy": 11,
         "quick-open": 1,
@@ -82,8 +82,8 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    // 834 = 828 + 6 new matter archive/restore keys.
-    expect(flat.length).toBe(834);
+    // 794 = 834 - 40 orphaned first-run i18n keys removed (FIX 6).
+    expect(flat.length).toBe(794);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

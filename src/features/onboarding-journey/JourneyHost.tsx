@@ -81,6 +81,9 @@ export function JourneyHost({ chapters, reducedMotion: reducedMotionProp, onComp
   return (
     <div
       className="kp-journey-host"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Set up Keepance"
       style={{
         display: 'flex',
         flexDirection: 'column',

@@ -537,56 +537,6 @@
     }
   },
   "onboarding": {
-    "first-run": {
-      "skip-for-now": "Skip for now",
-      "back": "Back",
-      "welcome": {
-        "title": "Welcome to Keepance",
-        "subtitle": "The private place your practice lives, that answers you back.",
-        "body-1": "Keepance keeps your client matters, documents, and email on your own machine. Ask a question across your whole practice and get back a cited answer you can verify. Your files stay real files in a folder you control.",
-        "body-2": "Setup takes about 2 minutes. I'll help you pick a folder for your matters, connect your AI provider account (optional), and run your first workflow.",
-        "step-1": "Step 1. Pick a folder for your matters",
-        "step-2": "Step 2. Connect your AI provider account (optional)",
-        "step-3": "Step 3. Run your first matter workflow",
-        "cta": "Let's go"
-      },
-      "workspace": {
-        "title": "Pick a folder for your matters",
-        "subtitle": "Your client files stay on your machine, in a folder you control.",
-        "body-1": "This is where your matters will live: real Word documents, PDFs, and notes in a normal folder on your hard drive. Nothing is uploaded anywhere. Pick a location that's easy to find and easy to back up.",
-        "body-2": "Pro tip: a folder inside Dropbox, iCloud, or OneDrive syncs across devices, but that also means your files sit with that provider. For client-confidential work, keep the folder local.",
-        "common-choices": "Common choices:",
-        "icloud-path": "~/iCloud Drive/Keepance",
-        "body-3": "The next screen will let you actually pick the folder. For now, just confirm you understand what we're about to ask.",
-        "cta": "Got it"
-      },
-      "apikey": {
-        "title": "Add an AI provider key",
-        "subtitle": "Optional, but you'll need one to use the AI features.",
-        "body-1": "Keepance is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their account key here. Your keys are stored in your operating system's secure keychain and never leave your computer.",
-        "body-2": "The fastest way to get started is with <s>Anthropic Claude</s>:",
-        "step-go-to": "Go to <a>console.anthropic.com</a>",
-        "step-signup": "Sign up (free, $5 in credits to start)",
-        "step-create-key": "Click API Keys, Create Key",
-        "step-copy-key": "Copy the key (starts with <c>sk-ant-</c>) and paste it below",
-        "skip-hint": "You can skip this and add a key later in Settings, AI Account Keys.",
-        "save-cta": "Save key"
-      },
-      "demo": {
-        "title": "Run your first matter workflow",
-        "subtitle": "See a real deliverable come together in seconds.",
-        "body-1": "The fastest way to see what Keepance does is to run a workflow. Pick any template from the Workflows tab, answer the questions it asks, and watch it produce a finished Word document in your matter folder.",
-        "step-1": "Click <s>Workflows</s> in the sidebar",
-        "step-2": "Pick any template that fits your practice",
-        "step-3": "Answer the questions and click <s>Generate</s>",
-        "outcome": "You'll get back finished work as real Word documents, ready to open, edit, and send to clients.",
-        "populate-toggle": "Add {{count}} sample matter files to get started",
-        "populate-help": "Adds finished examples so you can see what a completed workflow looks like before running your first real matter. You can delete them any time.",
-        "copy-error": "Could not copy samples: {{error}}. Don't worry, you're still in.",
-        "setting-up": "Setting up...",
-        "open-cta": "Open my workspace"
-      }
-    },
     "disk-encryption": {
       "title": "One thing to check: your disk encryption",
       "body": "Keepance keeps your documents as normal files in your workspace folder, on your machine. If the laptop is lost or stolen, your operating system's full-disk encryption is what protects them. It takes a minute to confirm it is on.",

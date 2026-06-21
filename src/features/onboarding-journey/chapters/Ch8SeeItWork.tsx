@@ -70,7 +70,6 @@ function Ch8View({ ctx }: Ch8ViewProps) {
   );
 
   const handleContinue = () => {
-    ctx.setData({ addSamples });
     ctx.complete();
   };
 
