@@ -4,7 +4,8 @@
  * ChapterLayout tests
  *
  * Verifies: title rendered as h2, scene rendered, footer buttons present,
- * Continue disabled when continueDisabled=true, Back hidden when onBack omitted.
+ * Continue disabled when continueDisabled=true, Back hidden when onBack omitted,
+ * and accessibility: h2 is focused on mount for keyboard/screen-reader nav.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -118,5 +119,27 @@ describe('ChapterLayout', () => {
     );
     fireEvent.click(screen.getByTestId('chapter-back'));
     expect(onBack).toHaveBeenCalledOnce();
+  });
+});
+
+describe('ChapterLayout — accessibility', () => {
+  it('focuses the h2 heading on mount so keyboard users land on the new chapter', () => {
+    render(
+      <ChapterLayout title="Accessibility Test" onContinue={vi.fn()}>
+        <p>body</p>
+      </ChapterLayout>,
+    );
+    const heading = screen.getByRole('heading', { level: 2, name: 'Accessibility Test' });
+    expect(document.activeElement).toBe(heading);
+  });
+
+  it('the h2 has tabIndex=-1 so focus() works without showing in the tab order', () => {
+    render(
+      <ChapterLayout title="Tab Index" onContinue={vi.fn()}>
+        <p>body</p>
+      </ChapterLayout>,
+    );
+    const heading = screen.getByRole('heading', { level: 2, name: 'Tab Index' });
+    expect(heading).toHaveAttribute('tabindex', '-1');
   });
 });

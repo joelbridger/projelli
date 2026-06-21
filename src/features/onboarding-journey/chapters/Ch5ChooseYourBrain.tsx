@@ -17,7 +17,7 @@
 
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
@@ -81,6 +81,13 @@ interface Ch5ViewProps {
 
 function Ch5View({ ctx }: Ch5ViewProps) {
   const [view, setView] = useState<SubView>('choose');
+  // Each sub-view owns its own heading ref; we store a callback ref map so the
+  // active sub-view's heading can be focused whenever the view changes.
+  const headingRefs = useRef<Partial<Record<SubView, HTMLHeadingElement | null>>>({});
+
+  useEffect(() => {
+    headingRefs.current[view]?.focus();
+  }, [view]);
 
   const goToWrap = () => { setView('wrap'); };
 
@@ -88,6 +95,7 @@ function Ch5View({ ctx }: Ch5ViewProps) {
     <div data-testid="ch5-root">
       {view === 'choose' && (
         <ChooseView
+          headingRef={(el) => { headingRefs.current['choose'] = el; }}
           reducedMotion={ctx.reducedMotion}
           onPickCloud={() => { setView('cloud'); }}
           onPickLocal={() => { setView('local'); }}
@@ -101,6 +109,7 @@ function Ch5View({ ctx }: Ch5ViewProps) {
 
       {view === 'cloud' && (
         <CloudView
+          headingRef={(el) => { headingRefs.current['cloud'] = el; }}
           reducedMotion={ctx.reducedMotion}
           saveApiKey={ctx.actions.saveApiKey}
           onBack={() => { setView('choose'); }}
@@ -124,6 +133,7 @@ function Ch5View({ ctx }: Ch5ViewProps) {
 
       {view === 'wrap' && (
         <WrapView
+          headingRef={(el) => { headingRefs.current['wrap'] = el; }}
           reducedMotion={ctx.reducedMotion}
           onContinue={ctx.advance}
         />
@@ -137,13 +147,14 @@ function Ch5View({ ctx }: Ch5ViewProps) {
 // ---------------------------------------------------------------------------
 
 interface ChooseViewProps {
+  headingRef: React.RefCallback<HTMLHeadingElement>;
   reducedMotion: boolean;
   onPickCloud: () => void;
   onPickLocal: () => void;
   onPickLater: () => void;
 }
 
-function ChooseView({ reducedMotion, onPickCloud, onPickLocal, onPickLater }: ChooseViewProps) {
+function ChooseView({ headingRef, reducedMotion, onPickCloud, onPickLocal, onPickLater }: ChooseViewProps) {
   const professionCopy = useProfessionCopy();
   const costLine = professionCopy.estimatedCostDesc || S.choose.card1.costFallback;
 
@@ -151,8 +162,11 @@ function ChooseView({ reducedMotion, onPickCloud, onPickLocal, onPickLater }: Ch
     <div className="space-y-6">
       <div>
         <h2
+          ref={headingRef}
+          tabIndex={-1}
           className="text-3xl font-bold tracking-tight"
-          style={{ color: 'var(--kp-navy)' }}
+          style={{ color: 'var(--kp-navy)', outline: 'none' }}
+          data-testid="ch5-choose-heading"
         >
           {S.choose.title}
         </h2>
@@ -265,6 +279,7 @@ function ChoiceCard({ testId, scene, title, badge, body, onClick, prominent, mut
 // ---------------------------------------------------------------------------
 
 interface CloudViewProps {
+  headingRef: React.RefCallback<HTMLHeadingElement>;
   reducedMotion: boolean;
   /** Host-provided: stores the key AND refreshes live app key state + model list. */
   saveApiKey: (provider: ProviderId, key: string) => Promise<void>;
@@ -272,7 +287,7 @@ interface CloudViewProps {
   onSaved: (provider: ProviderId) => void;
 }
 
-function CloudView({ reducedMotion: _reducedMotion, saveApiKey, onBack, onSaved }: CloudViewProps) {
+function CloudView({ headingRef, reducedMotion: _reducedMotion, saveApiKey, onBack, onSaved }: CloudViewProps) {
   const [provider, setProvider] = useState<ProviderId>('anthropic');
   const [keyText, setKeyText] = useState('');
   const [saving, setSaving] = useState(false);
@@ -300,24 +315,31 @@ function CloudView({ reducedMotion: _reducedMotion, saveApiKey, onBack, onSaved 
     <div className="space-y-5" data-testid="ch5-cloud-view">
       <div>
         <h2
+          ref={headingRef}
+          tabIndex={-1}
           className="text-3xl font-bold tracking-tight"
-          style={{ color: 'var(--kp-navy)' }}
+          style={{ color: 'var(--kp-navy)', outline: 'none' }}
+          data-testid="ch5-cloud-heading"
         >
           {S.cloud.title}
         </h2>
         <p className="text-base text-muted-foreground mt-1">{S.cloud.sub}</p>
       </div>
 
-      {/* Provider tabs */}
-      <div className="flex gap-2" role="tablist" aria-label="AI provider">
+      {/* Provider picker — plain buttons with aria-pressed (no fake tablist/tab ARIA) */}
+      <div
+        className="flex gap-2"
+        role="group"
+        aria-label="AI provider"
+        data-testid="ch5-provider-group"
+      >
         {PROVIDER_ORDER.map((id) => {
           const selected = provider === id;
           return (
             <button
               key={id}
               type="button"
-              role="tab"
-              aria-selected={selected}
+              aria-pressed={selected}
               data-testid={`ch5-provider-tab-${id}`}
               onClick={() => {
                 setProvider(id);
@@ -420,11 +442,12 @@ function CloudView({ reducedMotion: _reducedMotion, saveApiKey, onBack, onSaved 
 // ---------------------------------------------------------------------------
 
 interface WrapViewProps {
+  headingRef: React.RefCallback<HTMLHeadingElement>;
   reducedMotion: boolean;
   onContinue: () => void;
 }
 
-function WrapView({ reducedMotion, onContinue }: WrapViewProps) {
+function WrapView({ headingRef, reducedMotion, onContinue }: WrapViewProps) {
   return (
     <div className="space-y-6" data-testid="ch5-wrap-view">
       <div className="flex justify-center">
@@ -435,8 +458,11 @@ function WrapView({ reducedMotion, onContinue }: WrapViewProps) {
 
       <div className="text-center space-y-2">
         <h2
+          ref={headingRef}
+          tabIndex={-1}
           className="text-3xl font-bold tracking-tight"
-          style={{ color: 'var(--kp-navy)' }}
+          style={{ color: 'var(--kp-navy)', outline: 'none' }}
+          data-testid="ch5-wrap-heading"
         >
           {S.wrap.title}
         </h2>

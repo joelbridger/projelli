@@ -10,7 +10,7 @@
 
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/ui/kp';
 
@@ -46,6 +46,13 @@ export function ChapterLayout({
   continueDisabled = false,
   testId,
 }: ChapterLayoutProps) {
+  // Focus the heading on mount so keyboard and screen-reader users land on
+  // the new chapter's content each time the host swaps chapters.
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+
   return (
     <div
       data-testid={testId}
@@ -69,12 +76,15 @@ export function ChapterLayout({
 
       {/* Title */}
       <h2
+        ref={headingRef}
+        tabIndex={-1}
         style={{
           fontSize: 'var(--kp-font-2xl)',
           fontWeight: 'var(--kp-weight-bold)',
           color: 'var(--kp-navy)',
           margin: 0,
           lineHeight: 1.2,
+          outline: 'none',
         }}
       >
         {title}

@@ -180,3 +180,43 @@ describe('ch6Email — Back navigation', () => {
     expect(ctx.goBack).toHaveBeenCalledOnce();
   });
 });
+
+describe('ch6Email — accessibility', () => {
+  it('focuses the h2 heading on mount', () => {
+    const ctx = makeCtx();
+    render(ch6Email.render(ctx));
+    const heading = screen.getByTestId('ch6-heading');
+    expect(document.activeElement).toBe(heading);
+  });
+
+  it('the h2 has tabIndex=-1', () => {
+    const ctx = makeCtx();
+    render(ch6Email.render(ctx));
+    expect(screen.getByTestId('ch6-heading')).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('email provider buttons use aria-pressed, not role="tab"', () => {
+    const ctx = makeCtx();
+    render(ch6Email.render(ctx));
+    const m365Btn = screen.getByTestId('ch6-tab-m365');
+    expect(m365Btn).not.toHaveAttribute('role', 'tab');
+    expect(m365Btn).toHaveAttribute('aria-pressed');
+  });
+
+  it('the active provider button has aria-pressed="true", others have aria-pressed="false"', () => {
+    const ctx = makeCtx();
+    render(ch6Email.render(ctx));
+    // M365 is selected by default
+    expect(screen.getByTestId('ch6-tab-m365')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('ch6-tab-gmail')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('ch6-tab-imap')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('the container uses role="group" not role="tablist"', () => {
+    const ctx = makeCtx();
+    render(ch6Email.render(ctx));
+    const group = screen.getByTestId('ch6-provider-group');
+    expect(group).toHaveAttribute('role', 'group');
+    expect(group).not.toHaveAttribute('role', 'tablist');
+  });
+});

@@ -16,7 +16,7 @@
 
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/ui/kp';
 import type { Chapter, ChapterContext } from '../engine/types';
 import {
@@ -66,6 +66,12 @@ interface Ch6ViewProps {
 function Ch6View({ ctx }: Ch6ViewProps) {
   const [tab, setTab] = useState<EmailTab>('m365');
 
+  // Focus the heading on mount so keyboard / screen-reader users land here.
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+
   const scene = (
     <SceneFrame label={S.sceneLabel}>
       <div style={{ position: 'relative', width: 120, height: 100 }}>
@@ -91,13 +97,17 @@ function Ch6View({ ctx }: Ch6ViewProps) {
 
       {/* Title */}
       <h2
+        ref={headingRef}
+        tabIndex={-1}
         style={{
           fontSize: 'var(--kp-font-2xl)',
           fontWeight: 'var(--kp-weight-bold)',
           color: 'var(--kp-navy)',
           margin: '0 0 var(--kp-space-md)',
           lineHeight: 1.2,
+          outline: 'none',
         }}
+        data-testid="ch6-heading"
       >
         {S.title}
       </h2>
@@ -114,10 +124,11 @@ function Ch6View({ ctx }: Ch6ViewProps) {
         {S.body}
       </p>
 
-      {/* Provider tabs */}
+      {/* Provider picker — plain buttons with aria-pressed (no fake tablist/tab ARIA) */}
       <div
-        role="tablist"
+        role="group"
         aria-label="Email provider"
+        data-testid="ch6-provider-group"
         style={{ display: 'flex', gap: 6, marginBottom: 20 }}
       >
         {EMAIL_TABS.map(({ id, label }) => {
@@ -126,8 +137,7 @@ function Ch6View({ ctx }: Ch6ViewProps) {
             <button
               key={id}
               type="button"
-              role="tab"
-              aria-selected={active}
+              aria-pressed={active}
               data-testid={`ch6-tab-${id}`}
               onClick={() => { setTab(id); }}
               style={{
@@ -142,7 +152,7 @@ function Ch6View({ ctx }: Ch6ViewProps) {
                 background: active ? 'rgba(10,37,64,0.07)' : '#fff',
                 color: active ? 'var(--kp-navy)' : 'hsl(215.4 16.3% 44%)',
                 cursor: 'pointer',
-                transition: 'border-color 0.12s, background 0.12s',
+                transition: ctx.reducedMotion ? 'none' : 'border-color 0.12s, background 0.12s',
               }}
             >
               {label}

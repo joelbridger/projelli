@@ -70,6 +70,8 @@ export function Ch5LocalSetup({ ctx, onBack, onReady }: Ch5LocalSetupProps) {
   const [phase, setPhase] = useState<SetupPhase>({ kind: 'checking' });
   // AbortController ref so any in-flight poll/pull is cancelled on unmount or retry.
   const abortRef = useRef<AbortController | null>(null);
+  // Heading ref so we can focus on mount and on phase change (for screen-reader users).
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   /** Cancel any running operation and create a fresh controller. */
   function freshAbort(): AbortController {
@@ -149,6 +151,12 @@ export function Ch5LocalSetup({ ctx, onBack, onReady }: Ch5LocalSetupProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Focus the heading on mount and whenever the phase changes to a state
+  // that updates the heading text, so screen-reader users hear the new status.
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, [phase.kind]);
+
   // -------------------------------------------------------------------------
   // Handlers
   // -------------------------------------------------------------------------
@@ -184,8 +192,10 @@ export function Ch5LocalSetup({ ctx, onBack, onReady }: Ch5LocalSetupProps) {
       {/* Header */}
       <div>
         <h2
+          ref={headingRef}
+          tabIndex={-1}
           className="text-3xl font-bold tracking-tight"
-          style={{ color: 'var(--kp-navy)' }}
+          style={{ color: 'var(--kp-navy)', outline: 'none' }}
           data-testid="ch5-local-title"
         >
           {phase.kind === 'needs-install'

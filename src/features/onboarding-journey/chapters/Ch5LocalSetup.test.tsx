@@ -491,6 +491,26 @@ describe('Ch5LocalSetup — NO terminal instructions', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Tests: accessibility — focus management
+// ---------------------------------------------------------------------------
+
+describe('Ch5LocalSetup — accessibility: focus management', () => {
+  it('focuses the heading on mount (checking state)', () => {
+    // Keep detect pending so we stay in checking state
+    mockDetectOllama.mockReturnValue(new Promise(() => { /* pending */ }));
+    renderSetup();
+    const heading = screen.getByTestId('ch5-local-title');
+    expect(document.activeElement).toBe(heading);
+  });
+
+  it('heading has tabIndex=-1', () => {
+    mockDetectOllama.mockReturnValue(new Promise(() => { /* pending */ }));
+    renderSetup();
+    expect(screen.getByTestId('ch5-local-title')).toHaveAttribute('tabindex', '-1');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Tests: Ch5ChooseYourBrain integration — local card uses Ch5LocalSetup
 // ---------------------------------------------------------------------------
 

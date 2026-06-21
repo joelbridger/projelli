@@ -355,3 +355,59 @@ describe('ch5 — wrap view', () => {
     expect(ctx.advance).toHaveBeenCalledOnce();
   });
 });
+
+describe('ch5 — accessibility: focus management on sub-view change', () => {
+  it('the choose-view heading is focused on initial render', () => {
+    renderCh5();
+    const heading = screen.getByTestId('ch5-choose-heading');
+    expect(document.activeElement).toBe(heading);
+  });
+
+  it('navigating choose -> cloud focuses the cloud-view heading', () => {
+    renderCh5();
+    fireEvent.click(screen.getByTestId('ch5-card-cloud'));
+    const heading = screen.getByTestId('ch5-cloud-heading');
+    expect(document.activeElement).toBe(heading);
+  });
+
+  it('navigating choose -> later (wrap) focuses the wrap-view heading', () => {
+    renderCh5();
+    fireEvent.click(screen.getByTestId('ch5-card-later'));
+    const heading = screen.getByTestId('ch5-wrap-heading');
+    expect(document.activeElement).toBe(heading);
+  });
+});
+
+describe('ch5 — accessibility: provider picker has no fake tab ARIA', () => {
+  it('provider buttons use aria-pressed, not role="tab"', () => {
+    renderCh5();
+    fireEvent.click(screen.getByTestId('ch5-card-cloud'));
+    const anthropicBtn = screen.getByTestId('ch5-provider-tab-anthropic');
+    expect(anthropicBtn).not.toHaveAttribute('role', 'tab');
+    expect(anthropicBtn).toHaveAttribute('aria-pressed');
+  });
+
+  it('the selected provider button has aria-pressed="true"', () => {
+    renderCh5();
+    fireEvent.click(screen.getByTestId('ch5-card-cloud'));
+    // Anthropic is selected by default
+    expect(screen.getByTestId('ch5-provider-tab-anthropic')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('ch5-provider-tab-openai')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('clicking a different provider updates aria-pressed state', () => {
+    renderCh5();
+    fireEvent.click(screen.getByTestId('ch5-card-cloud'));
+    fireEvent.click(screen.getByTestId('ch5-provider-tab-openai'));
+    expect(screen.getByTestId('ch5-provider-tab-openai')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('ch5-provider-tab-anthropic')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('the container uses role="group" with an accessible label, not role="tablist"', () => {
+    renderCh5();
+    fireEvent.click(screen.getByTestId('ch5-card-cloud'));
+    const group = screen.getByTestId('ch5-provider-group');
+    expect(group).toHaveAttribute('role', 'group');
+    expect(group).toHaveAttribute('aria-label', 'AI provider');
+  });
+});
