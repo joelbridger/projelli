@@ -54,6 +54,7 @@ import { useEditorStore } from '@/platform/state/editorStore';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
+import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactory';
 import type { TrashedItem } from '@/platform/history/TrashService';
 
 import type { AuditEntry } from '@/platform/types/audit';
@@ -1077,35 +1078,60 @@ This file contains rules and guidelines for AI assistants in this workspace.
       useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, mode);
     },
 
-    // chooseWorkspaceFolder: opens the native Tauri directory picker (same
-    // plugin path WorkspaceSelector uses) and returns the chosen path or null.
+    // chooseWorkspaceFolder: opens the native folder picker (same plugin path
+    // WorkspaceSelector uses), builds the real WorkspaceService for that path,
+    // and calls handleWorkspaceSelected so the picked folder is immediately
+    // the active workspace (Ch3 can display the path while the rest of the
+    // journey plays out). Returns the path string or null on cancel/error.
     chooseWorkspaceFolder: async (): Promise<string | null> => {
       try {
-        const { open } = await import('@tauri-apps/plugin-dialog');
-        const selectedPath = await open({
-          directory: true,
-          multiple: false,
-          title: 'Select Workspace Folder',
-        });
-        return typeof selectedPath === 'string' ? selectedPath : null;
+        const isTauri = isTauriEnvironment();
+        if (isTauri) {
+          const { open } = await import('@tauri-apps/plugin-dialog');
+          const selectedPath = await open({
+            directory: true,
+            multiple: false,
+            title: 'Select Workspace Folder',
+          });
+          if (typeof selectedPath !== 'string') return null;
+          const backend = await createFSBackend(selectedPath);
+          const service = createWorkspaceService();
+          await service.initialize(backend, selectedPath);
+          await handleWorkspaceSelected(service);
+          return selectedPath;
+        } else {
+          // Browser env: use the Web File System Access API directory picker,
+          // mirroring WorkspaceSelector's browser path exactly.
+          const webBackend = createWebFSBackend();
+          const handle = await webBackend.openDirectoryPicker();
+          const rootPath = '/' + handle.name;
+          const service = createWorkspaceService();
+          await service.initialize(webBackend, rootPath);
+          await handleWorkspaceSelected(service);
+          return rootPath;
+        }
       } catch {
-        // Desktop picker unavailable (browser env) — return null so the chapter
-        // gracefully handles the case without crashing.
+        // Picker cancelled or unavailable — return null so Ch3 stays put.
         return null;
       }
     },
-  }), [handleSaveOnboardingApiKey]);
+  }), [handleSaveOnboardingApiKey, handleWorkspaceSelected]);
 
   const firstRunOverlay = showFirstRun ? (
     <JourneyHost
       chapters={journeyChapters}
       actions={journeyActions}
-      onComplete={(data) => {
+      onComplete={async (data) => {
+        // Map 'financial' (journey profession) -> 'advisor' (samples/model type)
+        // for full compatibility. Compute once and reuse for both the model
+        // default and the sample files so both callers see the same value.
+        const mappedProfession = data.profession === 'financial' ? 'advisor' : data.profession;
+
         // Persist profession model default for non-cloud users (skip/local). For
         // cloud users the provider they connected in Ch5 is already stored; we
         // must not override it. So only call when aiChoice isn't 'cloud'.
-        if (data.profession && data.aiChoice !== 'cloud') {
-          persistProfessionModelDefault(data.profession);
+        if (mappedProfession && data.aiChoice !== 'cloud') {
+          persistProfessionModelDefault(mappedProfession);
         }
 
         // Persist display name + photo via profileStore (same store IdentityStep
@@ -1118,13 +1144,17 @@ This file contains rules and guidelines for AI assistants in this workspace.
         }
 
         // Create sample matters if the user opted in and we have a workspace.
-        // Map 'financial' (new journey type) -> 'advisor' (samples type) for compatibility.
-        const sampleProfession = data.profession === 'financial' ? 'advisor' : (data.profession ?? 'other');
-        const didWriteSamples = Boolean(data.addSamples && workspaceServiceRef.current && rootPath);
+        // Await with try/catch so a silent write failure does NOT navigate the
+        // user to an empty sample matter (matches old GuidedOnboarding behavior).
+        const sampleProfession = mappedProfession ?? 'other';
+        let didWriteSamples = false;
         if (data.addSamples && workspaceServiceRef.current && rootPath) {
-          void writeSampleFiles(workspaceServiceRef.current, sampleProfession).catch((err: unknown) => {
+          try {
+            await writeSampleFiles(workspaceServiceRef.current, sampleProfession);
+            didWriteSamples = true;
+          } catch (err) {
             console.warn('[App] journey sample copy failed:', err instanceof Error ? err.message : String(err));
-          });
+          }
         }
 
         // Mark complete and close the overlay.

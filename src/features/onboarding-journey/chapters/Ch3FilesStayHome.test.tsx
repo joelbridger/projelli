@@ -130,3 +130,31 @@ describe('ch3FilesStayHome — render & interaction', () => {
     expect(screen.getByText(/A synced folder like Dropbox/i)).toBeInTheDocument();
   });
 });
+
+describe('ch3FilesStayHome — disk-encryption guidance callout', () => {
+  it('renders the encryption toggle button', () => {
+    render(ch3FilesStayHome.render(makeCtx()));
+    expect(screen.getByTestId('ch3-encryption-toggle')).toBeInTheDocument();
+  });
+
+  it('guidance is hidden by default (callout collapsed)', () => {
+    render(ch3FilesStayHome.render(makeCtx()));
+    expect(screen.queryByTestId('ch3-encryption-guidance')).not.toBeInTheDocument();
+  });
+
+  it('clicking the toggle expands the guidance and shows DiskEncryptionGuidance', () => {
+    render(ch3FilesStayHome.render(makeCtx()));
+    fireEvent.click(screen.getByTestId('ch3-encryption-toggle'));
+    expect(screen.getByTestId('ch3-encryption-guidance')).toBeInTheDocument();
+    // DiskEncryptionGuidance renders with its own testid
+    expect(screen.getByTestId('disk-encryption-guidance')).toBeInTheDocument();
+  });
+
+  it('clicking the toggle again collapses the guidance', () => {
+    render(ch3FilesStayHome.render(makeCtx()));
+    fireEvent.click(screen.getByTestId('ch3-encryption-toggle'));
+    expect(screen.getByTestId('ch3-encryption-guidance')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('ch3-encryption-toggle'));
+    expect(screen.queryByTestId('ch3-encryption-guidance')).not.toBeInTheDocument();
+  });
+});

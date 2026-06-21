@@ -19,6 +19,7 @@ import {
 } from '../scenes';
 import { JOURNEY_STRINGS } from '../copy/strings';
 import { ChapterLayout } from './ChapterLayout';
+import { DiskEncryptionGuidance } from '@/features/onboarding/DiskEncryptionGuidance';
 
 const S = JOURNEY_STRINGS.ch3;
 
@@ -53,6 +54,8 @@ function Ch3View({ ctx }: Ch3ViewProps) {
   // Local mirror so we can show the path immediately after picking.
   const [chosenPath, setChosenPath] = useState<string | undefined>(ctx.data.workspacePath);
   const [picking, setPicking] = useState(false);
+  // Disk-encryption guidance callout (collapsible).
+  const [encryptionOpen, setEncryptionOpen] = useState(false);
 
   const canAdvance = !!chosenPath;
 
@@ -169,6 +172,36 @@ function Ch3View({ ctx }: Ch3ViewProps) {
         >
           {S.folderNote}
         </p>
+      </div>
+
+      {/* Disk-encryption guidance — collapsible secondary callout */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <button
+          type="button"
+          data-testid="ch3-encryption-toggle"
+          onClick={() => { setEncryptionOpen((v) => !v); }}
+          aria-expanded={encryptionOpen}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            fontSize: 'var(--kp-font-sm)',
+            color: 'var(--color-muted-foreground)',
+            textAlign: 'left',
+          }}
+        >
+          <span style={{ fontSize: '0.7em', lineHeight: 1 }}>{encryptionOpen ? '▼' : '▶'}</span>
+          How do I know my computer is encrypted?
+        </button>
+        {encryptionOpen && (
+          <div data-testid="ch3-encryption-guidance">
+            <DiskEncryptionGuidance />
+          </div>
+        )}
       </div>
     </ChapterLayout>
   );
