@@ -33,15 +33,19 @@ export function sanitizeForPrompt(content: string): string {
   );
 
   // Escape XML-like tags that might be interpreted as system instructions
-  // Different models may interpret these differently
-  sanitized = sanitized.replace(
-    /<(system|instruction|override|ignore|prompt|context|tool|function)>/gi,
-    '[$1]'
-  );
-  sanitized = sanitized.replace(
-    /<\/(system|instruction|override|ignore|prompt|context|tool|function)>/gi,
-    '[/$1]'
-  );
+  // Different models may interpret these differently.
+  // The list also includes the app's own prompt DELIMITER tags
+  // (memory, workspace_context, open_files, incoming_email, retrieved_context)
+  // so untrusted content can't close the envelope it's wrapped in and "break
+  // out" into the instruction stream (Codex injection audit BUG-061 — a poisoned
+  // fact/document containing `</memory>` or `</open_files>` would otherwise
+  // escape the wrapper). Bracketing a literal occurrence in real content is
+  // harmless.
+  const TAG_GROUP =
+    'system|instruction|override|ignore|prompt|context|tool|function|' +
+    'memory|workspace_context|open_files|incoming_email|retrieved_context';
+  sanitized = sanitized.replace(new RegExp(`<(${TAG_GROUP})>`, 'gi'), '[$1]');
+  sanitized = sanitized.replace(new RegExp(`</(${TAG_GROUP})>`, 'gi'), '[/$1]');
 
   // Remove null bytes which could be used to truncate strings
   sanitized = sanitized.replace(/\0/g, '');
