@@ -125,20 +125,35 @@ describe('aiBatchReviewStore', () => {
     expect(after.undoErrors[id]).toMatch(/permission denied/i);
   });
 
-  it('refuses to undo a change whose file is open with unsaved edits (BUG-047 guard)', async () => {
+  it('refuses to undo a change whose file is open in the editor — even if clean (BUG-047/063 guard)', async () => {
     const fs = recordingFs();
     useAiBatchReviewStore.getState().setUndoFs(fs);
     useAiBatchReviewStore.getState().record({ kind: 'overwrite_file', path: 'a.md', fullPath: '/ws/a.md', binary: false, undoable: true, beforeBytes: bytes('old') });
     const id = useAiBatchReviewStore.getState().changes[0]!.id;
-    // The user has that file open with unsaved edits.
-    useEditorStore.setState({ openTabs: [{ path: '/ws/a.md', name: 'a.md', content: 'edited', isDirty: true }] });
+    // The user has that file open (clean — no unsaved edits).
+    useEditorStore.setState({ openTabs: [{ path: '/ws/a.md', name: 'a.md', content: 'x', isDirty: false }] });
 
     await useAiBatchReviewStore.getState().undo(id);
 
     const after = useAiBatchReviewStore.getState();
     expect(fs.calls).toEqual([]); // nothing written
     expect(after.changes).toHaveLength(1); // change kept
-    expect(after.undoErrors[id]).toMatch(/unsaved/i);
+    expect(after.undoErrors[id]).toMatch(/open in the editor/i);
+  });
+
+  it('refuses to undo a folder change when a file inside it is open (descendant guard)', async () => {
+    const fs = recordingFs();
+    useAiBatchReviewStore.getState().setUndoFs(fs);
+    useAiBatchReviewStore.getState().record({ kind: 'create_folder', path: 'Acme', fullPath: '/ws/Acme', undoable: true });
+    const id = useAiBatchReviewStore.getState().changes[0]!.id;
+    useEditorStore.setState({ openTabs: [{ path: '/ws/Acme/brief.md', name: 'brief.md', content: 'x', isDirty: false }] });
+
+    await useAiBatchReviewStore.getState().undo(id);
+
+    const after = useAiBatchReviewStore.getState();
+    expect(fs.calls).toEqual([]); // the recursive folder-delete undo was refused
+    expect(after.changes).toHaveLength(1);
+    expect(after.undoErrors[id]).toMatch(/open in the editor/i);
   });
 
   it('undo with no registered fs records an error and keeps the change', async () => {

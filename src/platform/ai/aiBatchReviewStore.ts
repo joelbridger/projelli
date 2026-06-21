@@ -14,7 +14,7 @@
 
 import { create } from 'zustand';
 import { executeUndo, type BatchChange, type BatchChangeInput, type UndoFs } from '@/platform/ai/aiBatchReview';
-import { useEditorStore, tabHasUnsavedEdits } from '@/platform/state/editorStore';
+import { useEditorStore, isFileOpenInEditor, hasOpenDescendant } from '@/platform/state/editorStore';
 
 /** The absolute path(s) that undoing this change would write to / delete. */
 function pathsTouchedByUndo(change: BatchChange): string[] {
@@ -83,12 +83,15 @@ export const useAiBatchReviewStore = create<AiBatchReviewState>((set, get) => ({
       return;
     }
 
-    // Don't clobber a file the user has open with UNSAVED edits (same guard as
-    // the AI's own write path, BUG-047). Refuse the undo with a clear message.
+    // Don't act on a file (or a folder with a file inside it) that's open in the
+    // editor — the editor would show stale content and the autosave could clobber
+    // the undo. Same any-open rule as the AI write path (BUG-047 + BUG-063 sibling).
     const openTabs = useEditorStore.getState().openTabs;
-    const blocked = pathsTouchedByUndo(change).find((p) => tabHasUnsavedEdits(p, openTabs));
+    const blocked = pathsTouchedByUndo(change).find(
+      (p) => isFileOpenInEditor(p, openTabs) || hasOpenDescendant(p, openTabs),
+    );
     if (blocked) {
-      set((s) => ({ undoErrors: { ...s.undoErrors, [id]: 'This file is open with unsaved changes — save or close it first, then undo.' } }));
+      set((s) => ({ undoErrors: { ...s.undoErrors, [id]: 'This file (or a file inside it) is open in the editor — close it first, then undo.' } }));
       return;
     }
 

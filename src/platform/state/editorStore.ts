@@ -47,6 +47,27 @@ export function isFileOpenInEditor(
   );
 }
 
+/**
+ * True when an editor tab is open for a file STRICTLY INSIDE `folderPath` (a
+ * descendant). The exact-path guard above misses the case where the AI
+ * deletes/moves a FOLDER while a file inside it is open: that child tab would
+ * keep its now-invalid path, and the 2s autosave could re-write its stale
+ * content back — resurrecting a deleted file or duplicating after a move.
+ */
+export function hasOpenDescendant(
+  folderPath: string,
+  tabs: readonly { path: string; type?: string }[],
+): boolean {
+  const prefix = folderPath.endsWith('/') ? folderPath : `${folderPath}/`;
+  return tabs.some(
+    (t) =>
+      t.path.startsWith(prefix) &&
+      t.type !== 'browser' &&
+      t.type !== 'ai-assistant' &&
+      t.type !== 'email',
+  );
+}
+
 interface OpenTab {
   path: string;
   name: string;

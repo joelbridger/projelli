@@ -40,7 +40,7 @@ import type { useActiveMatter } from '@/platform/matter/matterStore';
 import { getActiveScope, useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
-import { useEditorStore, tabHasUnsavedEdits, isFileOpenInEditor } from '@/platform/state/editorStore';
+import { useEditorStore, tabHasUnsavedEdits, isFileOpenInEditor, hasOpenDescendant } from '@/platform/state/editorStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { isBinaryFile } from '@/platform/utils/file-utils';
 import { moveToTrash } from '@/platform/history/trashFile';
@@ -692,6 +692,18 @@ export function useChatSending(deps: UseChatSendingDeps) {
               `(or use the in-editor AI to edit an open document) so the editor doesn't show stale content.`,
           );
         };
+        // BUG-063 sibling: moving/deleting a FOLDER whose child file is open
+        // would leave that child tab on a now-invalid path, and the autosave
+        // could re-write its stale content back — resurrecting a deleted file or
+        // duplicating after a move. Refuse if any descendant is open.
+        const assertNoOpenDescendant = (absPath: string, relativePath: string): void => {
+          if (hasOpenDescendant(absPath, useEditorStore.getState().openTabs)) {
+            throw new Error(
+              `Cannot modify "${relativePath}": a file inside it is open in the editor. Ask the user to ` +
+                `close open files under this folder first, so the editor doesn't show (and can't re-save) stale content.`,
+            );
+          }
+        };
 
         // BUG-060: per-action approval. Before the AI overwrites/deletes/moves
         // (or, in "always" mode, before any change), pause and show the user a
@@ -847,6 +859,13 @@ export function useChatSending(deps: UseChatSendingDeps) {
               const action = exists ? 'file_update' : 'file_create';
               const actionLabel = exists ? 'updated' : 'created';
               const binary = isBinaryFile(relativePath);
+              // write_file only carries plain text. Writing it into a binary file
+              // (.docx/.pdf/image/...) would CORRUPT it while reporting success, so
+              // refuse and tell the model to use a text file instead.
+              if (binary) {
+                onAuditLog?.({ action, description: `AI refused to write binary file as text: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath, contentLength: content.length }, outputs: { success: false, refused: true, reason: 'binary-as-text' }, userDecision: 'auto', metadata: { tool: 'write_file' } });
+                return { path: relativePath, skipped: true, message: `Cannot write "${relativePath}": it's a binary file type (e.g. .docx, .pdf, image), and this tool only writes plain text — doing so would corrupt it. Write a text file (.md or .txt) instead.` };
+              }
               const approvalMode = getApprovalMode();
               // Read the existing text once (reused for the gate preview AND the
               // batch before/after diff). Undefined for binary or a new file.
@@ -857,7 +876,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               const gate = await gateWrite(
                 approvalMode,
                 classifyWriteOp({ tool: 'write_file', path: relativePath, destExists: exists }),
-                { beforeText, afterText: binary ? undefined : content, binary },
+                { beforeText, afterText: content, binary },
               );
               if (!gate.approved) {
                 onAuditLog?.({ action, description: `AI ${actionLabel} declined by user: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath, contentLength: content.length }, outputs: { success: false, declined: true }, userDecision: 'rejected', metadata: { tool: 'write_file' } });
@@ -870,8 +889,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
                 if (approvalMode === 'batch') {
                   recordBatch(
                     exists
-                      ? { kind: 'overwrite_file', path: relativePath, fullPath: filePath, binary, beforeBytes, beforeText, afterText: binary ? undefined : content, undoable: beforeBytes !== undefined }
-                      : { kind: 'create_file', path: relativePath, fullPath: filePath, binary, afterText: binary ? undefined : content, undoable: true },
+                      ? { kind: 'overwrite_file', path: relativePath, fullPath: filePath, binary, beforeBytes, beforeText, afterText: content, undoable: beforeBytes !== undefined }
+                      : { kind: 'create_file', path: relativePath, fullPath: filePath, binary, afterText: content, undoable: true },
                   );
                 }
                 onFileTreeChange?.();
@@ -886,6 +905,16 @@ export function useChatSending(deps: UseChatSendingDeps) {
               const folderPath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
               if (!folderPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(folderPath, relativePath); // BUG-036
+              // Honesty (BUG-063 sibling): if the path is already taken, don't gate
+              // it or log a false "created". Distinguish an existing FOLDER (a real
+              // no-op) from an existing FILE (a genuine conflict).
+              if (await workspaceServiceRef.current.exists(folderPath)) {
+                const existingStat = await workspaceServiceRef.current.stat(folderPath);
+                if (existingStat.type === 'folder') {
+                  return { path: relativePath, message: 'Folder already exists; nothing was created.' };
+                }
+                return { path: relativePath, skipped: true, message: `Cannot create folder "${relativePath}": a file with that name already exists there.` };
+              }
               const folderMode = getApprovalMode();
               // BUG-060: creating a folder isn't "risky", so only "always" gates it.
               const folderGate = await gateWrite(
@@ -920,6 +949,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
               assertInActiveMatter(fullToPath, toPath); // BUG-036 (can't move a matter's file out, or into it from elsewhere)
               assertNotOpenWithUnsavedEdits(fullFromPath, fromPath); // BUG-047 (don't move out from under unsaved edits)
               assertNotOpenWithUnsavedEdits(fullToPath, toPath); // BUG-047 (don't overwrite an open dirty destination)
+              assertNoOpenDescendant(fullFromPath, fromPath); // BUG-063 sibling (moving a folder w/ open child)
+              assertNoOpenDescendant(fullToPath, toPath); // and the destination (a folder move can merge/overwrite into it)
               // BUG-060: a move onto an EXISTING destination is "risky" (it
               // overwrites); a plain move/rename to an empty path is not.
               const destExists = await workspaceServiceRef.current.exists(fullToPath);
@@ -945,8 +976,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
                   recordBatch({ kind: 'move_file', from: fromPath, to: toPath, fullFrom: fullFromPath, fullTo: fullToPath, destExisted: destExists, destBeforeBytes, undoable: !destExists || destBeforeBytes !== undefined });
                 }
                 onFileTreeChange?.();
-                onAuditLog?.({ action: 'file_move', description: `AI moved file: ${fromPath} → ${toPath}`, model: chatModel ?? chatProvider, inputs: { from: fromPath, to: toPath }, outputs: { success: true }, userDecision: moveGate.userDecision, metadata: { tool: 'move_file' } });
-                return { from: fromPath, to: toPath, message: 'File moved successfully' };
+                // Honesty (BUG-063 sibling): if the move replaced an existing
+                // file at the destination, say so plainly in the audit + result.
+                onAuditLog?.({ action: 'file_move', description: destExists ? `AI moved file (REPLACED existing destination): ${fromPath} → ${toPath}` : `AI moved file: ${fromPath} → ${toPath}`, model: chatModel ?? chatProvider, inputs: { from: fromPath, to: toPath }, outputs: { success: true, overwroteDestination: destExists }, userDecision: moveGate.userDecision, metadata: { tool: 'move_file' } });
+                return { from: fromPath, to: toPath, overwroteDestination: destExists, message: destExists ? 'File moved successfully (an existing file at the destination was replaced)' : 'File moved successfully' };
               } catch (error) {
                 throw new Error(`Failed to move file from "${fromPath}" to "${toPath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
               }
@@ -957,6 +990,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(filePath, relativePath); // BUG-036
               assertNotOpenWithUnsavedEdits(filePath, relativePath); // BUG-047
+              assertNoOpenDescendant(filePath, relativePath); // BUG-063 sibling (folder w/ open child)
               // BUG-060: deleting always removes something that exists → "risky".
               const delBinary = isBinaryFile(relativePath);
               const deleteMode = getApprovalMode();
@@ -985,6 +1019,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
                   recordBatch({ kind: 'delete_file', path: relativePath, fullPath: filePath, binary: delBinary, trashPath: trashItem.trashPath, beforeText: delBeforeText, undoable: true });
                 }
                 onFileTreeChange?.();
+                // Refresh an already-open Trash panel so it shows the just-trashed
+                // file immediately (BUG-063 follow-up), matching the message below.
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('keepance:trash-changed'));
+                }
                 onAuditLog?.({ action: 'file_delete', description: `AI deleted file: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath }, outputs: { success: true, movedToTrash: true, trashPath: trashItem.trashPath }, userDecision: deleteGate.userDecision, metadata: { tool: 'delete_file' } });
                 return { path: relativePath, message: 'File moved to Trash (recoverable from the Trash panel)' };
               } catch (error) {

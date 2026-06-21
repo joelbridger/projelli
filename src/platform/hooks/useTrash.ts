@@ -360,6 +360,34 @@ export function useTrash({ rootPath, workspaceServiceRef }: UseTrashOptions): Us
     [workspaceServiceRef, saveTrashMetadata, closeTabsByPath]
   );
 
+  // Reload the trash list + stats from the on-disk metadata (the source of
+  // truth). Used when something OUTSIDE this hook changed the trash — e.g. the
+  // AI's delete_file tool, which moves a file to .trash and records it directly
+  // (BUG-063). Without this, an already-open Trash panel wouldn't show the
+  // AI-deleted file until the workspace was reopened, making the AI's
+  // "recoverable from the Trash panel" message only eventually true.
+  const refreshSeqRef = useRef(0);
+  const refreshTrashFromDisk = useCallback(async () => {
+    const seq = ++refreshSeqRef.current;
+    const items = await loadTrashMetadata();
+    // A newer refresh started while we were loading — let it win (avoids an
+    // older, slower disk read overwriting fresher state).
+    if (seq !== refreshSeqRef.current) return;
+    setTrashItems(items);
+    const totalSize = items.reduce((sum, i) => sum + (i.size ?? 0), 0);
+    let oldestItem: Date | undefined;
+    for (const i of items) {
+      if (!oldestItem || i.deletedAt < oldestItem) oldestItem = i.deletedAt;
+    }
+    setTrashStats({ itemCount: items.length, totalSize, oldestItem });
+  }, [loadTrashMetadata]);
+
+  useEffect(() => {
+    const handler = () => { void refreshTrashFromDisk(); };
+    window.addEventListener('keepance:trash-changed', handler);
+    return () => { window.removeEventListener('keepance:trash-changed', handler); };
+  }, [refreshTrashFromDisk]);
+
   // Auto-cleanup expired trash items periodically (every hour)
   useEffect(() => {
     // Run cleanup on mount
