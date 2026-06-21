@@ -458,7 +458,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
       //
       // Audit events above have already been emitted so the refused turn is
       // fully auditable (the workspace WAS searched; recording it matters).
-      if (shouldRetrieve && retrievedSources.length === 0) {
+      if (retrievedSources.length === 0) {
         const emptyHint = "Workspace search returned no results for this query.";
         const refuseText = t('ai.chat.workspace-empty-refuse');
 
