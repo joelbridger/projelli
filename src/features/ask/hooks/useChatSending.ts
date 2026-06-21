@@ -50,6 +50,8 @@ import {
   type AiWriteOp,
 } from '@/platform/ai/aiWriteApproval';
 import { useAiApprovalStore } from '@/platform/ai/aiApprovalStore';
+import { useAiBatchReviewStore } from '@/platform/ai/aiBatchReviewStore';
+import type { BatchChangeInput } from '@/platform/ai/aiBatchReview';
 import type { RetrievalScope } from '@/platform/utils/tauri-commands';
 import type { ExtractedContext } from '@/platform/utils/ai-file-context';
 import { filterByScope } from '@/platform/utils/client-boundary';
@@ -708,15 +710,17 @@ export function useChatSending(deps: UseChatSendingDeps) {
             return undefined; // unreadable → the modal shows a summary instead
           }
         };
+        // Read the approval mode fresh per op so a mid-chat Settings change
+        // applies immediately. Fails CLOSED: a missing/corrupt value falls back
+        // to the safe default ('risky'), never to "no approval" (Codex review).
+        const getApprovalMode = () =>
+          coerceApprovalMode(useSettingsStore.getState().getSetting('aiFileApprovalMode'));
+
         const gateWrite = async (
+          mode: ReturnType<typeof getApprovalMode>,
           op: AiWriteOp,
           preview: { beforeText?: string | undefined; afterText?: string | undefined; binary: boolean },
         ): Promise<{ approved: boolean; userDecision: 'auto' | 'approved' | 'rejected' }> => {
-          // Fail CLOSED: a missing or corrupt stored setting falls back to the
-          // safe default ('risky'), never to "no approval" (Codex review).
-          const mode = coerceApprovalMode(
-            useSettingsStore.getState().getSetting('aiFileApprovalMode'),
-          );
           if (!needsPreApproval(mode, op)) return { approved: true, userDecision: 'auto' };
           const decision = await useAiApprovalStore.getState().request({
             op,
@@ -727,6 +731,29 @@ export function useChatSending(deps: UseChatSendingDeps) {
           return decision === 'approve'
             ? { approved: true, userDecision: 'approved' }
             : { approved: false, userDecision: 'rejected' };
+        };
+
+        // BUG-060 batch mode: snapshot a file's bytes BEFORE an overwrite/delete
+        // so the change can be reversed at end-of-turn review. Capped so a
+        // pathologically large file can't be held in memory (undo is then
+        // disabled for that one, honestly surfaced in the panel).
+        const MAX_SNAPSHOT_BYTES = 25 * 1024 * 1024;
+        const snapshotBytes = async (absPath: string): Promise<ArrayBuffer | undefined> => {
+          const svc = workspaceServiceRef?.current;
+          if (!svc) return undefined;
+          try {
+            // Check the size FIRST so a pathologically large file is skipped
+            // without reading it all into memory (this box is memory-tight).
+            const stat = await svc.stat(absPath);
+            if (stat.size > MAX_SNAPSHOT_BYTES) return undefined;
+            const buf = await svc.readFileBinary(absPath);
+            return buf.byteLength > MAX_SNAPSHOT_BYTES ? undefined : buf; // backstop
+          } catch {
+            return undefined; // unreadable → not undoable, shown as such
+          }
+        };
+        const recordBatch = (input: BatchChangeInput) => {
+          useAiBatchReviewStore.getState().record(input);
         };
 
         const toolExecutor = async (toolName: string, params: Record<string, unknown>) => {
@@ -819,14 +846,17 @@ export function useChatSending(deps: UseChatSendingDeps) {
               const action = exists ? 'file_update' : 'file_create';
               const actionLabel = exists ? 'updated' : 'created';
               const binary = isBinaryFile(relativePath);
+              const approvalMode = getApprovalMode();
+              // Read the existing text once (reused for the gate preview AND the
+              // batch before/after diff). Undefined for binary or a new file.
+              const beforeText = exists ? await readTextForPreview(filePath, relativePath) : undefined;
+              // BUG-060 batch: snapshot the bytes before overwriting so it's reversible.
+              const beforeBytes = approvalMode === 'batch' && exists ? await snapshotBytes(filePath) : undefined;
               // BUG-060: gate before writing (overwrite is "risky"; a new file is not).
               const gate = await gateWrite(
+                approvalMode,
                 classifyWriteOp({ tool: 'write_file', path: relativePath, destExists: exists }),
-                {
-                  beforeText: exists ? await readTextForPreview(filePath, relativePath) : undefined,
-                  afterText: binary ? undefined : content,
-                  binary,
-                },
+                { beforeText, afterText: binary ? undefined : content, binary },
               );
               if (!gate.approved) {
                 onAuditLog?.({ action, description: `AI ${actionLabel} declined by user: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath, contentLength: content.length }, outputs: { success: false, declined: true }, userDecision: 'rejected', metadata: { tool: 'write_file' } });
@@ -834,6 +864,15 @@ export function useChatSending(deps: UseChatSendingDeps) {
               }
               try {
                 await workspaceServiceRef.current.writeFile(filePath, content);
+                // BUG-060 batch: record the applied change for end-of-turn review,
+                // BEFORE refresh/audit so a thrown callback can't drop it.
+                if (approvalMode === 'batch') {
+                  recordBatch(
+                    exists
+                      ? { kind: 'overwrite_file', path: relativePath, fullPath: filePath, binary, beforeBytes, beforeText, afterText: binary ? undefined : content, undoable: beforeBytes !== undefined }
+                      : { kind: 'create_file', path: relativePath, fullPath: filePath, binary, afterText: binary ? undefined : content, undoable: true },
+                  );
+                }
                 onFileTreeChange?.();
                 onAuditLog?.({ action, description: `AI ${actionLabel} file: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath, contentLength: content.length }, outputs: { success: true }, userDecision: gate.userDecision, metadata: { tool: 'write_file' } });
                 return { path: relativePath, message: 'File written successfully' };
@@ -846,8 +885,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
               const folderPath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
               if (!folderPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(folderPath, relativePath); // BUG-036
+              const folderMode = getApprovalMode();
               // BUG-060: creating a folder isn't "risky", so only "always" gates it.
               const folderGate = await gateWrite(
+                folderMode,
                 classifyWriteOp({ tool: 'create_folder', path: relativePath, destExists: false }),
                 { binary: false },
               );
@@ -857,6 +898,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
               }
               try {
                 await workspaceServiceRef.current.mkdir(folderPath);
+                // BUG-060 batch: record before refresh/audit so a thrown callback can't drop it.
+                if (folderMode === 'batch') {
+                  recordBatch({ kind: 'create_folder', path: relativePath, fullPath: folderPath, undoable: true });
+                }
                 onFileTreeChange?.();
                 onAuditLog?.({ action: 'file_create', description: `AI created folder: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath }, outputs: { success: true }, userDecision: folderGate.userDecision, metadata: { tool: 'create_folder', type: 'folder' } });
                 return { path: relativePath, message: 'Folder created successfully' };
@@ -877,7 +922,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
               // BUG-060: a move onto an EXISTING destination is "risky" (it
               // overwrites); a plain move/rename to an empty path is not.
               const destExists = await workspaceServiceRef.current.exists(fullToPath);
+              const moveMode = getApprovalMode();
+              // BUG-060 batch: if the move overwrites an existing destination,
+              // snapshot it so the undo can also restore what was replaced.
+              const destBeforeBytes = moveMode === 'batch' && destExists ? await snapshotBytes(fullToPath) : undefined;
               const moveGate = await gateWrite(
+                moveMode,
                 classifyWriteOp({ tool: 'move_file', from: fromPath, to: toPath, destExists }),
                 { binary: true }, // moves have no text diff to show
               );
@@ -887,6 +937,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
               }
               try {
                 await workspaceServiceRef.current.move(fullFromPath, fullToPath);
+                // BUG-060 batch: record the applied move (reversible: move back,
+                // and restore the overwritten destination if there was one),
+                // BEFORE refresh/audit so a thrown callback can't drop it.
+                if (moveMode === 'batch') {
+                  recordBatch({ kind: 'move_file', from: fromPath, to: toPath, fullFrom: fullFromPath, fullTo: fullToPath, destExisted: destExists, destBeforeBytes, undoable: !destExists || destBeforeBytes !== undefined });
+                }
                 onFileTreeChange?.();
                 onAuditLog?.({ action: 'file_move', description: `AI moved file: ${fromPath} → ${toPath}`, model: chatModel ?? chatProvider, inputs: { from: fromPath, to: toPath }, outputs: { success: true }, userDecision: moveGate.userDecision, metadata: { tool: 'move_file' } });
                 return { from: fromPath, to: toPath, message: 'File moved successfully' };
@@ -902,9 +958,14 @@ export function useChatSending(deps: UseChatSendingDeps) {
               assertNotOpenWithUnsavedEdits(filePath, relativePath); // BUG-047
               // BUG-060: deleting always removes something that exists → "risky".
               const delBinary = isBinaryFile(relativePath);
+              const deleteMode = getApprovalMode();
+              const delBeforeText = delBinary ? undefined : await readTextForPreview(filePath, relativePath);
+              // BUG-060 batch: snapshot the bytes before deleting so it's reversible.
+              const delBeforeBytes = deleteMode === 'batch' ? await snapshotBytes(filePath) : undefined;
               const deleteGate = await gateWrite(
+                deleteMode,
                 classifyWriteOp({ tool: 'delete_file', path: relativePath, destExists: true }),
-                { beforeText: delBinary ? undefined : await readTextForPreview(filePath, relativePath), binary: delBinary },
+                { beforeText: delBeforeText, binary: delBinary },
               );
               if (!deleteGate.approved) {
                 onAuditLog?.({ action: 'file_delete', description: `AI delete declined by user: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath }, outputs: { success: false, declined: true }, userDecision: 'rejected', metadata: { tool: 'delete_file' } });
@@ -912,6 +973,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
               }
               try {
                 await workspaceServiceRef.current.delete(filePath);
+                // BUG-060 batch: record the applied delete (reversible: write bytes
+                // back), BEFORE refresh/audit so a thrown callback can't drop it.
+                if (deleteMode === 'batch') {
+                  recordBatch({ kind: 'delete_file', path: relativePath, fullPath: filePath, binary: delBinary, beforeBytes: delBeforeBytes, beforeText: delBeforeText, undoable: delBeforeBytes !== undefined });
+                }
                 onFileTreeChange?.();
                 onAuditLog?.({ action: 'file_delete', description: `AI deleted file: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath }, outputs: { success: true, movedToTrash: true }, userDecision: deleteGate.userDecision, metadata: { tool: 'delete_file' } });
                 return { path: relativePath, message: 'File deleted successfully (moved to trash)' };
@@ -1107,6 +1173,15 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // (and it would hallucinate tool calls as text). Non-streaming works
         // with tools correctly. Also disabled in production Tauri builds
         // because tauri-plugin-http doesn't support ReadableStream/SSE.
+        // BUG-060 batch mode: start this turn's change collection fresh — but
+        // NEVER wipe a review the user hasn't resolved yet. The review panel is
+        // a blocking modal, so in practice a new send can't begin while one is
+        // open; this guard makes that invariant explicit (and just clears any
+        // stale, already-resolved leftovers).
+        if (!useAiBatchReviewStore.getState().reviewOpen) {
+          useAiBatchReviewStore.getState().reset();
+        }
+
         const useStreaming = provider.sendMessageStreaming
           && !isTauriProductionBuild()
           && !hasWorkspace;
@@ -1349,12 +1424,17 @@ export function useChatSending(deps: UseChatSendingDeps) {
         }
       } finally {
         setLoading(chatId, false);
+        // BUG-060 batch mode: now that the turn is done, show the end-of-turn
+        // review if any file changes were applied (no-op in other modes / when
+        // nothing changed, and even after an abort so applied changes surface).
+        useAiBatchReviewStore.getState().openReview();
       }
     })().catch((err) => {
       // Unexpected escape from the try/catch above. Surface it so the
       // conversation failure isn't silently swallowed.
       console.error('Unexpected error escaping AI chat IIFE:', err);
       setLoading(chatId, false);
+      useAiBatchReviewStore.getState().openReview();
     });
   }, [inputValue, pendingAttachments, previewUrls, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
 

@@ -52,7 +52,7 @@ function renderDiff(oldText: string, newText: string): React.ReactElement {
     const n = newLines[i];
     if (o === n) {
       rows.push(
-        <div key={`eq-${i}`} className="text-muted-foreground">
+        <div key={`eq-${String(i)}`} className="text-muted-foreground">
           {'  '}
           {o ?? ''}
         </div>,
@@ -60,14 +60,14 @@ function renderDiff(oldText: string, newText: string): React.ReactElement {
     } else {
       if (o !== undefined) {
         rows.push(
-          <div key={`old-${i}`} className="text-destructive">
+          <div key={`old-${String(i)}`} className="text-destructive">
             - {o}
           </div>,
         );
       }
       if (n !== undefined) {
         rows.push(
-          <div key={`new-${i}`} className="text-emerald-600 dark:text-emerald-400">
+          <div key={`new-${String(i)}`} className="text-emerald-600 dark:text-emerald-400">
             + {n}
           </div>,
         );
@@ -189,7 +189,7 @@ export function AiWriteApprovalModal(): React.ReactElement | null {
             data-testid="ai-approval-skip"
             variant="outline"
             size="sm"
-            onClick={() => resolvePending('skip')}
+            onClick={() => { resolvePending('skip'); }}
             className="gap-1.5 text-xs"
           >
             <X className="h-3.5 w-3.5" />
@@ -199,7 +199,7 @@ export function AiWriteApprovalModal(): React.ReactElement | null {
             data-testid="ai-approval-approve"
             variant="default"
             size="sm"
-            onClick={() => resolvePending('approve')}
+            onClick={() => { resolvePending('approve'); }}
             className="gap-1.5 text-xs"
           >
             <Check className="h-3.5 w-3.5" />

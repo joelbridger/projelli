@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 
 import { McpApprovalGate } from '@/features/settings/McpApprovalGate';
 import { AiWriteApprovalModal } from '@/features/ask/AiWriteApprovalModal';
+import { AiBatchReviewPanel } from '@/features/ask/AiBatchReviewPanel';
 import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 import { InterviewForm } from '@/features/workflows/InterviewForm';
 import { CommandPalette, type PaletteCommand } from '@/app/shell/common/CommandPalette';
@@ -207,6 +208,11 @@ export function AppDialogs({
           pending request (set by the chat tool executor); shows nothing when
           idle. Lets the user Approve/Skip an AI write/move/delete with a diff. */}
       <AiWriteApprovalModal />
+
+      {/* BUG-060 (batch mode): end-of-turn review of every file change the AI
+          applied this turn. Self-gates on the batch store; shows nothing unless
+          batch mode collected changes and the turn opened the review. */}
+      <AiBatchReviewPanel />
 
       {/* Bug 1: MatterManagerDialog — opened by 'keepance:open-matter-manager'
           events from the "New matter" buttons in MattersHome. */}

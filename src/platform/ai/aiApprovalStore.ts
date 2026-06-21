@@ -57,7 +57,7 @@ export const useAiApprovalStore = create<AiApprovalState>((set, get) => ({
         prev.resolve('skip');
       }
       counter += 1;
-      set({ pending: { ...req, id: `appr-${counter}`, resolve } });
+      set({ pending: { ...req, id: `appr-${String(counter)}`, resolve } });
     }),
   resolvePending: (decision) => {
     const p = get().pending;

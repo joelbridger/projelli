@@ -835,6 +835,22 @@
       "binary-note": "Dies ist keine Textdatei, daher gibt es hier keine Vorschau. Genehmige, damit die KI sie ändern kann.",
       "skip": "Überspringen",
       "approve": "Genehmigen"
+    },
+    "batch-review": {
+      "title": "Überprüfe, was die KI geändert hat",
+      "description": "Die KI hat in diesem Schritt diese Änderungen vorgenommen. Behalte alle oder mache die rückgängig, die du nicht möchtest.",
+      "op": {
+        "create-file": "Erstellt",
+        "overwrite-file": "Geändert",
+        "create-folder": "Ordner erstellt",
+        "move-file": "Verschoben",
+        "delete-file": "Gelöscht"
+      },
+      "binary-note": "Dies ist keine Textdatei, daher gibt es keine Vorschau.",
+      "not-undoable": "Diese Änderung kann nicht automatisch rückgängig gemacht werden.",
+      "undo-selected": "Ausgewählte rückgängig machen",
+      "keep-all": "Alle Änderungen behalten",
+      "unsafe-partial": "Einige dieser Änderungen bauen aufeinander auf, daher könnte das Rückgängigmachen nur eines Teils Arbeit verlieren. Wähle auch die zugehörigen späteren Änderungen aus, oder wähle Alle Änderungen behalten."
     }
   },
   "chat": {

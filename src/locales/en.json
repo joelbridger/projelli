@@ -523,6 +523,22 @@
       "binary-note": "This is a non-text file, so there's no preview here. Approve to let the AI change it.",
       "skip": "Skip",
       "approve": "Approve"
+    },
+    "batch-review": {
+      "title": "Review what the AI changed",
+      "description": "The AI applied these changes during this turn. Keep them all, or undo any you don't want.",
+      "op": {
+        "create-file": "Created",
+        "overwrite-file": "Changed",
+        "create-folder": "Created folder",
+        "move-file": "Moved",
+        "delete-file": "Deleted"
+      },
+      "binary-note": "This is a non-text file, so there's no preview.",
+      "not-undoable": "This change can't be undone automatically.",
+      "undo-selected": "Undo selected",
+      "keep-all": "Keep all changes",
+      "unsafe-partial": "Some of these changes build on each other, so undoing only part of them could lose work. Select the related later changes too, or choose Keep all changes."
     }
   },
   "chat": {

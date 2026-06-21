@@ -835,6 +835,22 @@
       "binary-note": "Este no es un archivo de texto, así que no hay vista previa. Aprueba para permitir que la IA lo cambie.",
       "skip": "Omitir",
       "approve": "Aprobar"
+    },
+    "batch-review": {
+      "title": "Revisa lo que cambió la IA",
+      "description": "La IA aplicó estos cambios en este turno. Consérvalos todos o deshaz los que no quieras.",
+      "op": {
+        "create-file": "Creado",
+        "overwrite-file": "Modificado",
+        "create-folder": "Carpeta creada",
+        "move-file": "Movido",
+        "delete-file": "Eliminado"
+      },
+      "binary-note": "Este no es un archivo de texto, así que no hay vista previa.",
+      "not-undoable": "Este cambio no se puede deshacer automáticamente.",
+      "undo-selected": "Deshacer seleccionados",
+      "keep-all": "Conservar todos los cambios",
+      "unsafe-partial": "Algunos de estos cambios dependen entre sí, así que deshacer solo una parte podría perder trabajo. Selecciona también los cambios posteriores relacionados, o elige Conservar todos los cambios."
     }
   },
   "chat": {

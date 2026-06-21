@@ -50,6 +50,7 @@ import { useEditorStore, setBeforeTabClose } from '@/platform/state/editorStore'
 import { flushTabForClose } from '@/app/fileOps/flushDirtyTabs';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
+import { useAiBatchReviewStore } from '@/platform/ai/aiBatchReviewStore';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
 import type { TrashedItem } from '@/platform/history/TrashService';
 
@@ -786,7 +787,46 @@ function App() {
     handleCreateFolderAtRoot,
   } = useDocumentCreation({ workspaceServiceRef, rootPath, setFileTree, prompt, confirm, handleFileOpen, openFile });
 
+  // BUG-060 (batch mode): give the end-of-turn batch-review panel the live
+  // workspace fs so it can undo applied AI changes, plus a refresh hook so the
+  // file tree updates after an undo. The adapter reads the ref lazily at undo
+  // time, so it stays valid across workspace switches.
+  useEffect(() => {
+    useAiBatchReviewStore.getState().setUndoFs(
+      {
+        writeFileBinary: (p, b) => {
+          const svc = workspaceServiceRef.current;
+          if (!svc) throw new Error('Workspace not initialized');
+          return svc.writeFileBinary(p, b);
+        },
+        delete: (p) => {
+          const svc = workspaceServiceRef.current;
+          if (!svc) throw new Error('Workspace not initialized');
+          return svc.delete(p);
+        },
+        move: (f, to) => {
+          const svc = workspaceServiceRef.current;
+          if (!svc) throw new Error('Workspace not initialized');
+          return svc.move(f, to);
+        },
+        exists: (p) => {
+          const svc = workspaceServiceRef.current;
+          if (!svc) throw new Error('Workspace not initialized');
+          return svc.exists(p);
+        },
+      },
+      () => { void refreshFileTree(); },
+    );
+  }, [refreshFileTree]);
 
+  // BUG-060 (batch mode): if the workspace changes, drop any pending batch
+  // review. Its changes were applied to the OLD workspace and its absolute
+  // paths don't belong to the new one, so undoing here would be unsafe. The
+  // changes stay on the old workspace's disk (already applied) + in the audit
+  // log; we only drop the now-unsafe undo affordance.
+  useEffect(() => {
+    useAiBatchReviewStore.getState().reset();
+  }, [rootPath]);
 
   // Audit log helper - logs all AI actions to the audit log.
   //
