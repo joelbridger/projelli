@@ -11,8 +11,24 @@ import {
   isRiskyOp,
   needsPreApproval,
   collectsForBatchReview,
+  coerceApprovalMode,
   type AiWriteOp,
 } from '@/platform/ai/aiWriteApproval';
+
+describe('coerceApprovalMode — fails closed', () => {
+  it('passes through the three valid modes', () => {
+    expect(coerceApprovalMode('risky')).toBe('risky');
+    expect(coerceApprovalMode('always')).toBe('always');
+    expect(coerceApprovalMode('batch')).toBe('batch');
+  });
+  it('falls back to the safe default for anything unrecognized', () => {
+    expect(coerceApprovalMode(undefined)).toBe('risky');
+    expect(coerceApprovalMode(null)).toBe('risky');
+    expect(coerceApprovalMode('off')).toBe('risky');
+    expect(coerceApprovalMode('')).toBe('risky');
+    expect(coerceApprovalMode(123)).toBe('risky');
+  });
+});
 
 describe('classifyWriteOp', () => {
   it('a write to a NON-existent path is a create (not risky)', () => {

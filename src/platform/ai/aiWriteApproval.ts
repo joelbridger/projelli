@@ -23,6 +23,16 @@
 
 export type AiFileApprovalMode = 'risky' | 'always' | 'batch';
 
+/**
+ * Coerce a stored/raw setting value to a valid mode, FAILING CLOSED to the safe
+ * default (`risky`) for anything unrecognized (missing, corrupt localStorage, an
+ * old/renamed value). Security-sensitive code must never treat an unknown mode
+ * as "no approval needed".
+ */
+export function coerceApprovalMode(raw: unknown): AiFileApprovalMode {
+  return raw === 'always' || raw === 'batch' || raw === 'risky' ? raw : 'risky';
+}
+
 /** A normalized description of a mutating AI file operation. */
 export type AiWriteOp =
   | { kind: 'create_file'; path: string }

@@ -46,7 +46,7 @@ import { isBinaryFile } from '@/platform/utils/file-utils';
 import {
   classifyWriteOp,
   needsPreApproval,
-  type AiFileApprovalMode,
+  coerceApprovalMode,
   type AiWriteOp,
 } from '@/platform/ai/aiWriteApproval';
 import { useAiApprovalStore } from '@/platform/ai/aiApprovalStore';
@@ -712,9 +712,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
           op: AiWriteOp,
           preview: { beforeText?: string | undefined; afterText?: string | undefined; binary: boolean },
         ): Promise<{ approved: boolean; userDecision: 'auto' | 'approved' | 'rejected' }> => {
-          const mode =
-            useSettingsStore.getState().getSetting<AiFileApprovalMode>('aiFileApprovalMode') ??
-            'risky';
+          // Fail CLOSED: a missing or corrupt stored setting falls back to the
+          // safe default ('risky'), never to "no approval" (Codex review).
+          const mode = coerceApprovalMode(
+            useSettingsStore.getState().getSetting('aiFileApprovalMode'),
+          );
           if (!needsPreApproval(mode, op)) return { approved: true, userDecision: 'auto' };
           const decision = await useAiApprovalStore.getState().request({
             op,
