@@ -450,13 +450,15 @@ export function useChatSending(deps: UseChatSendingDeps) {
       // context block would produce an ungrounded but confident-looking
       // answer — the same Avianca risk the throw guard above prevents.
       //
-      // Only fire when `askWorkspaceMode` is active (matter-scoped intent
-      // has been declared). Normal chat (askWorkspaceMode=false, no @workspace
-      // tag) is completely unaffected.
+      // BUG-065: fire whenever workspace grounding was EXPLICITLY requested —
+      // the "Ask my workspace" toggle OR a manually-typed `@workspace` tag
+      // (`shouldRetrieve` = either). Previously only the toggle refused, so a
+      // manual `@workspace` with zero hits could still answer ungrounded.
+      // Normal chat (no tag, no toggle) never reaches this block.
       //
       // Audit events above have already been emitted so the refused turn is
       // fully auditable (the workspace WAS searched; recording it matters).
-      if (askWorkspaceMode && retrievedSources.length === 0) {
+      if (shouldRetrieve && retrievedSources.length === 0) {
         const emptyHint = "Workspace search returned no results for this query.";
         const refuseText = t('ai.chat.workspace-empty-refuse');
 
