@@ -222,6 +222,9 @@ describe('Keepance 3.0 audit provenance events', () => {
     expect(payload['provider']).toBe('anthropic');
     expect(payload['mode']).toBe('direct');
     expect(payload['dataLeaves']).toBe(true);
+    // BUG-028: the egress event must record the model so the confidentiality
+    // report names it instead of printing "unknown".
+    expect(payload['model']).toBe('stub');
   });
 
   it('logs egress with the active matter scope', async () => {

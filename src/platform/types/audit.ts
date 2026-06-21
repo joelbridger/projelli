@@ -314,6 +314,9 @@ export type AuditEvent =
       timestamp: string;
       payload: {
         provider: string;
+        /** The model the request was sent to (BUG-028: so the confidentiality
+         * report names the model instead of printing "unknown"). */
+        model?: string;
         mode: ConfidentialityMode;
         destination: EgressDestination;
         /** Whether anything actually left the device for this send. */

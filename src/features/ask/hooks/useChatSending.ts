@@ -587,6 +587,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
             timestamp: new Date().toISOString(),
             payload: {
               provider: egress.provider,
+              // BUG-028: record the model so the confidentiality report names it
+              // (the report fell back to "unknown" when the model was absent).
+              ...(chatModel !== undefined ? { model: chatModel } : {}),
               mode: getConfidentialityMode(),
               destination: egress.destination,
               dataLeaves: egress.dataLeaves,

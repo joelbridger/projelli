@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildConfidentialityReport, pickAttestation } from '@/platform/privacy/confidentialityReport';
+import { auditEventToEntry } from '@/platform/audit/AuditService';
 import type { AuditEntry } from '@/platform/types/audit';
 
 // Helper: build a minimal egress AuditEntry fixture
@@ -161,5 +162,46 @@ describe('buildConfidentialityReport', () => {
     expect(report.totalCalls).toBe(0);
     expect(report.anyDataLeftMachine).toBe(false);
     expect(report.attestation).toMatch(/no AI activity/i);
+  });
+});
+
+// BUG-028 — the report must NAME the model, not print "unknown". Drive the REAL
+// emit path (auditEventToEntry, the same call the chat send uses) so this guards
+// the end-to-end flow: egress payload.model -> entry.metadata.model -> report.
+describe('buildConfidentialityReport — BUG-028 model provenance', () => {
+  function egressEntryFromEvent(model: string | undefined): AuditEntry {
+    const partial = auditEventToEntry({
+      type: 'egress',
+      timestamp: '2026-06-21T10:00:00Z',
+      payload: {
+        provider: 'anthropic',
+        ...(model !== undefined ? { model } : {}),
+        mode: 'direct',
+        destination: 'provider-direct',
+        dataLeaves: true,
+        scope: { kind: 'matter', matterId: MATTER_ID, matterName: MATTER_NAME },
+      },
+    });
+    return { id: 'e1', timestamp: '2026-06-21T10:00:00Z', ...partial };
+  }
+
+  it('names the model from the egress event (not "unknown")', () => {
+    const report = buildConfidentialityReport([egressEntryFromEvent('claude-opus-4-8')], {
+      matterId: MATTER_ID,
+      matterName: MATTER_NAME,
+      generatedAt: GENERATED_AT,
+    });
+    expect(report.calls).toHaveLength(1);
+    expect(report.calls[0]?.model).toBe('claude-opus-4-8');
+    expect(report.calls[0]?.model).not.toBe('unknown');
+  });
+
+  it('falls back to "unknown" only when the model genuinely was not recorded', () => {
+    const report = buildConfidentialityReport([egressEntryFromEvent(undefined)], {
+      matterId: MATTER_ID,
+      matterName: MATTER_NAME,
+      generatedAt: GENERATED_AT,
+    });
+    expect(report.calls[0]?.model).toBe('unknown');
   });
 });
