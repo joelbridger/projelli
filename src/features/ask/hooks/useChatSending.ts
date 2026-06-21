@@ -40,6 +40,7 @@ import type { useActiveMatter } from '@/platform/matter/matterStore';
 import { getActiveScope, useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
+import { useEditorStore, tabHasUnsavedEdits } from '@/platform/state/editorStore';
 import type { RetrievalScope } from '@/platform/utils/tauri-commands';
 import type { ExtractedContext } from '@/platform/utils/ai-file-context';
 import { filterByScope } from '@/platform/utils/client-boundary';
@@ -659,6 +660,18 @@ export function useChatSending(deps: UseChatSendingDeps) {
               `Switch the chat scope to "All matters" to work across matters.`,
           );
         };
+        // BUG-047: refuse to write/move/delete a file the user has OPEN with
+        // UNSAVED edits — otherwise the AI's write clobbers their unsaved work
+        // (or the next autosave clobbers the AI's write). Fail closed with a
+        // clear message so the model asks the user to save/close it first.
+        const assertNotOpenWithUnsavedEdits = (absPath: string, relativePath: string): void => {
+          if (tabHasUnsavedEdits(absPath, useEditorStore.getState().openTabs)) {
+            throw new Error(
+              `Cannot modify "${relativePath}": it's open in the editor with UNSAVED changes. ` +
+                `To avoid overwriting the user's work, ask them to save or close it first, then try again.`,
+            );
+          }
+        };
 
         const toolExecutor = async (toolName: string, params: Record<string, unknown>) => {
           if (!workspaceServiceRef?.current || !rootPath) {
@@ -745,6 +758,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
               if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(filePath, relativePath); // BUG-036
+              assertNotOpenWithUnsavedEdits(filePath, relativePath); // BUG-047
               try {
                 const exists = await workspaceServiceRef.current.exists(filePath);
                 const action = exists ? 'file_update' : 'file_create';
@@ -779,6 +793,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
               if (!fullFromPath.startsWith(rootPath) || !fullToPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(fullFromPath, fromPath); // BUG-036
               assertInActiveMatter(fullToPath, toPath); // BUG-036 (can't move a matter's file out, or into it from elsewhere)
+              assertNotOpenWithUnsavedEdits(fullFromPath, fromPath); // BUG-047 (don't move out from under unsaved edits)
+              assertNotOpenWithUnsavedEdits(fullToPath, toPath); // BUG-047 (don't overwrite an open dirty destination)
               try {
                 await workspaceServiceRef.current.move(fullFromPath, fullToPath);
                 onFileTreeChange?.();
@@ -793,6 +809,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
               if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(filePath, relativePath); // BUG-036
+              assertNotOpenWithUnsavedEdits(filePath, relativePath); // BUG-047
               try {
                 await workspaceServiceRef.current.delete(filePath);
                 onFileTreeChange?.();

@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { flushAllDirtyTabs, flushTab, setActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
-import { useEditorStore, setBeforeTabClose } from '@/platform/state/editorStore';
+import { useEditorStore, setBeforeTabClose, tabHasUnsavedEdits } from '@/platform/state/editorStore';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 
 const nextTick = () => new Promise((r) => setTimeout(r, 0));
@@ -86,6 +86,16 @@ describe('flushDirtyTabs (BUG-046)', () => {
 
     await expect(flushAllDirtyTabs(svc)).resolves.toBeUndefined();
     expect(tab('/ws/a.md')?.isDirty).toBe(true); // stayed dirty so autosave retries
+  });
+
+  it('tabHasUnsavedEdits detects an open dirty tab (BUG-047 guard predicate)', () => {
+    const tabs = [
+      { path: '/ws/clean.md', isDirty: false },
+      { path: '/ws/dirty.md', isDirty: true },
+    ];
+    expect(tabHasUnsavedEdits('/ws/dirty.md', tabs)).toBe(true);
+    expect(tabHasUnsavedEdits('/ws/clean.md', tabs)).toBe(false);
+    expect(tabHasUnsavedEdits('/ws/not-open.md', tabs)).toBe(false);
   });
 
   it('closeTab flushes a dirty tab to disk before removing it (the chokepoint)', async () => {

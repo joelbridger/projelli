@@ -12,6 +12,19 @@ export function setBeforeTabClose(fn: ((path: string) => void) | null): void {
   beforeTabCloseHook = fn;
 }
 
+/**
+ * BUG-047: true when `path` is open in the editor with UNSAVED edits. The chat
+ * file tools use this to refuse writing/moving/deleting a file the user is
+ * actively editing, so the AI can't clobber their unsaved work (and vice-versa).
+ * Pure helper (lives in platform so both features and app can use it).
+ */
+export function tabHasUnsavedEdits(
+  path: string,
+  tabs: readonly { path: string; isDirty: boolean }[],
+): boolean {
+  return tabs.some((t) => t.path === path && t.isDirty);
+}
+
 interface OpenTab {
   path: string;
   name: string;
