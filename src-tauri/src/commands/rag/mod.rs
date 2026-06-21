@@ -1268,6 +1268,38 @@ pub async fn rag_delete_path(
     Ok(())
 }
 
+/// BUG-040: purge all RAG chunks for a matter. Called when a matter is deleted
+/// so its content can never resurface through all-matters retrieval. `matter_id`
+/// is the plaintext scope column, so (unlike `rag_delete_path`) no vector key is
+/// needed to build the predicate.
+#[tauri::command]
+pub async fn rag_delete_matter(
+    state: State<'_, RagState>,
+    matter_id: String,
+) -> Result<(), String> {
+    let workspace = require_workspace(&state).await?;
+    let conn = store::open_connection(&workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    let names = conn
+        .table_names()
+        .execute()
+        .await
+        .map_err(|e| format!("list tables: {e}"))?;
+    if !names.iter().any(|n| n == store::TABLE_NAME) {
+        return Ok(());
+    }
+    let table = conn
+        .open_table(store::TABLE_NAME)
+        .execute()
+        .await
+        .map_err(|e| format!("open table: {e}"))?;
+    store::delete_matter(&table, &matter_id)
+        .await
+        .map_err(|e| format!("delete matter: {e}"))?;
+    Ok(())
+}
+
 /// Index pre-extracted PDF page text into the RAG store.
 ///
 /// Called by the JS side after running `extractPdfText` in the renderer.

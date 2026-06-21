@@ -60,6 +60,7 @@ pub fn run() {
             commands::rag::rag_verify_citation,
             commands::rag::rag_cancel_indexing,
             commands::rag::rag_delete_path,
+            commands::rag::rag_delete_matter,
             // A3 — PDF RAG indexing bridge (JS extracts, Rust embeds+stores).
             commands::rag::rag_index_pdf_chunks,
             // WS-PRIV — re-tag a source's privilege in place (default-exclude privileged).

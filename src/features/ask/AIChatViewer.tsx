@@ -29,7 +29,8 @@ import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { isAssuredProvider } from '@/platform/firm/resolveAssuredRoute';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder } from '@/platform/state/aiChatStore';
-import { useActiveMatter } from '@/platform/matter/matterStore';
+import { useActiveMatter, useActiveMatters } from '@/platform/matter/matterStore';
+import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
 import { useIncludePrivileged, usePrivilegeStore } from '@/platform/firm/privilegeStore';
 import { MatterScopeSelector } from '@/features/matters/MatterScopeSelector';
 import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
@@ -223,13 +224,32 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
 
   // D1 — files actually included in AI context, filtered by the active scope.
   // When no scope is set, this is identical to openFiles.
+  const activeMatters = useActiveMatters();
   const scopedOpenFiles = useMemo<ExtractedContext[]>(() => {
-    if (!scopedFolder || !rootPath) return openFiles;
-    const scopedPaths = new Set(
-      filterByScope(openFiles.map((f) => f.path), rootPath, scopedFolder),
-    );
-    return openFiles.filter((f) => scopedPaths.has(f.path));
-  }, [openFiles, scopedFolder, rootPath]);
+    let files = openFiles;
+    // BUG-037: when a specific matter is active, only inject open files that
+    // belong to that matter. Otherwise a document from a DIFFERENT matter that
+    // happens to be open in a tab would be sent into THIS matter's AI prompt —
+    // a cross-matter leak the (matter-scoped) RAG retrieval doesn't cover.
+    // All-matters (no active matter) keeps every open file, as before.
+    if (activeMatter) {
+      files = files.filter((f) => pathInMatterScope(f.path, activeMatter.id, activeMatters));
+    }
+    // An explicit folder scope narrows further (more specific than the matter).
+    if (scopedFolder && rootPath) {
+      const scopedPaths = new Set(
+        filterByScope(files.map((f) => f.path), rootPath, scopedFolder),
+      );
+      files = files.filter((f) => scopedPaths.has(f.path));
+    }
+    return files;
+  }, [openFiles, scopedFolder, rootPath, activeMatter, activeMatters]);
+
+  // Codex review #6: keep a live ref to the SCOPED open files so the test-mode
+  // prompt helper below reflects exactly what production sends (matter-filtered),
+  // not the raw unscoped contexts — otherwise tests inspect the wrong prompt.
+  const scopedOpenFilesRef = useRef<ExtractedContext[]>(scopedOpenFiles);
+  scopedOpenFilesRef.current = scopedOpenFiles;
 
   // Initialize input with saved draft (persists across navigation)
   const [inputValue, setInputValue] = useState(() => getDraftInput(chatId));
@@ -272,7 +292,8 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     (window as unknown as {
       __buildSystemPromptForTest?: (baseRole?: string) => string;
     }).__buildSystemPromptForTest = (baseRole = 'You are a helpful AI assistant.') => {
-      const files = useFileContextStore.getState().getActiveContexts();
+      // Use the SAME matter-scoped open-file set the real send uses (Codex #6).
+      const files = scopedOpenFilesRef.current;
       return `${baseRole}${buildOpenFilesPromptBlock(files)}`;
     };
   }, []);

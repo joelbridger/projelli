@@ -833,7 +833,7 @@
   "src/platform/utils/spreadsheet-io.ts|@typescript-eslint/no-unnecessary-type-conversion|Passing a string to String() does not change the type or value of the string.": 3,
   "src/platform/utils/spreadsheet-io.ts|@typescript-eslint/require-await|Async function 'parseSpreadsheet' has no 'await' expression.": 1,
   "src/platform/utils/spreadsheet-io.ts|@typescript-eslint/restrict-template-expressions|Invalid type \"number\" of template literal expression.": 2,
-  "src/platform/utils/tauri-commands.ts|@typescript-eslint/no-invalid-void-type|void is only valid as a return type or generic type argument.": 9,
+  "src/platform/utils/tauri-commands.ts|@typescript-eslint/no-invalid-void-type|void is only valid as a return type or generic type argument.": 10,
   "src/platform/utils/telemetry.ts|@typescript-eslint/no-unsafe-assignment|Unsafe assignment of an `any` value.": 1,
   "src/platform/utils/telemetry.ts|@typescript-eslint/no-unsafe-return|Unsafe return of type `Set<any>` from function with return type `Set<string>`.": 1,
   "src/platform/voice/voiceStatus.ts|@typescript-eslint/no-unnecessary-type-conversion|Using !! on a boolean does not change the type or value of the boolean.": 1,

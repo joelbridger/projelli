@@ -39,6 +39,7 @@ import { FILE_ACCESS_TOOLS } from '@/platform/tools/fileAccessTools';
 import type { useActiveMatter } from '@/platform/matter/matterStore';
 import { getActiveScope, useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
+import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
 import type { RetrievalScope } from '@/platform/utils/tauri-commands';
 import type { ExtractedContext } from '@/platform/utils/ai-file-context';
 import { filterByScope } from '@/platform/utils/client-boundary';
@@ -626,6 +627,39 @@ export function useChatSending(deps: UseChatSendingDeps) {
           willRegisterTools: hasWorkspaceForTools,
         });
 
+        // BUG-036 — matter-scope guard for the AI's file tools. In a
+        // matter-scoped chat the file tools must respect the SAME boundary as
+        // retrieval: the model may only touch files that belong to the active
+        // matter. In all-matters scope they stay workspace-wide (matching
+        // all-matters retrieval). Without this, a chat scoped to Matter B could
+        // read/search/write Matter A's files via the tools — a cross-matter
+        // confidentiality leak the database-level RAG scoping does NOT cover.
+        // Path -> matter uses the same resolveMatterId() the indexer uses
+        // (longest mapped folder wins; files outside every matter -> 'unassigned').
+        // Codex review #1: derive the tool scope from the SAME scope captured at
+        // send start (`retrievalScope` / `activeMatter` above), NOT a fresh
+        // getActiveScope() — so the file tools and retrieval always agree, even
+        // if the user switches the active matter while the response is still
+        // streaming. (Both come from `activeMatter`, a stable value for this send.)
+        const toolMatters = useMatterStore.getState().matters;
+        const toolActiveMatterId = retrievalScope.kind === 'matter' ? retrievalScope.matterId : null;
+        const activeMatterName = activeMatter ? matterLabel(activeMatter) : null;
+        const activeMatterFolders = activeMatter?.folderPaths ?? [];
+        const pathInActiveMatter = (absPath: string): boolean =>
+          pathInMatterScope(absPath, toolActiveMatterId, toolMatters);
+        const assertInActiveMatter = (absPath: string, relativePath: string): void => {
+          if (pathInActiveMatter(absPath)) return;
+          // Distinguish a '..' traversal (rejected in any scope) from a genuine
+          // cross-matter access (only blocked when a specific matter is active).
+          if (relativePath.split(/[\\/]/).some((seg) => seg === '..')) {
+            throw new Error(`Access denied: path "${relativePath}" must not contain "..".`);
+          }
+          throw new Error(
+            `Access denied: "${relativePath}" is outside the active matter (${activeMatterName ?? 'none'}). ` +
+              `Switch the chat scope to "All matters" to work across matters.`,
+          );
+        };
+
         const toolExecutor = async (toolName: string, params: Record<string, unknown>) => {
           if (!workspaceServiceRef?.current || !rootPath) {
             throw new Error('Workspace not initialized');
@@ -636,6 +670,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               const relativePath = params['path'] as string;
               const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
               if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              assertInActiveMatter(filePath, relativePath); // BUG-036
               try {
                 const content = await workspaceServiceRef.current.readFile(filePath);
                 return { content, path: relativePath };
@@ -649,12 +684,30 @@ export function useChatSending(deps: UseChatSendingDeps) {
               if (!dirPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
               try {
                 const entries = await workspaceServiceRef.current.list(dirPath);
+                // Codex review #5: a directory entry is visible if it is INSIDE
+                // the active matter OR is an ANCESTOR of one of the matter's
+                // folders (so the model can navigate DOWN into a nested matter,
+                // e.g. list "/ws" and see "Clients" on the way to
+                // "/ws/Clients/Acme"). Sibling/other-matter entries stay hidden.
+                const visibleInScope = (absChild: string, isDir: boolean): boolean => {
+                  if (pathInActiveMatter(absChild)) return true;
+                  if (!toolActiveMatterId || !isDir) return false;
+                  const prefix = absChild.endsWith('/') ? absChild : `${absChild}/`;
+                  return activeMatterFolders.some((f) => f === absChild || f.startsWith(prefix));
+                };
                 return {
-                  entries: entries.map((e: any) => ({
-                    name: e.name, type: e.type,
-                    path: relativePath === '.' || relativePath === '' ? e.name : `${relativePath}/${e.name}`,
-                    extension: e.extension
-                  })),
+                  // BUG-036: in a matter-scoped chat, only reveal entries that
+                  // belong to the active matter (folders/files of other matters
+                  // are hidden so the model can't enumerate them).
+                  entries: entries
+                    .filter((e) =>
+                      visibleInScope(`${dirPath}/${e.name}`.replace(/\/+/g, '/'), e.type !== 'file'),
+                    )
+                    .map((e) => ({
+                      name: e.name, type: e.type,
+                      path: relativePath === '.' || relativePath === '' ? e.name : `${relativePath}/${e.name}`,
+                      extension: e.extension
+                    })),
                   path: relativePath
                 };
               } catch (error) {
@@ -676,7 +729,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
                   }
                 };
                 searchNode(fileTree);
-                return { results: searchResults, query };
+                // BUG-036: drop results outside the active matter so the model
+                // can't discover another matter's files by name search.
+                const scopedResults = searchResults.filter((r) =>
+                  pathInActiveMatter(`${rootPath}/${r.path}`.replace(/\/+/g, '/')),
+                );
+                return { results: scopedResults, query };
               } catch (error) {
                 throw new Error(`Failed to search files: ${error instanceof Error ? error.message : 'Unknown error'}`);
               }
@@ -686,6 +744,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               const content = params['content'] as string;
               const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
               if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              assertInActiveMatter(filePath, relativePath); // BUG-036
               try {
                 const exists = await workspaceServiceRef.current.exists(filePath);
                 const action = exists ? 'file_update' : 'file_create';
@@ -702,6 +761,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               const relativePath = params['path'] as string;
               const folderPath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
               if (!folderPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              assertInActiveMatter(folderPath, relativePath); // BUG-036
               try {
                 await workspaceServiceRef.current.mkdir(folderPath);
                 onFileTreeChange?.();
@@ -717,6 +777,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
               const fullFromPath = `${rootPath}/${fromPath}`.replace(/\/+/g, '/');
               const fullToPath = `${rootPath}/${toPath}`.replace(/\/+/g, '/');
               if (!fullFromPath.startsWith(rootPath) || !fullToPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              assertInActiveMatter(fullFromPath, fromPath); // BUG-036
+              assertInActiveMatter(fullToPath, toPath); // BUG-036 (can't move a matter's file out, or into it from elsewhere)
               try {
                 await workspaceServiceRef.current.move(fullFromPath, fullToPath);
                 onFileTreeChange?.();
@@ -730,6 +792,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               const relativePath = params['path'] as string;
               const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
               if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              assertInActiveMatter(filePath, relativePath); // BUG-036
               try {
                 await workspaceServiceRef.current.delete(filePath);
                 onFileTreeChange?.();

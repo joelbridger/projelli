@@ -293,6 +293,13 @@ export async function ragDeletePath(path: string): Promise<void> {
   return invoke<void>('rag_delete_path', { path });
 }
 
+/** BUG-040: purge every stored chunk for a matter. Called when a matter is
+ *  deleted so its content can't resurface through all-matters retrieval. */
+export async function ragDeleteMatter(matterId: string): Promise<void> {
+  if (!isTauri()) return;
+  return invoke<void>('rag_delete_matter', { matterId });
+}
+
 /**
  * Index pre-extracted PDF page text into the RAG store. Called after
  * `extractPdfText` produces page strings in the renderer process.

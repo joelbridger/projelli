@@ -807,6 +807,26 @@ pub async fn delete_path(table: &Table, path: &str, key: &[u8; 32]) -> Result<()
     Ok(())
 }
 
+/// BUG-040: purge EVERY chunk belonging to a matter, regardless of which file
+/// or mail folder it came from. Used when a matter is deleted so its content
+/// can no longer surface through all-matters retrieval (which applies no matter
+/// filter). `matter_id` is the plaintext, queryable confidentiality-scope column
+/// (see the schema notes above), so we filter on it directly — validated +
+/// SQL-escaped to keep the predicate safe. Deleting `UNASSIGNED_MATTER` is
+/// refused: it would wipe every uncategorized chunk in the workspace.
+pub async fn delete_matter(table: &Table, matter_id: &str) -> Result<()> {
+    let matter_id = validate_matter_id(matter_id)?;
+    if matter_id == UNASSIGNED_MATTER {
+        anyhow::bail!("refusing to delete the UNASSIGNED_MATTER bucket");
+    }
+    let predicate = format!("matter_id = '{}'", sql_escape(matter_id));
+    table
+        .delete(&predicate)
+        .await
+        .with_context(|| format!("delete failed for matter {}", matter_id))?;
+    Ok(())
+}
+
 /// WS-PRIV — re-tag the privilege of every already-indexed chunk for `path`
 /// IN PLACE, without re-embedding. Used when the user toggles a source's
 /// privilege: the chunk text + vectors are unchanged, only the `privilege`
