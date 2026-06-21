@@ -26,7 +26,7 @@ describe('isBinaryFile — binary formats', () => {
     // databases
     'store.sqlite', 'cache.db', 'cols.parquet',
     // design
-    'mock.sketch', 'design.fig',
+    'mock.sketch', 'art.afphoto',
   ];
 
   it.each(binary)('treats %s as binary', (name) => {
@@ -58,5 +58,9 @@ describe('isBinaryFile — text formats stay text', () => {
     expect(isBinaryFile('model.stl')).toBe(false);
     expect(isBinaryFile('mesh.obj')).toBe(false);
     expect(isBinaryFile('drawing.dxf')).toBe(false);
+    // '.ai' (legacy Illustrator can be PostScript/PDF text) and '.fig' (Xfig is
+    // plain text, not only Figma) are ambiguous, so they stay on the text path.
+    expect(isBinaryFile('logo.ai')).toBe(false);
+    expect(isBinaryFile('diagram.fig')).toBe(false);
   });
 });

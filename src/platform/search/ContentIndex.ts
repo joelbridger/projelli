@@ -68,6 +68,15 @@ function isPlainTextIndexable(name: string): boolean {
   return INDEXABLE_PLAIN_EXTS.has(ext);
 }
 
+/** Binary formats `extractForAI` can actually pull text from (the ONLY binary
+ *  files worth reading + base64-encoding for the index). Every other binary
+ *  type — images, audio, video, archives, .iso/.dmg, fonts, .sqlite/.parquet,
+ *  executables — has no extractable text, so we skip it BEFORE the expensive
+ *  full-file read + base64 (which would otherwise spike memory on a big file
+ *  only to have extractForAI return null). Mirrors extractForAI's binary
+ *  branches: docx, xlsx, xls, pptx. */
+const BINARY_INDEX_EXTRACTABLE_EXTS = new Set(['docx', 'xlsx', 'xls', 'pptx']);
+
 function walkTree(tree: FileNode[], out: FileNode[] = []): FileNode[] {
   for (const node of tree) {
     if (node.type === 'file') {
@@ -129,9 +138,16 @@ export async function collectDocuments(
           } catch {
             return null;
           }
+        } else if (!BINARY_INDEX_EXTRACTABLE_EXTS.has(ext)) {
+          // Binary with no extractable text (image/audio/video/archive/iso/dmg/
+          // font/sqlite/parquet/exe/…). Skip BEFORE the full-file read + base64
+          // so a large binary can't spike memory only for extractForAI to return
+          // null. (Pre-broadening this path was already a no-op for these; now
+          // we just don't do the wasted work first.)
+          return null;
         } else {
-          // Binary: use extractForAI which handles docx/xlsx/pptx/rtf via
-          // data URLs. For xlsx we need the binary first.
+          // Binary we CAN extract text from (docx/xlsx/xls/pptx): use
+          // extractForAI via a data URL. We need the binary bytes first.
           const buf = await service.readFileBinary(node.path);
           const bytes = new Uint8Array(buf);
           let binary = '';

@@ -41,7 +41,7 @@ const BINARY_EXTENSIONS = new Set<string>([
   // Documents (binary or ZIP-container office formats)
   'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'rtf',
   'odt', 'ods', 'odp', 'pages', 'numbers', 'key',
-  'epub', 'mobi', 'azw', 'azw3', 'vsd', 'vsdx', 'one', 'pub', 'wpd', 'ai',
+  'epub', 'mobi', 'azw', 'azw3', 'vsd', 'vsdx', 'one', 'pub', 'wpd',
   // Archives / compression
   'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'zst', 'zstd',
   'lz', 'lzma', 'cab', 'tgz', 'tbz', 'tbz2', 'iso', 'dmg', 'jar', 'war',
@@ -53,8 +53,12 @@ const BINARY_EXTENSIONS = new Set<string>([
   // Data / databases
   'sqlite', 'sqlite3', 'db', 'db3', 'mdb', 'accdb',
   'parquet', 'orc', 'avro', 'feather', 'npy', 'npz',
-  // Design (binary / container formats)
-  'sketch', 'fig', 'xd', 'afdesign', 'afphoto',
+  // Design (binary / container formats).
+  // NOTE: '.ai' and '.fig' are deliberately EXCLUDED — they are ambiguous:
+  // legacy Illustrator '.ai' is PostScript/PDF text (like the excluded '.eps'),
+  // and '.fig' can be Xfig plain text, not only Figma. Forcing them to binary
+  // would break editing a text variant, so they stay on the text path.
+  'sketch', 'xd', 'afdesign', 'afphoto',
 ]);
 
 /**
