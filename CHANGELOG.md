@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **New animated onboarding journey (8 chapters) replaces the old first-run wizard.** First-run users step through: Welcome, About You, Files Stay Home, Meet the AI, Choose Your AI, Email, Solo or Firm, and Done. Each chapter has a metaphor scene (SVG animation), reduced-motion support, full keyboard navigation, a guided no-terminal local-AI (Ollama) setup, a described private-search download, and a "Set this up later" path that defers AI setup without blocking. Completing or exiting the journey marks onboarding complete so the overlay never re-shows.
+  - New module: `src/features/onboarding-journey/` (engine: `useJourney`, `progress`, `types`; scenes: `Brain`, `Cloud`, `FilingCabinet`, `House`, `KeyShape`, `Lock`, `PaperPlane`, `Papers`, `ReceiptTag`, `SceneFrame`; chapters: `Ch1Welcome`–`Ch8SeeItWork`, `ChapterLayout`; copy: `strings.ts`; host: `JourneyHost`)
+  - Reuses `src/features/onboarding/` sub-components (ApiKeyWizard, AiSetupReminder, aiSetupState) and the settings mail connectors (MailConnect, MailGmailConnect) as allowlisted cross-feature edges
+  - Wired in `src/App.tsx` (`journeyChapters`, `journeyActions`) replacing GuidedOnboarding/FirstRunWizard
+- **Deferred-AI reminder banner.** When a user chooses "Set this up later" in Ch5, a slim amber banner appears below the trust bar in the main shell (not inside the onboarding overlay). It links directly to the API-key wizard and disappears once a model is connected or the user dismisses it for the session. Dismissal is session-scoped: it returns on next launch until AI is configured.
+  - `src/features/onboarding/AiSetupReminder.tsx` mounted in `src/App.tsx` with `hasModelConnected` from live `apiKeys` state and `onConnect` opening the existing ApiKeyWizard (`setApiKeyWizardOpen`)
+- **"Watch the setup intro again" in Settings.** The Setup checklist (Help section of Settings) now has a "Watch the setup intro again" button. Clicking it replays the full JourneyHost overlay. The `keepance_onboarding_complete` flag is not cleared, so replay is safe: completing or exiting just closes the overlay again.
+  - `src/features/settings/SetupChecklist.tsx` button wired to the existing `onRestartOnboarding` prop (which calls `setShowFirstRun(true)` in App.tsx)
+
+### Changed
+- **Removed GuidedOnboarding and FirstRunWizard.** The previous multi-step first-run wizard is replaced by the animated journey above. The `keepance_onboarding_complete` localStorage key and the `hasCompletedOnboarding()` check are unchanged so existing users are unaffected.
+
+### Added
 - **Automatic test safety net (testing & CI overhaul, second half).** The strong-but-manual test suite now runs on its own.
   - **Nightly server test gate** — a systemd `--user` timer (`scripts/nightly-tests.sh`, 03:30 UTC) runs the heavy suites (full Rust, Vitest, backend Bun, browser E2E, desktop harness) on the server where RAM is fresh, with a git-state guard that logs the exact tested commit (never a false green) and a `--dry-run` mode; it texts Jameson via `notify-jameson` only on failure.
   - **Real-OS nightly benches** — `scripts/nightly-bench-tests.sh` runs `cargo test` on the always-on Windows (Legion) and macOS (M1) machines over Tailscale, parses output (not exit code) for pass/fail, and keeps a soft-fail status file (`~/.local/share/keepance-bench/status.json`) with per-UTC-day offline escalation; a `--check` probe mode is fully side-effect-free.

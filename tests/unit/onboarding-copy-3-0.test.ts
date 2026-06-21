@@ -11,31 +11,40 @@
 import { describe, it, expect } from 'vitest';
 import en from '../../src/locales/en.json';
 
-// Narrow down to the first-run onboarding subtree
-const firstRun = JSON.stringify(en.onboarding['first-run']);
+// The old `first-run` i18n subtree was removed (FIX 6) — it was orphaned
+// copy from the deleted GuidedOnboarding wizard. The new JourneyHost chapters
+// use hard-coded strings in `src/features/onboarding-journey/copy/strings.ts`.
+//
+// These tests now verify that the `onboarding` namespace as a whole (which
+// still contains disk-encryption, api-key-card, etc.) does not regress back
+// to v2 markdown-editor copy.
+
+// Stringify the entire onboarding namespace (no first-run subtree exists).
+const onboardingCopy = JSON.stringify(en.onboarding);
 
 describe('onboarding copy matches 3.0 positioning', () => {
-  it('first-run copy never mentions markdown', () => {
-    expect(firstRun.toLowerCase()).not.toContain('markdown');
+  it('first-run key is removed (orphaned i18n cleanup)', () => {
+    // The 'first-run' subtree was removed; verifying it no longer exists.
+    expect('first-run' in en.onboarding).toBe(false);
   });
 
-  it('welcome subtitle is the 3.0 story, not chat-to-file', () => {
-    expect(firstRun).not.toContain('every chat becomes a real file');
+  it('onboarding namespace copy never mentions markdown', () => {
+    expect(onboardingCopy.toLowerCase()).not.toContain('markdown');
   });
 
-  it('demo step does not promise markdown outputs', () => {
-    expect(firstRun.toLowerCase()).not.toContain('editable markdown');
+  it('onboarding namespace copy does not contain old chat-to-file promise', () => {
+    expect(onboardingCopy).not.toContain('every chat becomes a real file');
   });
 
-  it('welcome body does not describe a markdown editor', () => {
-    expect(firstRun.toLowerCase()).not.toContain('markdown editor');
+  it('onboarding namespace copy does not promise markdown outputs', () => {
+    expect(onboardingCopy.toLowerCase()).not.toContain('editable markdown');
   });
 
-  it('workspace body does not mention "plain markdown files"', () => {
-    expect(firstRun.toLowerCase()).not.toContain('plain markdown');
+  it('onboarding namespace copy does not describe a markdown editor', () => {
+    expect(onboardingCopy.toLowerCase()).not.toContain('markdown editor');
   });
 
-  it('demo outcome does not promise markdown files', () => {
-    expect(firstRun.toLowerCase()).not.toContain('markdown files');
+  it('onboarding namespace copy does not mention "plain markdown files"', () => {
+    expect(onboardingCopy.toLowerCase()).not.toContain('plain markdown');
   });
 });

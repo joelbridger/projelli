@@ -53,7 +53,7 @@ src/
 │   ├── ask/                     #   Ask + AIChatViewer + useChatSending + citations + attachments
 │   ├── documents/               #   DocumentsHome + editors + ooxml/spreadsheet viewers (media/) + workspace/ file nav
 │   ├── workflows/               #   AssociateHome + WorkflowEngine + templates (legal/tax/consulting/advisors) + marketplace
-│   ├── email/  matters/  firm/  settings/  audit/  onboarding/  dictation/  account/
+│   ├── email/  matters/  firm/  settings/  audit/  onboarding/  onboarding-journey/  dictation/  account/
 │
 ├── platform/                    # cross-cutting capabilities (by domain)
 │   ├── providers/               #   model adapters (Claude/OpenAI/Gemini/Ollama), keychain
@@ -91,6 +91,45 @@ Layer sizes (≈): app 33 · features 279 · platform 179 · ui 34 · lib 4.
 - **Adding a new product surface?** Create `src/features/<surface>/`, depend on
   platform/ui/lib, and wire it into the shell in `src/app/`. If two features need
   the same thing, it belongs in `platform/`, not copied or cross-imported.
+
+## `src/features/onboarding-journey/` — the animated first-run journey
+
+The animated 8-chapter first-run experience that replaced GuidedOnboarding/FirstRunWizard (2026-06).
+
+```
+onboarding-journey/
+├── JourneyHost.tsx          # full-screen overlay that hosts the journey; mounted in App.tsx
+│                            #   - accepts chapters[], journeyActions, onComplete, onExit
+│                            #   - on replay (from Settings): closing just hides overlay;
+│                            #     onboarding_complete flag stays true
+├── engine/
+│   ├── useJourney.ts        # chapter progression state machine (current/next/back/skip)
+│   ├── progress.ts          # read/write keepance_journey_progress from localStorage
+│   └── types.ts             # Chapter, JourneyData, JourneyActions interfaces
+├── scenes/                  # SVG metaphor scenes (one per chapter)
+│   ├── SceneFrame.tsx       # reduced-motion wrapper; applies @keyframes from sceneKeyframes.css
+│   ├── Brain/Cloud/FilingCabinet/House/KeyShape/Lock/PaperPlane/Papers/ReceiptTag.tsx
+│   └── sceneKeyframes.css   # keyframe definitions (honors prefers-reduced-motion)
+├── chapters/                # one file per chapter (Ch1–Ch8) + shared layout
+│   ├── ChapterLayout.tsx    # two-column layout: scene left, copy + actions right
+│   ├── Ch1Welcome.tsx       # welcome / brand intro
+│   ├── Ch2AboutYou.tsx      # profession + display name (reuses onboarding sub-components)
+│   ├── Ch3FilesStayHome.tsx # local-first explainer + workspace folder picker
+│   ├── Ch4MeetTheAI.tsx     # what AI does in Keepance
+│   ├── Ch5ChooseYourBrain.tsx # cloud key | local (Ollama guided setup) | defer
+│   ├── Ch5LocalSetup.tsx    # Ollama download + model pull walkthrough
+│   ├── Ch6Email.tsx         # email connector (reuses settings/MailConnect, MailGmailConnect)
+│   ├── Ch7SoloOrFirm.tsx    # solo vs. firm mode selector
+│   └── Ch8SeeItWork.tsx     # done screen + addSamples opt-in
+└── copy/
+    └── strings.ts           # all user-visible strings for the journey (no i18n yet)
+```
+
+**Allowlisted cross-feature edges (the two permitted feature→feature imports):**
+- `features/onboarding-journey` may import from `features/onboarding/` (ApiKeyWizard, AiSetupReminder, aiSetupState) — both are first-run surfaces owned by the same conceptual domain.
+- `features/onboarding-journey/Ch6Email` may import from `features/settings/` (MailConnect, MailGmailConnect) — email connector UI is SSOT in settings; the journey reuses it directly rather than duplicating.
+
+**Replay from Settings:** `src/features/settings/SetupChecklist.tsx` has a "Watch the setup intro again" button wired to `onRestartOnboarding` → `setShowFirstRun(true)` in `App.tsx`. Replay is safe: the `keepance_onboarding_complete` flag is never cleared, so `onComplete`/`onExit` from a replay both simply close the overlay.
 
 ## History
 

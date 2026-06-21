@@ -32,7 +32,13 @@ import { manualUpdateCheck } from '@/platform/updater/UpdateManager';
 import { openExternal } from '@/platform/utils/openExternal';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
-import { GuidedOnboarding } from '@/features/onboarding/GuidedOnboarding';
+import { AiSetupReminder } from '@/features/onboarding/AiSetupReminder';
+import { JourneyHost } from '@/features/onboarding-journey/JourneyHost';
+import { journeyChapters } from '@/features/onboarding-journey/chapters';
+import { persistProfessionModelDefault } from '@/platform/profile/professionModel';
+import { writeSampleFiles } from '@/platform/matter/samples';
+import { useProfileStore } from '@/platform/profile/profileStore';
+import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 import {
   createKeychainService,
   migrateLocalStorageApiKeysToKeychain,
@@ -49,6 +55,7 @@ import { useEditorStore } from '@/platform/state/editorStore';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
+import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactory';
 import type { TrashedItem } from '@/platform/history/TrashService';
 
 import type { AuditEntry } from '@/platform/types/audit';
@@ -130,6 +137,7 @@ function App() {
   // workspace (matching the wizard's documented first-run condition), and
   // suppressed in test/demo modes. `?forceOnboarding=true` forces it for QA.
   const [showFirstRun, setShowFirstRun] = useState(false);
+  const [onboardingReplay, setOnboardingReplay] = useState(false);
 
   // Anonymous telemetry: emit one app_launch event per session, gated
   // by user consent. Other lifecycle events (trial_start, trial_end,
@@ -1053,40 +1061,140 @@ This file contains rules and guidelines for AI assistants in this workspace.
   });
 
   // Show workspace selector if no workspace is open (unless in test mode).
-  // Keepance 3.0: the rebuilt first-run wizard is the live first-run surface.
-  // It renders as a full-screen overlay (fixed inset-0 z-50) layered OVER
-  // whatever is behind it — most often the WorkspaceSelector, since first run
-  // happens before a workspace is chosen — so the existing path-input vs
-  // file-picker flow is preserved underneath. We build it once here and render
-  // it in both the WorkspaceSelector branch and the main app branch so it shows
-  // regardless of which one is active (e.g. ?forceOnboarding with a workspace
-  // already open). It supersedes the old WelcomeOnboardingDialog, which only
-  // had the email/telemetry consent step; the wizard owns the welcome moment
-  // now. `onComplete` (the wizard's markComplete) sets
-  // `keepance_onboarding_complete`; on skip we set the same flag so first-run
-  // never re-prompts. The Feature Tour then auto-shows as it does today.
+  // The animated JourneyHost is the live first-run surface. It renders as a
+  // full-screen overlay layered OVER the WorkspaceSelector (which handles the
+  // workspace-folder pick underneath). The same trigger conditions as before;
+  // only what renders has changed. `onComplete` / `onExit` both set the
+  // keepance_onboarding_complete flag so the overlay never re-prompts.
+  // The Feature Tour auto-shows afterward as it did before.
+
+  // JourneyHost actions — wired to the same real App handlers GuidedOnboarding used.
+  const journeyActions = useMemo(() => ({
+    // saveApiKey: stores in OS keychain AND refreshes live model list state —
+    // exactly the same path as handleSaveOnboardingApiKey.
+    saveApiKey: handleSaveOnboardingApiKey,
+
+    // setConfidentialityMode: writes to the settings store (persisted to
+    // localStorage via the settings schema) — the same store TrustBar reads.
+    setConfidentialityMode: (mode: import('@/platform/privacy/egress').ConfidentialityMode) => {
+      useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, mode);
+    },
+
+    // chooseWorkspaceFolder: opens the native folder picker (same plugin path
+    // WorkspaceSelector uses), builds the real WorkspaceService for that path,
+    // and calls handleWorkspaceSelected so the picked folder is immediately
+    // the active workspace (Ch3 can display the path while the rest of the
+    // journey plays out). Returns the path string or null on cancel/error.
+    chooseWorkspaceFolder: async (): Promise<string | null> => {
+      try {
+        const isTauri = isTauriEnvironment();
+        if (isTauri) {
+          const { open } = await import('@tauri-apps/plugin-dialog');
+          const selectedPath = await open({
+            directory: true,
+            multiple: false,
+            title: 'Select Workspace Folder',
+          });
+          if (typeof selectedPath !== 'string') return null;
+          const backend = await createFSBackend(selectedPath);
+          const service = createWorkspaceService();
+          await service.initialize(backend, selectedPath);
+          await handleWorkspaceSelected(service);
+          return selectedPath;
+        } else {
+          // Browser env: use the Web File System Access API directory picker,
+          // mirroring WorkspaceSelector's browser path exactly.
+          const webBackend = createWebFSBackend();
+          const handle = await webBackend.openDirectoryPicker();
+          const rootPath = '/' + handle.name;
+          const service = createWorkspaceService();
+          await service.initialize(webBackend, rootPath);
+          await handleWorkspaceSelected(service);
+          return rootPath;
+        }
+      } catch {
+        // Picker cancelled or unavailable — return null so Ch3 stays put.
+        return null;
+      }
+    },
+  }), [handleSaveOnboardingApiKey, handleWorkspaceSelected]);
+
   const firstRunOverlay = showFirstRun ? (
-    <GuidedOnboarding
-      onSaveKey={handleSaveOnboardingApiKey}
-      {...(workspaceServiceRef.current
-        ? { workspace: workspaceServiceRef.current }
-        : {})}
-      onComplete={(opts) => {
+    <JourneyHost
+      chapters={journeyChapters}
+      actions={journeyActions}
+      onComplete={async (data) => {
+        if (onboardingReplay) {
+          // Replay: just close the overlay, no destructive writes.
+          setOnboardingReplay(false);
+          setShowFirstRun(false);
+          return;
+        }
+
+        // Map 'financial' (journey profession) -> 'advisor' (samples/model type)
+        // for full compatibility. Compute once and reuse for both the model
+        // default and the sample files so both callers see the same value.
+        const mappedProfession = data.profession === 'financial' ? 'advisor' : data.profession;
+
+        // Persist profession model default for non-cloud users (skip/local). For
+        // cloud users the provider they connected in Ch5 is already stored; we
+        // must not override it. So only call when aiChoice isn't 'cloud'.
+        if (mappedProfession && data.aiChoice !== 'cloud') {
+          persistProfessionModelDefault(mappedProfession);
+        }
+
+        // Persist display name + photo via profileStore (same store IdentityStep
+        // and GuidedOnboarding's Step 2 wrote to directly).
+        if (data.displayName) {
+          useProfileStore.getState().setSoloName(data.displayName);
+        }
+        if (data.photoDataUrl) {
+          useProfileStore.getState().setSoloAvatar(data.photoDataUrl);
+        }
+
+        // Create sample matters if the user opted in and we have a workspace.
+        // Await with try/catch so a silent write failure does NOT navigate the
+        // user to an empty sample matter (matches old GuidedOnboarding behavior).
+        const sampleProfession = mappedProfession ?? 'other';
+        let didWriteSamples = false;
+        if ((data.addSamples ?? true) && workspaceServiceRef.current && rootPath) {
+          try {
+            await writeSampleFiles(workspaceServiceRef.current, sampleProfession);
+            didWriteSamples = true;
+          } catch (err) {
+            console.warn('[App] journey sample copy failed:', err instanceof Error ? err.message : String(err));
+          }
+        }
+
+        // Mark complete and close the overlay.
+        localStorage.setItem('keepance_onboarding_complete', 'true');
         setShowFirstRun(false);
-        if (opts?.writeSamples && rootPath) {
+
+        // Navigate to a useful starting surface.
+        if (didWriteSamples && rootPath) {
           try {
             const sampleMatter = getOrCreateSampleMatter(rootPath);
             useMatterStore.getState().setActiveMatter(sampleMatter.id);
             setSidebarActiveTab('search');
           } catch (err) {
-            console.warn('[App] sample-matter post-onboarding setup failed:', err instanceof Error ? err.message : String(err));
-            // Landing on Matters ensures the Get-started card is visible.
+            console.warn('[App] sample-matter post-journey setup failed:', err instanceof Error ? err.message : String(err));
             setSidebarActiveTab('matters');
           }
         } else {
-          // No samples written: land on Matters so the Get-started card is visible.
           setSidebarActiveTab('matters');
         }
+      }}
+      onExit={(_data) => {
+        if (onboardingReplay) {
+          // Replay: just close the overlay, no destructive writes.
+          setOnboardingReplay(false);
+          setShowFirstRun(false);
+          return;
+        }
+        // User skipped — mark complete so the overlay never re-prompts.
+        localStorage.setItem('keepance_onboarding_complete', 'true');
+        setShowFirstRun(false);
+        setSidebarActiveTab('matters');
       }}
     />
   ) : null;
@@ -1096,22 +1204,26 @@ This file contains rules and guidelines for AI assistants in this workspace.
     const canDismiss = Boolean(rootPath);
     return (
       <>
-        {/* One-time embedding-model download banner: mounted here as well as
-            in the main shell (same both-branches pattern as firstRunOverlay
-            below — the branches are exclusive, so only one instance ever
-            exists). Mounting runs useModelStatus's probe, so a brand-new
-            user's download starts during onboarding rather than after it,
-            and returning to the selector mid-download keeps the progress
-            visible. The selector is a fixed full-viewport page (z-50), so
-            the banner needs its own fixed top-of-screen layer above it. */}
-        <div className="fixed inset-x-0 top-0 z-[60]">
-          <ModelDownloadCard />
+        {/* Background content: inert when the onboarding overlay is open so
+            keyboard/screen-reader focus is trapped inside the JourneyHost. */}
+        <div {...(showFirstRun ? { inert: '' } : {})}>
+          {/* One-time embedding-model download banner: mounted here as well as
+              in the main shell (same both-branches pattern as firstRunOverlay
+              below — the branches are exclusive, so only one instance ever
+              exists). Mounting runs useModelStatus's probe, so a brand-new
+              user's download starts during onboarding rather than after it,
+              and returning to the selector mid-download keeps the progress
+              visible. The selector is a fixed full-viewport page (z-50), so
+              the banner needs its own fixed top-of-screen layer above it. */}
+          <div className="fixed inset-x-0 top-0 z-[60]">
+            <ModelDownloadCard />
+          </div>
+          <WorkspaceSelector
+            open={true}
+            onWorkspaceSelected={handleWorkspaceSelected}
+            onDismiss={canDismiss ? () => setShowWorkspaceSelector(false) : undefined}
+          />
         </div>
-        <WorkspaceSelector
-          open={true}
-          onWorkspaceSelected={handleWorkspaceSelected}
-          onDismiss={canDismiss ? () => setShowWorkspaceSelector(false) : undefined}
-        />
         {firstRunOverlay}
       </>
     );
@@ -1144,6 +1256,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
     }
   };
   const handleSettingsRestartOnboarding = () => {
+    setOnboardingReplay(true);
     setShowFirstRun(true);
   };
 
@@ -1151,7 +1264,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
   const currentProjectName = rootPath?.split('/').pop() ?? 'Unnamed Project';
 
   return (
-    <div className="h-screen flex flex-col bg-background text-foreground" data-testid="app-container">
+    <>
+    <div
+      className="h-screen flex flex-col bg-background text-foreground"
+      data-testid="app-container"
+      {...(showFirstRun ? { inert: '' } : {})}
+    >
       {/* Accessibility: skip link so keyboard users can bypass the nav */}
       <a
         href="#main-content"
@@ -1258,6 +1376,16 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
       {/* The hero Trust Bar (elevated egress + matter scope). */}
       <TrustBar />
+
+      {/* Deferred-AI reminder — shown as a slim banner below the trust bar
+          when the user chose "Set this up later" in onboarding and has not
+          yet connected a model. Hidden once connected or session-dismissed.
+          onConnect opens the existing API-key wizard (same as the gear
+          icon's "Manage AI Account Keys" path). */}
+      <AiSetupReminder
+        hasModelConnected={apiKeys.some((k) => k.isValid)}
+        onConnect={() => { setApiKeyWizardOpen(true); }}
+      />
 
       {/* Main content area */}
       <div id="main-content" className="flex-1 flex overflow-hidden">
@@ -1395,6 +1523,8 @@ This file contains rules and guidelines for AI assistants in this workspace.
         setShowWhatsNewModalDirect={setShowWhatsNewModalDirect}
       />
     </div>
+    {firstRunOverlay}
+    </>
   );
 }
 

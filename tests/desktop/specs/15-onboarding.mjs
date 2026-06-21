@@ -1,11 +1,16 @@
 /**
- * 15-onboarding — real first-run GuidedOnboarding path.
+ * 15-onboarding — first-run JourneyHost onboarding path (new 8-chapter flow).
  *
  * This intentionally does NOT use app.bootToWorkspace(), because that helper
  * seeds localStorage and bypasses the first-run onboarding gate. The journey
- * starts from a fresh desktop profile, completes onboarding without adding an
- * AI key, then verifies the real headless blocker: workspace creation/opening
- * requires Tauri's native folder picker, which WebDriver cannot select from.
+ * starts from a fresh desktop profile and walks the full 8-chapter flow.
+ *
+ * Ch3 requires a native folder picker (Tauri plugin-dialog) which WebDriver
+ * cannot interact with. The spec clicks ch3-choose-folder to open it, then
+ * waits: if the native dialog is resolved by the test environment it will
+ * proceed; otherwise the spec notes the limitation and continues from the
+ * fallback path (chapter-continue without a chosen folder is blocked by
+ * Ch3's canAdvance gate, so the spec skips to the workspace selector step).
  */
 
 export default {
@@ -15,65 +20,68 @@ export default {
 
     // The underlying first-run workspace selector should paint immediately.
     await session.testid('workspace-selector-dialog', 30_000);
-    await session.testid('welcome-dialog-pitch', 30_000);
 
-    // App mounts GuidedOnboarding over the workspace selector after a short
-    // first-run delay. The frame is the stable first-run root; individual
-    // welcome copy is asserted as visible text because older blind specs used a
-    // guessed step id here.
-    await session.testid('guided-onboarding-frame', 45_000);
-    await session.waitForBodyText('Your private intelligence layer', { timeoutMs: 15_000 });
-    await session.testid('onboarding-next-welcome', 15_000);
-    await session.clickTestid('onboarding-next-welcome', 15_000);
+    // App mounts JourneyHost over the workspace selector after a short
+    // first-run delay. Ch1 is the welcome chapter.
+    await session.testid('ch1-root', 45_000);
 
-    await session.testid('onboarding-step-profession', 15_000);
-    await session.waitForBodyText('What kind of work do you do?', { timeoutMs: 15_000 });
-    await session.testid('profession-card-legal', 15_000);
-    await session.clickTestid('profession-card-legal', 15_000);
-    await session.clickTestid('onboarding-next-profession', 15_000);
+    // Ch1 — Welcome: click Continue
+    await session.clickTestid('chapter-continue', 15_000);
 
-    await session.testid('onboarding-step-identity', 15_000);
-    await session.testid('onboarding-identity-name', 15_000);
-    await session.testid('onboarding-identity-file', 15_000);
-    await session.clickTestid('onboarding-identity-next', 15_000);
+    // Ch2 — About You: pick profession + enter name, then continue
+    await session.testid('ch2-root', 15_000);
+    await session.clickTestid('ch2-profession-legal', 15_000);
+    // Type a display name into ch2-display-name
+    const nameInput = await session.testid('ch2-display-name', 10_000);
+    if (nameInput) {
+      await nameInput.type('Test Attorney');
+    }
+    await session.clickTestid('chapter-continue', 15_000);
 
-    await session.testid('onboarding-step-workspace', 15_000);
-    await session.testid('workspace-choice-documents', 15_000);
-    await session.clickTestid('onboarding-workspace-next', 15_000);
+    // Ch3 — Files Stay Home: open folder picker (may block on native dialog)
+    await session.testid('ch3-root', 15_000);
+    await session.clickTestid('ch3-choose-folder', 10_000);
+    // On a real desktop, the native folder picker opens here. We check if the
+    // chosen-path indicator appears (it does when a folder is selected). If
+    // not, we proceed to the workspace selector fallback below.
+    const folderChosen = await session.hasTestid('ch3-chosen-path', 8_000);
+    if (folderChosen) {
+      await session.clickTestid('chapter-continue', 15_000);
 
-    await session.testid('onboarding-step-trust', 15_000);
-    await session.testid('onboarding-trust-open-data-map', 15_000);
-    await session.clickTestid('onboarding-data-continue', 15_000);
+      // Ch4 — Meet the AI: informational, just continue
+      await session.testid('ch4-root', 15_000);
+      await session.clickTestid('chapter-continue', 15_000);
 
-    await session.testid('onboarding-step-ai-key', 15_000);
-    await session.testid('ai-setup-step', 15_000);
-    await session.testid('ai-path-own-account', 15_000);
-    await session.testid('ai-path-local', 15_000);
-    await session.clickTestid('ai-path-later', 15_000);
+      // Ch5 — Choose Your Brain: click "Set up later" then wrap continue
+      await session.testid('ch5-root', 15_000);
+      await session.clickTestid('ch5-card-later', 15_000);
+      await session.testid('ch5-wrap-continue', 15_000);
+      await session.clickTestid('ch5-wrap-continue', 15_000);
 
-    await session.testid('onboarding-step-email', 20_000);
-    await session.testid('email-tab-m365', 15_000);
-    await session.testid('email-connect-later', 15_000);
-    await session.clickTestid('onboarding-email-continue', 15_000);
+      // Ch6 — Email: skip connecting
+      await session.testid('ch6-root', 20_000);
+      await session.clickTestid('ch6-connect-later', 15_000);
 
-    await session.testid('onboarding-step-firm', 15_000);
-    await session.waitForBodyText('How do you practice?', { timeoutMs: 15_000 });
-    await session.testid('firm-option-create', 15_000);
-    await session.testid('firm-option-join', 15_000);
-    await session.testid('firm-option-solo', 15_000);
-    await session.testid('onboarding-firm-continue', 15_000);
-    await session.clickTestid('firm-solo-skip', 15_000);
+      // Ch7 — Solo or Firm: solo is default, just continue
+      await session.testid('ch7-root', 15_000);
+      await session.clickTestid('chapter-continue', 15_000);
 
-    await session.testid('onboarding-step-done', 15_000);
-    await session.testid('onboarding-samples-toggle', 15_000);
-    await session.testid('onboarding-done-no-ai-note', 15_000);
-    await session.clickTestid('onboarding-done-confirm', 15_000);
+      // Ch8 — See It Work (final chapter): verify samples toggle, then finish
+      await session.testid('ch8-root', 15_000);
+      await session.testid('ch8-samples-toggle', 15_000);
+      await session.clickTestid('chapter-continue', 15_000);
 
-    // On a real desktop first run, completing onboarding leaves the user at the
-    // workspace selector until they choose or create a folder. Both available
-    // controls call @tauri-apps/plugin-dialog.open(), which opens a native
-    // folder picker outside the WebDriver-controlled webview. Other desktop
-    // specs use app.seedReadyState()/app.bootToWorkspace() to bypass this.
+      // After onboarding completes, the overlay closes and the user is left
+      // at their workspace (or the workspace selector if no folder was open).
+      if (await session.hasTestid('spine-nav', 10_000)) {
+        await session.testid('status-bar', 15_000);
+        return;
+      }
+    }
+
+    // If we reach here, either Ch3's native picker blocked or we ended up
+    // back at the workspace selector. That is the expected outcome on a real
+    // desktop first run when Tauri's native folder picker can't be automated.
     await session.testid('workspace-selector-dialog', 30_000);
     await session.testid('open-existing-workspace', 15_000);
     await session.testid('new-workspace', 15_000);
@@ -85,9 +93,11 @@ export default {
     }
 
     throw new Error(
-      'BLOCKED: needs a headless way to satisfy Tauri native folder selection after first-run onboarding. ' +
-      'The real controls data-testid="open-existing-workspace" and data-testid="new-workspace" call the OS folder picker, ' +
-      'which WebDriver cannot choose from; app.seedReadyState()/app.bootToWorkspace() is the bypass used by non-onboarding specs.',
+      'BLOCKED: Ch3 requires Tauri native folder selection (ch3-choose-folder -> OS dialog) ' +
+      'which WebDriver cannot interact with. ' +
+      'The real controls data-testid="open-existing-workspace" and data-testid="new-workspace" ' +
+      'are visible but call the OS folder picker. ' +
+      'Use app.seedReadyState()/app.bootToWorkspace() for specs that need a workspace.',
     );
   },
 };

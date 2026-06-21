@@ -154,7 +154,7 @@ test('Task 1: first run wizard to workspace', async ({ page }, testInfo) => {
     await page.getByRole('button', { name: 'Other options' }).click();
     await page.getByTestId('ai-path-later').click();
   }
-  await page.getByTestId('first-run-samples-toggle').waitFor({ state: 'visible', timeout: 5000 });
+  await page.getByTestId('ch8-samples-toggle').waitFor({ state: 'visible', timeout: 5000 });
   await dump(page, 't1-demo-step');
   await snap(page, testInfo, 't1-10-first-workflow-step');
 

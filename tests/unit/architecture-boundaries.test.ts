@@ -45,6 +45,8 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'settings->email',      // mail-account settings
   'settings->onboarding', // settings can relaunch onboarding flows
   'settings->workflows',  // settings hosts the templates marketplace tab
+  'onboarding-journey->onboarding', // journey chapters reuse onboarding sub-components (ApiKeyTester, ApiKeyExplainer, ProviderTutorialSteps, useProfessionCopy, aiSetupState)
+  'onboarding-journey->settings',   // Ch6Email mounts the real MailConnect / MailGmailConnect / MailImapConnect from settings (same pattern as GuidedOnboarding's email step)
 ]);
 
 function walk(dir: string, acc: string[] = []): string[] {
