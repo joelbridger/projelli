@@ -49,6 +49,17 @@ class MemFS implements VersionFS {
   async delete(path: string): Promise<void> {
     this.files.delete(this.key(path));
   }
+  async list(path: string): Promise<Array<{ name: string }>> {
+    const dirKey = this.key(path).replace(/\/+$/, '');
+    const prefix = dirKey === '' ? '' : `${dirKey}/`;
+    const names = new Set<string>();
+    for (const k of this.files.keys()) {
+      if (prefix && !k.startsWith(prefix)) continue;
+      const name = (prefix ? k.slice(prefix.length) : k).split('/')[0];
+      if (name) names.add(name);
+    }
+    return [...names].map((name) => ({ name }));
+  }
   getRootPath(): string | null {
     return ROOT;
   }
@@ -110,6 +121,31 @@ describe('BinaryVersionService', () => {
     const v2 = await svc.saveVersionFromBytes('/ws/a.docx', bytes('two'));
     const list = await svc.listVersions('/ws/a.docx');
     expect(list.map((e) => e.id)).toEqual([v2.id, v1.id]);
+  });
+
+  it('rebuilds history from snapshot files when index.json is corrupt (BUG-049a)', async () => {
+    const svc = new BinaryVersionService(fs);
+    await fs.writeFileBinary('/ws/a.docx', bytes('base'));
+    const v1 = await svc.saveVersionFromBytes('/ws/a.docx', bytes('one'));
+    const v2 = await svc.saveVersionFromBytes('/ws/a.docx', bytes('two'));
+    // Corrupt the index (e.g. a crash mid-write left garbage).
+    await fs.writeFile('.versions/a.docx/index.json', 'not valid json {{{');
+
+    const list = await svc.listVersions('/ws/a.docx');
+    const ids = list.map((e) => e.id);
+    // Both snapshots are recovered from the files on disk (not lost to the
+    // corrupt index). NOTE: exact ordering of saves within the same millisecond
+    // can't be recovered from filenames, so we don't assert strict order here.
+    expect(ids).toContain(v1.id);
+    expect(ids).toContain(v2.id);
+    expect(list).toHaveLength(2);
+    // Each recovered entry has a valid (parsed-from-filename) timestamp.
+    for (const e of list) {
+      expect(Number.isNaN(Date.parse(e.timestamp))).toBe(false);
+    }
+    // And a recovered entry can still be restored from its metadata.
+    const restored = await svc.readSnapshotBytes('/ws/a.docx', v1.id);
+    expect(new TextDecoder().decode(restored)).toBe('one');
   });
 
   it('does not lose entries when two snapshots of the same file race (BUG-049)', async () => {

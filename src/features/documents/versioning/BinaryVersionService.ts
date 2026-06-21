@@ -77,6 +77,9 @@ export interface VersionFS {
   readFileBinary(path: string): Promise<ArrayBuffer>;
   writeFileBinary(path: string, content: ArrayBuffer): Promise<void>;
   delete(path: string): Promise<void>;
+  /** List a directory's entries (BUG-049: used to rebuild history from snapshot
+   *  files when the index is corrupt). Satisfied by WorkspaceService.list. */
+  list(path: string): Promise<Array<{ name: string }>>;
   /** Absolute workspace root, used to make paths relative for the layout. */
   getRootPath(): string | null;
 }
@@ -96,6 +99,19 @@ const DEFAULT_MAX_VERSIONS = 50;
  */
 function timestampToFileStamp(iso: string): string {
   return iso.replace(/[:.]/g, '-');
+}
+
+/**
+ * Inverse of `timestampToFileStamp`, for rebuilding the index from snapshot
+ * file names (BUG-049): `2026-06-09T12-30-00-000Z__ab3cd.docx` -> the original
+ * ISO `2026-06-09T12:30:00.000Z`. Falls back to the epoch when the name doesn't
+ * match the expected stamp shape (so a rebuilt entry always has a valid date).
+ */
+function fileStampToTimestamp(snapshotFile: string): string {
+  const base = snapshotFile.split('__')[0] ?? '';
+  const m = base.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/);
+  if (m) return `${m[1]}T${m[2]}:${m[3]}:${m[4]}.${m[5]}Z`;
+  return new Date(0).toISOString();
 }
 
 /** Extract the lowercase extension of a path (no dot), or '' if none. */
@@ -155,22 +171,56 @@ export class BinaryVersionService {
     return `${this.versionDir(filePath)}/${snapshotFile}`;
   }
 
-  /** Read the on-disk index for a file (empty if none / unreadable). */
+  /** Read the on-disk index for a file. On a CORRUPT/invalid index, rebuild it
+   *  from the snapshot files on disk (BUG-049) rather than reporting empty —
+   *  the snapshots are still there, so history shouldn't silently vanish. */
   async readIndex(filePath: string): Promise<VersionIndex> {
     const path = this.indexPath(filePath);
     try {
       if (!(await this.fs.exists(path))) {
-        return { v: 1, entries: [] };
+        // No index yet. Snapshots without an index can exist after a partial
+        // delete / index loss — recover them if any are on disk.
+        return this.rebuildIndexFromSnapshots(filePath);
       }
       const raw = await this.fs.readFile(path);
       const parsed = JSON.parse(raw) as Partial<VersionIndex>;
       if (!parsed || !Array.isArray(parsed.entries)) {
-        return { v: 1, entries: [] };
+        return this.rebuildIndexFromSnapshots(filePath);
       }
       return { v: 1, entries: parsed.entries };
     } catch {
-      // Corrupt or partial index: treat as empty rather than throwing — version
-      // history is best-effort and must never block a save.
+      // Corrupt or partial index (e.g. a crash mid-write): recover the entries
+      // from the snapshot files instead of losing the history. Best-effort —
+      // never throws (version history must not block a save).
+      return this.rebuildIndexFromSnapshots(filePath);
+    }
+  }
+
+  /**
+   * BUG-049: reconstruct the version index from the snapshot files in
+   * `.versions/<relpath>/` when `index.json` is missing or corrupt. Each
+   * snapshot's id/name is the file itself and its timestamp is parsed back from
+   * the filename; size is unknown (no stat) so it's reported as 0. Best-effort:
+   * returns empty if the directory can't be listed (e.g. none exists yet).
+   */
+  private async rebuildIndexFromSnapshots(filePath: string): Promise<VersionIndex> {
+    try {
+      const dir = this.versionDir(filePath);
+      const names = (await this.fs.list(dir))
+        .map((e) => e.name)
+        .filter((n) => n !== INDEX_FILE && !n.startsWith('.'));
+      const entries: BinaryVersionEntry[] = names
+        .map((snapshotFile) => ({
+          id: snapshotFile,
+          timestamp: fileStampToTimestamp(snapshotFile),
+          snapshotFile,
+          size: 0, // unknown after a rebuild (no stat) — not needed to restore
+          author: 'user' as VersionAuthor,
+        }))
+        // Newest first — the timestamp-prefixed filename sorts chronologically.
+        .sort((a, b) => b.snapshotFile.localeCompare(a.snapshotFile));
+      return { v: 1, entries };
+    } catch {
       return { v: 1, entries: [] };
     }
   }
@@ -243,6 +293,11 @@ export class BinaryVersionService {
     // through the write coordinator so concurrent saves can't lose entries.
     await writeCoordinator.enqueue(this.indexPath(filePath), versionIndexRev(), async () => {
       const index = await this.readIndex(filePath);
+      // De-dup by snapshotFile before inserting: the snapshot bytes are written
+      // to disk BEFORE this index update, so if readIndex had to REBUILD from
+      // disk (corrupt/missing index, BUG-049a) it already lists this snapshot as
+      // a placeholder — drop it and insert the accurate entry instead of duping.
+      index.entries = index.entries.filter((e) => e.snapshotFile !== entry.snapshotFile);
       index.entries.unshift(entry);
 
       // Prune oldest beyond the cap — delete both the file and the index entry.
