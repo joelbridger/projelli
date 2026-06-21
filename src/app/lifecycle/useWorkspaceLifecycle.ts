@@ -52,10 +52,24 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
   const handleWorkspaceSelected = useCallback(async (service: WorkspaceService) => {
     // BUG-046: flush any dirty tabs of the OUTGOING workspace to disk BEFORE we
     // clear them — otherwise switching workspaces within the 2s autosave window
-    // silently drops the last edits. Best-effort (never blocks the switch).
+    // silently drops the last edits.
     const outgoing = workspaceServiceRef.current;
     if (outgoing) {
       await flushAllDirtyTabs(outgoing);
+      // Codex review #2: a flush can FAIL (disk/permission) and leave tabs dirty.
+      // Clearing them anyway would silently lose that work, so confirm first
+      // instead of dropping it without warning.
+      const unsaved = useEditorStore
+        .getState()
+        .openTabs.filter((t) => t.isDirty)
+        .map((t) => t.name);
+      if (unsaved.length > 0) {
+        const proceed = window.confirm(
+          `Some open files could not be saved (${unsaved.join(', ')}). ` +
+            `Switching workspaces will lose those unsaved changes. Switch anyway?`,
+        );
+        if (!proceed) return; // abort the switch; keep the current workspace + tabs
+      }
     }
 
     // Save previous workspace's tab state before switching

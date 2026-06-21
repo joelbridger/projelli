@@ -68,6 +68,7 @@ import {
   docxSave,
   isDocxEngineAvailable,
 } from '@/platform/utils/docx-commands';
+import { writeCoordinator } from '@/platform/fs/writeCoordinator';
 import { createProvider, isLocalProviderId, type ChatProviderId } from '@/platform/providers/providerFactory';
 import { useTrialGate } from '@/platform/hooks/useTrial';
 import {
@@ -228,6 +229,9 @@ export function DocxEditor({
   // debounce window can't silently drop the last edit. Cleared once the timer
   // fires normally so a later unmount never double-saves.
   const flushPendingSaveRef = useRef<(() => void) | null>(null);
+  // Monotonic save sequence for the write coordinator (#1) — serializes .docx
+  // saves per path so a slow earlier save can't overwrite a newer one.
+  const docxSaveSeqRef = useRef(0);
   const firstEditFiredRef = useRef(false);
   // WS-A / A5: author of the next save (for the version snapshot). User edits
   // leave it 'user'; an AI redline flips it to 'ai' before scheduling its save.
@@ -323,7 +327,14 @@ export function DocxEditor({
           }
         }
         const wasDirty = isDirtyRef.current;
-        await docxSave(filePath, doc);
+        // BUG-045/#1 (Codex save-path review): route the .docx save through the
+        // per-path write coordinator so two debounced saves of the SAME file
+        // can't land out of order (a slow earlier save overwriting a newer one).
+        // .docx is the primary format, so this is the most important writer to
+        // serialize. The rev only orders/labels; serialization is by enqueue
+        // order (FIFO), so the newest save always wins on disk.
+        const saveRev = (docxSaveSeqRef.current += 1);
+        await writeCoordinator.enqueue(filePath, saveRev, () => docxSave(filePath, doc));
         setLastSavedAt(Date.now());
         setIsDirty(false);
         // WS-A / A5: take a binary-safe version snapshot of the just-written
