@@ -64,6 +64,42 @@ export async function flushTab(path: string, service: WorkspaceService | null = 
 }
 
 /**
+ * Flush a tab that is being CLOSED (Codex review #4). The tab is removed from the
+ * store immediately (synchronously, by closeTab), so if this asynchronous write
+ * then FAILS the edit would be silently lost — there'd be no dirty tab left for
+ * autosave to retry. To prevent that, this captures the tab's full state up
+ * front and, on failure, RE-OPENS the tab (dirty) and warns the user instead of
+ * dropping their work. On success it's a no-op (the tab is already gone).
+ */
+export async function flushTabForClose(
+  path: string,
+  service: WorkspaceService | null = activeService,
+): Promise<void> {
+  if (!service) return;
+  const tab = useEditorStore.getState().openTabs.find((t) => t.path === path);
+  if (!tab || !tab.isDirty) return;
+  // Capture synchronously — the tab is removed right after this hook returns.
+  const { content, name, type } = tab;
+  const rev = tab.rev ?? 0;
+  try {
+    await writeCoordinator.enqueue(path, rev, () => writeTabContentToDisk(service, path, content));
+    useEditorStore.getState().markSaved(path, rev);
+  } catch (err) {
+    console.error('[flushDirtyTabs] close-flush failed; reopening tab', path, err);
+    const store = useEditorStore.getState();
+    if (!store.openTabs.some((t) => t.path === path)) {
+      store.openTab(path, name, content, type);
+      store.updateContent(path, content); // re-mark dirty so autosave keeps retrying
+    }
+    if (typeof window !== 'undefined') {
+      window.alert(
+        `Couldn't save "${name}" while closing it. I've reopened it so you don't lose your changes.`,
+      );
+    }
+  }
+}
+
+/**
  * Flush ALL currently-dirty tabs and wait for every write to land. Call this
  * before a workspace switch or app close. Never throws.
  */

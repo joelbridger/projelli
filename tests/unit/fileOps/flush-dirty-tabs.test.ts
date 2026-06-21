@@ -3,7 +3,7 @@
  * transition (workspace switch / app close) that would otherwise drop it.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { flushAllDirtyTabs, flushTab, setActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
+import { flushAllDirtyTabs, flushTab, flushTabForClose, setActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
 import { useEditorStore, setBeforeTabClose, tabHasUnsavedEdits, isFileOpenInEditor } from '@/platform/state/editorStore';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 
@@ -127,6 +127,32 @@ describe('flushDirtyTabs (BUG-046)', () => {
       await nextTick();
       expect(svc.writeFile).toHaveBeenCalledWith('/ws/c.md', 'c-final');
     } finally {
+      setBeforeTabClose(null);
+      setActiveWorkspaceService(null);
+    }
+  });
+
+  it('flushTabForClose re-opens the tab (dirty) if the save fails after close (Codex #4)', async () => {
+    const svc = mockService();
+    svc.writeFile.mockRejectedValueOnce(new Error('disk full'));
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    setActiveWorkspaceService(svc);
+    setBeforeTabClose((p) => { void flushTabForClose(p); });
+    try {
+      useEditorStore.getState().openFile('/ws/e.md', 'e.md', 'e0');
+      useEditorStore.getState().updateContent('/ws/e.md', 'important edit');
+      useEditorStore.getState().closeTab('/ws/e.md'); // tab removed immediately
+      expect(tab('/ws/e.md')).toBeUndefined();
+      await nextTick();
+      await nextTick();
+      // Save failed → the tab is back, dirty, with the content preserved.
+      const reopened = tab('/ws/e.md');
+      expect(reopened).toBeDefined();
+      expect(reopened?.isDirty).toBe(true);
+      expect(reopened?.content).toBe('important edit');
+      expect(alertSpy).toHaveBeenCalled();
+    } finally {
+      alertSpy.mockRestore();
       setBeforeTabClose(null);
       setActiveWorkspaceService(null);
     }

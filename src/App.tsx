@@ -47,7 +47,7 @@ import { useMemoryWiring } from '@/platform/hooks/useMemoryWiring';
 import { useGlobalFileDrop } from '@/app/shell/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore, setBeforeTabClose } from '@/platform/state/editorStore';
-import { flushTab } from '@/app/fileOps/flushDirtyTabs';
+import { flushTabForClose } from '@/app/fileOps/flushDirtyTabs';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
@@ -1044,7 +1044,9 @@ This file contains rules and guidelines for AI assistants in this workspace.
   // BUG-046: flush a tab to disk just before it's closed (Ctrl+W / X / close-all).
   // closeTab() fires this hook synchronously while the tab still exists.
   useEffect(() => {
-    setBeforeTabClose((path) => { void flushTab(path); });
+    // flushTabForClose re-opens the tab + warns if the save fails after the tab
+    // was removed (BUG-046 #4), so a failed close-flush can't silently lose work.
+    setBeforeTabClose((path) => { void flushTabForClose(path); });
     return () => { setBeforeTabClose(null); };
   }, []);
 
