@@ -284,11 +284,28 @@ export const useMatterStore = create<MatterState>()(
       },
 
       deleteMatter: (id) => {
-        set((state) => ({
-          matters: state.matters.filter((m) => m.id !== id),
-          // If the deleted matter was active, fall back to the all-matters scope.
-          activeMatterId: state.activeMatterId === id ? null : state.activeMatterId,
-        }));
+        set((state) => {
+          // Also drop every per-matter slice so a deleted matter leaves no
+          // orphaned persisted state behind (stale at-a-glance AI cache, saved
+          // UI snapshot, or sync status that would resurface under a recycled id).
+          const snapshots = { ...state.snapshots };
+          const cache = { ...state.cache };
+          const statusByMatterId = { ...state.statusByMatterId };
+          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+          delete snapshots[id];
+          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+          delete cache[id];
+          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+          delete statusByMatterId[id];
+          return {
+            matters: state.matters.filter((m) => m.id !== id),
+            // If the deleted matter was active, fall back to the all-matters scope.
+            activeMatterId: state.activeMatterId === id ? null : state.activeMatterId,
+            snapshots,
+            cache,
+            statusByMatterId,
+          };
+        });
       },
 
       setFolderPaths: (id, folderPaths) => {
@@ -370,7 +387,16 @@ export const useMatterStore = create<MatterState>()(
       },
 
       setActiveMatter: (id) => {
-        set({ activeMatterId: id });
+        // Never activate a missing or archived matter. Doing so would scope AI
+        // retrieval to a hidden matter while the scope picker (which only lists
+        // non-archived matters) shows "All matters" — a confidentiality hazard
+        // in a legal app where the active scope must be obvious. A stale
+        // matter-launch event or old persisted id falls back to all-matters.
+        set((state) => {
+          if (id === null) return { activeMatterId: null };
+          const m = findMatter(id, state.matters);
+          return { activeMatterId: m && !m.archived ? id : null };
+        });
       },
 
       linkFirmMatter: (id, { firmMatterId, orgId, role }) => {
@@ -585,9 +611,25 @@ export function getOrCreateSampleMatter(workspaceRoot: string): Matter {
  * means the explicit cross-matter (`allMatters`) scope. There is never a
  * silent "search everything" — this function makes the choice explicit.
  */
+/**
+ * The active matter ONLY when it exists and is NOT archived. A stale (deleted)
+ * or archived `activeMatterId` resolves to `null`, so no retrieval path can
+ * silently scope to a hidden matter while the scope picker (which lists only
+ * non-archived matters) shows "All matters". This is the single source every
+ * active-matter helper and scope getter funnels through.
+ */
+export function resolveActiveMatter(
+  matters: Matter[],
+  activeMatterId: string | null,
+): Matter | null {
+  const m = findMatter(activeMatterId, matters);
+  return m && !m.archived ? m : null;
+}
+
 export function getActiveScope(): MatterScope {
-  const id = useMatterStore.getState().activeMatterId;
-  return id ? { kind: 'matter', matterId: id } : { kind: 'allMatters' };
+  const { activeMatterId, matters } = useMatterStore.getState();
+  const m = resolveActiveMatter(matters, activeMatterId);
+  return m ? { kind: 'matter', matterId: m.id } : { kind: 'allMatters' };
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -622,7 +664,9 @@ export function useActiveMatterId(): string | null {
  */
 export function useActiveMatter(): Matter | null {
   return useMatterStore(
-    useShallow((s) => findMatter(s.activeMatterId, s.matters) ?? null),
+    // Archived/stale active ids resolve to null so AI/search paths that read
+    // this hook (Quick Ask, Email Ask) never scope to a hidden matter.
+    useShallow((s) => resolveActiveMatter(s.matters, s.activeMatterId)),
   );
 }
 
@@ -631,7 +675,7 @@ export function useActiveMatter(): Matter | null {
  * auto-on behaviour of Privileged Matter Mode.
  */
 export function useActiveMatterPrivileged(): boolean {
-  return useMatterStore((s) => !!findMatter(s.activeMatterId, s.matters)?.privileged);
+  return useMatterStore((s) => !!resolveActiveMatter(s.matters, s.activeMatterId)?.privileged);
 }
 
 /**
@@ -640,10 +684,9 @@ export function useActiveMatterPrivileged(): boolean {
  */
 export function useActiveScope(): MatterScope {
   return useMatterStore(
-    useShallow((s): MatterScope =>
-      s.activeMatterId
-        ? { kind: 'matter', matterId: s.activeMatterId }
-        : { kind: 'allMatters' },
-    ),
+    useShallow((s): MatterScope => {
+      const m = resolveActiveMatter(s.matters, s.activeMatterId);
+      return m ? { kind: 'matter', matterId: m.id } : { kind: 'allMatters' };
+    }),
   );
 }

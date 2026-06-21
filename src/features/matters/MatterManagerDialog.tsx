@@ -557,12 +557,17 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                       size="icon"
                       className="h-8 w-8 shrink-0 text-destructive hover:bg-destructive/10"
                       onClick={() => {
-                        if (m.id === SAMPLE_MATTER_ID) {
-                          const confirmed = window.confirm(
-                            'This removes the sample matter, and the demo questions will stop working. Continue?',
-                          );
-                          if (!confirmed) return;
-                        }
+                        // Always confirm a delete — a matter is a unit of work a
+                        // lawyer doesn't want to lose to a stray click. (The store
+                        // also clears the matter's folder/mail mappings, notes,
+                        // AI cache, and sync state; the files themselves stay on
+                        // disk.)
+                        const message =
+                          m.id === SAMPLE_MATTER_ID
+                            ? 'This removes the sample matter, and the demo questions will stop working. Continue?'
+                            : `Remove the matter "${m.name || m.client || 'this matter'}"? Your files stay on your computer, but this matter's folder and email mappings, notes, and saved state are cleared. This can't be undone.`;
+                        const confirmed = window.confirm(message);
+                        if (!confirmed) return;
                         deleteMatter(m.id);
                       }}
                       aria-label={t('matter.manager.delete')}

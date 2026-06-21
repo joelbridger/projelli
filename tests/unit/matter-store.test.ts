@@ -189,6 +189,37 @@ describe('useMatterStore CRUD', () => {
     expect(useMatterStore.getState().activeMatterId).toBeNull();
   });
 
+  it('deleteMatter also clears the matter\'s snapshot, at-a-glance cache, and sync status', () => {
+    // Codex QA: a deleted matter must not leave orphaned per-matter state behind
+    // (stale AI cache / saved UI snapshot / sync status under a recyclable id).
+    const s = useMatterStore.getState();
+    const m = s.createMatter({ name: 'A', client: 'C' });
+    s.saveSnapshot(m.id, { activeView: 'documents' } as unknown as Parameters<typeof s.saveSnapshot>[1]);
+    s.setEntry(m.id, { summary: 'x', items: [] } as unknown as Parameters<typeof s.setEntry>[1]);
+    s.setStatus(m.id, 'syncing');
+    expect(useMatterStore.getState().snapshots[m.id]).toBeDefined();
+    expect(useMatterStore.getState().cache[m.id]).toBeDefined();
+    expect(useMatterStore.getState().statusByMatterId[m.id]).toBe('syncing');
+
+    useMatterStore.getState().deleteMatter(m.id);
+    expect(useMatterStore.getState().snapshots[m.id]).toBeUndefined();
+    expect(useMatterStore.getState().cache[m.id]).toBeUndefined();
+    expect(useMatterStore.getState().statusByMatterId[m.id]).toBeUndefined();
+  });
+
+  it('setActiveMatter ignores a missing matter id (no silent scope to a ghost)', () => {
+    useMatterStore.getState().setActiveMatter('does-not-exist');
+    expect(useMatterStore.getState().activeMatterId).toBeNull();
+  });
+
+  it('setActiveMatter ignores an archived matter (confidentiality: scope must be visible)', () => {
+    const s = useMatterStore.getState();
+    const m = s.createMatter({ name: 'A', client: 'C' });
+    s.setMatterArchived(m.id, true);
+    s.setActiveMatter(m.id);
+    expect(useMatterStore.getState().activeMatterId).toBeNull();
+  });
+
   it('findMatter ignores unassigned and unknown ids', () => {
     const m = useMatterStore.getState().createMatter({ name: 'A', client: 'C' });
     const matters = useMatterStore.getState().matters;
@@ -213,6 +244,23 @@ describe('active matter -> retrieval scope', () => {
     const m = useMatterStore.getState().createMatter({ name: 'A', client: 'C' });
     useMatterStore.getState().setActiveMatter(m.id);
     expect(getActiveScope()).toEqual({ kind: 'matter', matterId: m.id });
+  });
+
+  it('falls back to all-matters when the active id points at a DELETED matter (defensive)', () => {
+    // Stale persisted id / stale event: getActiveScope must not scope retrieval
+    // to a matter that no longer exists.
+    useMatterStore.setState({ activeMatterId: 'ghost-id' });
+    expect(getActiveScope()).toEqual({ kind: 'allMatters' });
+  });
+
+  it('falls back to all-matters when the active id points at an ARCHIVED matter (defensive)', () => {
+    const s = useMatterStore.getState();
+    const m = s.createMatter({ name: 'A', client: 'C' });
+    s.setMatterArchived(m.id, true);
+    // Force a stale active id directly (setMatterArchived already clears it; this
+    // proves getActiveScope is itself defensive against a leaked archived id).
+    useMatterStore.setState({ activeMatterId: m.id });
+    expect(getActiveScope()).toEqual({ kind: 'allMatters' });
   });
 
   it('resolveMatterIdForPath uses the live store contents', () => {

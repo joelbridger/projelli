@@ -103,6 +103,38 @@ export function valueToCell(value: string): SheetCell | null {
   return { display: value, raw: value };
 }
 
+/**
+ * The formula engine is single-sheet: it only tracks the sheet at
+ * `model.activeSheetIndex`. When the user edits a DIFFERENT sheet (e.g. they
+ * switched to sheet 2 in the tab bar), make that sheet the engine's target and
+ * rebuild the engine from it. Without this, an edit to any but the first sheet
+ * skipped formula recalculation, so dependent formulas on sheets 2+ showed —
+ * and saved — stale values. No-op for engine-less models (CSV / no formulas)
+ * and for edits to the already-active sheet (those use the incremental path).
+ */
+function retargetEngineToEditedSheet(
+  next: SheetModel,
+  sheetIndex: number,
+  sheet: SheetData
+): void {
+  // Already targeting this sheet with a live engine — keep the incremental path.
+  if (sheetIndex === next.activeSheetIndex && next.engine) return;
+  next.activeSheetIndex = sheetIndex;
+  // Build (or rebuild) an engine for the edited sheet whenever it has formulas —
+  // even when the workbook's FIRST sheet had none (the parser only seeds an
+  // engine from the initially-active sheet), so recalc works on every sheet.
+  if (next.engine || sheetHasFormula(sheet)) {
+    next.engine = new SheetEngine(sheet);
+  }
+}
+
+/** True when any cell on the sheet carries a formula. */
+function sheetHasFormula(sheet: SheetData): boolean {
+  return sheet.rows.some((row) =>
+    row.some((cell) => cell?.formula != null && cell.formula !== '')
+  );
+}
+
 export function setCellValue(
   model: SheetModel,
   sheetIndex: number,
@@ -112,6 +144,8 @@ export function setCellValue(
   const next = cloneModel(model);
   const sheet = next.sheets[sheetIndex];
   if (!sheet) return next;
+  // Make the engine track the sheet being edited before we recompute formulas.
+  retargetEngineToEditedSheet(next, sheetIndex, sheet);
 
   // Ensure the row exists and is padded to the sheet's column count.
   while (sheet.rows.length <= pos.row) {
@@ -127,11 +161,11 @@ export function setCellValue(
 
   sheet.columnCount = Math.max(sheet.columnCount, pos.col + 1);
 
-  // If the workbook has a live engine and we're editing the active sheet,
-  // tell the engine about the edit so any dependent formula cells get
-  // recomputed. The engine returns a patch list — apply each patch back
-  // onto the cloned sheet so the UI renders fresh values.
-  if (next.engine && sheetIndex === next.activeSheetIndex) {
+  // If the workbook has a live engine (now targeting the edited sheet, per
+  // retargetEngineToEditedSheet above), tell it about the edit so any dependent
+  // formula cells get recomputed. The engine returns a patch list — apply each
+  // patch back onto the cloned sheet so the UI renders fresh values.
+  if (next.engine) {
     let rawValue: number | string | boolean | null;
     let formulaStr: string | undefined;
     if (newCell) {
@@ -204,10 +238,15 @@ export function insertRow(
   // Rebuild the engine — row indices shifted so formula references to rows
   // at or below the insertion point would be off by one. Simplest correct
   // behavior is a fresh build from the new SheetData.
-  if (sheetIndex === next.activeSheetIndex) {
+  // Make the edited sheet the engine's target (it's single-sheet) and rebuild
+  // it from the shifted data, so structural edits + formula references stay
+  // correct on ANY sheet — not only the first. Snapshot the recomputed values
+  // back into the sheet so the grid and the serialized file reflect the
+  // post-shift formula results (not stale cached displays).
+  next.activeSheetIndex = sheetIndex;
+  if (next.engine || sheetHasFormula(sheet)) {
     next.engine = new SheetEngine(sheet);
-  } else if (next.engine === undefined) {
-    delete next.engine;
+    next.engine.snapshotInto(sheet);
   }
   return next;
 }
@@ -242,10 +281,15 @@ export function insertCol(
     return m;
   });
 
-  if (sheetIndex === next.activeSheetIndex) {
+  // Make the edited sheet the engine's target (it's single-sheet) and rebuild
+  // it from the shifted data, so structural edits + formula references stay
+  // correct on ANY sheet — not only the first. Snapshot the recomputed values
+  // back into the sheet so the grid and the serialized file reflect the
+  // post-shift formula results (not stale cached displays).
+  next.activeSheetIndex = sheetIndex;
+  if (next.engine || sheetHasFormula(sheet)) {
     next.engine = new SheetEngine(sheet);
-  } else if (next.engine === undefined) {
-    delete next.engine;
+    next.engine.snapshotInto(sheet);
   }
   return next;
 }
@@ -274,10 +318,15 @@ export function deleteRow(
       return m;
     });
 
-  if (sheetIndex === next.activeSheetIndex) {
+  // Make the edited sheet the engine's target (it's single-sheet) and rebuild
+  // it from the shifted data, so structural edits + formula references stay
+  // correct on ANY sheet — not only the first. Snapshot the recomputed values
+  // back into the sheet so the grid and the serialized file reflect the
+  // post-shift formula results (not stale cached displays).
+  next.activeSheetIndex = sheetIndex;
+  if (next.engine || sheetHasFormula(sheet)) {
     next.engine = new SheetEngine(sheet);
-  } else if (next.engine === undefined) {
-    delete next.engine;
+    next.engine.snapshotInto(sheet);
   }
   return next;
 }
@@ -314,10 +363,15 @@ export function deleteCol(
       return m;
     });
 
-  if (sheetIndex === next.activeSheetIndex) {
+  // Make the edited sheet the engine's target (it's single-sheet) and rebuild
+  // it from the shifted data, so structural edits + formula references stay
+  // correct on ANY sheet — not only the first. Snapshot the recomputed values
+  // back into the sheet so the grid and the serialized file reflect the
+  // post-shift formula results (not stale cached displays).
+  next.activeSheetIndex = sheetIndex;
+  if (next.engine || sheetHasFormula(sheet)) {
     next.engine = new SheetEngine(sheet);
-  } else if (next.engine === undefined) {
-    delete next.engine;
+    next.engine.snapshotInto(sheet);
   }
   return next;
 }

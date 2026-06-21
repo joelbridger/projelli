@@ -305,20 +305,37 @@ describe('MatterManagerDialog — B1 sample badge + guarded delete', () => {
     confirmSpy.mockRestore();
   });
 
-  it('deletes a normal matter without any confirm dialog', () => {
+  it('confirms before deleting a normal matter, and deletes only on confirm (Codex QA)', () => {
     useMatterStore.getState().createMatter({ name: 'Normal', client: 'Client' });
     const matter = useMatterStore.getState().matters[0]!;
 
-    const confirmSpy = vi.spyOn(window, 'confirm');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(true);
 
     render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
 
     const deleteBtn = screen.getByTestId(`matter-delete-${matter.id}`);
     fireEvent.click(deleteBtn);
 
-    // confirm must NOT be called for normal matters
-    expect(confirmSpy).not.toHaveBeenCalled();
+    // A real matter now requires confirmation (accidental-deletion guard).
+    expect(confirmSpy).toHaveBeenCalledOnce();
+    expect(confirmSpy.mock.calls[0]![0]).toMatch(/Normal|can't be undone/i);
     expect(useMatterStore.getState().matters).toHaveLength(0);
+
+    confirmSpy.mockRestore();
+  });
+
+  it('does NOT delete a normal matter when the confirm is cancelled (Codex QA)', () => {
+    useMatterStore.getState().createMatter({ name: 'Normal', client: 'Client' });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false);
+
+    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+
+    fireEvent.click(screen.getByTestId(`matter-delete-${matter.id}`));
+
+    expect(confirmSpy).toHaveBeenCalledOnce();
+    expect(useMatterStore.getState().matters).toHaveLength(1); // not deleted
 
     confirmSpy.mockRestore();
   });
