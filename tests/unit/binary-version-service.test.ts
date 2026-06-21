@@ -112,6 +112,22 @@ describe('BinaryVersionService', () => {
     expect(list.map((e) => e.id)).toEqual([v2.id, v1.id]);
   });
 
+  it('does not lose entries when two snapshots of the same file race (BUG-049)', async () => {
+    const svc = new BinaryVersionService(fs);
+    await fs.writeFileBinary('/ws/a.docx', bytes('base'));
+    // Two concurrent snapshots: without per-index-path serialization the later
+    // index write would clobber the earlier entry (read-modify-write race).
+    const [a, b] = await Promise.all([
+      svc.saveVersionFromBytes('/ws/a.docx', bytes('one')),
+      svc.saveVersionFromBytes('/ws/a.docx', bytes('two')),
+    ]);
+    const list = await svc.listVersions('/ws/a.docx');
+    const ids = list.map((e) => e.id);
+    expect(ids).toContain(a.id);
+    expect(ids).toContain(b.id);
+    expect(list).toHaveLength(2);
+  });
+
   it('caps retained snapshots and prunes the oldest (file + index)', async () => {
     const svc = new BinaryVersionService(fs, 3); // cap = 3
     await fs.writeFileBinary('/ws/a.docx', bytes('seed'));

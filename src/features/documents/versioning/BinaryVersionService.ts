@@ -27,6 +27,16 @@
 // The service talks to a tiny FS surface (a subset of WorkspaceService) so it is
 // trivially mockable in tests and works in both the browser (Web FS) and Tauri.
 
+import { writeCoordinator } from '@/platform/fs/writeCoordinator';
+
+/** Monotonic rev for the write coordinator (BUG-049). The value only feeds the
+ *  coordinator's isLatest bookkeeping, which we ignore here — we use it purely to
+ *  SERIALIZE per-index-path read-modify-writes. */
+let _versionIndexSeq = 0;
+function versionIndexRev(): number {
+  return (_versionIndexSeq += 1);
+}
+
 /** Who authored a version. 'user' for manual/auto edits, 'ai' for redlines. */
 export type VersionAuthor = 'user' | 'ai';
 
@@ -227,23 +237,29 @@ export class BinaryVersionService {
       ...(options.message !== undefined ? { message: options.message } : {}),
     };
 
-    const index = await this.readIndex(filePath);
-    index.entries.unshift(entry);
+    // BUG-049: the index is a read-modify-write, so two snapshots of the SAME
+    // file racing would each read the old index and the later write would drop
+    // the other's entry. Serialize the whole read-modify-write per index path
+    // through the write coordinator so concurrent saves can't lose entries.
+    await writeCoordinator.enqueue(this.indexPath(filePath), versionIndexRev(), async () => {
+      const index = await this.readIndex(filePath);
+      index.entries.unshift(entry);
 
-    // Prune oldest beyond the cap — delete both the file and the index entry.
-    if (index.entries.length > this.maxVersions) {
-      const pruned = index.entries.slice(this.maxVersions);
-      index.entries = index.entries.slice(0, this.maxVersions);
-      for (const old of pruned) {
-        try {
-          await this.fs.delete(this.snapshotPath(filePath, old.snapshotFile));
-        } catch {
-          // A missing snapshot file is fine; keep pruning the index.
+      // Prune oldest beyond the cap — delete both the file and the index entry.
+      if (index.entries.length > this.maxVersions) {
+        const pruned = index.entries.slice(this.maxVersions);
+        index.entries = index.entries.slice(0, this.maxVersions);
+        for (const old of pruned) {
+          try {
+            await this.fs.delete(this.snapshotPath(filePath, old.snapshotFile));
+          } catch {
+            // A missing snapshot file is fine; keep pruning the index.
+          }
         }
       }
-    }
 
-    await this.writeIndex(filePath, index);
+      await this.writeIndex(filePath, index);
+    });
     return entry;
   }
 
