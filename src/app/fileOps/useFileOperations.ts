@@ -12,7 +12,7 @@ import { useEditorStore } from '@/platform/state/editorStore';
 import { writeCoordinator } from '@/platform/fs/writeCoordinator';
 import { saveFile } from '@/platform/utils/saveFile';
 import { isBinaryFile } from '@/platform/utils/file-utils';
-import { dataUrlToArrayBuffer } from '@/platform/utils/spreadsheet-io';
+import { writeTabContentToDisk } from '@/app/fileOps/flushDirtyTabs';
 import { createFileTreeSnapshot } from '@/platform/fs/FileSystemWatcher';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileSystemWatcher } from '@/platform/fs/FileSystemWatcher';
@@ -66,15 +66,9 @@ export function useFileOperations(options: UseFileOperationsOptions) {
     async (path: string, content: string): Promise<void> => {
       const service = workspaceServiceRef.current;
       if (!service) return;
-      if (isBinaryFile(path) && content.startsWith('data:')) {
-        // Strip the data-URL prefix and decode bytes back to an ArrayBuffer
-        // so the on-disk file is the actual binary format, not the text
-        // encoding of it.
-        const buffer = dataUrlToArrayBuffer(content);
-        await service.writeFileBinary(path, buffer);
-      } else {
-        await service.writeFile(path, content);
-      }
+      // Delegate to the shared binary-aware writer so the autosave/manual-save
+      // path and the flush-on-exit path (flushDirtyTabs) can never drift.
+      await writeTabContentToDisk(service, path, content);
     },
     []
   );

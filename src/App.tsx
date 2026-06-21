@@ -8,6 +8,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useGlobalEventBus, type AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import { useAutosave } from '@/app/lifecycle/useAutosave';
+import { useFlushOnExit } from '@/app/lifecycle/useFlushOnExit';
 import { useThemeManager } from '@/app/lifecycle/useThemeManager';
 import { useWorkspaceLifecycle } from '@/app/lifecycle/useWorkspaceLifecycle';
 import { useTestModeWorkspace } from '@/app/lifecycle/useTestModeWorkspace';
@@ -1037,6 +1038,8 @@ This file contains rules and guidelines for AI assistants in this workspace.
   // Routes through writeTabContent so binary formats (.docx/.xlsx/.pptx) decode
   // their data-URL content back to bytes before hitting disk.
   useAutosave(openTabs, writeTabContent, markSaved, workspaceServiceRef);
+  // BUG-046: flush dirty tabs on app close / reload (best-effort).
+  useFlushOnExit(workspaceServiceRef);
 
 
   // Command-palette commands. See src/app/commands/useAppCommands.ts.

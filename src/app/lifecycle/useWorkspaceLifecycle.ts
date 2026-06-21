@@ -8,6 +8,7 @@
 import { useCallback } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
+import { flushAllDirtyTabs } from '@/app/fileOps/flushDirtyTabs';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import {
   createTemplatesMarketplaceService,
@@ -49,6 +50,14 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
   } = options;
 
   const handleWorkspaceSelected = useCallback(async (service: WorkspaceService) => {
+    // BUG-046: flush any dirty tabs of the OUTGOING workspace to disk BEFORE we
+    // clear them — otherwise switching workspaces within the 2s autosave window
+    // silently drops the last edits. Best-effort (never blocks the switch).
+    const outgoing = workspaceServiceRef.current;
+    if (outgoing) {
+      await flushAllDirtyTabs(outgoing);
+    }
+
     // Save previous workspace's tab state before switching
     const prevRootPath = useWorkspaceStore.getState().rootPath;
     if (prevRootPath) {
