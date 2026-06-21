@@ -360,6 +360,22 @@ export async function verifyCitations(
 }
 
 /**
+ * BUG-065 (residual c) — does this answer contain ANY citation that isn't
+ * PROVEN? True when a parsed citation either resolves to no retrieved source (a
+ * fabricated locator) OR resolves to a source that didn't verify (`verified`
+ * not strictly true). The chat view uses this to show the answer-level
+ * "unverified citations" warning, which previously only fired on a
+ * verified:false SOURCE and so missed fabricated citations that map to no source.
+ */
+export function hasUnverifiedCitations(content: string, sources: WorkspaceSource[]): boolean {
+  for (const cite of parseCitations(content)) {
+    const source = resolveCitationTarget(cite, sources);
+    if (!source || source.verified !== true) return true;
+  }
+  return false;
+}
+
+/**
  * Merge a base system prompt with the workspace context block. When `hits`
  * is empty, returns the base prompt unchanged. Exposed as a helper for
  * tests (and the eventual voice / MCP integration) so every caller builds

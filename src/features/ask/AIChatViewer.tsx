@@ -66,6 +66,7 @@ import {
   renderMessageWithCitations,
   chatToMarkdown,
 } from './renderingHelpers';
+import { hasUnverifiedCitations } from '@/platform/rag/workspaceCommand';
 import {
   getFactsService,
   isFactsAutoAcceptEnabled,
@@ -1144,12 +1145,13 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                     })}
               </div>
             )}
-            {/* WS-B/C — flag when any citation in this answer failed
-                verification so the user does not rely on an unverifiable
-                claim. Only `verified` sources are safe to present. */}
+            {/* WS-B/C + BUG-065 — flag when ANY citation in this answer isn't
+                proven: a source that failed verification OR a fabricated citation
+                that resolves to no retrieved source. Only proven citations are
+                safe to present. */}
             {msg.role === 'assistant' &&
               msg.sources &&
-              msg.sources.some((s) => s.verified === false) && (
+              hasUnverifiedCitations(msg.content, msg.sources) && (
                 <div
                   data-testid={`chat-message-${String(idx)}-unverified-warning`}
                   className="mt-1 flex items-start gap-1.5 rounded border border-red-300 bg-red-50 px-2 py-1.5 text-[11px] text-red-700 max-w-[85%]"
