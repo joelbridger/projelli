@@ -1,8 +1,8 @@
 # QA Sweep Handoff — 2026-06-21
 
-**Branch:** `keepance-3.0` · **HEAD:** `3f079b4`+ (== origin, fully pushed) · **Nothing deployed** (a real build/release still needs Jameson's explicit go).
+**Branch:** `keepance-3.0` · **HEAD:** `2cc1cad` (== origin, fully pushed) · **Nothing deployed** (a real build/release still needs Jameson's explicit go).
 
-This session ran a deep, adversarial QA + security sweep of Keepance using **6 independent Codex audits** (binary blast-radius, matter-isolation, data-loss, licensing, prompt-injection, workspace-boundary — each found 6–12 real issues) plus targeted fixes. **9 fix batches** were committed and pushed; **~18 bugs fixed** (each with a red-capable regression test); **~30 deeper findings logged** for a focused effort or Jameson's decision.
+This session ran a deep, adversarial QA + security sweep of Keepance using **6 independent Codex audits** (binary blast-radius, matter-isolation, data-loss, licensing, prompt-injection, workspace-boundary — each found 6–12 real issues) plus targeted fixes. **12 fix batches** were committed and pushed; **~20 bugs fixed** (each with a red-capable regression test); **~30 deeper findings logged** for a focused effort or Jameson's decision.
 
 **The single source of truth for every finding + status is [`docs/quality/2026-06-20-test-bug-backlog.md`](./2026-06-20-test-bug-backlog.md) (BUG-001 … BUG-061).** Read that first.
 
