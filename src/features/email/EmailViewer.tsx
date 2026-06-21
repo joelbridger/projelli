@@ -34,6 +34,7 @@ import {
   Download,
   Copy,
   FileText,
+  CheckCircle2,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -149,6 +150,14 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
 
   // File to matter state
   const matters = useMatters();
+  // BUG-013: the matter this message is currently filed under (from the backend
+  // lookup, updated locally on file). `filedMatter` is the resolved matter when
+  // it's still in the user's list; it can be null while `filedMatterId` is set
+  // if the matter was archived/removed.
+  const filedMatterId = message?.matterId ?? null;
+  const filedMatter = filedMatterId !== null
+    ? (matters.find((m) => m.id === filedMatterId) ?? null)
+    : null;
   const [filingMatter, setFilingMatter] = useState<string | null>(null);
   const [fileSuccess, setFileSuccess] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -222,6 +231,10 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
     setFileSuccess(false);
     try {
       await mailRetagMessageMatter(message.id, matterId);
+      // BUG-013: persist the new association into the message so the viewer
+      // shows "Filed to X" / the selected button immediately and after reopen —
+      // not only via the transient success flag.
+      setMessage((prev) => (prev ? { ...prev, matterId } : prev));
       setFileSuccess(true);
       setTimeout(() => { setFileSuccess(false); }, 2500);
     } catch (e: unknown) {
@@ -485,6 +498,29 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
             <FolderInput className="h-3.5 w-3.5 shrink-0 text-slate-500" />
             File to {entityLabel.one}
           </div>
+          {/* BUG-013: when the message is already filed, show which matter it's
+              filed to (persists across reopen via message.matterId), so a lawyer
+              can see the current association and change it deliberately. */}
+          {filedMatter !== null && (
+            <p
+              data-testid="email-filed-matter"
+              className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-emerald-700"
+            >
+              <CheckCircle2 className="h-3 w-3 shrink-0" />
+              Filed to {matterLabel(filedMatter)}
+            </p>
+          )}
+          {/* Message is filed, but to a matter not in the current list (e.g. an
+              archived/removed matter): still disclose the filed state honestly. */}
+          {filedMatter === null && filedMatterId !== null && (
+            <p
+              data-testid="email-filed-matter"
+              className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-emerald-700"
+            >
+              <CheckCircle2 className="h-3 w-3 shrink-0" />
+              Filed to another {entityLabel.one}
+            </p>
+          )}
           {fileError && (
             <p className="mb-1.5 flex items-center gap-1 text-[11px] text-amber-700">
               <AlertTriangle className="h-3 w-3" />
@@ -498,23 +534,33 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
             <p className="text-xs text-slate-400">No {entityLabel.other} yet. Create a {entityLabel.one} first.</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
-              {matters.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  data-testid={`file-to-matter-btn-${m.id}`}
-                  disabled={filingMatter === m.id}
-                  onClick={() => { void handleFileToMatter(m.id); }}
-                  className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-                >
-                  {filingMatter === m.id ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <FolderInput className="h-3 w-3" />
-                  )}
-                  {matterLabel(m)}
-                </button>
-              ))}
+              {matters.map((m) => {
+                const isCurrent = m.id === filedMatterId;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    data-testid={`file-to-matter-btn-${m.id}`}
+                    aria-pressed={isCurrent}
+                    disabled={filingMatter === m.id}
+                    onClick={() => { void handleFileToMatter(m.id); }}
+                    className={
+                      isCurrent
+                        ? 'inline-flex items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800 disabled:opacity-60'
+                        : 'inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-60'
+                    }
+                  >
+                    {filingMatter === m.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : isCurrent ? (
+                      <CheckCircle2 className="h-3 w-3" />
+                    ) : (
+                      <FolderInput className="h-3 w-3" />
+                    )}
+                    {matterLabel(m)}
+                  </button>
+                );
+              })}
             </div>
           )}
           {/* eslint-enable keepance-i18n/no-hardcoded-string */}

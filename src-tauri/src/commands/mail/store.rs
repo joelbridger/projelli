@@ -313,6 +313,23 @@ pub trait MailStore: Send + Sync {
     /// Browse / keyword-search email metadata. NEVER decrypts a blob — all
     /// matching is done against the plaintext columns stored in the SQLCipher DB.
     fn list_messages(&self, q: &MailListQuery) -> Result<MailListPage>;
+    /// BUG-013: the DURABLE per-message matter override (a manual "file to
+    /// matter"), or `None` when the message has no manual filing. This is the
+    /// source of truth that survives re-sync/re-index — unlike the RAG index,
+    /// which a re-sync re-stamps from the folder mapping. Sync resolves this
+    /// BEFORE indexing so a manual filing wins over the folder default.
+    /// Default: no override store (the legacy plaintext store never holds one);
+    /// `EncryptedMailStore` persists it in the `meta` table.
+    fn get_message_matter(&self, _id: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
+}
+
+/// `meta`-table key under which a message's durable matter override is stored.
+/// Keyed by the provider message id (the part after `mail:`), so sync's
+/// `messages` upsert never touches it. (BUG-013.)
+pub fn message_matter_key(message_id: &str) -> String {
+    format!("matter:{message_id}")
 }
 
 // ---------------------------------------------------------------------------
@@ -689,9 +706,29 @@ impl EncryptedMailStore {
         c.execute("DELETE FROM meta WHERE key = ?1", [key])?;
         Ok(())
     }
+
+    // -- per-message matter override (BUG-013) --------------------------------
+    // Durable manual "file to matter", stored in `meta` (keyed by message id) so
+    // sync's `messages` upsert never overwrites it. This is the source of truth
+    // the viewer reads and sync/backfill honour over the folder mapping.
+
+    /// Persist (upsert) a message's manual matter filing. Idempotent.
+    pub fn set_message_matter(&self, message_id: &str, matter_id: &str) -> Result<()> {
+        self.set_meta(&message_matter_key(message_id), matter_id)
+    }
+
+    /// Clear a message's manual matter filing (unfile). No-op when absent.
+    pub fn clear_message_matter(&self, message_id: &str) -> Result<()> {
+        self.delete_meta(&message_matter_key(message_id))
+    }
 }
 
 impl MailStore for EncryptedMailStore {
+    /// BUG-013: read the durable per-message matter override from `meta`.
+    fn get_message_matter(&self, id: &str) -> Result<Option<String>> {
+        self.get_meta(&message_matter_key(id))
+    }
+
     fn upsert(&self, rec: &MailRecord) -> Result<()> {
         let c = self.conn.lock().unwrap();
         c.execute(
@@ -1071,6 +1108,55 @@ mod tests {
         s.delete_meta("rag_backfill_needed").unwrap();
         assert_eq!(s.get_meta("rag_backfill_needed").unwrap(), None);
         s.delete_meta("rag_backfill_needed").unwrap();
+    }
+
+    #[test]
+    fn enc_message_matter_override_roundtrips_and_survives_upsert_and_reopen() {
+        // BUG-013: the durable per-message matter filing must (a) round-trip,
+        // (b) be UNAFFECTED by a sync `upsert` of the same message (it lives in
+        // `meta`, not `messages`), and (c) survive close + reopen.
+        let dir = TempDir::new().unwrap();
+        let key = [0x33u8; 32];
+        {
+            let s = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
+            // Absent => None (not filed).
+            assert_eq!(s.get_message_matter("AAMk-1").unwrap(), None);
+            // Set + read back; re-file overwrites.
+            s.set_message_matter("AAMk-1", "matter-acme").unwrap();
+            assert_eq!(s.get_message_matter("AAMk-1").unwrap().as_deref(), Some("matter-acme"));
+            s.set_message_matter("AAMk-1", "matter-globex").unwrap();
+            assert_eq!(s.get_message_matter("AAMk-1").unwrap().as_deref(), Some("matter-globex"));
+
+            // The clobber guard: a sync upsert of the SAME message must NOT touch
+            // the override (this is what makes a manual filing survive re-sync).
+            s.upsert(&MailRecord {
+                id: "AAMk-1".into(),
+                folder_id: "inbox".into(),
+                internet_message_id: None,
+                relative_path: "x.enc".into(),
+                received_date_time: None,
+                provider: "m365".into(),
+                account: "default".into(),
+                subject: "s".into(),
+                from_addr: "a@b.c".into(),
+                from_name: "A".into(),
+                snippet: String::new(),
+                has_attachments: false,
+            })
+            .unwrap();
+            assert_eq!(s.get_message_matter("AAMk-1").unwrap().as_deref(), Some("matter-globex"));
+
+            // Clear (unfile) is idempotent.
+            s.clear_message_matter("AAMk-1").unwrap();
+            assert_eq!(s.get_message_matter("AAMk-1").unwrap(), None);
+            s.clear_message_matter("AAMk-1").unwrap();
+
+            // Persist a different message for the reopen check below.
+            s.set_message_matter("AAMk-2", "matter-acme").unwrap();
+        }
+        // Survives close + reopen with the same key (durable across restarts).
+        let s2 = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
+        assert_eq!(s2.get_message_matter("AAMk-2").unwrap().as_deref(), Some("matter-acme"));
     }
 
     #[test]

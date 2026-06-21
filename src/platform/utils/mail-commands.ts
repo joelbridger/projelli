@@ -29,6 +29,10 @@ export interface MailView {
   body: string;
   hasAttachments: boolean;
   attachments: MailAttachmentRef[];
+  /** BUG-013: the matter this message is currently filed under, looked up from
+   *  the RAG store by `mail_get_message`. `null`/absent when not filed to any
+   *  matter yet (or not indexed). The viewer uses it to show the filed state. */
+  matterId?: string | null;
 }
 export type MailSyncStatus = 'idle' | 'syncing' | 'done' | 'cancelled' | 'error';
 /** A sync-progress update for ONE provider. `provider` ("m365" | "imap" |

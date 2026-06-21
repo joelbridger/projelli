@@ -50,6 +50,11 @@ pub struct MailView {
     /// per-attachment metadata); kept so the viewer can render a list when it
     /// does, and so `has_attachments` has a place to grow into.
     pub attachments: Vec<AttachmentRef>,
+    /// BUG-013: the matter this message is currently filed under, looked up from
+    /// the RAG store by `mail_get_message`. `None` when the message isn't filed
+    /// to any matter yet (or isn't indexed). Parsed views default to `None`;
+    /// the command sets it after the matter lookup.
+    pub matter_id: Option<String>,
 }
 
 /// Reverse `normalize::yaml_escape` for a double-quoted scalar value. Mirrors
@@ -200,6 +205,9 @@ impl MailView {
             body,
             has_attachments,
             attachments: Vec::new(),
+            // Set by `mail_get_message` after the RAG-store matter lookup; the
+            // pure markdown parse has no matter information.
+            matter_id: None,
         }
     }
 }

@@ -162,6 +162,43 @@ describe('EmailViewer', () => {
     expect(screen.getByTestId('file-to-matter-btn-m1')).toHaveTextContent('Acme v. Beta');
   });
 
+  // -------------------------------------------------------------------------
+  // BUG-013 — the viewer must show which matter an email is filed to on reopen.
+  // -------------------------------------------------------------------------
+
+  it('shows which matter the email is filed to when matterId is set (and marks that button current)', async () => {
+    mockMailGetMessage.mockResolvedValue(sampleMessage({ matterId: 'm1' }));
+    render(<EmailViewer sourceId="mail:AAMk-xyz" />);
+    const filed = await screen.findByTestId('email-filed-matter');
+    expect(filed).toHaveTextContent(/Acme v\. Beta/);
+    // The currently-filed matter's button is marked selected; others are not.
+    expect(screen.getByTestId('file-to-matter-btn-m1')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('shows no filed indicator when the email is not filed to any matter', async () => {
+    mockMailGetMessage.mockResolvedValue(sampleMessage({ matterId: null }));
+    render(<EmailViewer sourceId="AAMk-xyz" />);
+    await screen.findByTestId('email-file-to-matter');
+    expect(screen.queryByTestId('email-filed-matter')).not.toBeInTheDocument();
+    expect(screen.getByTestId('file-to-matter-btn-m1')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('reflects the filed matter immediately after filing, not via a transient flag', async () => {
+    mockMailGetMessage.mockResolvedValue(sampleMessage({ matterId: null }));
+    mockMailRetagMessageMatter.mockResolvedValue(undefined);
+    render(<EmailViewer sourceId="AAMk-xyz" />);
+    await screen.findByTestId('email-file-to-matter');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('file-to-matter-btn-m1'));
+    });
+    await waitFor(() => expect(mockMailRetagMessageMatter).toHaveBeenCalledWith('AAMk-xyz', 'm1'));
+
+    // The persistent filed indicator now shows and the button is marked current.
+    expect(await screen.findByTestId('email-filed-matter')).toHaveTextContent(/Acme v\. Beta/);
+    expect(screen.getByTestId('file-to-matter-btn-m1')).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('shows the reply area with Draft with AI and mailto link', async () => {
     mockMailGetMessage.mockResolvedValue(sampleMessage());
     render(<EmailViewer sourceId="AAMk-xyz" />);

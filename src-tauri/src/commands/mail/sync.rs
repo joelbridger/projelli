@@ -147,7 +147,15 @@ where
             snippet,
             has_attachments: msg.has_attachments,
         })?;
-        index_callback(&msg.id, &markdown, matter_id);
+        // BUG-013: a DURABLE per-message filing (manual "file to matter", stored
+        // in the mail DB) wins over the folder mapping, so a manual filing
+        // survives this re-sync/re-index instead of being re-stamped back to the
+        // folder's matter. Absent/empty override → use the folder `matter_id`.
+        let effective_matter = match store.get_message_matter(&msg.id) {
+            Ok(Some(m)) if crate::commands::mail::is_real_matter(&m) => m,
+            _ => matter_id.to_string(),
+        };
+        index_callback(&msg.id, &markdown, &effective_matter);
         stats.written += 1;
     }
     Ok(stats)

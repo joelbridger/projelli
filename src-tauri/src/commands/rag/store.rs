@@ -881,6 +881,73 @@ pub async fn retag_matter_for_path(
     Ok(result.rows_updated)
 }
 
+/// Read the matter scope a given source path is currently filed under, by
+/// querying the tokenized `path` column and returning the chunk's `matter_id`.
+///
+/// Mirrors `retag_matter_for_path`'s tokenized predicate (the `path` column
+/// holds the keyed token, not the plaintext path — VG-6e). Scans EVERY chunk
+/// for the path rather than one arbitrary row, so a robust answer is returned
+/// even if chunks somehow disagree: returns `Ok(Some(matter))` when all
+/// non-empty chunks agree on one matter, `Ok(None)` when the path has no
+/// indexed chunk (or only empty matters), and `Ok(None)` (with a warning) when
+/// chunks disagree — never an arbitrary/ambiguous pick.
+///
+/// BUG-013: used as the SOFT folder-level fallback when a message has no durable
+/// per-message override; the unassigned sentinel is filtered by the caller.
+pub async fn matter_for_path(
+    table: &Table,
+    path: &str,
+    key: &[u8; 32],
+) -> Result<Option<String>> {
+    use futures_util::TryStreamExt;
+    let predicate = format!(
+        "path = '{}'",
+        sql_escape(&super::crypto::path_token(key, path))
+    );
+    let mut stream = table
+        .query()
+        .only_if(predicate)
+        .select(Select::columns(&["matter_id"]))
+        .execute()
+        .await
+        .context("matter_for_path query execute failed")?;
+
+    let mut found: Option<String> = None;
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("matter_for_path stream try_next failed")?
+    {
+        let Some(col) = batch
+            .column_by_name("matter_id")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>())
+        else {
+            continue;
+        };
+        for i in 0..col.len() {
+            if col.is_null(i) {
+                continue;
+            }
+            let v = col.value(i);
+            if v.is_empty() {
+                continue;
+            }
+            match &found {
+                None => found = Some(v.to_string()),
+                Some(existing) if existing == v => {}
+                Some(existing) => {
+                    log::warn!(
+                        "matter_for_path: chunks for {path} disagree ({existing} vs {v}); \
+                         treating as indeterminate"
+                    );
+                    return Ok(None);
+                }
+            }
+        }
+    }
+    Ok(found)
+}
+
 /// One raw query result before scoring.
 #[derive(Debug, Clone)]
 pub struct StoredHit {

@@ -959,3 +959,59 @@ async fn vec_retrieval_returns_correct_decrypted_text() {
     assert!(plaintext.contains("Four Million Two Hundred Thousand Dollars ($4,200,000)"));
     assert!(plaintext.contains("closing date of the transactions"));
 }
+
+// ===========================================================================
+// BUG-013 — matter_for_path: read which matter a mail source is filed under,
+// so the email viewer can show it on reopen (and reflect a re-tag).
+// ===========================================================================
+
+#[tokio::test]
+async fn matter_for_path_reads_filed_matter_and_follows_retag() {
+    skip_without_model!();
+    use arrow_array::RecordBatchIterator;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let conn = store::open_connection(dir.path()).await.expect("open connection");
+    let table = store::open_or_create_table(&conn).await.expect("create table");
+
+    // Index one mail message filed to ACME.
+    let path = "mail:bug013-0001";
+    let chunks = keepance_lib::commands::rag::chunker::chunk_text(
+        path,
+        "From: clerk@court.example\nSubject: Hearing reset\n\nThe hearing is reset to July 14, 2026.",
+    );
+    let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+    let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts)
+        .await
+        .expect("embed");
+    let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
+    let batch = store::build_batch_mail(&rows, &VEC_KEY, MATTER_ACME, PRIVILEGE_NONE)
+        .expect("build mail batch");
+    let schema = batch.schema();
+    table
+        .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+        .execute()
+        .await
+        .expect("add batch");
+
+    // Reads the filed matter.
+    let m = store::matter_for_path(&table, path, &VEC_KEY)
+        .await
+        .expect("matter_for_path query");
+    assert_eq!(m.as_deref(), Some(MATTER_ACME));
+
+    // Follows a re-tag to a different matter (the viewer's "change matter" path).
+    store::retag_matter_for_path(&table, path, MATTER_GLOBEX, &VEC_KEY)
+        .await
+        .expect("retag");
+    let m2 = store::matter_for_path(&table, path, &VEC_KEY)
+        .await
+        .expect("matter_for_path query after retag");
+    assert_eq!(m2.as_deref(), Some(MATTER_GLOBEX));
+
+    // Returns None for a path that was never indexed.
+    let none = store::matter_for_path(&table, "mail:never-indexed", &VEC_KEY)
+        .await
+        .expect("matter_for_path unknown");
+    assert_eq!(none, None);
+}
