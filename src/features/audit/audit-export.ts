@@ -134,11 +134,18 @@ function readNumeric(entry: AuditEntry, keys: string[]): string {
 
 /**
  * RFC 4180 field escape. Quotes the field iff it contains a reserved char.
+ *
+ * BUG-027: also guards against CSV formula injection. A field that starts with
+ * `=`, `+`, `-`, `@` (or a tab / carriage-return) is interpreted as a FORMULA by
+ * Excel/Google Sheets — a malicious audit field (e.g. an attacker-controlled
+ * filename or email subject) could execute on open. Prefix such values with an
+ * apostrophe so spreadsheet apps render them as literal text.
  */
 function escapeCsvField(value: string): string {
   if (value === '') return '';
-  const needsQuotes = /[",\r\n]/.test(value);
-  const escaped = value.replace(/"/g, '""');
+  const guarded = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  const needsQuotes = /[",\r\n]/.test(guarded);
+  const escaped = guarded.replace(/"/g, '""');
   return needsQuotes ? `"${escaped}"` : escaped;
 }
 

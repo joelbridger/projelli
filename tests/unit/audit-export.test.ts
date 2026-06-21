@@ -103,6 +103,17 @@ describe('audit-export / entriesToCSV', () => {
     expect(csv).not.toContain('"plainstring"');
   });
 
+  it('neutralizes spreadsheet formula injection on dangerous leading chars (BUG-027)', () => {
+    for (const payload of ['=cmd()', '+1+2', '-2+3', '@SUM(A1)']) {
+      const csv = entriesToCSV([makeEntry({ description: payload })]);
+      // The value must be prefixed with an apostrophe so Excel/Sheets treat it
+      // as literal text, never a formula.
+      expect(csv).toContain(`'${payload}`);
+      // And the raw formula must not appear at a cell boundary unprefixed.
+      expect(csv).not.toContain(`,${payload},`);
+    }
+  });
+
   it('serializes nested objects as JSON strings (escaped)', () => {
     const csv = entriesToCSV([
       makeEntry({

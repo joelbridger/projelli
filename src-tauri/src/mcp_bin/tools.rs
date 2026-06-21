@@ -74,7 +74,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "write_workspace_file",
-            "description": "Write (or overwrite) a file in the user's Keepance workspace. By default the user is prompted to approve the write — pass `require_confirmation: false` to skip the prompt (not recommended).",
+            "description": "Write (or overwrite) a file in the user's Keepance workspace. The user must approve every write in an approval modal; there is no way to skip it.",
             "inputSchema": {
                 "type": "object",
                 "required": ["path", "content"],
@@ -86,11 +86,6 @@ pub fn describe_tools() -> Vec<Value> {
                     "content": {
                         "type": "string",
                         "description": "New file contents."
-                    },
-                    "require_confirmation": {
-                        "type": "boolean",
-                        "description": "Show the user an approval modal before writing. Defaults to true.",
-                        "default": true
                     }
                 }
             }
@@ -389,15 +384,15 @@ pub async fn write_workspace_file(
         .get("content")
         .and_then(|v| v.as_str())
         .ok_or_else(|| JsonRpcError::invalid_params("missing required argument: content"))?;
-    let require_confirmation = args
-        .get("require_confirmation")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
-
     let abs = resolve_workspace_path(&ctx.workspace_root, path)
         .map_err(JsonRpcError::invalid_params)?;
 
-    if require_confirmation {
+    // BUG-022 (security): every MCP write requires explicit user approval. The
+    // old `require_confirmation` argument let an external MCP client skip the
+    // approval modal (`require_confirmation: false`) and write straight into the
+    // workspace. That bypass is removed — approval is now UNCONDITIONAL (the arg
+    // is ignored and no longer advertised in the tool schema).
+    {
         let token = approval::generate_token();
         let old_content: Option<String> = if abs.exists() {
             std::fs::read_to_string(&abs).ok()

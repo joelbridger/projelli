@@ -104,6 +104,16 @@ fn tools_list_returns_five_keepance_tools() {
             "missing tool {expected} in {names:?}"
         );
     }
+    // BUG-022 (security): the write tool must NOT advertise a require_confirmation
+    // bypass — every MCP write requires explicit user approval.
+    let write_tool = tools
+        .iter()
+        .find(|t| t["name"] == "write_workspace_file")
+        .expect("write_workspace_file tool present");
+    assert!(
+        write_tool["inputSchema"]["properties"]["require_confirmation"].is_null(),
+        "write_workspace_file must not expose a require_confirmation bypass"
+    );
     let _ = child.kill();
     std::thread::sleep(Duration::from_millis(50));
 }

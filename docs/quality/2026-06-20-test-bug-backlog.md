@@ -207,7 +207,7 @@ Drove the real bench + ran an independent Codex audit of three high-risk areas (
 - **BUG-023 — TrustBar can say "Nothing leaves your machine" in Direct cloud mode** (`TrustBar.tsx:41`). 🔴 OPEN (important). Scope copy is conflated with egress copy; only say "nothing leaves" when the mode is truly local.
 - **BUG-024 — Privacy Center/TrustBar may show the WRONG active provider** (`useActiveEgressProvider.ts:23` reads old browser localStorage key names, not the OS keychain). 🔴 OPEN (important) — VERIFY (bench showed correct OpenAI, so may be mitigated; confirm).
 - **BUG-028 — Confidentiality report often prints model as `unknown`** (egress audit events lack the model). 🔴 OPEN (minor).
-- **BUG-022 — MCP `write_workspace_file` with `require_confirmation:false` bypasses the approval modal** (`mcp_bin/tools.rs`). 🔴 OPEN (blocker) — external MCP writes must always require approval.
+- **BUG-022 — MCP `write_workspace_file` could bypass the approval modal.**  🟢 **FIXED (2026-06-21).** An external MCP client could pass `require_confirmation:false` to write into the workspace with no consent. Approval is now UNCONDITIONAL (the arg is ignored and removed from the tool schema). `src-tauri/src/mcp_bin/tools.rs`; test in `tests/mcp_binary.rs` (schema no longer exposes the bypass).
 
 **Data loss (legal work product):**
 - **BUG-029 — DOCX edits lost if the tab/app closes within the ~1.2s debounce** (`DocxEditor.tsx`). 🟢 **FIXED (2026-06-21).** Unmount now flushes the latest pending save (`flushPendingSaveRef`); the timer clears it on a normal save (no double-save). Test in `DocxEditor.test.tsx`.
@@ -220,6 +220,6 @@ Drove the real bench + ran an independent Codex audit of three high-risk areas (
 **Correctness:**
 - **BUG-025 — Per-template model override silently falls back to another provider** when the pinned provider has no key (`resolveTemplateModel.ts`). 🔴 OPEN (important) — treat the override as binding; prompt for that provider's key.
 - **BUG-026 — Settings import accepts partial/wrong-typed JSON and replaces settings** (`settingsStore.ts:103`) → can silently reset privacy/workspace choices. 🔴 OPEN (important) — validate against the schema; merge or confirm.
-- **BUG-027 — Audit CSV export is vulnerable to spreadsheet formula injection** (`audit-export.ts:135`; quote/newline escaping is already fine). 🔴 OPEN (important) — prefix `=/+/-/@` values.
+- **BUG-027 — Audit CSV export was vulnerable to spreadsheet formula injection.**  🟢 **FIXED (2026-06-21).** A field starting with `=/+/-/@` (or tab/CR) is now prefixed with an apostrophe so Excel/Sheets render it as literal text, not a formula. `src/features/audit/audit-export.ts`; test in `tests/unit/audit-export.test.ts`.
 
 **Looked solid (per the audits):** settings export doesn't leak API keys; settings reset confirms + only clears settings; CSV quote/newline escaping; desktop audit store is append/list/count only; vault escape hatch; marketplace install (path-hardened); PDF/presentation viewing; guided onboarding.
