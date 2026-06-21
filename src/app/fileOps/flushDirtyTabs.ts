@@ -18,6 +18,17 @@ import { dataUrlToArrayBuffer } from '@/platform/utils/spreadsheet-io';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 
 /**
+ * The currently-active workspace service. App keeps this in sync wherever it
+ * assigns `workspaceServiceRef.current` (workspace select + test-mode), so flush
+ * helpers can be called from anywhere (e.g. the `closeTab` store action) without
+ * threading the service through every caller. Null before a workspace is open.
+ */
+let activeService: WorkspaceService | null = null;
+export function setActiveWorkspaceService(service: WorkspaceService | null): void {
+  activeService = service;
+}
+
+/**
  * Binary-aware tab writer — the single place that decodes a binary editor's
  * `data:...base64,...` tab content back to bytes before hitting disk (so
  * .docx/.xlsx/.pptx aren't stored as a text blob). Shared by the autosave/
@@ -35,8 +46,10 @@ export async function writeTabContentToDisk(
   }
 }
 
-/** Flush ONE tab by path if it is currently dirty. Best-effort. */
-export async function flushTab(service: WorkspaceService, path: string): Promise<void> {
+/** Flush ONE tab by path if it is currently dirty. Best-effort. Uses the active
+ *  workspace service when one isn't passed (so close handlers can call it bare). */
+export async function flushTab(path: string, service: WorkspaceService | null = activeService): Promise<void> {
+  if (!service) return;
   const tab = useEditorStore.getState().openTabs.find((t) => t.path === path);
   if (!tab || !tab.isDirty) return;
   const rev = tab.rev ?? 0;
@@ -54,8 +67,11 @@ export async function flushTab(service: WorkspaceService, path: string): Promise
  * Flush ALL currently-dirty tabs and wait for every write to land. Call this
  * before a workspace switch or app close. Never throws.
  */
-export async function flushAllDirtyTabs(service: WorkspaceService): Promise<void> {
+export async function flushAllDirtyTabs(
+  service: WorkspaceService | null = activeService,
+): Promise<void> {
+  if (!service) return;
   const dirty = useEditorStore.getState().openTabs.filter((t) => t.isDirty);
-  await Promise.all(dirty.map((t) => flushTab(service, t.path)));
+  await Promise.all(dirty.map((t) => flushTab(t.path, service)));
   await writeCoordinator.drain();
 }

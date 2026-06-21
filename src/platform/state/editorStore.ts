@@ -1,6 +1,17 @@
 import { create } from 'zustand';
 import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/platform/utils/file-utils';
 
+/**
+ * BUG-046: optional "flush this tab before it closes" hook. Registered by the
+ * app (App wires it to flushTab) so the FS layer stays out of this store. Called
+ * synchronously in `closeTab` while the tab is still present; the hook captures
+ * the content and persists it asynchronously. No-op until registered.
+ */
+let beforeTabCloseHook: ((path: string) => void) | null = null;
+export function setBeforeTabClose(fn: ((path: string) => void) | null): void {
+  beforeTabCloseHook = fn;
+}
+
 interface OpenTab {
   path: string;
   name: string;
@@ -234,6 +245,15 @@ export const useEditorStore = create<EditorState>()(
   },
 
   closeTab: (path) => {
+    // BUG-046: give the app a chance to flush this tab's unsaved content to disk
+    // BEFORE it's dropped from state. The hook reads the tab synchronously (it's
+    // still present here) and writes asynchronously; closing a tab within the 2s
+    // autosave window no longer loses the last edits. Best-effort + never throws.
+    try {
+      beforeTabCloseHook?.(path);
+    } catch {
+      /* a flush failure must never block closing a tab */
+    }
     set((state) => {
       const newTabs = state.openTabs.filter((t) => t.path !== path);
       const newActiveTab =

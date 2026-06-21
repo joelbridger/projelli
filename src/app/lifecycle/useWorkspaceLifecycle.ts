@@ -8,7 +8,7 @@
 import { useCallback } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
-import { flushAllDirtyTabs } from '@/app/fileOps/flushDirtyTabs';
+import { flushAllDirtyTabs, setActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import {
   createTemplatesMarketplaceService,
@@ -68,6 +68,7 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     useEditorStore.getState().clearTabState();
 
     workspaceServiceRef.current = service;
+    setActiveWorkspaceService(service); // BUG-046: keep the flush accessor in sync
     setShowWorkspaceSelector(false);
 
     const newRootPath = service.getRootPath();

@@ -3,9 +3,11 @@
  * transition (workspace switch / app close) that would otherwise drop it.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { flushAllDirtyTabs, flushTab } from '@/app/fileOps/flushDirtyTabs';
-import { useEditorStore } from '@/platform/state/editorStore';
+import { flushAllDirtyTabs, flushTab, setActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
+import { useEditorStore, setBeforeTabClose } from '@/platform/state/editorStore';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+
+const nextTick = () => new Promise((r) => setTimeout(r, 0));
 
 function mockService() {
   return {
@@ -68,7 +70,7 @@ describe('flushDirtyTabs (BUG-046)', () => {
     useEditorStore.getState().updateContent('/ws/a.md', 'a1');
     useEditorStore.getState().updateContent('/ws/b.md', 'b1');
 
-    await flushTab(svc, '/ws/a.md');
+    await flushTab('/ws/a.md', svc);
 
     expect(svc.writeFile).toHaveBeenCalledWith('/ws/a.md', 'a1');
     expect(svc.writeFile).not.toHaveBeenCalledWith('/ws/b.md', 'b1');
@@ -84,5 +86,24 @@ describe('flushDirtyTabs (BUG-046)', () => {
 
     await expect(flushAllDirtyTabs(svc)).resolves.toBeUndefined();
     expect(tab('/ws/a.md')?.isDirty).toBe(true); // stayed dirty so autosave retries
+  });
+
+  it('closeTab flushes a dirty tab to disk before removing it (the chokepoint)', async () => {
+    const svc = mockService();
+    setActiveWorkspaceService(svc);
+    setBeforeTabClose((p) => { void flushTab(p); });
+    try {
+      useEditorStore.getState().openFile('/ws/c.md', 'c.md', 'c0');
+      useEditorStore.getState().updateContent('/ws/c.md', 'c-final');
+      useEditorStore.getState().closeTab('/ws/c.md');
+      // The flush is kicked off synchronously (reads the still-present tab) and
+      // completes asynchronously; the tab is removed immediately.
+      expect(tab('/ws/c.md')).toBeUndefined();
+      await nextTick();
+      expect(svc.writeFile).toHaveBeenCalledWith('/ws/c.md', 'c-final');
+    } finally {
+      setBeforeTabClose(null);
+      setActiveWorkspaceService(null);
+    }
   });
 });

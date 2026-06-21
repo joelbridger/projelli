@@ -8,6 +8,7 @@
 import { useEffect } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
+import { setActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
 import { useFileBackupStore } from '@/platform/fs/fileBackupStore';
 import { useFileContextStore } from '@/platform/state/fileContextStore';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
@@ -309,6 +310,7 @@ export function useTestModeWorkspace(options: UseTestModeWorkspaceOptions): void
           },
         };
         workspaceServiceRef.current = mockService as unknown as WorkspaceService;
+        setActiveWorkspaceService(workspaceServiceRef.current); // BUG-046: flush accessor
         // Seed the two demo tabs into the mock filesystem too so that any
         // workspace op which goes through the real fs path (rename, exists,
         // readFile during reopen-after-rename) finds them. Without this seed

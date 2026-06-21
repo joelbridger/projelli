@@ -46,7 +46,8 @@ import { RagProgressBanner } from '@/platform/rag/ui/RagProgressBanner';
 import { useMemoryWiring } from '@/platform/hooks/useMemoryWiring';
 import { useGlobalFileDrop } from '@/app/shell/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import { useEditorStore } from '@/platform/state/editorStore';
+import { useEditorStore, setBeforeTabClose } from '@/platform/state/editorStore';
+import { flushTab } from '@/app/fileOps/flushDirtyTabs';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
@@ -1040,6 +1041,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
   useAutosave(openTabs, writeTabContent, markSaved, workspaceServiceRef);
   // BUG-046: flush dirty tabs on app close / reload (best-effort).
   useFlushOnExit(workspaceServiceRef);
+  // BUG-046: flush a tab to disk just before it's closed (Ctrl+W / X / close-all).
+  // closeTab() fires this hook synchronously while the tab still exists.
+  useEffect(() => {
+    setBeforeTabClose((path) => { void flushTab(path); });
+    return () => { setBeforeTabClose(null); };
+  }, []);
 
 
   // Command-palette commands. See src/app/commands/useAppCommands.ts.
