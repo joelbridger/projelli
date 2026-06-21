@@ -43,6 +43,29 @@ use serde_json::Value;
 /// owns the authoritative schema.
 pub type DocumentJson = Value;
 
+/// BUG-049: cap how large a `.docx` we load fully into memory. Real Word
+/// documents are KB to a few MB; this only catches a pathological or corrupt
+/// file that would otherwise read + parse (JSZip-style, several× the file size)
+/// into RAM and OOM the app — a real risk on a memory-tight machine. Generous so
+/// no legitimate document is ever rejected.
+const MAX_DOCX_BYTES: u64 = 100 * 1024 * 1024; // 100 MB
+
+/// Read a `.docx` into memory with the size cap above. Returns a clear,
+/// user-facing error if the file is implausibly large rather than risking OOM.
+fn read_docx_capped(path: &Path) -> Result<Vec<u8>, String> {
+    let len = std::fs::metadata(path)
+        .map_err(|e| format!("read {}: {e}", path.display()))?
+        .len();
+    if len > MAX_DOCX_BYTES {
+        return Err(format!(
+            "I could not open this document: it is {} MB, larger than the {} MB Keepance can safely load.",
+            len / (1024 * 1024),
+            MAX_DOCX_BYTES / (1024 * 1024),
+        ));
+    }
+    std::fs::read(path).map_err(|e| format!("read {}: {e}", path.display()))
+}
+
 // ---------------------------------------------------------------------------
 // Pure, testable core (no Tauri, no #[command]) — the commands delegate here.
 // ---------------------------------------------------------------------------
@@ -61,7 +84,7 @@ pub fn open_to_json(path: &Path) -> Result<DocumentJson, String> {
             path.display()
         ));
     }
-    let bytes = std::fs::read(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    let bytes = read_docx_capped(path)?; // BUG-049: cap in-memory read
     let opened = OpenedDocument::open_bytes(&bytes).map_err(|e| e.to_string())?;
     document_to_value(&opened.document).map_err(|e| e.to_string())
 }
@@ -518,7 +541,7 @@ pub fn export_copy_bytes(src: &Path) -> Result<Vec<u8>, String> {
             src.display()
         ));
     }
-    let bytes = std::fs::read(src).map_err(|e| format!("read {}: {e}", src.display()))?;
+    let bytes = read_docx_capped(src)?; // BUG-049: cap in-memory read
     let opened = OpenedDocument::open_bytes(&bytes).map_err(|e| e.to_string())?;
     opened.save_bytes().map_err(|e| e.to_string())
 }
@@ -534,7 +557,7 @@ pub fn export_clean_copy_bytes(src: &Path, accept_all_changes: bool) -> Result<V
             src.display()
         ));
     }
-    let bytes = std::fs::read(src).map_err(|e| format!("read {}: {e}", src.display()))?;
+    let bytes = read_docx_capped(src)?; // BUG-049: cap in-memory read
     let opened = OpenedDocument::open_bytes(&bytes).map_err(|e| e.to_string())?;
     let options = keepance_docx::ScrubOptions {
         strip_document_metadata: true,
