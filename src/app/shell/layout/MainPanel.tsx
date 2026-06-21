@@ -53,6 +53,7 @@ import {
 import { getVersionService } from '@/features/documents/versioning/VersionService';
 import { getBinaryVersionService } from '@/features/documents/versioning';
 import { useEditorStore } from '@/platform/state/editorStore';
+import { flushTab } from '@/app/fileOps/flushDirtyTabs';
 import {
   useFileBackupStore,
   computeBackupPath,
@@ -659,7 +660,13 @@ export function MainPanel({
             filePath={tab.path}
             initialContent={tab.content}
             onSave={async (content) => {
+              // BUG-048: update the tab THEN actually persist to disk before
+              // resolving, so the editor's "saved" state is honest (it used to
+              // only update tab memory and rely on the 2s autosave — the UI said
+              // "saved" while the .source file on disk lagged). flushTab routes
+              // through the write coordinator + revision-checked markSaved.
               onContentChange(content);
+              await flushTab(tab.path);
             }}
             className="h-full"
           />
