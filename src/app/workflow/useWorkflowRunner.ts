@@ -538,7 +538,11 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         // Final snapshot for the completed run. Pull the engine's last
         // execution state so endTime + final status are reflected.
         const finalExecution = engine.getExecution() ?? initialExecution;
-        scheduleWrite(
+        // Data-loss fix (Codex audit #9): AWAIT the terminal-state write so the
+        // .workflow provenance/audit record is durably on disk (the old
+        // fire-and-forget could leave it stale/"running" if the app closed right
+        // after the run completed).
+        await writeFileNow(
           executionToFileData({
             execution: finalExecution,
             workflowFolderPath,
@@ -546,7 +550,6 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
             artifacts,
             status: finalExecution.status === 'failed' ? 'failed' : 'completed',
           }),
-          true
         );
 
         // Keep template around so the completed tab can still show output.
@@ -561,7 +564,8 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         console.error('Workflow failed:', error);
         const failedExecution = engine.getExecution();
         if (failedExecution) {
-          scheduleWrite(
+          // Data-loss fix (Codex audit #9): await the terminal failure write too.
+          await writeFileNow(
             executionToFileData({
               execution: failedExecution,
               workflowFolderPath,
@@ -569,7 +573,6 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
               artifacts,
               status: 'failed',
             }),
-            true
           );
         }
         setCurrentExecution(null);

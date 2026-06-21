@@ -333,7 +333,13 @@ pub async fn docx_save(path: String, document: Value) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         let p = Path::new(&path);
         let bytes = save_from_json(p, document)?;
-        std::fs::write(p, bytes).map_err(|e| format!("write {}: {e}", p.display()))
+        // Data-loss fix (Codex audit #6): write the .docx ATOMICALLY (temp +
+        // fsync + atomic rename) instead of a plain `std::fs::write`, which
+        // truncates the existing file first — a crash mid-write would leave a
+        // lawyer's Word file corrupt/empty. Reuses the vault crate's crash-safe,
+        // Windows-safe atomic_write.
+        keepance_vault::atomic::atomic_write(p, &bytes)
+            .map_err(|e| format!("write {}: {e}", p.display()))
     })
     .await
     .map_err(|e| format!("task join error: {e}"))?
