@@ -112,17 +112,18 @@ export function SetupChecklist({ onRestartOnboarding, onNavigate }: SetupCheckli
         onAction={() => { onNavigate('firm'); }}
       />
 
-      <div className="pt-3 border-t border-border mt-2">
+      <div className="pt-3 border-t border-border mt-2 flex flex-col gap-1">
         <Button
+          data-testid="watch-setup-intro-again"
           variant="ghost"
           size="sm"
-          className="gap-1.5 text-xs"
+          className="gap-1.5 text-xs self-start"
           onClick={onRestartOnboarding}
         >
           <RefreshCw className="h-3 w-3" />
-          Restart guided setup
+          Watch the setup intro again
         </Button>
-        <p className="text-xs text-muted-foreground mt-1">Your data and keys are kept.</p>
+        <p className="text-xs text-muted-foreground">Your data and keys are kept.</p>
       </div>
     </div>
   );

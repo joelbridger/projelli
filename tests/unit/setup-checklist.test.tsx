@@ -143,7 +143,7 @@ describe('SetupChecklist', () => {
     render(
       <SetupChecklist onRestartOnboarding={onRestart} onNavigate={() => {}} />,
     );
-    const restartBtn = screen.getByRole('button', { name: /restart guided setup/i });
+    const restartBtn = screen.getByRole('button', { name: /watch the setup intro again/i });
     expect(restartBtn).toBeTruthy();
     fireEvent.click(restartBtn);
     expect(onRestart).toHaveBeenCalledTimes(1);

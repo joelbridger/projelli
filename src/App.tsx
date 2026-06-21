@@ -32,6 +32,7 @@ import { manualUpdateCheck } from '@/platform/updater/UpdateManager';
 import { openExternal } from '@/platform/utils/openExternal';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
+import { AiSetupReminder } from '@/features/onboarding/AiSetupReminder';
 import { JourneyHost } from '@/features/onboarding-journey/JourneyHost';
 import { journeyChapters } from '@/features/onboarding-journey/chapters';
 import { persistProfessionModelDefault } from '@/platform/profile/professionModel';
@@ -1351,6 +1352,16 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
       {/* The hero Trust Bar (elevated egress + matter scope). */}
       <TrustBar />
+
+      {/* Deferred-AI reminder — shown as a slim banner below the trust bar
+          when the user chose "Set this up later" in onboarding and has not
+          yet connected a model. Hidden once connected or session-dismissed.
+          onConnect opens the existing API-key wizard (same as the gear
+          icon's "Manage AI Account Keys" path). */}
+      <AiSetupReminder
+        hasModelConnected={apiKeys.some((k) => k.isValid)}
+        onConnect={() => { setApiKeyWizardOpen(true); }}
+      />
 
       {/* Main content area */}
       <div id="main-content" className="flex-1 flex overflow-hidden">
