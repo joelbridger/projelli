@@ -80,6 +80,8 @@ vi.mock('@/platform/hooks/useFirm', () => ({
 // ── Mock mail commands (no real IPC in tests) ─────────────────────────────────
 vi.mock('@/platform/utils/mail-commands', () => ({
   mailConnectedAccounts: async () => [],
+  // deleteMatter clears a deleted matter's email filings (BUG-042).
+  mailClearMatterFilings: async () => 0,
 }));
 
 // ── Mock workspace store ──────────────────────────────────────────────────────

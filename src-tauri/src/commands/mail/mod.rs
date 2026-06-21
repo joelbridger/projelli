@@ -570,6 +570,42 @@ pub async fn mail_retag_message_matter(
     Ok(())
 }
 
+/// Clear every email's manual "filed to this matter" tag for a matter that is
+/// being deleted (BUG-042). Returns how many filings were cleared.
+///
+/// Why this exists: a matter's per-message filings live durably in the mail DB
+/// so they survive re-sync. If a matter is deleted without clearing them, the
+/// next sync re-tags those emails with a matter id that no longer exists — a
+/// phantom. Clearing them lets the emails re-index under their folder default
+/// (or unassigned), which matches what "delete the matter, keep the content"
+/// means for files. Best-effort: no mail DB yet → 0, never an error.
+#[tauri::command]
+pub async fn mail_clear_matter_filings(
+    state: State<'_, MailState>,
+    matter_id: String,
+) -> Result<usize, String> {
+    crate::commands::rag::store::validate_matter_id(&matter_id)
+        .map_err(|e| format!("invalid matter id: {e}"))?;
+    let workspace = match state.workspace.lock().await.clone() {
+        Some(w) => w,
+        None => return Ok(0), // no workspace set yet — nothing to clear
+    };
+    let cleared = tokio::task::spawn_blocking(move || -> anyhow::Result<usize> {
+        // No mail DB on disk yet → nothing filed → 0. Don't open (which would
+        // create an empty DB) just to delete a matter that never had email.
+        if EncryptedMailStore::db_path(&workspace).exists() {
+            let store = EncryptedMailStore::open(&workspace)?;
+            Ok(store.clear_message_matter_for_matter(&matter_id)?)
+        } else {
+            Ok(0)
+        }
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| format!("clear matter filings: {e}"))?;
+    Ok(cleared)
+}
+
 /// On-demand fetched attachment bytes, returned to the frontend for display.
 /// The bytes never touch disk — they live only in IPC memory and the
 /// renderer-process until the user closes the attachment view.

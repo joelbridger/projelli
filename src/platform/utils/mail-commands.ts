@@ -336,6 +336,15 @@ export async function mailRetagMessageMatter(
   return invoke<void>('mail_retag_message_matter', { messageId, matterId });
 }
 
+/** Clear every email's "filed to this matter" tag for a matter being deleted
+ *  (BUG-042), so the emails don't resurface on the next sync tagged with a
+ *  matter that no longer exists. Returns how many filings were cleared.
+ *  No-op outside Tauri (fixture mode: resolves to 0). */
+export async function mailClearMatterFilings(matterId: string): Promise<number> {
+  if (!isTauri()) return 0;
+  return invoke<number>('mail_clear_matter_filings', { matterId });
+}
+
 /** On-demand fetched attachment bytes. The bytes never touch the local
  *  filesystem — they are held only in renderer-process memory. */
 export interface MailAttachmentData {

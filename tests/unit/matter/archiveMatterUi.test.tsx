@@ -20,6 +20,8 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   gmailIsConnected: async () => false,
   mailImapIsConnected: async () => false,
   mailConnectedAccounts: async () => [],
+  // deleteMatter clears a deleted matter's email filings (BUG-042).
+  mailClearMatterFilings: async () => 0,
 }));
 
 // ── useApiKeys ──────────────────────────────────────────────────────────────────

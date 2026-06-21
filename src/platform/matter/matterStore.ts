@@ -44,6 +44,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { Matter, MatterScope } from '@/platform/types/matter';
 import { resolveMatterId, findMatter } from '@/platform/rag/matterResolver';
 import { ragDeleteMatter } from '@/platform/utils/tauri-commands';
+import { mailClearMatterFilings } from '@/platform/utils/mail-commands';
 import { getProfession } from '@/platform/profile/professionStore';
 import { getSampleMatterName } from '@/platform/matter/samples/sampleMatterDemo';
 import type { MatterUiSnapshot } from '@/platform/matter/matterUiStore';
@@ -307,18 +308,29 @@ export const useMatterStore = create<MatterState>()(
             statusByMatterId,
           };
         });
-        // BUG-040: purge the matter's CURRENT chunks from the local RAG index so
-        // they stop surfacing under the (now-gone) matter scope. Best-effort +
-        // fire-and-forget: no-ops outside Tauri, never blocks the delete.
-        // NOTE (Codex review #2/#3): this is defense-in-depth, NOT a permanent
-        // content scrub. The matter's FILES stay on disk (delete = ungroup, per
-        // BUG-018), so a later re-index re-adds them as 'unassigned'; and mail
-        // filed to this matter keeps its durable override. A full "scrub this
-        // matter's content forever" (await+retry the purge, clear mail overrides,
-        // optionally delete files / tombstone) is a product decision tracked as
-        // BUG-042 — do NOT claim deletion makes the content unrecoverable.
+        // Matter-delete semantics (BUG-042, product decision 2026-06-21):
+        // delete REMOVES the matter and its grouping + wipes the AI's memory of
+        // it, but KEEPS the user's actual files on disk. (Archive is the
+        // "hide but keep everything" path; delete is the more final one that
+        // never destroys documents — a law practice has retention duties.)
+        //
+        // To make "wipe from the AI" honest we clear the two durable AI-side
+        // traces of the matter, both best-effort + fire-and-forget (no-op
+        // outside Tauri, never blocks the delete):
+        //   1. The matter's CURRENT RAG chunks (so they stop surfacing under the
+        //      now-gone scope). BUG-040. A later re-index of the files re-adds
+        //      them as 'unassigned' — correct, because the files are still the
+        //      user's and still in the workspace.
+        //   2. Every email's durable per-message "filed to this matter" override
+        //      (BUG-042). Without this, the next mail sync re-tags those emails
+        //      with a matter id that no longer exists (a phantom). Clearing it
+        //      lets them re-index unassigned, matching the file behavior.
+        // To make content truly disappear the user deletes the files themselves.
         void ragDeleteMatter(id).catch((err: unknown) => {
           console.warn('[matterStore] rag purge for deleted matter failed:', err);
+        });
+        void mailClearMatterFilings(id).catch((err: unknown) => {
+          console.warn('[matterStore] mail filing purge for deleted matter failed:', err);
         });
       },
 

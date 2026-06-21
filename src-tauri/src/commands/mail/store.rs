@@ -721,6 +721,24 @@ impl EncryptedMailStore {
     pub fn clear_message_matter(&self, message_id: &str) -> Result<()> {
         self.delete_meta(&message_matter_key(message_id))
     }
+
+    /// Clear EVERY message's manual matter filing for a now-deleted matter
+    /// (BUG-042). Returns how many filings were removed. Without this, deleting
+    /// a matter would leave its per-message overrides behind, and the next sync
+    /// would re-tag those emails with a matter id that no longer exists. After
+    /// this they re-index under their folder default (or unassigned) instead.
+    ///
+    /// Scoped precisely: only the `matter:<message_id>` override family
+    /// (`message_matter_key`) whose value is this matter id — never any other
+    /// `meta` row.
+    pub fn clear_message_matter_for_matter(&self, matter_id: &str) -> Result<usize> {
+        let c = self.conn.lock().unwrap();
+        let removed = c.execute(
+            "DELETE FROM meta WHERE key LIKE 'matter:%' AND value = ?1",
+            [matter_id],
+        )?;
+        Ok(removed)
+    }
 }
 
 impl MailStore for EncryptedMailStore {
@@ -1157,6 +1175,33 @@ mod tests {
         // Survives close + reopen with the same key (durable across restarts).
         let s2 = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
         assert_eq!(s2.get_message_matter("AAMk-2").unwrap().as_deref(), Some("matter-acme"));
+    }
+
+    #[test]
+    fn enc_clear_message_matter_for_matter_clears_only_that_matters_filings() {
+        // BUG-042: deleting a matter must clear EVERY message filed to it, so the
+        // emails don't resurface on the next sync tagged with a matter that no
+        // longer exists. It must NOT touch filings for OTHER matters, nor any
+        // unrelated `meta` row (e.g. the rag-backfill marker).
+        let (_dir, s) = enc_store();
+        s.set_message_matter("MSG-1", "matter-acme").unwrap();
+        s.set_message_matter("MSG-2", "matter-acme").unwrap();
+        s.set_message_matter("MSG-3", "matter-globex").unwrap();
+        s.set_meta("rag_backfill_needed", "1").unwrap();
+
+        let cleared = s.clear_message_matter_for_matter("matter-acme").unwrap();
+        assert_eq!(cleared, 2, "both acme filings cleared");
+
+        // The two acme filings are gone...
+        assert_eq!(s.get_message_matter("MSG-1").unwrap(), None);
+        assert_eq!(s.get_message_matter("MSG-2").unwrap(), None);
+        // ...the other matter's filing is untouched...
+        assert_eq!(s.get_message_matter("MSG-3").unwrap().as_deref(), Some("matter-globex"));
+        // ...and an unrelated meta row is untouched.
+        assert_eq!(s.get_meta("rag_backfill_needed").unwrap().as_deref(), Some("1"));
+
+        // Idempotent: clearing again removes nothing.
+        assert_eq!(s.clear_message_matter_for_matter("matter-acme").unwrap(), 0);
     }
 
     #[test]

@@ -123,6 +123,8 @@ pub fn run() {
             commands::mail::mail_retag_folder_matter,
             // Re-tag a single message's RAG chunks to a matter in place.
             commands::mail::mail_retag_message_matter,
+            // Clear every email's filing for a matter being deleted (BUG-042).
+            commands::mail::mail_clear_matter_filings,
             // Fetch one attachment's bytes on demand (never writes to disk).
             commands::mail::mail_get_attachment,
             // Option B — heal mail RAG indexing that failed while the embedding
