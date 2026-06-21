@@ -25,6 +25,28 @@ export function tabHasUnsavedEdits(
   return tabs.some((t) => t.path === path && t.isDirty);
 }
 
+/**
+ * BUG-047 (Codex review #7): true when `path` is open in an EDITOR tab (file or
+ * docx — not a browser/ai-assistant/email tab whose path isn't a filesystem
+ * path). The chat file tools refuse to write/move/delete ANY open file (not just
+ * dirty ones): the editor holds its own copy and only reloads on file-PATH
+ * change, so an AI write under an open file would leave the editor showing stale
+ * content — and the user typing on that stale view could then clobber the AI's
+ * change. Steering AI edits of open docs to the in-editor AI is the safe path.
+ */
+export function isFileOpenInEditor(
+  path: string,
+  tabs: readonly { path: string; type?: string }[],
+): boolean {
+  return tabs.some(
+    (t) =>
+      t.path === path &&
+      t.type !== 'browser' &&
+      t.type !== 'ai-assistant' &&
+      t.type !== 'email',
+  );
+}
+
 interface OpenTab {
   path: string;
   name: string;

@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { flushAllDirtyTabs, flushTab, setActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
-import { useEditorStore, setBeforeTabClose, tabHasUnsavedEdits } from '@/platform/state/editorStore';
+import { useEditorStore, setBeforeTabClose, tabHasUnsavedEdits, isFileOpenInEditor } from '@/platform/state/editorStore';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 
 const nextTick = () => new Promise((r) => setTimeout(r, 0));
@@ -96,6 +96,21 @@ describe('flushDirtyTabs (BUG-046)', () => {
     expect(tabHasUnsavedEdits('/ws/dirty.md', tabs)).toBe(true);
     expect(tabHasUnsavedEdits('/ws/clean.md', tabs)).toBe(false);
     expect(tabHasUnsavedEdits('/ws/not-open.md', tabs)).toBe(false);
+  });
+
+  it('isFileOpenInEditor detects an open file tab — clean OR dirty (BUG-047 #7)', () => {
+    const tabs = [
+      { path: '/ws/clean.md', type: 'file' as const },
+      { path: '/ws/doc.docx' }, // type undefined => file
+      { path: 'https://example.com', type: 'browser' as const },
+      { path: 'mail:42', type: 'email' as const },
+    ];
+    expect(isFileOpenInEditor('/ws/clean.md', tabs)).toBe(true); // clean file is still "open"
+    expect(isFileOpenInEditor('/ws/doc.docx', tabs)).toBe(true);
+    expect(isFileOpenInEditor('/ws/not-open.md', tabs)).toBe(false);
+    // Non-file tabs (browser/email) whose path matches must NOT count as open files.
+    expect(isFileOpenInEditor('https://example.com', tabs)).toBe(false);
+    expect(isFileOpenInEditor('mail:42', tabs)).toBe(false);
   });
 
   it('closeTab flushes a dirty tab to disk before removing it (the chokepoint)', async () => {

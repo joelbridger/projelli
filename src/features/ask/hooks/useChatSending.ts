@@ -40,7 +40,7 @@ import type { useActiveMatter } from '@/platform/matter/matterStore';
 import { getActiveScope, useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
-import { useEditorStore, tabHasUnsavedEdits } from '@/platform/state/editorStore';
+import { useEditorStore, tabHasUnsavedEdits, isFileOpenInEditor } from '@/platform/state/editorStore';
 import type { RetrievalScope } from '@/platform/utils/tauri-commands';
 import type { ExtractedContext } from '@/platform/utils/ai-file-context';
 import { filterByScope } from '@/platform/utils/client-boundary';
@@ -665,12 +665,20 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // (or the next autosave clobbers the AI's write). Fail closed with a
         // clear message so the model asks the user to save/close it first.
         const assertNotOpenWithUnsavedEdits = (absPath: string, relativePath: string): void => {
-          if (tabHasUnsavedEdits(absPath, useEditorStore.getState().openTabs)) {
+          const tabs = useEditorStore.getState().openTabs;
+          if (!isFileOpenInEditor(absPath, tabs)) return;
+          if (tabHasUnsavedEdits(absPath, tabs)) {
             throw new Error(
               `Cannot modify "${relativePath}": it's open in the editor with UNSAVED changes. ` +
                 `To avoid overwriting the user's work, ask them to save or close it first, then try again.`,
             );
           }
+          // BUG-047 #7: even a CLEAN open file is refused — the editor would show
+          // stale content after the write, and the user could then clobber it.
+          throw new Error(
+            `Cannot modify "${relativePath}": it's open in the editor. Ask the user to close it first ` +
+              `(or use the in-editor AI to edit an open document) so the editor doesn't show stale content.`,
+          );
         };
 
         const toolExecutor = async (toolName: string, params: Record<string, unknown>) => {
