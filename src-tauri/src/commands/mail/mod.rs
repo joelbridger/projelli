@@ -300,6 +300,30 @@ pub(crate) fn is_real_matter(matter_id: &str) -> bool {
     !matter_id.is_empty() && matter_id != crate::commands::rag::store::UNASSIGNED_MATTER
 }
 
+/// Resolve a message's effective matter at RAG-index time from its durable
+/// per-message override and the folder default. Three states:
+///   - a REAL override (a live matter the user filed it to) wins over the folder
+///     (BUG-013 — a manual filing survives re-sync / folder remap);
+///   - an EXPLICIT `UNASSIGNED_MATTER` override — a *tombstone* left when the
+///     matter it had been filed to was DELETED — stays unassigned and is NOT
+///     re-absorbed into the folder's matter (BUG-042). This upholds the legal
+///     invariant that content filed to one matter can never silently move into
+///     another matter just because the first matter was deleted;
+///   - no override (or an unreadable one) → the folder default.
+///
+/// `override_opt` is the raw stored override (`None` when the message was never
+/// manually filed). `folder_default` is the matter the folder maps to (already
+/// `UNASSIGNED_MATTER` when the folder is unmapped).
+pub(crate) fn resolve_effective_matter(override_opt: Option<&str>, folder_default: &str) -> String {
+    match override_opt {
+        Some(m) if is_real_matter(m) => m.to_string(),
+        Some(m) if m == crate::commands::rag::store::UNASSIGNED_MATTER => {
+            crate::commands::rag::store::UNASSIGNED_MATTER.to_string()
+        }
+        _ => folder_default.to_string(),
+    }
+}
+
 #[tauri::command]
 pub async fn mail_get_message(
     state: State<'_, MailState>,
@@ -465,12 +489,12 @@ pub async fn mail_retag_folder_matter(
         // even when the whole folder is remapped — only messages without a
         // manual filing follow the folder's new matter. Without this, a folder
         // remap would silently re-scope a manually-filed email's search results.
-        let effective_matter = match override_matter.as_deref() {
-            Some(m) if is_real_matter(m) => m,
-            _ => matter_id.as_str(),
-        };
+        // BUG-042: an "unassigned" tombstone (left when a filed-to matter was
+        // deleted) stays unassigned rather than being absorbed into the folder.
+        let effective_matter =
+            resolve_effective_matter(override_matter.as_deref(), matter_id.as_str());
         match crate::commands::rag::store::retag_matter_for_path(
-            &table, &path_key, effective_matter, &vec_key,
+            &table, &path_key, &effective_matter, &vec_key,
         )
         .await
         {
@@ -884,10 +908,12 @@ pub async fn mail_backfill_rag(
         // BUG-013: a durable per-message filing wins over the folder mapping, so
         // re-indexing (backfill) preserves a manual "file to matter" instead of
         // reverting it to the folder default. Absent override → folder matter.
-        let matter = match store.get_message_matter(&rec.id) {
-            Ok(Some(m)) if is_real_matter(&m) => m,
-            _ => resolve_mail_matter(&matter_map, &rec.provider, &rec.account, &rec.folder_id),
-        };
+        // BUG-042: an "unassigned" tombstone stays unassigned (not re-absorbed
+        // into the folder's matter).
+        let folder_default =
+            resolve_mail_matter(&matter_map, &rec.provider, &rec.account, &rec.folder_id);
+        let matter =
+            resolve_effective_matter(store.get_message_matter(&rec.id).ok().flatten().as_deref(), &folder_default);
 
         match index_mail_text_internal(&workspace, &path_key, &text, &matter).await {
             Ok(_) => indexed += 1,
@@ -2098,9 +2124,38 @@ async fn send_imap(
 
 #[cfg(test)]
 mod tests {
-    use super::{frontmatter_subject, get_message_with_key, resolve_mail_matter, should_sync_provider, yaml_unescape, MailMatterMapEntry};
+    use super::{frontmatter_subject, get_message_with_key, resolve_effective_matter, resolve_mail_matter, should_sync_provider, yaml_unescape, MailMatterMapEntry};
     use crate::commands::mail::store::EncryptedMailStore;
     use crate::commands::rag::store::UNASSIGNED_MATTER;
+
+    #[test]
+    fn resolve_effective_matter_real_override_wins_over_folder() {
+        // BUG-013: a manual filing to a live matter beats the folder default.
+        assert_eq!(
+            resolve_effective_matter(Some("matter-acme"), "matter-folderdefault"),
+            "matter-acme"
+        );
+    }
+
+    #[test]
+    fn resolve_effective_matter_no_override_uses_folder_default() {
+        // Never manually filed → follow the folder mapping.
+        assert_eq!(
+            resolve_effective_matter(None, "matter-folderdefault"),
+            "matter-folderdefault"
+        );
+    }
+
+    #[test]
+    fn resolve_effective_matter_unassigned_tombstone_stays_unassigned() {
+        // BUG-042: the tombstone left when a filed-to matter is deleted must NOT
+        // be re-absorbed into the folder's (different, live) matter — otherwise a
+        // deleted matter's email would silently move into another matter.
+        assert_eq!(
+            resolve_effective_matter(Some(UNASSIGNED_MATTER), "matter-otherlive"),
+            UNASSIGNED_MATTER
+        );
+    }
 
     #[test]
     fn should_sync_provider_scopes_to_one_when_set() {

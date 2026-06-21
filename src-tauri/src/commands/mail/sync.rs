@@ -150,11 +150,15 @@ where
         // BUG-013: a DURABLE per-message filing (manual "file to matter", stored
         // in the mail DB) wins over the folder mapping, so a manual filing
         // survives this re-sync/re-index instead of being re-stamped back to the
-        // folder's matter. Absent/empty override → use the folder `matter_id`.
-        let effective_matter = match store.get_message_matter(&msg.id) {
-            Ok(Some(m)) if crate::commands::mail::is_real_matter(&m) => m,
-            _ => matter_id.to_string(),
-        };
+        // folder's matter. Absent override → use the folder `matter_id`.
+        // BUG-042: an "unassigned" tombstone (left when a filed-to matter was
+        // deleted) stays unassigned — it is NOT re-stamped to the folder's
+        // matter, so a deleted matter's email can never silently move into
+        // another matter.
+        let effective_matter = crate::commands::mail::resolve_effective_matter(
+            store.get_message_matter(&msg.id).ok().flatten().as_deref(),
+            matter_id,
+        );
         index_callback(&msg.id, &markdown, &effective_matter);
         stats.written += 1;
     }

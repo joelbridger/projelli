@@ -722,22 +722,28 @@ impl EncryptedMailStore {
         self.delete_meta(&message_matter_key(message_id))
     }
 
-    /// Clear EVERY message's manual matter filing for a now-deleted matter
-    /// (BUG-042). Returns how many filings were removed. Without this, deleting
-    /// a matter would leave its per-message overrides behind, and the next sync
-    /// would re-tag those emails with a matter id that no longer exists. After
-    /// this they re-index under their folder default (or unassigned) instead.
+    /// Re-file EVERY message that was manually filed to a now-deleted matter as
+    /// `UNASSIGNED_MATTER` (BUG-042). Returns how many filings were changed.
+    ///
+    /// Why a tombstone (set to "unassigned") and NOT a plain delete: deleting the
+    /// override would make the next sync fall back to the message's FOLDER matter
+    /// — so an email filed to deleted matter A, but living in a folder mapped to
+    /// a different live matter B, would silently move into B. For a legal tool
+    /// that must never happen. Writing an explicit "unassigned" tombstone (which
+    /// `resolve_effective_matter` honors and does NOT re-absorb into the folder)
+    /// guarantees a deleted matter's emails become unassigned, never another
+    /// matter's. (A later manual re-file overwrites the tombstone normally.)
     ///
     /// Scoped precisely: only the `matter:<message_id>` override family
     /// (`message_matter_key`) whose value is this matter id — never any other
     /// `meta` row.
     pub fn clear_message_matter_for_matter(&self, matter_id: &str) -> Result<usize> {
         let c = self.conn.lock().unwrap();
-        let removed = c.execute(
-            "DELETE FROM meta WHERE key LIKE 'matter:%' AND value = ?1",
-            [matter_id],
+        let changed = c.execute(
+            "UPDATE meta SET value = ?2 WHERE key LIKE 'matter:%' AND value = ?1",
+            rusqlite::params![matter_id, crate::commands::rag::store::UNASSIGNED_MATTER],
         )?;
-        Ok(removed)
+        Ok(changed)
     }
 }
 
@@ -1178,29 +1184,32 @@ mod tests {
     }
 
     #[test]
-    fn enc_clear_message_matter_for_matter_clears_only_that_matters_filings() {
-        // BUG-042: deleting a matter must clear EVERY message filed to it, so the
-        // emails don't resurface on the next sync tagged with a matter that no
-        // longer exists. It must NOT touch filings for OTHER matters, nor any
-        // unrelated `meta` row (e.g. the rag-backfill marker).
+    fn enc_clear_message_matter_for_matter_tombstones_only_that_matters_filings() {
+        // BUG-042: deleting a matter must re-file EVERY message filed to it as
+        // "unassigned" (a tombstone), so the next sync can't (a) resurface them
+        // tagged with a matter that no longer exists, nor (b) silently absorb
+        // them into their folder's matter. It must NOT touch filings for OTHER
+        // matters, nor any unrelated `meta` row (e.g. the rag-backfill marker).
+        let unassigned = crate::commands::rag::store::UNASSIGNED_MATTER;
         let (_dir, s) = enc_store();
         s.set_message_matter("MSG-1", "matter-acme").unwrap();
         s.set_message_matter("MSG-2", "matter-acme").unwrap();
         s.set_message_matter("MSG-3", "matter-globex").unwrap();
         s.set_meta("rag_backfill_needed", "1").unwrap();
 
-        let cleared = s.clear_message_matter_for_matter("matter-acme").unwrap();
-        assert_eq!(cleared, 2, "both acme filings cleared");
+        let changed = s.clear_message_matter_for_matter("matter-acme").unwrap();
+        assert_eq!(changed, 2, "both acme filings tombstoned");
 
-        // The two acme filings are gone...
-        assert_eq!(s.get_message_matter("MSG-1").unwrap(), None);
-        assert_eq!(s.get_message_matter("MSG-2").unwrap(), None);
+        // The two acme filings are now explicit "unassigned" tombstones (NOT
+        // deleted — a plain delete would let them fall back to the folder matter).
+        assert_eq!(s.get_message_matter("MSG-1").unwrap().as_deref(), Some(unassigned));
+        assert_eq!(s.get_message_matter("MSG-2").unwrap().as_deref(), Some(unassigned));
         // ...the other matter's filing is untouched...
         assert_eq!(s.get_message_matter("MSG-3").unwrap().as_deref(), Some("matter-globex"));
         // ...and an unrelated meta row is untouched.
         assert_eq!(s.get_meta("rag_backfill_needed").unwrap().as_deref(), Some("1"));
 
-        // Idempotent: clearing again removes nothing.
+        // Idempotent: the now-"unassigned" rows no longer match this matter id.
         assert_eq!(s.clear_message_matter_for_matter("matter-acme").unwrap(), 0);
     }
 

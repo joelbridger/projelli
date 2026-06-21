@@ -323,8 +323,11 @@ export const useMatterStore = create<MatterState>()(
         //      user's and still in the workspace.
         //   2. Every email's durable per-message "filed to this matter" override
         //      (BUG-042). Without this, the next mail sync re-tags those emails
-        //      with a matter id that no longer exists (a phantom). Clearing it
-        //      lets them re-index unassigned, matching the file behavior.
+        //      with a matter id that no longer exists (a phantom). They're set to
+        //      an explicit "unassigned" tombstone (NOT just deleted) so they
+        //      become unassigned and are NEVER silently absorbed into the matter
+        //      their folder happens to map to — content filed to one matter must
+        //      never cross into another (legal invariant; Codex review #1).
         // To make content truly disappear the user deletes the files themselves.
         void ragDeleteMatter(id).catch((err: unknown) => {
           console.warn('[matterStore] rag purge for deleted matter failed:', err);
