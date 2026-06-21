@@ -85,6 +85,14 @@ export function JourneyHost({ chapters, reducedMotion: reducedMotionProp, onComp
       aria-modal="true"
       aria-label="Set up Keepance"
       style={{
+        // Fixed full-screen overlay: the journey must cover the workspace
+        // picker / app behind it. Without position:fixed it renders in normal
+        // flow and the picker paints on top (jsdom can't catch this; only a
+        // real browser shows it). z-index sits above app surfaces.
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        overflow: 'auto',
         display: 'flex',
         flexDirection: 'column',
         minHeight: '100vh',

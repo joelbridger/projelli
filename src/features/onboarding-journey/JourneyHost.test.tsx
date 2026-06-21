@@ -56,6 +56,15 @@ describe('JourneyHost – renders', () => {
     expect(screen.getByTestId('chapter-ch1')).toBeInTheDocument();
   });
 
+  it('is a fixed full-screen overlay so it covers the app behind it', () => {
+    // Regression: the host must be position:fixed with a high z-index, or it
+    // renders in normal flow and the workspace picker paints on top of it.
+    renderHost();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveStyle({ position: 'fixed' });
+    expect(Number(getComputedStyle(dialog).zIndex)).toBeGreaterThan(0);
+  });
+
   it('shows the chapter title in the progress strip', () => {
     renderHost();
     // The live region in the progress strip shows the current chapter title
