@@ -171,7 +171,7 @@ describe('F-106 — no-key workflow provider resolution', () => {
     }
   });
 
-  it('falls back to claude key when template is pinned to gemini but no gemini key', () => {
+  it('falls back to claude key when pinned to gemini with no gemini key, DROPPING the gemini model (BUG-025)', () => {
     const result = resolve({
       template: makeTemplate('t1', 'gemini', 'gemini-1.5-pro'),
       anthropicKey: 'sk-ant-test',
@@ -180,6 +180,9 @@ describe('F-106 — no-key workflow provider resolution', () => {
     expect(result.kind).toBe('cloud');
     if (result.kind === 'cloud') {
       expect(result.provider).toBe('claude');
+      // The gemini model must NOT be carried onto Claude (it would be invalid);
+      // the fallback provider uses its own default model.
+      expect(result.model).toBeUndefined();
     }
   });
 });

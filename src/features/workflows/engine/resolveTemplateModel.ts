@@ -195,15 +195,21 @@ export function resolveWorkflowProvider(
   if (pickedProvider === 'gemini' && googleKey) {
     return { kind: 'cloud', provider: 'gemini', model: pickedModel, key: googleKey };
   }
-  // Fallback: picked provider had no key, try any available cloud key.
+  // Fallback: the picked provider has no key — use any available cloud key, but
+  // DROP `pickedModel` (BUG-025). The picked model belongs to the pinned
+  // provider (e.g. "gemini-1.5-pro"); carrying it onto a different provider
+  // (Claude/OpenAI) sends a model that provider doesn't have and fails or routes
+  // wrong. `undefined` lets the fallback provider use its own default model.
+  // (Whether an explicit pin should instead BLOCK with needs-provider is a
+  // product decision flagged for review; this fix stops the broken send.)
   if (anthropicKey) {
-    return { kind: 'cloud', provider: 'claude', model: pickedModel, key: anthropicKey };
+    return { kind: 'cloud', provider: 'claude', model: undefined, key: anthropicKey };
   }
   if (openaiKey) {
-    return { kind: 'cloud', provider: 'openai', model: pickedModel, key: openaiKey };
+    return { kind: 'cloud', provider: 'openai', model: undefined, key: openaiKey };
   }
   if (googleKey) {
-    return { kind: 'cloud', provider: 'gemini', model: pickedModel, key: googleKey };
+    return { kind: 'cloud', provider: 'gemini', model: undefined, key: googleKey };
   }
 
   // No cloud key available.

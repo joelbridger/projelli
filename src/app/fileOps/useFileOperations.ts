@@ -234,19 +234,18 @@ export function useFileOperations(options: UseFileOperationsOptions) {
       if (!workspaceServiceRef.current) return;
 
       try {
-        const content = await workspaceServiceRef.current.readFile(path);
+        // BUG-034: a download is "give me this file exactly as it is on disk".
+        // We ALWAYS copy the raw bytes — reading the file as text (the old path)
+        // corrupts any binary file (PDF/DOCX/XLSX/image/etc.), and reading bytes
+        // is lossless for text files too. Reading bytes is also independent of
+        // the isBinaryFile() extension list, so an unusual-but-binary extension
+        // can never silently fall through to the corrupting text path.
+        // `saveFile` writes an ArrayBuffer as bytes in both Tauri and browser.
+        const content = await workspaceServiceRef.current.readFileBinary(path);
 
         // Use cross-platform saveFile utility (works in both browser and Tauri)
         await saveFile(content, {
           suggestedName: name,
-          types: [
-            {
-              description: 'Text Files',
-              accept: {
-                'text/plain': ['.txt', '.md', '.markdown', '.json'],
-              },
-            },
-          ],
         });
       } catch (error) {
         // User cancelled or error occurred

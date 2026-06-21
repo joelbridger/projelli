@@ -10,20 +10,52 @@
 export function isBinaryFile(name: string): boolean {
   const ext = name.split('.').pop()?.toLowerCase();
   if (!ext) return false;
-  const binaryExtensions = [
-    // Images
-    'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico',
-    // Videos
-    'mp4', 'webm', 'mov', 'avi', 'mkv', 'ogg',
-    // Audio
-    'mp3', 'wav', 'm4a',
-    // Documents
-    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'rtf',
-    // Archives
-    'zip', 'rar', '7z', 'tar', 'gz',
-  ];
-  return binaryExtensions.includes(ext);
+  return BINARY_EXTENSIONS.has(ext);
 }
+
+/**
+ * Extensions that are ALWAYS binary. This set is the single source of truth that
+ * decides whether Keepance handles a file as raw bytes (data-URL / binary read &
+ * write) instead of UTF-8 text. Treating a real binary file as text corrupts it
+ * on import, on save/autosave, and (before BUG-034) on download — so this list
+ * must err on the side of "binary". Every entry here is a format that is never
+ * plain text; we deliberately DO NOT add ambiguous formats that can be text
+ * (e.g. .csv, .eps, .ps, .stl, .obj, .dxf, .svg-as-source) so a genuine text
+ * file is never misread as binary.
+ *
+ * NOTE: extension matching is a heuristic. The robust long-term fix is to sniff
+ * the file's magic bytes rather than trust the extension (tracked as BUG-035).
+ */
+const BINARY_EXTENSIONS = new Set<string>([
+  // Images (svg is intentionally kept here for backwards compatibility even
+  // though it is XML text — changing that is out of scope for the byte fix).
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico',
+  'tiff', 'tif', 'heic', 'heif', 'avif', 'jfif', 'psd',
+  'raw', 'cr2', 'nef', 'arw', 'dng',
+  // Videos
+  'mp4', 'webm', 'mov', 'avi', 'mkv', 'ogg', 'ogv',
+  'm4v', 'mpg', 'mpeg', 'wmv', 'flv', '3gp', 'm2ts', 'mts',
+  // Audio
+  'mp3', 'wav', 'm4a', 'flac', 'aac', 'oga', 'opus', 'weba',
+  'wma', 'aiff', 'aif', 'mid', 'midi', 'amr',
+  // Documents (binary or ZIP-container office formats)
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'rtf',
+  'odt', 'ods', 'odp', 'pages', 'numbers', 'key',
+  'epub', 'mobi', 'azw', 'azw3', 'vsd', 'vsdx', 'one', 'pub', 'wpd', 'ai',
+  // Archives / compression
+  'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'zst', 'zstd',
+  'lz', 'lzma', 'cab', 'tgz', 'tbz', 'tbz2', 'iso', 'dmg', 'jar', 'war',
+  // Fonts
+  'ttf', 'otf', 'woff', 'woff2', 'eot',
+  // Executables / native binaries
+  'exe', 'dll', 'so', 'dylib', 'bin', 'wasm', 'class',
+  'msi', 'deb', 'rpm', 'apk', 'appimage', 'node',
+  // Data / databases
+  'sqlite', 'sqlite3', 'db', 'db3', 'mdb', 'accdb',
+  'parquet', 'orc', 'avro', 'feather', 'npy', 'npz',
+  // Design (binary / container formats)
+  'sketch', 'fig', 'xd', 'afdesign', 'afphoto',
+]);
 
 /**
  * Convert an ArrayBuffer to a data URL

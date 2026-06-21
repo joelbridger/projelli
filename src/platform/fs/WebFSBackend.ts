@@ -150,8 +150,10 @@ export class WebFSBackend implements FSBackend {
     // Check if it's a file or folder
     const stat = await this.stat(from);
     if (stat.type === 'file') {
-      const content = await this.read(from);
-      await this.write(to, content);
+      // BUG-033: copy via BINARY read/write so PDFs/DOCX/images/Office files
+      // aren't corrupted by text en/decoding (binary-safe for text too).
+      const content = await this.readBinary(from);
+      await this.writeBinary(to, content);
     } else {
       // For folders, use copy (which handles recursion)
       await this.copy(from, to);
@@ -162,8 +164,9 @@ export class WebFSBackend implements FSBackend {
   async copy(from: string, to: string): Promise<void> {
     const stat = await this.stat(from);
     if (stat.type === 'file') {
-      const content = await this.read(from);
-      await this.write(to, content);
+      // BUG-033: binary-safe copy (see move above).
+      const content = await this.readBinary(from);
+      await this.writeBinary(to, content);
     } else {
       // Copy directory recursively
       await this.mkdir(to);
