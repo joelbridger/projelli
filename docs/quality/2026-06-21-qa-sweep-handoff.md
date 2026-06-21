@@ -1,8 +1,8 @@
 # QA Sweep Handoff — 2026-06-21
 
-**Branch:** `keepance-3.0` · **HEAD:** `d7e8d0e` (== origin, fully pushed) · **Nothing deployed** (a real build/release still needs Jameson's explicit go).
+**Branch:** `keepance-3.0` · **HEAD:** `3f079b4`+ (== origin, fully pushed) · **Nothing deployed** (a real build/release still needs Jameson's explicit go).
 
-This session ran a deep, adversarial QA + security sweep of Keepance using **5 independent Codex audits** (each found 6–9 real issues) plus targeted fixes. **8 fix batches** were committed and pushed; **~17 bugs fixed** (each with a red-capable regression test); **~25 deeper findings logged** for a focused effort or Jameson's decision.
+This session ran a deep, adversarial QA + security sweep of Keepance using **6 independent Codex audits** (binary blast-radius, matter-isolation, data-loss, licensing, prompt-injection, workspace-boundary — each found 6–12 real issues) plus targeted fixes. **9 fix batches** were committed and pushed; **~18 bugs fixed** (each with a red-capable regression test); **~30 deeper findings logged** for a focused effort or Jameson's decision.
 
 **The single source of truth for every finding + status is [`docs/quality/2026-06-20-test-bug-backlog.md`](./2026-06-20-test-bug-backlog.md) (BUG-001 … BUG-061).** Read that first.
 
@@ -31,7 +31,8 @@ This session ran a deep, adversarial QA + security sweep of Keepance using **5 i
 3. **MCP (BUG-038/039)** — external MCP reads/search are whole-workspace, not matter-scoped; "network lockdown" only blocks MCP *writes*. Architectural (the sidecar has no matter session).
 4. **Matter-delete semantics (BUG-042)** — product decision: should "delete a matter" ever truly erase content (it keeps files on disk today)?
 5. **Revenue / pricing / payment backend (BUG-054–057)** — firm min-3-seats not server-enforced (PRICING decision), refund/cancel/downgrade webhooks unhandled, buyer may never see their license key, client JWT not signature-verified. Deploy-gated (firm backend is live at api.keepance.com).
-6. **Per-action AI-write approval (BUG-060)** + memory-fact poisoning (BUG-061) + finishing the untrusted-content framing on workflow excerpts (rest of BUG-059).
+6. **Per-action AI-write approval (BUG-060)** + memory-fact poisoning (BUG-061). _(The untrusted-content framing on workflow excerpts — the rest of BUG-059 — is now DONE, commit `3f079b4`.)_
+7. **Workspace-boundary hardening (BUG-062)** — the symlink escape (genuinely reachable) + Rust native commands trusting caller-supplied absolute paths (reachable via a compromised renderer). Robust fix = ONE canonical workspace guard in trusted Rust state, canonicalizing both root + candidate (handles macOS `/var` symlink trap), routing every native fs/docx/vault/rag/convert command through it. **Needs real Win/Mac verification** — do NOT rush piecemeal. The frontend `PathValidator` itself is solid.
 
 ## Gotchas for the next session
 - **Backgrounded `codex-task` flakes on the stdin-hang even with `< /dev/null`** (prints the prompt, exits 0, no findings). Run Codex audits in the FOREGROUND (the harness auto-backgrounds long ones, but they actually execute). Use `codex-task --read-only "<prompt>"` (NOT `codex-review`, which recurses on AGENTS.md→CLAUDE.md in this repo).
