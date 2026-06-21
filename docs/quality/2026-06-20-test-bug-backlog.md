@@ -211,9 +211,9 @@ Drove the real bench + ran an independent Codex audit of three high-risk areas (
 
 **Data loss (legal work product):**
 - **BUG-029 — DOCX edits lost if the tab/app closes within the ~1.2s debounce** (`DocxEditor.tsx`). 🟢 **FIXED (2026-06-21).** Unmount now flushes the latest pending save (`flushPendingSaveRef`); the timer clears it on a normal save (no double-save). Test in `DocxEditor.test.tsx`.
-- **BUG-032 — Matter notes can lose the last seconds of typing** (`MatterNotesEditor.tsx:179` cancels the disk-mirror timer on unmount without flushing). 🔴 OPEN (important) — same flush pattern as BUG-029.
-- **BUG-030 — Restoring a trashed binary file can corrupt it** when the original path is taken (`TrashService.ts:177` uses text read/write instead of a byte-safe move). 🔴 OPEN (important).
-- **BUG-031 — Empty Trash clears the manifest even when a delete fails** (`TrashService.ts:225`) → a confidential file stays on disk but vanishes from the UI. 🔴 OPEN (important) — only remove successfully-deleted items; report partial failure.
+- **BUG-032 — Matter notes can lose the last seconds of typing.**  🟢 **FIXED (2026-06-21).** `MatterNotesEditor` now flushes the latest disk-mirror write on unmount (`flushDiskMirrorRef`; cleared on a normal save) — same pattern as BUG-029.
+- **BUG-030 — Restoring a trashed binary file could corrupt it.**  🟢 **FIXED (2026-06-21).** `TrashService.restore` now restores via a byte-safe `move` (incl. to the de-duplicated `_restored_` name) instead of a text read/write. Test in `trash-service.test.ts`.
+- **BUG-031 — Empty Trash cleared the manifest even when a delete failed.**  🟢 **FIXED (2026-06-21).** `emptyTrash` now removes only items whose on-disk delete succeeded (failures stay visible + recoverable; returns the count actually removed). Test in `trash-service.test.ts`.
 - **BUG-033 — Browser-mode file move/copy corrupts binaries** (`WebFSBackend.ts:148/162` text read/write). 🔴 OPEN (important *if* browser mode ships; desktop uses TauriFSBackend).
 - **BUG-034 — Toolbar Download reads binaries as text** (`useFileOperations.ts:231`). 🔴 OPEN (minor).
 

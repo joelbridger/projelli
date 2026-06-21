@@ -90,6 +90,26 @@ export function MatterNotesEditor({
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const editorViewRef = useRef<EditorView | null>(null);
   const diskMirrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // BUG-032 (data loss): flushes the latest pending disk-mirror write. Set while
+  // a write is debounced; called on unmount so navigating away within the
+  // debounce window doesn't silently drop the last lines of notes. Cleared once
+  // the timer fires normally so a later unmount never double-writes.
+  const flushDiskMirrorRef = useRef<(() => void) | null>(null);
+
+  const writeDiskMirror = useCallback(
+    async (text: string) => {
+      if (!workspaceService) return;
+      const folder = matter.folderPaths[0];
+      if (!folder) return;
+      try {
+        await workspaceService.writeFile(`${folder}/matter-notes.md`, text);
+      } catch (err) {
+        // Non-fatal: the Yjs doc is the source of truth.
+        console.warn('[MatterNotesEditor] disk mirror write failed:', err);
+      }
+    },
+    [workspaceService, matter.folderPaths],
+  );
 
   // Schedule a debounced write of the notes text to the first matter folder.
   const scheduleDiskMirror = useCallback(
@@ -98,16 +118,13 @@ export function MatterNotesEditor({
       const folder = matter.folderPaths[0];
       if (!folder) return;
       if (diskMirrorTimerRef.current) clearTimeout(diskMirrorTimerRef.current);
-      diskMirrorTimerRef.current = setTimeout(async () => {
-        try {
-          await workspaceService.writeFile(`${folder}/matter-notes.md`, text);
-        } catch (err) {
-          // Non-fatal: the Yjs doc is the source of truth.
-          console.warn('[MatterNotesEditor] disk mirror write failed:', err);
-        }
+      flushDiskMirrorRef.current = () => { void writeDiskMirror(text); };
+      diskMirrorTimerRef.current = setTimeout(() => {
+        flushDiskMirrorRef.current = null;
+        void writeDiskMirror(text);
       }, DISK_MIRROR_DEBOUNCE_MS);
     },
-    [workspaceService, matter.folderPaths],
+    [workspaceService, matter.folderPaths, writeDiskMirror],
   );
 
   useEffect(() => {
@@ -177,7 +194,12 @@ export function MatterNotesEditor({
     editorViewRef.current = view;
 
     return () => {
-      if (diskMirrorTimerRef.current) clearTimeout(diskMirrorTimerRef.current);
+      if (diskMirrorTimerRef.current) {
+        clearTimeout(diskMirrorTimerRef.current);
+        // Flush the latest notes so leaving within the debounce window doesn't
+        // silently drop the last lines (BUG-032, data loss).
+        flushDiskMirrorRef.current?.();
+      }
       view.destroy();
       editorViewRef.current = null;
     };

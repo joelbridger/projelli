@@ -186,14 +186,11 @@ export class TrashService {
       targetPath = parentPath ? `${parentPath}/${restoredName}` : restoredName;
     }
 
-    if (exists && item.type === 'file') {
-      const content = await this.fileOps.read(item.trashPath);
-      await this.fileOps.write(targetPath, content);
-      await this.fileOps.delete(item.trashPath);
-    } else {
-      // Move back from trash
-      await this.fileOps.move(item.trashPath, targetPath);
-    }
+    // Restore by MOVING the trashed file to its (unique) target path. The
+    // previous text read+write path corrupted binary files (PDF/DOCX/images/
+    // Office) because `read`/`write` are text-encoded; `move` preserves bytes,
+    // and `targetPath` is already de-duplicated above so it never collides.
+    await this.fileOps.move(item.trashPath, targetPath);
 
     // Remove from manifest
     this.items.delete(id);
@@ -223,20 +220,26 @@ export class TrashService {
    * Empty the entire trash
    */
   async emptyTrash(): Promise<number> {
-    const count = this.items.size;
-
-    for (const item of this.items.values()) {
+    // Only drop items whose on-disk delete actually succeeded. Clearing the
+    // whole manifest unconditionally hid files that failed to delete (locked /
+    // permission-blocked) — a confidential file would stay on disk but vanish
+    // from the UI, with no way to restore or remove it. Failed items stay in the
+    // trash so the user can retry. Returns the count actually removed; a result
+    // less than the prior size signals a partial failure to the caller.
+    let removed = 0;
+    for (const [id, item] of this.items) {
       try {
         await this.fileOps.delete(item.trashPath);
+        this.items.delete(id);
+        removed += 1;
       } catch {
-        // Ignore errors for individual deletions
+        // Leave this item in the manifest so it remains visible + recoverable.
       }
     }
 
-    this.items.clear();
     await this.saveManifest();
 
-    return count;
+    return removed;
   }
 
   /**
