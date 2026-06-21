@@ -26,6 +26,7 @@ import { buildEditSystemPrompt } from '@/features/documents/editor-core/aiEdit/e
 import type { DiffHunk, HunkResolution } from '@/features/documents/editor-core/aiEdit/types';
 import type { Provider } from '@/platform/providers/Provider';
 import { getVersionService } from '@/features/documents/versioning/VersionService';
+import { useTrialGate } from '@/platform/hooks/useTrial';
 
 /** Subset of editor surface the hook needs. */
 export interface EditorAdapter {
@@ -96,6 +97,12 @@ export function useInlineAiEdit(args: UseInlineAiEditArgs): {
 } {
   const { adapter, getProvider, formatHint, docVersion } = args;
 
+  // Licensing audit: inline AI editing is a PAID AI feature and must be gated by
+  // the same entitlement as chat / workflows / Word redline. Without this, a
+  // user with a lapsed/expired license (AI locked) could still run inline edits.
+  // Data access is never gated — only the AI call is.
+  const { isLocked: aiGated } = useTrialGate();
+
   const [anchorCoords, setAnchorCoords] = useState<{ x: number; y: number } | null>(null);
   const [externalOpenSignal, setExternalOpenSignal] = useState(0);
 
@@ -158,6 +165,7 @@ export function useInlineAiEdit(args: UseInlineAiEditArgs): {
       const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform);
       const modOk = isMac ? e.metaKey : e.ctrlKey;
       if (modOk && e.shiftKey && (e.key === 'E' || e.key === 'e')) {
+        if (aiGated) return; // entitlement gate — don't open the panel when AI is locked
         const selected = adapter.getSelectedText();
         if (!selected) return;
         e.preventDefault();
@@ -169,10 +177,13 @@ export function useInlineAiEdit(args: UseInlineAiEditArgs): {
     const target: EventTarget = node ?? window;
     target.addEventListener('keydown', handleKey as EventListener);
     return () => target.removeEventListener('keydown', handleKey as EventListener);
-  }, [adapter, refreshAnchor]);
+  }, [adapter, refreshAnchor, aiGated]);
 
   const submitInstruction = useCallback(
     async (instruction: string) => {
+      // Entitlement chokepoint (licensing audit): never call the AI provider for
+      // an inline edit when AI is locked, no matter how the panel was opened.
+      if (aiGated) return;
       const selected = adapter.getSelectedText();
       const range = adapter.getSelectionRange();
       if (!selected || !range) return;
@@ -228,7 +239,7 @@ export function useInlineAiEdit(args: UseInlineAiEditArgs): {
         setSessionProposed((prev) => stripAccidentalMarkdownFence(prev, true));
       }
     },
-    [adapter, formatHint, getProvider]
+    [adapter, formatHint, getProvider, aiGated]
   );
 
   const recordAiAttribution = useCallback(

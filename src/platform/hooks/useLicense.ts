@@ -162,6 +162,12 @@ function decodeJwtPayload(token: string): { tier?: LicenseTier; packs?: Professi
  */
 function readFakeLicense(): { tier: LicenseTier; packs: ProfessionPack[] } | null {
   if (typeof window === 'undefined') return null;
+  // SECURITY (licensing audit): the `?fakeLicense=` QA bypass must NEVER work in
+  // a production build — otherwise a user could unlock paid tiers (incl. Firm)
+  // just by adding a URL param. It stays available on the Vite dev server (where
+  // the QA / full-user-test playbook runs); `import.meta.env.DEV` is false in
+  // every shipped/signed build and in the public web-demo build.
+  if (!import.meta.env.DEV) return null;
   const m = window.location.search.match(/[?&]fakeLicense=(personal|professional|practice)\b/);
   if (!m) return null;
   const packsMatch = window.location.search.match(/[?&]fakePacks=([a-z,]+)/);
