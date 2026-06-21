@@ -277,9 +277,9 @@ describe('resolveCitationPath', () => {
     expect(resolveCitationPath(cite, hits)).toBe('archive/pricing.md');
   });
 
-  it('falls back to the first basename match when no paragraph matches', () => {
+  it('returns null when no paragraph matches (BUG-065: no basename fallback — an unretrieved locator is unverifiable)', () => {
     const cite = parseCitations('[pricing.md paragraph 99]')[0]!;
-    expect(resolveCitationPath(cite, hits)).toBe('notes/pricing.md');
+    expect(resolveCitationPath(cite, hits)).toBe(null);
   });
 
   it('returns null when no hit matches the basename', () => {

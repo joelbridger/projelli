@@ -1315,7 +1315,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
           const normalizedAnswer = normalizeNumericCitations(accumulated, retrievedSources);
           const verifiedStreamSources =
             retrievedSources.length > 0
-              ? await verifyCitations(normalizedAnswer, retrievedSources, emitCitationVerified)
+              ? await verifyCitations(normalizedAnswer, retrievedSources, { onVerdict: emitCitationVerified, expectedMatterId: activeMatter ? activeMatter.id : null })
               : retrievedSources;
 
           const finalStreamingMessage: ChatMessage = {
@@ -1352,7 +1352,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
           const normalizedContent = normalizeNumericCitations(response.content, retrievedSources);
           const verifiedSources =
             retrievedSources.length > 0
-              ? await verifyCitations(normalizedContent, retrievedSources, emitCitationVerified)
+              ? await verifyCitations(normalizedContent, retrievedSources, { onVerdict: emitCitationVerified, expectedMatterId: activeMatter ? activeMatter.id : null })
               : retrievedSources;
 
           const assistantMessage: ChatMessage = {

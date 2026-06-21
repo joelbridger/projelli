@@ -237,35 +237,50 @@ export function normalizeNumericCitations(
   return out;
 }
 
+/** The locator/path fields any citation target (a RagHit or WorkspaceSource) exposes. */
+type CitationTargetLike = { path: string; paragraphIndex?: number; pageNumber?: number };
+
 /**
- * Resolve a citation basename to a real workspace-relative path using the
- * list of hits that came back from retrieval. Ambiguity is resolved by
- * preferring the hit with matching `paragraphIndex`; if multiple hits
- * share the same basename + paragraph, the first one wins.
+ * BUG-065 — strictly resolve a citation to the ONE retrieved item it provably
+ * refers to: same basename AND the exact retrieved paragraph/page. Returns null
+ * when nothing matches the locator (no basename fallback — citing a paragraph we
+ * never retrieved must NOT pass off a sibling chunk as the source) OR when the
+ * basename is ambiguous at that locator (a collision across folders we can't
+ * disambiguate). The caller treats null as UNVERIFIED.
  *
- * Returns `null` when no hit matches. The caller is responsible for
- * showing a "source not found" toast in that case.
+ * Generic over the item type so the renderer (RagHit) and the verifier
+ * (WorkspaceSource) resolve identically.
+ */
+export function resolveCitationTarget<T extends CitationTargetLike>(
+  citation: ParsedCitation,
+  items: readonly T[],
+): T | null {
+  if (items.length === 0) return null;
+  const byBasename = items.filter(
+    (h) => citationBasename(h.path).toLowerCase() === citation.basename.toLowerCase(),
+  );
+  // Match the cited number against a chunk's paragraphIndex (text) OR pageNumber
+  // (PDF/scan), so "[file.pdf page 2]" resolves to the page-2 chunk.
+  const exact = byBasename.filter(
+    (h) => h.paragraphIndex === citation.paragraphIndex || h.pageNumber === citation.paragraphIndex,
+  );
+  if (exact.length === 0) return null; // wrong/unretrieved locator → unverifiable
+  const uniquePaths = new Set(exact.map((h) => h.path));
+  if (uniquePaths.size > 1) return null; // basename collision across folders → ambiguous
+  return exact[0] ?? null;
+}
+
+/**
+ * Resolve a citation basename to a real workspace-relative path. Strict
+ * (BUG-065): requires the exact retrieved paragraph/page and an unambiguous
+ * basename. Returns `null` otherwise (the caller flags the citation as
+ * unverified / shows "source not found").
  */
 export function resolveCitationPath(
   citation: ParsedCitation,
   hits: RagHit[],
 ): string | null {
-  if (hits.length === 0) return null;
-  const byBasename = hits.filter(
-    (h) =>
-      citationBasename(h.path).toLowerCase() ===
-      citation.basename.toLowerCase(),
-  );
-  if (byBasename.length === 0) return null;
-  // Match the cited number against a chunk's paragraphIndex (text) OR pageNumber
-  // (PDF/scan), so "[file.pdf page 2]" resolves to the page-2 chunk rather than
-  // the first retrieved chunk of that file (BUG-016 review, Finding B).
-  const exact = byBasename.find(
-    (h) =>
-      h.paragraphIndex === citation.paragraphIndex ||
-      h.pageNumber === citation.paragraphIndex,
-  );
-  return (exact ?? byBasename[0])?.path ?? null;
+  return resolveCitationTarget(citation, hits)?.path ?? null;
 }
 
 /**
@@ -277,28 +292,37 @@ export function resolveCitationPath(
  * that source's content-addressed `id`, its `matterId` (the claimed scope),
  * and its `chunkText` (the quoted text that was injected into the prompt).
  *
- * A source is marked:
- *   - `verified: true`  when the verdict is `verified` — safe to present.
- *   - `verified: false` when ANY citation that resolves to it does NOT verify
- *     (fabricated id, matter mismatch, or misquote) — the UI flags it.
- *   - left untouched (`undefined`) when no citation referenced the source, or
- *     when the source has no `id` (pre-3.0 row), or when verification can't run
- *     (browser/test mode — `ragVerifyCitation` throws and we swallow it).
+ * BUG-065 — FAIL CLOSED. A source a citation resolves to is marked:
+ *   - `verified: true`  ONLY when it resolves EXACTLY (right file + retrieved
+ *     paragraph/page) AND the backend verdict is `verified`.
+ *   - `verified: false` when it can't be proven: a missing `id`/`matterId`, a
+ *     cross-matter source in a matter-scoped turn, a verifier throw (e.g.
+ *     unavailable), or any non-`verified` verdict.
+ *   - left untouched (`undefined`) only when NO citation resolved to it — the
+ *     renderer treats a cited-but-unresolved locator as unverified separately.
  *
- * This never throws; verification failures degrade to "unverified" so the
- * chat still renders. The caller decides how to present unverified citations.
+ * This never throws; a verifier failure becomes `verified:false` (not green) so
+ * we never present an unprovable citation as grounded.
  *
- * `onVerdict` (optional) is called once per citation that was actually checked
- * against the store, with the content-addressed citation id and the raw
- * verdict. The chat view uses this to emit a `citation_verified` audit event
- * per citation, keeping the audit "defense file" complete without duplicating
- * this verification loop at the call site.
+ * `opts.expectedMatterId` (the active matter on a matter-scoped turn) makes the
+ * check scope-aware: a source whose `matterId` differs is a cross-matter leak
+ * (false), and verification runs against THIS matter. Null/undefined = unscoped.
+ *
+ * `opts.onVerdict` is called once per citation actually checked against the
+ * store (content-addressed id + raw verdict), so the caller can emit the
+ * `citation_verified` audit event without duplicating this loop.
  */
+export interface VerifyCitationsOptions {
+  onVerdict?: (citationId: string, verdict: CitationVerdictValue) => void;
+  expectedMatterId?: string | null;
+}
+
 export async function verifyCitations(
   content: string,
   sources: WorkspaceSource[],
-  onVerdict?: (citationId: string, verdict: CitationVerdictValue) => void,
+  opts: VerifyCitationsOptions = {},
 ): Promise<WorkspaceSource[]> {
+  const { onVerdict, expectedMatterId } = opts;
   if (sources.length === 0) return sources;
   const citations = parseCitations(content);
   if (citations.length === 0) return sources;
@@ -307,31 +331,28 @@ export async function verifyCitations(
   const annotated = sources.map((s) => ({ ...s }));
 
   for (const cite of citations) {
-    const path = resolveCitationPath(cite, sources);
-    if (!path) continue;
-    // Find the matching source object (prefer exact paragraph match).
-    const candidates = annotated.filter(
-      (s) =>
-        citationBasename(s.path).toLowerCase() === cite.basename.toLowerCase(),
-    );
-    const source =
-      candidates.find(
-        (s) => s.paragraphIndex === cite.paragraphIndex || s.pageNumber === cite.paragraphIndex,
-      ) ??
-      candidates[0];
-    if (!source || !source.id || !source.matterId) continue;
+    // Strict resolve to the ONE source this citation provably refers to.
+    const source = resolveCitationTarget(cite, annotated);
+    if (!source) continue; // unresolved locator — renderer flags it as unverified
+
+    // Fail CLOSED on anything we can't prove.
+    if (!source.id || !source.matterId) {
+      source.verified = false;
+      continue;
+    }
+    if (expectedMatterId != null && source.matterId !== expectedMatterId) {
+      source.verified = false; // cross-matter leak — never verify under another scope
+      continue;
+    }
+    const verifyMatter = expectedMatterId ?? source.matterId;
 
     try {
-      const verdict = await ragVerifyCitation(
-        source.id,
-        source.matterId,
-        source.chunkText,
-      );
-      // Only `verified` is safe. Anything else flags the source.
+      const verdict = await ragVerifyCitation(source.id, verifyMatter, source.chunkText);
       source.verified = verdict.verdict === 'verified';
       onVerdict?.(source.id, verdict.verdict);
     } catch {
-      // Browser/test mode or backend error — leave unverified (undefined).
+      // Verifier unavailable/errored — fail closed (can't prove → not verified).
+      source.verified = false;
     }
   }
 
