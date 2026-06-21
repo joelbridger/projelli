@@ -38,9 +38,13 @@ export function TrustBar() {
   const [dataMapOpen, setDataMapOpen] = useState(false);
   const entityLabel = useEntityLabel();
 
+  // BUG-023: this describes SCOPE (which clients' data the answer can draw on),
+  // NOT egress. The old all-matters copy claimed "Nothing leaves your machine"
+  // unconditionally, which is false in Direct/Assured cloud modes. Egress is
+  // conveyed separately by the mode-aware egress indicator + `egressTooltip`.
   const scopeSubtitle = activeMatter
     ? `Scoped to this ${entityLabel.one}. Nothing from other clients can appear.`
-    : `Searching across every ${entityLabel.one}. Answers may draw on more than one client. Nothing leaves your machine.`;
+    : `Searching across every ${entityLabel.one}. Answers may draw on more than one client.`;
 
   const egressTooltip =
     confidentialityMode === 'local-only'

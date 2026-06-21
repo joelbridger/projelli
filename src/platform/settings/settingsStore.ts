@@ -12,7 +12,35 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { SETTINGS_SCHEMA, getSchemaDefaults } from '@/platform/settings/schema';
+import { SETTINGS_SCHEMA, getSchemaDefaults, type SettingDefinition } from '@/platform/settings/schema';
+
+/**
+ * BUG-026: validate an imported value against its schema definition, so a
+ * settings import can't inject a wrong-typed / out-of-range / unknown-option
+ * value (e.g. `fontSize: "huge"`). Returns false for `shortcut-display`
+ * (read-only) and for anything that doesn't match the def's type/options/range.
+ */
+function isValidSettingValue(def: SettingDefinition, value: unknown): boolean {
+  switch (def.type) {
+    case 'toggle':
+      return typeof value === 'boolean';
+    case 'number':
+      return (
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
+        (def.min === undefined || value >= def.min) &&
+        (def.max === undefined || value <= def.max)
+      );
+    case 'select':
+      return typeof value === 'string' && (def.options ?? []).some((o) => o.value === value);
+    case 'text':
+      return typeof value === 'string';
+    case 'shortcut-display':
+      return false; // display-only; never importable
+    default:
+      return false;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -106,15 +134,20 @@ export const useSettingsStore = create<SettingsState>()(
           if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
             return false;
           }
-          // Only accept keys that exist in the schema.
-          const validKeys = new Set(SETTINGS_SCHEMA.map((d) => d.key));
+          // BUG-026: validate each value against the schema (type + options +
+          // range), not just the key name — a wrong-typed value (e.g. fontSize:
+          // "huge") must not be accepted. And MERGE into the current values
+          // rather than REPLACING them, so a partial import can't silently reset
+          // settings (incl. privacy/workspace choices) that aren't in the file.
+          const defByKey = new Map(SETTINGS_SCHEMA.map((d) => [d.key, d]));
           const cleaned: Record<string, unknown> = {};
           for (const [k, v] of Object.entries(parsed)) {
-            if (validKeys.has(k)) {
+            const def = defByKey.get(k);
+            if (def && isValidSettingValue(def, v)) {
               cleaned[k] = v;
             }
           }
-          set({ values: cleaned });
+          set({ values: { ...get().values, ...cleaned } });
           return true;
         } catch {
           return false;
