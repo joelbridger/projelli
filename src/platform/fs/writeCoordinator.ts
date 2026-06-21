@@ -28,7 +28,17 @@
 export interface WriteResult {
   /** The write callback ran to completion. */
   written: boolean;
-  /** No newer revision for this path had been enqueued when this write finished. */
+  /**
+   * No newer revision for this path had been enqueued when this write finished.
+   *
+   * CAVEAT (Codex review #8): this is APPROXIMATE and must NOT be used to decide
+   * whether to mark a tab clean. The per-path `maxRev` is never reset, so after a
+   * tab is closed and reopened (rev restarting from a low number) `isLatest` can
+   * read false even for the only in-flight write. The authoritative "is this
+   * still current?" check belongs at the call site, against the LIVE tab revision
+   * (see `editorStore.markSaved(path, rev)`). `isLatest` is advisory only — no
+   * caller currently relies on it.
+   */
   isLatest: boolean;
 }
 
