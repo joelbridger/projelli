@@ -1,4 +1,7 @@
-export { FirstRunWizard, hasCompletedOnboarding, resetOnboarding, getOnboardingProfession, type FirstRunWizardProps } from './FirstRunWizard';
+// NOTE: GuidedOnboarding and FirstRunWizard have been removed (cutover to JourneyHost).
+// hasCompletedOnboarding / resetOnboarding / getOnboardingProfession are now sourced
+// directly from onboardingState (the canonical home); re-exported here for back-compat.
+export { hasCompletedOnboarding, resetOnboarding, getOnboardingProfession } from './onboardingState';
 export {
   ApiKeySetupCard,
   hasDismissedApiKeyCard,

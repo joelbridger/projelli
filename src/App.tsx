@@ -32,7 +32,12 @@ import { manualUpdateCheck } from '@/platform/updater/UpdateManager';
 import { openExternal } from '@/platform/utils/openExternal';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
-import { GuidedOnboarding } from '@/features/onboarding/GuidedOnboarding';
+import { JourneyHost } from '@/features/onboarding-journey/JourneyHost';
+import { journeyChapters } from '@/features/onboarding-journey/chapters';
+import { persistProfessionModelDefault } from '@/platform/profile/professionModel';
+import { writeSampleFiles } from '@/platform/matter/samples';
+import { useProfileStore } from '@/platform/profile/profileStore';
+import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 import {
   createKeychainService,
   migrateLocalStorageApiKeysToKeychain,
@@ -1053,40 +1058,98 @@ This file contains rules and guidelines for AI assistants in this workspace.
   });
 
   // Show workspace selector if no workspace is open (unless in test mode).
-  // Keepance 3.0: the rebuilt first-run wizard is the live first-run surface.
-  // It renders as a full-screen overlay (fixed inset-0 z-50) layered OVER
-  // whatever is behind it — most often the WorkspaceSelector, since first run
-  // happens before a workspace is chosen — so the existing path-input vs
-  // file-picker flow is preserved underneath. We build it once here and render
-  // it in both the WorkspaceSelector branch and the main app branch so it shows
-  // regardless of which one is active (e.g. ?forceOnboarding with a workspace
-  // already open). It supersedes the old WelcomeOnboardingDialog, which only
-  // had the email/telemetry consent step; the wizard owns the welcome moment
-  // now. `onComplete` (the wizard's markComplete) sets
-  // `keepance_onboarding_complete`; on skip we set the same flag so first-run
-  // never re-prompts. The Feature Tour then auto-shows as it does today.
+  // The animated JourneyHost is the live first-run surface. It renders as a
+  // full-screen overlay layered OVER the WorkspaceSelector (which handles the
+  // workspace-folder pick underneath). The same trigger conditions as before;
+  // only what renders has changed. `onComplete` / `onExit` both set the
+  // keepance_onboarding_complete flag so the overlay never re-prompts.
+  // The Feature Tour auto-shows afterward as it did before.
+
+  // JourneyHost actions — wired to the same real App handlers GuidedOnboarding used.
+  const journeyActions = useMemo(() => ({
+    // saveApiKey: stores in OS keychain AND refreshes live model list state —
+    // exactly the same path as handleSaveOnboardingApiKey.
+    saveApiKey: handleSaveOnboardingApiKey,
+
+    // setConfidentialityMode: writes to the settings store (persisted to
+    // localStorage via the settings schema) — the same store TrustBar reads.
+    setConfidentialityMode: (mode: import('@/platform/privacy/egress').ConfidentialityMode) => {
+      useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, mode);
+    },
+
+    // chooseWorkspaceFolder: opens the native Tauri directory picker (same
+    // plugin path WorkspaceSelector uses) and returns the chosen path or null.
+    chooseWorkspaceFolder: async (): Promise<string | null> => {
+      try {
+        const { open } = await import('@tauri-apps/plugin-dialog');
+        const selectedPath = await open({
+          directory: true,
+          multiple: false,
+          title: 'Select Workspace Folder',
+        });
+        return typeof selectedPath === 'string' ? selectedPath : null;
+      } catch {
+        // Desktop picker unavailable (browser env) — return null so the chapter
+        // gracefully handles the case without crashing.
+        return null;
+      }
+    },
+  }), [handleSaveOnboardingApiKey]);
+
   const firstRunOverlay = showFirstRun ? (
-    <GuidedOnboarding
-      onSaveKey={handleSaveOnboardingApiKey}
-      {...(workspaceServiceRef.current
-        ? { workspace: workspaceServiceRef.current }
-        : {})}
-      onComplete={(opts) => {
+    <JourneyHost
+      chapters={journeyChapters}
+      actions={journeyActions}
+      onComplete={(data) => {
+        // Persist profession model default for non-cloud users (skip/local). For
+        // cloud users the provider they connected in Ch5 is already stored; we
+        // must not override it. So only call when aiChoice isn't 'cloud'.
+        if (data.profession && data.aiChoice !== 'cloud') {
+          persistProfessionModelDefault(data.profession);
+        }
+
+        // Persist display name + photo via profileStore (same store IdentityStep
+        // and GuidedOnboarding's Step 2 wrote to directly).
+        if (data.displayName) {
+          useProfileStore.getState().setSoloName(data.displayName);
+        }
+        if (data.photoDataUrl) {
+          useProfileStore.getState().setSoloAvatar(data.photoDataUrl);
+        }
+
+        // Create sample matters if the user opted in and we have a workspace.
+        // Map 'financial' (new journey type) -> 'advisor' (samples type) for compatibility.
+        const sampleProfession = data.profession === 'financial' ? 'advisor' : (data.profession ?? 'other');
+        const didWriteSamples = Boolean(data.addSamples && workspaceServiceRef.current && rootPath);
+        if (data.addSamples && workspaceServiceRef.current && rootPath) {
+          void writeSampleFiles(workspaceServiceRef.current, sampleProfession).catch((err: unknown) => {
+            console.warn('[App] journey sample copy failed:', err instanceof Error ? err.message : String(err));
+          });
+        }
+
+        // Mark complete and close the overlay.
+        localStorage.setItem('keepance_onboarding_complete', 'true');
         setShowFirstRun(false);
-        if (opts?.writeSamples && rootPath) {
+
+        // Navigate to a useful starting surface.
+        if (didWriteSamples && rootPath) {
           try {
             const sampleMatter = getOrCreateSampleMatter(rootPath);
             useMatterStore.getState().setActiveMatter(sampleMatter.id);
             setSidebarActiveTab('search');
           } catch (err) {
-            console.warn('[App] sample-matter post-onboarding setup failed:', err instanceof Error ? err.message : String(err));
-            // Landing on Matters ensures the Get-started card is visible.
+            console.warn('[App] sample-matter post-journey setup failed:', err instanceof Error ? err.message : String(err));
             setSidebarActiveTab('matters');
           }
         } else {
-          // No samples written: land on Matters so the Get-started card is visible.
           setSidebarActiveTab('matters');
         }
+      }}
+      onExit={(_data) => {
+        // User skipped — mark complete so the overlay never re-prompts.
+        localStorage.setItem('keepance_onboarding_complete', 'true');
+        setShowFirstRun(false);
+        setSidebarActiveTab('matters');
       }}
     />
   ) : null;
