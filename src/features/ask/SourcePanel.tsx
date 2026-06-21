@@ -117,7 +117,7 @@ export function SourcePanel({
             className="ml-auto"
           >
             {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            Verified
+            Source found
             {/* eslint-enable keepance-i18n/no-hardcoded-string */}
           </Badge>
         )}

@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertTriangle, FileText } from 'lucide-react';
+import { CheckCircle2, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AnswerCitation } from './askHelpers';
 
@@ -36,15 +36,16 @@ export function CitationText({
         const isVerified = cite?.verified ?? false;
         const isUnresolved = cite?.path === null;
 
-        // WS3 (Task 3): three unmistakable states reflected in data-verified
-        // 'true'    — resolved and verified (green)
-        // 'false'   — unresolved / path is null (danger/amber)
-        // 'unknown' — resolved but not yet verified (neutral)
+        // WS3 (Task 3): data-verified still reflects the underlying state.
         const dataVerified: 'true' | 'false' | 'unknown' = isUnresolved
           ? 'false'
           : isVerified
             ? 'true'
             : 'unknown';
+        // BUG-065: STRICT trust display. A chip is green "source found" ONLY when
+        // we proved the exact retrieved source AND it verified. Everything else —
+        // unresolved OR resolved-but-not-verified — is a red "Unverified" flag.
+        const proven = isVerified && !isUnresolved;
 
         return (
           <button
@@ -65,30 +66,26 @@ export function CitationText({
                 );
               }
             }}
-            aria-label={`Citation ${String(n)}: ${cite?.label ?? 'unknown'}. ${isVerified ? 'Verified.' : 'Not verified.'}`}
+            aria-label={`Citation ${String(n)}: ${cite?.label ?? 'unknown'}. ${proven ? 'Source found.' : 'Unverified.'}`}
             title={
-              isUnresolved
-                ? 'Source file not found'
-                : isVerified
-                  ? `Open ${cite?.path ?? ''}`
-                  : 'Unverified citation: check against the source'
+              proven
+                ? `Source found — open ${cite?.path ?? ''}`
+                : isUnresolved
+                  ? 'Unverified: the cited source could not be found in what was retrieved. Do not rely on this without checking.'
+                  : 'Unverified: could not confirm this exact passage against the source. Do not rely on this without checking.'
             }
             style={isSel ? { outline: '2px solid var(--kp-navy)', outlineOffset: 1 } : undefined}
             className={cn(
               'inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded border text-xs font-mono font-medium align-baseline cursor-pointer transition-colors',
-              isUnresolved
-                ? 'border-amber-400/60 bg-amber-50 text-amber-700 hover:bg-amber-100'
-                : isVerified
-                  ? 'border-green-400/60 bg-green-50 text-green-800 hover:bg-green-100'
-                  : 'border-[#145a8a]/30 bg-[#e9f5ff] text-[#145a8a] hover:bg-[#d0eaff]',
+              proven
+                ? 'border-green-400/60 bg-green-50 text-green-800 hover:bg-green-100'
+                : 'border-red-400/60 bg-red-50 text-red-700 hover:bg-red-100',
             )}
           >
-            {isVerified ? (
+            {proven ? (
               <CheckCircle2 className="h-3 w-3 shrink-0" />
-            ) : isUnresolved ? (
-              <AlertTriangle className="h-3 w-3 shrink-0" />
             ) : (
-              <FileText className="h-3 w-3 shrink-0" />
+              <AlertTriangle className="h-3 w-3 shrink-0" />
             )}
             {n}
           </button>

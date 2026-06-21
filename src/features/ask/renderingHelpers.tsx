@@ -2,7 +2,7 @@
 // These are plain functions (no React hooks); several return JSX. Moved here
 // verbatim during the AIChatViewer split so the component file stays focused.
 
-import { Sparkles, AlertTriangle, FileText } from 'lucide-react';
+import { Sparkles, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import i18n from '@/i18n';
 import { OCR_LOW_CONFIDENCE } from '@/platform/utils/tauri-commands';
@@ -227,7 +227,11 @@ export function renderMessageWithCitations(
       matchedSource?.extractionConfidence,
       matchedSource?.locator,
     );
-    const unverified = matchedSource?.verified === false;
+    // BUG-065: STRICT trust display. Green "source found" ONLY when we proved the
+    // exact retrieved source (resolved) AND it verified. Anything else — an
+    // unresolved locator OR a resolved-but-not-verified source — is a red
+    // "Unverified" flag, never a normal-looking chip.
+    const proven = resolved !== null && matchedSource?.verified === true;
     // VG-2: a low-confidence scan carries the fuller warning in the chip title.
     const lowConfidenceScan = isLowConfidenceScan(
       matchedSource?.extraction,
@@ -247,9 +251,9 @@ export function renderMessageWithCitations(
         }
         className={cn(
           'inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded border text-xs font-medium align-baseline',
-          unverified
-            ? 'border-red-400/60 bg-red-50 text-red-700 hover:bg-red-100'
-            : 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20',
+          proven
+            ? 'border-emerald-400/60 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+            : 'border-red-400/60 bg-red-50 text-red-700 hover:bg-red-100',
         )}
         onClick={() => {
           if (resolved) {
@@ -268,19 +272,19 @@ export function renderMessageWithCitations(
           }
         }}
         title={(() => {
-          const base = unverified
-            ? `Unverified citation. Could not confirm "${label}" against the source. Do not rely on this without checking.`
+          const base = proven
+            ? `Source found — open ${resolved}`
             : resolved
-              ? `Open ${resolved}`
-              : 'Source file not found';
+              ? `Unverified. Could not confirm "${label}" against the source. Do not rely on this without checking.`
+              : 'Unverified: the cited source could not be found in what was retrieved. Do not rely on this without checking.';
           // VG-2: the fuller low-confidence sentence rides the chip title.
           return lowConfidenceScan ? `${base}\n${i18n.t('citation.scanned-low-title')}` : base;
         })()}
       >
-        {unverified ? (
-          <AlertTriangle className="h-3 w-3" />
+        {proven ? (
+          <CheckCircle2 className="h-3 w-3" />
         ) : (
-          <FileText className="h-3 w-3" />
+          <AlertTriangle className="h-3 w-3" />
         )}
         {label}
       </button>,
