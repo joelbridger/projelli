@@ -9,6 +9,7 @@
 import { useCallback } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
+import { writeCoordinator } from '@/platform/fs/writeCoordinator';
 import { saveFile } from '@/platform/utils/saveFile';
 import { isBinaryFile } from '@/platform/utils/file-utils';
 import { dataUrlToArrayBuffer } from '@/platform/utils/spreadsheet-io';
@@ -28,7 +29,7 @@ export interface UseFileOperationsOptions {
   handleFileOpen: (path: string, name: string) => Promise<void>;
   prompt: (message: string, defaultValue?: string, options?: Omit<PromptOptions, 'defaultValue'>) => Promise<string | null>;
   setFileTree: (tree: FileNode[]) => void;
-  markSaved: (path: string) => void;
+  markSaved: (path: string, savedRev?: number) => void;
   contentIndex: ContentIndex;
   openTabs: OpenTab[];
   closeTab: (path: string) => void;
@@ -83,9 +84,14 @@ export function useFileOperations(options: UseFileOperationsOptions) {
     async (path: string, content: string) => {
       if (!workspaceServiceRef.current) return;
 
+      // BUG-045: capture the tab's current revision and route the write through
+      // the per-path coordinator so a manual save and the 2s autosave can't run
+      // concurrently / land out of order. Mark clean only if the tab is still at
+      // this rev (an edit during the write keeps it dirty).
+      const rev = useEditorStore.getState().openTabs.find((t) => t.path === path)?.rev ?? 0;
       try {
-        await writeTabContent(path, content);
-        markSaved(path);
+        await writeCoordinator.enqueue(path, rev, () => writeTabContent(path, content));
+        markSaved(path, rev);
 
         // Refresh file tree
         const fileTree = await workspaceServiceRef.current.getFileTree();

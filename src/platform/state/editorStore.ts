@@ -6,6 +6,13 @@ interface OpenTab {
   name: string;
   content: string;
   isDirty: boolean;
+  /**
+   * Monotonic content revision (BUG-045). Bumped on every `updateContent`.
+   * A save captures the rev it persisted; `markSaved(path, rev)` only clears
+   * the dirty flag if the tab is still at that rev — so a write that finishes
+   * after the user has typed more never marks the tab clean over unsaved edits.
+   */
+  rev?: number;
   groupId?: string | null; // Optional group ID
   lastSaved?: number; // Timestamp of last save
   // UX-21: 'ai-assistant' is a new sentinel type for the AI Assistant
@@ -78,7 +85,7 @@ interface EditorState {
   setActiveTab: (path: string) => void;
   updateContent: (path: string, content: string) => void;
   renameOpenTab: (oldPath: string, newPath: string, newName: string) => void;
-  markSaved: (path: string) => void;
+  markSaved: (path: string, savedRev?: number) => void;
   setLayout: (layout: PaneLayout) => void;
   reorderTabs: (fromIndex: number, toIndex: number) => void;
 
@@ -300,7 +307,9 @@ export const useEditorStore = create<EditorState>()(
   updateContent: (path, content) => {
     set((state) => ({
       openTabs: state.openTabs.map((t) =>
-        t.path === path ? { ...t, content, isDirty: true } : t
+        t.path === path
+          ? { ...t, content, isDirty: true, rev: (t.rev ?? 0) + 1 }
+          : t
       ),
     }));
   },
@@ -337,11 +346,17 @@ export const useEditorStore = create<EditorState>()(
     });
   },
 
-  markSaved: (path) => {
+  markSaved: (path, savedRev) => {
     set((state) => ({
-      openTabs: state.openTabs.map((t) =>
-        t.path === path ? { ...t, isDirty: false, lastSaved: Date.now() } : t
-      ),
+      openTabs: state.openTabs.map((t) => {
+        if (t.path !== path) return t;
+        // BUG-045: revision-checked clean. If the tab has been edited since the
+        // save that's reporting completion started (its rev moved past savedRev),
+        // KEEP it dirty so the newer content still gets written. Callers that
+        // don't track revisions (pass no savedRev) clear unconditionally.
+        if (savedRev !== undefined && (t.rev ?? 0) !== savedRev) return t;
+        return { ...t, isDirty: false, lastSaved: Date.now() };
+      }),
     }));
   },
 
