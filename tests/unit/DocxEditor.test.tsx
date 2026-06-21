@@ -326,6 +326,59 @@ describe('DocxEditor — accept / reject flow', () => {
     );
   });
 
+  it('flushes the pending save when unmounted before the debounce — no lost edit (B1)', async () => {
+    const resolved: DocumentJson = {
+      formatVersion: 1,
+      body: [
+        {
+          kind: 'paragraph',
+          inlines: [
+            { kind: 'run', text: 'The party ' },
+            { kind: 'run', text: 'hereby ' },
+            { kind: 'run', text: 'agrees ' },
+            {
+              kind: 'deletion',
+              meta: { id: '101', author: 'Bob Partner', date: '2026-01-03T09:00:00Z' },
+              runs: [{ text: 'reluctantly ' }],
+            },
+            { kind: 'run', text: 'to the terms.' },
+          ],
+        },
+      ],
+      comments: {},
+    };
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(docWithRevisions());
+      if (cmd === 'docx_resolve_revision') return Promise.resolve(resolved);
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    const { unmount } = renderEditor();
+    const list = await screen.findByTestId('docx-revision-list');
+    const insRow = within(list)
+      .getAllByTestId('docx-revision-row')
+      .find((r) => r.getAttribute('data-revision-id') === '100')!;
+    fireEvent.click(within(insRow).getByTestId('docx-accept-one'));
+
+    // Wait until the edit is applied (so a save is scheduled/debounced) but do
+    // NOT wait for the 1200ms debounce to fire.
+    await waitFor(() => {
+      const rows = within(screen.getByTestId('docx-revision-list')).getAllByTestId('docx-revision-row');
+      expect(rows).toHaveLength(1);
+    });
+    expect(invokeMock).not.toHaveBeenCalledWith('docx_save', expect.anything());
+
+    // Unmount before the debounce — the flush must still persist the latest doc.
+    unmount();
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith(
+        'docx_save',
+        expect.objectContaining({ path: '/ws/agreement.docx', document: resolved }),
+      ),
+    );
+  });
+
   it('Reject all calls docx_resolve_all with action=reject', async () => {
     const cleared: DocumentJson = {
       formatVersion: 1,

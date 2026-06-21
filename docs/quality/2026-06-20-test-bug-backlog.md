@@ -195,3 +195,31 @@ Drove the real bench + ran an independent Codex audit of three high-risk areas (
 - **BUG-018 — Deleting a matter was instant (no confirm) and left orphaned state.**  🟢 **FIXED (2026-06-21).** Real-matter delete now always confirms (files stay on disk; folder/email mappings, notes, AI cache, sync status are cleared), and `deleteMatter` clears every per-matter slice (`snapshots`/`cache`/`statusByMatterId`). `matterStore.ts` + `MatterManagerDialog.tsx`; tests in `matter-store.test.ts` + `reimaginedMattersHome.test.tsx`.
 - **BUG-019 — Spreadsheet formulas on non-first sheets showed/saved stale values.**  🟢 **FIXED (2026-06-21).** The single formula engine only tracked the first sheet; editing sheet 2+ skipped recalc, and formula-only-on-sheet-2 workbooks (no engine seeded) never recalced at all. Cell edits + row/col structural ops now retarget/build the engine for the edited sheet and snapshot recomputed values back. `spreadsheetViewerHelpers.ts`; test `spreadsheet-multisheet-formula.test.ts`. (2 Codex passes.)
 - **BUG-020 — Workflow CHAIN builder isn't wired into the live Workflows screen.**  🔴 **CONFIRMED, DEFERRED (feature completion, not a regression).** The multi-step chain engine + `ChainBuilderModal` exist, but the current full-page Workflows surface (`AssociateHome`) never renders the modal and `onRunChain` is never passed by any caller (it's only wired in the older `WorkflowPanel`/`WorkflowExecutionTab`). So a user can't build/run a chain from the live app. SINGLE workflows work fine (the core). Completing this is a focused build: render the builder in `AssociateHome`, add an open affordance, and wire `onRunChain` → an app-level `handleRunChain` that runs the chain engine with the same provider/file setup as a normal run + an end-to-end test (step 1 output → step 2 input). Not rushed at session end. Surfaced to Jameson.
+
+---
+
+## QA sweep round 3 (2026-06-21) — two parallel Codex audits (settings/audit/privacy/MCP + viewers/versions/notes/onboarding)
+
+14 findings. Two BLOCKERS fixed this round; the rest confirmed + queued (fixing in priority batches).
+
+**Privacy / confidentiality (the product's core promise):**
+- **BUG-021 — Local-only mode could still send chat/Ask to the cloud.**  🟢 **FIXED (2026-06-21).** The egress indicator said "nothing leaves," but the chat send routed by the chat's STORED provider and Ask's `buildProviderAsync` routed by KEY PRESENCE — both bypassing the mode. New `src/platform/privacy/localOnlyGuard.ts`: chat send is blocked fail-closed (`assertLocalOnlyAllowsSend`), Ask forces Ollama, in Local-only. (Redline/inline-edit already force Ollama via `useActiveEgressProvider`.) Tests: `tests/unit/privacy/local-only-egress-guard.test.ts`.
+- **BUG-023 — TrustBar can say "Nothing leaves your machine" in Direct cloud mode** (`TrustBar.tsx:41`). 🔴 OPEN (important). Scope copy is conflated with egress copy; only say "nothing leaves" when the mode is truly local.
+- **BUG-024 — Privacy Center/TrustBar may show the WRONG active provider** (`useActiveEgressProvider.ts:23` reads old browser localStorage key names, not the OS keychain). 🔴 OPEN (important) — VERIFY (bench showed correct OpenAI, so may be mitigated; confirm).
+- **BUG-028 — Confidentiality report often prints model as `unknown`** (egress audit events lack the model). 🔴 OPEN (minor).
+- **BUG-022 — MCP `write_workspace_file` with `require_confirmation:false` bypasses the approval modal** (`mcp_bin/tools.rs`). 🔴 OPEN (blocker) — external MCP writes must always require approval.
+
+**Data loss (legal work product):**
+- **BUG-029 — DOCX edits lost if the tab/app closes within the ~1.2s debounce** (`DocxEditor.tsx`). 🟢 **FIXED (2026-06-21).** Unmount now flushes the latest pending save (`flushPendingSaveRef`); the timer clears it on a normal save (no double-save). Test in `DocxEditor.test.tsx`.
+- **BUG-032 — Matter notes can lose the last seconds of typing** (`MatterNotesEditor.tsx:179` cancels the disk-mirror timer on unmount without flushing). 🔴 OPEN (important) — same flush pattern as BUG-029.
+- **BUG-030 — Restoring a trashed binary file can corrupt it** when the original path is taken (`TrashService.ts:177` uses text read/write instead of a byte-safe move). 🔴 OPEN (important).
+- **BUG-031 — Empty Trash clears the manifest even when a delete fails** (`TrashService.ts:225`) → a confidential file stays on disk but vanishes from the UI. 🔴 OPEN (important) — only remove successfully-deleted items; report partial failure.
+- **BUG-033 — Browser-mode file move/copy corrupts binaries** (`WebFSBackend.ts:148/162` text read/write). 🔴 OPEN (important *if* browser mode ships; desktop uses TauriFSBackend).
+- **BUG-034 — Toolbar Download reads binaries as text** (`useFileOperations.ts:231`). 🔴 OPEN (minor).
+
+**Correctness:**
+- **BUG-025 — Per-template model override silently falls back to another provider** when the pinned provider has no key (`resolveTemplateModel.ts`). 🔴 OPEN (important) — treat the override as binding; prompt for that provider's key.
+- **BUG-026 — Settings import accepts partial/wrong-typed JSON and replaces settings** (`settingsStore.ts:103`) → can silently reset privacy/workspace choices. 🔴 OPEN (important) — validate against the schema; merge or confirm.
+- **BUG-027 — Audit CSV export is vulnerable to spreadsheet formula injection** (`audit-export.ts:135`; quote/newline escaping is already fine). 🔴 OPEN (important) — prefix `=/+/-/@` values.
+
+**Looked solid (per the audits):** settings export doesn't leak API keys; settings reset confirms + only clears settings; CSV quote/newline escaping; desktop audit store is append/list/count only; vault escape hatch; marketplace install (path-hardened); PDF/presentation viewing; guided onboarding.

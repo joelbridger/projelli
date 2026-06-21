@@ -223,6 +223,11 @@ export function DocxEditor({
   const [libreOfficeHelpOpen, setLibreOfficeHelpOpen] = useState(false);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // BUG (data loss): flushes the latest pending (debounced) save. Set while a
+  // save is scheduled; called on unmount so closing/switching the tab within the
+  // debounce window can't silently drop the last edit. Cleared once the timer
+  // fires normally so a later unmount never double-saves.
+  const flushPendingSaveRef = useRef<(() => void) | null>(null);
   const firstEditFiredRef = useRef(false);
   // WS-A / A5: author of the next save (for the version snapshot). User edits
   // leave it 'user'; an AI redline flips it to 'ai' before scheduling its save.
@@ -293,7 +298,12 @@ export function DocxEditor({
   // ---- Cleanup the debounce on unmount -----------------------------------
   useEffect(() => {
     return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        // Flush the pending edit so closing/switching the tab within the
+        // debounce window doesn't silently drop the last change (data loss).
+        flushPendingSaveRef.current?.();
+      }
     };
   }, []);
 
@@ -344,7 +354,11 @@ export function DocxEditor({
     (doc: DocumentJson) => {
       setIsDirty(true);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      // Capture a flush for the LATEST doc so an unmount before the debounce
+      // fires can still persist it (data-loss guard).
+      flushPendingSaveRef.current = () => { void persist(doc); };
       saveTimerRef.current = setTimeout(() => {
+        flushPendingSaveRef.current = null;
         void persist(doc);
       }, SAVE_DEBOUNCE_MS);
     },

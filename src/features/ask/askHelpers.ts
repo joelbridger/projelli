@@ -11,6 +11,7 @@ import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import { KeychainService } from '@/platform/providers/KeychainService';
+import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import type { Provider } from '@/platform/providers/Provider';
 import type { ChatMessage } from '@/platform/types/ai';
 
@@ -102,6 +103,13 @@ export async function hasCloudKey(): Promise<boolean> {
 }
 
 export async function buildProviderAsync(): Promise<Provider> {
+  // Local-only ENFORCEMENT (privacy): Ask has no per-chat provider — it picks by
+  // key presence below — so in Local-only mode it would otherwise build a cloud
+  // provider whenever a cloud key exists, contradicting the "nothing leaves"
+  // indicator. Force the local model instead, so Ask honours Local-only.
+  if (isLocalOnlyMode()) {
+    return new OllamaProvider({});
+  }
   const kc = new KeychainService();
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) {

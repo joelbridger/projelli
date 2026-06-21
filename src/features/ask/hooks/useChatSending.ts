@@ -30,6 +30,7 @@ import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
+import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { createDemoProvider } from '@/web-demo/demoAIProvider';
@@ -742,6 +743,14 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // demo's seeded workspace is read-mostly and the proxy is text-only.
           provider = createDemoProvider({ ...(chatModel ? { model: chatModel } : {}) });
         } else {
+          // Local-only ENFORCEMENT (privacy): the egress indicator says
+          // "nothing leaves" in Local-only mode, but this send routes by the
+          // chat's STORED provider — so a chat created with a cloud provider and
+          // then opened in Local-only mode would still send to the cloud. Block
+          // it fail-closed before any provider is built or network is touched,
+          // so the indicator can never lie. (Redline/inline-edit already resolve
+          // through useActiveEgressProvider → 'ollama' in Local-only.)
+          assertLocalOnlyAllowsSend(chatProvider);
           // WS-C honesty — this switch is the single chat send path. A LOCAL
           // selection ('ollama') is handled by its OWN case and constructs the
           // local provider; it can NEVER fall through to a cloud branch. The
