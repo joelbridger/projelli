@@ -147,8 +147,10 @@ export type BatchChange =
       path: string;
       fullPath: string;
       binary: boolean;
-      /** Snapshot of the deleted file's bytes (for undo). */
-      beforeBytes?: ArrayBuffer | undefined;
+      /** Where the file now lives in .trash — undo moves it back here. The AI
+       *  delete moves to Trash (recoverable) rather than hard-deleting, so undo
+       *  is a move-back, not a byte-restore. */
+      trashPath: string;
       beforeText?: string | undefined;
       undoable: boolean;
     };
@@ -163,6 +165,9 @@ export type BatchChangeInput = BatchChange extends infer T
 const NOT_UNDOABLE_MSG =
   "This change can’t be undone — its previous contents weren’t captured (the file may have been too large to snapshot).";
 
+const OCCUPIED_MSG =
+  "This change can’t be undone automatically — something else now sits at the original location. Restore it from the Trash panel or resolve it by hand.";
+
 /**
  * Reverse a single captured change. Throws (so the caller can surface it) when
  * the change isn't undoable or the needed snapshot is missing.
@@ -176,11 +181,23 @@ export async function executeUndo(change: BatchChange, fs: UndoFs): Promise<void
       return;
 
     case 'overwrite_file':
-    case 'delete_file':
       if (!change.undoable || !change.beforeBytes) {
         throw new Error(NOT_UNDOABLE_MSG);
       }
       await fs.writeFileBinary(change.fullPath, change.beforeBytes);
+      return;
+
+    case 'delete_file':
+      // The file was moved to Trash, not destroyed — undo moves it back. Refuse
+      // (rather than clobber) if something now occupies the original path; the
+      // file stays safely in Trash, restorable from the Trash panel.
+      if (!change.undoable || !change.trashPath) {
+        throw new Error(NOT_UNDOABLE_MSG);
+      }
+      if (await fs.exists(change.fullPath)) {
+        throw new Error(OCCUPIED_MSG);
+      }
+      await fs.move(change.trashPath, change.fullPath);
       return;
 
     case 'move_file': {
@@ -193,10 +210,17 @@ export async function executeUndo(change: BatchChange, fs: UndoFs): Promise<void
             "This move can’t be undone — the file it replaced wasn’t captured (it may have been too large to snapshot).",
           );
         }
+        // Don't clobber something that now sits where the file came from.
+        if (await fs.exists(change.fullFrom)) {
+          throw new Error(OCCUPIED_MSG);
+        }
         const destBytes = change.destBeforeBytes;
         await fs.move(change.fullTo, change.fullFrom);
         await fs.writeFileBinary(change.fullTo, destBytes);
       } else {
+        if (await fs.exists(change.fullFrom)) {
+          throw new Error(OCCUPIED_MSG);
+        }
         await fs.move(change.fullTo, change.fullFrom);
       }
       return;

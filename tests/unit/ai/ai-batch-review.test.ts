@@ -7,7 +7,7 @@
  *   create_file   → delete the created file
  *   create_folder → delete the created folder
  *   overwrite_file→ restore the captured before-bytes
- *   delete_file   → restore the captured before-bytes
+ *   delete_file   → move it back from Trash (the AI delete moves to Trash, not destroys)
  *   move_file     → move it back (and restore an overwritten destination)
  */
 import { describe, it, expect } from 'vitest';
@@ -70,15 +70,14 @@ describe('executeUndo', () => {
     expect(writes[0]?.text).toBe('OLD');
   });
 
-  it('undoes a delete_file by restoring the captured before-bytes', async () => {
-    const { fs, calls, writes } = makeFs();
+  it('undoes a delete_file by moving it back from Trash', async () => {
+    const { fs, calls } = makeFs();
     const change: BatchChange = {
       id: '4', kind: 'delete_file', path: 'gone.md', fullPath: '/ws/gone.md',
-      binary: false, undoable: true, beforeBytes: bytes('CONTENT'), beforeText: 'CONTENT',
+      binary: false, undoable: true, trashPath: '/ws/.trash/1700_gone.md', beforeText: 'CONTENT',
     };
     await executeUndo(change, fs);
-    expect(calls).toEqual(['write:/ws/gone.md']);
-    expect(writes[0]?.text).toBe('CONTENT');
+    expect(calls).toEqual(['move:/ws/.trash/1700_gone.md->/ws/gone.md']);
   });
 
   it('undoes a move_file (empty destination) by moving it back', async () => {
@@ -102,6 +101,40 @@ describe('executeUndo', () => {
     // First move the file back, then restore what used to live at the destination.
     expect(calls).toEqual(['move:/ws/b.md->/ws/a.md', 'write:/ws/b.md']);
     expect(writes[0]?.text).toBe('ORIGINAL-B');
+  });
+
+  it('refuses to undo a delete if something now occupies the original path (no clobber)', async () => {
+    const { fs, calls } = makeFs();
+    fs.exists = async (p: string) => p === '/ws/gone.md'; // a file was recreated there
+    const change: BatchChange = {
+      id: '9', kind: 'delete_file', path: 'gone.md', fullPath: '/ws/gone.md',
+      binary: false, undoable: true, trashPath: '/ws/.trash/1700_x_gone.md',
+    };
+    await expect(executeUndo(change, fs)).rejects.toThrow(/something else now sits|original location/i);
+    expect(calls).toEqual([]); // did NOT move the trashed file over the new one
+  });
+
+  it('refuses to undo a move if something now occupies the source path (no clobber)', async () => {
+    const { fs, calls } = makeFs();
+    fs.exists = async (p: string) => p === '/ws/a.md'; // a file was recreated at the source
+    const change: BatchChange = {
+      id: '10', kind: 'move_file', from: 'a.md', to: 'b.md',
+      fullFrom: '/ws/a.md', fullTo: '/ws/b.md', destExisted: false, undoable: true,
+    };
+    await expect(executeUndo(change, fs)).rejects.toThrow(/something else now sits|original location/i);
+    expect(calls).toEqual([]);
+  });
+
+  it('refuses to undo a move-onto-existing if the source path is now occupied (no clobber)', async () => {
+    const { fs, calls } = makeFs();
+    fs.exists = async (p: string) => p === '/ws/a.md'; // source recreated
+    const change: BatchChange = {
+      id: '11', kind: 'move_file', from: 'a.md', to: 'b.md',
+      fullFrom: '/ws/a.md', fullTo: '/ws/b.md', destExisted: true, undoable: true,
+      destBeforeBytes: bytes('ORIGINAL-B'),
+    };
+    await expect(executeUndo(change, fs)).rejects.toThrow(/something else now sits|original location/i);
+    expect(calls).toEqual([]); // neither the move-back nor the dest-restore happened
   });
 
   it('throws when an overwrite is not undoable (before-bytes were not captured)', async () => {

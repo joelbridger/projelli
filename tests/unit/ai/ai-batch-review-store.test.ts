@@ -46,7 +46,7 @@ describe('aiBatchReviewStore', () => {
   it('record assigns unique ids and accumulates changes in order', () => {
     const s = useAiBatchReviewStore.getState();
     s.record({ kind: 'create_file', path: 'a.md', fullPath: '/ws/a.md', binary: false, undoable: true });
-    s.record({ kind: 'delete_file', path: 'b.md', fullPath: '/ws/b.md', binary: false, undoable: true, beforeBytes: bytes('x') });
+    s.record({ kind: 'delete_file', path: 'b.md', fullPath: '/ws/b.md', binary: false, undoable: true, trashPath: '/ws/.trash/1_b.md' });
     const { changes } = useAiBatchReviewStore.getState();
     expect(changes).toHaveLength(2);
     expect(changes[0]?.kind).toBe('create_file');

@@ -43,6 +43,7 @@ import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
 import { useEditorStore, tabHasUnsavedEdits, isFileOpenInEditor } from '@/platform/state/editorStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { isBinaryFile } from '@/platform/utils/file-utils';
+import { moveToTrash } from '@/platform/history/trashFile';
 import {
   classifyWriteOp,
   needsPreApproval,
@@ -960,8 +961,6 @@ export function useChatSending(deps: UseChatSendingDeps) {
               const delBinary = isBinaryFile(relativePath);
               const deleteMode = getApprovalMode();
               const delBeforeText = delBinary ? undefined : await readTextForPreview(filePath, relativePath);
-              // BUG-060 batch: snapshot the bytes before deleting so it's reversible.
-              const delBeforeBytes = deleteMode === 'batch' ? await snapshotBytes(filePath) : undefined;
               const deleteGate = await gateWrite(
                 deleteMode,
                 classifyWriteOp({ tool: 'delete_file', path: relativePath, destExists: true }),
@@ -972,15 +971,22 @@ export function useChatSending(deps: UseChatSendingDeps) {
                 return { path: relativePath, skipped: true, message: 'The user declined deleting this file. Nothing was deleted.' };
               }
               try {
-                await workspaceServiceRef.current.delete(filePath);
-                // BUG-060 batch: record the applied delete (reversible: write bytes
-                // back), BEFORE refresh/audit so a thrown callback can't drop it.
+                // Move the file to .trash (recoverable) instead of hard-deleting,
+                // so the "moved to Trash" message + audit entry are HONEST and the
+                // user can restore it from the Trash panel — matching the UI delete.
+                const now = Date.now();
+                const trashItem = await moveToTrash(workspaceServiceRef.current, rootPath, filePath, {
+                  now,
+                  id: `trash_${String(now)}_${Math.random().toString(36).slice(2, 9)}`,
+                });
+                // BUG-060 batch: record the applied delete (reversible: move it back
+                // from Trash), BEFORE refresh/audit so a thrown callback can't drop it.
                 if (deleteMode === 'batch') {
-                  recordBatch({ kind: 'delete_file', path: relativePath, fullPath: filePath, binary: delBinary, beforeBytes: delBeforeBytes, beforeText: delBeforeText, undoable: delBeforeBytes !== undefined });
+                  recordBatch({ kind: 'delete_file', path: relativePath, fullPath: filePath, binary: delBinary, trashPath: trashItem.trashPath, beforeText: delBeforeText, undoable: true });
                 }
                 onFileTreeChange?.();
-                onAuditLog?.({ action: 'file_delete', description: `AI deleted file: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath }, outputs: { success: true, movedToTrash: true }, userDecision: deleteGate.userDecision, metadata: { tool: 'delete_file' } });
-                return { path: relativePath, message: 'File deleted successfully (moved to trash)' };
+                onAuditLog?.({ action: 'file_delete', description: `AI deleted file: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath }, outputs: { success: true, movedToTrash: true, trashPath: trashItem.trashPath }, userDecision: deleteGate.userDecision, metadata: { tool: 'delete_file' } });
+                return { path: relativePath, message: 'File moved to Trash (recoverable from the Trash panel)' };
               } catch (error) {
                 throw new Error(`Failed to delete file "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
               }
