@@ -398,6 +398,22 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     defaultValue: false,
   },
   {
+    // BUG-060: when the AI uses its file tools (write / move / delete) in chat,
+    // how much should it pause for your approval? Reading/searching never asks.
+    key: 'aiFileApprovalMode',
+    category: 'ai-privacy',
+    label: 'Approve AI file changes',
+    description:
+      'Choose when the AI must show you what it is about to do — and get your OK — before changing a file in your workspace. "Only risky changes" (recommended) lets it freely create new files but pauses to show a before/after whenever it would overwrite or delete something that already exists. "Every change" pauses for all file changes. "Review at the end" lets it work, then shows everything it changed for you to approve or undo together.',
+    type: 'select',
+    defaultValue: 'risky',
+    options: [
+      { value: 'risky', label: 'Only risky changes (recommended)' },
+      { value: 'always', label: 'Every change' },
+      { value: 'batch', label: 'Review at the end' },
+    ],
+  },
+  {
     key: 'includePdfsInWorkspaceIndex',
     category: 'ai-privacy',
     label: 'Include PDFs in workspace index',
