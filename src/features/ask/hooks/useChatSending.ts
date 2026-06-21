@@ -30,7 +30,7 @@ import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
-import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
+import { assertLocalOnlyAllowsSend, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { createDemoProvider } from '@/web-demo/demoAIProvider';
@@ -159,6 +159,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
   } = deps;
 
   const buildFastProvider = useCallback((): import('@/platform/providers/Provider').Provider | null => {
+    // BUG-021 (privacy): chat compression sends prior messages to a "fast"
+    // provider before the main send guard runs. In Local-only mode, force the
+    // local model so compression can't leak to the cloud.
+    if (isLocalOnlyMode()) {
+      return new OllamaProvider({});
+    }
     const chatProvider = chatData.provider ?? 'anthropic';
     const apiKey = apiKeys.find(k => k.provider === chatProvider && k.isValid);
     if (!apiKey) return null;
@@ -465,17 +471,25 @@ export function useChatSending(deps: UseChatSendingDeps) {
       ? [...pendingAttachments]
       : undefined;
 
-    // Emit attachment_sent_to_provider audit events.
-    for (const att of pendingAttachments) {
-      onAuditLog?.({
-        action: 'user_action',
-        description: `Attachment sent to provider: ${att.fileName}`,
-        model: chatData.model ?? chatData.provider ?? 'unknown',
-        inputs: { hash: att.id, path: att.pathInWorkspace, provider: chatData.provider ?? 'anthropic' },
-        outputs: {},
-        userDecision: 'auto',
-        metadata: { auditEventType: 'attachment_sent_to_provider' },
-      });
+    // Emit attachment_sent_to_provider audit events — but NOT when a Local-only
+    // block will stop this cloud send below (BUG-021): the audit trail must never
+    // claim an attachment left the machine when it didn't.
+    const willBlockCloudSend =
+      !IS_DEMO &&
+      isLocalOnlyMode() &&
+      !isLocalProviderId(chatData.provider ?? 'anthropic');
+    if (!willBlockCloudSend) {
+      for (const att of pendingAttachments) {
+        onAuditLog?.({
+          action: 'user_action',
+          description: `Attachment sent to provider: ${att.fileName}`,
+          model: chatData.model ?? chatData.provider ?? 'unknown',
+          inputs: { hash: att.id, path: att.pathInWorkspace, provider: chatData.provider ?? 'anthropic' },
+          outputs: {},
+          userDecision: 'auto',
+          metadata: { auditEventType: 'attachment_sent_to_provider' },
+        });
+      }
     }
 
     // Clear pending attachments, preview URLs, and PDF extraction cache.

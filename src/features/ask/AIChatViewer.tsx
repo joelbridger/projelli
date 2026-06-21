@@ -25,6 +25,7 @@ import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
+import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { isAssuredProvider } from '@/platform/firm/resolveAssuredRoute';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder } from '@/platform/state/aiChatStore';
@@ -359,6 +360,13 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     // itself ($0, nothing leaves). It needs no key, so it must not be gated by
     // the cloud key check, and it must NEVER fall through to a cloud provider.
     const isLocal = isLocalProviderId(chatProvider);
+    // BUG-021 (privacy): auto fact-extraction sends the conversation transcript
+    // to the provider. In Local-only mode, never run it on a cloud provider —
+    // advance the checkpoint and skip, so the transcript can't leak.
+    if (isLocalOnlyMode() && !isLocal) {
+      extractionStateRef.current = markCheckpointRan(extractionStateRef.current, count);
+      return;
+    }
     const apiKey = isLocal
       ? undefined
       : apiKeys.find((k) => k.provider === chatProvider && k.isValid);

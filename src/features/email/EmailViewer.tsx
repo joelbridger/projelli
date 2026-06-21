@@ -57,6 +57,7 @@ import { createClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { createOpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { createGeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
+import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import type { Provider } from '@/platform/providers/Provider';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
@@ -106,6 +107,12 @@ const PRIVILEGE_OPTION_KEYS: Record<Privilege, string> = {
 // ── buildProviderAsync — mirrors Ask.tsx pattern ─────────────────
 
 async function buildProviderAsync(): Promise<Provider> {
+  // BUG-021 (privacy): "Draft with AI" sends the email body to the provider, so
+  // it must honour Local-only mode — force the local model instead of picking a
+  // cloud key, so an email never leaves the machine when the indicator says so.
+  if (isLocalOnlyMode()) {
+    return new OllamaProvider({});
+  }
   const kc = createKeychainService();
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) return createClaudeProvider({ apiKey: anthropicKey.trim() });

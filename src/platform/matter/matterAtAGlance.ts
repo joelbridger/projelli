@@ -20,6 +20,7 @@ import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import type { Provider } from '@/platform/providers/Provider';
+import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 
 // Re-export types consumed by callers so they don't need to reach into
@@ -60,8 +61,16 @@ export async function hasCloudKeyForGlance(): Promise<boolean> {
 /**
  * Build a Provider using the same priority order as Ask:
  * Anthropic -> OpenAI -> Google -> OllamaProvider fallback.
+ *
+ * BUG-021 (privacy): the at-a-glance summary auto-runs and sends matter context
+ * to the AI, so it MUST honour Local-only mode — otherwise it would send to the
+ * cloud whenever a cloud key exists, contradicting the "nothing leaves"
+ * indicator. In Local-only, force the local model.
  */
 export async function buildProviderForGlance(): Promise<Provider> {
+  if (isLocalOnlyMode()) {
+    return new OllamaProvider({});
+  }
   const kc = new KeychainService();
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) {

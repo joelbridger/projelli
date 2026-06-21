@@ -90,6 +90,12 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
   },
 }));
 
+// Confidentiality mode — controllable for the Local-only enforcement test (A1).
+const cmode = vi.hoisted(() => ({ mode: 'direct' as string }));
+vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
+  getConfidentialityMode: () => cmode.mode,
+}));
+
 // Import after mocks
 import { generateMatterAtAGlance, hasCloudKeyForGlance, buildProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
@@ -243,9 +249,26 @@ describe('hasCloudKeyForGlance', () => {
 });
 
 describe('buildProviderForGlance', () => {
+  beforeEach(() => { cmode.mode = 'direct'; });
+  afterEach(() => { cmode.mode = 'direct'; });
+
   it('returns a provider instance', async () => {
     const provider = await buildProviderForGlance();
     expect(provider).toBeDefined();
     expect(typeof provider.sendMessage).toBe('function');
+  });
+
+  it('uses the cloud provider when a key exists and NOT in local-only mode', async () => {
+    cmode.mode = 'direct';
+    const provider = await buildProviderForGlance();
+    expect(provider.getMetadata().model).toBe('claude-3-haiku-20240307');
+  });
+
+  it('forces the LOCAL model in local-only mode even with a cloud key (A1, privacy)', async () => {
+    cmode.mode = 'local-only';
+    const provider = await buildProviderForGlance();
+    // The auto-running at-a-glance summary must never send matter context to the
+    // cloud in Local-only mode.
+    expect(provider.getMetadata().model).toBe('llama3');
   });
 });
