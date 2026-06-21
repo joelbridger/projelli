@@ -44,7 +44,7 @@ describe('en.json structure snapshot', () => {
     const counts = namespaceCounts(en as Record<string, JsonValue>);
     expect(counts).toMatchInlineSnapshot(`
       {
-        "ai": 25,
+        "ai": 36,
         "analysis": 10,
         "app": 2,
         "audio": 1,
@@ -82,8 +82,8 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    // 834 = 828 + 6 new matter archive/restore keys.
-    expect(flat.length).toBe(834);
+    // 845 = 834 + 11 new ai.write-approval keys (BUG-060 AI file-change approval).
+    expect(flat.length).toBe(845);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

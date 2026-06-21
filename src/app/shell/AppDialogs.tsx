@@ -13,6 +13,7 @@
 import { useTranslation } from 'react-i18next';
 
 import { McpApprovalGate } from '@/features/settings/McpApprovalGate';
+import { AiWriteApprovalModal } from '@/features/ask/AiWriteApprovalModal';
 import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 import { InterviewForm } from '@/features/workflows/InterviewForm';
 import { CommandPalette, type PaletteCommand } from '@/app/shell/common/CommandPalette';
@@ -201,6 +202,11 @@ export function AppDialogs({
       <McpApprovalGate
         onAuditEvent={(event: AuditEvent) => addAuditEntry(auditEventToEntry(event))}
       />
+
+      {/* BUG-060: AI file-change approval. Self-gates on the approval store's
+          pending request (set by the chat tool executor); shows nothing when
+          idle. Lets the user Approve/Skip an AI write/move/delete with a diff. */}
+      <AiWriteApprovalModal />
 
       {/* Bug 1: MatterManagerDialog — opened by 'keepance:open-matter-manager'
           events from the "New matter" buttons in MattersHome. */}

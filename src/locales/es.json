@@ -820,6 +820,21 @@
       "withheld__locked": true,
       "none-withheld__locked": true,
       "desktop-only__locked": true
+    },
+    "write-approval": {
+      "title": {
+        "create-file": "La IA quiere crear un archivo",
+        "overwrite-file": "La IA quiere cambiar un archivo",
+        "create-folder": "La IA quiere crear una carpeta",
+        "move-file": "La IA quiere mover un archivo",
+        "delete-file": "La IA quiere eliminar un archivo"
+      },
+      "description": "Revisa el cambio a continuación. No pasa nada hasta que lo apruebes.",
+      "move-overwrite-warning": "Esto reemplaza un archivo existente en el destino.",
+      "delete-trash-note": "El archivo se moverá a la Papelera, para que puedas recuperarlo.",
+      "binary-note": "Este no es un archivo de texto, así que no hay vista previa. Aprueba para permitir que la IA lo cambie.",
+      "skip": "Omitir",
+      "approve": "Aprobar"
     }
   },
   "chat": {

@@ -508,6 +508,21 @@
       "withheld": "Privilege exclusion is withholding {{count}} source(s) from this question right now. Top withheld source: {{name}}.",
       "none-withheld": "No privileged sources matched this question, so nothing was withheld.",
       "desktop-only": "This live check runs in the desktop app."
+    },
+    "write-approval": {
+      "title": {
+        "create-file": "The AI wants to create a file",
+        "overwrite-file": "The AI wants to change a file",
+        "create-folder": "The AI wants to create a folder",
+        "move-file": "The AI wants to move a file",
+        "delete-file": "The AI wants to delete a file"
+      },
+      "description": "Review the change below. Nothing happens until you approve.",
+      "move-overwrite-warning": "This replaces an existing file at the destination.",
+      "delete-trash-note": "The file will be moved to Trash, so you can recover it.",
+      "binary-note": "This is a non-text file, so there's no preview here. Approve to let the AI change it.",
+      "skip": "Skip",
+      "approve": "Approve"
     }
   },
   "chat": {

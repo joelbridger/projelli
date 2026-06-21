@@ -820,6 +820,21 @@
       "withheld__locked": true,
       "none-withheld__locked": true,
       "desktop-only__locked": true
+    },
+    "write-approval": {
+      "title": {
+        "create-file": "Die KI möchte eine Datei erstellen",
+        "overwrite-file": "Die KI möchte eine Datei ändern",
+        "create-folder": "Die KI möchte einen Ordner erstellen",
+        "move-file": "Die KI möchte eine Datei verschieben",
+        "delete-file": "Die KI möchte eine Datei löschen"
+      },
+      "description": "Überprüfe die Änderung unten. Es passiert nichts, bis du sie genehmigst.",
+      "move-overwrite-warning": "Dies ersetzt eine vorhandene Datei am Zielort.",
+      "delete-trash-note": "Die Datei wird in den Papierkorb verschoben, sodass du sie wiederherstellen kannst.",
+      "binary-note": "Dies ist keine Textdatei, daher gibt es hier keine Vorschau. Genehmige, damit die KI sie ändern kann.",
+      "skip": "Überspringen",
+      "approve": "Genehmigen"
     }
   },
   "chat": {
