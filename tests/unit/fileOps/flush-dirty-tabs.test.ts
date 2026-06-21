@@ -116,4 +116,23 @@ describe('flushDirtyTabs (BUG-046)', () => {
       setActiveWorkspaceService(null);
     }
   });
+
+  it('closeTab with { discard: true } does NOT flush (Close Without Saving — Codex #5 regression)', async () => {
+    const svc = mockService();
+    setActiveWorkspaceService(svc);
+    setBeforeTabClose((p) => { void flushTab(p); });
+    try {
+      useEditorStore.getState().openFile('/ws/d.md', 'd.md', 'd0');
+      useEditorStore.getState().updateContent('/ws/d.md', 'rejected edits');
+      // User explicitly chose "Close Without Saving".
+      useEditorStore.getState().closeTab('/ws/d.md', { discard: true });
+      expect(tab('/ws/d.md')).toBeUndefined();
+      await nextTick();
+      // The rejected edits must NOT have been written to disk.
+      expect(svc.writeFile).not.toHaveBeenCalled();
+    } finally {
+      setBeforeTabClose(null);
+      setActiveWorkspaceService(null);
+    }
+  });
 });

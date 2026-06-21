@@ -78,13 +78,18 @@ export function useFileOperations(options: UseFileOperationsOptions) {
     async (path: string, content: string) => {
       if (!workspaceServiceRef.current) return;
 
-      // BUG-045: capture the tab's current revision and route the write through
-      // the per-path coordinator so a manual save and the 2s autosave can't run
-      // concurrently / land out of order. Mark clean only if the tab is still at
-      // this rev (an edit during the write keeps it dirty).
-      const rev = useEditorStore.getState().openTabs.find((t) => t.path === path)?.rev ?? 0;
+      // BUG-045/045: capture the tab's content AND revision from ONE live store
+      // snapshot (Codex review #6). The caller's `content` arg can be a stale
+      // React prop one edit behind; pairing it with the live `rev` could write
+      // old bytes and then mark the tab clean over a newer edit. Reading both
+      // from the store together keeps them consistent. Route through the per-path
+      // coordinator so a manual save and the 2s autosave can't land out of order;
+      // mark clean only if the tab is still at this rev.
+      const liveTab = useEditorStore.getState().openTabs.find((t) => t.path === path);
+      const saveContent = liveTab?.content ?? content;
+      const rev = liveTab?.rev ?? 0;
       try {
-        await writeCoordinator.enqueue(path, rev, () => writeTabContent(path, content));
+        await writeCoordinator.enqueue(path, rev, () => writeTabContent(path, saveContent));
         markSaved(path, rev);
 
         // Refresh file tree
@@ -96,7 +101,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         // builder re-extracts via extractForAI anyway on a full rebuild.
         if (!isBinaryFile(path)) {
           const name = path.split('/').pop() ?? path;
-          contentIndex.upsert({ id: path, path, name, content });
+          contentIndex.upsert({ id: path, path, name, content: saveContent });
         }
       } catch (error) {
         console.error('Failed to save file:', error);

@@ -270,6 +270,10 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         if (!shouldClose) {
           return;
         }
+        // The user explicitly chose "Close Without Saving" → discard: don't let
+        // the before-close flush write the rejected edits back (BUG-046 Codex fix).
+        closeTab(path, { discard: true });
+        return;
       }
 
       closeTab(path);

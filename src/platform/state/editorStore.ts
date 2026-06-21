@@ -104,7 +104,7 @@ interface EditorState {
   // Actions
   openFile: (path: string, name: string, content: string) => void;
   openTab: (path: string, name: string, content: string, type?: 'file' | 'browser' | 'ai-assistant' | 'workflow-execution' | 'email', metadata?: { url?: string; favicon?: string; mailSourceId?: string }) => void;
-  closeTab: (path: string) => void;
+  closeTab: (path: string, opts?: { discard?: boolean }) => void;
   closeTabsByPath: (path: string) => void; // Close all tabs for a deleted file
   setActiveTab: (path: string) => void;
   updateContent: (path: string, content: string) => void;
@@ -257,15 +257,21 @@ export const useEditorStore = create<EditorState>()(
     });
   },
 
-  closeTab: (path) => {
+  closeTab: (path, opts) => {
     // BUG-046: give the app a chance to flush this tab's unsaved content to disk
     // BEFORE it's dropped from state. The hook reads the tab synchronously (it's
     // still present here) and writes asynchronously; closing a tab within the 2s
     // autosave window no longer loses the last edits. Best-effort + never throws.
-    try {
-      beforeTabCloseHook?.(path);
-    } catch {
-      /* a flush failure must never block closing a tab */
+    //
+    // BUG-046 fix (Codex review): when the user EXPLICITLY chose "Close Without
+    // Saving" the caller passes { discard: true } so we DON'T flush — otherwise
+    // the discard would silently write the very edits the user rejected.
+    if (!opts?.discard) {
+      try {
+        beforeTabCloseHook?.(path);
+      } catch {
+        /* a flush failure must never block closing a tab */
+      }
     }
     set((state) => {
       const newTabs = state.openTabs.filter((t) => t.path !== path);
