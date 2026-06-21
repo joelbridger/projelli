@@ -487,6 +487,12 @@ export function useAsk({
        * numbers run in reading order while text edits run back-to-front (edits
        * never shift an earlier, not-yet-processed match).
        */
+      // BUG-065: the active matter scope for this Ask turn (null = All matters).
+      // A citation only counts as grounded ("source found", green) when its
+      // retrieved chunk has an id + matterId AND, in a matter-scoped turn,
+      // belongs to that matter — fail closed, matching the chat verifier.
+      const expectedMatterId: string | null =
+        activeMatter && askScope !== 'all-matters' ? activeMatter.id : null;
       const citationMap = new Map<string, number>();
       const citations: AnswerCitation[] = [];
       let chipCounter = 0;
@@ -534,7 +540,13 @@ export function useAsk({
             excerpt: matchedHit.chunkText,
             path: matchedHit.path,
             locator: matchedSource ? sourceLocator(matchedSource) : citationBasename(matchedHit.path),
-            verified: true,
+            // BUG-065: fail closed. Only "source found" when the retrieved chunk
+            // is identifiable (id + matterId) and in the active matter scope; a
+            // chunk missing those, or from another matter, is NOT shown green.
+            verified:
+              matchedHit.id !== undefined &&
+              matchedHit.matterId !== undefined &&
+              (expectedMatterId === null || matchedHit.matterId === expectedMatterId),
             paragraphIndex: matchedHit.paragraphIndex,
             // WS3: forward id + matterId so the SourcePanel can call
             // ragVerifyCitation for on-demand source verification.

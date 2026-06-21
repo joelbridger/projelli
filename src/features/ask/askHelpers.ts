@@ -195,18 +195,33 @@ export function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
       // stripped, so no stale bad answer can re-render a fake chip/source title
       // or trip the green attestation on reload.
       const restoredSources = assistantMsg.askSources ?? [];
-      const groundedCitations = (assistantMsg.askCitations ?? []).filter((c) => {
-        if (c.path == null) return false;
-        return restoredSources.some((s) => {
-          if (s.path !== c.path) return false;
-          // Pre-WS3 citations have no locator — re-ground by path only (the best
-          // we can do; the saved source still proves the file was retrieved).
-          if (c.paragraphIndex === undefined) return true;
-          // Locator present: it must match a saved source's paragraph OR page,
-          // so a stale "real file + fabricated paragraph" citation is dropped.
-          return s.paragraphIndex === c.paragraphIndex || s.pageNumber === c.paragraphIndex;
+      const groundedCitations = (assistantMsg.askCitations ?? [])
+        .filter((c) => {
+          if (c.path == null) return false;
+          return restoredSources.some((s) => {
+            if (s.path !== c.path) return false;
+            // Pre-WS3 citations have no locator — keep by path only (the saved
+            // source still proves the file was retrieved), but they can't be
+            // "proven" so they're shown UNVERIFIED below.
+            if (c.paragraphIndex === undefined) return true;
+            // Locator present: it must match a saved source's paragraph OR page,
+            // so a stale "real file + fabricated paragraph" citation is dropped.
+            return s.paragraphIndex === c.paragraphIndex || s.pageNumber === c.paragraphIndex;
+          });
+        })
+        // BUG-065: do NOT trust the persisted `verified` flag on reload. A
+        // restored citation is "source found" (green) ONLY when its EXACT
+        // locator still matches a saved source; a path-only (pre-WS3) citation
+        // is kept but rendered UNVERIFIED (red) since the exact passage is
+        // unprovable. (Backend re-verification on load is a separate follow-up.)
+        .map((c) => {
+          const provenExact =
+            c.paragraphIndex !== undefined &&
+            restoredSources.some(
+              (s) => s.path === c.path && (s.paragraphIndex === c.paragraphIndex || s.pageNumber === c.paragraphIndex),
+            );
+          return { ...c, verified: provenExact };
         });
-      });
       if (groundedCitations.length > 0) {
         const keep = new Set(groundedCitations.map((c) => c.n));
         // Strip markers for any dropped citation; keep survivors' markers intact.
