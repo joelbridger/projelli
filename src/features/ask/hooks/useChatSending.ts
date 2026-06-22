@@ -204,18 +204,22 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
   const handleManualCompress = useCallback(async () => {
     const currentMessages = sessions[chatId]?.messages ?? chatData.messages;
-    const fastProvider = buildFastProvider();
-    if (!fastProvider) {
-      // Surface error to user — Ollama-only or no API key.
-      addMessage(chatId, {
-        role: 'assistant',
-        content: 'Compression requires a fast cloud model. Configure Claude, OpenAI, or Gemini to enable compression.',
-        timestamp: new Date().toISOString(),
-        isError: true,
-      });
-      return;
-    }
     try {
+      // buildFastProvider is inside the try block so that a thrown
+      // ConfidentialityChoiceRequiredError (from assertCloudGenerationAllowed)
+      // surfaces as a clean in-chat error message rather than an uncaught throw.
+      const fastProvider = buildFastProvider();
+      if (!fastProvider) {
+        // Surface error to user — Ollama-only or no API key.
+        addMessage(chatId, {
+          role: 'assistant',
+          content: 'Compression requires a fast cloud model. Configure Claude, OpenAI, or Gemini to enable compression.',
+          timestamp: new Date().toISOString(),
+          isError: true,
+        });
+        setCompressionModalOpen(false);
+        return;
+      }
       const tokensBefore = estimateMessagesTokens(currentMessages);
       const result = await compressMessages(currentMessages, {
         keepRecentTurns,

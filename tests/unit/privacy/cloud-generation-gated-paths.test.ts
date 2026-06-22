@@ -160,7 +160,8 @@ vi.mock('@/platform/rag/workspaceCommand', () => ({
 // ─── Imports under test (after mocks) ────────────────────────────────────────
 
 import { buildProviderForGlance, generateMatterAtAGlance } from '@/platform/matter/matterAtAGlance';
-import { buildProviderAsync } from '@/features/email/EmailViewer';
+import { buildProviderAsync as buildEmailProviderAsync } from '@/features/email/EmailViewer';
+import { buildProviderAsync as buildAskProviderAsync } from '@/features/ask/askHelpers';
 import { resolveInlineEditProvider } from '@/app/shell/layout/resolveInlineEditProvider';
 import { assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 
@@ -184,12 +185,17 @@ describe('matter at-a-glance — cloud gated on personal install without choice'
   beforeEach(resetState);
   afterEach(() => vi.clearAllMocks());
 
-  it('throws ConfidentialityChoiceRequiredError when choiceMade=false (no cloud keys)', async () => {
-    // Gate fires before key lookup — even with no keys, the gate must throw
-    await expect(buildProviderForGlance()).rejects.toThrow(ConfidentialityChoiceRequiredError);
+  it('falls back to Ollama when choiceMade=false and no cloud keys — gate must NOT fire', async () => {
+    // After the fix the gate runs only on the cloud branch (after key lookup).
+    // With no cloud keys present the function should reach the Ollama fallback
+    // without throwing, so local AI still works before a choice is made.
+    const provider = await buildProviderForGlance();
+    expect(provider).toBeDefined();
+    expect(provider.getMetadata().model).toBe('llama3');
+    expect(h.sendMessageCalled).toBe(false);
   });
 
-  it('throws when choiceMade=false and cloud key is available — no cloud provider constructed', async () => {
+  it('throws when choiceMade=false and a cloud key IS available — gate fires on cloud branch', async () => {
     h.anthropicKey = 'sk-test-key';
     await expect(buildProviderForGlance()).rejects.toThrow(ConfidentialityChoiceRequiredError);
     // The gate fires before new ClaudeProvider(...) so sendMessage is never reached
@@ -243,20 +249,26 @@ describe('email Draft-with-AI — cloud gated on personal install without choice
   beforeEach(resetState);
   afterEach(() => vi.clearAllMocks());
 
-  it('throws ConfidentialityChoiceRequiredError when choiceMade=false', async () => {
-    await expect(buildProviderAsync()).rejects.toThrow(ConfidentialityChoiceRequiredError);
+  it('falls back to Ollama when choiceMade=false and no cloud keys — gate must NOT fire', async () => {
+    // After the fix the gate runs only on the cloud branch (after key lookup).
+    // With no cloud keys present the function should reach the Ollama fallback
+    // without throwing, so local AI still works before a choice is made.
+    const provider = await buildEmailProviderAsync();
+    expect(provider).toBeDefined();
+    expect(provider.getMetadata().model).toBe('llama3');
+    expect(h.sendMessageCalled).toBe(false);
   });
 
-  it('throws even when a cloud key is present — gate fires before key lookup', async () => {
+  it('throws when choiceMade=false and a cloud key IS present — gate fires on cloud branch', async () => {
     h.anthropicKey = 'sk-test-key';
-    await expect(buildProviderAsync()).rejects.toThrow(ConfidentialityChoiceRequiredError);
+    await expect(buildEmailProviderAsync()).rejects.toThrow(ConfidentialityChoiceRequiredError);
     expect(h.sendMessageCalled).toBe(false);
   });
 
   it('ALLOWS cloud generation on personal install once choice is made', async () => {
     h.choiceMade = true;
     h.anthropicKey = 'sk-test-key';
-    const provider = await buildProviderAsync();
+    const provider = await buildEmailProviderAsync();
     expect(provider).toBeDefined();
   });
 
@@ -264,13 +276,67 @@ describe('email Draft-with-AI — cloud gated on personal install without choice
     h.firmActivated = true;
     h.choiceMade = false;
     h.anthropicKey = 'sk-test-key';
-    const provider = await buildProviderAsync();
+    const provider = await buildEmailProviderAsync();
     expect(provider).toBeDefined();
   });
 
   it('Local-only mode returns Ollama before the gate fires', async () => {
     h.mode = 'local-only';
-    const provider = await buildProviderAsync();
+    const provider = await buildEmailProviderAsync();
+    expect(provider.getMetadata().model).toBe('llama3');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 2b. Ask chat — buildProviderAsync (askHelpers) — same fallback logic as email
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('Ask chat — cloud gated on personal install without choice', () => {
+  beforeEach(resetState);
+  afterEach(() => vi.clearAllMocks());
+
+  it('falls back to Ollama when choiceMade=false and no cloud keys — gate must NOT fire', async () => {
+    // After the fix the gate runs only on the cloud branch (after key lookup).
+    // With no cloud keys the function should reach the Ollama fallback without
+    // throwing, so local Ask AI still works before a choice is made.
+    const provider = await buildAskProviderAsync();
+    expect(provider).toBeDefined();
+    expect(provider.getMetadata().model).toBe('llama3');
+    expect(h.sendMessageCalled).toBe(false);
+  });
+
+  it('throws when choiceMade=false and a cloud key IS available — gate fires on cloud branch', async () => {
+    h.anthropicKey = 'sk-test-key';
+    await expect(buildAskProviderAsync()).rejects.toThrow(ConfidentialityChoiceRequiredError);
+    expect(h.sendMessageCalled).toBe(false);
+  });
+
+  it('ALLOWS cloud generation on personal install once choice is made', async () => {
+    h.choiceMade = true;
+    h.anthropicKey = 'sk-test-key';
+    const provider = await buildAskProviderAsync();
+    expect(provider).toBeDefined();
+    expect(provider.getMetadata().name).toMatch(/Claude/i);
+  });
+
+  it('ALLOWS Ollama fallback when choice is made but no cloud keys', async () => {
+    h.choiceMade = true;
+    const provider = await buildAskProviderAsync();
+    expect(provider).toBeDefined();
+    expect(provider.getMetadata().model).toBe('llama3');
+  });
+
+  it('ALLOWS cloud generation on firm install regardless of choiceMade', async () => {
+    h.firmActivated = true;
+    h.choiceMade = false;
+    h.anthropicKey = 'sk-test-key';
+    const provider = await buildAskProviderAsync();
+    expect(provider).toBeDefined();
+  });
+
+  it('Local-only mode returns Ollama before the gate fires', async () => {
+    h.mode = 'local-only';
+    const provider = await buildAskProviderAsync();
     expect(provider.getMetadata().model).toBe('llama3');
   });
 });
