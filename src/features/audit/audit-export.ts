@@ -7,6 +7,7 @@
 // so the serialization is unit-testable without jsdom.
 
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
+import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 
 /**
  * Columns emitted by the CSV exporter. The final three (`tokens_in`,
@@ -47,7 +48,21 @@ const STATUS_FOR_ACTION: Partial<Record<AuditActionType, string>> = {
 /**
  * Serialize entries to pretty-printed JSON with 2-space indentation.
  */
-export function entriesToJSON(entries: AuditEntry[]): string {
+export function entriesToJSON(
+  entries: AuditEntry[],
+  integrity?: AuditIntegrityVerdict,
+): string {
+  if (integrity) {
+    return JSON.stringify(
+      {
+        integrity,
+        exportedAt: new Date().toISOString(),
+        entries,
+      },
+      null,
+      2,
+    );
+  }
   return JSON.stringify(entries, null, 2);
 }
 
@@ -60,12 +75,31 @@ export function entriesToJSON(entries: AuditEntry[]): string {
  * - Nested objects (`inputs`, `outputs`, `metadata`) are JSON-stringified so
  *   the CSV stays one-row-per-entry without losing detail.
  */
-export function entriesToCSV(entries: AuditEntry[]): string {
+export function entriesToCSV(
+  entries: AuditEntry[],
+  integrity?: AuditIntegrityVerdict,
+): string {
   const header = CSV_COLUMNS.join(',');
   const rows = entries.map((e) =>
     CSV_COLUMNS.map((col) => escapeCsvField(extractField(e, col))).join(',')
   );
-  return [header, ...rows].join('\r\n');
+  const integrityRows = integrity ? integrityToCsvCommentRows(integrity) : [];
+  return [...integrityRows, header, ...rows].join('\r\n');
+}
+
+function integrityToCsvCommentRows(integrity: AuditIntegrityVerdict): string[] {
+  const rows: Array<[string, string]> = [
+    ['# integrity_status', integrity.status],
+    ['# integrity_checked', String(integrity.checked)],
+  ];
+  if (integrity.status === 'altered') {
+    rows.push(
+      ['# integrity_broken_entry', String(integrity.seq)],
+      ['# integrity_broken_id', integrity.id],
+      ['# integrity_reason', integrity.reason],
+    );
+  }
+  return rows.map(([key, value]) => `${key},${escapeCsvField(value)}`);
 }
 
 /**
@@ -398,18 +432,20 @@ export function triggerDownload(
  */
 export function downloadAuditJSON(
   entries: AuditEntry[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  integrity?: AuditIntegrityVerdict,
 ): string {
   const filename = buildExportFilename('json', now);
-  triggerDownload(entriesToJSON(entries), filename, 'application/json');
+  triggerDownload(entriesToJSON(entries, integrity), filename, 'application/json');
   return filename;
 }
 
 export function downloadAuditCSV(
   entries: AuditEntry[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  integrity?: AuditIntegrityVerdict,
 ): string {
   const filename = buildExportFilename('csv', now);
-  triggerDownload(entriesToCSV(entries), filename, 'text/csv');
+  triggerDownload(entriesToCSV(entries, integrity), filename, 'text/csv');
   return filename;
 }

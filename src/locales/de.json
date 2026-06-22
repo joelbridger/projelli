@@ -8,7 +8,11 @@
     },
     "audit-log": {
       "entry-details-title": "Audit-Eintragsdetails",
-      "entry-details-title__sourceHash": "4d6241ea65f6e7fee9ff365b39ebb301308eb663fe3d0bb922c29efa60ed2a73"
+      "entry-details-title__sourceHash": "4d6241ea65f6e7fee9ff365b39ebb301308eb663fe3d0bb922c29efa60ed2a73",
+      "integrity-verified": "Protokoll verifiziert",
+      "integrity-verified__sourceHash": "caff6ec765ce9f6e3ba4e44b643f870cf3c1fd24064c9c400c1fc2c96c4967b8",
+      "integrity-altered": "Protokoll verändert (Eintrag {{seq}})",
+      "integrity-altered__sourceHash": "dfe33a7aceaf60fb2cb8c227525b32eaa7419c4f90d620e222912b9ab7904ea1"
     },
     "bug-report": {
       "title": "Fehler melden",

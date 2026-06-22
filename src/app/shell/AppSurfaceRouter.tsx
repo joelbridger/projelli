@@ -27,6 +27,7 @@ import { useEditorStore } from '@/platform/state/editorStore';
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import type { WorkflowExecution, WorkflowTemplate, InterviewQuestion, RunRecord } from '@/platform/types/workflow';
 import type { AuditEntry } from '@/platform/types/audit';
+import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 import type { APIKey } from '@/platform/types';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { FileNode } from '@/platform/types/workspace';
@@ -47,6 +48,8 @@ export interface AppSurfaceRouterProps {
   workflowProviderError: 'needs-provider' | 'ollama-unreachable' | null;
   runHistory: RunRecord[];
   auditEntries: AuditEntry[];
+  auditIntegrity: AuditIntegrityVerdict | undefined;
+  verifyAuditIntegrity: () => Promise<AuditIntegrityVerdict | undefined>;
   apiKeys: APIKey[];
   rootPath: string | null | undefined;
   trashItems: TrashedItem[];
@@ -103,6 +106,8 @@ export function AppSurfaceRouter({
   workflowProviderError,
   runHistory,
   auditEntries,
+  auditIntegrity,
+  verifyAuditIntegrity,
   apiKeys,
   rootPath,
   trashItems,
@@ -278,7 +283,11 @@ export function AppSurfaceRouter({
           }}
         />
       ) : sidebarActiveTab ==='audit' ? (
-        <AuditHome entries={auditEntries} />
+        <AuditHome
+          entries={auditEntries}
+          integrity={auditIntegrity}
+          onVerifyIntegrity={verifyAuditIntegrity}
+        />
       ) : sidebarActiveTab ==='privacy' ? (
         <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />
       ) : sidebarActiveTab ==='settings' ? (

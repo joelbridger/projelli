@@ -5,7 +5,9 @@
       "add": "Add"
     },
     "audit-log": {
-      "entry-details-title": "Audit Entry Details"
+      "entry-details-title": "Audit Entry Details",
+      "integrity-verified": "Log verified",
+      "integrity-altered": "Log altered (entry {{seq}})"
     },
     "bug-report": {
       "title": "Report a bug",

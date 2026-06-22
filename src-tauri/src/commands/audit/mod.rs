@@ -11,6 +11,8 @@
 //   - `audit_append(entry)`       — append one entry (append-only).
 //   - `audit_list(limit, offset)` — read entries back in insertion order.
 //   - `audit_count()`             — entry count (diagnostics).
+//   - `audit_verify_integrity()`  — recompute the hash-chain and report the
+//                                   first broken row, if any.
 //
 // All DB/keychain work is blocking (sqlite + keyring), so each command hops to
 // `spawn_blocking` off the async runtime, exactly like the mail commands.
@@ -18,7 +20,7 @@
 pub mod crypto;
 pub mod store;
 
-use store::{AuditEntryRecord, EncryptedAuditStore};
+use store::{AuditChainVerification, AuditEntryRecord, EncryptedAuditStore};
 use tauri::{Manager, State};
 
 /// Shared state: the active workspace root the audit store opens under. `None`
@@ -35,10 +37,7 @@ pub fn manage_state(app: &tauri::App) {
 }
 
 #[tauri::command]
-pub async fn audit_set_workspace(
-    state: State<'_, AuditState>,
-    path: String,
-) -> Result<(), String> {
+pub async fn audit_set_workspace(state: State<'_, AuditState>, path: String) -> Result<(), String> {
     *state.workspace.lock().await = Some(std::path::PathBuf::from(path));
     Ok(())
 }
@@ -101,6 +100,26 @@ pub async fn audit_count(state: State<'_, AuditState>) -> Result<i64, String> {
     tokio::task::spawn_blocking(move || -> anyhow::Result<i64> {
         let store = EncryptedAuditStore::open(&workspace)?;
         store.count()
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+/// Verify the encrypted audit log hash-chain.
+#[tauri::command]
+pub async fn audit_verify_integrity(
+    state: State<'_, AuditState>,
+) -> Result<AuditChainVerification, String> {
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("audit workspace not set")?;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<AuditChainVerification> {
+        let store = EncryptedAuditStore::open(&workspace)?;
+        store.verify_chain()
     })
     .await
     .map_err(|e| format!("join: {e}"))?

@@ -20,6 +20,7 @@ import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/Wor
 import { createFSBackend } from '@/platform/fs/BackendFactory';
 import { AuditService } from '@/platform/audit/AuditService';
 import type { AuditEntry } from '@/platform/types/audit';
+import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { SourceCard } from '@/features/ask/types/research';
 import type { AIChatFile } from '@/platform/types/ai';
@@ -31,6 +32,7 @@ export interface UseWorkspaceLifecycleOptions {
   templatesMetadataReaderRef: React.MutableRefObject<TemplateMetadataReader | null>;
   setShowWorkspaceSelector: React.Dispatch<React.SetStateAction<boolean>>;
   setAuditEntries: React.Dispatch<React.SetStateAction<AuditEntry[]>>;
+  setAuditIntegrity: React.Dispatch<React.SetStateAction<AuditIntegrityVerdict | undefined>>;
   setRootPath: (path: string) => void;
   loadTrashMetadata: () => Promise<TrashedItem[]>;
   setTrashItems: React.Dispatch<React.SetStateAction<TrashedItem[]>>;
@@ -44,7 +46,7 @@ export interface UseWorkspaceLifecycleOptions {
 export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
   const {
     workspaceServiceRef, auditServiceRef, templatesMarketplaceServiceRef, templatesMetadataReaderRef,
-    setShowWorkspaceSelector, setAuditEntries, setRootPath,
+    setShowWorkspaceSelector, setAuditEntries, setAuditIntegrity, setRootPath,
     loadTrashMetadata, setTrashItems, setTrashStats,
     loadSourceCards, setSourceCards, loadChatFiles, setChatFiles,
   } = options;
@@ -104,8 +106,10 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
           .slice()
           .reverse(); // store is oldest-first; UI shows newest-first
         setAuditEntries(loaded);
+        setAuditIntegrity(await auditServiceRef.current.verifyIntegrity());
       } catch (err) {
         console.warn('[App] Audit store hydrate failed:', err);
+        setAuditIntegrity(undefined);
       }
     }
 
@@ -249,7 +253,23 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
         console.error('Failed to restore workspace tab state:', error);
       }
     }
-  }, [loadTrashMetadata, loadSourceCards, loadChatFiles]);
+  }, [
+    auditServiceRef,
+    loadChatFiles,
+    loadSourceCards,
+    loadTrashMetadata,
+    setAuditEntries,
+    setAuditIntegrity,
+    setChatFiles,
+    setRootPath,
+    setShowWorkspaceSelector,
+    setSourceCards,
+    setTrashItems,
+    setTrashStats,
+    templatesMarketplaceServiceRef,
+    templatesMetadataReaderRef,
+    workspaceServiceRef,
+  ]);
 
   // Handle opening a recent project directly by path (Tauri only)
   const handleOpenRecentProject = useCallback(async (workspacePath: string) => {

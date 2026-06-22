@@ -210,6 +210,49 @@ describe('AuditService persistence (desktop, encrypted store)', () => {
     expect(svc.getAll()[1]!.action).toBe('egress');
   });
 
+  it('verifyIntegrity() calls the encrypted store integrity command', async () => {
+    mocks.invoke.mockImplementation(async (cmd: string) => {
+      if (cmd === 'audit_verify_integrity') {
+        return { status: 'verified', checked: 3 };
+      }
+      return undefined;
+    });
+    const svc = new AuditService('desktop-integrity');
+
+    await svc.hydrate('/ws/Acme');
+    const verdict = await svc.verifyIntegrity();
+
+    expect(mocks.invoke.mock.calls.some((c) => c[0] === 'audit_verify_integrity')).toBe(true);
+    expect(verdict).toEqual({ status: 'verified', checked: 3 });
+  });
+
+  it('verifyIntegrity() returns an altered verdict from the encrypted store', async () => {
+    mocks.invoke.mockImplementation(async (cmd: string) => {
+      if (cmd === 'audit_verify_integrity') {
+        return {
+          status: 'altered',
+          seq: 2,
+          id: 'audit_bad',
+          reason: 'entry hash mismatch',
+          checked: 1,
+        };
+      }
+      return undefined;
+    });
+    const svc = new AuditService('desktop-integrity-altered');
+
+    await svc.hydrate('/ws/Acme');
+    const verdict = await svc.verifyIntegrity();
+
+    expect(verdict).toEqual({
+      status: 'altered',
+      seq: 2,
+      id: 'audit_bad',
+      reason: 'entry hash mismatch',
+      checked: 1,
+    });
+  });
+
   it('a transient encrypted-store failure does not break logging (entry stays in memory)', () => {
     mocks.invoke.mockRejectedValue(new Error('keychain locked'));
     const svc = new AuditService('desktop-resilient');

@@ -70,6 +70,31 @@ describe('AuditHome', () => {
     expect(screen.getByRole('heading', { level: 1, name: /Activity Log/i })).toBeInTheDocument();
   });
 
+  it('shows a verified integrity badge when the encrypted log chain is intact', () => {
+    render(<AuditHome entries={SAMPLE} integrity={{ status: 'verified', checked: 3 }} />);
+
+    const badge = screen.getByTestId('audit-integrity-badge');
+    expect(badge).toHaveTextContent('Log verified');
+  });
+
+  it('shows an altered integrity badge with the first broken entry number', () => {
+    render(
+      <AuditHome
+        entries={SAMPLE}
+        integrity={{
+          status: 'altered',
+          seq: 2,
+          id: 'entry-model',
+          reason: 'entry hash mismatch',
+          checked: 1,
+        }}
+      />,
+    );
+
+    const badge = screen.getByTestId('audit-integrity-badge');
+    expect(badge).toHaveTextContent('Log altered (entry 2)');
+  });
+
   it('search filters rows by description text', () => {
     render(<AuditHome entries={SAMPLE} />);
     const search = screen.getByTestId('audit-home-search');

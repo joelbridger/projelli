@@ -54,6 +54,15 @@ describe('audit-export / entriesToJSON', () => {
     expect(parsed[1].id).toBe('audit_2');
   });
 
+  it('can include integrity status with JSON export', () => {
+    const parsed = JSON.parse(
+      entriesToJSON([makeEntry()], { status: 'verified', checked: 1 }),
+    );
+
+    expect(parsed.integrity).toEqual({ status: 'verified', checked: 1 });
+    expect(parsed.entries).toHaveLength(1);
+  });
+
   it('emits [] for empty input', () => {
     expect(entriesToJSON([])).toBe('[]');
   });
@@ -64,6 +73,27 @@ describe('audit-export / entriesToCSV', () => {
     const csv = entriesToCSV([]);
     const firstLine = csv.split('\r\n')[0];
     expect(firstLine).toBe(CSV_COLUMNS.join(','));
+  });
+
+  it('can include integrity status comment rows with CSV export', () => {
+    const csv = entriesToCSV(
+      [makeEntry()],
+      {
+        status: 'altered',
+        seq: 2,
+        id: 'audit_bad',
+        reason: 'entry hash mismatch',
+        checked: 1,
+      },
+    );
+    const lines = csv.split('\r\n');
+
+    expect(lines[0]).toBe('# integrity_status,altered');
+    expect(lines[1]).toBe('# integrity_checked,1');
+    expect(lines[2]).toBe('# integrity_broken_entry,2');
+    expect(lines[3]).toBe('# integrity_broken_id,audit_bad');
+    expect(lines[4]).toBe('# integrity_reason,entry hash mismatch');
+    expect(lines[5]).toBe(CSV_COLUMNS.join(','));
   });
 
   it('uses CRLF line separators per RFC 4180', () => {

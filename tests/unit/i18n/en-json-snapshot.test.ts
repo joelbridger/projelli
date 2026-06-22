@@ -50,7 +50,7 @@ describe('en.json structure snapshot', () => {
         "audio": 1,
         "chat": 12,
         "citation": 3,
-        "common": 25,
+        "common": 27,
         "editor": 14,
         "firm": 110,
         "layout": 40,
@@ -82,8 +82,8 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    // 857 = 845 + 12 new ai.batch-review keys (BUG-060 batch-mode end-of-turn review).
-    expect(flat.length).toBe(857);
+    // 859 = 857 + 2 audit integrity badge keys (BUG-078 tamper-evident audit log).
+    expect(flat.length).toBe(859);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
