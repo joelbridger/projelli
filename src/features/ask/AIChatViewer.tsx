@@ -532,7 +532,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     return () => clearTimeout(timeoutId);
   }, [inputValue, chatId, setDraftInput, clearDraftInput]);
 
-  const { handleSendMessage, handleManualCompress } = useChatSending({
+  const { handleSendMessage, handleManualCompress, handleSendAnyway } = useChatSending({
     chatData,
     onSave,
     apiKeys,
@@ -1261,10 +1261,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         onSendAnyway={() => {
           setCompressionModalOpen(false);
           setPendingCompressAndSend(null);
-          // Re-invoke send without the context check blocking it — just call handleSendMessage.
-          // Because we cleared the modal, the next call won't re-trigger the check.
-          // (The check is stateless, so we need a different path; use a direct send flag.)
-          void handleSendMessage();
+          handleSendAnyway();
         }}
         onCancel={() => {
           setCompressionModalOpen(false);

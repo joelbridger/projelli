@@ -12,7 +12,7 @@
 // bodies — and their useCallback dependency arrays — are copied byte-for-byte
 // from the previous revision. Do not "fix" exhaustive-deps here.
 
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { useTranslation } from 'react-i18next';
 import { AttachmentService } from '@/features/ask/attachments/AttachmentService';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
@@ -171,6 +171,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
     setCompressionModalOpen,
     abortControllerRef,
   } = deps;
+  const bypassNextContextLimitRef = useRef(false);
 
   const buildFastProvider = useCallback((): import('@/platform/providers/Provider').Provider | null => {
     // BUG-021 (privacy): chat compression sends prior messages to a "fast"
@@ -244,6 +245,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
   const handleSendMessage = useCallback(async () => {
     if ((!inputValue.trim() && pendingAttachments.length === 0) || isLoading) return;
+    const bypassContextLimit = bypassNextContextLimitRef.current;
+    bypassNextContextLimitRef.current = false;
 
     // WS6 diagnostics — structural, gated, fire-and-forget. No content captured.
     void sendDiagnosticEvent({ event: 'feature_used', feature: 'ask' }).catch(() => undefined);
@@ -510,7 +513,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
     // Stream A4 — check if context would exceed the configured limit before sending.
     const msgsForSend = getMessagesForSend([...messages, userMessage]);
     const sendTokenEstimate = estimateMessagesTokens(msgsForSend) + estimateTokens(rawContent);
-    if (sendTokenEstimate > chatContextTokenLimit) {
+    if (!bypassContextLimit && sendTokenEstimate > chatContextTokenLimit) {
       // Context is over limit — show confirmation modal instead of sending.
       setCompressedTokensBefore(sendTokenEstimate);
       setPendingCompressAndSend(() => async () => {
@@ -1565,5 +1568,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
     });
   }, [inputValue, pendingAttachments, previewUrls, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
 
-  return { handleSendMessage, handleManualCompress };
+  const handleSendAnyway = useCallback(() => {
+    bypassNextContextLimitRef.current = true;
+    void handleSendMessage();
+  }, [handleSendMessage]);
+
+  return { handleSendMessage, handleManualCompress, handleSendAnyway };
 }

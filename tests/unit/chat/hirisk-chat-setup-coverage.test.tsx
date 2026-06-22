@@ -95,6 +95,7 @@ import { ScopeToggle } from '@/features/ask/ScopeToggle';
 import { AiSetupStep } from '@/features/onboarding/AiSetupStep';
 import type { AskScope } from '@/features/ask/askHelpers';
 import type { AIChatFile } from '@/platform/types/ai';
+import type { AuditEntry } from '@/platform/types/audit';
 import type { ExtractedContext } from '@/platform/utils/ai-file-context';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { useFileContextStore } from '@/platform/state/fileContextStore';
@@ -169,17 +170,28 @@ describe('High-risk chat/setup coverage from the current UI', () => {
   it('CHAT-26 blocks an over-limit send and shows the compression / send-anyway warning', async () => {
     useSettingsStore.setState({
       values: {
-        chatContextTokenLimit: 1,
+        chatContextTokenLimit: 10000,
         keepRecentTurns: 6,
       },
     });
 
     const chat = makeChat('chat-26-over-limit');
-    renderChat(<AIChatViewer chatData={chat} apiKeys={apiKey} />);
+    const auditEntries: Omit<AuditEntry, 'id' | 'timestamp'>[] = [];
+    renderChat(
+      <AIChatViewer
+        chatData={chat}
+        apiKeys={apiKey}
+        onAuditLog={(entry) => auditEntries.push(entry)}
+      />,
+    );
 
     const input = screen.getByTestId('chat-input') as HTMLTextAreaElement;
+    const longMessage = [
+      'This message is intentionally long enough to exceed the valid test token limit.',
+      'privileged context '.repeat(3000),
+    ].join(' ');
     fireEvent.change(input, {
-      target: { value: 'This message is intentionally long enough to exceed one token.' },
+      target: { value: longMessage },
     });
     fireEvent.click(screen.getByTestId('chat-send-button'));
 
@@ -189,6 +201,12 @@ describe('High-risk chat/setup coverage from the current UI', () => {
     expect(mocks.sendMessage).not.toHaveBeenCalled();
     expect(useAIChatStore.getState().sessions[chat.id]?.messages ?? []).toHaveLength(0);
     expect(input.value).toContain('intentionally long');
+    expect(
+      auditEntries.some((entry) => entry.action === 'egress'),
+    ).toBe(false);
+
+    fireEvent.click(screen.getByTestId('modal-send-anyway-btn'));
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
   });
 
   it('CHAT-34 changes the Ask retrieval scope chip safely between matter, all matters, email, and documents', () => {

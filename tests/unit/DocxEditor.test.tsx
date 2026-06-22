@@ -27,6 +27,7 @@ vi.mock('@/features/documents/docx/redline', async (importOriginal) => {
   return {
     ...actual,
     requestRedlineEdits: (...args: unknown[]) => requestRedlineEditsMock(...args),
+    requestRedlineEditsWithAudit: (...args: unknown[]) => requestRedlineEditsMock(...args),
   };
 });
 vi.mock('@/platform/providers/providerFactory', () => ({

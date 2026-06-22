@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Audit egress regression reconciliation for Word redline and over-limit chat sends.** AI redline tests now exercise the audit-aware request path while still proving tracked changes go through the Word engine, and the chat over-limit warning uses a real one-time "Send anyway" bypass without logging egress while the send is blocked.
+  - Files modified: `src/features/ask/hooks/useChatSending.ts`, `src/features/ask/AIChatViewer.tsx`, `tests/unit/DocxEditor.test.tsx`, `tests/unit/chat/hirisk-chat-setup-coverage.test.tsx`
+  - Tests: `npx vitest run tests/unit/DocxEditor.test.tsx tests/unit/chat/hirisk-chat-setup-coverage.test.tsx`
 - **Clean copy removes residual hidden OOXML metadata (BUG-067).** Metadata scrub now drops `docProps/custom.xml`, `customXml/**`, and related custom/comment-person metadata package references so client or matter data in hidden Word parts does not survive a final clean export.
   - Files modified: `src-tauri/crates/keepance-docx/src/scrub.rs`, `src-tauri/crates/keepance-docx/tests/roundtrip.rs`
   - Test: `cargo test -p keepance-docx test_final_clean_removes_custom_properties_and_custom_xml_metadata -- --nocapture`
