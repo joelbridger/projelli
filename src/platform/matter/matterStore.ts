@@ -42,10 +42,11 @@ import { persist } from 'zustand/middleware';
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import type { Matter, MatterScope } from '@/platform/types/matter';
+import type { AuditEntry } from '@/platform/types/audit';
 import { resolveMatterId, findMatter } from '@/platform/rag/matterResolver';
 import { ragDeleteMatter } from '@/platform/utils/tauri-commands';
 import { mailClearMatterFilings } from '@/platform/utils/mail-commands';
-import { AuditService } from '@/platform/audit/AuditService';
+import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { getProfession } from '@/platform/profile/professionStore';
 import { getSampleMatterName } from '@/platform/matter/samples/sampleMatterDemo';
 import type { MatterUiSnapshot } from '@/platform/matter/matterUiStore';
@@ -180,9 +181,21 @@ const UI_KEY = 'keepance:matter-ui-snapshots';
 const GLANCE_KEY = 'keepance:matter-at-a-glance';
 const MATTERS_VERSION = 5;
 
+type MatterAuditEmitter = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+
+/**
+ * The matter store is not a React component, but MCP access changes still need
+ * to reach the app's live Activity Log. App registers its main audit emitter
+ * here, mirroring the existing active WorkspaceService accessor pattern.
+ */
+let activeMatterAuditEmitter: MatterAuditEmitter | null = null;
+
+export function setMatterAuditEmitter(emitter: MatterAuditEmitter | null): void {
+  activeMatterAuditEmitter = emitter;
+}
+
 function auditMatterMcpAccess(matter: Matter, granted: boolean): void {
-  const audit = new AuditService();
-  audit.append({
+  activeMatterAuditEmitter?.(auditEventToEntry({
     type: granted ? 'mcp_matter_access_granted' : 'mcp_matter_access_revoked',
     timestamp: new Date().toISOString(),
     payload: {
@@ -192,7 +205,7 @@ function auditMatterMcpAccess(matter: Matter, granted: boolean): void {
         ? 'external AI tools can read this matter through MCP'
         : 'external AI tools can no longer read this matter through MCP',
     },
-  });
+  }));
 }
 
 function readLegacyEnvelope(

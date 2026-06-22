@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **MCP matter grant/revoke audits now use the live app Activity Log pipeline (BUG-093).** The matter store no longer creates a detached audit service for external AI access toggles; App registers its main audit emitter so grant/revoke rows appear immediately in Activity Log and persist through the same AuditService path as chat, workflow, redline, and MCP approval events.
+  - Files modified: `src/App.tsx`, `src/platform/matter/matterStore.ts`, `tests/unit/matter-store.test.ts`, `tests/unit/matter/archiveMatterUi.test.tsx`
+  - Tests: `npx vitest run tests/unit/matter-store.test.ts tests/unit/matter/archiveMatterUi.test.tsx tests/unit/matter/matterStoreMerge.test.ts`
 - **MCP sidecar never exposes Keepance internal workspace files.** External MCP file access now rejects root `.keepance/**` paths before matter-scope checks, including Windows-style separators, and search-hit verification reuses the same deny rule so stale index rows cannot leak internal metadata when a granted matter is the workspace root.
   - Files modified: `src-tauri/src/mcp_bin/main.rs`, `src-tauri/src/mcp_bin/tools.rs`, `src-tauri/tests/mcp_binary.rs`
   - Tests: `cargo test --test mcp_binary`, `cargo test access::tests`, `cargo check`
