@@ -30,7 +30,7 @@ import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
-import { assertLocalOnlyAllowsSend, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { assertLocalOnlyAllowsSend, isLocalOnlyMode, LocalOnlyEgressError } from '@/platform/privacy/localOnlyGuard';
 import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { createDemoProvider } from '@/web-demo/demoAIProvider';
@@ -487,27 +487,6 @@ export function useChatSending(deps: UseChatSendingDeps) {
       ? [...pendingAttachments]
       : undefined;
 
-    // Emit attachment_sent_to_provider audit events — but NOT when a Local-only
-    // block will stop this cloud send below (BUG-021): the audit trail must never
-    // claim an attachment left the machine when it didn't.
-    const willBlockCloudSend =
-      !IS_DEMO &&
-      isLocalOnlyMode() &&
-      !isLocalProviderId(chatData.provider ?? 'anthropic');
-    if (!willBlockCloudSend) {
-      for (const att of pendingAttachments) {
-        onAuditLog?.({
-          action: 'user_action',
-          description: `Attachment sent to provider: ${att.fileName}`,
-          model: chatData.model ?? chatData.provider ?? 'unknown',
-          inputs: { hash: att.id, path: att.pathInWorkspace, provider: chatData.provider ?? 'anthropic' },
-          outputs: {},
-          userDecision: 'auto',
-          metadata: { auditEventType: 'attachment_sent_to_provider' },
-        });
-      }
-    }
-
     // Clear pending attachments, preview URLs, and PDF extraction cache.
     setPendingAttachments([]);
     for (const url of Object.values(previewUrls)) {
@@ -577,14 +556,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
           throw new Error(`No valid ${providerNames[chatProvider] ?? chatProvider} API key found. Please add your API key in the settings.`);
         }
 
-        // Audit (3.0 provenance) — record WHERE this AI request goes, from the
-        // egress source of truth (`resolveEgress`), the moment before it is
-        // sent: provider, the active confidentiality mode, the resolved
-        // destination (local / direct-to-provider / demo relay), and whether
-        // anything actually leaves the device. This is the egress half of the
-        // defense file and stays consistent with the on-screen egress chip
-        // because both derive from the same function.
-        {
+        const emitSuccessfulEgressAudit = () => {
           const egress = resolveEgress({
             provider: chatProvider,
             mode: getConfidentialityMode(),
@@ -612,7 +584,21 @@ export function useChatSending(deps: UseChatSendingDeps) {
               scope: auditScope,
             },
           }));
-        }
+        };
+
+        const emitSuccessfulAttachmentAudits = () => {
+          for (const att of messageAttachments ?? []) {
+            onAuditLog?.({
+              action: 'user_action',
+              description: `Attachment sent to provider: ${att.fileName}`,
+              model: chatModel ?? chatProvider,
+              inputs: { hash: att.id, path: att.pathInWorkspace, provider: chatProvider },
+              outputs: {},
+              userDecision: 'auto',
+              metadata: { auditEventType: 'attachment_sent_to_provider' },
+            });
+          }
+        };
 
         // Stream A1 — estimate image token overhead for cost meter.
         const imageTokenOverhead = (messageAttachments ?? []).reduce(
@@ -1283,6 +1269,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // response) leaves these at zero; partial-cost tracking for
           // aborted streams isn't worth the complexity.
           if (streamingResponse) {
+            emitSuccessfulEgressAudit();
+            emitSuccessfulAttachmentAudits();
+
             recordCost(chatId, {
               cost: streamingResponse.cost,
               inputTokens: streamingResponse.usage.inputTokens + imageTokenOverhead + pdfTokenOverhead,
@@ -1345,6 +1334,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
             signal: abortController.signal,
             ...(attachmentBytes ? { attachmentBytes } : {}),
           });
+
+          emitSuccessfulEgressAudit();
+          emitSuccessfulAttachmentAudits();
 
           // WS-B/C — verify the citations in the answer against the local
           // store BEFORE presenting them. Verified sources are marked safe;
@@ -1411,6 +1403,46 @@ export function useChatSending(deps: UseChatSendingDeps) {
         }
 
         console.error('AI chat error:', error);
+
+        const chatProvider = chatData.provider ?? 'anthropic';
+        const chatModel = chatData.model;
+        const egress = resolveEgress({
+          provider: chatProvider,
+          mode: getConfidentialityMode(),
+          isDemo: IS_DEMO,
+          assuredAvailable: assuredAvailableForChat,
+        });
+        const failureType = error instanceof LocalOnlyEgressError
+          ? 'egress_blocked'
+          : 'egress_failed';
+        onAuditLog?.({
+          action: 'user_action',
+          description: failureType === 'egress_blocked'
+            ? `AI request blocked before sending to ${chatProvider}`
+            : `AI request failed before a response from ${chatProvider}`,
+          model: chatModel ?? chatProvider,
+          inputs: {
+            provider: egress.provider,
+            ...(chatModel !== undefined ? { model: chatModel } : {}),
+            mode: getConfidentialityMode(),
+            destination: egress.destination,
+            dataLeaves: egress.dataLeaves,
+            attachmentCount: messageAttachments?.length ?? 0,
+          },
+          outputs: {
+            success: false,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          userDecision: 'auto',
+          metadata: {
+            auditEventType: failureType,
+            provider: egress.provider,
+            ...(chatModel !== undefined ? { model: chatModel } : {}),
+            mode: getConfidentialityMode(),
+            destination: egress.destination,
+            dataLeaves: egress.dataLeaves,
+          },
+        });
 
         let errorContent: string;
         let errorDiagnostic: string | undefined;
