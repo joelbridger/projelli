@@ -1577,6 +1577,10 @@
     }
   },
   "mail": {
+    "connect": {
+      "error-prefix": "Etwas ist schiefgelaufen:",
+      "error-prefix__sourceHash": "45f299433853dea7fdc057bc0abe34640f23954dbb6baf04232c06012a06ed8c"
+    },
     "viewer": {
       "privilege-label": "Privileg",
       "privilege-mark-ac": "Anwalt-Mandanten-Privileg",

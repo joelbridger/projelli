@@ -110,7 +110,19 @@ function timestampToFileStamp(iso: string): string {
 function fileStampToTimestamp(snapshotFile: string): string {
   const base = snapshotFile.split('__')[0] ?? '';
   const m = base.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/);
-  if (m) return `${m[1]}T${m[2]}:${m[3]}:${m[4]}.${m[5]}Z`;
+  if (m) {
+    const [, date, hour, minute, second, millisecond] = m;
+    if (
+      date === undefined ||
+      hour === undefined ||
+      minute === undefined ||
+      second === undefined ||
+      millisecond === undefined
+    ) {
+      return new Date(0).toISOString();
+    }
+    return `${date}T${hour}:${minute}:${second}.${millisecond}Z`;
+  }
   return new Date(0).toISOString();
 }
 
@@ -180,12 +192,12 @@ export class BinaryVersionService {
       if (!(await this.fs.exists(path))) {
         // No index yet. Snapshots without an index can exist after a partial
         // delete / index loss — recover them if any are on disk.
-        return this.rebuildIndexFromSnapshots(filePath);
+        return await this.rebuildIndexFromSnapshots(filePath);
       }
       const raw = await this.fs.readFile(path);
       const parsed = JSON.parse(raw) as Partial<VersionIndex>;
-      if (!parsed || !Array.isArray(parsed.entries)) {
-        return this.rebuildIndexFromSnapshots(filePath);
+      if (!Array.isArray(parsed.entries)) {
+        return await this.rebuildIndexFromSnapshots(filePath);
       }
       return { v: 1, entries: parsed.entries };
     } catch {

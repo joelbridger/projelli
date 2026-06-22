@@ -70,7 +70,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
       // path and the flush-on-exit path (flushDirtyTabs) can never drift.
       await writeTabContentToDisk(service, path, content);
     },
-    []
+    [workspaceServiceRef]
   );
 
   // Handle file save
@@ -107,7 +107,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         console.error('Failed to save file:', error);
       }
     },
-    [markSaved, setFileTree, contentIndex, writeTabContent]
+    [markSaved, setFileTree, contentIndex, writeTabContent, workspaceServiceRef]
   );
 
   // Handle create new file
@@ -133,7 +133,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         window.alert("I couldn't create that. Try a different name.");
       }
     },
-    [setFileTree, handleFileOpen, prompt]
+    [setFileTree, handleFileOpen, prompt, workspaceServiceRef]
   );
 
   // Handle create new folder
@@ -166,7 +166,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         window.alert("I couldn't create that. Try a different name.");
       }
     },
-    [setFileTree, prompt]
+    [setFileTree, prompt, workspaceServiceRef]
   );
 
   // Handle rename (prompts user)
@@ -199,7 +199,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         window.alert("I couldn't rename that file. Make sure it isn't open in another app, then try again.");
       }
     },
-    [setFileTree, prompt]
+    [setFileTree, prompt, renameHistoryRef, undoStackRef, workspaceServiceRef]
   );
 
   // Handle rename with provided name (for tab double-click)
@@ -229,7 +229,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         window.alert("I couldn't rename that file. Make sure it isn't open in another app, then try again.");
       }
     },
-    [setFileTree]
+    [setFileTree, renameHistoryRef, undoStackRef, workspaceServiceRef]
   );
 
 
@@ -259,7 +259,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         }
       }
     },
-    []
+    [workspaceServiceRef]
   );
 
 
@@ -280,7 +280,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
     } catch (error) {
       console.error('Failed to refresh file tree:', error);
     }
-  }, [setFileTree]);
+  }, [setFileTree, fileSystemWatcherRef, workspaceServiceRef]);
 
   const handleMove = useCallback(
     async (sourcePath: string, targetPath: string) => {
@@ -297,7 +297,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         window.alert("I couldn't move that. Try again.");
       }
     },
-    [setFileTree]
+    [setFileTree, workspaceServiceRef]
   );
 
   return {

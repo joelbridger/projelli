@@ -1122,6 +1122,9 @@
     }
   },
   "mail": {
+    "connect": {
+      "error-prefix": "Something went wrong:"
+    },
     "viewer": {
       "privilege-label": "Privilege",
       "privilege-mark-ac": "Attorney-Client Privileged",

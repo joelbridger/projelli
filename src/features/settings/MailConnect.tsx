@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { outlookConnect, mailIsConnected, mailDisconnect, mailSyncAll, mailCancelSync, mailFdeStatus } from '@/platform/utils/mail-commands';
 import { useMailSync } from '@/features/email/useMailSync';
 import { useMailStore } from '@/features/email/mailStore';
@@ -6,6 +7,7 @@ import { getMatters } from '@/platform/matter/matterStore';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 
 export function MailConnect() {
+  const { t } = useTranslation();
   useMailSync();
   // Read ONLY this provider's progress so a Gmail sync never shows its count or
   // error on the Microsoft 365 panel (they render together).
@@ -112,7 +114,7 @@ export function MailConnect() {
 
           {connectError && (
             <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-800">
-              <p className="text-red-700 font-medium">Something went wrong: {connectError}</p>
+              <p className="text-red-700 font-medium">{t('mail.connect.error-prefix')} {connectError}</p>
             </div>
           )}
 
@@ -149,7 +151,7 @@ export function MailConnect() {
             <p className="mt-1 text-red-700">Mail sync ran into a problem. Open this panel again to retry.</p>
           )}
           {progress && progress.status === 'cancelled' && <p className="mt-1 text-slate-500">Import stopped.</p>}
-          {connectError && <p className="mt-1 text-red-700">Something went wrong: {connectError}</p>}
+          {connectError && <p className="mt-1 text-red-700">{t('mail.connect.error-prefix')} {connectError}</p>}
           <div className="mt-2 flex items-center gap-2">
             <button
               type="button"

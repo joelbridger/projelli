@@ -39,7 +39,7 @@ export class LocalOnlyEgressError extends Error {
  * the provider would send to the cloud, so a stored cloud chat can never leak
  * while the indicator says "nothing leaves".
  */
-export function assertLocalOnlyAllowsSend(provider: ChatProviderId | string): void {
+export function assertLocalOnlyAllowsSend(provider: string): void {
   if (isLocalOnlyMode() && !isLocalProviderId(provider as ChatProviderId)) {
     throw new LocalOnlyEgressError(provider);
   }
