@@ -4579,6 +4579,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "base64 0.22.1",
+ "chrono",
  "dirs 5.0.1",
  "encoding_rs",
  "fastembed",

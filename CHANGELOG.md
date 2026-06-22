@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **MCP sidecar is now matter-scoped, lockdown-aware, and audited (BUG-038/039/083).** External MCP clients can only list/read/search/write files inside the live active or explicitly granted matter, stale scope files fail closed, network lockdown denies read/search/list/write before content access, global memory facts are denied until matter-scoped memory exists, and MCP list/read/search/write request/approval/denial rows are written to the encrypted audit store.
+  - Files modified: `src-tauri/src/mcp_bin/access.rs`, `src-tauri/src/mcp_bin/audit.rs`, `src-tauri/src/mcp_bin/tools.rs`, `src-tauri/src/mcp_bin/main.rs`, `src/platform/mcp/mcpSessionScope.ts`, `src/App.tsx`
+  - Tests: `cargo test --test mcp_binary -- --nocapture`
 - **Audit egress regression reconciliation for Word redline and over-limit chat sends.** AI redline tests now exercise the audit-aware request path while still proving tracked changes go through the Word engine, and the chat over-limit warning uses a real one-time "Send anyway" bypass without logging egress while the send is blocked.
   - Files modified: `src/features/ask/hooks/useChatSending.ts`, `src/features/ask/AIChatViewer.tsx`, `tests/unit/DocxEditor.test.tsx`, `tests/unit/chat/hirisk-chat-setup-coverage.test.tsx`
   - Tests: `npx vitest run tests/unit/DocxEditor.test.tsx tests/unit/chat/hirisk-chat-setup-coverage.test.tsx`

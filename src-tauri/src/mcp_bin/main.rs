@@ -36,7 +36,9 @@ use std::sync::{Arc, Mutex};
 // extractor. See `src-tauri/src/lib.rs` — `commands` is `pub` for this reason.
 use keepance_lib::commands::rag::{crypto, embedder, extractor, store};
 
+mod access;
 mod approval;
+mod audit;
 mod protocol;
 mod tools;
 
@@ -225,19 +227,11 @@ fn handle_tools_list(id: Value) -> JsonRpcResponse {
     JsonRpcResponse::ok(id, json!({ "tools": tools::describe_tools() }))
 }
 
-async fn handle_tools_call(
-    id: Value,
-    params: Option<&Value>,
-    ctx: &ServerCtx,
-) -> JsonRpcResponse {
+async fn handle_tools_call(id: Value, params: Option<&Value>, ctx: &ServerCtx) -> JsonRpcResponse {
     let params = match params {
         Some(p) => p,
         None => {
-            return JsonRpcResponse::error(
-                id,
-                ERROR_INVALID_PARAMS,
-                "tools/call requires params",
-            );
+            return JsonRpcResponse::error(id, ERROR_INVALID_PARAMS, "tools/call requires params");
         }
     };
     let name = match params.get("name").and_then(|v| v.as_str()) {
@@ -338,7 +332,7 @@ pub fn resolve_workspace_path(workspace: &Path, relative: &str) -> Result<PathBu
             }
             Ok(j)
         }
-        (Err(_), Ok(_)) => Ok(joined),
+        (Err(_), Ok(_)) => access::canonicalized_workspace_child(workspace, &joined),
         _ => Err("workspace root cannot be canonicalised".into()),
     }
 }
@@ -417,6 +411,9 @@ mod tests {
     fn backslash_traversal_blocked() {
         let ws = std::env::temp_dir();
         let err = resolve_workspace_path(&ws, "a\\..\\..\\secrets.txt").unwrap_err();
-        assert!(err.contains("escapes") || err.contains("absolute"), "got: {err}");
+        assert!(
+            err.contains("escapes") || err.contains("absolute"),
+            "got: {err}"
+        );
     }
 }

@@ -54,6 +54,7 @@ keepance-vault = { path = "crates/keepance-vault" }
 zeroize = "1"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 log = "0.4"
 tauri = { version = "2.9.5", features = ["devtools"] }
 tauri-plugin-log = "2"

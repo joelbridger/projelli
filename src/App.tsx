@@ -56,8 +56,10 @@ import type { TrashedItem } from '@/platform/history/TrashService';
 
 import type { AuditEntry } from '@/platform/types/audit';
 import { AuditService } from '@/platform/audit/AuditService';
-import { getOrCreateSampleMatter, useMatterStore, useActiveMatter } from '@/platform/matter/matterStore';
+import { getOrCreateSampleMatter, useMatterStore, useActiveMatter, useMatters } from '@/platform/matter/matterStore';
 import { useMatterUiStore, isWorkingSurface } from '@/platform/matter/matterUiStore';
+import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
+import { writeMcpSessionScopeFile } from '@/platform/mcp/mcpSessionScope';
 
 import {
   TemplateMetadataReader,
@@ -202,6 +204,8 @@ function App() {
   // can save + restore each matter's last working surface and focused document.
   const activeMatterId = useMatterStore((s) => s.activeMatterId);
   const activeMatter = useActiveMatter();
+  const matters = useMatters();
+  const mcpNetworkLockdown = usePrivilegedMatterModeActive();
   // F-509 — controlled sidebar collapse so the global Ctrl+B shortcut and the
   // command palette can drive the same collapse the chevron button does.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -232,6 +236,33 @@ function App() {
   // M3 (v1.5) Facts: the same hook wires the FactsService singleton
   // to the active workspace via the WorkspaceService ref.
   useMemoryWiring(rootPath, workspaceServiceRef.current);
+
+  // BUG-038/039/083: the external MCP sidecar cannot read React state or
+  // browser localStorage, so the desktop app writes a tiny scope file inside the
+  // workspace. The sidecar reads it on EVERY request and fails closed when it is
+  // missing or invalid. No explicit MCP grant UI exists yet, so only the active
+  // matter is exposed; "all matters" in the app does not become all-workspace
+  // access for an outside AI client.
+  useEffect(() => {
+    const service = workspaceServiceRef.current;
+    if (!service || !rootPath) return;
+    const persistMcpScope = (): void => {
+      void writeMcpSessionScopeFile({
+        service,
+        workspaceRoot: rootPath,
+        activeMatterId,
+        matters,
+        networkLockdown: mcpNetworkLockdown,
+      }).catch((err: unknown) => {
+        console.warn('[MCP] Failed to write session scope file', err);
+      });
+    };
+    persistMcpScope();
+    const heartbeat = window.setInterval(persistMcpScope, 15_000);
+    return () => {
+      window.clearInterval(heartbeat);
+    };
+  }, [rootPath, activeMatterId, matters, mcpNetworkLockdown]);
 
   // Keep the AI ambient file-context store in sync with whatever tabs are
   // open. Mounted at App level so a single subscription drives every chat.
@@ -574,10 +605,11 @@ function App() {
 
         // Update stats
         const totalSize = newItems.reduce((sum, item) => sum + (item.size ?? 0), 0);
-        const oldestItem = newItems.length > 0
+        const firstDeletedAt = newItems[0]?.deletedAt;
+        const oldestItem = firstDeletedAt
           ? newItems.reduce((oldest, item) =>
               item.deletedAt < oldest ? item.deletedAt : oldest,
-              newItems[0]!.deletedAt
+              firstDeletedAt
             )
           : undefined;
         setTrashStats({
@@ -654,7 +686,7 @@ function App() {
   // OPFS rather than a user folder picker.
   useEffect(() => {
     if (!IS_DEMO_MODE || rootPath) return;
-    let cancelled = false;
+    const demoOpen = { cancelled: false };
     void (async () => {
       try {
         const opfsRoot = await navigator.storage.getDirectory();
@@ -663,14 +695,14 @@ function App() {
         backend.setRootHandle(demoDir);
         const service = createWorkspaceService();
         await service.initialize(backend, '/keepance-demo');
-        if (cancelled) return;
+        if (demoOpen.cancelled) return;
         await handleWorkspaceSelected(service);
       } catch (err) {
         console.error('[App] demo workspace auto-open failed:', err);
-        if (!cancelled) setDemoOpenFailed(true);
+        if (!demoOpen.cancelled) setDemoOpenFailed(true);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { demoOpen.cancelled = true; };
   }, [IS_DEMO_MODE, rootPath, handleWorkspaceSelected]);
 
 
@@ -907,8 +939,8 @@ function App() {
         }
         // UX-33: activate the last-dropped file so the user lands on
         // something they just dropped rather than the previously-active tab.
-        if (results.length > 0) {
-          const last = results[results.length - 1]!;
+        const last = results.at(-1);
+        if (last) {
           useEditorStore.getState().setActiveTab(last.path);
         }
       } catch (err) {
@@ -969,12 +1001,11 @@ function App() {
       setFileTree(tree);
       for (const r of results) {
         if (!r.error) {
-          // eslint-disable-next-line no-await-in-loop
           await handleFileOpen(r.path, r.name);
         }
       }
-      if (results.length > 0) {
-        const last = results[results.length - 1]!;
+      const last = results.at(-1);
+      if (last) {
         if (!last.error) useEditorStore.getState().setActiveTab(last.path);
       }
       const failed = results.filter((r) => r.error);
