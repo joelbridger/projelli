@@ -4,9 +4,12 @@
  * A native full-page surface following the AuditHome pattern:
  * SurfaceHeader, live egress status, the DataMapContent, and a
  * "Confidentiality Report" action for the active matter.
+ *
+ * Also surfaces the "Generate a security overview for my firm" button that
+ * opens the FirmSecurityPack — the printable trust document for IT / GC.
  */
 import { useState, useCallback } from 'react';
-import { Lock } from 'lucide-react';
+import { Lock, FileText } from 'lucide-react';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Matter } from '@/platform/types/matter';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
@@ -19,6 +22,7 @@ import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode'
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import type { ConfidentialityReport } from '@/platform/privacy/confidentialityReport';
+import { FirmSecurityPack } from '@/features/privacy/FirmSecurityPack';
 
 export interface PrivacyCenterHomeProps {
   auditEntries: AuditEntry[];
@@ -27,6 +31,7 @@ export interface PrivacyCenterHomeProps {
 
 export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterHomeProps) {
   const [reportOpen, setReportOpen] = useState(false);
+  const [firmPackOpen, setFirmPackOpen] = useState(false);
   const confidentialityMode = useConfidentialityMode();
   const activeProvider = useActiveEgressProvider(confidentialityMode);
   const [builtReport, setBuiltReport] = useState<ConfidentialityReport | null>(null);
@@ -64,16 +69,29 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
           title="Where your data is"
           description="How Keepance handles your information and your AI requests, in plain language you can share with a client."
           actions={
-            <Button
-              variant="primary"
-              size="sm"
-              data-testid="privacy-center-report-button"
-              onClick={handleOpenReport}
-            >
-              {activeMatter
-                ? `Confidentiality Report for ${activeMatter.name}`
-                : 'Confidentiality Report'}
-            </Button>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              {/* eslint-disable keepance-i18n/no-hardcoded-string -- trust-document button copy, English-canonical */}
+              <Button
+                variant="secondary"
+                size="sm"
+                data-testid="privacy-center-firm-pack-button"
+                onClick={() => { setFirmPackOpen(true); }}
+              >
+                <FileText className="h-3.5 w-3.5 mr-1.5" />
+                Generate a security overview for my firm
+              </Button>
+              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+              <Button
+                variant="primary"
+                size="sm"
+                data-testid="privacy-center-report-button"
+                onClick={handleOpenReport}
+              >
+                {activeMatter
+                  ? `Confidentiality Report for ${activeMatter.name}`
+                  : 'Confidentiality Report'}
+              </Button>
+            </div>
           }
         />
       </div>
@@ -114,6 +132,44 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
           onOpenChange={setReportOpen}
           report={builtReport}
         />
+      )}
+
+      {/* Firm Security Pack overlay — slides in over the privacy center */}
+      {firmPackOpen && (
+        <div
+          data-testid="firm-security-pack-overlay"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'var(--color-background)',
+            zIndex: 10,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div
+            style={{
+              padding: '0.5rem var(--kp-gutter)',
+              borderBottom: '1px solid var(--color-border)',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid="firm-security-pack-close-button"
+              onClick={() => { setFirmPackOpen(false); }}
+            >
+              Close
+            </Button>
+          </div>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <FirmSecurityPack />
+          </div>
+        </div>
       )}
     </div>
   );
