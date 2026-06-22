@@ -540,6 +540,54 @@ mod tests {
         assert_eq!(rec.account, "acct");
     }
 
+    #[test]
+    fn imap_uid_collision_across_folders_stores_distinct_rows() {
+        let store = FakeStore::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x22u8; 32];
+        let mut inbox = crate::commands::mail::model::MailMessage::from_graph(&serde_json::json!({
+            "id": crate::commands::mail::imap::imap_message_id("lawyer@example.com", "INBOX", 123, 42),
+            "subject": "Inbox copy",
+            "body": { "contentType": "text", "content": "body from inbox" }
+        })).unwrap();
+        let mut sent = crate::commands::mail::model::MailMessage::from_graph(&serde_json::json!({
+            "id": crate::commands::mail::imap::imap_message_id("lawyer@example.com", "Sent", 123, 42),
+            "subject": "Sent copy",
+            "body": { "contentType": "text", "content": "body from sent" }
+        })).unwrap();
+        inbox.account = "lawyer@example.com".into();
+        sent.account = "lawyer@example.com".into();
+
+        apply_messages_enc(
+            &store,
+            dir.path(),
+            "INBOX",
+            "imap",
+            "lawyer@example.com",
+            crate::commands::rag::store::UNASSIGNED_MATTER,
+            &[inbox],
+            &[],
+            &key,
+            &|_id, _text, _matter| {},
+            &|_id| {},
+        ).unwrap();
+        apply_messages_enc(
+            &store,
+            dir.path(),
+            "Sent",
+            "imap",
+            "lawyer@example.com",
+            crate::commands::rag::store::UNASSIGNED_MATTER,
+            &[sent],
+            &[],
+            &key,
+            &|_id, _text, _matter| {},
+            &|_id| {},
+        ).unwrap();
+
+        assert_eq!(store.count().unwrap(), 2, "same UID in different folders must store two rows");
+    }
+
     // S3 tests ----------------------------------------------------------------
 
     /// S3: tombstone_callback must be called for every tombstoned message so

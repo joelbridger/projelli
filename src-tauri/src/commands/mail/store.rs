@@ -332,6 +332,16 @@ pub fn message_matter_key(message_id: &str) -> String {
     format!("matter:{message_id}")
 }
 
+fn legacy_imap_message_id(current_id: &str) -> Option<String> {
+    let (prefix_and_folder, uid) = current_id.rsplit_once(':')?;
+    let (prefix, uidvalidity) = prefix_and_folder.rsplit_once(':')?;
+    let (provider_and_account, _folder_key) = prefix.rsplit_once(':')?;
+    if !provider_and_account.starts_with("imap:") {
+        return None;
+    }
+    Some(format!("{provider_and_account}:{uidvalidity}:{uid}"))
+}
+
 // ---------------------------------------------------------------------------
 // SQLite implementation
 // ---------------------------------------------------------------------------
@@ -750,7 +760,13 @@ impl EncryptedMailStore {
 impl MailStore for EncryptedMailStore {
     /// BUG-013: read the durable per-message matter override from `meta`.
     fn get_message_matter(&self, id: &str) -> Result<Option<String>> {
-        self.get_meta(&message_matter_key(id))
+        if let Some(matter) = self.get_meta(&message_matter_key(id))? {
+            return Ok(Some(matter));
+        }
+        if let Some(legacy_id) = legacy_imap_message_id(id) {
+            return self.get_meta(&message_matter_key(&legacy_id));
+        }
+        Ok(None)
     }
 
     fn upsert(&self, rec: &MailRecord) -> Result<()> {
@@ -1181,6 +1197,19 @@ mod tests {
         // Survives close + reopen with the same key (durable across restarts).
         let s2 = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
         assert_eq!(s2.get_message_matter("AAMk-2").unwrap().as_deref(), Some("matter-acme"));
+    }
+
+    #[test]
+    fn enc_message_matter_reads_legacy_imap_override_after_folder_scoped_id_change() {
+        let (_dir, s) = enc_store();
+        s.set_message_matter("imap:lawyer@example.com:123:42", "matter-acme").unwrap();
+
+        let current_id = "imap:lawyer@example.com:494e424f58:123:42";
+        assert_eq!(
+            s.get_message_matter(current_id).unwrap().as_deref(),
+            Some("matter-acme"),
+            "new folder-scoped IMAP ids must still see old per-message matter overrides"
+        );
     }
 
     #[test]
