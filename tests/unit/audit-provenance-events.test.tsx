@@ -20,11 +20,15 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
+import type { MutableRefObject } from 'react';
 
 const mocks = vi.hoisted(() => ({
   retrieve: vi.fn(),
   sendMessage: vi.fn(),
+  sendMessageStreaming: vi.fn(),
+  verifyCitations: vi.fn(),
   verifyCitation: vi.fn(),
+  streamingEnabled: { value: false },
 }));
 
 vi.mock('@/platform/rag/MemoryService', async (orig) => {
@@ -41,11 +45,21 @@ vi.mock('@/platform/utils/tauri-commands', async (orig) => {
   return { ...real, ragVerifyCitation: mocks.verifyCitation };
 });
 
+vi.mock('@/platform/rag/workspaceCommand', async (orig) => {
+  const real = await orig<typeof import('@/platform/rag/workspaceCommand')>();
+  return {
+    ...real,
+    verifyCitations: mocks.verifyCitations,
+  };
+});
+
 vi.mock('@/platform/providers/ClaudeProvider', () => ({
   ClaudeProvider: class {
     setTools() {}
     sendMessage = mocks.sendMessage;
-    sendMessageStreaming = undefined;
+    get sendMessageStreaming() {
+      return mocks.streamingEnabled.value ? mocks.sendMessageStreaming : undefined;
+    }
     getMetadata() { return { model: 'stub' }; }
   },
 }));
@@ -53,7 +67,9 @@ vi.mock('@/platform/providers/OpenAIProvider', () => ({
   OpenAIProvider: class {
     setTools() {}
     sendMessage = mocks.sendMessage;
-    sendMessageStreaming = undefined;
+    get sendMessageStreaming() {
+      return mocks.streamingEnabled.value ? mocks.sendMessageStreaming : undefined;
+    }
     getMetadata() { return { model: 'stub' }; }
   },
 }));
@@ -61,7 +77,9 @@ vi.mock('@/platform/providers/GeminiProvider', () => ({
   GeminiProvider: class {
     setTools() {}
     sendMessage = mocks.sendMessage;
-    sendMessageStreaming = undefined;
+    get sendMessageStreaming() {
+      return mocks.streamingEnabled.value ? mocks.sendMessageStreaming : undefined;
+    }
     getMetadata() { return { model: 'stub' }; }
   },
 }));
@@ -70,6 +88,7 @@ vi.mock('@/features/ask/ChatCostChip', () => ({ ChatCostChip: () => null }));
 
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import type { AIChatFile } from '@/platform/types/ai';
+import type { FSBackend } from '@/platform/fs/types';
 import type { AuditEntry } from '@/platform/types/audit';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -95,6 +114,41 @@ const chat: AIChatFile = {
 
 const apiKey = [{ provider: 'anthropic', key: 'stub-key', isValid: true }];
 
+function makeWorkspaceRef() {
+  const files = new Map<string, ArrayBuffer>();
+  const backend: FSBackend = {
+    read: vi.fn(async () => ''),
+    readBinary: vi.fn(async (path: string) => files.get(path) ?? new ArrayBuffer(0)),
+    write: vi.fn(async () => undefined),
+    writeBinary: vi.fn(async (path: string, content: ArrayBuffer) => {
+      files.set(path, content);
+    }),
+    exists: vi.fn(async () => true),
+    delete: vi.fn(async () => undefined),
+    move: vi.fn(async () => undefined),
+    copy: vi.fn(async () => undefined),
+    rename: vi.fn(async () => undefined),
+    mkdir: vi.fn(async () => undefined),
+    list: vi.fn(async () => []),
+    stat: vi.fn(async (path: string) => ({
+      path,
+      name: path.split('/').pop() ?? path,
+      type: 'file',
+      size: 0,
+      modifiedAt: new Date(),
+      createdAt: new Date(),
+      isSymlink: false,
+    })),
+    isSymlink: vi.fn(async () => false),
+    resolveSymlink: vi.fn(async (path: string) => path),
+  };
+  return {
+    current: {
+      getBackend: () => backend,
+    },
+  } as MutableRefObject<{ getBackend: () => FSBackend }>;
+}
+
 function seedMatter() {
   useMatterStore.setState({ matters: [], activeMatterId: null });
   const m = useMatterStore.getState().createMatter({
@@ -119,7 +173,10 @@ describe('Keepance 3.0 audit provenance events', () => {
   beforeEach(() => {
     mocks.retrieve.mockReset();
     mocks.sendMessage.mockReset();
+    mocks.sendMessageStreaming.mockReset();
+    mocks.verifyCitations.mockReset();
     mocks.verifyCitation.mockReset();
+    mocks.streamingEnabled.value = false;
     useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {} });
     useMatterStore.setState({ matters: [], activeMatterId: null });
     // Default confidentiality mode = direct (cloud BYOK).
@@ -132,6 +189,14 @@ describe('Keepance 3.0 audit provenance events', () => {
       model: 'stub',
     });
     mocks.verifyCitation.mockResolvedValue({ verdict: 'verified' });
+    mocks.verifyCitations.mockImplementation(
+      async (_content: string, sources: unknown[], opts?: { onVerdict?: (id: string, verdict: string) => void }) => {
+        for (const source of sources as Array<{ id?: string }>) {
+          if (source.id) opts?.onVerdict?.(source.id, 'verified');
+        }
+        return sources;
+      },
+    );
   });
 
   afterEach(() => {
@@ -240,6 +305,191 @@ describe('Keepance 3.0 audit provenance events', () => {
     expect(egress).toHaveLength(1);
     const payload = egress[0]!.metadata as Record<string, unknown>;
     expect(payload['scope']).toMatchObject({ kind: 'matter', matterId: m.id });
+  });
+
+  it('does not log successful egress when the provider send fails', async () => {
+    mocks.retrieve.mockResolvedValue([]);
+    mocks.sendMessage.mockRejectedValue(new Error('provider offline'));
+
+    const logged: LoggedEntry[] = [];
+    render(<AIChatViewer chatData={chat} apiKeys={apiKey} onAuditLog={(e) => logged.push(e)} />);
+    const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement;
+    act(() => fireEvent.change(textarea, { target: { value: 'send this' } }));
+    act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      const msgs = useAIChatStore.getState().sessions[chat.id]?.messages ?? [];
+      expect(msgs.some((m) => m.role === 'assistant' && m.isError)).toBe(true);
+    });
+
+    expect(eventsOfType(logged, 'egress')).toHaveLength(0);
+    expect(eventsOfType(logged, 'egress_failed')).toHaveLength(1);
+  });
+
+  it('keeps model_call and successful egress when local citation verification throws after provider success', async () => {
+    const m = seedMatter();
+    mocks.retrieve.mockResolvedValue([
+      { path: 'Acme/pricing.md', chunkText: 'Premium tier priced at $49.', score: 0.88, paragraphIndex: 2, id: 'chunk-e', matterId: m.id, sourceId: '/ws/Acme/pricing.md' },
+    ]);
+    mocks.verifyCitations.mockRejectedValue(new Error('local verifier crashed'));
+
+    const logged: LoggedEntry[] = [];
+    await sendWorkspaceMessage((e) => logged.push(e));
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
+
+    expect(eventsOfType(logged, 'egress')).toHaveLength(1);
+    expect(logged.filter((e) => e.action === 'model_call')).toHaveLength(1);
+    expect(eventsOfType(logged, 'egress_failed')).toHaveLength(0);
+  });
+
+  it('logs a cancelled egress row when streaming is stopped after a chunk arrived', async () => {
+    mocks.streamingEnabled.value = true;
+    mocks.retrieve.mockResolvedValue([]);
+    mocks.sendMessageStreaming.mockImplementation(
+      (_prompt: string, opts: { onChunk: (chunk: string) => void; signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          opts.onChunk('partial');
+          opts.signal?.addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        }),
+    );
+
+    const logged: LoggedEntry[] = [];
+    render(<AIChatViewer chatData={chat} apiKeys={apiKey} onAuditLog={(e) => logged.push(e)} />);
+    act(() => fireEvent.change(screen.getByTestId('chat-input'), { target: { value: 'stream this' } }));
+    act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
+
+    await waitFor(() => expect(mocks.sendMessageStreaming).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByTestId('chat-stop-button')).toBeTruthy());
+    act(() => fireEvent.click(screen.getByTestId('chat-stop-button')));
+
+    await waitFor(() => {
+      const egress = eventsOfType(logged, 'egress');
+      expect(egress).toHaveLength(1);
+      expect((egress[0]!.metadata as Record<string, unknown>)['status']).toBe('cancelled');
+    });
+    expect(logged.filter((e) => e.action === 'model_call')).toHaveLength(0);
+    expect(eventsOfType(logged, 'egress_failed')).toHaveLength(0);
+  });
+
+  it('does not log egress when streaming is aborted before any chunk arrives', async () => {
+    mocks.streamingEnabled.value = true;
+    mocks.retrieve.mockResolvedValue([]);
+    mocks.sendMessageStreaming.mockRejectedValue(new DOMException('Aborted', 'AbortError'));
+
+    const logged: LoggedEntry[] = [];
+    render(<AIChatViewer chatData={chat} apiKeys={apiKey} onAuditLog={(e) => logged.push(e)} />);
+    act(() => fireEvent.change(screen.getByTestId('chat-input'), { target: { value: 'stop before send' } }));
+    act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
+
+    await waitFor(() => expect(mocks.sendMessageStreaming).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      const msgs = useAIChatStore.getState().sessions[chat.id]?.messages ?? [];
+      expect(msgs.some((m) => m.role === 'assistant' && m.content.includes('Response stopped by user'))).toBe(true);
+    });
+
+    expect(eventsOfType(logged, 'egress')).toHaveLength(0);
+    expect(eventsOfType(logged, 'egress_failed')).toHaveLength(0);
+  });
+
+  it('does not log successful egress when Local-only blocks a cloud chat', async () => {
+    useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'local-only');
+    mocks.retrieve.mockResolvedValue([]);
+
+    const logged: LoggedEntry[] = [];
+    render(<AIChatViewer chatData={chat} apiKeys={apiKey} onAuditLog={(e) => logged.push(e)} />);
+    const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement;
+    act(() => fireEvent.change(textarea, { target: { value: 'send this' } }));
+    act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
+
+    await waitFor(() => {
+      const msgs = useAIChatStore.getState().sessions[chat.id]?.messages ?? [];
+      expect(msgs.some((m) => m.role === 'assistant' && m.isError)).toBe(true);
+    });
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(eventsOfType(logged, 'egress')).toHaveLength(0);
+    expect(eventsOfType(logged, 'egress_blocked')).toHaveLength(1);
+  });
+
+  it('logs one successful egress and one attachment sent row only after a successful attachment send', async () => {
+    const visionChat: AIChatFile = {
+      ...chat,
+      id: 'audit-attachment-success',
+      model: 'claude-3-5-sonnet-20241022',
+    };
+    mocks.retrieve.mockResolvedValue([]);
+    mocks.sendMessage.mockResolvedValue({
+      content: 'Read it.',
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      cost: 0.0001,
+      model: 'stub',
+    });
+    const logged: LoggedEntry[] = [];
+    const workspaceServiceRef = makeWorkspaceRef();
+
+    render(
+      <AIChatViewer
+        chatData={visionChat}
+        apiKeys={apiKey}
+        workspaceServiceRef={workspaceServiceRef}
+        rootPath="/ws"
+        onAuditLog={(e) => logged.push(e)}
+      />,
+    );
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File([new Uint8Array([137, 80, 78, 71])], 'evidence.png', { type: 'image/png' });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+    await waitFor(() => expect(screen.getByTestId('attachment-tiles-strip')).toBeTruthy());
+
+    act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
+
+    expect(eventsOfType(logged, 'egress')).toHaveLength(1);
+    expect(eventsOfType(logged, 'attachment_sent_to_provider')).toHaveLength(1);
+  });
+
+  it('does not log attachment sent when an attachment provider send fails', async () => {
+    const visionChat: AIChatFile = {
+      ...chat,
+      id: 'audit-attachment-failure',
+      model: 'claude-3-5-sonnet-20241022',
+    };
+    mocks.retrieve.mockResolvedValue([]);
+    mocks.sendMessage.mockRejectedValue(new Error('provider offline'));
+    const logged: LoggedEntry[] = [];
+    const workspaceServiceRef = makeWorkspaceRef();
+
+    render(
+      <AIChatViewer
+        chatData={visionChat}
+        apiKeys={apiKey}
+        workspaceServiceRef={workspaceServiceRef}
+        rootPath="/ws"
+        onAuditLog={(e) => logged.push(e)}
+      />,
+    );
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File([new Uint8Array([137, 80, 78, 71])], 'evidence.png', { type: 'image/png' });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+    await waitFor(() => expect(screen.getByTestId('attachment-tiles-strip')).toBeTruthy());
+
+    act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      const msgs = useAIChatStore.getState().sessions[visionChat.id]?.messages ?? [];
+      expect(msgs.some((m) => m.role === 'assistant' && m.isError)).toBe(true);
+    });
+
+    expect(eventsOfType(logged, 'egress')).toHaveLength(0);
+    expect(eventsOfType(logged, 'attachment_sent_to_provider')).toHaveLength(0);
+    expect(eventsOfType(logged, 'egress_failed')).toHaveLength(1);
   });
 
   it('logs citation_verified with the verdict for each checked citation', async () => {

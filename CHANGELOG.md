@@ -38,6 +38,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Chat markdown exports keep citation verification honesty (BUG-068).** Exported `.aichat` markdown now includes a "Sources and verification" section under assistant answers, marking each cited source as either "Source found" or "UNVERIFIED" with its label, path, locator, and excerpt.
   - Files modified: `src/features/ask/renderingHelpers.tsx`
   - Tests: `tests/unit/ask/renderingHelpers.test.ts`
+- **Audit egress follow-up fixes for stopped sends and durable status (BUG-077/079/082).** Stopped streaming sends now record a cancelled egress row when provider data had already started flowing, provider-success rows are written before local post-processing can fail, durable encrypted payloads no longer reopen as permanently pending, and live audit UI state shows pending rows immediately even if the encrypted append hangs.
+  - Files modified: `src/features/ask/hooks/useChatSending.ts`, `src/platform/audit/AuditService.ts`, `src/App.tsx`
+  - Tests: `tests/unit/audit-provenance-events.test.tsx`, `tests/unit/audit/audit-persistence.test.ts`
+- **Critical desktop audit rows no longer fail silently (BUG-077).** Critical audit events now have an awaitable persistence path; if encrypted desktop storage rejects an append, the in-session row is marked with a failed persistence status instead of being silently presented as durably saved.
+  - Files modified: `src/platform/audit/AuditService.ts`, `src/App.tsx`
+  - Tests: `tests/unit/audit/audit-persistence.test.ts`
+- **Audit cost fields now survive restart/export (BUG-082).** Model-call audit entries now serialize `tokensIn`, `tokensOut`, `costUsd`, and `provider` before persistence, so the live cost data is not lost when the encrypted audit log is reopened or exported.
+  - Files modified: `src/platform/audit/AuditService.ts`, `src/App.tsx`
+  - Tests: `tests/unit/audit/audit-persistence.test.ts`
+- **Chat audit egress rows now describe what actually happened (BUG-079).** Chat sends now write "AI request sent" and "Attachment sent to provider" audit rows only after the provider send succeeds; failed provider calls and Local-only blocks record failed/blocked outcomes instead of false success rows.
+  - Files modified: `src/features/ask/hooks/useChatSending.ts`
+  - Tests: `tests/unit/audit-provenance-events.test.tsx`
 - **Provider reliability regressions (BUG-071 through BUG-076).** Cloud and local provider calls now stop runaway tool loops, keep the final no-newline streaming chunk, honor immediate aborts, apply request timeouts, frame Ollama-extracted PDF text as untrusted document data, and include Gemini structured-output schema/limits.
   - Files modified: `ClaudeProvider.ts`, `OpenAIProvider.ts`, `GeminiProvider.ts`, `OllamaProvider.ts`, `Provider.ts`, `requestControl.ts`, `redline.ts`
   - Tests: `tests/unit/models/provider-regressions.test.ts`, `tests/unit/models/ollama-pdf-format.test.ts`, `tests/unit/redline.test.ts`

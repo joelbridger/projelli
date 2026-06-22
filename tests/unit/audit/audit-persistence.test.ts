@@ -120,6 +120,74 @@ describe('AuditService persistence (desktop, encrypted store)', () => {
     expect(localStorage.getItem('audit_log_desktop-test')).toBeNull();
   });
 
+  it('persists token, cost, and provider fields in the encrypted payload', () => {
+    const svc = new AuditService('desktop-cost-fields');
+    svc.log('model_call', 'chat message to Claude', {
+      model: 'claude-opus-4-8',
+      inputs: { promptLength: 12 },
+      outputs: { contentLength: 20 },
+      tokensIn: 123,
+      tokensOut: 45,
+      costUsd: 0.067,
+      provider: 'anthropic',
+    });
+
+    const appendCalls = mocks.invoke.mock.calls.filter((c) => c[0] === 'audit_append');
+    const rec = (appendCalls[0]![1] as { entry: { payloadJson: string } }).entry;
+    const persisted = JSON.parse(rec.payloadJson) as Record<string, unknown>;
+    expect(persisted['tokensIn']).toBe(123);
+    expect(persisted['tokensOut']).toBe(45);
+    expect(persisted['costUsd']).toBe(0.067);
+    expect(persisted['provider']).toBe('anthropic');
+  });
+
+  it('surfaces rejected desktop persistence for a critical event without throwing', async () => {
+    mocks.invoke.mockRejectedValue(new Error('encrypted store unavailable'));
+    const svc = new AuditService('desktop-critical-failure');
+
+    const entry = await svc.logDurable('egress', 'AI request sent to Anthropic', {
+      metadata: { auditEventType: 'egress' },
+    });
+
+    expect(entry.metadata['auditPersistenceStatus']).toBe('failed');
+    expect(String(entry.metadata['auditPersistenceError'])).toContain('encrypted store unavailable');
+    expect(svc.getAll()[0]).toBe(entry);
+  });
+
+  it('persists successful durable rows with saved status, never pending', async () => {
+    const svc = new AuditService('desktop-critical-success');
+
+    const entry = await svc.logDurable('egress', 'AI request sent to Anthropic', {
+      metadata: { auditEventType: 'egress' },
+    });
+
+    const appendCalls = mocks.invoke.mock.calls.filter((c) => c[0] === 'audit_append');
+    const rec = (appendCalls[0]![1] as { entry: { payloadJson: string } }).entry;
+    const persisted = JSON.parse(rec.payloadJson) as { metadata?: Record<string, unknown> };
+
+    expect(entry.metadata['auditPersistenceStatus']).toBe('saved');
+    expect(persisted.metadata?.['auditPersistenceStatus']).toBe('saved');
+    expect(persisted.metadata?.['auditPersistenceStatus']).not.toBe('pending');
+    expect(persisted.metadata?.['auditPersistenceStatus']).not.toBe('failed');
+  });
+
+  it('can expose a pending durable row before a never-resolving encrypted append finishes', () => {
+    mocks.invoke.mockImplementation((cmd: string) => {
+      if (cmd === 'audit_append') {
+        return new Promise(() => undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+    const svc = new AuditService('desktop-critical-hanging');
+
+    const { entry } = svc.logDurablePending('egress', 'AI request sent to Anthropic', {
+      metadata: { auditEventType: 'egress' },
+    });
+
+    expect(entry.metadata['auditPersistenceStatus']).toBe('pending');
+    expect(svc.getAll()[0]).toBe(entry);
+  });
+
   it('hydrate() sets the workspace and loads entries from audit_list', async () => {
     mocks.invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'audit_list') {

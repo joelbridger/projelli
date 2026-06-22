@@ -38,6 +38,40 @@ export function isAuditEncrypted(): boolean {
   );
 }
 
+type AuditLogOptions = {
+  model?: string;
+  inputs?: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
+  userDecision?: 'approved' | 'rejected' | 'auto';
+  metadata?: Record<string, unknown>;
+  tokensIn?: number;
+  tokensOut?: number;
+  costUsd?: number;
+  provider?: string;
+};
+
+const CRITICAL_ACTIONS = new Set<AuditActionType>([
+  'egress',
+  'model_call',
+  'file_create',
+  'file_update',
+  'file_delete',
+  'file_move',
+  'file_rename',
+  'mcp_blocked',
+  'matter_shared',
+  'matter_unshared',
+  'member_invited',
+  'member_removed',
+  'wall_set_from_manager',
+  'key_published',
+  'seat_revoked',
+]);
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** Serialize a flat entry to the encrypted-store record shape. The full entry
  *  is preserved verbatim in `payloadJson` so it round-trips losslessly. */
 function entryToRecord(entry: AuditEntry): AuditEntryRecord {
@@ -154,30 +188,44 @@ export class AuditService {
   log(
     action: AuditActionType,
     description: string,
-    options: {
-      model?: string;
-      inputs?: Record<string, unknown>;
-      outputs?: Record<string, unknown>;
-      userDecision?: 'approved' | 'rejected' | 'auto';
-      metadata?: Record<string, unknown>;
-    } = {}
+    options: AuditLogOptions = {}
   ): AuditEntry {
-    const entry: AuditEntry = {
-      id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-      timestamp: new Date().toISOString(),
-      action,
-      description,
-      model: options.model,
-      inputs: options.inputs ?? {},
-      outputs: options.outputs ?? {},
-      userDecision: options.userDecision,
-      metadata: options.metadata ?? {},
-    };
-
+    const entry = this.buildEntry(action, description, options);
     this.entries.push(entry);
     this.record(entry);
 
     return entry;
+  }
+
+  /**
+   * Log an action and await persistence when the action is critical. This never
+   * throws; failures are stamped onto the returned in-memory entry so the UI
+   * can show that the row is not durably saved.
+   */
+  async logDurable(
+    action: AuditActionType,
+    description: string,
+    options: AuditLogOptions = {}
+  ): Promise<AuditEntry> {
+    const { persisted } = this.logDurablePending(action, description, options);
+    return persisted;
+  }
+
+  /**
+   * Log a critical action immediately and persist it in the background.
+   * The returned `entry` is safe to show in live UI right away with
+   * `auditPersistenceStatus: "pending"`. Await `persisted` only when a caller
+   * needs the final saved/failed status.
+   */
+  logDurablePending(
+    action: AuditActionType,
+    description: string,
+    options: AuditLogOptions = {}
+  ): { entry: AuditEntry; persisted: Promise<AuditEntry> } {
+    const entry = this.buildEntry(action, description, options);
+    entry.metadata = { ...entry.metadata, auditPersistenceStatus: 'pending' };
+    this.entries.push(entry);
+    return { entry, persisted: this.recordDurable(entry) };
   }
 
   /**
@@ -409,7 +457,34 @@ export class AuditService {
    * Append-only is preserved either way: we only ever add entries, never
    * mutate or remove existing ones.
    */
+  private buildEntry(
+    action: AuditActionType,
+    description: string,
+    options: AuditLogOptions,
+  ): AuditEntry {
+    return {
+      id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      timestamp: new Date().toISOString(),
+      action,
+      description,
+      model: options.model,
+      inputs: options.inputs ?? {},
+      outputs: options.outputs ?? {},
+      userDecision: options.userDecision,
+      metadata: options.metadata ?? {},
+      ...(options.tokensIn !== undefined ? { tokensIn: options.tokensIn } : {}),
+      ...(options.tokensOut !== undefined ? { tokensOut: options.tokensOut } : {}),
+      ...(options.costUsd !== undefined ? { costUsd: options.costUsd } : {}),
+      ...(options.provider !== undefined ? { provider: options.provider } : {}),
+    };
+  }
+
   private record(entry: AuditEntry): void {
+    if (CRITICAL_ACTIONS.has(entry.action)) {
+      entry.metadata = { ...entry.metadata, auditPersistenceStatus: 'pending' };
+      void this.recordDurable(entry);
+      return;
+    }
     if (this.encrypted) {
       // Fire-and-forget; a transient backend error must not break logging. The
       // in-memory list already holds the entry for this session, and a reopen
@@ -420,6 +495,32 @@ export class AuditService {
       return;
     }
     this.persist();
+  }
+
+  private async recordDurable(entry: AuditEntry): Promise<AuditEntry> {
+    entry.metadata = { ...entry.metadata, auditPersistenceStatus: 'pending' };
+    try {
+      const savedEntry: AuditEntry = {
+        ...entry,
+        metadata: { ...entry.metadata, auditPersistenceStatus: 'saved' },
+      };
+      if (this.encrypted) {
+        await auditAppend(entryToRecord(savedEntry));
+      } else {
+        entry.metadata = savedEntry.metadata;
+        this.persist();
+        return entry;
+      }
+      entry.metadata = savedEntry.metadata;
+    } catch (error) {
+      entry.metadata = {
+        ...entry.metadata,
+        auditPersistenceStatus: 'failed',
+        auditPersistenceError: errorMessage(error),
+      };
+      console.error('Audit persistence failed:', error);
+    }
+    return entry;
   }
 
   /**
