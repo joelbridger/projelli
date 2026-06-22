@@ -21,6 +21,13 @@ import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { extractPdfText } from '@/lib/pdf-extract';
 import { getMaxContextTokens } from './context-limits';
+import {
+  abortAwareSleep,
+  composeRequestSignal,
+  DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS,
+  isAbortError,
+  isTimeoutError,
+} from './requestControl';
 
 // Gemini model pricing (per 1K tokens) - as of 2024
 const GEMINI_PRICING: Record<string, { input: number; output: number }> = {
@@ -43,6 +50,7 @@ export interface GeminiProviderConfig {
   model?: string;
   maxRetries?: number;
   baseUrl?: string;
+  timeout?: number;
   aiRules?: string;
   /**
    * Firm "Assured" routing. When set, the Google-native request is sent through
@@ -178,6 +186,7 @@ export class GeminiProvider implements Provider {
   private readonly model: string;
   private readonly maxRetries: number;
   private readonly baseUrl: string;
+  private readonly requestTimeoutMs: number;
   private readonly aiRules: string | undefined;
   private readonly assured: AssuredRoute | undefined;
   private tools: GeminiFunctionDeclaration[] = [];
@@ -188,6 +197,7 @@ export class GeminiProvider implements Provider {
     this.model = config.model ?? 'gemini-2.5-flash';
     this.maxRetries = config.maxRetries ?? 3;
     this.baseUrl = getGeminiBaseUrl(config.baseUrl);
+    this.requestTimeoutMs = config.timeout ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS;
     this.aiRules = config.aiRules;
     this.assured = config.assured;
   }
@@ -409,13 +419,14 @@ export class GeminiProvider implements Provider {
 
     const url = `${this.baseUrl}/v1beta/models/${this.model}:streamGenerateContent?key=${this.apiKey}&alt=sse`;
 
+    const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
     const safeFetch = await getCorsSafeFetch();
     const routed = applyAssuredRoute(this.assured, url, { 'Content-Type': 'application/json' });
     const response = await safeFetch(routed.url, {
       method: 'POST',
       headers: routed.headers,
       body: JSON.stringify(request),
-      ...(signal ? { signal } : {}),
+      signal: controlled.signal,
     });
 
     if (!response.ok) {
@@ -433,6 +444,28 @@ export class GeminiProvider implements Provider {
     let totalTokens = 0;
     let buffer = '';
 
+    const processLine = (line: string) => {
+      if (!line.startsWith('data: ')) return;
+      const data = line.slice(6).trim();
+      if (!data) return;
+
+      try {
+        const event = JSON.parse(data);
+        const text = event.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          fullContent += text;
+          onChunk(text);
+        }
+        if (event.usageMetadata) {
+          inputTokens = event.usageMetadata.promptTokenCount ?? inputTokens;
+          outputTokens = event.usageMetadata.candidatesTokenCount ?? outputTokens;
+          totalTokens = event.usageMetadata.totalTokenCount ?? totalTokens;
+        }
+      } catch {
+        // skip unparseable lines
+      }
+    };
+
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -442,29 +475,12 @@ export class GeminiProvider implements Provider {
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
 
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const data = line.slice(6).trim();
-          if (!data) continue;
-
-          try {
-            const event = JSON.parse(data);
-            const text = event.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (text) {
-              fullContent += text;
-              onChunk(text);
-            }
-            if (event.usageMetadata) {
-              inputTokens = event.usageMetadata.promptTokenCount ?? inputTokens;
-              outputTokens = event.usageMetadata.candidatesTokenCount ?? outputTokens;
-              totalTokens = event.usageMetadata.totalTokenCount ?? totalTokens;
-            }
-          } catch {
-            // skip unparseable lines
-          }
-        }
+        for (const line of lines) processLine(line);
       }
+      buffer += decoder.decode();
+      if (buffer.trim()) processLine(buffer);
     } finally {
+      controlled.cleanup();
       reader.releaseLock();
     }
 
@@ -485,13 +501,20 @@ export class GeminiProvider implements Provider {
     prompt: string,
     options: StructuredOutputOptions
   ): Promise<T> {
-    // Gemini doesn't have native JSON schema support like OpenAI
-    // We'll use a system prompt to request JSON format
-    const jsonPrompt = `${prompt}\n\nIMPORTANT: Respond with valid JSON only. No markdown, no code blocks, just raw JSON.`;
+    // Gemini doesn't have native JSON schema support like OpenAI, so include
+    // the schema directly in the prompt and ask for only that JSON object.
+    const jsonPrompt = `${prompt}
+
+Please respond with valid JSON that matches this schema:
+${JSON.stringify(options.schema, null, 2)}
+
+IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
 
     const response = await this.sendMessage(jsonPrompt, {
       ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
-      temperature: 0.1, // Lower temperature for more consistent JSON
+      temperature: options.temperature ?? 0.1,
+      ...(options.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
     });
 
     try {
@@ -530,12 +553,23 @@ export class GeminiProvider implements Provider {
     try {
       const safeFetch = await getCorsSafeFetch();
       const routed = applyAssuredRoute(this.assured, url, { 'Content-Type': 'application/json' });
-      const response = await safeFetch(routed.url, {
-        method: 'POST',
-        headers: routed.headers,
-        body: JSON.stringify(request),
-        ...(signal ? { signal } : {}),
-      });
+      const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
+      let response: Response;
+      try {
+        response = await safeFetch(routed.url, {
+          method: 'POST',
+          headers: routed.headers,
+          body: JSON.stringify(request),
+          signal: controlled.signal,
+        });
+      } catch (error) {
+        if (isAbortError(error, controlled.signal) || isTimeoutError(error, controlled.signal)) {
+          throw controlled.signal.reason ?? error;
+        }
+        throw error;
+      } finally {
+        controlled.cleanup();
+      }
 
       if (!response.ok) {
         const errorData = await safeJsonParse<GeminiError>(response);
@@ -555,10 +589,13 @@ export class GeminiProvider implements Provider {
 
       return data;
     } catch (error) {
+      if (isAbortError(error, signal) || isTimeoutError(error)) {
+        throw error;
+      }
       if (retryCount < this.maxRetries) {
         // Exponential backoff
         const delay = Math.pow(2, retryCount) * 1000;
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await abortAwareSleep(delay, signal);
         return this.makeRequest(request, retryCount + 1, signal);
       }
 

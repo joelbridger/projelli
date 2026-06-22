@@ -13,6 +13,7 @@ import type {
   TextExtractBlock,
   AttachmentBytes,
 } from './Provider';
+import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
@@ -21,6 +22,13 @@ import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { extractPdfText } from '@/lib/pdf-extract';
 import { getMaxContextTokens } from './context-limits';
+import {
+  abortAwareSleep,
+  composeRequestSignal,
+  DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS,
+  isAbortError,
+  isTimeoutError,
+} from './requestControl';
 
 // OpenAI model pricing (per 1K tokens)
 const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
@@ -47,6 +55,7 @@ export interface OpenAIProviderConfig {
   model?: string;
   maxRetries?: number;
   baseUrl?: string;
+  timeout?: number;
   organization?: string;
   aiRules?: string;
   /**
@@ -177,6 +186,7 @@ export class OpenAIProvider implements Provider {
   private readonly model: string;
   private readonly maxRetries: number;
   private readonly baseUrl: string;
+  private readonly requestTimeoutMs: number;
   private readonly organization: string | undefined;
   private readonly aiRules: string | undefined;
   private readonly assured: AssuredRoute | undefined;
@@ -188,6 +198,7 @@ export class OpenAIProvider implements Provider {
     this.model = config.model ?? 'gpt-4o';
     this.maxRetries = config.maxRetries ?? 3;
     this.baseUrl = getOpenAIBaseUrl(config.baseUrl);
+    this.requestTimeoutMs = config.timeout ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS;
     this.organization = config.organization ?? undefined;
     this.aiRules = config.aiRules;
     this.assured = config.assured;
@@ -300,6 +311,8 @@ export class OpenAIProvider implements Provider {
     let totalInputTokens = response.usage.prompt_tokens;
     let totalOutputTokens = response.usage.completion_tokens;
 
+    const maxToolIterations = 16;
+    let toolIteration = 0;
     // Handle tool call loops: keep going while the model asks for tool calls
     while (
       response.choices[0]?.finish_reason === 'tool_calls' &&
@@ -307,6 +320,15 @@ export class OpenAIProvider implements Provider {
       response.choices[0].message.tool_calls &&
       response.choices[0].message.tool_calls.length > 0
     ) {
+      if (toolIteration >= maxToolIterations) {
+        throw new ProviderError(
+          `OpenAI tool-call loop exceeded ${String(maxToolIterations)} iterations.`,
+          'api_error',
+          undefined,
+          false,
+        );
+      }
+      toolIteration += 1;
       const assistantMessage = response.choices[0].message;
       const toolCalls = assistantMessage.tool_calls ?? [];
 
@@ -419,13 +441,14 @@ export class OpenAIProvider implements Provider {
     };
     if (this.organization) headers['OpenAI-Organization'] = this.organization;
 
+    const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
     const safeFetch = await getCorsSafeFetch();
     const routed = applyAssuredRoute(this.assured, `${this.baseUrl}/v1/chat/completions`, headers);
     const response = await safeFetch(routed.url, {
       method: 'POST',
       headers: routed.headers,
       body: JSON.stringify(request),
-      ...(signal ? { signal } : {}),
+      signal: controlled.signal,
     });
 
     if (!response.ok) {
@@ -441,6 +464,26 @@ export class OpenAIProvider implements Provider {
     let stopReason = '';
     let buffer = '';
 
+    const processLine = (line: string) => {
+      if (!line.startsWith('data: ')) return;
+      const data = line.slice(6).trim();
+      if (!data || data === '[DONE]') return;
+
+      try {
+        const event = JSON.parse(data);
+        const delta = event.choices?.[0]?.delta;
+        if (delta?.content) {
+          fullContent += delta.content;
+          onChunk(delta.content);
+        }
+        if (event.choices?.[0]?.finish_reason) {
+          stopReason = event.choices[0].finish_reason;
+        }
+      } catch {
+        // skip unparseable lines
+      }
+    };
+
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -450,27 +493,12 @@ export class OpenAIProvider implements Provider {
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
 
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const data = line.slice(6).trim();
-          if (!data || data === '[DONE]') continue;
-
-          try {
-            const event = JSON.parse(data);
-            const delta = event.choices?.[0]?.delta;
-            if (delta?.content) {
-              fullContent += delta.content;
-              onChunk(delta.content);
-            }
-            if (event.choices?.[0]?.finish_reason) {
-              stopReason = event.choices[0].finish_reason;
-            }
-          } catch {
-            // skip unparseable lines
-          }
-        }
+        for (const line of lines) processLine(line);
       }
+      buffer += decoder.decode();
+      if (buffer.trim()) processLine(buffer);
     } finally {
+      controlled.cleanup();
       reader.releaseLock();
     }
 
@@ -528,7 +556,7 @@ Respond ONLY with the JSON object.`;
       request.temperature = options.temperature;
     }
 
-    const response = await this.makeRequest(request);
+    const response = await this.makeRequest(request, options.signal);
 
     const jsonContent = response.choices[0]?.message.content ?? '{}';
 
@@ -600,12 +628,23 @@ Respond ONLY with the JSON object.`;
 
         const safeFetch = await getCorsSafeFetch();
         const routed = applyAssuredRoute(this.assured, `${this.baseUrl}/v1/chat/completions`, headers);
-        const response = await safeFetch(routed.url, {
-          method: 'POST',
-          headers: routed.headers,
-          body: JSON.stringify(request),
-          ...(signal ? { signal } : {}),
-        });
+        const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
+        let response: Response;
+        try {
+          response = await safeFetch(routed.url, {
+            method: 'POST',
+            headers: routed.headers,
+            body: JSON.stringify(request),
+            signal: controlled.signal,
+          });
+        } catch (error) {
+          if (isAbortError(error, controlled.signal) || isTimeoutError(error, controlled.signal)) {
+            throw controlled.signal.reason ?? error;
+          }
+          throw error;
+        } finally {
+          controlled.cleanup();
+        }
 
         if (!response.ok) {
           const errorBody = await safeJsonParse<OpenAIError>(response);
@@ -618,7 +657,7 @@ Respond ONLY with the JSON object.`;
             const waitTime = retryAfter
               ? parseInt(retryAfter, 10) * 1000
               : Math.pow(2, attempt) * 1000;
-            await this.sleep(waitTime);
+            await this.sleep(waitTime, signal);
             continue;
           }
 
@@ -628,6 +667,10 @@ Respond ONLY with the JSON object.`;
         return await safeJsonParse<OpenAIResponse>(response);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+
+        if (isAbortError(error, signal) || isTimeoutError(error)) {
+          throw error;
+        }
 
         // Don't retry on non-retryable errors
         if (
@@ -639,7 +682,7 @@ Respond ONLY with the JSON object.`;
 
         // Exponential backoff
         if (attempt < this.maxRetries - 1) {
-          await this.sleep(Math.pow(2, attempt) * 1000);
+          await this.sleep(Math.pow(2, attempt) * 1000, signal);
         }
       }
     }
@@ -650,8 +693,8 @@ Respond ONLY with the JSON object.`;
   /**
    * Sleep for specified milliseconds
    */
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    return abortAwareSleep(ms, signal);
   }
 
   /**

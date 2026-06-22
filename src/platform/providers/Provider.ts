@@ -175,6 +175,7 @@ export interface StructuredOutputOptions {
   systemPrompt?: string;
   temperature?: number;
   maxTokens?: number;
+  signal?: AbortSignal;
 }
 
 /**
