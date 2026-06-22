@@ -31,6 +31,25 @@ async fn matter_ids(table: &lancedb::Table) -> std::collections::HashSet<String>
     hits.into_iter().filter_map(|h| h.matter_id).collect()
 }
 
+fn decrypt_hit_text(hit: &store::StoredHit) -> String {
+    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+
+    assert!(hit.encrypted, "test rows should use encrypted WS-VEC text");
+    let blob = hex::decode(&hit.text).expect("stored hit text should be hex ciphertext");
+    String::from_utf8(decrypt_with_key(&blob, &VEC_KEY).expect("decrypt stored hit text"))
+        .expect("stored hit text should decrypt to utf8")
+}
+
+async fn all_matter_plaintexts(table: &lancedb::Table) -> Vec<String> {
+    let q = vec![0.1f32; DIM];
+    store::nearest(table, &q, 100, None, false)
+        .await
+        .expect("all-matters nearest")
+        .iter()
+        .map(decrypt_hit_text)
+        .collect()
+}
+
 #[tokio::test]
 async fn delete_matter_removes_only_that_matter() {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -49,6 +68,61 @@ async fn delete_matter_removes_only_that_matter() {
     let after = matter_ids(&table).await;
     assert!(!after.contains("matter-b"), "matter-b chunks must be gone after delete");
     assert!(after.contains("matter-a"), "matter-a chunks must remain (isolation)");
+}
+
+#[tokio::test]
+async fn delete_matter_purges_deleted_content_from_all_matters_retrieval() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let conn = store::open_connection(dir.path()).await.expect("open connection");
+    let table = store::open_or_create_table(&conn).await.expect("create table");
+
+    let deleted_secret = "ACME_DELETE_PURGE_SECRET_0417";
+    let survivor_secret = "BRAVO_SURVIVES_PURGE_SECRET_0924";
+
+    add_matter(
+        &table,
+        "/ws/A/strategy.md",
+        &format!("Matter A confidential strategy. Deleted citation marker: {deleted_secret}."),
+        "matter-a",
+    )
+    .await;
+    add_matter(
+        &table,
+        "/ws/B/status.md",
+        &format!("Matter B status update. Surviving citation marker: {survivor_secret}."),
+        "matter-b",
+    )
+    .await;
+
+    let before = all_matter_plaintexts(&table).await.join("\n");
+    assert!(before.contains(deleted_secret), "setup: matter-a content is retrievable");
+    assert!(before.contains(survivor_secret), "setup: matter-b content is retrievable");
+
+    store::delete_matter(&table, "matter-a").await.expect("delete matter-a");
+
+    let after_hits = store::nearest(&table, &[0.1f32; DIM], 100, None, false)
+        .await
+        .expect("all-matters retrieval after delete");
+    assert!(
+        after_hits
+            .iter()
+            .all(|h| h.matter_id.as_deref() != Some("matter-a")),
+        "all-matters retrieval must not cite chunks from deleted matter-a: {after_hits:?}"
+    );
+
+    let after = after_hits
+        .iter()
+        .map(decrypt_hit_text)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !after.contains(deleted_secret),
+        "deleted matter-a content must not resurface through all-matters retrieval"
+    );
+    assert!(
+        after.contains(survivor_secret),
+        "matter-b content must remain retrievable after matter-a delete"
+    );
 }
 
 #[tokio::test]
