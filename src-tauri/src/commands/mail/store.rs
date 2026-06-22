@@ -159,6 +159,9 @@ fn escape_like(kw: &str) -> String {
 /// Builds a fully-parameterized query — user text is NEVER interpolated into SQL.
 /// The list path NEVER touches an encrypted blob.
 fn query_list_messages(conn: &Connection, q: &MailListQuery) -> Result<MailListPage> {
+    let limit = q.limit.clamp(1, 200);
+    let offset = q.offset.max(0);
+
     // Map sort_by to a whitelisted column name; default to received_date_time.
     let order_col = match q.sort_by.as_str() {
         "subject" => "subject",
@@ -246,8 +249,8 @@ fn query_list_messages(conn: &Connection, q: &MailListQuery) -> Result<MailListP
          ORDER BY {order_col} {dir}
          LIMIT ?{limit_idx} OFFSET ?{offset_idx}"
     );
-    params.push(Box::new(q.limit));
-    params.push(Box::new(q.offset));
+    params.push(Box::new(limit));
+    params.push(Box::new(offset));
 
     let mut stmt = conn.prepare(&items_sql)?;
     let items = stmt
@@ -1641,6 +1644,39 @@ mod tests {
         let ids1: std::collections::HashSet<_> = page1.items.iter().map(|i| &i.id).collect();
         let ids2: std::collections::HashSet<_> = page2.items.iter().map(|i| &i.id).collect();
         assert!(ids1.is_disjoint(&ids2));
+    }
+
+    #[test]
+    fn list_negative_limit_is_clamped_not_unbounded() {
+        let (_d, s) = store();
+        for i in 0..250u32 {
+            s.upsert(&mk_full(
+                &format!("m{i:03}"),
+                "inbox",
+                "m365",
+                "def",
+                &format!("Subject {i}"),
+                "a@x",
+                "A",
+                "",
+                &format!("2026-01-{:02}T00:00:00Z", (i % 28) + 1),
+                false,
+            ))
+            .unwrap();
+        }
+
+        let page = s
+            .list_messages(&MailListQuery {
+                limit: -1,
+                offset: -10,
+                sort_desc: false,
+                ..default_query()
+            })
+            .unwrap();
+
+        assert_eq!(page.total, 250);
+        assert_eq!(page.items.len(), 1, "negative limit must clamp, not become unbounded");
+        assert_eq!(page.items[0].id, "m000", "negative offset must clamp to zero");
     }
 
     #[test]
