@@ -15,11 +15,14 @@
  */
 
 import type { TemplateProviderId, WorkflowTemplate } from '@/platform/types/workflow';
-
-export interface TemplateModelOverride {
-  provider: TemplateProviderId;
-  model: string;
-}
+export {
+  TEMPLATE_MODEL_OVERRIDES_KEY,
+  type TemplateModelOverride,
+} from '@/platform/settings/templateModelOverrides';
+import {
+  isTemplateModelOverride,
+  type TemplateModelOverride,
+} from '@/platform/settings/templateModelOverrides';
 
 export interface TemplateModelResolution {
   provider: TemplateProviderId;
@@ -46,12 +49,7 @@ export function resolveTemplateModel(
   const { template, overrides, globalDefault } = input;
 
   const override = overrides?.[template.id];
-  if (
-    override &&
-    typeof override.provider === 'string' &&
-    typeof override.model === 'string' &&
-    override.model.length > 0
-  ) {
+  if (isTemplateModelOverride(override)) {
     return { provider: override.provider, model: override.model, source: 'override' };
   }
 
@@ -69,14 +67,6 @@ export function resolveTemplateModel(
     source: 'global',
   };
 }
-
-/**
- * Settings-store key used to persist the map of per-template overrides.
- *
- * Shape on disk:
- *   `{ [templateId]: { provider: 'claude', model: 'claude-sonnet-4-6' } }`
- */
-export const TEMPLATE_MODEL_OVERRIDES_KEY = 'templateModelOverrides';
 
 // ---------------------------------------------------------------------------
 // F-106 / F-107 — Workflow provider resolution (pure function)

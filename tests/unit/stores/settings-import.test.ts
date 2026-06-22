@@ -6,6 +6,8 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { TEMPLATE_MODEL_OVERRIDES_KEY } from '@/features/workflows/engine/resolveTemplateModel';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 
 describe('settingsStore.importSettings (BUG-026)', () => {
@@ -56,5 +58,89 @@ describe('settingsStore.importSettings (BUG-026)', () => {
   it('returns false for non-object JSON', () => {
     expect(useSettingsStore.getState().importSettings('[]')).toBe(false);
     expect(useSettingsStore.getState().importSettings('nope')).toBe(false);
+  });
+});
+
+describe('settingsStore persisted privacy migration (BUG-089)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useSettingsStore.setState({
+      values: {},
+      _migrated: true,
+      featuresTourCompleted: false,
+      language: null,
+    });
+  });
+
+  it('fails closed when a stale persisted confidentiality mode is invalid', async () => {
+    localStorage.setItem(
+      'keepance:settings',
+      JSON.stringify({
+        state: {
+          values: {
+            confidentialityMode: 'local',
+          },
+          _migrated: true,
+          featuresTourCompleted: false,
+          language: null,
+        },
+        version: 0,
+      }),
+    );
+
+    await useSettingsStore.persist.rehydrate();
+
+    expect(useSettingsStore.getState().values.confidentialityMode).toBe('local-only');
+    expect(getConfidentialityMode()).toBe('local-only');
+  });
+});
+
+describe('settingsStore workflow model override transfer (BUG-090)', () => {
+  beforeEach(() => {
+    useSettingsStore.setState({ values: {} });
+  });
+
+  it('exports per-template model overrides', () => {
+    useSettingsStore.getState().setSetting(TEMPLATE_MODEL_OVERRIDES_KEY, {
+      'legal-privilege-log': { provider: 'ollama', model: 'llama3.2:3b' },
+    });
+
+    const exported = JSON.parse(useSettingsStore.getState().exportSettings()) as Record<string, unknown>;
+
+    expect(exported[TEMPLATE_MODEL_OVERRIDES_KEY]).toEqual({
+      'legal-privilege-log': { provider: 'ollama', model: 'llama3.2:3b' },
+    });
+  });
+
+  it('imports valid per-template model overrides', () => {
+    const ok = useSettingsStore.getState().importSettings(
+      JSON.stringify({
+        [TEMPLATE_MODEL_OVERRIDES_KEY]: {
+          'legal-privilege-log': { provider: 'ollama', model: 'llama3.2:3b' },
+        },
+      }),
+    );
+
+    expect(ok).toBe(true);
+    expect(useSettingsStore.getState().values[TEMPLATE_MODEL_OVERRIDES_KEY]).toEqual({
+      'legal-privilege-log': { provider: 'ollama', model: 'llama3.2:3b' },
+    });
+  });
+
+  it('drops imported per-template overrides with unsupported providers (BUG-091)', () => {
+    const ok = useSettingsStore.getState().importSettings(
+      JSON.stringify({
+        [TEMPLATE_MODEL_OVERRIDES_KEY]: {
+          stale: { provider: 'local', model: 'llama3.2:3b' },
+          trimmed: { provider: 'ollama ', model: 'llama3.2:3b' },
+          valid: { provider: 'ollama', model: 'llama3.2:3b' },
+        },
+      }),
+    );
+
+    expect(ok).toBe(true);
+    expect(useSettingsStore.getState().values[TEMPLATE_MODEL_OVERRIDES_KEY]).toEqual({
+      valid: { provider: 'ollama', model: 'llama3.2:3b' },
+    });
   });
 });
