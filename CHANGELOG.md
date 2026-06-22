@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Audit cost fields now survive restart/export (BUG-082).** Model-call audit entries now serialize `tokensIn`, `tokensOut`, `costUsd`, and `provider` before persistence, so the live cost data is not lost when the encrypted audit log is reopened or exported.
+  - Files modified: `src/platform/audit/AuditService.ts`, `src/App.tsx`
+  - Tests: `tests/unit/audit/audit-persistence.test.ts`
 - **Chat audit egress rows now describe what actually happened (BUG-079).** Chat sends now write "AI request sent" and "Attachment sent to provider" audit rows only after the provider send succeeds; failed provider calls and Local-only blocks record failed/blocked outcomes instead of false success rows.
   - Files modified: `src/features/ask/hooks/useChatSending.ts`
   - Tests: `tests/unit/audit-provenance-events.test.tsx`

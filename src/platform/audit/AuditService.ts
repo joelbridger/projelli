@@ -38,6 +38,18 @@ export function isAuditEncrypted(): boolean {
   );
 }
 
+type AuditLogOptions = {
+  model?: string;
+  inputs?: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
+  userDecision?: 'approved' | 'rejected' | 'auto';
+  metadata?: Record<string, unknown>;
+  tokensIn?: number;
+  tokensOut?: number;
+  costUsd?: number;
+  provider?: string;
+};
+
 /** Serialize a flat entry to the encrypted-store record shape. The full entry
  *  is preserved verbatim in `payloadJson` so it round-trips losslessly. */
 function entryToRecord(entry: AuditEntry): AuditEntryRecord {
@@ -154,26 +166,9 @@ export class AuditService {
   log(
     action: AuditActionType,
     description: string,
-    options: {
-      model?: string;
-      inputs?: Record<string, unknown>;
-      outputs?: Record<string, unknown>;
-      userDecision?: 'approved' | 'rejected' | 'auto';
-      metadata?: Record<string, unknown>;
-    } = {}
+    options: AuditLogOptions = {}
   ): AuditEntry {
-    const entry: AuditEntry = {
-      id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-      timestamp: new Date().toISOString(),
-      action,
-      description,
-      model: options.model,
-      inputs: options.inputs ?? {},
-      outputs: options.outputs ?? {},
-      userDecision: options.userDecision,
-      metadata: options.metadata ?? {},
-    };
-
+    const entry = this.buildEntry(action, description, options);
     this.entries.push(entry);
     this.record(entry);
 
@@ -409,6 +404,28 @@ export class AuditService {
    * Append-only is preserved either way: we only ever add entries, never
    * mutate or remove existing ones.
    */
+  private buildEntry(
+    action: AuditActionType,
+    description: string,
+    options: AuditLogOptions,
+  ): AuditEntry {
+    return {
+      id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      timestamp: new Date().toISOString(),
+      action,
+      description,
+      model: options.model,
+      inputs: options.inputs ?? {},
+      outputs: options.outputs ?? {},
+      userDecision: options.userDecision,
+      metadata: options.metadata ?? {},
+      ...(options.tokensIn !== undefined ? { tokensIn: options.tokensIn } : {}),
+      ...(options.tokensOut !== undefined ? { tokensOut: options.tokensOut } : {}),
+      ...(options.costUsd !== undefined ? { costUsd: options.costUsd } : {}),
+      ...(options.provider !== undefined ? { provider: options.provider } : {}),
+    };
+  }
+
   private record(entry: AuditEntry): void {
     if (this.encrypted) {
       // Fire-and-forget; a transient backend error must not break logging. The

@@ -120,6 +120,27 @@ describe('AuditService persistence (desktop, encrypted store)', () => {
     expect(localStorage.getItem('audit_log_desktop-test')).toBeNull();
   });
 
+  it('persists token, cost, and provider fields in the encrypted payload', () => {
+    const svc = new AuditService('desktop-cost-fields');
+    svc.log('model_call', 'chat message to Claude', {
+      model: 'claude-opus-4-8',
+      inputs: { promptLength: 12 },
+      outputs: { contentLength: 20 },
+      tokensIn: 123,
+      tokensOut: 45,
+      costUsd: 0.067,
+      provider: 'anthropic',
+    });
+
+    const appendCalls = mocks.invoke.mock.calls.filter((c) => c[0] === 'audit_append');
+    const rec = (appendCalls[0]![1] as { entry: { payloadJson: string } }).entry;
+    const persisted = JSON.parse(rec.payloadJson) as Record<string, unknown>;
+    expect(persisted['tokensIn']).toBe(123);
+    expect(persisted['tokensOut']).toBe(45);
+    expect(persisted['costUsd']).toBe(0.067);
+    expect(persisted['provider']).toBe('anthropic');
+  });
+
   it('hydrate() sets the workspace and loads entries from audit_list', async () => {
     mocks.invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'audit_list') {

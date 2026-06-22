@@ -842,18 +842,12 @@ function App() {
       outputs: entry.outputs,
       ...(entry.userDecision !== undefined ? { userDecision: entry.userDecision } : {}),
       metadata: entry.metadata,
-    });
-    // Preserve any cost/token/provider fields the caller set (the structured
-    // `log` API doesn't take them, but model-call entries carry them for the
-    // cost dashboard). Re-attach onto the persisted entry's identity.
-    const merged: AuditEntry = {
-      ...newEntry,
       ...(entry.tokensIn !== undefined ? { tokensIn: entry.tokensIn } : {}),
       ...(entry.tokensOut !== undefined ? { tokensOut: entry.tokensOut } : {}),
       ...(entry.costUsd !== undefined ? { costUsd: entry.costUsd } : {}),
       ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
-    };
-    setAuditEntries((prev) => [merged, ...prev]);
+    });
+    setAuditEntries((prev) => [newEntry, ...prev]);
   }, []);
 
 
