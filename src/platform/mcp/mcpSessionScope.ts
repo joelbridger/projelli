@@ -27,13 +27,15 @@ export function buildMcpSessionScopeFile(input: {
   networkLockdown: boolean;
 }): McpSessionScopeFile {
   const active = input.matters.find((m) => m.id === input.activeMatterId && !m.archived) ?? null;
+  const grantedMatterIds = input.matters
+    .filter((m) => !m.archived && !!m.mcpAccessGranted)
+    .map((m) => m.id)
+    .sort();
   return {
     version: 1,
     updatedAt: new Date().toISOString(),
     activeMatterId: active?.id ?? null,
-    // No broad grant exists yet. The sidecar falls back to this active matter;
-    // when product adds explicit MCP grants, write them here.
-    grantedMatterIds: [],
+    grantedMatterIds,
     networkLockdown: input.networkLockdown,
     matters: input.matters.map((m) => ({
       id: m.id,

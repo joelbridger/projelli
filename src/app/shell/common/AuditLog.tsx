@@ -91,6 +91,8 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   mcp_write_requested: PenLine,
   mcp_write_approved: ShieldCheck,
   mcp_write_denied: ShieldOff,
+  mcp_matter_access_granted: ShieldCheck,
+  mcp_matter_access_revoked: ShieldOff,
   // Firm Phase 1 (Task 3) — matter sharing and member management.
   matter_shared: Share2,
   matter_unshared: Share2,
@@ -126,6 +128,8 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   mcp_write_requested: 'External AI Write Requested',
   mcp_write_approved: 'External AI Write Approved',
   mcp_write_denied: 'External AI Write Denied',
+  mcp_matter_access_granted: 'External AI Matter Access Granted',
+  mcp_matter_access_revoked: 'External AI Matter Access Revoked',
   // Firm Phase 1 (Task 3)
   matter_shared: 'Matter Shared',
   matter_unshared: 'Matter Unshared',
@@ -161,6 +165,8 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   mcp_write_requested: 'text-amber-600 dark:text-amber-400',
   mcp_write_approved: 'text-emerald-600 dark:text-emerald-400',
   mcp_write_denied: 'text-rose-600 dark:text-rose-400',
+  mcp_matter_access_granted: 'text-emerald-600 dark:text-emerald-400',
+  mcp_matter_access_revoked: 'text-rose-600 dark:text-rose-400',
   // Firm Phase 1 (Task 3)
   matter_shared: 'text-primary',
   matter_unshared: 'text-muted-foreground',

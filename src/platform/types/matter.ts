@@ -55,6 +55,13 @@ export interface Matter {
    * this flag landed parse cleanly (a missing value is treated as `false`).
    */
   privileged?: boolean;
+  /**
+   * Explicit opt-in for external AI tools that connect through Keepance's MCP
+   * server. Default is false. This is intentionally separate from the active
+   * matter: focusing a matter inside Keepance must never grant an outside AI
+   * client access to it.
+   */
+  mcpAccessGranted?: boolean;
   /** ISO timestamp the matter was created. */
   createdAt: string;
 

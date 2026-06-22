@@ -59,6 +59,23 @@ fn spawn_scoped_workspace(lockdown: bool) -> (std::process::Child, tempfile::Tem
     (child, tmp)
 }
 
+fn spawn_root_granted_workspace() -> (std::process::Child, tempfile::TempDir) {
+    let tmp = tempfile::Builder::new()
+        .prefix("keepance-mcp-root-granted-")
+        .tempdir()
+        .expect("tmpdir");
+    write_root_scope_state(tmp.path(), false);
+    let child = Command::new(binary_path())
+        .env("KEEPANCE_WORKSPACE_ROOT", tmp.path())
+        .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn keepance-mcp");
+    (child, tmp)
+}
+
 fn write_scope_state(
     workspace: &std::path::Path,
     active_matter_id: &str,
@@ -106,6 +123,33 @@ fn write_scope_state_with_updated_at(
                 "client": "Client B",
                 "folderPaths": [matter_b.to_string_lossy()],
                 "privileged": false,
+                "archived": false
+            }
+        ]
+    });
+    let dir = workspace.join(".keepance");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("mcp-session-scope.json"),
+        serde_json::to_vec_pretty(&state).unwrap(),
+    )
+    .unwrap();
+}
+
+fn write_root_scope_state(workspace: &std::path::Path, network_lockdown: bool) {
+    let state = serde_json::json!({
+        "version": 1,
+        "updatedAt": chrono::Utc::now().to_rfc3339(),
+        "activeMatterId": "matter-root",
+        "grantedMatterIds": ["matter-root"],
+        "networkLockdown": network_lockdown,
+        "matters": [
+            {
+                "id": "matter-root",
+                "name": "Root Matter",
+                "client": "Root Client",
+                "folderPaths": [workspace.to_string_lossy()],
+                "privileged": network_lockdown,
                 "archived": false
             }
         ]
@@ -283,6 +327,52 @@ fn read_workspace_file_denies_cross_matter_path() {
                 && payload["metadata"]["matterId"] == "matter-b"
         }),
         "missing denied read audit entry: {actions:?}"
+    );
+
+    let _ = child.kill();
+    std::thread::sleep(Duration::from_millis(50));
+}
+
+#[test]
+fn read_workspace_file_denies_active_matter_without_explicit_grant() {
+    let tmp = tempfile::Builder::new()
+        .prefix("keepance-mcp-active-not-granted-")
+        .tempdir()
+        .expect("tmpdir");
+    write_scope_state(tmp.path(), "matter-a", &[], false);
+    std::fs::write(
+        tmp.path().join("Matter A").join("active.md"),
+        "active client secret",
+    )
+    .unwrap();
+    let mut child = Command::new(binary_path())
+        .env("KEEPANCE_WORKSPACE_ROOT", tmp.path())
+        .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn keepance-mcp");
+
+    let resp = exchange(
+        &mut child,
+        r#"{"jsonrpc":"2.0","id":311,"method":"tools/call","params":{"name":"read_workspace_file","arguments":{"path":"Matter A/active.md"}}}"#,
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&resp).expect("valid JSON");
+    assert_eq!(parsed["id"], 311);
+    assert_eq!(parsed["result"]["isError"], true, "got: {parsed:?}");
+    let text = parsed["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("outside the granted matter"), "got: {text}");
+    assert!(!text.contains("active client secret"), "got: {text}");
+
+    let actions = audit_actions(tmp.path());
+    assert!(
+        actions.iter().any(|(a, payload)| {
+            a == "mcp_read"
+                && payload["metadata"]["result"] == "denied"
+                && payload["metadata"]["matterId"] == "matter-a"
+        }),
+        "missing denied active-matter read audit entry: {actions:?}"
     );
 
     let _ = child.kill();
@@ -516,6 +606,69 @@ fn list_workspace_files_filters_to_granted_matter_and_audits() {
                 && payload["metadata"]["returnedCount"] == 1
         }),
         "missing list audit entry: {actions:?}"
+    );
+
+    let _ = child.kill();
+    std::thread::sleep(Duration::from_millis(50));
+}
+
+#[test]
+fn root_granted_matter_still_denies_keepance_internal_files() {
+    let (mut child, tmp) = spawn_root_granted_workspace();
+    std::fs::write(tmp.path().join("visible.md"), "visible matter content").unwrap();
+
+    let read_resp = exchange(
+        &mut child,
+        r#"{"jsonrpc":"2.0","id":331,"method":"tools/call","params":{"name":"read_workspace_file","arguments":{"path":".keepance/mcp-session-scope.json"}}}"#,
+    );
+    let read_parsed: serde_json::Value = serde_json::from_str(&read_resp).expect("valid JSON");
+    assert_eq!(read_parsed["id"], 331);
+    assert!(read_parsed["error"].is_object(), "got {read_parsed:?}");
+    assert_eq!(read_parsed["error"]["code"], -32602);
+    let read_message = read_parsed["error"]["message"].as_str().unwrap();
+    assert!(
+        read_message.contains("Keepance internal files are not exposed over MCP"),
+        "got: {read_message}"
+    );
+    assert!(!read_message.contains("Root Client"), "got: {read_message}");
+
+    let list_resp = exchange(
+        &mut child,
+        r#"{"jsonrpc":"2.0","id":332,"method":"tools/call","params":{"name":"list_workspace_files","arguments":{}}}"#,
+    );
+    let list_parsed: serde_json::Value = serde_json::from_str(&list_resp).expect("valid JSON");
+    assert_eq!(list_parsed["id"], 332);
+    assert_eq!(
+        list_parsed["result"]["isError"], false,
+        "got: {list_parsed:?}"
+    );
+    let list_text = list_parsed["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    assert!(list_text.contains("visible.md"), "got: {list_text}");
+    assert!(!list_text.contains(".keepance"), "got: {list_text}");
+    assert!(
+        !list_text.contains("mcp-session-scope.json"),
+        "got: {list_text}"
+    );
+
+    let actions = audit_actions(tmp.path());
+    assert!(
+        actions.iter().any(|(a, payload)| {
+            a == "mcp_read"
+                && payload["metadata"]["path"] == ".keepance/mcp-session-scope.json"
+                && payload["metadata"]["result"] == "denied"
+                && payload["metadata"]["reason"] == "invalid_path"
+        }),
+        "missing internal-file read denial audit entry: {actions:?}"
+    );
+    assert!(
+        actions.iter().any(|(a, payload)| {
+            a == "mcp_list"
+                && payload["metadata"]["result"] == "allowed"
+                && payload["metadata"]["returnedCount"] == 1
+        }),
+        "missing internal-file-safe list audit entry: {actions:?}"
     );
 
     let _ = child.kill();

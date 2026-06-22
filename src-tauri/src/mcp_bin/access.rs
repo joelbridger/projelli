@@ -83,16 +83,11 @@ impl McpAccessState {
     }
 
     pub fn allowed_matter_ids(&self) -> HashSet<&str> {
-        let mut ids = HashSet::new();
-        if self.granted_matter_ids.is_empty() {
-            if let Some(id) = self.active_matter_id.as_deref() {
-                ids.insert(id);
-            }
-        } else {
-            for id in &self.granted_matter_ids {
-                ids.insert(id.as_str());
-            }
-        }
+        let mut ids = self
+            .granted_matter_ids
+            .iter()
+            .map(String::as_str)
+            .collect::<HashSet<_>>();
         ids.retain(|id| {
             self.matters
                 .iter()
@@ -235,6 +230,52 @@ mod tests {
             state.resolve_matter_for_path(Path::new("/ws/Acme Corp/secret.md")),
             UNASSIGNED_MATTER_ID
         );
+    }
+
+    #[test]
+    fn active_matter_does_not_grant_access_without_explicit_mcp_grant() {
+        let state = McpAccessState {
+            version: 1,
+            updated_at: Utc::now().to_rfc3339(),
+            active_matter_id: Some("a".into()),
+            granted_matter_ids: vec![],
+            network_lockdown: false,
+            matters: vec![McpMatter {
+                id: "a".into(),
+                folder_paths: vec!["/ws/Acme".into()],
+                archived: false,
+            }],
+        };
+
+        assert!(state.allowed_matter_ids().is_empty());
+        assert!(!state.decide_path(Path::new("/ws/Acme/secret.md")).allowed);
+    }
+
+    #[test]
+    fn granted_matter_allows_access_even_when_a_different_matter_is_active() {
+        let state = McpAccessState {
+            version: 1,
+            updated_at: Utc::now().to_rfc3339(),
+            active_matter_id: Some("b".into()),
+            granted_matter_ids: vec!["a".into()],
+            network_lockdown: false,
+            matters: vec![
+                McpMatter {
+                    id: "a".into(),
+                    folder_paths: vec!["/ws/Acme".into()],
+                    archived: false,
+                },
+                McpMatter {
+                    id: "b".into(),
+                    folder_paths: vec!["/ws/Beta".into()],
+                    archived: false,
+                },
+            ],
+        };
+
+        assert_eq!(state.allowed_matter_ids_owned(), vec!["a".to_string()]);
+        assert!(state.decide_path(Path::new("/ws/Acme/allowed.md")).allowed);
+        assert!(!state.decide_path(Path::new("/ws/Beta/active-but-denied.md")).allowed);
     }
 
     #[test]

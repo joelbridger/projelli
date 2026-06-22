@@ -45,6 +45,7 @@ import type { Matter, MatterScope } from '@/platform/types/matter';
 import { resolveMatterId, findMatter } from '@/platform/rag/matterResolver';
 import { ragDeleteMatter } from '@/platform/utils/tauri-commands';
 import { mailClearMatterFilings } from '@/platform/utils/mail-commands';
+import { AuditService } from '@/platform/audit/AuditService';
 import { getProfession } from '@/platform/profile/professionStore';
 import { getSampleMatterName } from '@/platform/matter/samples/sampleMatterDemo';
 import type { MatterUiSnapshot } from '@/platform/matter/matterUiStore';
@@ -83,6 +84,8 @@ export interface CreateMatterInput {
   mailFolderPaths?: string[];
   /** Mark the matter privileged at creation time (defaults to false). */
   privileged?: boolean;
+  /** Explicitly grant external AI tools (MCP) access at creation time. Defaults to false. */
+  mcpAccessGranted?: boolean;
   /** Optionally link the matter to the firm backend at creation time. */
   firmMatterId?: string;
   orgId?: string;
@@ -116,6 +119,8 @@ interface MatterState {
   // matter is privileged, network plugins + MCP are disabled (see
   // `modules/privacy/privilegedMatterMode`).
   setMatterPrivileged: (id: string, privileged: boolean) => void;
+  /** Explicit per-matter grant for external AI tools connected through MCP. */
+  setMatterMcpAccess: (id: string, granted: boolean) => void;
 
   // Archive / restore. Archiving hides a matter from the active list + scope
   // picker without deleting it (folders/mail/index are preserved). Archiving the
@@ -173,7 +178,22 @@ interface PersistedMatterState {
 const MATTERS_KEY = 'keepance:matters';
 const UI_KEY = 'keepance:matter-ui-snapshots';
 const GLANCE_KEY = 'keepance:matter-at-a-glance';
-const MATTERS_VERSION = 4;
+const MATTERS_VERSION = 5;
+
+function auditMatterMcpAccess(matter: Matter, granted: boolean): void {
+  const audit = new AuditService();
+  audit.append({
+    type: granted ? 'mcp_matter_access_granted' : 'mcp_matter_access_revoked',
+    timestamp: new Date().toISOString(),
+    payload: {
+      matterId: matter.id,
+      matterName: matter.name || matter.client || matter.id,
+      detail: granted
+        ? 'external AI tools can read this matter through MCP'
+        : 'external AI tools can no longer read this matter through MCP',
+    },
+  });
+}
 
 function readLegacyEnvelope(
   key: string,
@@ -260,6 +280,7 @@ export const useMatterStore = create<MatterState>()(
           folderPaths: (input.folderPaths ?? []).map(normalizeFolder).filter(Boolean),
           mailFolderPaths: Array.from(new Set((input.mailFolderPaths ?? []).filter(Boolean))),
           privileged: input.privileged ?? false,
+          mcpAccessGranted: input.mcpAccessGranted ?? false,
           createdAt: new Date().toISOString(),
           ...(input.firmMatterId !== undefined ? { firmMatterId: input.firmMatterId } : {}),
           ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
@@ -403,6 +424,17 @@ export const useMatterStore = create<MatterState>()(
         }));
       },
 
+      setMatterMcpAccess: (id, granted) => {
+        const matter = findMatter(id, get().matters);
+        if (!matter || !!matter.mcpAccessGranted === granted) return;
+        set((state) => ({
+          matters: state.matters.map((m) =>
+            m.id === id ? { ...m, mcpAccessGranted: granted } : m,
+          ),
+        }));
+        auditMatterMcpAccess(matter, granted);
+      },
+
       setMatterArchived: (id, archived) => {
         set((state) => ({
           matters: state.matters.map((m) =>
@@ -520,10 +552,11 @@ export const useMatterStore = create<MatterState>()(
       storage: multiKeyMatterStorage,
       // v1 -> v2: matters gained `mailFolderPaths`. v2 -> v3: matters gained the
       // `privileged` flag. v3 -> v4: matters gained firm linkage fields
-      // (firmMatterId, orgId, role, shared). Backfill defaults so older persisted
-      // matters parse cleanly (missing values are tolerated by readers, but
-      // normalising here keeps the shape consistent). Only the `matters` slice is
-      // versioned; the snapshots/cache slices pass through untouched.
+      // (firmMatterId, orgId, role, shared). v4 -> v5: matters gained the
+      // explicit MCP access grant. Backfill defaults so older persisted matters
+      // parse cleanly (missing values are tolerated by readers, but normalising
+      // here keeps the shape consistent). Only the `matters` slice is versioned;
+      // the snapshots/cache slices pass through untouched.
       migrate: (persisted, version) => {
         const state = persisted as Partial<PersistedMatterState> | undefined;
         if (!state || !Array.isArray(state.matters)) return state as PersistedMatterState;
@@ -551,6 +584,12 @@ export const useMatterStore = create<MatterState>()(
             }
             return { ...m, shared: m.shared ?? false };
           });
+        }
+        if (version < 5) {
+          state.matters = state.matters.map((m) => ({
+            ...m,
+            mcpAccessGranted: m.mcpAccessGranted ?? false,
+          }));
         }
         return state as PersistedMatterState;
       },

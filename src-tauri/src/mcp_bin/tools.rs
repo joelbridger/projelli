@@ -19,8 +19,8 @@
 use super::access::{McpAccessState, UNASSIGNED_MATTER_ID};
 use super::approval::{self, APPROVAL_MARKER};
 use super::protocol::JsonRpcError;
-use super::{ServerCtx, crypto, embedder, extractor, resolve_workspace_path, store};
-use serde_json::{Value, json};
+use super::{crypto, embedder, extractor, resolve_workspace_path, store, ServerCtx};
+use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
 /// Build the `tools/list` response array.
@@ -28,7 +28,7 @@ pub fn describe_tools() -> Vec<Value> {
     vec![
         json!({
             "name": "list_workspace_files",
-            "description": "List files in the external client's active/granted Keepance matter only. Optionally filter by a glob pattern like '**/*.md'. Returns workspace-relative paths.",
+            "description": "List files in Keepance matters the user explicitly granted to this external client. Optionally filter by a glob pattern like '**/*.md'. Returns workspace-relative paths.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -41,7 +41,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "read_workspace_file",
-            "description": "Read a file from the external client's active/granted Keepance matter only. Path must be workspace-relative; absolute paths and '..' traversal are rejected.",
+            "description": "Read a file from a Keepance matter the user explicitly granted to this external client. Path must be workspace-relative; absolute paths and '..' traversal are rejected.",
             "inputSchema": {
                 "type": "object",
                 "required": ["path"],
@@ -55,7 +55,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "search_workspace",
-            "description": "Semantic search inside the external client's active/granted Keepance matter only, using the same local embedding model the app uses for @workspace queries. Returns the top-k most relevant paragraphs with their source paths.",
+            "description": "Semantic search inside Keepance matters the user explicitly granted to this external client, using the same local embedding model the app uses for @workspace queries. Returns the top-k most relevant paragraphs with their source paths.",
             "inputSchema": {
                 "type": "object",
                 "required": ["query"],
@@ -75,7 +75,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "write_workspace_file",
-            "description": "Write (or overwrite) a file in the external client's active/granted Keepance matter only. The user must approve every write in an approval modal; there is no way to skip it.",
+            "description": "Write (or overwrite) a file in a Keepance matter the user explicitly granted to this external client. The user must approve every write in an approval modal; there is no way to skip it.",
             "inputSchema": {
                 "type": "object",
                 "required": ["path", "content"],
@@ -124,7 +124,7 @@ pub async fn list_workspace_files(
             None,
             UNASSIGNED_MATTER_ID,
             "denied",
-            "MCP access denied: no active or granted matter is available.",
+            "MCP access denied: no matter has been explicitly granted to this external client.",
         );
     }
 
@@ -467,7 +467,7 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
             None,
             UNASSIGNED_MATTER_ID,
             "denied",
-            "MCP access denied: no active or granted matter is available.",
+            "MCP access denied: no matter has been explicitly granted to this external client.",
         );
     }
 
@@ -1048,7 +1048,18 @@ fn recover_hit_real_path(hit: &store::StoredHit, enc_key: Option<&[u8; 32]>) -> 
 fn resolve_hit_file_path(workspace: &Path, real_path: &str) -> Result<PathBuf, String> {
     let candidate = PathBuf::from(real_path);
     if candidate.is_absolute() {
-        super::access::canonicalized_workspace_child(workspace, &candidate)
+        let abs = super::access::canonicalized_workspace_child(workspace, &candidate)?;
+        let workspace_canon = workspace
+            .canonicalize()
+            .map_err(|_| "workspace root cannot be canonicalised".to_string())?;
+        let abs_canon = abs
+            .canonicalize()
+            .map_err(|e| format!("path cannot be canonicalised: {e}"))?;
+        let rel = abs_canon
+            .strip_prefix(&workspace_canon)
+            .map_err(|_| "path escapes workspace root".to_string())?;
+        let rel = rel.to_string_lossy().replace('\\', "/");
+        resolve_workspace_path(workspace, &rel)
     } else {
         resolve_workspace_path(workspace, real_path)
     }
@@ -1186,6 +1197,40 @@ mod tests {
         assert!(
             verified_file_search_hit(&ctx, &state, hit, None).is_none(),
             "a stale/mis-tagged search row must not be returned just because stored matter_id matches"
+        );
+    }
+
+    #[test]
+    fn search_hit_under_keepance_internal_dir_is_dropped_even_when_root_matter_is_granted() {
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        let keepance_dir = tmp.path().join(".keepance");
+        std::fs::create_dir_all(&keepance_dir).unwrap();
+        let scope_path = keepance_dir.join("mcp-session-scope.json");
+        std::fs::write(&scope_path, r#"{"client":"Other Client"}"#).unwrap();
+
+        let ctx = test_ctx(tmp.path().to_path_buf());
+        let state = McpAccessState {
+            version: 1,
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            active_matter_id: Some("matter-root".into()),
+            granted_matter_ids: vec!["matter-root".into()],
+            network_lockdown: false,
+            matters: vec![super::super::access::McpMatter {
+                id: "matter-root".into(),
+                folder_paths: vec![tmp.path().to_string_lossy().to_string()],
+                archived: false,
+            }],
+        };
+
+        let hit = stored_hit(
+            scope_path.to_string_lossy().to_string(),
+            "matter-root",
+            "Other Client metadata",
+        );
+
+        assert!(
+            verified_file_search_hit(&ctx, &state, hit, None).is_none(),
+            "search must never return Keepance internal files, even when a granted matter is the workspace root"
         );
     }
 

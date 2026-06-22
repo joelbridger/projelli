@@ -92,6 +92,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
     addMailFolderPath,
     removeMailFolderPath,
     setMatterPrivileged,
+    setMatterMcpAccess,
     setMatterArchived,
     linkFirmMatter,
     unlinkFirmMatter,
@@ -590,6 +591,16 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                   </div>
                 )}
 
+                {m.mcpAccessGranted && (
+                  <div
+                    data-testid={`matter-mcp-access-badge-${m.id}`}
+                    className="flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-700" aria-hidden />
+                    {t('matter.manager.mcp-access-badge')}
+                  </div>
+                )}
+
                 {/* Isolation affirmation callout — visible for ~4 s after enabling */}
                 {isolatedAffirmationIds.has(m.id) && (
                   <div
@@ -678,6 +689,31 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                     </span>
                     <span className="block text-muted-foreground">
                       {t('matter.manager.privileged-hint')}
+                    </span>
+                  </span>
+                </label>
+
+                <label
+                  data-testid={`matter-mcp-access-${m.id}`}
+                  data-checked={m.mcpAccessGranted ? 'true' : 'false'}
+                  className="flex items-start gap-2 text-xs cursor-pointer select-none rounded-md border border-border/60 px-2 py-1.5"
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!m.mcpAccessGranted}
+                    onChange={(e) => {
+                      setMatterMcpAccess(m.id, e.target.checked);
+                    }}
+                    className="mt-0.5 h-3.5 w-3.5 accent-emerald-700"
+                    aria-label={t('matter.manager.mcp-access-label')}
+                  />
+                  <span>
+                    <span className="inline-flex items-center gap-1 font-medium">
+                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-700" aria-hidden />
+                      {t('matter.manager.mcp-access-label')}
+                    </span>
+                    <span className="block text-muted-foreground">
+                      {t('matter.manager.mcp-access-hint')}
                     </span>
                   </span>
                 </label>

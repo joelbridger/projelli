@@ -316,7 +316,15 @@ pub fn resolve_workspace_path(workspace: &Path, relative: &str) -> Result<PathBu
     }
     // Block traversal components pre-join for clarity. Canonicalize at the
     // end too so symlinks can't escape.
+    let mut saw_path_segment = false;
     for part in relative.split(['/', '\\']) {
+        if part.is_empty() || part == "." {
+            continue;
+        }
+        if !saw_path_segment && part.eq_ignore_ascii_case(".keepance") {
+            return Err("Keepance internal files are not exposed over MCP".into());
+        }
+        saw_path_segment = true;
         if part == ".." {
             return Err(format!("path escapes workspace root: {relative}"));
         }
@@ -393,6 +401,36 @@ mod tests {
     fn rejects_empty_path() {
         let ws = std::env::temp_dir();
         assert!(resolve_workspace_path(&ws, "").is_err());
+    }
+
+    #[test]
+    fn rejects_keepance_internal_root_path() {
+        let ws = std::env::temp_dir();
+        let err = resolve_workspace_path(&ws, ".keepance/mcp-session-scope.json").unwrap_err();
+        assert!(
+            err.contains("Keepance internal files are not exposed over MCP"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn rejects_keepance_internal_root_path_with_backslashes() {
+        let ws = std::env::temp_dir();
+        let err = resolve_workspace_path(&ws, ".keepance\\mcp-session-scope.json").unwrap_err();
+        assert!(
+            err.contains("Keepance internal files are not exposed over MCP"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn rejects_keepance_internal_root_path_after_current_dir_segment() {
+        let ws = std::env::temp_dir();
+        let err = resolve_workspace_path(&ws, "./.keepance/mcp-session-scope.json").unwrap_err();
+        assert!(
+            err.contains("Keepance internal files are not exposed over MCP"),
+            "got: {err}"
+        );
     }
 
     #[test]

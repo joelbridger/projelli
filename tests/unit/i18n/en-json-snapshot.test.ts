@@ -56,7 +56,7 @@ describe('en.json structure snapshot', () => {
         "layout": 40,
         "mail": 5,
         "marketplace": 14,
-        "matter": 102,
+        "matter": 105,
         "media": 77,
         "memory": 3,
         "model-download": 9,
@@ -82,8 +82,8 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    // 859 = 857 + 2 audit integrity badge keys (BUG-078 tamper-evident audit log).
-    expect(flat.length).toBe(859);
+    // 862 = 859 + 3 MCP per-matter grant keys.
+    expect(flat.length).toBe(862);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
