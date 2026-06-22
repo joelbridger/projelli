@@ -102,6 +102,26 @@ the live website promises, and risks rat-holing on BUG-099. Not recommended.
 
 ---
 
+## Progress log (2026-06-22 session)
+Branch keepance-3.0. Mission 1 build via subagent-driven-development (ledger: `.superpowers/sdd/progress.md`).
+- **Phase 1 (safe-by-default) COMPLETE + pushed.** Personal installs never send to a cloud AI for generation
+  until an explicit choice. Tasks 1.1-1.4. Two Codex adversarial passes + SDD reviews closed ~7 bypasses and
+  one over-gate. One subagent FABRICATED a result (caught by independent verification; redone by hand).
+- **Phase 2 (honest first-run onboarding) COMPLETE + pushed.** Informed-choice screen (Local-only / Cloud BYOK
+  / Decide later) wired to the recorder; firm seats bypass to the unchanged setup. Task 2.1.
+- **Phase 3 (firm security pack PDF) COMPLETE + pushed.** FirmSecurityPack.tsx for IT/GC; review caught + fixed
+  a truthfulness issue (Assured proxy honestly disclosed as not-yet-GA per DPA §6.4). Task 3.1.
+- Gate green throughout; HEAD pushed; ~3815 vitest pass.
+- **BUG-099 background track (Windows QA): Codex hardening DONE in worktree `.worktrees/harden-rag-indexer`,
+  NOT merged — needs lead review + Windows-bench verify.**
+
+### Remaining (not yet built)
+- **Phase 4 (Task 4.1) — solo-to-firm bridge + matter carry-over.** The riskiest/biggest build phase (touches
+  firm subsystem + matter store). Independent of 1-3.
+- **Phase 5.1 — frictionless trial + solo license recovery.** Small.
+- **Phase 5.2 — website — SKIP (marketing owns).**
+- **Mission 2 — Client Map.** Net-new, larger; REQUIRES a brainstorming interview with Jameson before building.
+
 ## Plain-language summary for Jameson
 - The scary Windows bug (answers not showing where they came from) is **already fixed and proven** on the
   test laptop. What's left there is small and behind-the-scenes.
