@@ -14,6 +14,23 @@
 use serde::{Deserialize, Serialize};
 
 const DEFAULT_SERVICE: &str = "com.keepance.app";
+const INTERNAL_EXACT_SERVICES: &[&str] = &[
+    // Encrypted database master keys. These are Rust-owned infrastructure
+    // secrets; renderer code must never read, write, or delete them through
+    // the generic keychain bridge.
+    "keepance-audit-enc",
+    "keepance-mail-enc",
+    "keepance-vectors-enc",
+    // Mail connector tokens/config are managed by Rust mail commands.
+    "keepance-mail-ms",
+    "keepance-mail-imap",
+    "keepance-mail-gmail",
+];
+const INTERNAL_SERVICE_PREFIXES: &[&str] = &[
+    // Vault VMKs are Rust-owned. Firm collaboration keys use
+    // com.keepance.matter/user/device and intentionally remain renderer-owned.
+    "com.keepance.vault.",
+];
 
 /// Structured error returned to the frontend. Separating "not found" from
 /// "unsupported platform" from "generic backend error" lets the frontend
@@ -46,18 +63,14 @@ pub fn map_keyring_error(err: &keyring::Error) -> KeychainError {
     match err {
         KE::NoEntry => KeychainError::NotFound("no matching entry".to_string()),
         KE::PlatformFailure(e) => KeychainError::Other(format!("platform failure: {}", e)),
-        KE::NoStorageAccess(e) => {
-            KeychainError::Denied(format!("no storage access: {}", e))
-        }
+        KE::NoStorageAccess(e) => KeychainError::Denied(format!("no storage access: {}", e)),
         KE::BadEncoding(_) => {
             KeychainError::Other("keychain returned a non-UTF-8 secret".to_string())
         }
         KE::TooLong(field, max) => {
             KeychainError::Other(format!("{} exceeds max length {}", field, max))
         }
-        KE::Invalid(field, msg) => {
-            KeychainError::Other(format!("invalid {}: {}", field, msg))
-        }
+        KE::Invalid(field, msg) => KeychainError::Other(format!("invalid {}: {}", field, msg)),
         KE::Ambiguous(_) => {
             KeychainError::Other("more than one matching keychain entry".to_string())
         }
@@ -69,6 +82,23 @@ fn resolve_service(service: Option<String>) -> String {
     service
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| DEFAULT_SERVICE.to_string())
+}
+
+fn is_internal_service(service: &str) -> bool {
+    let normalized = service.trim();
+    INTERNAL_EXACT_SERVICES.contains(&normalized)
+        || INTERNAL_SERVICE_PREFIXES
+            .iter()
+            .any(|prefix| normalized.starts_with(prefix))
+}
+
+fn validate_renderer_service_access(service: &str) -> Result<(), KeychainError> {
+    if is_internal_service(service) {
+        return Err(KeychainError::Denied(format!(
+            "service '{service}' is reserved for Keepance internal storage"
+        )));
+    }
+    Ok(())
 }
 
 fn entry(service: &str, key: &str) -> Result<keyring::Entry, KeychainError> {
@@ -83,6 +113,7 @@ pub async fn keychain_set(
     value: String,
 ) -> Result<(), KeychainError> {
     let svc = resolve_service(service);
+    validate_renderer_service_access(&svc)?;
     let entry = entry(&svc, &key)?;
     entry
         .set_password(&value)
@@ -91,11 +122,9 @@ pub async fn keychain_set(
 
 /// Read a secret by (service, key). Returns `NotFound` if no entry exists.
 #[tauri::command]
-pub async fn keychain_get(
-    service: Option<String>,
-    key: String,
-) -> Result<String, KeychainError> {
+pub async fn keychain_get(service: Option<String>, key: String) -> Result<String, KeychainError> {
     let svc = resolve_service(service);
+    validate_renderer_service_access(&svc)?;
     let entry = entry(&svc, &key)?;
     entry.get_password().map_err(|e| map_keyring_error(&e))
 }
@@ -103,11 +132,9 @@ pub async fn keychain_get(
 /// Delete a stored secret. Succeeds silently if the entry didn't exist, so
 /// "remove my Anthropic key" is idempotent on the frontend.
 #[tauri::command]
-pub async fn keychain_delete(
-    service: Option<String>,
-    key: String,
-) -> Result<(), KeychainError> {
+pub async fn keychain_delete(service: Option<String>, key: String) -> Result<(), KeychainError> {
     let svc = resolve_service(service);
+    validate_renderer_service_access(&svc)?;
     let entry = entry(&svc, &key)?;
     match entry.delete_credential() {
         Ok(()) => Ok(()),
@@ -133,6 +160,37 @@ mod tests {
             resolve_service(Some("com.keepance.sync".to_string())),
             "com.keepance.sync"
         );
+    }
+
+    #[test]
+    fn internal_service_names_are_denied_before_keychain_access() {
+        assert!(matches!(
+            validate_renderer_service_access("keepance-audit-enc")
+                .expect_err("internal service must be denied"),
+            KeychainError::Denied(_)
+        ));
+        assert!(matches!(
+            validate_renderer_service_access("keepance-mail-enc")
+                .expect_err("internal service must be denied"),
+            KeychainError::Denied(_)
+        ));
+        assert!(matches!(
+            validate_renderer_service_access("keepance-vectors-enc")
+                .expect_err("internal service must be denied"),
+            KeychainError::Denied(_)
+        ));
+        assert!(matches!(
+            validate_renderer_service_access("com.keepance.vault.workspace-1")
+                .expect_err("internal service must be denied"),
+            KeychainError::Denied(_)
+        ));
+    }
+
+    #[test]
+    fn user_key_service_is_not_denied() {
+        let svc = resolve_service(Some("com.keepance.app".to_string()));
+        assert_eq!(svc, "com.keepance.app");
+        assert!(!is_internal_service(&svc));
     }
 
     #[test]
@@ -193,8 +251,7 @@ mod tests {
         }
         let svc = "com.keepance.app.test";
         let key = "phase2-keychain-test";
-        let entry =
-            keyring::Entry::new(svc, key).expect("entry should build on this platform");
+        let entry = keyring::Entry::new(svc, key).expect("entry should build on this platform");
         entry
             .set_password("hello")
             .expect("set should succeed with secret-service available");

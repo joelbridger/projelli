@@ -49,6 +49,7 @@ pub struct AuditEntryRecord {
 /// log from the upgrade moment forward; it cannot prove whether someone edited
 /// old rows before this feature existed.
 const GENESIS_PREV_HASH: [u8; 32] = [0u8; 32];
+const CHAIN_HEAD_METADATA_KEY: &str = "chain_head_v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "status", rename_all = "camelCase")]
@@ -70,6 +71,13 @@ struct ChainRow {
     rec: AuditEntryRecord,
     prev_hash: Option<Vec<u8>>,
     entry_hash: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct ChainHeadRecord {
+    entry_count: i64,
+    last_seq: i64,
+    last_hash: String,
 }
 
 /// Map a `entries` row (canonical column order) to an `AuditEntryRecord`.
@@ -137,12 +145,160 @@ fn read_chain_rows(c: &Connection) -> Result<Vec<ChainRow>> {
     Ok(rows)
 }
 
+fn read_chain_head(c: &Connection) -> Result<Option<ChainHeadRecord>> {
+    let raw: Option<String> = c
+        .query_row(
+            "SELECT value_json FROM audit_metadata WHERE key = ?1",
+            [CHAIN_HEAD_METADATA_KEY],
+            |r| r.get(0),
+        )
+        .optional()?;
+    raw.map(|value| serde_json::from_str(&value).context("decode audit chain head"))
+        .transpose()
+}
+
+fn upsert_chain_head(c: &Connection, head: &ChainHeadRecord) -> Result<()> {
+    let value = serde_json::to_string(head).context("encode audit chain head")?;
+    c.execute(
+        "INSERT INTO audit_metadata (key, value_json)
+         VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json",
+        rusqlite::params![CHAIN_HEAD_METADATA_KEY, value],
+    )?;
+    Ok(())
+}
+
 fn table_columns(c: &Connection, table: &str) -> Result<std::collections::HashSet<String>> {
     let mut stmt = c.prepare(&format!("PRAGMA table_info({table})"))?;
     let cols = stmt
         .query_map([], |r| r.get::<_, String>(1))?
         .collect::<rusqlite::Result<std::collections::HashSet<_>>>()?;
     Ok(cols)
+}
+
+fn ensure_metadata_schema(c: &Connection) -> Result<()> {
+    c.execute_batch(
+        "CREATE TABLE IF NOT EXISTS audit_metadata (
+            key        TEXT PRIMARY KEY,
+            value_json TEXT NOT NULL
+        );",
+    )?;
+    Ok(())
+}
+
+fn verify_rows_and_build_head(
+    rows: &[ChainRow],
+) -> std::result::Result<ChainHeadRecord, AuditChainVerification> {
+    let mut expected_prev = GENESIS_PREV_HASH.to_vec();
+    let mut checked = 0;
+    let mut last_seq = 0;
+    let mut last_id = String::new();
+
+    for row in rows {
+        let prev_hash = match row.prev_hash.as_deref() {
+            Some(hash) if is_hash32(hash) => hash,
+            _ => {
+                return Err(AuditChainVerification::Altered {
+                    seq: row.seq,
+                    id: row.rec.id.clone(),
+                    reason: "previous hash missing or invalid".into(),
+                    checked,
+                });
+            }
+        };
+        if prev_hash != expected_prev.as_slice() {
+            return Err(AuditChainVerification::Altered {
+                seq: row.seq,
+                id: row.rec.id.clone(),
+                reason: "previous hash link mismatch".into(),
+                checked,
+            });
+        }
+
+        let expected_entry_hash = compute_entry_hash(prev_hash, row.seq, &row.rec);
+        let entry_hash = match row.entry_hash.as_deref() {
+            Some(hash) if is_hash32(hash) => hash,
+            _ => {
+                return Err(AuditChainVerification::Altered {
+                    seq: row.seq,
+                    id: row.rec.id.clone(),
+                    reason: "entry hash missing or invalid".into(),
+                    checked,
+                });
+            }
+        };
+        if entry_hash != expected_entry_hash {
+            return Err(AuditChainVerification::Altered {
+                seq: row.seq,
+                id: row.rec.id.clone(),
+                reason: "entry hash mismatch".into(),
+                checked,
+            });
+        }
+
+        expected_prev = entry_hash.to_vec();
+        checked += 1;
+        last_seq = row.seq;
+        last_id = row.rec.id.clone();
+    }
+
+    let _ = last_id;
+    Ok(ChainHeadRecord {
+        entry_count: checked,
+        last_seq,
+        last_hash: hex::encode(expected_prev),
+    })
+}
+
+fn compare_stored_head(
+    actual: &ChainHeadRecord,
+    stored: &ChainHeadRecord,
+    rows: &[ChainRow],
+    checked: i64,
+) -> Option<AuditChainVerification> {
+    if actual == stored {
+        return None;
+    }
+
+    let (seq, id) = rows
+        .last()
+        .map(|row| (row.seq, row.rec.id.clone()))
+        .unwrap_or((0, "__chain_head__".into()));
+    let reason = if actual.entry_count < stored.entry_count || actual.last_seq < stored.last_seq {
+        "tail truncated"
+    } else {
+        "chain head mismatch"
+    };
+    Some(AuditChainVerification::Altered {
+        seq,
+        id,
+        reason: reason.into(),
+        checked,
+    })
+}
+
+fn ensure_chain_head_exists_for_valid_chain(c: &Connection) -> Result<()> {
+    if read_chain_head(c)?.is_some() {
+        return Ok(());
+    }
+    let rows = read_chain_rows(c)?;
+    match verify_rows_and_build_head(&rows) {
+        Ok(head) => upsert_chain_head(c, &head),
+        Err(_) => Ok(()),
+    }
+}
+
+fn ensure_chain_head_matches_current_rows(c: &Connection) -> Result<()> {
+    let rows = read_chain_rows(c)?;
+    let actual = match verify_rows_and_build_head(&rows) {
+        Ok(head) => head,
+        Err(altered) => bail!("audit chain altered: {altered:?}"),
+    };
+    let stored = read_chain_head(c)?.context("audit chain head missing")?;
+    if let Some(altered) = compare_stored_head(&actual, &stored, &rows, actual.entry_count) {
+        bail!("audit chain altered: {altered:?}");
+    }
+    Ok(())
 }
 
 fn ensure_hash_chain_schema(c: &mut Connection) -> Result<()> {
@@ -160,6 +316,7 @@ fn ensure_hash_chain_schema(c: &mut Connection) -> Result<()> {
             entry_hash   BLOB
         );",
     )?;
+    ensure_metadata_schema(c)?;
 
     let cols = table_columns(c, "entries")?;
     let mut added_hash_columns = false;
@@ -174,6 +331,14 @@ fn ensure_hash_chain_schema(c: &mut Connection) -> Result<()> {
 
     let row_count: i64 = c.query_row("SELECT COUNT(*) FROM entries", [], |r| r.get(0))?;
     if row_count == 0 {
+        upsert_chain_head(
+            c,
+            &ChainHeadRecord {
+                entry_count: 0,
+                last_seq: 0,
+                last_hash: hex::encode(GENESIS_PREV_HASH),
+            },
+        )?;
         return Ok(());
     }
 
@@ -183,11 +348,13 @@ fn ensure_hash_chain_schema(c: &mut Connection) -> Result<()> {
         |r| r.get(0),
     )?;
 
-    if added_hash_columns || missing_hash_count == row_count {
+    if added_hash_columns {
         // Migration note: this seals the existing log from now on. It does not
         // prove that legacy rows were untouched before the upgrade because no
         // chain existed yet to check against.
         backfill_hash_chain(c)?;
+    } else if missing_hash_count == 0 {
+        ensure_chain_head_exists_for_valid_chain(c)?;
     }
 
     Ok(())
@@ -207,6 +374,8 @@ fn backfill_hash_chain(c: &mut Connection) -> Result<()> {
     };
 
     let mut prev_hash = GENESIS_PREV_HASH.to_vec();
+    let mut entry_count = 0;
+    let mut last_seq = 0;
     for row in rows {
         let entry_hash = compute_entry_hash(&prev_hash, row.seq, &row.rec);
         tx.execute(
@@ -214,7 +383,17 @@ fn backfill_hash_chain(c: &mut Connection) -> Result<()> {
             rusqlite::params![prev_hash, entry_hash.to_vec(), row.seq],
         )?;
         prev_hash = entry_hash.to_vec();
+        entry_count += 1;
+        last_seq = row.seq;
     }
+    upsert_chain_head(
+        &tx,
+        &ChainHeadRecord {
+            entry_count,
+            last_seq,
+            last_hash: hex::encode(prev_hash),
+        },
+    )?;
     tx.commit()?;
     Ok(())
 }
@@ -274,6 +453,7 @@ impl EncryptedAuditStore {
     pub fn append(&self, rec: &AuditEntryRecord) -> Result<bool> {
         let mut c = self.conn.lock().unwrap();
         let tx = c.transaction()?;
+        ensure_chain_head_matches_current_rows(&tx)?;
         let previous = tx
             .query_row(
                 "SELECT seq, entry_hash FROM entries ORDER BY seq DESC LIMIT 1",
@@ -314,6 +494,15 @@ impl EncryptedAuditStore {
             "UPDATE entries SET entry_hash = ?1 WHERE seq = ?2",
             rusqlite::params![entry_hash.to_vec(), seq],
         )?;
+        let entry_count: i64 = tx.query_row("SELECT COUNT(*) FROM entries", [], |r| r.get(0))?;
+        upsert_chain_head(
+            &tx,
+            &ChainHeadRecord {
+                entry_count,
+                last_seq: seq,
+                last_hash: hex::encode(entry_hash),
+            },
+        )?;
         tx.commit()?;
         Ok(changed > 0)
     }
@@ -347,56 +536,37 @@ impl EncryptedAuditStore {
     pub fn verify_chain(&self) -> Result<AuditChainVerification> {
         let c = self.conn.lock().unwrap();
         let rows = read_chain_rows(&c)?;
-        let mut expected_prev = GENESIS_PREV_HASH.to_vec();
-        let mut checked = 0;
-
-        for row in rows {
-            let prev_hash = match row.prev_hash.as_deref() {
-                Some(hash) if is_hash32(hash) => hash,
-                _ => {
-                    return Ok(AuditChainVerification::Altered {
-                        seq: row.seq,
-                        id: row.rec.id,
-                        reason: "previous hash missing or invalid".into(),
-                        checked,
-                    });
-                }
-            };
-            if prev_hash != expected_prev.as_slice() {
+        let actual = match verify_rows_and_build_head(&rows) {
+            Ok(head) => head,
+            Err(altered) => return Ok(altered),
+        };
+        let stored = match read_chain_head(&c) {
+            Ok(Some(head)) => head,
+            Ok(None) => {
                 return Ok(AuditChainVerification::Altered {
-                    seq: row.seq,
-                    id: row.rec.id,
-                    reason: "previous hash link mismatch".into(),
-                    checked,
+                    seq: 0,
+                    id: "__chain_head__".into(),
+                    reason: "chain head missing".into(),
+                    checked: actual.entry_count,
                 });
             }
-
-            let expected_entry_hash = compute_entry_hash(prev_hash, row.seq, &row.rec);
-            let entry_hash = match row.entry_hash.as_deref() {
-                Some(hash) if is_hash32(hash) => hash,
-                _ => {
-                    return Ok(AuditChainVerification::Altered {
-                        seq: row.seq,
-                        id: row.rec.id,
-                        reason: "entry hash missing or invalid".into(),
-                        checked,
-                    });
-                }
-            };
-            if entry_hash != expected_entry_hash {
+            Err(_) => {
                 return Ok(AuditChainVerification::Altered {
-                    seq: row.seq,
-                    id: row.rec.id,
-                    reason: "entry hash mismatch".into(),
-                    checked,
+                    seq: 0,
+                    id: "__chain_head__".into(),
+                    reason: "chain head missing or invalid".into(),
+                    checked: actual.entry_count,
                 });
             }
+        };
 
-            expected_prev = entry_hash.to_vec();
-            checked += 1;
+        if let Some(altered) = compare_stored_head(&actual, &stored, &rows, actual.entry_count) {
+            return Ok(altered);
         }
 
-        Ok(AuditChainVerification::Verified { checked })
+        Ok(AuditChainVerification::Verified {
+            checked: actual.entry_count,
+        })
     }
 }
 
@@ -596,6 +766,52 @@ mod tests {
     }
 
     #[test]
+    fn hash_chain_detects_tail_truncation_against_stored_head() {
+        let (_d, s) = enc_store();
+        s.append(&rec("tail-1", "model_call")).unwrap();
+        s.append(&rec("tail-2", "egress")).unwrap();
+        s.append(&rec("tail-3", "file_update")).unwrap();
+        assert_eq!(
+            s.verify_chain().unwrap(),
+            AuditChainVerification::Verified { checked: 3 }
+        );
+
+        {
+            let c = s.conn.lock().unwrap();
+            c.execute("DELETE FROM entries WHERE id = 'tail-3'", [])
+                .unwrap();
+        }
+
+        assert_eq!(
+            s.verify_chain().unwrap(),
+            AuditChainVerification::Altered {
+                seq: 2,
+                id: "tail-2".into(),
+                reason: "tail truncated".into(),
+                checked: 2,
+            }
+        );
+    }
+
+    #[test]
+    fn append_updates_chain_head_after_normal_new_entry() {
+        let (_d, s) = enc_store();
+        s.append(&rec("head-1", "model_call")).unwrap();
+        s.append(&rec("head-2", "egress")).unwrap();
+        assert_eq!(
+            s.verify_chain().unwrap(),
+            AuditChainVerification::Verified { checked: 2 }
+        );
+
+        s.append(&rec("head-3", "file_update")).unwrap();
+
+        assert_eq!(
+            s.verify_chain().unwrap(),
+            AuditChainVerification::Verified { checked: 3 }
+        );
+    }
+
+    #[test]
     fn migration_backfills_existing_unchained_rows() {
         let dir = TempDir::new().unwrap();
         let key = [0x55u8; 32];
@@ -646,6 +862,56 @@ mod tests {
         assert_eq!(
             s.verify_chain().unwrap(),
             AuditChainVerification::Verified { checked: 2 }
+        );
+    }
+
+    #[test]
+    fn existing_hash_columns_with_all_null_hashes_are_not_resealed() {
+        let dir = TempDir::new().unwrap();
+        let key = [0x56u8; 32];
+        let db_path = EncryptedAuditStore::db_path(dir.path());
+        std::fs::create_dir_all(db_path.parent().unwrap()).unwrap();
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex::encode(key)))
+                .unwrap();
+            conn.execute_batch(
+                "CREATE TABLE entries (
+                    seq          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id           TEXT NOT NULL UNIQUE,
+                    timestamp    TEXT NOT NULL,
+                    action       TEXT NOT NULL,
+                    description  TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    prev_hash    BLOB,
+                    entry_hash   BLOB
+                );",
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO entries
+                    (id, timestamp, action, description, payload_json, prev_hash, entry_hash)
+                 VALUES (?1, ?2, ?3, ?4, ?5, NULL, NULL)",
+                rusqlite::params![
+                    "nulled-1",
+                    "2026-06-09T00:00:00Z",
+                    "model_call",
+                    "already had hash columns",
+                    "{\"n\":1}"
+                ],
+            )
+            .unwrap();
+        }
+
+        let s = EncryptedAuditStore::open_with_key(dir.path(), &key).expect("open store");
+        assert_eq!(
+            s.verify_chain().unwrap(),
+            AuditChainVerification::Altered {
+                seq: 1,
+                id: "nulled-1".into(),
+                reason: "previous hash missing or invalid".into(),
+                checked: 0,
+            }
         );
     }
 
