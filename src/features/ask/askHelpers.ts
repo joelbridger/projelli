@@ -110,23 +110,26 @@ export async function buildProviderAsync(): Promise<Provider> {
   if (isLocalOnlyMode()) {
     return new OllamaProvider({});
   }
-  // Personal-install choice gate (Task 1.3): a personal install must never reach
-  // a cloud provider for generation before the user has made an explicit
-  // confidentiality choice via Settings → Privacy. Retrieval (MemoryService) is
-  // called BEFORE this function and is unaffected — only generation is gated.
-  // Firm installs are a no-op (the gate checks isFirm first and passes through).
-  assertCloudGenerationAllowed();
+  // Personal-install choice gate (Task 1.3): a personal install must never reach a
+  // cloud provider for generation before the user has made an explicit confidentiality
+  // choice. Gate ONLY on the cloud branches, after confirming a cloud key exists, so a
+  // personal install with no cloud key still falls back to local Ollama (no egress).
+  // Retrieval (MemoryService) runs BEFORE this function and is unaffected. Firm installs
+  // are a no-op (the gate checks isFirm first and passes through).
   const kc = new KeychainService();
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) {
+    assertCloudGenerationAllowed();
     return new ClaudeProvider({ apiKey: anthropicKey.trim() });
   }
   const openaiKey = await kc.getKey('openai');
   if (openaiKey?.trim()) {
+    assertCloudGenerationAllowed();
     return new OpenAIProvider({ apiKey: openaiKey.trim() });
   }
   const googleKey = await kc.getKey('google');
   if (googleKey?.trim()) {
+    assertCloudGenerationAllowed();
     return new GeminiProvider({ apiKey: googleKey.trim() });
   }
   return new OllamaProvider({});

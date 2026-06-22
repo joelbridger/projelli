@@ -115,19 +115,27 @@ export async function buildProviderAsync(): Promise<Provider> {
   if (isLocalOnlyMode()) {
     return new OllamaProvider({});
   }
-  // Personal-install choice gate (Task 1.3 fix): email draft generation is cloud
-  // generation; block it until the user has made an explicit confidentiality choice.
-  // Called without a provider id because the choice applies to ANY cloud provider
-  // we might pick below. Local-only mode already returned above; firm installs
-  // are a no-op inside assertCloudGenerationAllowed (checks isFirm first).
-  assertCloudGenerationAllowed();
+  // Personal-install choice gate (Task 1.3): email draft generation is cloud generation,
+  // so block it until the user has made an explicit confidentiality choice. Gate ONLY on
+  // the cloud branches, after confirming a cloud key exists, so a personal install with no
+  // cloud key still falls back to local Ollama (no egress). Local-only mode already
+  // returned above; firm installs are a no-op inside assertCloudGenerationAllowed.
   const kc = createKeychainService();
   const anthropicKey = await kc.getKey('anthropic');
-  if (anthropicKey?.trim()) return createClaudeProvider({ apiKey: anthropicKey.trim() });
+  if (anthropicKey?.trim()) {
+    assertCloudGenerationAllowed();
+    return createClaudeProvider({ apiKey: anthropicKey.trim() });
+  }
   const openaiKey = await kc.getKey('openai');
-  if (openaiKey?.trim()) return createOpenAIProvider({ apiKey: openaiKey.trim() });
+  if (openaiKey?.trim()) {
+    assertCloudGenerationAllowed();
+    return createOpenAIProvider({ apiKey: openaiKey.trim() });
+  }
   const googleKey = await kc.getKey('google');
-  if (googleKey?.trim()) return createGeminiProvider({ apiKey: googleKey.trim() });
+  if (googleKey?.trim()) {
+    assertCloudGenerationAllowed();
+    return createGeminiProvider({ apiKey: googleKey.trim() });
+  }
   return new OllamaProvider({});
 }
 

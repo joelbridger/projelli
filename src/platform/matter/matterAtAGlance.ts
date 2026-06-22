@@ -71,22 +71,26 @@ export async function buildProviderForGlance(): Promise<Provider> {
   if (isLocalOnlyMode()) {
     return new OllamaProvider({});
   }
-  // Personal-install choice gate (Task 1.3 fix): at-a-glance auto-runs and sends
-  // matter context to a cloud AI; block it until the user has made an explicit
-  // confidentiality choice. Local-only mode already returned above; firm installs
-  // are a no-op inside assertCloudGenerationAllowed (checks isFirm first).
-  assertCloudGenerationAllowed();
+  // Personal-install choice gate (Task 1.3): at-a-glance auto-runs and sends matter
+  // context to a cloud AI, so block it until the user has made an explicit
+  // confidentiality choice. Gate ONLY on the cloud branches, after confirming a cloud
+  // key exists, so a personal install with no cloud key still falls back to local
+  // Ollama (no egress, nothing to gate). Local-only mode already returned above; firm
+  // installs are a no-op inside assertCloudGenerationAllowed (checks isFirm first).
   const kc = new KeychainService();
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) {
+    assertCloudGenerationAllowed();
     return new ClaudeProvider({ apiKey: anthropicKey.trim() });
   }
   const openaiKey = await kc.getKey('openai');
   if (openaiKey?.trim()) {
+    assertCloudGenerationAllowed();
     return new OpenAIProvider({ apiKey: openaiKey.trim() });
   }
   const googleKey = await kc.getKey('google');
   if (googleKey?.trim()) {
+    assertCloudGenerationAllowed();
     return new GeminiProvider({ apiKey: googleKey.trim() });
   }
   return new OllamaProvider({});

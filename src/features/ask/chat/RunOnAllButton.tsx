@@ -12,7 +12,7 @@
 //   - Requires 2+ DIFFERENT providers configured (Ollama-only setups are
 //     disallowed per the Phase 5 spec).
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { assertCloudGenerationAllowed, ConfidentialityChoiceRequiredError } from '@/platform/privacy/localOnlyGuard';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
@@ -67,8 +67,9 @@ export function RunOnAllButton({
   const [isRunning, setIsRunning] = useState(false);
 
   const hasComparison = tierHasFeature(tier, 'multi-model-comparison');
-  const distinctProviderIds = new Set(
-    providers.map((p) => p.id).filter((id) => id !== 'ollama')
+  const distinctProviderIds = useMemo(
+    () => new Set(providers.map((p) => p.id).filter((id) => id !== 'ollama')),
+    [providers],
   );
   const canRun = hasComparison && distinctProviderIds.size >= 2 && prompt.trim().length > 0;
 

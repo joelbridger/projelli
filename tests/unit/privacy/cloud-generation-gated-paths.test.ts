@@ -2,10 +2,11 @@
  * Task 1.3 FIX — Behavioral tests: every cloud-generation path is gated
  * before reaching a cloud AI provider on a personal install with no choice made.
  *
- * Strategy: For each path, verify the gate throws (or returns null) when
- * choiceMade=false on a personal install before any provider is constructed or
- * any network call is made. Also verify the gate is a no-op when choiceMade=true
- * (personal) or isFirm=true.
+ * Strategy: For each path, verify cloud generation is gated when choiceMade=false
+ * on a personal install (throws / returns null before any cloud provider is
+ * constructed), that a no-cloud-key personal install still falls back to local
+ * Ollama UNGATED (no egress, nothing to gate), and that the gate is a no-op when
+ * choiceMade=true (personal) or isFirm=true.
  *
  * Paths covered:
  *   1. matter at-a-glance (buildProviderForGlance / generateMatterAtAGlance)
@@ -184,9 +185,12 @@ describe('matter at-a-glance — cloud gated on personal install without choice'
   beforeEach(resetState);
   afterEach(() => vi.clearAllMocks());
 
-  it('throws ConfidentialityChoiceRequiredError when choiceMade=false (no cloud keys)', async () => {
-    // Gate fires before key lookup — even with no keys, the gate must throw
-    await expect(buildProviderForGlance()).rejects.toThrow(ConfidentialityChoiceRequiredError);
+  it('falls back to local Ollama when choiceMade=false and NO cloud key (no egress, not gated)', async () => {
+    // No cloud key: the path uses local Ollama, which egresses nothing, so the
+    // choice gate must NOT block it. Only the cloud branches are gated.
+    const provider = await buildProviderForGlance();
+    expect(provider.getMetadata().model).toBe('llama3');
+    expect(h.sendMessageCalled).toBe(false);
   });
 
   it('throws when choiceMade=false and cloud key is available — no cloud provider constructed', async () => {
@@ -243,11 +247,13 @@ describe('email Draft-with-AI — cloud gated on personal install without choice
   beforeEach(resetState);
   afterEach(() => vi.clearAllMocks());
 
-  it('throws ConfidentialityChoiceRequiredError when choiceMade=false', async () => {
-    await expect(buildProviderAsync()).rejects.toThrow(ConfidentialityChoiceRequiredError);
+  it('falls back to local Ollama when choiceMade=false and NO cloud key (no egress, not gated)', async () => {
+    const provider = await buildProviderAsync();
+    expect(provider.getMetadata().model).toBe('llama3');
+    expect(h.sendMessageCalled).toBe(false);
   });
 
-  it('throws even when a cloud key is present — gate fires before key lookup', async () => {
+  it('throws when choiceMade=false and a cloud key is present — gate fires on the cloud branch', async () => {
     h.anthropicKey = 'sk-test-key';
     await expect(buildProviderAsync()).rejects.toThrow(ConfidentialityChoiceRequiredError);
     expect(h.sendMessageCalled).toBe(false);
