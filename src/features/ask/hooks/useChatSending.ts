@@ -635,6 +635,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // that supports tool calling (Claude, OpenAI, Gemini) registers
         // the same closure below via its setTools method.
         const hasWorkspaceForTools = !!(workspaceServiceRef?.current && rootPath);
+        const useStreamingForThisSend = !isTauriProductionBuild() && !hasWorkspaceForTools;
         console.log('[AIChat DIAGNOSTIC] Workspace check:', {
           hasWorkspaceService: !!workspaceServiceRef?.current,
           rootPath,
@@ -1043,7 +1044,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // Firm "Assured" path: when confidentiality mode is 'assured' AND the
         // firm has a managed key for this provider, route the cloud call through
         // the zero-retention proxy. Undefined => BYOK-direct (unchanged).
-        const assuredRoute = resolveAssuredRoute(chatProvider, chatModel || '');
+        const assuredRoute = resolveAssuredRoute(chatProvider, chatModel || '', useStreamingForThisSend);
         const assuredOpt = assuredRoute ? { assured: assuredRoute } : {};
 
         if (IS_DEMO) {
@@ -1169,7 +1170,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
           `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
         ).join('\n\n');
 
-        const hasWorkspace = workspaceServiceRef?.current && rootPath;
+        const hasWorkspace = hasWorkspaceForTools;
         const workspaceInstructions = hasWorkspace
           ? `You are running inside Keepance, a local-first workspace app. The user's active workspace folder is "${rootPath}". You have direct access to this workspace via tools: read_file, write_file, create_folder, move_file, delete_file, list_files, search_files. When the user asks you to create, edit, organize, or look at files, USE THESE TOOLS directly — do not refuse, do not ask the user to create the file themselves, and do not pretend you can't access files. You CAN. All file paths should be relative to the workspace root. When creating .md files (documentation, notes, plans, etc.), just write them directly using write_file. After creating or modifying files, briefly confirm what you did.\n\n`
           : '';
@@ -1230,8 +1231,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
         }
 
         const useStreaming = provider.sendMessageStreaming
-          && !isTauriProductionBuild()
-          && !hasWorkspace;
+          && useStreamingForThisSend;
         if (useStreaming) {
           const abortController = new AbortController();
           abortControllerRef.current = abortController;
