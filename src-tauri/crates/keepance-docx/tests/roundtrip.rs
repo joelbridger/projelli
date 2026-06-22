@@ -1423,6 +1423,39 @@ fn build_package_with_metadata_and_revisions() -> Vec<u8> {
     pkg.write_to_bytes().expect("zip package with metadata")
 }
 
+fn build_package_with_residual_metadata_parts() -> Vec<u8> {
+    let document_xml = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Visible filing memo</w:t></w:r></w:p><w:sectPr/></w:body></w:document>"#;
+    let content_types = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/><Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/><Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/></Types>"#;
+    let root_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/><Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml"/></Relationships>"#;
+    let doc_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/></Relationships>"#;
+    let custom_props_xml = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="2" name="Matter"><vt:lpwstr>Globex privileged strategy</vt:lpwstr></property></Properties>"#;
+    let custom_xml = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<matterData><name>Globex privileged strategy</name></matterData>"#;
+    let item_props = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<ds:datastoreItem ds:itemID="{11111111-1111-1111-1111-111111111111}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"><ds:schemaRefs/></ds:datastoreItem>"#;
+    let custom_xml_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/></Relationships>"#;
+
+    let mut pkg = Package::new();
+    pkg.insert("[Content_Types].xml", content_types.as_bytes().to_vec());
+    pkg.insert("_rels/.rels", root_rels.as_bytes().to_vec());
+    pkg.insert("word/_rels/document.xml.rels", doc_rels.as_bytes().to_vec());
+    pkg.insert("word/document.xml", document_xml.as_bytes().to_vec());
+    pkg.insert(CORE_PROPS_PART, DIRTY_CORE_XML.as_bytes().to_vec());
+    pkg.insert(APP_PROPS_PART, DIRTY_APP_XML.as_bytes().to_vec());
+    pkg.insert("docProps/custom.xml", custom_props_xml.as_bytes().to_vec());
+    pkg.insert("customXml/item1.xml", custom_xml.as_bytes().to_vec());
+    pkg.insert("customXml/itemProps1.xml", item_props.as_bytes().to_vec());
+    pkg.insert("customXml/_rels/item1.xml.rels", custom_xml_rels.as_bytes().to_vec());
+    pkg.write_to_bytes()
+        .expect("zip package with residual metadata")
+}
+
 #[test]
 fn test_scrub_package_metadata_removes_core_and_app_fields() {
     // Sanity: the dirty inputs really do carry the identifying fields...
@@ -1479,17 +1512,29 @@ fn test_scrub_only_rewrites_metadata_parts() {
 }
 
 #[test]
-fn test_scrub_is_a_noop_when_no_metadata_parts() {
-    // A package with no docProps must be left exactly as-is (we never ADD a
-    // metadata part the producer chose not to include).
+fn test_scrub_without_standard_docprops_still_removes_custom_xml_metadata() {
+    // A package with no core/app docProps must not gain new standard metadata
+    // parts, but customXml is still a known hidden metadata store and is removed
+    // from clean-copy output.
     let original = build_rich_package_bytes(); // has no docProps
     let orig_pkg = Package::read_from_bytes(&original).unwrap();
     let mut pkg = orig_pkg.clone();
     scrub_package_metadata(&mut pkg);
     assert!(!pkg.contains(CORE_PROPS_PART), "scrub wrongly added core.xml");
     assert!(!pkg.contains(APP_PROPS_PART), "scrub wrongly added app.xml");
-    // Nothing else moved either.
-    assert_eq!(orig_pkg.parts, pkg.parts, "scrub mutated a metadata-free package");
+    assert!(
+        orig_pkg.contains("customXml/item1.xml"),
+        "test setup must include customXml"
+    );
+    assert!(
+        !pkg.contains("customXml/item1.xml"),
+        "scrub left hidden customXml metadata in place"
+    );
+    assert_eq!(
+        orig_pkg.get("word/document.xml"),
+        pkg.get("word/document.xml"),
+        "scrub changed visible document content"
+    );
 }
 
 #[test]
@@ -1571,6 +1616,57 @@ fn test_clean_copy_final_mode_has_no_revisions_or_comments() {
     assert_eq!(again, again2, "clean copy round-trip not idempotent");
 }
 
+fn build_package_with_table_revisions() -> Vec<u8> {
+    let document_xml = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Before </w:t></w:r><w:del w:id="44" w:author="Opposing Counsel" w:date="2026-06-01T00:00:00Z"><w:r><w:delText>SECRET OTHER MATTER</w:delText></w:r></w:del><w:ins w:id="45" w:author="Opposing Counsel" w:date="2026-06-01T00:00:00Z"><w:r><w:t>public table clause</w:t></w:r></w:ins><w:r><w:t> After</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:sectPr/></w:body></w:document>"#;
+    let content_types = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#;
+    let root_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#;
+
+    let mut pkg = Package::new();
+    pkg.insert("[Content_Types].xml", content_types.as_bytes().to_vec());
+    pkg.insert("_rels/.rels", root_rels.as_bytes().to_vec());
+    pkg.insert("word/document.xml", document_xml.as_bytes().to_vec());
+    pkg.write_to_bytes().expect("zip package with table revisions")
+}
+
+#[test]
+fn test_final_clean_accepts_tracked_changes_inside_raw_table_xml() {
+    let original = build_package_with_table_revisions();
+    let opened = open_docx_bytes(&original).expect("open table revisions");
+
+    let bytes = clean_copy_bytes(&opened, ScrubOptions::final_clean()).expect("final clean copy");
+    let pkg = Package::read_from_bytes(&bytes).expect("final clean copy is valid zip");
+    assert!(
+        validate_package(&pkg).ok(),
+        "final clean copy invalid: {:?}",
+        validate_package(&pkg).errors
+    );
+
+    let document_xml = pkg.get_str("word/document.xml").expect("document part");
+    assert!(
+        !document_xml.contains("SECRET OTHER MATTER"),
+        "deleted table text leaked into final clean copy: {document_xml}"
+    );
+    assert!(
+        !document_xml.contains("<w:del"),
+        "deletion markup survived final clean copy: {document_xml}"
+    );
+    assert!(
+        !document_xml.contains("delText"),
+        "deleted-text tag survived final clean copy: {document_xml}"
+    );
+    assert!(
+        !document_xml.contains("<w:ins"),
+        "insertion wrapper survived final clean copy: {document_xml}"
+    );
+    assert!(
+        document_xml.contains("public table clause"),
+        "accepted insertion text inside table was not kept: {document_xml}"
+    );
+}
+
 #[test]
 fn test_clean_copy_preserves_unmodeled_parts() {
     // Preserve-by-default still holds through a clean copy: the unmodeled
@@ -1586,6 +1682,58 @@ fn test_clean_copy_preserves_unmodeled_parts() {
         orig_pkg.get("word/styles.xml"),
         pkg.get("word/styles.xml"),
         "unmodeled styles.xml must survive a clean copy byte-for-byte"
+    );
+}
+
+#[test]
+fn test_final_clean_removes_custom_properties_and_custom_xml_metadata() {
+    let original = build_package_with_residual_metadata_parts();
+    let opened = open_docx_bytes(&original).expect("open residual metadata docx");
+
+    let bytes = clean_copy_bytes(&opened, ScrubOptions::final_clean()).expect("final clean copy");
+    let pkg = Package::read_from_bytes(&bytes).expect("final clean copy is valid zip");
+    assert!(
+        validate_package(&pkg).ok(),
+        "final clean copy invalid: {:?}",
+        validate_package(&pkg).errors
+    );
+    parse_docx_bytes(&bytes).expect("final clean copy still parses");
+
+    assert!(!pkg.contains("docProps/custom.xml"), "custom properties part survived");
+    assert!(!pkg.contains("customXml/item1.xml"), "custom XML item survived");
+    assert!(
+        !pkg.part_names().any(|name| name.starts_with("customXml/")),
+        "customXml package parts survived: {:?}",
+        pkg.part_names().collect::<Vec<_>>()
+    );
+
+    let all_xml = pkg
+        .parts
+        .values()
+        .map(|bytes| String::from_utf8_lossy(bytes))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !all_xml.contains("Globex privileged strategy"),
+        "residual metadata payload leaked into final clean copy: {all_xml}"
+    );
+    assert!(
+        !pkg.get_str("[Content_Types].xml")
+            .unwrap()
+            .contains("docProps/custom.xml"),
+        "content-types still points at removed custom properties"
+    );
+    assert!(
+        !pkg.get_str("_rels/.rels")
+            .unwrap()
+            .contains("custom-properties"),
+        "root relationships still point at removed custom properties"
+    );
+    assert!(
+        !pkg.get_str("word/_rels/document.xml.rels")
+            .unwrap_or_default()
+            .contains("customXml"),
+        "document relationships still point at removed custom XML"
     );
 }
 
