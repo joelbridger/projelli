@@ -554,19 +554,30 @@ impl MailStore for SqliteMailStore {
 // ---------------------------------------------------------------------------
 
 use crate::commands::mail::crypto::{decrypt_with_key, encrypt_with_key};
+use sha2::{Digest, Sha256};
 
 pub struct EncryptedMailStore {
     conn: std::sync::Mutex<Connection>,
     workspace_root: PathBuf,
 }
 
-/// Sanitize an arbitrary message id into a filesystem-safe filename component.
-/// Only alphanumerics and hyphens are preserved; anything else becomes '_'.
-/// This prevents path-traversal attacks (e.g. ids containing '/' or '..').
-fn safe_id(id: &str) -> String {
-    id.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '_' })
-        .collect()
+/// Collision-safe encrypted body filename. The original provider id stays in
+/// SQL; the filesystem only sees this fixed-width digest.
+pub(crate) fn encrypted_blob_filename(provider: &str, account: &str, id: &str) -> String {
+    let mut h = Sha256::new();
+    h.update(provider.as_bytes());
+    h.update([0]);
+    h.update(account.as_bytes());
+    h.update([0]);
+    h.update(id.as_bytes());
+    format!("{}.enc", hex::encode(h.finalize()))
+}
+
+pub(crate) fn encrypted_blob_relative_path(provider: &str, account: &str, id: &str) -> String {
+    format!(
+        ".keepance/mail/blobs/{}",
+        encrypted_blob_filename(provider, account, id)
+    )
 }
 
 impl EncryptedMailStore {
@@ -636,7 +647,7 @@ impl EncryptedMailStore {
         Self::open_with_key(workspace_root, &key)
     }
 
-    /// Encrypt `plaintext` and write to `.keepance/mail/blobs/<safe-id>.enc`
+    /// Encrypt `plaintext` and write to `.keepance/mail/blobs/<sha256>.enc`
     /// (relative to `workspace_root`). Returns the relative path.
     pub fn write_blob_with_key(
         &self,
@@ -644,14 +655,15 @@ impl EncryptedMailStore {
         plaintext: &[u8],
         key: &[u8; 32],
     ) -> Result<String> {
-        let blob_dir = self.workspace_root.join(".keepance").join("mail").join("blobs");
-        std::fs::create_dir_all(&blob_dir).context("create blobs dir")?;
-        let filename = format!("{}.enc", safe_id(id));
-        let abs = blob_dir.join(&filename);
+        let rel = encrypted_blob_relative_path("", "", id);
+        let abs = self.workspace_root.join(&rel);
+        if let Some(parent) = abs.parent() {
+            std::fs::create_dir_all(parent).context("create blobs dir")?;
+        }
         let encrypted = encrypt_with_key(plaintext, key)?;
         std::fs::write(&abs, &encrypted)
             .with_context(|| format!("write blob {}", abs.display()))?;
-        Ok(format!(".keepance/mail/blobs/{}", filename))
+        Ok(rel)
     }
 
     /// Decrypt and return the contents of an encrypted blob at `rel`
@@ -1300,6 +1312,34 @@ mod tests {
         // Path-traversal chars must be sanitized; blob must land under blobs/.
         assert!(rel.starts_with(".keepance/mail/blobs/"));
         assert!(!rel.contains(".."));
+    }
+
+    #[test]
+    fn write_blob_paths_are_collision_safe_for_punctuation_ids() {
+        let (_d, s) = enc_store();
+        let key = [0x42u8; 32];
+        let ids = ["a/b", "a_b", "a:b", "a@b"];
+        let mut rels = std::collections::HashSet::new();
+
+        for id in ids {
+            let rel = s.write_blob_with_key(id, id.as_bytes(), &key).unwrap();
+            assert!(rels.insert(rel.clone()), "{id} reused blob path {rel}");
+        }
+
+        assert_eq!(rels.len(), ids.len());
+    }
+
+    #[test]
+    fn encrypted_blob_path_includes_provider_and_account_in_digest() {
+        let same_id = "same-remote-id";
+        let gmail = encrypted_blob_relative_path("gmail", "acct-a", same_id);
+        let m365 = encrypted_blob_relative_path("m365", "acct-a", same_id);
+        let other_account = encrypted_blob_relative_path("gmail", "acct-b", same_id);
+
+        assert_ne!(gmail, m365);
+        assert_ne!(gmail, other_account);
+        assert!(gmail.starts_with(".keepance/mail/blobs/"));
+        assert!(gmail.ends_with(".enc"));
     }
 
     #[test]

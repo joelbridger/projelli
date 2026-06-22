@@ -4,7 +4,7 @@ use crate::commands::mail::graph::{page_continuation, Continuation, DeltaGone, G
 use crate::commands::mail::model::{BodyContentType, MailMessage};
 use crate::commands::mail::normalize::to_markdown;
 use crate::commands::mail::provider::{Cursor, MailProvider, RemoteFolder};
-use crate::commands::mail::store::{MailRecord, MailStore};
+use crate::commands::mail::store::{encrypted_blob_relative_path, MailRecord, MailStore};
 use std::path::Path;
 
 #[derive(Debug, Default, PartialEq)]
@@ -12,8 +12,10 @@ pub struct PageStats { pub written: u32, pub removed: u32 }
 
 /// Max consecutive 410 (delta-token-expired) resets before a folder sync gives
 /// up, so a server stuck returning 410 cannot loop indefinitely.
+#[cfg(test)]
 const MAX_DELTA_RESETS: u32 = 3;
 
+#[cfg(test)]
 fn safe_filename(id: &str) -> String {
     id.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect()
 }
@@ -112,14 +114,13 @@ where
     }
     for msg in messages {
         let markdown = to_markdown(msg);
-        let blob_dir = workspace_root.join(".keepance").join("mail").join("blobs");
-        std::fs::create_dir_all(&blob_dir)?;
-        let safe = safe_filename(&msg.id);
-        let blob_filename = format!("{}.enc", safe);
-        let blob_abs = blob_dir.join(&blob_filename);
+        let rel = encrypted_blob_relative_path(provider, account, &msg.id);
+        let blob_abs = workspace_root.join(&rel);
+        if let Some(parent) = blob_abs.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
         let encrypted = encrypt_with_key(markdown.as_bytes(), key)?;
         std::fs::write(&blob_abs, &encrypted)?;
-        let rel = format!(".keepance/mail/blobs/{}", blob_filename);
         // Build a ~200-char plaintext snippet from the body for the list surface.
         // Newlines are collapsed to spaces; HTML bodies are stripped to text first
         // so the snippet shows readable prose rather than raw markup.
@@ -170,7 +171,7 @@ where
 /// Differences from `apply_page`:
 ///   - Does NOT write Mail/*.md plaintext files.
 ///   - Writes each message body as an AES-256-GCM blob under
-///     `.keepance/mail/blobs/<safe-id>.enc` using `key`.
+///     `.keepance/mail/blobs/<sha256(provider,account,id)>.enc` using `key`.
 ///   - After writing the blob, calls `index_callback(id, markdown_plaintext)`
 ///     so the caller can feed the decrypted text to the RAG indexer and keyword
 ///     index in memory without the text ever touching disk.
