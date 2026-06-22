@@ -13,6 +13,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SETTINGS_SCHEMA, getSchemaDefaults, type SettingDefinition } from '@/platform/settings/schema';
+import {
+  TEMPLATE_MODEL_OVERRIDES_KEY,
+  sanitizeTemplateModelOverrides,
+} from '@/platform/settings/templateModelOverrides';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 
 /**
@@ -57,6 +61,10 @@ type SanitizedSettingValue =
   | { valid: false };
 
 function sanitizeSettingValue(key: string, value: unknown): SanitizedSettingValue {
+  if (key === TEMPLATE_MODEL_OVERRIDES_KEY) {
+    const sanitized = sanitizeTemplateModelOverrides(value);
+    return sanitized ? { valid: true, value: sanitized } : { valid: false };
+  }
   const def = defByKey.get(key);
   if (!def) return { valid: false };
   if (isValidSettingValue(def, value)) return { valid: true, value };
@@ -190,6 +198,12 @@ export const useSettingsStore = create<SettingsState>()(
         for (const def of SETTINGS_SCHEMA) {
           const stored = get().values[def.key];
           merged[def.key] = stored !== undefined ? stored : def.defaultValue;
+        }
+        const templateModelOverrides = sanitizeTemplateModelOverrides(
+          get().values[TEMPLATE_MODEL_OVERRIDES_KEY],
+        );
+        if (templateModelOverrides) {
+          merged[TEMPLATE_MODEL_OVERRIDES_KEY] = templateModelOverrides;
         }
         return JSON.stringify(merged, null, 2);
       },

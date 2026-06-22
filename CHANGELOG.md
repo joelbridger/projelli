@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Settings transfer now preserves per-workflow model pins (BUG-090).** Export/import includes the structured `templateModelOverrides` map, so workflows pinned to a local Ollama model keep that pin after a settings transfer instead of silently reverting to the cloud default.
+  - Files modified: `src/platform/settings/settingsStore.ts`, `src/platform/settings/templateModelOverrides.ts`, `src/features/workflows/engine/resolveTemplateModel.ts`
+  - Tests: `tests/unit/stores/settings-import.test.ts`
 - **Settings confidentiality mode now fails closed when persisted data is stale or invalid (BUG-089).** The settings store has a persisted schema version and migration that validates saved settings during rehydrate; invalid privacy-critical enum values such as `confidentialityMode: "local"` are sanitized to `local-only`, and read-time access also returns the safe local-only mode instead of falling through to cloud/BYOK direct.
   - Files modified: `src/platform/settings/settingsStore.ts`, `src/platform/hooks/useConfidentialityMode.ts`
   - Tests: `tests/unit/stores/settings-import.test.ts`
