@@ -139,7 +139,7 @@ This guide describes how [Firm name] organizes and retains client records, inclu
 | Proxy voting records (if applicable) | 3 years | 5 years | |
 | Marketing materials and advertisements | 5 years | 7 years | Includes website and social media records |
 
-**[COMPLIANCE NOTE]** This table reflects general Rule 204-2 requirements. State investment adviser laws in {{accountTypes — reference any state-specific clients mentioned}} may impose longer retention periods. Verify state requirements with a securities attorney before finalizing this table.
+**[COMPLIANCE NOTE]** This table reflects general Rule 204-2 requirements. State investment adviser laws in any states reflected in the account and client description ({{accountTypes}}) may impose longer retention periods. Verify state requirements with a securities attorney before finalizing this table.
 
 **"Accessible storage" note:** Rule 204-2 requires that records for the first two years of the retention period be maintained in an "easily accessible place." Confirm with your compliance professional what systems satisfy this requirement for your firm.
 

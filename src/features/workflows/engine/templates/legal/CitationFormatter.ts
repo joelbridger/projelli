@@ -113,7 +113,8 @@ Format each entry as follows:
 
 ---
 
-{{#if toaRequired}}
+If {{toaRequired}} indicates that a Table of Authorities is required, include the following section. If {{toaRequired}} indicates formatted citations only, omit this entire Table of Authorities section.
+
 ### Table of Authorities
 
 Produce a complete Table of Authorities in standard court format. Organize citations into the standard categories. Within each category, list citations in the order they should appear (cases: alphabetically or as first cited; statutes/regs: by code section; secondary sources: alphabetically).
@@ -153,7 +154,6 @@ Produce a complete Table of Authorities in standard court format. Organize citat
 [Restatements, treatises, law review articles, etc.]
 
 *Note: Fill in the "Pages" column with the page numbers where each authority appears in your document before filing. Verify all formatted citations against the current Bluebook before submitting the TOA.*
-{{/if}}
 
 ---
 

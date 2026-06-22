@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **BUG-097: Workflow templates no longer leak raw `{{token}}` syntax into generated documents.** Unsupported template tokens in legal, tax, and advisor prompts now use plain engine-supported `{{wordName}}` inputs plus normal prose instructions, and a unit test now checks all built-in workflow prompts for this class of bug.
+  - Files modified: `BooksRecordsRetentionNote.ts`, `RegBIDocumentation.ts`, `RegSPSafeguardsOutline.ts`, `CitationFormatter.ts`, `EngagementLetterDrafter.ts`, `QuarterlyEstimateReminder.ts`, `tests/unit/workflow-template-tokens.test.ts`
 - **Workflow interviews now render `multiselect` questions, so the Privilege Log Drafter is completable (BUG-096).** `InterviewForm` only rendered `text`, `textarea`, and `select` field types; the Privilege Log Drafter's required "Privilege types applicable" question is a `multiselect`, so it rendered no control at all and the required-field check could never pass — the workflow was impossible to run. `InterviewForm` now renders `multiselect` as a checkbox group whose answer is a comma-joined string, compatible with the existing string-based validation and `{{placeholder}}` substitution. Verified live on Windows end-to-end: the workflow now completes and emits the full audit chain (AI Request Sent → Model Call → File Created → Workflow Completed, all with the real `gpt-4o` model) and produces `PRIVILEGE_LOG.docx`.
   - Files modified: `src/features/workflows/InterviewForm.tsx`
   - Tests: `tests/unit/InterviewForm.multiselect.test.tsx`
