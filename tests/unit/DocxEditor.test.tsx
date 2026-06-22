@@ -31,7 +31,7 @@ vi.mock('@/features/documents/docx/redline', async (importOriginal) => {
   };
 });
 vi.mock('@/platform/providers/providerFactory', () => ({
-  createProvider: vi.fn(() => ({ structuredOutput: vi.fn() })),
+  createProvider: vi.fn(() => ({ structuredOutput: vi.fn(), getMetadata: () => ({ model: 'gpt-4o' }) })),
   // WS-C honesty — DocxEditor now imports this to decide if the redline is
   // local (Ollama, keyless) vs cloud. These tests use the default cloud
   // provider, so it returns false; keep the real semantics (only 'ollama').
