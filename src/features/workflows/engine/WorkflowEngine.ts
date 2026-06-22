@@ -12,8 +12,20 @@ import type {
   AnalyzeStepConfig,
   ContradictionAnalysisResult,
 } from '@/platform/types/workflow';
-import type { Provider } from '@/platform/providers/Provider';
+import type {
+  Provider,
+  ProviderResponse,
+  SendOptions,
+  StructuredOutputOptions,
+  StreamOptions,
+} from '@/platform/providers/Provider';
 import type { RetrievalScope } from '@/platform/utils/tauri-commands';
+import type { AuditEntry, AuditScope } from '@/platform/types/audit';
+import { auditEventToEntry } from '@/platform/audit/AuditService';
+import {
+  resolveEgress,
+  type ConfidentialityMode,
+} from '@/platform/privacy/egress';
 import {
   runContradictionAnalysis,
   type RetrieveFn,
@@ -91,6 +103,16 @@ export type ProgressHandler = (
  */
 export type CommunityTemplatesProvider = () => Promise<WorkflowTemplate[]>;
 
+export interface WorkflowAuditOptions {
+  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+  providerId: string;
+  model?: string;
+  getConfidentialityMode: () => ConfidentialityMode;
+  getScope?: () => AuditScope;
+  assuredAvailable?: boolean;
+  isDemo?: boolean;
+}
+
 export interface WorkflowEngineOptions {
   /**
    * Stream C1 — Built-in templates the engine should surface alongside any
@@ -108,6 +130,12 @@ export interface WorkflowEngineOptions {
    * steps with a clear error rather than emitting an ungrounded document.
    */
   analyzeDeps?: AnalyzeDeps;
+  /**
+   * BUG-080 — audit callback supplied by the app runner. The engine owns the
+   * exact provider-call and artifact-write moments, so it emits the same audit
+   * rows chat does without creating a second audit sink.
+   */
+  audit?: WorkflowAuditOptions;
 }
 
 /**
@@ -119,6 +147,7 @@ export class WorkflowEngine {
   private readonly builtInTemplates: WorkflowTemplate[];
   private readonly getCommunityTemplates: CommunityTemplatesProvider;
   private readonly analyzeDeps: AnalyzeDeps | undefined;
+  private readonly audit: WorkflowAuditOptions | undefined;
 
   constructor(
     private readonly provider: Provider,
@@ -131,6 +160,7 @@ export class WorkflowEngine {
     this.getCommunityTemplates =
       options.getCommunityTemplates ?? (() => Promise.resolve([]));
     this.analyzeDeps = options.analyzeDeps;
+    this.audit = options.audit;
   }
 
   /**
@@ -174,6 +204,10 @@ export class WorkflowEngine {
     };
 
     this.toolCalls = [];
+    this.emitWorkflowAudit('workflow_start', template, {
+      runId,
+      startedAt: startTime.toISOString(),
+    });
 
     try {
       // Execute each step in sequence
@@ -195,6 +229,12 @@ export class WorkflowEngine {
       this.execution.status = 'completed';
       this.execution.endTime = new Date();
 
+      this.emitWorkflowAudit('workflow_complete', template, {
+        runId,
+        startedAt: startTime.toISOString(),
+        completedAt: this.execution.endTime.toISOString(),
+      });
+
       return this.createRunRecord();
     } catch (error) {
       this.execution.status = 'failed';
@@ -207,8 +247,217 @@ export class WorkflowEngine {
         this.onProgress?.(stepIndex, step.name, 'failed');
       }
 
+      this.emitWorkflowAudit('workflow_fail', template, {
+        runId,
+        startedAt: startTime.toISOString(),
+        failedAt: this.execution.endTime.toISOString(),
+        error: this.execution.error,
+      });
+
       return this.createRunRecord();
     }
+  }
+
+  private emitAudit(entry: Omit<AuditEntry, 'id' | 'timestamp'>): void {
+    this.audit?.onAuditLog?.(entry);
+  }
+
+  private workflowAuditBase(
+    template: WorkflowTemplate,
+    extras: Record<string, unknown>,
+  ): Omit<AuditEntry, 'id' | 'timestamp'> {
+    return {
+      action: 'workflow_start',
+      description: `Started workflow: ${template.name}`,
+      model: this.audit?.model ?? this.provider.getMetadata().model,
+      inputs: { workflowId: template.id, workflowName: template.name },
+      outputs: {},
+      userDecision: 'auto',
+      metadata: {
+        feature: 'workflow',
+        workflowId: template.id,
+        workflowName: template.name,
+        provider: this.audit?.providerId ?? this.provider.getMetadata().providerId,
+        ...(this.audit?.getScope ? { scope: this.audit.getScope() } : {}),
+        ...extras,
+      },
+    };
+  }
+
+  private emitWorkflowAudit(
+    action: 'workflow_start' | 'workflow_complete' | 'workflow_fail',
+    template: WorkflowTemplate,
+    extras: Record<string, unknown>,
+  ): void {
+    const entry = this.workflowAuditBase(template, extras);
+    const descriptions = {
+      workflow_start: `Started workflow: ${template.name}`,
+      workflow_complete: `Completed workflow: ${template.name}`,
+      workflow_fail: `Workflow failed: ${template.name}`,
+    };
+    this.emitAudit({
+      ...entry,
+      action,
+      description: descriptions[action],
+      outputs: action === 'workflow_fail'
+        ? { success: false, error: extras['error'] }
+        : action === 'workflow_complete'
+          ? { success: true }
+          : {},
+    });
+  }
+
+  private emitEgressAudit(step: WorkflowStep): void {
+    if (!this.audit?.onAuditLog) return;
+    const mode = this.audit.getConfidentialityMode();
+    const egress = resolveEgress({
+      provider: this.audit.providerId,
+      mode,
+      isDemo: this.audit.isDemo ?? false,
+      assuredAvailable: this.audit.assuredAvailable ?? false,
+    });
+    const entry = auditEventToEntry({
+      type: 'egress',
+      timestamp: new Date().toISOString(),
+      payload: {
+        provider: egress.provider,
+        ...(this.audit.model !== undefined ? { model: this.audit.model } : {}),
+        mode,
+        destination: egress.destination,
+        dataLeaves: egress.dataLeaves,
+        ...(this.audit.getScope ? { scope: this.audit.getScope() } : {}),
+      },
+    });
+    this.emitAudit({
+      ...entry,
+      metadata: {
+        ...entry.metadata,
+        feature: 'workflow',
+        workflowId: this.execution?.template.id,
+        workflowName: this.execution?.template.name,
+        runId: this.execution?.runId,
+        stepId: step.id,
+        stepName: step.name,
+      },
+    });
+  }
+
+  private emitModelCallAudit(
+    step: WorkflowStep,
+    callKind: 'generate' | 'review' | 'analyze',
+    prompt: string,
+    response: unknown,
+  ): void {
+    if (!this.audit?.onAuditLog) return;
+    const provider = this.audit.providerId;
+    const model = this.audit.model ?? this.provider.getMetadata().model;
+    const isProviderResponse =
+      typeof response === 'object' &&
+      response !== null &&
+      'usage' in response &&
+      'cost' in response;
+    const usage = isProviderResponse ? (response as ProviderResponse).usage : undefined;
+    const cost = isProviderResponse ? (response as ProviderResponse).cost : undefined;
+    const contentLength = isProviderResponse
+      ? (response as ProviderResponse).content.length
+      : JSON.stringify(response ?? null).length;
+    this.emitAudit({
+      action: 'model_call',
+      description: `Workflow ${callKind}: ${step.name}`,
+      model,
+      inputs: { promptLength: prompt.length, workflowId: this.execution?.template.id, stepId: step.id },
+      outputs: { contentLength },
+      userDecision: 'auto',
+      metadata: {
+        feature: 'workflow',
+        runId: this.execution?.runId,
+        workflowId: this.execution?.template.id,
+        workflowName: this.execution?.template.name,
+        stepId: step.id,
+        stepName: step.name,
+        callKind,
+        provider,
+      },
+      ...(usage ? { tokensIn: usage.inputTokens, tokensOut: usage.outputTokens } : {}),
+      ...(typeof cost === 'number' ? { costUsd: cost } : {}),
+      provider,
+    });
+  }
+
+  private emitFileCreateAudit(path: string, step: WorkflowStep): void {
+    if (!this.audit?.onAuditLog) return;
+    this.emitAudit({
+      action: 'file_create',
+      description: `Workflow created file: ${path}`,
+      model: this.audit.model ?? this.provider.getMetadata().model,
+      inputs: { path },
+      outputs: { success: true },
+      userDecision: 'auto',
+      metadata: {
+        feature: 'workflow',
+        runId: this.execution?.runId,
+        workflowId: this.execution?.template.id,
+        workflowName: this.execution?.template.name,
+        stepId: step.id,
+        stepName: step.name,
+        provider: this.audit.providerId,
+        ...(this.audit.getScope ? { scope: this.audit.getScope() } : {}),
+      },
+      provider: this.audit.providerId,
+    });
+  }
+
+  private async auditedSendMessage(
+    step: WorkflowStep,
+    callKind: 'generate' | 'review',
+    prompt: string,
+    options?: SendOptions,
+  ): Promise<ProviderResponse> {
+    this.emitEgressAudit(step);
+    const response = await this.provider.sendMessage(prompt, options);
+    this.emitModelCallAudit(step, callKind, prompt, response);
+    return response;
+  }
+
+  private auditedProvider(step: WorkflowStep, callKind: 'analyze'): Provider {
+    const base = this.provider;
+    const sendMessageStreaming = base.sendMessageStreaming?.bind(base);
+    const toolCall = base.toolCall?.bind(base);
+    const supportsNativePdf = base.supportsNativePdf?.bind(base);
+    const audited = {
+      getMetadata: () => base.getMetadata(),
+      ...(base.isConfigured ? { isConfigured: () => base.isConfigured?.() ?? false } : {}),
+      sendMessage: (prompt: string, options?: SendOptions) =>
+        this.auditedSendMessage(step, 'generate', prompt, options),
+      ...(sendMessageStreaming
+        ? {
+          sendMessageStreaming: async (prompt: string, options: StreamOptions) => {
+            this.emitEgressAudit(step);
+            const response = await sendMessageStreaming(prompt, options);
+            this.emitModelCallAudit(step, 'generate', prompt, response);
+            return response;
+          },
+        }
+        : {}),
+      ...(toolCall
+        ? {
+          toolCall: <T,>(tool: string, params: Record<string, unknown>, options?: SendOptions) =>
+            toolCall<T>(tool, params, options),
+        }
+        : {}),
+      structuredOutput: async <T,>(prompt: string, options: StructuredOutputOptions) => {
+        this.emitEgressAudit(step);
+        const response = await base.structuredOutput<T>(prompt, options);
+        this.emitModelCallAudit(step, callKind, prompt, response);
+        return response;
+      },
+      formatAttachmentForRequest: (att, bytes) => base.formatAttachmentForRequest(att, bytes),
+      supportsAttachment: (att, model) => base.supportsAttachment(att, model),
+      ...(supportsNativePdf
+        ? { supportsNativePdf: (model: string) => supportsNativePdf(model) }
+        : {}),
+    } satisfies Provider;
+    return audited;
   }
 
   /**
@@ -260,7 +509,7 @@ export class WorkflowEngine {
 
     // Call the provider
     const sendOptions = config.systemPrompt ? { systemPrompt: config.systemPrompt } : undefined;
-    const response = await this.provider.sendMessage(prompt, sendOptions);
+    const response = await this.auditedSendMessage(step, 'generate', prompt, sendOptions);
 
     // Record tool call
     this.toolCalls.push({
@@ -284,7 +533,7 @@ export class WorkflowEngine {
     // opens in the Word-familiar editor (not raw markdown). This establishes
     // the workflow → Office pattern for every `generate` template; the legal
     // flagship adds structured findings on top via the `analyze` step.
-    await this.writeDeliverable(config.outputFile, response.content);
+    await this.writeDeliverable(step, config.outputFile, response.content);
 
     return {
       [`${step.id}_output`]: response.content,
@@ -301,7 +550,11 @@ export class WorkflowEngine {
    * markdown sibling when the path is `.docx` but no binary writer is wired
    * (keeps browser/test callers that only supply `writeFile` working).
    */
-  private async writeDeliverable(outputFile: string, markdownContent: string): Promise<void> {
+  private async writeDeliverable(
+    step: WorkflowStep,
+    outputFile: string,
+    markdownContent: string,
+  ): Promise<void> {
     const isDocx = outputFile.toLowerCase().endsWith('.docx');
     if (isDocx && this.fileOps.writeFileBinary) {
       const { markdownToDocxBytes, applyLetterheadIfConfigured } = await import('@/platform/utils/docx-io');
@@ -310,6 +563,7 @@ export class WorkflowEngine {
       // (opt-in; fail-open: pass-through when unset, not in Tauri, or on error).
       const finalBytes = await applyLetterheadIfConfigured(bytes);
       await this.fileOps.writeFileBinary(outputFile, finalBytes);
+      this.emitFileCreateAudit(outputFile, step);
       return;
     }
     if (isDocx) {
@@ -317,9 +571,11 @@ export class WorkflowEngine {
       // still produces a readable artifact rather than corrupt bytes.
       const mdPath = outputFile.replace(/\.docx$/i, '.md');
       await this.fileOps.writeFile(mdPath, markdownContent);
+      this.emitFileCreateAudit(mdPath, step);
       return;
     }
     await this.fileOps.writeFile(outputFile, markdownContent);
+    this.emitFileCreateAudit(outputFile, step);
   }
 
   /**
@@ -342,7 +598,7 @@ export class WorkflowEngine {
     const callId = this.generateCallId();
 
     // Call the provider
-    const response = await this.provider.sendMessage(prompt);
+    const response = await this.auditedSendMessage(step, 'review', prompt);
 
     // Record tool call
     this.toolCalls.push({
@@ -401,7 +657,7 @@ export class WorkflowEngine {
     // Grounded, cited analysis. `analyzeKind` selects the pipeline; today the
     // litigation flagship is `'contradictions'`.
     const { result, chunks, retrievalQuery, retrievalUnavailable } = await runContradictionAnalysis({
-      provider: this.provider,
+      provider: this.auditedProvider(step, 'analyze'),
       config,
       inputs,
       scope,
@@ -442,6 +698,7 @@ export class WorkflowEngine {
     const { applyLetterheadIfConfigured } = await import('@/platform/utils/docx-io');
     const finalBytes = await applyLetterheadIfConfigured(bytes);
     await this.fileOps.writeFileBinary(config.outputFile, finalBytes);
+    this.emitFileCreateAudit(config.outputFile, step);
 
     // Record the analyze tool call. The scope + retrieval query + counts make
     // the run auditable: what matter it was confined to, what it searched for,

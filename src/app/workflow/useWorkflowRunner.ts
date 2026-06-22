@@ -33,7 +33,9 @@ import { MemoryService } from '@/platform/rag/MemoryService';
 import { getActiveScope } from '@/platform/matter/matterStore';
 import { ragVerifyCitation, type RetrievalScope } from '@/platform/utils/tauri-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
+import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
+import type { Provider } from '@/platform/providers/Provider';
 import type {
   WorkflowTemplate,
   WorkflowExecution,
@@ -323,8 +325,25 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         console.log('testMode: using mock provider (no real keys configured)');
       }
 
+      const workflowAuditProvider =
+        providerResolution.kind === 'cloud'
+          ? providerResolution.provider === 'claude'
+            ? 'anthropic'
+            : providerResolution.provider === 'gemini'
+              ? 'google'
+              : providerResolution.provider
+          : providerResolution.kind === 'ollama'
+            ? 'ollama'
+            : 'mock';
+      const getWorkflowAuditScope = (): AuditScope => {
+        const scope = getActiveScope();
+        return scope.kind === 'matter'
+          ? { kind: 'matter', matterId: scope.matterId }
+          : { kind: 'allMatters' };
+      };
+
       const engine = createWorkflowEngine(
-        provider,
+        provider as Provider,
         {
           writeFile: async (path: string, content: string) => {
             // Write files inside the workflow folder
@@ -414,6 +433,14 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
             const svc = templatesMarketplaceServiceRef.current;
             if (!reader || !svc) return [];
             return reader.list(svc);
+          },
+          audit: {
+            onAuditLog: addAuditEntry,
+            providerId: workflowAuditProvider,
+            model: (provider as Provider).getMetadata().model,
+            getConfidentialityMode,
+            getScope: getWorkflowAuditScope,
+            isDemo: IS_DEMO,
           },
           // WS-D — litigation `analyze` step dependencies. Retrieval is scoped to
           // the ACTIVE matter and privilege is EXCLUDED (the safe default on
