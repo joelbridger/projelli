@@ -184,8 +184,8 @@ function App() {
   // this writes every AI-action audit entry to a SQLCipher-ENCRYPTED store at
   // rest; in the browser it falls back to (unencrypted) localStorage. Created
   // once and pointed at the active workspace in `handleWorkspaceSelected`. The
-  // `auditEntries` React state below is the live view; `addAuditEntry` both
-  // updates that state and persists through this service.
+  // `auditEntries` React state below is the live view; `addAuditEntry` adds a
+  // pending row immediately, then refreshes its saved/failed status later.
   const auditServiceRef = useRef<AuditService>(new AuditService());
 
   // Stream C1 — Templates Marketplace service. Constructed once when a
@@ -833,23 +833,22 @@ function App() {
   // Persists through the AuditService (encrypted-at-rest on desktop,
   // localStorage in the browser) AND mirrors the entry into the live React
   // state the AuditLog renders. We let the service mint the id/timestamp so the
-  // persisted row and the on-screen row are identical. Append-only on both
-  // sides: we only ever prepend a new entry.
+  // persisted row and the on-screen row describe the same event. Append-only on
+  // both sides: we only ever prepend a new entry.
   const addAuditEntry = useCallback((entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {
-    void (async () => {
-      const newEntry = await auditServiceRef.current.logDurable(entry.action, entry.description, {
-        ...(entry.model !== undefined ? { model: entry.model } : {}),
-        inputs: entry.inputs,
-        outputs: entry.outputs,
-        ...(entry.userDecision !== undefined ? { userDecision: entry.userDecision } : {}),
-        metadata: entry.metadata,
-        ...(entry.tokensIn !== undefined ? { tokensIn: entry.tokensIn } : {}),
-        ...(entry.tokensOut !== undefined ? { tokensOut: entry.tokensOut } : {}),
-        ...(entry.costUsd !== undefined ? { costUsd: entry.costUsd } : {}),
-        ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
-      });
-      setAuditEntries((prev) => [newEntry, ...prev]);
-    })();
+    const { entry: newEntry, persisted } = auditServiceRef.current.logDurablePending(entry.action, entry.description, {
+      ...(entry.model !== undefined ? { model: entry.model } : {}),
+      inputs: entry.inputs,
+      outputs: entry.outputs,
+      ...(entry.userDecision !== undefined ? { userDecision: entry.userDecision } : {}),
+      metadata: entry.metadata,
+      ...(entry.tokensIn !== undefined ? { tokensIn: entry.tokensIn } : {}),
+      ...(entry.tokensOut !== undefined ? { tokensOut: entry.tokensOut } : {}),
+      ...(entry.costUsd !== undefined ? { costUsd: entry.costUsd } : {}),
+      ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
+    });
+    setAuditEntries((prev) => [newEntry, ...prev]);
+    void persisted.then((settledEntry) => { setAuditEntries((prev) => prev.map((existing) => existing.id === settledEntry.id ? { ...settledEntry, metadata: { ...settledEntry.metadata } } : existing)); });
   }, []);
 
 

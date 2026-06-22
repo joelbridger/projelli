@@ -535,6 +535,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
     // continue after the caller's useCallback returns). All errors are
     // caught inside; the outer .catch surfaces any unexpected escape.
     void (async () => {
+      let providerSendCompletedOrCancelledAfterEgress = false;
       try {
         // Determine provider from chat data, fallback to anthropic
         const chatProvider = chatData.provider ?? 'anthropic';
@@ -556,7 +557,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
           throw new Error(`No valid ${providerNames[chatProvider] ?? chatProvider} API key found. Please add your API key in the settings.`);
         }
 
-        const emitSuccessfulEgressAudit = () => {
+        const buildEgressAuditPayload = () => {
           const egress = resolveEgress({
             provider: chatProvider,
             mode: getConfidentialityMode(),
@@ -570,6 +571,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
           const auditScope: AuditScope = rawScope.kind === 'matter'
             ? { kind: 'matter', matterId: rawScope.matterId, ...(foundMatterName !== undefined && { matterName: foundMatterName }) }
             : { kind: 'allMatters' };
+          return { egress, auditScope };
+        };
+
+        const emitSuccessfulEgressAudit = () => {
+          const { egress, auditScope } = buildEgressAuditPayload();
           onAuditLog?.(auditEventToEntry({
             type: 'egress',
             timestamp: new Date().toISOString(),
@@ -584,6 +590,35 @@ export function useChatSending(deps: UseChatSendingDeps) {
               scope: auditScope,
             },
           }));
+        };
+
+        const emitCancelledEgressAudit = () => {
+          const { egress, auditScope } = buildEgressAuditPayload();
+          onAuditLog?.({
+            action: 'egress',
+            description: `AI request cancelled after sending to ${chatProvider}`,
+            model: chatModel ?? chatProvider,
+            inputs: {
+              provider: egress.provider,
+              ...(chatModel !== undefined ? { model: chatModel } : {}),
+              mode: getConfidentialityMode(),
+              destination: egress.destination,
+              dataLeaves: egress.dataLeaves,
+              scope: auditScope,
+            },
+            outputs: { success: false, status: 'cancelled' },
+            userDecision: 'auto',
+            metadata: {
+              auditEventType: 'egress',
+              provider: egress.provider,
+              ...(chatModel !== undefined ? { model: chatModel } : {}),
+              mode: getConfidentialityMode(),
+              destination: egress.destination,
+              dataLeaves: egress.dataLeaves,
+              scope: auditScope,
+              status: 'cancelled',
+            },
+          });
         };
 
         const emitSuccessfulAttachmentAudits = () => {
@@ -1239,6 +1274,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
           addMessage(chatId, streamingMessage);
 
           let accumulated = '';
+          const streamingAuditState = { receivedChunk: false };
           let streamingResponse: Awaited<ReturnType<NonNullable<typeof provider.sendMessageStreaming>>> | null = null;
 
           try {
@@ -1246,6 +1282,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               systemPrompt,
               maxTokens: 4096,
               onChunk: (chunk: string) => {
+                streamingAuditState.receivedChunk = true;
                 accumulated += chunk;
                 // Update the last message in the store with accumulated content
                 updateLastMessage(chatId, accumulated);
@@ -1258,6 +1295,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
               // User cancelled — keep whatever was streamed so far
               accumulated += '\n\n*(Response stopped by user)*';
               updateLastMessage(chatId, accumulated);
+              if (streamingAuditState.receivedChunk) {
+                providerSendCompletedOrCancelledAfterEgress = true;
+                emitCancelledEgressAudit();
+                emitSuccessfulAttachmentAudits();
+              }
             } else {
               throw err;
             }
@@ -1269,6 +1311,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // response) leaves these at zero; partial-cost tracking for
           // aborted streams isn't worth the complexity.
           if (streamingResponse) {
+            providerSendCompletedOrCancelledAfterEgress = true;
             emitSuccessfulEgressAudit();
             emitSuccessfulAttachmentAudits();
 
@@ -1335,8 +1378,32 @@ export function useChatSending(deps: UseChatSendingDeps) {
             ...(attachmentBytes ? { attachmentBytes } : {}),
           });
 
+          providerSendCompletedOrCancelledAfterEgress = true;
           emitSuccessfulEgressAudit();
           emitSuccessfulAttachmentAudits();
+
+          // Q3 — record cost for the chip + Q4 audit entry immediately after
+          // provider success. Local post-processing must not be able to hide a
+          // real model call or turn it into a false egress_failed row.
+          recordCost(chatId, {
+            cost: response.cost,
+            inputTokens: response.usage.inputTokens + imageTokenOverhead + pdfTokenOverhead,
+            outputTokens: response.usage.outputTokens,
+            provider: chatProvider,
+          });
+          onAuditLog?.({
+            action: 'model_call',
+            description: `Chat message to ${chatModel ?? chatProvider}`,
+            model: chatModel ?? chatProvider,
+            inputs: { promptLength: userMessage.content.length },
+            outputs: { contentLength: response.content.length },
+            userDecision: 'auto',
+            metadata: { chatId, streamed: false },
+            tokensIn: response.usage.inputTokens,
+            tokensOut: response.usage.outputTokens,
+            costUsd: response.cost,
+            provider: chatProvider,
+          });
 
           // WS-B/C — verify the citations in the answer against the local
           // store BEFORE presenting them. Verified sources are marked safe;
@@ -1365,27 +1432,6 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
           addMessage(chatId, assistantMessage);
 
-          // Q3 — record cost for the chip + Q4 audit entry.
-          recordCost(chatId, {
-            cost: response.cost,
-            inputTokens: response.usage.inputTokens + imageTokenOverhead + pdfTokenOverhead,
-            outputTokens: response.usage.outputTokens,
-            provider: chatProvider,
-          });
-          onAuditLog?.({
-            action: 'model_call',
-            description: `Chat message to ${chatModel ?? chatProvider}`,
-            model: chatModel ?? chatProvider,
-            inputs: { promptLength: userMessage.content.length },
-            outputs: { contentLength: response.content.length },
-            userDecision: 'auto',
-            metadata: { chatId, streamed: false },
-            tokensIn: response.usage.inputTokens,
-            tokensOut: response.usage.outputTokens,
-            costUsd: response.cost,
-            provider: chatProvider,
-          });
-
           const finalMessages = clearExpandedFlags([...updatedMessages, assistantMessage]);
 
           if (onSave) {
@@ -1406,43 +1452,45 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
         const chatProvider = chatData.provider ?? 'anthropic';
         const chatModel = chatData.model;
-        const egress = resolveEgress({
-          provider: chatProvider,
-          mode: getConfidentialityMode(),
-          isDemo: IS_DEMO,
-          assuredAvailable: assuredAvailableForChat,
-        });
-        const failureType = error instanceof LocalOnlyEgressError
-          ? 'egress_blocked'
-          : 'egress_failed';
-        onAuditLog?.({
-          action: 'user_action',
-          description: failureType === 'egress_blocked'
-            ? `AI request blocked before sending to ${chatProvider}`
-            : `AI request failed before a response from ${chatProvider}`,
-          model: chatModel ?? chatProvider,
-          inputs: {
-            provider: egress.provider,
-            ...(chatModel !== undefined ? { model: chatModel } : {}),
+        if (!providerSendCompletedOrCancelledAfterEgress || error instanceof LocalOnlyEgressError) {
+          const egress = resolveEgress({
+            provider: chatProvider,
             mode: getConfidentialityMode(),
-            destination: egress.destination,
-            dataLeaves: egress.dataLeaves,
-            attachmentCount: messageAttachments?.length ?? 0,
-          },
-          outputs: {
-            success: false,
-            reason: error instanceof Error ? error.message : String(error),
-          },
-          userDecision: 'auto',
-          metadata: {
-            auditEventType: failureType,
-            provider: egress.provider,
-            ...(chatModel !== undefined ? { model: chatModel } : {}),
-            mode: getConfidentialityMode(),
-            destination: egress.destination,
-            dataLeaves: egress.dataLeaves,
-          },
-        });
+            isDemo: IS_DEMO,
+            assuredAvailable: assuredAvailableForChat,
+          });
+          const failureType = error instanceof LocalOnlyEgressError
+            ? 'egress_blocked'
+            : 'egress_failed';
+          onAuditLog?.({
+            action: 'user_action',
+            description: failureType === 'egress_blocked'
+              ? `AI request blocked before sending to ${chatProvider}`
+              : `AI request failed before a response from ${chatProvider}`,
+            model: chatModel ?? chatProvider,
+            inputs: {
+              provider: egress.provider,
+              ...(chatModel !== undefined ? { model: chatModel } : {}),
+              mode: getConfidentialityMode(),
+              destination: egress.destination,
+              dataLeaves: egress.dataLeaves,
+              attachmentCount: messageAttachments?.length ?? 0,
+            },
+            outputs: {
+              success: false,
+              reason: error instanceof Error ? error.message : String(error),
+            },
+            userDecision: 'auto',
+            metadata: {
+              auditEventType: failureType,
+              provider: egress.provider,
+              ...(chatModel !== undefined ? { model: chatModel } : {}),
+              mode: getConfidentialityMode(),
+              destination: egress.destination,
+              dataLeaves: egress.dataLeaves,
+            },
+          });
+        }
 
         let errorContent: string;
         let errorDiagnostic: string | undefined;

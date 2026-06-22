@@ -207,10 +207,25 @@ export class AuditService {
     description: string,
     options: AuditLogOptions = {}
   ): Promise<AuditEntry> {
+    const { persisted } = this.logDurablePending(action, description, options);
+    return persisted;
+  }
+
+  /**
+   * Log a critical action immediately and persist it in the background.
+   * The returned `entry` is safe to show in live UI right away with
+   * `auditPersistenceStatus: "pending"`. Await `persisted` only when a caller
+   * needs the final saved/failed status.
+   */
+  logDurablePending(
+    action: AuditActionType,
+    description: string,
+    options: AuditLogOptions = {}
+  ): { entry: AuditEntry; persisted: Promise<AuditEntry> } {
     const entry = this.buildEntry(action, description, options);
+    entry.metadata = { ...entry.metadata, auditPersistenceStatus: 'pending' };
     this.entries.push(entry);
-    await this.recordDurable(entry);
-    return entry;
+    return { entry, persisted: this.recordDurable(entry) };
   }
 
   /**
@@ -482,15 +497,21 @@ export class AuditService {
     this.persist();
   }
 
-  private async recordDurable(entry: AuditEntry): Promise<void> {
+  private async recordDurable(entry: AuditEntry): Promise<AuditEntry> {
     entry.metadata = { ...entry.metadata, auditPersistenceStatus: 'pending' };
     try {
+      const savedEntry: AuditEntry = {
+        ...entry,
+        metadata: { ...entry.metadata, auditPersistenceStatus: 'saved' },
+      };
       if (this.encrypted) {
-        await auditAppend(entryToRecord(entry));
+        await auditAppend(entryToRecord(savedEntry));
       } else {
+        entry.metadata = savedEntry.metadata;
         this.persist();
+        return entry;
       }
-      entry.metadata = { ...entry.metadata, auditPersistenceStatus: 'saved' };
+      entry.metadata = savedEntry.metadata;
     } catch (error) {
       entry.metadata = {
         ...entry.metadata,
@@ -499,6 +520,7 @@ export class AuditService {
       };
       console.error('Audit persistence failed:', error);
     }
+    return entry;
   }
 
   /**

@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Audit egress follow-up fixes for stopped sends and durable status (BUG-077/079/082).** Stopped streaming sends now record a cancelled egress row when provider data had already started flowing, provider-success rows are written before local post-processing can fail, durable encrypted payloads no longer reopen as permanently pending, and live audit UI state shows pending rows immediately even if the encrypted append hangs.
+  - Files modified: `src/features/ask/hooks/useChatSending.ts`, `src/platform/audit/AuditService.ts`, `src/App.tsx`
+  - Tests: `tests/unit/audit-provenance-events.test.tsx`, `tests/unit/audit/audit-persistence.test.ts`
 - **Critical desktop audit rows no longer fail silently (BUG-077).** Critical audit events now have an awaitable persistence path; if encrypted desktop storage rejects an append, the in-session row is marked with a failed persistence status instead of being silently presented as durably saved.
   - Files modified: `src/platform/audit/AuditService.ts`, `src/App.tsx`
   - Tests: `tests/unit/audit/audit-persistence.test.ts`
