@@ -12,7 +12,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { useMatterStore } from '@/platform/matter/matterStore';
+import { setMatterAuditEmitter, useMatterStore } from '@/platform/matter/matterStore';
 
 const auditMocks = vi.hoisted(() => ({
   append: vi.fn(),
@@ -69,6 +69,18 @@ vi.mock('@tauri-apps/api/core', () => ({
 // ── AuditService ───────────────────────────────────────────────────────────────
 vi.mock('@/platform/audit/AuditService', () => ({
   AuditService: class { append = auditMocks.append; },
+  auditEventToEntry: (event: {
+    type: string;
+    payload: Record<string, unknown>;
+  }) => ({
+    action: event.type,
+    description: event.type,
+    model: undefined,
+    inputs: {},
+    outputs: {},
+    userDecision: 'auto',
+    metadata: event.payload,
+  }),
   isAuditEncrypted: () => false,
 }));
 
@@ -95,6 +107,7 @@ import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null });
   auditMocks.append.mockClear();
+  setMatterAuditEmitter(auditMocks.append);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -263,7 +276,7 @@ describe('MatterManagerDialog — external AI tool access grant', () => {
     expect(useMatterStore.getState().matters[0]!.mcpAccessGranted).toBe(true);
     expect(screen.getByTestId(`matter-mcp-access-badge-${matter.id}`)).toBeInTheDocument();
     expect(auditMocks.append).toHaveBeenLastCalledWith(
-      expect.objectContaining({ type: 'mcp_matter_access_granted' }),
+      expect.objectContaining({ action: 'mcp_matter_access_granted' }),
     );
 
     fireEvent.click(input);
@@ -271,7 +284,7 @@ describe('MatterManagerDialog — external AI tool access grant', () => {
     expect(useMatterStore.getState().matters[0]!.mcpAccessGranted).toBe(false);
     expect(screen.queryByTestId(`matter-mcp-access-badge-${matter.id}`)).not.toBeInTheDocument();
     expect(auditMocks.append).toHaveBeenLastCalledWith(
-      expect.objectContaining({ type: 'mcp_matter_access_revoked' }),
+      expect.objectContaining({ action: 'mcp_matter_access_revoked' }),
     );
   });
 });

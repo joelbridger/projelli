@@ -57,7 +57,13 @@ import type { TrashedItem } from '@/platform/history/TrashService';
 import type { AuditEntry } from '@/platform/types/audit';
 import { AuditService } from '@/platform/audit/AuditService';
 import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
-import { getOrCreateSampleMatter, useMatterStore, useActiveMatter, useMatters } from '@/platform/matter/matterStore';
+import {
+  getOrCreateSampleMatter,
+  setMatterAuditEmitter,
+  useMatterStore,
+  useActiveMatter,
+  useMatters,
+} from '@/platform/matter/matterStore';
 import { useMatterUiStore, isWorkingSurface } from '@/platform/matter/matterUiStore';
 import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
 import { writeDenyAllMcpSessionScopeFile, writeMcpSessionScopeFile } from '@/platform/mcp/mcpSessionScope';
@@ -899,6 +905,13 @@ function App() {
       return auditServiceRef.current.verifyIntegrity();
     }).then(setAuditIntegrity).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    setMatterAuditEmitter(addAuditEntry);
+    return () => {
+      setMatterAuditEmitter(null);
+    };
+  }, [addAuditEntry]);
 
 
   // Handle save audio recording

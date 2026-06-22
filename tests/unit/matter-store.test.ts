@@ -9,7 +9,7 @@
  *   - deleting the active matter falls back to all-matters
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   resolveMatterId,
   findMatter,
@@ -21,6 +21,7 @@ import {
   useMatterStore,
   resolveMatterIdForPath,
   getActiveScope,
+  setMatterAuditEmitter,
 } from '@/platform/matter/matterStore';
 
 const ROOT = '/home/lawyer/Keepance';
@@ -28,6 +29,7 @@ const ROOT = '/home/lawyer/Keepance';
 function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null });
   localStorage.removeItem('audit_log_default');
+  setMatterAuditEmitter(null);
 }
 
 // ---------------------------------------------------------------------------
@@ -171,24 +173,37 @@ describe('useMatterStore CRUD', () => {
     expect(useMatterStore.getState().matters[0]!.mcpAccessGranted).toBe(false);
   });
 
-  it('audits external AI tool grants and revocations', () => {
+  it('audits external AI tool grants and revocations through the registered app emitter', () => {
+    const auditEmitter = vi.fn();
+    setMatterAuditEmitter(auditEmitter);
     const m = useMatterStore.getState().createMatter({ name: 'Acme', client: 'Acme Corp' });
 
     useMatterStore.getState().setMatterMcpAccess(m.id, true);
+    useMatterStore.getState().setMatterMcpAccess(m.id, true);
+    useMatterStore.getState().setMatterMcpAccess(m.id, false);
     useMatterStore.getState().setMatterMcpAccess(m.id, false);
 
-    const audit = JSON.parse(localStorage.getItem('audit_log_default') ?? '[]') as Array<{
-      action: string;
-      metadata: Record<string, unknown>;
-    }>;
-
     expect(useMatterStore.getState().matters[0]!.mcpAccessGranted).toBe(false);
-    expect(audit.map((entry) => entry.action)).toEqual([
+    expect(auditEmitter).toHaveBeenCalledTimes(2);
+    expect(auditEmitter.mock.calls.map(([entry]) => entry.action)).toEqual([
       'mcp_matter_access_granted',
       'mcp_matter_access_revoked',
     ]);
-    expect(audit[0]!.metadata.matterId).toBe(m.id);
-    expect(audit[1]!.metadata.matterId).toBe(m.id);
+    expect(auditEmitter).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        action: 'mcp_matter_access_granted',
+        metadata: expect.objectContaining({ matterId: m.id, matterName: 'Acme' }),
+      }),
+    );
+    expect(auditEmitter).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        action: 'mcp_matter_access_revoked',
+        metadata: expect.objectContaining({ matterId: m.id, matterName: 'Acme' }),
+      }),
+    );
+    expect(localStorage.getItem('audit_log_default')).toBeNull();
   });
 
   it('renames name and client independently', () => {
