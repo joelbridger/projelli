@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **MCP sidecar never exposes Keepance internal workspace files.** External MCP file access now rejects root `.keepance/**` paths before matter-scope checks, including Windows-style separators, and search-hit verification reuses the same deny rule so stale index rows cannot leak internal metadata when a granted matter is the workspace root.
+  - Files modified: `src-tauri/src/mcp_bin/main.rs`, `src-tauri/src/mcp_bin/tools.rs`, `src-tauri/tests/mcp_binary.rs`
+  - Tests: `cargo test --test mcp_binary`, `cargo test access::tests`, `cargo check`
 - **External AI tools now require an explicit per-matter MCP grant.** Matter focus inside Keepance no longer grants outside AI clients access; each matter defaults to denied, the Matter Manager has a per-matter "Allow external AI tools (MCP)" toggle and granted badge, scope files list only explicitly granted matters, the sidecar denies active-but-ungranted matters, and grant/revoke changes are audited.
   - Files modified: `src/platform/matter/matterStore.ts`, `src/platform/mcp/mcpSessionScope.ts`, `src-tauri/src/mcp_bin/access.rs`, `src-tauri/src/mcp_bin/tools.rs`, `src/features/matters/MatterManagerDialog.tsx`, `src/platform/audit/AuditService.ts`
   - Tests: `cargo test --test mcp_binary`, `cargo test mcp`, `cargo test access::tests`, `cargo check`, `npx vitest run tests/unit/mcp-session-scope.test.ts tests/unit/matter-store.test.ts tests/unit/matter/archiveMatterUi.test.tsx tests/unit/matter/matterStoreMerge.test.ts tests/unit/i18n/en-json-snapshot.test.ts`

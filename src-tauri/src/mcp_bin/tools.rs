@@ -19,8 +19,8 @@
 use super::access::{McpAccessState, UNASSIGNED_MATTER_ID};
 use super::approval::{self, APPROVAL_MARKER};
 use super::protocol::JsonRpcError;
-use super::{ServerCtx, crypto, embedder, extractor, resolve_workspace_path, store};
-use serde_json::{Value, json};
+use super::{crypto, embedder, extractor, resolve_workspace_path, store, ServerCtx};
+use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
 /// Build the `tools/list` response array.
@@ -1048,7 +1048,18 @@ fn recover_hit_real_path(hit: &store::StoredHit, enc_key: Option<&[u8; 32]>) -> 
 fn resolve_hit_file_path(workspace: &Path, real_path: &str) -> Result<PathBuf, String> {
     let candidate = PathBuf::from(real_path);
     if candidate.is_absolute() {
-        super::access::canonicalized_workspace_child(workspace, &candidate)
+        let abs = super::access::canonicalized_workspace_child(workspace, &candidate)?;
+        let workspace_canon = workspace
+            .canonicalize()
+            .map_err(|_| "workspace root cannot be canonicalised".to_string())?;
+        let abs_canon = abs
+            .canonicalize()
+            .map_err(|e| format!("path cannot be canonicalised: {e}"))?;
+        let rel = abs_canon
+            .strip_prefix(&workspace_canon)
+            .map_err(|_| "path escapes workspace root".to_string())?;
+        let rel = rel.to_string_lossy().replace('\\', "/");
+        resolve_workspace_path(workspace, &rel)
     } else {
         resolve_workspace_path(workspace, real_path)
     }
@@ -1186,6 +1197,40 @@ mod tests {
         assert!(
             verified_file_search_hit(&ctx, &state, hit, None).is_none(),
             "a stale/mis-tagged search row must not be returned just because stored matter_id matches"
+        );
+    }
+
+    #[test]
+    fn search_hit_under_keepance_internal_dir_is_dropped_even_when_root_matter_is_granted() {
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        let keepance_dir = tmp.path().join(".keepance");
+        std::fs::create_dir_all(&keepance_dir).unwrap();
+        let scope_path = keepance_dir.join("mcp-session-scope.json");
+        std::fs::write(&scope_path, r#"{"client":"Other Client"}"#).unwrap();
+
+        let ctx = test_ctx(tmp.path().to_path_buf());
+        let state = McpAccessState {
+            version: 1,
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            active_matter_id: Some("matter-root".into()),
+            granted_matter_ids: vec!["matter-root".into()],
+            network_lockdown: false,
+            matters: vec![super::super::access::McpMatter {
+                id: "matter-root".into(),
+                folder_paths: vec![tmp.path().to_string_lossy().to_string()],
+                archived: false,
+            }],
+        };
+
+        let hit = stored_hit(
+            scope_path.to_string_lossy().to_string(),
+            "matter-root",
+            "Other Client metadata",
+        );
+
+        assert!(
+            verified_file_search_hit(&ctx, &state, hit, None).is_none(),
+            "search must never return Keepance internal files, even when a granted matter is the workspace root"
         );
     }
 
