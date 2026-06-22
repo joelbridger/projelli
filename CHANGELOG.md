@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Settings confidentiality mode now fails closed when persisted data is stale or invalid (BUG-089).** The settings store has a persisted schema version and migration that validates saved settings during rehydrate; invalid privacy-critical enum values such as `confidentialityMode: "local"` are sanitized to `local-only`, and read-time access also returns the safe local-only mode instead of falling through to cloud/BYOK direct.
+  - Files modified: `src/platform/settings/settingsStore.ts`, `src/platform/hooks/useConfidentialityMode.ts`
+  - Tests: `tests/unit/stores/settings-import.test.ts`
 - **Provider reliability regressions (BUG-071 through BUG-076).** Cloud and local provider calls now stop runaway tool loops, keep the final no-newline streaming chunk, honor immediate aborts, apply request timeouts, frame Ollama-extracted PDF text as untrusted document data, and include Gemini structured-output schema/limits.
   - Files modified: `ClaudeProvider.ts`, `OpenAIProvider.ts`, `GeminiProvider.ts`, `OllamaProvider.ts`, `Provider.ts`, `requestControl.ts`, `redline.ts`
   - Tests: `tests/unit/models/provider-regressions.test.ts`, `tests/unit/models/ollama-pdf-format.test.ts`, `tests/unit/redline.test.ts`

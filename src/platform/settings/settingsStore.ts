@@ -13,6 +13,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SETTINGS_SCHEMA, getSchemaDefaults, type SettingDefinition } from '@/platform/settings/schema';
+import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 
 /**
  * BUG-026: validate an imported value against its schema definition, so a
@@ -42,12 +43,74 @@ function isValidSettingValue(def: SettingDefinition, value: unknown): boolean {
   }
 }
 
+const SETTINGS_PERSIST_VERSION = 1;
+const defByKey = new Map(SETTINGS_SCHEMA.map((d) => [d.key, d]));
+
+const PRIVACY_CRITICAL_SAFE_DEFAULTS: Record<string, unknown> = {
+  // If this value is stale or corrupt, Keepance must fail closed: local model
+  // only, so confidential legal data does not silently route to a cloud model.
+  [CONFIDENTIALITY_MODE_SETTING_KEY]: 'local-only',
+};
+
+type SanitizedSettingValue =
+  | { valid: true; value: unknown }
+  | { valid: false };
+
+function sanitizeSettingValue(key: string, value: unknown): SanitizedSettingValue {
+  const def = defByKey.get(key);
+  if (!def) return { valid: false };
+  if (isValidSettingValue(def, value)) return { valid: true, value };
+  if (Object.prototype.hasOwnProperty.call(PRIVACY_CRITICAL_SAFE_DEFAULTS, key)) {
+    return { valid: true, value: PRIVACY_CRITICAL_SAFE_DEFAULTS[key] };
+  }
+  return { valid: false };
+}
+
+function sanitizePersistedValues(values: unknown): Record<string, unknown> {
+  if (typeof values !== 'object' || values === null || Array.isArray(values)) {
+    return {};
+  }
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(values)) {
+    const sanitized = sanitizeSettingValue(key, value);
+    if (sanitized.valid) {
+      cleaned[key] = sanitized.value;
+    }
+  }
+  return cleaned;
+}
+
+function migratePersistedSettings(persisted: unknown): PersistedSettingsState {
+  if (typeof persisted !== 'object' || persisted === null || Array.isArray(persisted)) {
+    return {
+      values: {},
+      _migrated: false,
+      featuresTourCompleted: false,
+      language: null,
+    };
+  }
+  const state = persisted as Partial<SettingsState>;
+  return {
+    _migrated: state._migrated ?? false,
+    featuresTourCompleted: state.featuresTourCompleted ?? false,
+    language: state.language ?? null,
+    values: sanitizePersistedValues(state.values),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 /** User-overridable locale. null = use OS-detected locale at bootstrap. */
 type Language = 'en' | 'es' | 'de' | null;
+
+interface PersistedSettingsState {
+  values: Record<string, unknown>;
+  _migrated: boolean;
+  featuresTourCompleted: boolean;
+  language: Language;
+}
 
 interface SettingsState {
   values: Record<string, unknown>;
@@ -104,7 +167,10 @@ export const useSettingsStore = create<SettingsState>()(
 
       getSetting: <T = unknown>(key: string): T => {
         const stored = get().values[key];
-        if (stored !== undefined) return stored as T;
+        if (stored !== undefined) {
+          const sanitized = sanitizeSettingValue(key, stored);
+          if (sanitized.valid) return sanitized.value as T;
+        }
         return (DEFAULTS[key] ?? undefined) as T;
       },
 
@@ -139,12 +205,11 @@ export const useSettingsStore = create<SettingsState>()(
           // "huge") must not be accepted. And MERGE into the current values
           // rather than REPLACING them, so a partial import can't silently reset
           // settings (incl. privacy/workspace choices) that aren't in the file.
-          const defByKey = new Map(SETTINGS_SCHEMA.map((d) => [d.key, d]));
           const cleaned: Record<string, unknown> = {};
           for (const [k, v] of Object.entries(parsed)) {
-            const def = defByKey.get(k);
-            if (def && isValidSettingValue(def, v)) {
-              cleaned[k] = v;
+            const sanitized = sanitizeSettingValue(k, v);
+            if (sanitized.valid) {
+              cleaned[k] = sanitized.value;
             }
           }
           set({ values: { ...get().values, ...cleaned } });
@@ -156,6 +221,8 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'keepance:settings',
+      version: SETTINGS_PERSIST_VERSION,
+      migrate: (persisted) => migratePersistedSettings(persisted),
       // Only persist `values` and the migration flag.
       partialize: (state) => ({
         values: state.values,

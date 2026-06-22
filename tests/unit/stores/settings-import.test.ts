@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 
 describe('settingsStore.importSettings (BUG-026)', () => {
@@ -56,5 +57,39 @@ describe('settingsStore.importSettings (BUG-026)', () => {
   it('returns false for non-object JSON', () => {
     expect(useSettingsStore.getState().importSettings('[]')).toBe(false);
     expect(useSettingsStore.getState().importSettings('nope')).toBe(false);
+  });
+});
+
+describe('settingsStore persisted privacy migration (BUG-089)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useSettingsStore.setState({
+      values: {},
+      _migrated: true,
+      featuresTourCompleted: false,
+      language: null,
+    });
+  });
+
+  it('fails closed when a stale persisted confidentiality mode is invalid', async () => {
+    localStorage.setItem(
+      'keepance:settings',
+      JSON.stringify({
+        state: {
+          values: {
+            confidentialityMode: 'local',
+          },
+          _migrated: true,
+          featuresTourCompleted: false,
+          language: null,
+        },
+        version: 0,
+      }),
+    );
+
+    await useSettingsStore.persist.rehydrate();
+
+    expect(useSettingsStore.getState().values.confidentialityMode).toBe('local-only');
+    expect(getConfidentialityMode()).toBe('local-only');
   });
 });

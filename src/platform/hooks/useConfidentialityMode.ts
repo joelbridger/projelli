@@ -16,11 +16,13 @@ import {
   CONFIDENTIALITY_MODES,
 } from '@/platform/privacy/egress';
 
+const SAFE_CONFIDENTIALITY_MODE: ConfidentialityMode = 'local-only';
+
 function coerceMode(value: unknown): ConfidentialityMode {
   if (typeof value === 'string' && (CONFIDENTIALITY_MODES as string[]).includes(value)) {
     return value as ConfidentialityMode;
   }
-  return DEFAULT_CONFIDENTIALITY_MODE;
+  return value === undefined ? DEFAULT_CONFIDENTIALITY_MODE : SAFE_CONFIDENTIALITY_MODE;
 }
 
 /** Reactive read of the active confidentiality mode. */
