@@ -286,6 +286,24 @@
     .footer-links a { color: rgba(255,255,255,0.3); text-decoration: none; font-size: 13px; transition: color 0.2s; }
     .footer-links a:hover { color: rgba(255,255,255,0.6); }
     .footer-copy { color: rgba(255,255,255,0.2); font-size: 12px; }
+
+    /* AI CARDS (AI for people section, 3-card grid) */
+    .ai-cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 48px; }
+    @media (max-width: 700px) { .ai-cards-grid { grid-template-columns: 1fr; } }
+    .ai-card { background: var(--bone); border: 1px solid var(--border); border-radius: 12px; padding: 28px 24px; }
+    .ai-card-icon { width: 42px; height: 42px; border-radius: 8px; background: var(--navy); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
+    .ai-card-icon svg { width: 20px; height: 20px; stroke: var(--grad-blue); fill: none; stroke-width: 1.75; }
+    .ai-card h3 { font-size: 1rem; font-weight: 700; color: var(--text-heading); margin-bottom: 8px; }
+    .ai-card p { font-size: 14px; color: var(--text-body); line-height: 1.65; margin: 0; }
+
+    /* CLIENT MAP BLOCKS (5-block grid on navy background) */
+    .client-map-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; max-width: 980px; margin: 0 auto; }
+    @media (max-width: 860px) { .client-map-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 520px) { .client-map-grid { grid-template-columns: 1fr; } }
+    .client-map-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 24px 22px; }
+    .client-map-num { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--grad-pink); margin-bottom: 10px; }
+    .client-map-card h3 { font-size: 1rem; font-weight: 700; color: var(--white); margin-bottom: 8px; }
+    .client-map-card p { font-size: 13.5px; color: var(--text-muted-dark); line-height: 1.6; margin: 0; }
   </style>
 </head>
 <body>
@@ -304,25 +322,23 @@
       </a>
       <div class="nav-links">
         <a href="/legal/">Attorneys</a>
-        <a href="/tax/">Tax pros</a>
-        <a href="/consulting/">Consultants</a>
         <a href="/financial-advisors/">Advisors</a>
-        <a href="/blog/">Blog</a>
+        <a href="/security/">Security</a>
         <a href="#pricing">Pricing</a>
+        <a href="/blog/">Blog</a>
       </div>
-      <a href="/download/" class="nav-cta">Download free trial</a>
+      <a href="/download/" class="nav-cta">Start free trial</a>
       <button class="nav-burger" aria-label="Menu" aria-expanded="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </button>
     </div>
     <div class="nav-mobile">
       <a href="/legal/">Attorneys</a>
-      <a href="/tax/">Tax pros</a>
-      <a href="/consulting/">Consultants</a>
       <a href="/financial-advisors/">Advisors</a>
-      <a href="/blog/">Blog</a>
+      <a href="/security/">Security</a>
       <a href="#pricing">Pricing</a>
-      <a href="/download/" class="nav-cta">Download free trial</a>
+      <a href="/blog/">Blog</a>
+      <a href="/download/" class="nav-cta">Start free trial</a>
     </div>
   </nav>
 
@@ -339,7 +355,7 @@
           </p>
           <div class="hero-ctas">
             <a href="/download/" class="btn btn-primary">Start your free trial</a>
-            <a href="/try/" class="btn btn-outline-light">Try it in your browser</a>
+            <a href="#client-map" class="btn btn-outline-light">See a sample Client Map</a>
           </div>
         </div>
 
@@ -354,24 +370,88 @@
     <!-- TRUST BAR -->
     <div class="trust-bar">
       <div class="container trust-bar-inner">
-        <div class="trust-item"><span class="trust-item-dot"></span>Every answer carries a citation</div>
+        <div class="trust-item"><span class="trust-item-dot"></span>Cited answers</div>
         <div class="trust-sep"></div>
-        <div class="trust-item"><span class="trust-item-dot"></span>Real Word and PDF, not Markdown</div>
+        <div class="trust-item"><span class="trust-item-dot"></span>Real Word and PDF</div>
         <div class="trust-sep"></div>
-        <div class="trust-item"><span class="trust-item-dot"></span>Your client files stay on your machine</div>
+        <div class="trust-item"><span class="trust-item-dot"></span>Local-first by design</div>
         <div class="trust-sep"></div>
-        <div class="trust-item"><span class="trust-item-dot"></span>Bring your own AI key, or run local</div>
+        <div class="trust-item"><span class="trust-item-dot"></span>Bring your own AI key</div>
+        <div class="trust-sep"></div>
+        <div class="trust-item"><span class="trust-item-dot"></span>Run local when needed</div>
       </div>
     </div>
 
-    <!-- CONTRAST: people, not facts -->
+    <!-- AI FOR PEOPLE, NOT JUST FACTS -->
     <section style="background:var(--white);border-top:1px solid var(--border);padding:80px 0;">
       <div class="container">
-        <div class="section-header" style="margin-bottom:0;max-width:780px;">
+        <div class="section-header" style="max-width:780px;">
           <span class="section-label">AI for people, not just facts</span>
-          <h2>Most AI knows the world. Keepance knows your clients.</h2>
-          <p>A chatbot can answer trivia about anything, and it knows nothing about the people you serve. Keepance is the other way around. It reads your own files and emails and gets to know each client, so the answers are about your work, not the whole internet.</p>
+          <h2>Most AI tools know the world. Keepance knows your clients.</h2>
+          <p>Generic AI can summarize a document. Keepance builds context across the whole relationship: emails, files, notes, interviews, timelines, preferences, risks, and open questions. It helps your team understand the client behind the paperwork, then use that context to answer, draft, review, prepare, and hand off work.</p>
         </div>
+        <div class="ai-cards-grid">
+          <div class="ai-card">
+            <div class="ai-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <h3>Know the client</h3>
+            <p>See the people, history, goals, risks, preferences, and unresolved questions in one living map.</p>
+          </div>
+          <div class="ai-card">
+            <div class="ai-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </div>
+            <h3>Find the source</h3>
+            <p>Ask plain-English questions and get answers tied to the exact file, email, page, or note.</p>
+          </div>
+          <div class="ai-card">
+            <div class="ai-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            </div>
+            <h3>Act with context</h3>
+            <p>Draft replies, documents, summaries, meeting notes, and follow-ups using the client's real history.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- THE CLIENT MAP -->
+    <section id="client-map" style="background:var(--navy);border-top:1px solid var(--border);padding:96px 0;position:relative;overflow:hidden;">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-label" style="color:var(--grad-blue);">The Client Map</span>
+          <h2 style="color:var(--white);">Every client has a story. Keepance keeps it usable.</h2>
+          <p style="color:var(--text-muted-dark);">A Client Map is a living profile built from the materials you already have: files, emails, notes, intake forms, meeting summaries, and guided interviews. It captures what matters, what changed, what is missing, and where each detail came from.</p>
+        </div>
+        <div class="client-map-grid">
+          <div class="client-map-card">
+            <div class="client-map-num">01</div>
+            <h3>People &amp; relationships</h3>
+            <p>Know the family members, companies, decision-makers, beneficiaries, opposing parties, advisors, and other people who shape the work.</p>
+          </div>
+          <div class="client-map-card">
+            <div class="client-map-num">02</div>
+            <h3>History &amp; timeline</h3>
+            <p>See what happened, when it happened, who said it, and which document or email proves it.</p>
+          </div>
+          <div class="client-map-card">
+            <div class="client-map-num">03</div>
+            <h3>Goals &amp; preferences</h3>
+            <p>Remember what the client cares about, how they like to communicate, what they worry about, and what good service means to them.</p>
+          </div>
+          <div class="client-map-card">
+            <div class="client-map-num">04</div>
+            <h3>Risks &amp; open questions</h3>
+            <p>See contradictions, missing details, incomplete intake, unsigned documents, stale information, and issues worth reviewing.</p>
+          </div>
+          <div class="client-map-card">
+            <div class="client-map-num">05</div>
+            <h3>Firm context</h3>
+            <p>Apply your firm's philosophy, preferred language, templates, tone, and review standards across client work.</p>
+          </div>
+        </div>
+        <p style="text-align:center;margin-top:40px;font-size:1rem;color:var(--text-on-dark);font-weight:400;max-width:620px;margin-left:auto;margin-right:auto;">The result is not just a better search box. It is a shared memory your team can actually use.</p>
       </div>
     </section>
 
@@ -379,74 +459,49 @@
     <section class="features" id="features">
       <div class="container">
 
+        <!-- Ask cited questions -->
         <div class="feature-row">
           <div class="feature-text">
-            <span class="section-label">Find anything, privately</span>
-            <h2>Ask in plain English. Get the exact answer back, with a citation.</h2>
-            <p>Search is where things go to hide. Keepance imports your email and documents, indexes them on your computer, and answers the question you actually have: what did the client agree to, which version of the document had the change, when did they first raise the issue. Every answer points to the exact source, so you can open it and check it in one click.</p>
+            <span class="section-label">Ask cited questions</span>
+            <h2>Ask questions across the full client file.</h2>
+            <p>Search makes you remember the file name. Keepance lets you ask the question you actually have: what did the client agree to, when did they first mention the issue, what are the open questions before the next meeting. Every answer includes citations, so you can open the exact email, document, page, or note and verify it yourself.</p>
             <ul class="feature-list">
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Search across the email and documents you bring into Keepance</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Every answer cites the exact message, file, and page</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Scoped to one client or matter, so files never cross</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Indexed on your machine, not in anyone's cloud</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Search across imported files, emails, notes, and interviews</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Scope every question to one client, matter, or household</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Get citations to the exact source</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Open the source in one click</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Keep unrelated client files separated</li>
             </ul>
           </div>
           <div>
             <div class="feature-visual-box">
               <div class="feature-visual-header">
                 <span class="feature-visual-dot r"></span><span class="feature-visual-dot y"></span><span class="feature-visual-dot g"></span>
-                <span class="feature-visual-title">Keepance · Chen v. Merritt · Recall</span>
+                <span class="feature-visual-title">Keepance · Client file · Recall</span>
               </div>
               <div class="feature-visual-body">
                 <div class="rag-query-box">
                   <div class="rag-query-label">Your question</div>
-                  <div class="rag-query-text">"When did Merritt's counsel first acknowledge the delivery delay?"</div>
+                  <div class="rag-query-text">"When did the client first mention the delivery delay?"</div>
                 </div>
-                <div class="rag-result">On March 4, opposing counsel wrote that the shipment "slipped past the contractual window," the first written acknowledgment of the delay. <span class="rag-citation">Email · Re: Q1 logistics · Mar 4</span> They reiterated it in the meet-and-confer summary two weeks later. <span class="rag-citation">Meet_and_Confer.pdf · p. 3</span></div>
+                <div class="rag-result">The first mention appears in a March 4 email, where the client wrote that the shipment "missed the contractual window." <span class="rag-citation">Email · Re: Q1 logistics · Mar 4</span> The issue appears again in the March 18 meeting notes under "vendor delays." <span class="rag-citation">Meeting_Notes.pdf · p. 3</span></div>
               </div>
             </div>
           </div>
         </div>
 
+        <!-- Draft with context -->
         <div class="feature-row flip">
           <div class="feature-text">
-            <span class="section-label">Connect the dots</span>
-            <h2>Ask it to read a client's whole file and connect the dots.</h2>
-            <p>Point Keepance at the documents, notes, and email for one client or matter and ask. It can pull the picture together: where things do not line up, what is still open, what the timeline looks like. It works like a tireless assistant that flags things for you to verify, with a citation on each one, and you decide what is real.</p>
+            <span class="section-label">Draft with context</span>
+            <h2>Professional work does not end in a chat window.</h2>
+            <p>Keepance helps you draft, review, redline, and export real documents. Work in Word and PDF, preserve tracked changes, and keep the client's context beside the work from first draft to final version.</p>
             <ul class="feature-list">
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Ask it to find inconsistencies across documents, notes, and email</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Ask it to build a timeline and pull the key facts together</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Drafts the routine documents for you to review before they go out</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>It proposes, you decide, and every flag is pinned to a source</li>
-            </ul>
-          </div>
-          <div>
-            <div class="feature-visual-box">
-              <div class="feature-visual-header">
-                <span class="feature-visual-dot r"></span><span class="feature-visual-dot y"></span><span class="feature-visual-dot g"></span>
-                <span class="feature-visual-title">Keepance · Client file · What doesn't line up</span>
-              </div>
-              <div class="feature-visual-body">
-                <div class="rag-query-box">
-                  <div class="rag-query-label">Flagged for your review</div>
-                  <div class="rag-query-text">The dates the client gave you don't match the signed document.</div>
-                </div>
-                <div class="rag-result">In your intake notes the client said the agreement was signed "before any work started." <span class="rag-citation">Intake notes · p. 2</span> The signed copy in the file is dated three days after the work began. <span class="rag-citation">Agreement_signed.pdf · p. 1</span></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="feature-row">
-          <div class="feature-text">
-            <span class="section-label">Real deliverables</span>
-            <h2>Draft and redline in real Word, with tracked changes intact.</h2>
-            <p>If it isn't in Word with your letterhead, it isn't a real document. Keepance works on the actual file, not a flattened copy, so a redline keeps its tracked changes, comments, styles, numbering, and tables. Import a contract or document from the other side, have the AI mark it up clause by clause, and send back a Word file they can accept or reject. No copy-paste cleanup, no broken formatting, no finishing the job somewhere else.</p>
-            <ul class="feature-list">
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Edit and export real .docx and PDF, on your own letterhead</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>AI redlines arrive as tracked changes you can accept or reject</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Styles, numbering, tables, and comments survive the round trip</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>You never see Markdown, and you never reformat by hand</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Draft documents, replies, summaries, and follow-ups</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Review and redline Word documents with tracked changes</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Export real .docx and PDF files</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Preserve styles, numbering, tables, and comments</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Use client-specific context instead of generic AI output</li>
             </ul>
           </div>
           <div>
@@ -470,73 +525,102 @@
           </div>
         </div>
 
-      </div>
-    </section>
-
-    <!-- THE HONEST DATA STORY -->
-    <section class="for-section" id="your-data" style="background:var(--white);border-top:1px solid var(--border);">
-      <div class="container">
-        <div class="section-header">
-          <span class="section-label">Where your data goes</span>
-          <h2>The whole truth, told first, by us.</h2>
-          <p>You read fine print for a living. So here is exactly where your client's data is, in one screen, with nothing buried.</p>
-        </div>
-        <div style="max-width:900px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:24px;">
-          <div class="for-card" style="cursor:default;">
-            <h3 style="margin-bottom:14px;">You choose how private each client is</h3>
-            <div style="display:flex;flex-direction:column;gap:14px;">
-              <div style="padding:14px 16px;border:1px solid var(--border);border-radius:8px;background:var(--bone);">
-                <div style="font-weight:700;color:var(--navy);font-size:14px;margin-bottom:4px;">Run a local model</div>
-                <p style="font-size:13px;color:var(--text-body);margin:0;">Point Keepance at a local model with Ollama and nothing leaves your machine, ever. The paranoid mode for your most sensitive client work.</p>
+        <!-- See what does not line up -->
+        <div class="feature-row">
+          <div class="feature-text">
+            <span class="section-label">Find gaps and contradictions</span>
+            <h2>See what does not line up.</h2>
+            <p>Keepance can read across a client's file and flag the things worth checking: inconsistent dates, missing signatures, stale information, open promises, contradictory statements, and facts that appear in one place but not another. It proposes. You decide. Every flag points back to a source.</p>
+            <ul class="feature-list">
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Build timelines from emails, notes, and documents</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Find inconsistencies across the client file</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Surface missing information before meetings or deadlines</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Flag issues for professional review</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Tie every suggestion to a source</li>
+            </ul>
+          </div>
+          <div>
+            <div class="feature-visual-box">
+              <div class="feature-visual-header">
+                <span class="feature-visual-dot r"></span><span class="feature-visual-dot y"></span><span class="feature-visual-dot g"></span>
+                <span class="feature-visual-title">Keepance · Client file · What does not line up</span>
               </div>
-              <div style="padding:14px 16px;border:1px solid var(--border);border-radius:8px;background:var(--bone);">
-                <div style="font-weight:700;color:var(--navy);font-size:14px;margin-bottom:4px;">Bring your own AI key</div>
-                <p style="font-size:13px;color:var(--text-body);margin:0;">Your key, your account. The prompt goes straight to Anthropic, OpenAI, or Google, and never through a server of ours. Honest part: on this path, that provider does see the prompt. We tell you so up front.</p>
-              </div>
-              <div style="padding:14px 16px;border:1px solid var(--border);border-radius:8px;background:var(--bone);">
-                <div style="font-weight:700;color:var(--navy);font-size:14px;margin-bottom:4px;">Assured deployment, for firms</div>
-                <p style="font-size:13px;color:var(--text-body);margin:0;">A zero-retention deployment option for firm review. A signed DPA and SOC 2 are on our roadmap, not yet in place. Available on the Firm plan.</p>
+              <div class="feature-visual-body">
+                <div class="rag-query-box">
+                  <div class="rag-query-label">Flagged for review</div>
+                  <div class="rag-query-text">The signing date may not match the project timeline.</div>
+                </div>
+                <div class="rag-result">In the intake notes, the client said the agreement was signed before work began. <span class="rag-citation">Intake notes · p. 2</span> The signed agreement is dated three days after the first invoice. <span class="rag-citation">Agreement_signed.pdf · p. 1</span> <span class="rag-citation">Invoice_001.pdf · p. 1</span></div>
               </div>
             </div>
           </div>
-          <div class="for-card" style="cursor:default;">
-            <h3 style="margin-bottom:14px;">What that means in practice</h3>
-            <ul class="feature-list" style="gap:14px;">
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>An egress indicator on every action tells you where it is going: "your machine only," or "Anthropic, directly from you."</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>A one-screen data map, in plain English, you can hand to a worried client.</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Email and documents are encrypted at rest on your machine.</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Tag, segregate, and scrub sensitive or privileged work, with an audit trail that reads as a defense file, not a liability.</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>It fits beside the tools you already use, like Outlook and Word. Nothing to integrate and nothing to migrate: it works on the files and email you already have.</li>
+        </div>
+
+        <!-- Keep the team aligned -->
+        <div class="feature-row flip">
+          <div class="feature-text">
+            <span class="section-label">Keep the team aligned</span>
+            <h2>Onboard new staff without retelling the whole story.</h2>
+            <p>The most important client knowledge is often trapped in one person's head. Keepance turns that knowledge into a shared Client Map, so new team members can understand the relationship, the work, the risks, and the next step without interrupting the person who already knows.</p>
+            <ul class="feature-list">
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Give new team members a cited client overview</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Preserve meeting notes, decisions, and promises</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Track what changed since the last review</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Keep client-specific preferences visible</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Reduce repeated explanations and missed context</li>
             </ul>
-            <p style="font-size:13px;color:var(--text-muted);margin-top:18px;border-top:1px solid var(--border);padding-top:14px;">Microsoft 365 Copilot and the other cloud assistants cannot honestly promise they never see your data, because their whole design depends on seeing it. Keepance never keeps a copy of it: in Local-only mode nothing leaves your computer, and with your own AI key the prompt goes straight to your provider, never through us.</p>
+          </div>
+          <div>
+            <div class="feature-visual-box">
+              <div class="feature-visual-header">
+                <span class="feature-visual-dot r"></span><span class="feature-visual-dot y"></span><span class="feature-visual-dot g"></span>
+                <span class="feature-visual-title">Keepance · Smith Household · Client Map</span>
+              </div>
+              <div class="feature-visual-body" style="display:flex;flex-direction:column;gap:10px;">
+                <div style="padding:10px 12px;background:var(--bone);border-radius:6px;border:1px solid var(--border);">
+                  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:4px;">Client overview</div>
+                  <div style="font-size:13px;color:var(--text-body);line-height:1.6;">The Smiths have been clients since 2019. Primary contact is Allison Smith. Key concern this year is the estate amendment following the birth of their second child.</div>
+                </div>
+                <div style="padding:10px 12px;background:rgba(93,198,255,0.06);border-radius:6px;border:1px solid rgba(93,198,255,0.2);">
+                  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--grad-blue);margin-bottom:4px;">Open question</div>
+                  <div style="font-size:13px;color:var(--text-body);line-height:1.6;">The updated beneficiary designations have not been confirmed as signed. <span class="rag-citation">Review_Checklist.pdf · p. 2</span></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+
       </div>
     </section>
 
-    <!-- CLIENT MAP -->
-    <section style="background:var(--navy);border-top:1px solid var(--border);position:relative;overflow:hidden;">
+    <!-- PRIVACY YOU CAN EXPLAIN -->
+    <section style="background:var(--white);border-top:1px solid var(--border);padding:96px 0;" id="your-data">
       <div class="container">
         <div class="section-header">
-          <span class="section-label" style="color:var(--grad-blue);">The Client Map</span>
-          <h2 style="color:var(--white);">A living Client Map for every client.</h2>
-          <p style="color:var(--text-muted-dark);">Keepance turns each client, matter, or household into a living picture: the people, the history, the goals, the risks, and the open questions, so you walk in already knowing them.</p>
+          <span class="section-label">Privacy you can explain</span>
+          <h2>Privacy you can explain.</h2>
+          <p>Keepance shows where your data lives, where each AI request goes, and which mode you are using before you run it. Your files live in folders you control, and every AI action shows where the request is going before it runs.</p>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:980px;margin:0 auto;">
-          <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:24px;">
-            <h3 style="font-size:1rem;font-weight:700;color:var(--white);margin-bottom:8px;">Context Completeness</h3>
-            <p style="font-size:13.5px;color:var(--text-muted-dark);line-height:1.6;margin:0;">See what you know, what you are assuming, and what you still need to ask about a client.</p>
+        <div style="max-width:960px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;">
+          <div class="for-card" style="cursor:default;">
+            <div class="for-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+            <h3>Local model</h3>
+            <p>Run with Ollama for work that should stay entirely on your machine. The request never leaves your computer.</p>
           </div>
-          <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:24px;">
-            <h3 style="font-size:1rem;font-weight:700;color:var(--white);margin-bottom:8px;">Guided Client Interview</h3>
-            <p style="font-size:13.5px;color:var(--text-muted-dark);line-height:1.6;margin:0;">Keepance walks you through the questions that turn a folder of documents into a full client picture.</p>
+          <div class="for-card" style="cursor:default;">
+            <div class="for-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+            <h3>Bring your own AI key</h3>
+            <p>Use Anthropic, OpenAI, or Google directly from your own account. The provider sees the prompt. Keepance does not route it through our server.</p>
           </div>
-          <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:24px;">
-            <h3 style="font-size:1rem;font-weight:700;color:var(--white);margin-bottom:8px;">Firm Philosophy</h3>
-            <p style="font-size:13.5px;color:var(--text-muted-dark);line-height:1.6;margin:0;">Store your firm's way of serving clients once, and Keepance applies it as context across every client.</p>
+          <div class="for-card" style="cursor:default;">
+            <div class="for-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+            <h3>Firm deployment</h3>
+            <p>For teams that need admin controls, shared client files, ethical walls, and a more formal review path.</p>
           </div>
         </div>
-        <p style="text-align:center;margin-top:28px;font-size:13.5px;color:var(--text-muted-dark);">This is what private client intelligence means: not just answers, but a real understanding of every client.</p>
+        <div style="max-width:960px;margin:24px auto 0;padding:22px 28px;background:var(--bone);border:1px solid var(--border);border-left:3px solid var(--grad-blue);border-radius:10px;">
+          <p style="font-size:14px;color:var(--text-body);margin:0;line-height:1.7;"><strong style="color:var(--text-heading);">No hidden data path.</strong> Every action shows a clear egress indicator: your machine only, or your chosen AI provider. You can see what is being sent, where it is going, and which client or matter it belongs to. Keepance does not keep a copy of your client files in a Keepance cloud.</p>
+        </div>
       </div>
     </section>
 
@@ -544,40 +628,37 @@
     <section class="for-section" id="for-who">
       <div class="container">
         <div class="section-header">
-          <span class="section-label">Who it's for</span>
-          <h2>Built for high-trust professionals, and the firms they grow into.</h2>
-          <p>Keepance isn't a general productivity tool. It's private client intelligence for the people whose work depends on confidentiality, and it lands with the individual who carries the client relationship.</p>
+          <span class="section-label">Who it is for</span>
+          <h2>Built for high-trust client work.</h2>
+          <p>Keepance is for professionals whose work depends on confidentiality, context, and continuity.</p>
         </div>
         <div class="for-grid">
           <a href="/legal/" class="for-card">
             <div class="for-card-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-            <h3>Litigation-heavy solos and small firms</h3>
-            <p>Your whole caseload lives here: email, filings, deposition transcripts, discovery, prior matters. Find anything in seconds with a cited answer, tear through depositions for contradictions, build the timeline, draft the privilege log, and redline the agreement in real Word, all without a client's data leaving your machine. The Legal Practice pack: 19 templates for the documents you actually produce.</p>
-            <div class="for-card-hook">Verify all of this with your bar counsel; the following is informational, not legal advice. ABA Formal Opinion 512 (2024) is favorable to local-first AI approaches. In <a href="https://www.gibsondunn.com/ai-privilege-waivers-sdny-rules-against-privilege-protection-for-consumer-ai-outputs/" target="_blank" rel="noopener noreferrer"><em>United States v. Heppner</em></a> (Judge Rakoff, S.D.N.Y., Feb.&nbsp;17, 2026), the court held that consumer AI use without attorney direction offers no privilege protection; counsel-directed, local-first workflows address that risk directly. For patent work, transmitting an invention to a cloud service before filing can bear on patentability under the EU's absolute-novelty rule, worth discussing with IP counsel.</div>
-            <span class="for-card-cta">See how it works for attorneys →</span>
-          </a>
-          <a href="/tax/" class="for-card">
-            <div class="for-card-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
-            <h3>Tax preparers &amp; CPAs</h3>
-            <p>The same private architecture, for return information you cannot put in a chatbot. Clients' SSNs, returns, and financial statements stay on your machine. Engagement letters, return pre-review, research memos, audit-defense prep. The Tax Practice pack: 13 templates.</p>
-            <div class="for-card-hook">IRC §6713 imposes strict-liability civil penalties of $250 per unauthorized disclosure of tax return information, with no intent required. IRC §7216 makes knowing or reckless disclosure a federal criminal misdemeanor. The FTC Safeguards Rule (16 CFR Part 314) requires a Written Information Security Program for every covered practitioner (confirm scope with your compliance advisor). Running a local model keeps return information on your machine; with a cloud key the prompt reaches that provider. Confirm your specific situation with a tax attorney.</div>
-            <span class="for-card-cta">See how it works for tax pros →</span>
-          </a>
-          <a href="/consulting/" class="for-card">
-            <div class="for-card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
-            <h3>Independent consultants &amp; agencies</h3>
-            <p>Your NDAs say client data stays confidential. Your workflow depends on AI. Keepance is where those two facts coexist: synthesize client discovery, draft confidential memos, and prepare presentations on your own machine. The Consulting Practice pack: 9 templates.</p>
-            <div class="for-card-hook">Many client contracts now explicitly prohibit uploading work product to AI services. With a local model, nothing reaches any AI provider, which is the safest path when a client contract bans AI uploads. With a cloud API key, prompts go to that provider directly; check your NDA's definition before relying on that path for clause compliance.</div>
-            <span class="for-card-cta">See how it works for consultants →</span>
+            <h3>Attorneys</h3>
+            <p>Matter files, discovery, correspondence, contracts, timelines, redlines, client notes, and case context in one private workspace.</p>
+            <span class="for-card-cta">See Keepance for attorneys →</span>
           </a>
           <a href="/financial-advisors/" class="for-card">
             <div class="for-card-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
             <h3>Financial advisors &amp; RIAs</h3>
-            <p>Client financials, plans, and account details are some of the most sensitive data there is. Keepance keeps them on your machine. Run a local model and they never leave it at all. The Advisor Practice pack: 7 templates for fiduciary work.</p>
-            <div class="for-card-hook">Built for fiduciary practice: a Client Financial-Plan Summary, Meeting-Prep and Suitability Notes, an Annual-Review Packet, and a Confidential Client-Data Inventory. Built with practicing advisors, with more on the way.</div>
-            <span class="for-card-cta">See how it works for advisors →</span>
+            <p>Household notes, financial plans, meeting prep, estate context, client preferences, annual reviews, and sensitive client data in one living map.</p>
+            <span class="for-card-cta">See Keepance for advisors →</span>
+          </a>
+          <a href="/tax/" class="for-card">
+            <div class="for-card-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+            <h3>CPAs &amp; tax professionals</h3>
+            <p>Returns, source documents, workpapers, engagement letters, audit-defense notes, client questions, and review checklists with controlled AI usage.</p>
+            <span class="for-card-cta">See Keepance for tax professionals →</span>
+          </a>
+          <a href="/consulting/" class="for-card">
+            <div class="for-card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+            <h3>Consultants &amp; agencies</h3>
+            <p>Discovery notes, research, client strategy, confidential memos, project history, and deliverables without dropping sensitive work into a generic chatbot.</p>
+            <span class="for-card-cta">See Keepance for consultants →</span>
           </a>
         </div>
+        <p style="font-size:13.5px;color:var(--text-muted);margin-top:32px;text-align:center;">Keepance is designed to reduce unnecessary data exposure, but it does not replace your professional, legal, ethical, or regulatory obligations. <a href="/security/" style="color:var(--navy);font-weight:600;">Read security and compliance notes →</a></p>
       </div>
     </section>
 
@@ -586,137 +667,130 @@
       <div class="container">
         <div class="section-header">
           <span class="section-label">Pricing</span>
-          <h2>Priced for one professional, not an enterprise. And your client files never leave your control.</h2>
-          <p>Per seat, billed annually. Month-to-month available. Every plan starts with a 30-day free trial. No card, no account.</p>
-        </div>
-        <div class="trial-banner">
-          <strong>Try it free for 30 days.</strong> No card, no account. Windows, Mac, and Linux. The founding cohort locks 30% off for the life of the subscription.
-          <div style="margin-top:14px;">
-            <a href="/download/" class="btn btn-outline-copper" style="display:inline-flex;align-items:center;gap:6px;padding:10px 24px;font-size:14px;">↓ Start your free trial</a>
-          </div>
+          <h2>Built for solo professionals first, with a path to firms.</h2>
+          <p>Every plan includes a 30-day free trial. No credit card required. Bring your own AI key, or run a local model when you want requests to stay on your machine.</p>
         </div>
         <div class="pricing-grid">
           <div class="pricing-card featured">
             <div class="pricing-badge">Start here</div>
             <div class="pricing-tier">Solo</div>
             <div class="pricing-price">$39<span style="font-size:1rem;font-weight:500;color:var(--text-muted-dark);">/mo</span></div>
-            <div class="pricing-price-note">$468/yr, billed annually · or $49/mo month-to-month</div>
+            <div class="pricing-price-note">$468/yr, billed annually</div>
             <hr class="pricing-divider">
             <ul class="pricing-features">
-              <li class="strong">A single professional working solo</li>
-              <li>Find anything, with cited recall across email and documents</li>
-              <li>The Word-native editor and AI redlining with tracked changes</li>
-              <li>Scoped per client or matter, so you never cross files</li>
-              <li>Privacy controls and the trust layer</li>
-              <li>Run a local model, or bring your own AI key</li>
+              <li class="strong">For one professional managing private client work</li>
+              <li>Cited recall across files, emails, and notes</li>
+              <li>Client Maps</li>
+              <li>Word and PDF support</li>
+              <li>Local-first workspace</li>
+              <li>Bring your own AI key or run local</li>
+              <li>Privacy controls</li>
             </ul>
             <a href="/download/" class="btn btn-copper btn-full">Start your free trial</a>
-            <a href="https://checkout.keepance.com/checkout/buy/f919f658-c063-4f9e-ba86-80e1e6fa79de" style="display:block;text-align:center;margin-top:10px;font-size:13px;font-weight:600;color:var(--grad-blue);text-decoration:none;">Or subscribe to Solo now &rarr;</a>
-            <p style="font-size:12px;color:var(--text-muted-dark);margin-top:10px;text-align:center;">Founding cohort: <strong>30% off for life</strong> (<strong>$324/yr</strong>). Email support@keepance.com to lock it in.</p>
+            <a href="https://checkout.keepance.com/checkout/buy/f919f658-c063-4f9e-ba86-80e1e6fa79de" style="display:block;text-align:center;margin-top:10px;font-size:13px;font-weight:600;color:var(--grad-blue);text-decoration:none;">Subscribe now &rarr;</a>
           </div>
           <div class="pricing-card">
             <div class="pricing-badge" style="background:rgba(255,255,255,0.06);color:var(--text-muted-dark);border:1px solid rgba(255,255,255,0.1);">More features</div>
             <div class="pricing-tier">Professional</div>
             <div class="pricing-price">$79<span style="font-size:1rem;font-weight:500;color:var(--text-muted-dark);">/mo</span></div>
-            <div class="pricing-price-note">$948/yr, billed annually · or $99/mo month-to-month</div>
+            <div class="pricing-price-note">$948/yr, billed annually</div>
             <hr class="pricing-divider">
             <ul class="pricing-features">
-              <li class="strong">The serious solo or small-firm professional</li>
-              <li class="strong">Everything in Solo</li>
-              <li>Ask the assistant to read a client's whole file: find gaps, build timelines, draft routine documents</li>
+              <li class="strong">For serious solos and small teams</li>
+              <li class="strong">Everything in Solo, plus:</li>
+              <li>Whole-file analysis</li>
+              <li>Timeline and gap-finding workflows</li>
+              <li>Advanced drafting workflows</li>
               <li>Version history</li>
               <li>All practice packs</li>
               <li>Priority support</li>
             </ul>
             <a href="/download/" class="btn btn-outline-copper btn-full">Start your free trial</a>
-            <a href="https://checkout.keepance.com/checkout/buy/638f8163-4381-4388-a02d-a1ccd3cf8c1b" style="display:block;text-align:center;margin-top:10px;font-size:13px;font-weight:600;color:var(--grad-blue);text-decoration:none;">Or subscribe to Professional now &rarr;</a>
-            <p style="font-size:12px;color:var(--text-muted-dark);margin-top:10px;text-align:center;">Founding cohort: <strong>30% off for life</strong> (<strong>$660/yr</strong>). Email support@keepance.com to lock it in.</p>
+            <a href="https://checkout.keepance.com/checkout/buy/638f8163-4381-4388-a02d-a1ccd3cf8c1b" style="display:block;text-align:center;margin-top:10px;font-size:13px;font-weight:600;color:var(--grad-blue);text-decoration:none;">Subscribe now &rarr;</a>
           </div>
-          <div class="pricing-card" style="opacity:0.8;">
+          <div class="pricing-card" style="opacity:0.85;">
             <div class="pricing-tier">Firm</div>
             <div class="pricing-price">$129<span style="font-size:1rem;font-weight:500;color:var(--text-muted-dark);">/seat/mo</span></div>
-            <div class="pricing-price-note">$1,548/seat/yr, billed annually · min 3 seats · or $159/seat/mo</div>
+            <div class="pricing-price-note">$1,548/seat/yr, billed annually · min 3 seats</div>
             <hr class="pricing-divider">
             <ul class="pricing-features">
-              <li class="strong">Firms of roughly 5 to 50 professionals</li>
-              <li class="strong">Everything in Professional</li>
-              <li>Shared client files and matters, with collaboration</li>
-              <li>Admin console with SSO, ethical walls, and seat management</li>
-              <li>The assured zero-retention option</li>
-              <li>Open, inspectable architecture you can verify (independent SOC 2 and a DPA are on our roadmap, not yet in place)</li>
+              <li class="strong">For teams that need shared client context</li>
+              <li class="strong">Everything in Professional, plus:</li>
+              <li>Shared client files and matters</li>
+              <li>Team collaboration</li>
+              <li>Admin controls</li>
+              <li>SSO</li>
+              <li>Ethical walls</li>
+              <li>Firm deployment review</li>
             </ul>
-            <p style="font-size:12px;color:var(--text-muted-dark);margin-top:10px;">For growing firms; SSO and co-editing included, SOC 2 and DPA on the roadmap.</p>
-            <a href="https://checkout.keepance.com/checkout/buy/7a87840c-214f-4b1e-879e-a851db197e7c?checkout[quantity]=3" class="btn btn-outline-copper btn-full">Subscribe to Firm (3 seats)</a>
+            <a href="https://checkout.keepance.com/checkout/buy/7a87840c-214f-4b1e-879e-a851db197e7c?checkout[quantity]=3" class="btn btn-outline-copper btn-full">Subscribe now (3 seats)</a>
             <a href="mailto:support@keepance.com?subject=Keepance%20Firm%20plan" style="display:block;text-align:center;margin-top:10px;font-size:13px;font-weight:600;color:var(--grad-blue);text-decoration:none;">Or talk to us first &rarr;</a>
-            <p style="font-size:12px;color:var(--text-muted-dark);margin-top:10px;text-align:center;">Starts at 3 seats. Founding rate: <strong>$90/seat/mo ($1,080/seat/yr)</strong>, locked for life.</p>
           </div>
+        </div>
+
+        <div class="trial-banner" style="margin-top:36px;">
+          <strong>Founding cohort:</strong> lock 30% off for the life of your subscription. Email <a href="mailto:support@keepance.com" style="color:var(--grad-blue);font-weight:600;">support@keepance.com</a> to claim the founding rate.
         </div>
 
         <!-- BYOK transparency + data-ownership guarantee -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:36px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:28px;">
           <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:26px 28px;">
             <h3 style="font-size:1rem;font-weight:700;color:var(--white);margin-bottom:10px;">You bring your own AI key, and we never mark it up</h3>
-            <p style="font-size:14px;color:var(--text-muted-dark);line-height:1.7;">You pay the provider directly, usually $5 to $15 a month for a solo, and you see exactly what it costs. Prefer that nothing leaves your machine at all? Run a local model with Ollama and pay nothing for AI. Either way, your subscription covers the platform: the Word editor, AI redlining, cited recall, privilege controls, encryption, updates, and support. It does not cover the AI tokens, and we take no markup on them.</p>
+            <p style="font-size:14px;color:var(--text-muted-dark);line-height:1.7;">You pay the provider directly, typically $5 to $15 a month for a solo. Prefer that nothing leaves your machine? Run a local model with Ollama at no cost. Either way, your subscription covers the platform. It does not cover AI tokens, and we take no markup on them.</p>
           </div>
           <div style="background:rgba(93,198,255,0.06);border:1px solid rgba(255,60,232,0.25);border-left:3px solid var(--grad-blue);border-radius:12px;padding:26px 28px;">
             <h3 style="font-size:1rem;font-weight:700;color:var(--white);margin-bottom:10px;">Your files are always yours</h3>
-            <p style="font-size:14px;color:var(--text-muted-dark);line-height:1.7;">They are real Word and PDF files in your own folders. If you ever cancel, you keep every document, email, and matter you have made. A lapsed subscription turns off the AI features and updates, not your data. Nothing is ever held hostage.</p>
+            <p style="font-size:14px;color:var(--text-muted-dark);line-height:1.7;">They are real Word and PDF files in your own folders. If you cancel, you keep every document, email, and matter you have made. A lapsed subscription turns off AI features and updates, not your data. Nothing is ever held hostage.</p>
           </div>
         </div>
 
-        <!-- Competitor context -->
+        <!-- Where Keepance fits (positioning table, not price comparison) -->
         <div style="margin-top:28px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:28px;">
+          <p style="font-size:14px;color:var(--text-on-dark);font-weight:600;margin-bottom:16px;">Where Keepance fits</p>
+          <p style="font-size:13.5px;color:var(--text-muted-dark);margin-bottom:20px;">Keepance is not a practice-management system, legal research database, or Microsoft 365 replacement. It is the private client-intelligence layer beside the tools you already use.</p>
           <table style="width:100%;border-collapse:collapse;">
             <thead>
               <tr>
-                <th style="text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted-dark);border-bottom:1px solid rgba(255,255,255,0.1);">Product</th>
-                <th style="text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted-dark);border-bottom:1px solid rgba(255,255,255,0.1);">Price per seat</th>
-                <th style="text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted-dark);border-bottom:1px solid rgba(255,255,255,0.1);">Where Keepance sits</th>
+                <th style="text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted-dark);border-bottom:1px solid rgba(255,255,255,0.1);">Category</th>
+                <th style="text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted-dark);border-bottom:1px solid rgba(255,255,255,0.1);">What it does</th>
+                <th style="text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted-dark);border-bottom:1px solid rgba(255,255,255,0.1);">Where Keepance fits</th>
               </tr>
             </thead>
             <tbody style="font-size:13px;color:var(--text-on-dark);">
-              <tr><td style="padding:9px 10px;font-weight:600;color:var(--white);border-bottom:1px solid rgba(255,255,255,0.06);">Thomson Reuters CoCounsel Core</td><td style="padding:9px 10px;border-bottom:1px solid rgba(255,255,255,0.06);">$225/seat/mo (about $4,500/yr)</td><td style="padding:9px 10px;border-bottom:1px solid rgba(255,255,255,0.06);">Keepance Firm is roughly half to one-third the price</td></tr>
-              <tr><td style="padding:9px 10px;font-weight:600;color:var(--white);border-bottom:1px solid rgba(255,255,255,0.06);">Westlaw + CoCounsel</td><td style="padding:9px 10px;border-bottom:1px solid rgba(255,255,255,0.06);">$428 to $639/seat/mo</td><td style="padding:9px 10px;border-bottom:1px solid rgba(255,255,255,0.06);">Keepance Firm is one-third to one-fifth the price</td></tr>
-              <tr><td style="padding:9px 10px;font-weight:600;color:var(--white);border-bottom:1px solid rgba(255,255,255,0.06);">Clio / MyCase (practice management)</td><td style="padding:9px 10px;border-bottom:1px solid rgba(255,255,255,0.06);">$39 to $149/seat/mo annual</td><td style="padding:9px 10px;border-bottom:1px solid rgba(255,255,255,0.06);">Comparable, but Keepance is the private AI layer beside Clio, not a replacement</td></tr>
-              <tr><td style="padding:9px 10px;font-weight:600;color:var(--white);">Microsoft 365 Copilot</td><td style="padding:9px 10px;">$21 to $30/mo add-on (needs base M365)</td><td style="padding:9px 10px;">Keepance Solo is at or above, with profession-specific depth and no required base subscription</td></tr>
+              <tr><td style="padding:9px 10px;font-weight:600;color:var(--white);border-bottom:1px solid rgba(255,255,255,0.06);">Practice management</td><td style="padding:9px 10px;color:var(--text-muted-dark);border-bottom:1px solid rgba(255,255,255,0.06);">Billing, tasks, calendars, intake, client portals</td><td style="padding:9px 10px;border-bottom:1px solid rgba(255,255,255,0.06);">Keepance works beside it as the AI memory for files, emails, and client context</td></tr>
+              <tr><td style="padding:9px 10px;font-weight:600;color:var(--white);border-bottom:1px solid rgba(255,255,255,0.06);">Legal research AI</td><td style="padding:9px 10px;color:var(--text-muted-dark);border-bottom:1px solid rgba(255,255,255,0.06);">Research, case law, authority, litigation workflows</td><td style="padding:9px 10px;border-bottom:1px solid rgba(255,255,255,0.06);">Keepance focuses on your private client files and matter-specific context</td></tr>
+              <tr><td style="padding:9px 10px;font-weight:600;color:var(--white);border-bottom:1px solid rgba(255,255,255,0.06);">Microsoft 365 AI</td><td style="padding:9px 10px;color:var(--text-muted-dark);border-bottom:1px solid rgba(255,255,255,0.06);">AI inside Microsoft apps and cloud workspaces</td><td style="padding:9px 10px;border-bottom:1px solid rgba(255,255,255,0.06);">Keepance adds scoped Client Maps, local-first controls, and profession-specific workflows</td></tr>
+              <tr><td style="padding:9px 10px;font-weight:600;color:var(--white);">Generic chatbots</td><td style="padding:9px 10px;color:var(--text-muted-dark);">Broad AI assistance</td><td style="padding:9px 10px;">Keepance is private, cited, client-scoped, and built around your files</td></tr>
             </tbody>
           </table>
         </div>
 
-        <p class="pricing-note">All plans include a 30-day free trial. No credit card required to download.<br><strong>Plus your AI provider costs:</strong> you bring your own AI key, so the AI itself is billed directly by Anthropic, OpenAI, or Google, typically $5 to $15 a month for moderate use, and $0 if you run a local model. <a href="/ai-cost-calculator/" style="color:var(--grad-blue);font-weight:600;">Estimate your cost</a>.<br>Pricing references for CoCounsel, Westlaw, Clio, MyCase, and Microsoft 365 Copilot are from the providers' published rates as of June 2026 and are for comparison only.</p>
+        <p class="pricing-note">All plans include a 30-day free trial. No credit card required to download.</p>
       </div>
     </section>
 
-    <!-- LEGAL NOTE -->
-    <div class="legal-note-section">
-      <div class="container legal-note-inner">
-        <div class="legal-note">
-          <h4>A note on compliance claims</h4>
-          <p>The ABA and IRC §7216 references on this page are informational, not legal advice. Keepance's local-first architecture is designed to reduce your compliance surface, but it doesn't eliminate your professional obligations. Verify how Keepance fits your specific practice with your bar counsel or tax advisor.</p>
-        </div>
-        <div class="legal-note">
-          <h4>Where your data actually goes</h4>
-          <p>Your documents and your AI key stay on your machine. Run a local model with Ollama and nothing leaves it at all. Use a cloud key instead and the prompt goes straight to Anthropic, OpenAI, or Google, never through a server of ours, but that provider does see it. We say which is which on every action, and you can <a href="/ai-workspace-privacy/" style="color:var(--navy);font-weight:600;">see exactly where your data goes</a>. Your work is ordinary files in a folder you chose, so you back it up the way you back up everything else. There is no Keepance cloud to depend on.</p>
-        </div>
-        <div class="legal-note">
-          <h4>Already bought the old one-time license?</h4>
-          <p>You keep exactly what you paid for, in good faith. Keepance 3.0 is a new, repositioned product at new pricing, and we never claw back what you already own. And because everything is local files in open formats, your work is never hostage to us: if Keepance disappeared tomorrow, your documents stay exactly where they are.</p>
-        </div>
+  </main>
+
+  <!-- FINAL CTA -->
+  <section style="background:var(--navy);padding:96px 0;border-top:1px solid rgba(255,255,255,0.06);position:relative;overflow:hidden;">
+    <div style="position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 60% 50% at 70% 40%, rgba(255,60,232,0.07) 0%, transparent 70%),radial-gradient(ellipse 40% 60% at 10% 80%, rgba(93,198,255,0.05) 0%, transparent 60%);"></div>
+    <div class="container" style="max-width:680px;text-align:center;position:relative;">
+      <span class="section-label" style="color:var(--grad-pink);">Get started</span>
+      <h2 style="color:var(--white);margin-bottom:20px;">Give every client a memory your team can use.</h2>
+      <p style="font-size:1.0625rem;color:var(--text-on-dark);line-height:1.7;margin-bottom:36px;">Start with one client file. Import the emails, notes, documents, and interviews you already have. Keepance turns them into a living Client Map you can ask, verify, draft from, and build on.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+        <a href="/download/" class="btn btn-primary">Start your free trial</a>
+        <a href="#client-map" class="btn btn-outline-light">See a sample Client Map</a>
       </div>
     </div>
-
-  </main>
+  </section>
 
   <!-- BUILT BY -->
   <section style="background:var(--bone);border-top:1px solid var(--border);padding:64px 0;">
     <div class="container" style="max-width:680px;text-align:center;">
       <p style="font-size:11px;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;">Built by</p>
       <h2 style="font-size:1.6rem;font-weight:800;color:var(--text-heading);margin-bottom:14px;letter-spacing:-0.02em;">Jameson Daines</h2>
-      <p style="font-size:1rem;line-height:1.7;color:var(--text-body);margin-bottom:24px;">
-        Senior Product Designer. A decade designing health products at Samsung and AstraZeneca, where the data was the kind you cannot put in someone else's cloud.
-        I built Keepance because the AI tools that could help most were the ones a professional can't paste a client's name into. So I built one where the work never has to leave your computer.
-        <a href="https://jamesondaines.com" target="_blank" rel="noopener" style="color:var(--navy);font-weight:600;">jamesondaines.com</a>
-      </p>
+      <p style="font-size:1rem;line-height:1.7;color:var(--text-body);margin-bottom:24px;">I'm a senior product designer with a decade of experience designing products for sensitive healthcare and regulated-data environments, including work at Samsung and AstraZeneca. I built Keepance because the most useful AI tools are often the ones professionals cannot safely use with real client work. Keepance is my answer: a local-first AI workspace where confidential files stay in your control, answers are cited, and client context becomes something your team can actually use.</p>
       <div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap;">
         <a href="https://jamesondaines.com" target="_blank" rel="noopener" style="color:var(--text-body);text-decoration:none;font-size:14px;font-weight:500;">Portfolio →</a>
         <a href="https://www.linkedin.com/in/jamesondaines/" target="_blank" rel="noopener" style="color:var(--text-body);text-decoration:none;font-size:14px;font-weight:500;">LinkedIn →</a>
