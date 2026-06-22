@@ -85,6 +85,12 @@
   ul.list li{position:relative; padding:0 0 0 18px; margin:0 0 9px; font-size:14px; color:var(--ink)}
   ul.list li::before{content:""; position:absolute; left:0; top:9px; width:6px; height:6px; border-radius:50%; background:#c2ccdb}
   ul.list.dec li::before{background:#2f6df0}ul.list.ins li::before{background:#7c5cff}
+  .mark.res{background:#15803d}
+  .reslinks{margin:18px 0 0;padding:16px 0 0;border-top:1px solid var(--line)}
+  .reslinks h3{display:flex;align-items:center;gap:7px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 10px}
+  .reslist{display:flex;flex-wrap:wrap;gap:8px}
+  a.reslink{display:inline-block;background:var(--bg-soft);border:1px solid var(--line);border-radius:9px;padding:9px 13px;font-size:13.5px;font-weight:600;color:var(--navy);text-decoration:none}
+  a.reslink:hover{border-color:var(--accent);color:var(--accent)}
 
   /* Testing platform rows */
   .plat{display:flex; gap:14px; padding:16px 0; border-top:1px solid var(--line)}
@@ -161,9 +167,11 @@
   function renderStandard(s){
     var dec=(s.decisions||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('');
     var ins=(s.insights||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('');
+    var links=(s.links||[]).map(function(l){return '<a class="reslink" href="'+esc(l.doc)+'" target="_blank" rel="noopener">'+esc(l.label)+' →</a>';}).join('');
+    var linkBlock = links ? '<div class="reslinks"><h3><span class="mark res"></span>Resources</h3><div class="reslist">'+links+'</div></div>' : '';
     return '<p class="now">'+esc(s.now)+'</p><div class="cols">'
       +'<div class="col"><h3><span class="mark dec"></span>Recent key decisions</h3><ul class="list dec">'+dec+'</ul></div>'
-      +'<div class="col"><h3><span class="mark ins"></span>Insights &amp; open ideas</h3><ul class="list ins">'+ins+'</ul></div></div>';
+      +'<div class="col"><h3><span class="mark ins"></span>Insights &amp; open ideas</h3><ul class="list ins">'+ins+'</ul></div></div>'+linkBlock;
   }
   function renderTesting(s){
     var rows=(s.platforms||[]).map(function(p){
