@@ -169,3 +169,7 @@ wired in `.claude/settings.json` (`hooks.PostToolUse`, matcher `Edit|Write|Multi
 and each machine opts in via its settings. A whole-project typecheck/eslint per
 edit is deliberately NOT used (too slow on this repo); the authoritative gate stays
 `npm run gate` + the pre-push hook. Disable by removing the `hooks` block.
+
+## Round-4 completion (2026-06-22)
+
+**ALL round-4 waves MERGED + pushed to keepance-3.0.** 24 of 26 found bugs (BUG-066..091) + all 5 TEST gap-tickets fixed/verified/merged; only BUG-078 (audit hash-chain) and BUG-083 (MCP audit, folds into BUG-038/039) deferred pending a scope check. Final gate on the merged branch: typecheck clean · full vitest 3702 passed/0 failed · full cargo 559 passed/0 failed. See the bug DB for per-ticket detail. NO build/deploy cut.
