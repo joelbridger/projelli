@@ -141,6 +141,19 @@ describe('AuditService persistence (desktop, encrypted store)', () => {
     expect(persisted['provider']).toBe('anthropic');
   });
 
+  it('surfaces rejected desktop persistence for a critical event without throwing', async () => {
+    mocks.invoke.mockRejectedValue(new Error('encrypted store unavailable'));
+    const svc = new AuditService('desktop-critical-failure');
+
+    const entry = await svc.logDurable('egress', 'AI request sent to Anthropic', {
+      metadata: { auditEventType: 'egress' },
+    });
+
+    expect(entry.metadata['auditPersistenceStatus']).toBe('failed');
+    expect(String(entry.metadata['auditPersistenceError'])).toContain('encrypted store unavailable');
+    expect(svc.getAll()[0]).toBe(entry);
+  });
+
   it('hydrate() sets the workspace and loads entries from audit_list', async () => {
     mocks.invoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'audit_list') {

@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Critical desktop audit rows no longer fail silently (BUG-077).** Critical audit events now have an awaitable persistence path; if encrypted desktop storage rejects an append, the in-session row is marked with a failed persistence status instead of being silently presented as durably saved.
+  - Files modified: `src/platform/audit/AuditService.ts`, `src/App.tsx`
+  - Tests: `tests/unit/audit/audit-persistence.test.ts`
 - **Audit cost fields now survive restart/export (BUG-082).** Model-call audit entries now serialize `tokensIn`, `tokensOut`, `costUsd`, and `provider` before persistence, so the live cost data is not lost when the encrypted audit log is reopened or exported.
   - Files modified: `src/platform/audit/AuditService.ts`, `src/App.tsx`
   - Tests: `tests/unit/audit/audit-persistence.test.ts`

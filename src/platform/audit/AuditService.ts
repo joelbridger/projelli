@@ -50,6 +50,28 @@ type AuditLogOptions = {
   provider?: string;
 };
 
+const CRITICAL_ACTIONS = new Set<AuditActionType>([
+  'egress',
+  'model_call',
+  'file_create',
+  'file_update',
+  'file_delete',
+  'file_move',
+  'file_rename',
+  'mcp_blocked',
+  'matter_shared',
+  'matter_unshared',
+  'member_invited',
+  'member_removed',
+  'wall_set_from_manager',
+  'key_published',
+  'seat_revoked',
+]);
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** Serialize a flat entry to the encrypted-store record shape. The full entry
  *  is preserved verbatim in `payloadJson` so it round-trips losslessly. */
 function entryToRecord(entry: AuditEntry): AuditEntryRecord {
@@ -172,6 +194,22 @@ export class AuditService {
     this.entries.push(entry);
     this.record(entry);
 
+    return entry;
+  }
+
+  /**
+   * Log an action and await persistence when the action is critical. This never
+   * throws; failures are stamped onto the returned in-memory entry so the UI
+   * can show that the row is not durably saved.
+   */
+  async logDurable(
+    action: AuditActionType,
+    description: string,
+    options: AuditLogOptions = {}
+  ): Promise<AuditEntry> {
+    const entry = this.buildEntry(action, description, options);
+    this.entries.push(entry);
+    await this.recordDurable(entry);
     return entry;
   }
 
@@ -427,6 +465,11 @@ export class AuditService {
   }
 
   private record(entry: AuditEntry): void {
+    if (CRITICAL_ACTIONS.has(entry.action)) {
+      entry.metadata = { ...entry.metadata, auditPersistenceStatus: 'pending' };
+      void this.recordDurable(entry);
+      return;
+    }
     if (this.encrypted) {
       // Fire-and-forget; a transient backend error must not break logging. The
       // in-memory list already holds the entry for this session, and a reopen
@@ -437,6 +480,25 @@ export class AuditService {
       return;
     }
     this.persist();
+  }
+
+  private async recordDurable(entry: AuditEntry): Promise<void> {
+    entry.metadata = { ...entry.metadata, auditPersistenceStatus: 'pending' };
+    try {
+      if (this.encrypted) {
+        await auditAppend(entryToRecord(entry));
+      } else {
+        this.persist();
+      }
+      entry.metadata = { ...entry.metadata, auditPersistenceStatus: 'saved' };
+    } catch (error) {
+      entry.metadata = {
+        ...entry.metadata,
+        auditPersistenceStatus: 'failed',
+        auditPersistenceError: errorMessage(error),
+      };
+      console.error('Audit persistence failed:', error);
+    }
   }
 
   /**

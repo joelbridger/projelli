@@ -836,18 +836,20 @@ function App() {
   // persisted row and the on-screen row are identical. Append-only on both
   // sides: we only ever prepend a new entry.
   const addAuditEntry = useCallback((entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {
-    const newEntry = auditServiceRef.current.log(entry.action, entry.description, {
-      ...(entry.model !== undefined ? { model: entry.model } : {}),
-      inputs: entry.inputs,
-      outputs: entry.outputs,
-      ...(entry.userDecision !== undefined ? { userDecision: entry.userDecision } : {}),
-      metadata: entry.metadata,
-      ...(entry.tokensIn !== undefined ? { tokensIn: entry.tokensIn } : {}),
-      ...(entry.tokensOut !== undefined ? { tokensOut: entry.tokensOut } : {}),
-      ...(entry.costUsd !== undefined ? { costUsd: entry.costUsd } : {}),
-      ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
-    });
-    setAuditEntries((prev) => [newEntry, ...prev]);
+    void (async () => {
+      const newEntry = await auditServiceRef.current.logDurable(entry.action, entry.description, {
+        ...(entry.model !== undefined ? { model: entry.model } : {}),
+        inputs: entry.inputs,
+        outputs: entry.outputs,
+        ...(entry.userDecision !== undefined ? { userDecision: entry.userDecision } : {}),
+        metadata: entry.metadata,
+        ...(entry.tokensIn !== undefined ? { tokensIn: entry.tokensIn } : {}),
+        ...(entry.tokensOut !== undefined ? { tokensOut: entry.tokensOut } : {}),
+        ...(entry.costUsd !== undefined ? { costUsd: entry.costUsd } : {}),
+        ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
+      });
+      setAuditEntries((prev) => [newEntry, ...prev]);
+    })();
   }, []);
 
 
