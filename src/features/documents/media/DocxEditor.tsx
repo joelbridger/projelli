@@ -71,10 +71,13 @@ import {
 import { writeCoordinator } from '@/platform/fs/writeCoordinator';
 import { createProvider, isLocalProviderId, type ChatProviderId } from '@/platform/providers/providerFactory';
 import { useTrialGate } from '@/platform/hooks/useTrial';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { getActiveScope } from '@/platform/matter/matterStore';
+import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import {
   REDLINE_AUTHOR,
   paragraphPlainRunText,
-  requestRedlineEdits,
+  requestRedlineEditsWithAudit,
 } from '@/features/documents/docx/redline';
 import { diffParagraphEdits } from '@/platform/utils/docx-text-diff';
 import {
@@ -799,7 +802,24 @@ export function DocxEditor({
         ...(redlineKey ? { apiKey: redlineKey } : {}),
         ...(aiModel ? { model: aiModel } : {}),
       });
-      const edits = await requestRedlineEdits(provider, instruction, currentDoc);
+      const activeScope = getActiveScope();
+      const edits = await requestRedlineEditsWithAudit(
+        provider,
+        instruction,
+        currentDoc,
+        {
+          providerId: aiProvider,
+          ...(aiModel ? { model: aiModel } : {}),
+          mode: getConfidentialityMode(),
+          fileName,
+          ...(filePath ? { filePath } : {}),
+          scope: activeScope.kind === 'matter'
+            ? { kind: 'matter', matterId: activeScope.matterId }
+            : { kind: 'allMatters' },
+          isDemo: IS_DEMO,
+          ...(onAuditLog ? { onAuditLog } : {}),
+        },
+      );
       if (edits.length === 0) {
         setRedlineSummary({ instruction, applied: 0, skipped: 0, items: [] });
         setRedlineBusy(false);
@@ -864,6 +884,7 @@ export function DocxEditor({
     aiProvider,
     aiModel,
     fileName,
+    filePath,
     applyResolvedDocument,
     onAuditLog,
     aiGated,

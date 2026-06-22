@@ -30,6 +30,9 @@ import type {
   DocxParagraph,
 } from '@/platform/types/docx';
 import type { OutputSchema, Provider } from '@/platform/providers/Provider';
+import { auditEventToEntry } from '@/platform/audit/AuditService';
+import { resolveEgress, type ConfidentialityMode } from '@/platform/privacy/egress';
+import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 
 /** Author string stamped on AI redline revisions (matches the engine default). */
 export const REDLINE_AUTHOR = 'Keepance AI';
@@ -257,4 +260,65 @@ export async function requestRedlineEdits(
     ...(options?.signal ? { signal: options.signal } : {}),
   });
   return normalizeEdits(raw);
+}
+
+export interface RedlineEgressAuditContext {
+  providerId: string;
+  model?: string;
+  mode: ConfidentialityMode;
+  fileName: string;
+  filePath?: string;
+  scope?: AuditScope;
+  assuredAvailable?: boolean;
+  isDemo?: boolean;
+  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+}
+
+export function buildRedlineEgressAuditEntry(
+  context: RedlineEgressAuditContext,
+): Omit<AuditEntry, 'id' | 'timestamp'> {
+  const egress = resolveEgress({
+    provider: context.providerId,
+    mode: context.mode,
+    isDemo: context.isDemo ?? false,
+    assuredAvailable: context.assuredAvailable ?? false,
+  });
+  const entry = auditEventToEntry({
+    type: 'egress',
+    timestamp: new Date().toISOString(),
+    payload: {
+      provider: egress.provider,
+      ...(context.model !== undefined ? { model: context.model } : {}),
+      mode: context.mode,
+      destination: egress.destination,
+      dataLeaves: egress.dataLeaves,
+      ...(context.scope !== undefined ? { scope: context.scope } : {}),
+    },
+  });
+  return {
+    ...entry,
+    metadata: {
+      ...entry.metadata,
+      feature: 'docx_redline',
+      file: context.filePath ?? context.fileName,
+      fileName: context.fileName,
+    },
+  };
+}
+
+/**
+ * Audited wrapper for redline sends. The egress row is emitted immediately
+ * before the provider request so the audit log records that document text left
+ * the app even when the model returns an empty edit list.
+ */
+export async function requestRedlineEditsWithAudit(
+  provider: Provider,
+  instruction: string,
+  doc: DocumentJson,
+  auditContext: RedlineEgressAuditContext,
+  selection?: ParagraphSelection,
+  options?: { signal?: AbortSignal },
+): Promise<DocxAiEdit[]> {
+  auditContext.onAuditLog?.(buildRedlineEgressAuditEntry(auditContext));
+  return requestRedlineEdits(provider, instruction, doc, selection, options);
 }
