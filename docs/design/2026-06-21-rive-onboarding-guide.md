@@ -40,8 +40,24 @@ Since you live in Figma:
 You can also draw natively in Rive, but Figma → SVG → Rive will be faster for you.
 
 ## 4. The exact specs so your files drop in perfectly
-- **Artboard size:** **800 × 600 px** (4:3). It scales cleanly to fit the scene area.
-  Keep the key content centered with a little breathing room.
+- **Layout = FULL-BLEED CINEMATIC** (chosen 2026-06-21): each scene fills the whole
+  screen, with the title/buttons overlaid on top.
+- **Artboard size:** **1920 × 1080 (16:9).** Rive is **vector** — scales with zero
+  quality loss and renders sharper on 4K automatically, so this is the working canvas,
+  not a quality cap. Edge-to-edge fill is handled in code (object-fit cover).
+- **Background:** the scene HAS a background that fills the screen. Keep it **light and
+  airy / on-brand** (we're a light theme; navy text sits on top). If a specific scene
+  wants a darker dramatic look, flag it and that screen's text flips to light.
+- **Two safe zones to design around:**
+  1. **Crop-safe:** not every window is exactly 16:9 (users resize), and we cover/crop
+     the edges. Keep important content within the central ~80% — nothing critical at the
+     extreme edges.
+  2. **Text-safe:** leave one calmer region where the title/buttons go (default: the
+     lower third / lower-left). Keep the busiest motion away from it. For text-heavy
+     teaching screens (e.g. the "two ways" panel), I place the text in a subtle frosted/
+     scrim panel over the scene so it stays readable — keep that area visually calm.
+- I handle (you don't): cover/crop fill, the legibility scrim/frosted panel, exact text
+  placement, and graceful shrink on small/odd-shaped windows.
 - **Background:** **transparent** (no background fill). Our light page shows through.
 - **Brand colors (hex):**
   - Navy (primary): `#0A2540`
