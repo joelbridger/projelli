@@ -79,7 +79,7 @@
       --bone-dark: #EEEEE8;
       --white: #FFFFFF;
       --text-on-dark: #E8E8E2;
-      --text-muted-dark: #8A9BB0;
+      --text-muted-dark: #B6C4D6;
       --text-heading: #0A2540;
       --text-body: #3A3A38;
       --text-muted: #6B6B65;
@@ -141,7 +141,7 @@
     .hero-eyebrow { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--grad-pink); margin-bottom: 20px; }
     .hero h1 { font-family: 'Satoshi', system-ui, sans-serif; font-size: clamp(2.2rem, 3.8vw, 3rem); font-weight: 700; color: var(--white); line-height: 1.2; margin-bottom: 24px; letter-spacing: -0.02em; }
     .hero h1 em { font-style: normal; background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-    .hero-sub { font-size: 1.0625rem; color: var(--text-muted-dark); line-height: 1.7; margin-bottom: 36px; max-width: 520px; }
+    .hero-sub { font-size: 1.0625rem; color: var(--text-on-dark); font-weight: 400; line-height: 1.7; margin-bottom: 36px; max-width: 520px; }
     .hero-sub strong { color: var(--text-on-dark); font-weight: 600; }
     .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 28px; }
 
@@ -333,7 +333,7 @@
       <div class="container hero-inner">
 
         <div class="hero-copy">
-          <h1>Private <em>client intelligence</em> for high-trust work.</h1>
+          <h1>Private <em>client intelligence</em> for<br>high-trust work.</h1>
           <p class="hero-sub">
             Keepance is a secure AI workspace that turns your files, emails, notes, and interviews into <strong>a living Client Map</strong>. Ask cited questions, draft documents and replies, keep your team aligned, and serve clients with the context they expect you to remember.
           </p>
@@ -343,13 +343,9 @@
           </div>
         </div>
 
-        <!-- App in Preview mode: rendered deposition notes, no raw Markdown visible -->
+        <!-- App screenshot: the Documents view of a matter, files on the user's own computer -->
         <div class="hero-mockup">
-          <video class="hero-video" autoplay muted loop playsinline preload="metadata"
-                 poster="/images/app-preview-mode.png"
-                 aria-label="Keepance showing a deposition memo as a formatted document: headings, bold case details, and a cited answer in the side panel">
-            <source src="/videos/keepance-hero.mp4" type="video/mp4">
-          </video>
+          <img class="hero-video" src="/images/hero-app.png" alt="Keepance showing a matter's Documents: files and folders kept on the lawyer's own computer, with an indicator showing where AI requests go." loading="eager">
         </div>
 
       </div>
