@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Chat markdown exports keep citation verification honesty (BUG-068).** Exported `.aichat` markdown now includes a "Sources and verification" section under assistant answers, marking each cited source as either "Source found" or "UNVERIFIED" with its label, path, locator, and excerpt.
+  - Files modified: `src/features/ask/renderingHelpers.tsx`
+  - Tests: `tests/unit/ask/renderingHelpers.test.ts`
 - **Provider reliability regressions (BUG-071 through BUG-076).** Cloud and local provider calls now stop runaway tool loops, keep the final no-newline streaming chunk, honor immediate aborts, apply request timeouts, frame Ollama-extracted PDF text as untrusted document data, and include Gemini structured-output schema/limits.
   - Files modified: `ClaudeProvider.ts`, `OpenAIProvider.ts`, `GeminiProvider.ts`, `OllamaProvider.ts`, `Provider.ts`, `requestControl.ts`, `redline.ts`
   - Tests: `tests/unit/models/provider-regressions.test.ts`, `tests/unit/models/ollama-pdf-format.test.ts`, `tests/unit/redline.test.ts`

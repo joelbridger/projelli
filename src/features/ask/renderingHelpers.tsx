@@ -6,8 +6,8 @@ import { Sparkles, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import i18n from '@/i18n';
 import { OCR_LOW_CONFIDENCE } from '@/platform/utils/tauri-commands';
-import { parseCitations, resolveCitationPath } from '@/platform/rag/workspaceCommand';
-import type { AIChatFile, WorkspaceSource } from '@/platform/types/ai';
+import { parseCitations, resolveCitationPath, resolveCitationTarget } from '@/platform/rag/workspaceCommand';
+import type { AIChatFile, ChatMessage, PersistedCitation, WorkspaceSource } from '@/platform/types/ai';
 
 /**
  * Render markdown-like formatting for messages
@@ -318,8 +318,126 @@ export function chatToMarkdown(chat: AIChatFile): string {
     const role = msg.role === 'user' ? 'You' : 'Assistant';
     markdown += `## ${role} (${timestamp})\n\n`;
     markdown += `${msg.content}\n\n`;
+    const citationVerification = msg.role === 'assistant'
+      ? formatCitationVerificationForMarkdown(msg)
+      : '';
+    if (citationVerification !== '') {
+      markdown += citationVerification;
+      markdown += '\n';
+    }
     markdown += `---\n\n`;
   }
 
   return markdown;
+}
+
+function formatCitationVerificationForMarkdown(msg: ChatMessage): string {
+  const citations =
+    msg.askCitations && msg.askCitations.length > 0
+      ? markdownRowsFromPersistedCitations(msg)
+      : markdownRowsFromWorkspaceSources(msg);
+  if (citations.length === 0) return '';
+
+  const lines = ['### Sources and verification', ''];
+
+  for (const citation of citations) {
+    const status = citation.verified ? 'Source found' : 'UNVERIFIED';
+    lines.push(`- ${String(citation.n)}. **${status}** - ${citation.label}`);
+    lines.push(`  - Path: ${citation.path ?? 'Unresolved source'}`);
+    if (citation.locator && citation.locator.trim() !== '') {
+      lines.push(`  - Locator: ${citation.locator}`);
+    }
+    if (citation.excerpt.trim() !== '') {
+      lines.push(`  - Excerpt: ${oneLineMarkdownValue(citation.excerpt)}`);
+    }
+  }
+
+  return `${lines.join('\n')}\n`;
+}
+
+interface MarkdownCitationVerificationRow {
+  n: number;
+  label: string;
+  path: string | null;
+  locator: string | undefined;
+  excerpt: string;
+  verified: boolean;
+}
+
+function markdownRowsFromPersistedCitations(msg: ChatMessage): MarkdownCitationVerificationRow[] {
+  return (msg.askCitations ?? []).map((citation) => ({
+    n: citation.n,
+    label: citation.label,
+    path: citation.path,
+    locator: citation.locator,
+    excerpt: citation.excerpt,
+    verified: isPersistedCitationVerifiedForExport(citation, msg),
+  }));
+}
+
+function isPersistedCitationVerifiedForExport(citation: PersistedCitation, msg: ChatMessage): boolean {
+  if (citation.path === null || !citation.verified) {
+    return false;
+  }
+
+  const source = findSourceForPersistedCitation(citation, [
+    ...(msg.askSources ?? []),
+    ...(msg.sources ?? []),
+  ]);
+  if (!source) return false;
+  return source.verified === undefined ? citation.verified : source.verified;
+}
+
+function findSourceForPersistedCitation(
+  citation: PersistedCitation,
+  sources: WorkspaceSource[],
+): WorkspaceSource | undefined {
+  if (citation.id) {
+    const byId = sources.find((source) => source.id === citation.id);
+    if (byId) return byId;
+  }
+
+  if (citation.path === null) return undefined;
+
+  return (
+    sources.find(
+      (source) =>
+        source.path === citation.path &&
+        (citation.paragraphIndex === undefined ||
+          source.paragraphIndex === citation.paragraphIndex ||
+          source.pageNumber === citation.paragraphIndex),
+    ) ?? sources.find((source) => source.path === citation.path)
+  );
+}
+
+function markdownRowsFromWorkspaceSources(msg: ChatMessage): MarkdownCitationVerificationRow[] {
+  const sources = msg.sources ?? [];
+  if (sources.length === 0) return [];
+
+  return parseCitations(msg.content).map((citation, index) => {
+    const source = resolveCitationTarget(citation, sources);
+    const label = source
+      ? citationDisplayLabel(
+          citation.basename,
+          citation.paragraphIndex,
+          source.sourceType,
+          source.pageNumber,
+          source.extraction,
+          source.extractionConfidence,
+          source.locator,
+        )
+      : `${citation.basename} §${String(citation.paragraphIndex)}`;
+    return {
+      n: index + 1,
+      label,
+      path: source?.path ?? null,
+      locator: source?.locator,
+      excerpt: source?.chunkText ?? '',
+      verified: source?.verified === true,
+    };
+  });
+}
+
+function oneLineMarkdownValue(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
 }
