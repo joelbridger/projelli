@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
+import type { AuditMatterScopeOption } from '@/features/audit/audit-export';
 import {
   Button,
   FilterPanel,
@@ -444,6 +445,9 @@ export interface AuditFilterPanelProps {
   availableModels: string[];
   modelFilter: string;
   onModelChange: (v: string) => void;
+  availableMatterScopes: AuditMatterScopeOption[];
+  matterIdFilter: string;
+  onMatterChange: (v: string) => void;
   activeFilterCount: number;
   onReset: () => void;
 }
@@ -460,6 +464,9 @@ export function AuditFilterPanel({
   availableModels,
   modelFilter,
   onModelChange,
+  availableMatterScopes,
+  matterIdFilter,
+  onMatterChange,
   activeFilterCount,
   onReset,
 }: AuditFilterPanelProps) {
@@ -540,6 +547,21 @@ export function AuditFilterPanel({
             </select>
           </div>
         )}
+        <div>
+          <Eyebrow style={{ marginBottom: 6 }}>Matter</Eyebrow>
+          <select
+            value={matterIdFilter}
+            onChange={(e) => { onMatterChange(e.target.value); }}
+            data-testid="audit-home-filter-matter"
+            style={{ ...inputStyle, minWidth: 180, paddingRight: 24 }}
+            aria-label="Filter by matter"
+          >
+            <option value="">All matters</option>
+            {availableMatterScopes.map((scope) => (
+              <option key={scope.matterId} value={scope.matterId}>{scope.label}</option>
+            ))}
+          </select>
+        </div>
         {activeFilterCount > 0 && (
           <Button
             variant="secondary"

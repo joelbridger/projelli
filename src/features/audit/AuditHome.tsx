@@ -30,6 +30,7 @@ import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import {
   filterEntries,
   uniqueModels,
+  uniqueMatterScopes,
   downloadAuditCSV,
   downloadAuditJSON,
 } from '@/features/audit/audit-export';
@@ -74,6 +75,7 @@ export function AuditHome({ entries }: AuditHomeProps) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [modelFilter, setModelFilter] = useState('');
+  const [matterIdFilter, setMatterIdFilter] = useState('');
 
   // ── Pagination ────────────────────────────────────────────────────────
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -83,6 +85,7 @@ export function AuditHome({ entries }: AuditHomeProps) {
 
   // ── Derived data ──────────────────────────────────────────────────────
   const availableModels = useMemo(() => uniqueModels(entries), [entries]);
+  const availableMatterScopes = useMemo(() => uniqueMatterScopes(entries), [entries]);
 
   // Build effective action-type set: merge category filter + explicit type chips
   const effectiveTypes = useMemo<Set<AuditActionType>>(() => {
@@ -109,6 +112,7 @@ export function AuditHome({ entries }: AuditHomeProps) {
       dateFrom: deferredDateFrom || undefined,
       dateTo: deferredDateTo || undefined,
       model: deferredModelFilter || undefined,
+      matterId: matterIdFilter || undefined,
       searchQuery: deferredSearch || undefined,
     });
     // NOTE: If the entries prop is guaranteed newest-first from the source,
@@ -117,7 +121,13 @@ export function AuditHome({ entries }: AuditHomeProps) {
     return result.slice().sort(
       (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
-  }, [entries, deferredEffectiveTypes, deferredDateFrom, deferredDateTo, deferredModelFilter, deferredSearch]);
+  }, [entries, deferredEffectiveTypes, deferredDateFrom, deferredDateTo, deferredModelFilter, matterIdFilter, deferredSearch]);
+
+  const exportScopeLabel = useMemo(() => {
+    if (!matterIdFilter) return 'Exporting all matters.';
+    const selected = availableMatterScopes.find((scope) => scope.matterId === matterIdFilter);
+    return `Exporting ${selected?.label ?? matterIdFilter} only.`;
+  }, [availableMatterScopes, matterIdFilter]);
 
   const visibleEntries = filteredEntries.slice(0, visibleCount);
   const hasMore = visibleCount < filteredEntries.length;
@@ -127,7 +137,8 @@ export function AuditHome({ entries }: AuditHomeProps) {
     selectedTypes.size +
     (dateFrom ? 1 : 0) +
     (dateTo ? 1 : 0) +
-    (modelFilter ? 1 : 0);
+    (modelFilter ? 1 : 0) +
+    (matterIdFilter ? 1 : 0);
 
   const handleReset = useCallback(() => {
     setCategoryFilter('all');
@@ -135,6 +146,7 @@ export function AuditHome({ entries }: AuditHomeProps) {
     setDateFrom('');
     setDateTo('');
     setModelFilter('');
+    setMatterIdFilter('');
     setVisibleCount(PAGE_SIZE);
   }, []);
 
@@ -146,6 +158,7 @@ export function AuditHome({ entries }: AuditHomeProps) {
     setDateFrom('');
     setDateTo('');
     setModelFilter('');
+    setMatterIdFilter('');
     setVisibleCount(PAGE_SIZE);
   }, []);
 
@@ -180,6 +193,11 @@ export function AuditHome({ entries }: AuditHomeProps) {
 
   const handleModelChange = useCallback((v: string) => {
     setModelFilter(v);
+    setVisibleCount(PAGE_SIZE);
+  }, []);
+
+  const handleMatterChange = useCallback((v: string) => {
+    setMatterIdFilter(v);
     setVisibleCount(PAGE_SIZE);
   }, []);
 
@@ -305,13 +323,16 @@ export function AuditHome({ entries }: AuditHomeProps) {
           availableModels={availableModels}
           modelFilter={modelFilter}
           onModelChange={handleModelChange}
+          availableMatterScopes={availableMatterScopes}
+          matterIdFilter={matterIdFilter}
+          onMatterChange={handleMatterChange}
           activeFilterCount={activeFilterCount}
           onReset={handleReset}
         />
       )}
 
       {/* Result count + export filter note */}
-      {(searchQuery || activeFilterCount > 0 || (filteredEntries.length > 0 && filteredEntries.length < entries.length)) && (
+      {(entries.length > 0 || searchQuery || activeFilterCount > 0 || (filteredEntries.length > 0 && filteredEntries.length < entries.length)) && (
         <div
           style={{
             display: 'flex',
@@ -328,6 +349,19 @@ export function AuditHome({ entries }: AuditHomeProps) {
             </span>
           )}
           {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {filteredEntries.length > 0 && (
+            <span
+              data-testid="audit-export-scope-note"
+              style={{
+                fontSize: 'var(--kp-font-2xs)',
+                color: 'var(--color-muted-foreground)',
+                lineHeight: 'var(--kp-leading-normal)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {exportScopeLabel}
+            </span>
+          )}
           {filteredEntries.length > 0 && filteredEntries.length < entries.length && (
             <span
               data-testid="audit-export-filter-note"

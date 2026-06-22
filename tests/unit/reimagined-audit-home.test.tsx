@@ -125,6 +125,39 @@ describe('AuditHome', () => {
     expect(jsonBtn).not.toBeDisabled();
   });
 
+  it('filters visible activity and export note by matter', () => {
+    render(
+      <AuditHome
+        entries={[
+          makeEntry({
+            id: 'matter-a',
+            description: 'Defense file answer',
+            metadata: {
+              scope: { kind: 'matter', matterId: 'matter-a', matterName: 'Matter A' },
+            },
+          }),
+          makeEntry({
+            id: 'matter-b',
+            description: 'Other client answer',
+            metadata: {
+              scope: { kind: 'matter', matterId: 'matter-b', matterName: 'Matter B' },
+            },
+          }),
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('audit-home-filter-toggle'));
+    fireEvent.change(screen.getByTestId('audit-home-filter-matter'), {
+      target: { value: 'matter-a' },
+    });
+
+    expect(screen.getAllByTestId('audit-table-row')).toHaveLength(1);
+    expect(screen.getByText('Defense file answer')).toBeInTheDocument();
+    expect(screen.queryByText('Other client answer')).not.toBeInTheDocument();
+    expect(screen.getByTestId('audit-export-scope-note')).toHaveTextContent('Exporting Matter A only.');
+  });
+
   it('export buttons are disabled when no entries match current filters', () => {
     render(<AuditHome entries={SAMPLE} />);
     const search = screen.getByTestId('audit-home-search');

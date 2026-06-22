@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Word AI redline now records egress even when no edits are returned (BUG-081).** The redline request logs where the document text was sent before calling the provider, so both no-change and applied-edit paths leave an AI Request Sent row with provider, model, file, mode, destination, and matter scope.
   - Files modified: `src/features/documents/docx/redline.ts`, `src/features/documents/media/DocxEditor.tsx`
   - Tests: `tests/unit/docx-redline-audit.test.ts`
+- **Activity-log exports can be limited to one matter (BUG-069).** The Activity Log filter panel now has a Matter filter, CSV/JSON exports use that filtered set, and the export area states whether it will export all matters or one named matter only.
+  - Files modified: `src/features/audit/audit-export.ts`, `src/features/audit/AuditHome.tsx`, `src/features/audit/auditHomeViews.tsx`
+  - Tests: `tests/unit/audit-export.test.ts`, `tests/unit/reimagined-audit-home.test.tsx`
+- **Chat markdown exports keep citation verification honesty (BUG-068).** Exported `.aichat` markdown now includes a "Sources and verification" section under assistant answers, marking each cited source as either "Source found" or "UNVERIFIED" with its label, path, locator, and excerpt.
+  - Files modified: `src/features/ask/renderingHelpers.tsx`
+  - Tests: `tests/unit/ask/renderingHelpers.test.ts`
 - **Provider reliability regressions (BUG-071 through BUG-076).** Cloud and local provider calls now stop runaway tool loops, keep the final no-newline streaming chunk, honor immediate aborts, apply request timeouts, frame Ollama-extracted PDF text as untrusted document data, and include Gemini structured-output schema/limits.
   - Files modified: `ClaudeProvider.ts`, `OpenAIProvider.ts`, `GeminiProvider.ts`, `OllamaProvider.ts`, `Provider.ts`, `requestControl.ts`, `redline.ts`
   - Tests: `tests/unit/models/provider-regressions.test.ts`, `tests/unit/models/ollama-pdf-format.test.ts`, `tests/unit/redline.test.ts`
