@@ -3,8 +3,77 @@
 /// Destructive-failure spec §13 items 8 (escape-hatch roundtrip) and 9 (migration-resume).
 /// These are integration tests (separate binary) so they can reference `keepance_vault` as an
 /// external crate, exercising the public API exactly as the Tauri command layer will.
+use aes_gcm::{
+    aead::{Aead, AeadCore, KeyInit, OsRng, Payload},
+    Aes256Gcm, Key, Nonce,
+};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use keepance_vault::vault::*;
 use std::fs;
+
+const TEST_ESCROW_AAD_PREFIX: &str = "keepance-vault-test-admin-escrow:v1:epoch:";
+const TEST_ESCROW_NONCE_LEN: usize = 12;
+const TEST_ESCROW_TAG_LEN: usize = 16;
+
+fn test_escrow_aad(epoch: u32) -> String {
+    format!("{TEST_ESCROW_AAD_PREFIX}{epoch}")
+}
+
+fn wrap_vmk_for_test_admin_escrow(
+    vmk: &[u8; 32],
+    admin_escrow_key: &[u8; 32],
+    epoch: u32,
+) -> String {
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(admin_escrow_key));
+    let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+    let aad = test_escrow_aad(epoch);
+    let ciphertext = cipher
+        .encrypt(
+            &nonce,
+            Payload {
+                msg: vmk.as_slice(),
+                aad: aad.as_bytes(),
+            },
+        )
+        .expect("test admin escrow wrap should encrypt");
+
+    let mut wrapped = Vec::with_capacity(TEST_ESCROW_NONCE_LEN + ciphertext.len());
+    wrapped.extend_from_slice(&nonce);
+    wrapped.extend_from_slice(&ciphertext);
+    BASE64.encode(wrapped)
+}
+
+fn unwrap_vmk_from_test_admin_escrow(
+    wrapped_b64: &str,
+    admin_escrow_key: &[u8; 32],
+    epoch: u32,
+) -> [u8; 32] {
+    let wrapped = BASE64
+        .decode(wrapped_b64)
+        .expect("test admin escrow wrap should be valid base64");
+    assert!(
+        wrapped.len() >= TEST_ESCROW_NONCE_LEN + TEST_ESCROW_TAG_LEN,
+        "test admin escrow wrap must contain nonce + GCM tag"
+    );
+
+    let (nonce_bytes, ciphertext) = wrapped.split_at(TEST_ESCROW_NONCE_LEN);
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(admin_escrow_key));
+    let aad = test_escrow_aad(epoch);
+    let plaintext = cipher
+        .decrypt(
+            Nonce::from_slice(nonce_bytes),
+            Payload {
+                msg: ciphertext,
+                aad: aad.as_bytes(),
+            },
+        )
+        .expect("test admin escrow key should unwrap the VMK");
+
+    assert_eq!(plaintext.len(), 32, "admin escrow must recover a 32-byte VMK");
+    let mut vmk = [0u8; 32];
+    vmk.copy_from_slice(&plaintext);
+    vmk
+}
 
 /// DATA-LOSS GUARD: encrypt_all/decrypt_all must NEVER touch the `.keepance/` internal
 /// store dir (LanceDB index, SQLCipher mail/audit DBs, encrypted mail blobs) — those are
@@ -156,5 +225,84 @@ fn walk_skips_metadata_and_temp_files() {
     assert!(
         !root.join(".kpv-tmp-doc.txt-0000000000000001").exists(),
         ".kpv-tmp-* files must be swept (removed) during the walk"
+    );
+}
+
+/// TEST-004: firm-admin escrow can recover an encrypted vault after the local VMK
+/// is lost, without using the 24-word recovery phrase.
+#[test]
+fn escrow_recovery_decrypts_vault_without_recovery_phrase() {
+    use keepance_vault::{
+        metadata::{AdminWrapJson, EscrowJson, RecoveryWrapJson, VaultMetadata},
+        recovery::create_recovery,
+        verifier::{check_verifier, make_verifier},
+    };
+
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let doc_path = root.join("client-strategy.txt");
+    let original_doc = b"Privileged memo: settlement floor is $425,000.";
+    fs::write(&doc_path, original_doc).unwrap();
+
+    let admin_escrow_key = [0xA5u8; 32];
+    let epoch = 7;
+
+    {
+        let vmk = [0x31u8; 32];
+        let (_unused_recovery_phrase, recovery_wrap) = create_recovery(&vmk).unwrap();
+        let verifier_bytes = make_verifier(&vmk).unwrap();
+
+        encrypt_all(root, &vmk).unwrap();
+        assert_eq!(
+            &fs::read(&doc_path).unwrap()[..4],
+            b"KPV1",
+            "document must be encrypted before recovery"
+        );
+
+        let admin_wrap = AdminWrapJson {
+            user_id: "firm-admin-1".into(),
+            device_id: "admin-device-1".into(),
+            wrapped_b64: wrap_vmk_for_test_admin_escrow(&vmk, &admin_escrow_key, epoch),
+        };
+        let metadata = VaultMetadata {
+            version: 1,
+            vault_id: "test-004-escrow-recovery".into(),
+            created_at: "2026-06-22T00:00:00Z".into(),
+            recovery: RecoveryWrapJson::from_wrap(&recovery_wrap),
+            verifier_b64: BASE64.encode(&verifier_bytes),
+            escrow: Some(EscrowJson {
+                epoch,
+                admin_wraps: vec![admin_wrap],
+            }),
+        };
+        metadata.write_to(root).unwrap();
+    }
+
+    let metadata = VaultMetadata::read_from(root).unwrap();
+    let escrow = metadata.escrow.expect("escrow metadata must be provisioned");
+    assert_eq!(escrow.admin_wraps.len(), 1);
+
+    let recovered_vmk = unwrap_vmk_from_test_admin_escrow(
+        &escrow.admin_wraps[0].wrapped_b64,
+        &admin_escrow_key,
+        escrow.epoch,
+    );
+    let verifier_bytes = BASE64.decode(metadata.verifier_b64).unwrap();
+    assert!(
+        check_verifier(&verifier_bytes, &recovered_vmk),
+        "admin-escrow-recovered VMK must pass the vault verifier"
+    );
+
+    assert_eq!(
+        decrypt_file_at(&doc_path, &recovered_vmk).unwrap(),
+        original_doc,
+        "admin escrow recovery must decrypt the original document bytes"
+    );
+
+    decrypt_all(root, &recovered_vmk).unwrap();
+    assert_eq!(
+        fs::read(&doc_path).unwrap(),
+        original_doc,
+        "admin escrow recovery must restore the vaulted file intact"
     );
 }
