@@ -160,8 +160,11 @@ function seedMatter() {
   return m;
 }
 
-async function sendWorkspaceMessage(onAuditLog: (e: LoggedEntry) => void) {
-  render(<AIChatViewer chatData={chat} apiKeys={apiKey} onAuditLog={onAuditLog} />);
+async function sendWorkspaceMessage(
+  onAuditLog: (e: LoggedEntry) => void,
+  chatData: AIChatFile = chat,
+) {
+  render(<AIChatViewer chatData={chatData} apiKeys={apiKey} onAuditLog={onAuditLog} />);
   act(() => fireEvent.click(screen.getByTestId('ask-workspace-toggle')));
   const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement;
   act(() => fireEvent.change(textarea, { target: { value: 'pricing?' } }));
@@ -290,6 +293,30 @@ describe('Keepance 3.0 audit provenance events', () => {
     // BUG-028: the egress event must record the model so the confidentiality
     // report names it instead of printing "unknown".
     expect(payload['model']).toBe('stub');
+  });
+
+  it('BUG-094 logs the provider resolved model when a chat has no explicit model', async () => {
+    const m = seedMatter();
+    const chatWithoutModel: AIChatFile = {
+      id: 'audit-provenance-default-model-test',
+      title: 'Audit Provenance Default Model',
+      created: new Date().toISOString(),
+      updated: new Date().toISOString(),
+      messages: [],
+      provider: 'anthropic',
+    };
+    mocks.retrieve.mockResolvedValue([
+      { path: 'Acme/pricing.md', chunkText: 'Premium tier priced at $49.', score: 0.88, paragraphIndex: 2, id: 'chunk-e', matterId: m.id, sourceId: '/ws/Acme/pricing.md' },
+    ]);
+
+    const logged: LoggedEntry[] = [];
+    await sendWorkspaceMessage((e) => logged.push(e), chatWithoutModel);
+
+    const egress = eventsOfType(logged, 'egress');
+    expect(egress).toHaveLength(1);
+    expect(egress[0]?.model).toBe('stub');
+    expect(egress[0]?.metadata).toMatchObject({ model: 'stub' });
+    expect(egress[0]?.model).not.toBe('unknown');
   });
 
   it('logs egress with the active matter scope', async () => {

@@ -310,6 +310,7 @@ export class WorkflowEngine {
   private emitEgressAudit(step: WorkflowStep): void {
     if (!this.audit?.onAuditLog) return;
     const mode = this.audit.getConfidentialityMode();
+    const model = this.audit.model ?? this.provider.getMetadata().model;
     const egress = resolveEgress({
       provider: this.audit.providerId,
       mode,
@@ -321,7 +322,7 @@ export class WorkflowEngine {
       timestamp: new Date().toISOString(),
       payload: {
         provider: egress.provider,
-        ...(this.audit.model !== undefined ? { model: this.audit.model } : {}),
+        model,
         mode,
         destination: egress.destination,
         dataLeaves: egress.dataLeaves,
