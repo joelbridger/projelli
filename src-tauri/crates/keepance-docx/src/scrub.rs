@@ -13,6 +13,9 @@
 //!     `cp:category` / `cp:keywords` / `dc:description` and the like.
 //!   * `docProps/app.xml` — "extended properties": `Company`, `Manager`,
 //!     `Template`, the `TitlesOfParts` outline, total edit time, etc.
+//!   * `docProps/custom.xml` and `customXml/**` — custom document properties
+//!     and embedded XML data stores frequently used by templates, DMS systems,
+//!     and add-ins to carry matter ids, client names, and workflow state.
 //!
 //! For a firm sending a document to opposing counsel, leaving these in place can
 //! disclose who drafted a clause, which client template it came from, how many
@@ -33,20 +36,24 @@
 //!
 //! # Preserve-by-default still holds
 //!
-//! We only rewrite the two `docProps` parts (replacing them with a minimal,
-//! still-valid skeleton rather than deleting them, so Word does not consider the
-//! package malformed). Every other part — styles, numbering, theme, media,
-//! `document.xml`, the manifests — passes through byte-for-byte, exactly like a
-//! normal round-trip.
+//! We rewrite the two standard `docProps` parts (replacing them with a minimal,
+//! still-valid skeleton rather than deleting them) and drop known hidden
+//! metadata stores that are safe to remove for an external clean copy. Visible
+//! document content and formatting parts — styles, numbering, theme, media,
+//! `document.xml` — still pass through unless an explicit final-clean transform
+//! applies.
+
+use std::collections::BTreeSet;
 
 use crate::error::{DocxError, Result};
 use crate::model::Document;
-use crate::package::{Package, COMMENTS_PART, DOCUMENT_PART};
+use crate::package::{Package, COMMENTS_PART, CONTENT_TYPES_PART, DOCUMENT_PART};
 use crate::OpenedDocument;
 
 /// The two metadata parts a `.docx` uses to carry authorship / origin info.
 pub const CORE_PROPS_PART: &str = "docProps/core.xml";
 pub const APP_PROPS_PART: &str = "docProps/app.xml";
+pub const CUSTOM_PROPS_PART: &str = "docProps/custom.xml";
 
 /// What a "clean copy" export removes. Defaults ([`ScrubOptions::default`]) are
 /// the safe baseline: strip the identifying document metadata
@@ -110,14 +117,15 @@ const SCRUBBED_CORE_XML: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standa
 const SCRUBBED_APP_XML: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\" xmlns:vt=\"http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes\"><Application>Keepance</Application></Properties>";
 
 /// Strip identifying metadata from a package IN PLACE: replace
-/// `docProps/core.xml` and `docProps/app.xml` with scrubbed skeletons. Only
-/// rewrites parts that already exist (a package with no metadata parts is left
-/// alone — there is nothing to leak), so we never *add* a metadata part the
-/// producer chose not to include.
+/// `docProps/core.xml` and `docProps/app.xml` with scrubbed skeletons, remove
+/// custom properties / custom XML data stores, and clean manifest references to
+/// the removed parts. Only rewrites standard metadata parts that already exist
+/// (a package with no standard metadata parts is left alone — there is nothing
+/// to scrub), so we never *add* a metadata part the producer chose not to
+/// include.
 ///
-/// Everything else in the package is untouched. This is the package-level half
-/// of a clean-copy export; the DOM-level half (accept-all / drop-comments) lives
-/// in [`clean_copy_bytes`].
+/// This is the package-level half of a clean-copy export; the DOM-level half
+/// (accept-all / drop-comments) lives in [`clean_copy_bytes`].
 pub fn scrub_package_metadata(pkg: &mut Package) {
     if pkg.contains(CORE_PROPS_PART) {
         pkg.insert(CORE_PROPS_PART, SCRUBBED_CORE_XML.as_bytes().to_vec());
@@ -125,6 +133,212 @@ pub fn scrub_package_metadata(pkg: &mut Package) {
     if pkg.contains(APP_PROPS_PART) {
         pkg.insert(APP_PROPS_PART, SCRUBBED_APP_XML.as_bytes().to_vec());
     }
+
+    let removed = remove_residual_metadata_parts(pkg);
+    if !removed.is_empty() {
+        remove_content_type_overrides(pkg, &removed);
+        remove_relationships_to_removed_metadata(pkg, &removed);
+    }
+}
+
+fn remove_residual_metadata_parts(pkg: &mut Package) -> BTreeSet<String> {
+    let to_remove: Vec<String> = pkg
+        .part_names()
+        .filter(|name| is_residual_metadata_part(name))
+        .cloned()
+        .collect();
+    for name in &to_remove {
+        pkg.parts.remove(name);
+    }
+    to_remove.into_iter().collect()
+}
+
+fn is_residual_metadata_part(name: &str) -> bool {
+    name == CUSTOM_PROPS_PART
+        || name.starts_with("customXml/")
+        || matches!(
+            name,
+            "word/commentsExtended.xml"
+                | "word/commentsExtensible.xml"
+                | "word/commentsIds.xml"
+                | "word/people.xml"
+                | "word/person.xml"
+        )
+}
+
+fn remove_content_type_overrides(pkg: &mut Package, removed: &BTreeSet<String>) {
+    let Some(xml) = pkg.get_str(CONTENT_TYPES_PART) else {
+        return;
+    };
+    let Ok(cleaned) = filter_xml_elements(&xml, |e| {
+        if local_name(e.name().as_ref()) != "Override" {
+            return false;
+        }
+        attr_value(e, "PartName")
+            .map(|part| part.trim_start_matches('/').to_string())
+            .is_some_and(|part| removed.contains(&part) || is_residual_metadata_part(&part))
+    }) else {
+        return;
+    };
+    pkg.insert(CONTENT_TYPES_PART, cleaned.into_bytes());
+}
+
+fn remove_relationships_to_removed_metadata(pkg: &mut Package, removed: &BTreeSet<String>) {
+    let rel_parts: Vec<String> = pkg
+        .part_names()
+        .filter(|name| name.ends_with(".rels"))
+        .cloned()
+        .collect();
+
+    for rel_part in rel_parts {
+        let Some(xml) = pkg.get_str(&rel_part) else {
+            continue;
+        };
+        let Ok(cleaned) = filter_xml_elements(&xml, |e| {
+            if local_name(e.name().as_ref()) != "Relationship" {
+                return false;
+            }
+            let rel_type = attr_value(e, "Type").unwrap_or_default();
+            if is_residual_metadata_relationship_type(&rel_type) {
+                return true;
+            }
+            attr_value(e, "Target")
+                .map(|target| resolve_relationship_target(&rel_part, &target))
+                .is_some_and(|target| {
+                    removed.contains(&target) || is_residual_metadata_part(&target)
+                })
+        }) else {
+            continue;
+        };
+        pkg.insert(rel_part, cleaned.into_bytes());
+    }
+}
+
+fn is_residual_metadata_relationship_type(rel_type: &str) -> bool {
+    rel_type.ends_with("/custom-properties")
+        || rel_type.ends_with("/customXml")
+        || rel_type.ends_with("/customXmlProps")
+        || rel_type.ends_with("/commentsExtended")
+        || rel_type.ends_with("/commentsExtensible")
+        || rel_type.ends_with("/commentsIds")
+        || rel_type.ends_with("/people")
+        || rel_type.ends_with("/person")
+}
+
+fn filter_xml_elements(
+    xml: &str,
+    should_remove: impl Fn(&quick_xml::events::BytesStart<'_>) -> bool,
+) -> Result<String> {
+    use quick_xml::events::Event;
+    use quick_xml::reader::Reader;
+    use quick_xml::writer::Writer;
+
+    let mut reader = Reader::from_str(xml);
+    reader.config_mut().trim_text(false);
+    let mut writer = Writer::new(Vec::with_capacity(xml.len()));
+    let mut skip_depth = 0usize;
+
+    loop {
+        let event = reader
+            .read_event()
+            .map_err(|e| DocxError::Xml(format!("parse OOXML manifest for metadata scrub: {e}")))?;
+
+        match event {
+            Event::Start(e) => {
+                if skip_depth > 0 {
+                    skip_depth += 1;
+                    continue;
+                }
+                if should_remove(&e) {
+                    skip_depth = 1;
+                } else {
+                    write_xml_event(&mut writer, Event::Start(e.borrow()))?;
+                }
+            }
+            Event::Empty(e) => {
+                if skip_depth == 0 && !should_remove(&e) {
+                    write_xml_event(&mut writer, Event::Empty(e.borrow()))?;
+                }
+            }
+            Event::End(e) => {
+                if skip_depth > 0 {
+                    skip_depth -= 1;
+                } else {
+                    write_xml_event(&mut writer, Event::End(e.borrow()))?;
+                }
+            }
+            Event::Eof => break,
+            other => {
+                if skip_depth == 0 {
+                    write_xml_event(&mut writer, other.borrow())?;
+                }
+            }
+        }
+    }
+
+    String::from_utf8(writer.into_inner())
+        .map_err(|e| DocxError::Xml(format!("scrubbed OOXML manifest was not UTF-8: {e}")))
+}
+
+fn attr_value(e: &quick_xml::events::BytesStart<'_>, want_local: &str) -> Option<String> {
+    e.attributes().with_checks(false).flatten().find_map(|a| {
+        if local_name(a.key.as_ref()) == want_local {
+            Some(String::from_utf8_lossy(&a.value).into_owned())
+        } else {
+            None
+        }
+    })
+}
+
+fn resolve_relationship_target(rels_part: &str, target: &str) -> String {
+    if target.contains("://") || target.starts_with('#') {
+        return target.to_string();
+    }
+    if let Some(stripped) = target.strip_prefix('/') {
+        return normalize_part_name(stripped);
+    }
+
+    let base = relationship_source_base_dir(rels_part);
+    if base.is_empty() {
+        normalize_part_name(target)
+    } else {
+        normalize_part_name(&format!("{base}/{target}"))
+    }
+}
+
+fn relationship_source_base_dir(rels_part: &str) -> String {
+    if rels_part == "_rels/.rels" {
+        return String::new();
+    }
+    let Some((prefix, rels_name)) = rels_part.rsplit_once("/_rels/") else {
+        return String::new();
+    };
+    let Some(source_name) = rels_name.strip_suffix(".rels") else {
+        return String::new();
+    };
+    let source_part = if prefix.is_empty() {
+        source_name.to_string()
+    } else {
+        format!("{prefix}/{source_name}")
+    };
+    source_part
+        .rsplit_once('/')
+        .map(|(dir, _)| dir.to_string())
+        .unwrap_or_default()
+}
+
+fn normalize_part_name(path: &str) -> String {
+    let mut parts: Vec<&str> = Vec::new();
+    for segment in path.split('/') {
+        match segment {
+            "" | "." => {}
+            ".." => {
+                parts.pop();
+            }
+            _ => parts.push(segment),
+        }
+    }
+    parts.join("/")
 }
 
 /// Remove every comment from the DOM and the comment anchors that reference them
