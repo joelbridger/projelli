@@ -113,14 +113,13 @@ pub async fn index_pdf_chunks(
     key: &[u8; 32],
 ) -> Result<usize> {
     let _ = page_count; // stored in metadata; not needed for chunking logic
-    let path = super::store::canonical_source_path(path);
 
-    let all_chunks = build_pdf_chunks(&path, pages);
+    let all_chunks = build_pdf_chunks(path, pages);
 
     if all_chunks.is_empty() {
         // No extractable text. Delete any stale rows and return.
         // (VG-6e: delete matches the tokenized path column via the key.)
-        delete_path(table, &path, key).await?;
+        delete_path(table, path, key).await?;
         return Ok(0);
     }
 
@@ -159,7 +158,7 @@ pub async fn index_pdf_chunks(
         })
         .collect();
 
-    super::store::upsert_grouped(table, &path, groups, matter_id, privilege, key).await
+    super::store::upsert_grouped(table, path, groups, matter_id, privilege, key).await
 }
 
 #[cfg(test)]

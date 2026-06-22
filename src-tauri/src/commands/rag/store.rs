@@ -242,13 +242,7 @@ pub const UNASSIGNED_MATTER: &str = "unassigned";
 /// in those columns and the real path AES-256-GCM-encrypted in the new
 /// NOT-NULL `path_enc` column. We never leave plaintext paths behind: the
 /// one-time drop + re-index migration rewrites every row tokenized.
-///
-/// 11: BUG-098 — Windows source paths canonicalized before hashing,
-/// tokenization, updates, and deletes. A pre-11 table can contain duplicate
-/// rows for one physical file when the full workspace walk used `C:/root\file`
-/// and the watcher used `C:\root\file`. The table is a rebuildable cache, so
-/// the migration drops + re-indexes once under the canonical key.
-pub const INDEX_VERSION: u32 = 11;
+pub const INDEX_VERSION: u32 = 10;
 
 /// Filename (under the vectors dir) holding the integer `INDEX_VERSION` the
 /// current `chunks` table was built with.
@@ -284,53 +278,12 @@ pub fn dataset_path(workspace_root: &Path) -> PathBuf {
 
 /// Stable id for `(path, paragraph_index)`. Hex-encoded SHA-256.
 pub fn chunk_id(path: &str, paragraph_index: u32) -> String {
-    let path = canonical_source_path(path);
     let mut hasher = Sha256::new();
     hasher.update(path.as_bytes());
     hasher.update(b":");
     hasher.update(paragraph_index.to_le_bytes());
     let digest = hasher.finalize();
     hex_encode(&digest)
-}
-
-/// Canonical source key used by the RAG store.
-///
-/// `mail:` keys are not filesystem paths, so they pass through unchanged. File
-/// paths that are Windows-like (drive absolute, UNC, or any path while running
-/// on Windows) use forward slashes, an uppercase drive letter, and no trailing
-/// slash. Relative POSIX paths on non-Windows stay byte-for-byte unchanged.
-pub fn canonical_source_path(path: &str) -> String {
-    if path.starts_with("mail:") {
-        return path.to_string();
-    }
-
-    let bytes = path.as_bytes();
-    let drive_absolute = bytes.len() >= 3
-        && bytes[0].is_ascii_alphabetic()
-        && bytes[1] == b':'
-        && matches!(bytes[2], b'\\' | b'/');
-    let unc = path.starts_with(r"\\") || path.starts_with("//");
-
-    if !(drive_absolute || unc || cfg!(windows)) {
-        return path.to_string();
-    }
-
-    let mut normalized = path.replace('\\', "/");
-    if normalized.len() >= 2 && normalized.as_bytes()[1] == b':' {
-        let mut chars: Vec<char> = normalized.chars().collect();
-        chars[0] = chars[0].to_ascii_uppercase();
-        normalized = chars.into_iter().collect();
-    }
-
-    while normalized.ends_with('/') && !is_drive_root(&normalized) && normalized != "//" {
-        normalized.pop();
-    }
-    normalized
-}
-
-fn is_drive_root(path: &str) -> bool {
-    let bytes = path.as_bytes();
-    bytes.len() == 3 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' && bytes[2] == b'/'
 }
 
 fn hex_encode(bytes: &[u8]) -> String {
@@ -495,14 +448,9 @@ pub fn build_batch(
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
 
-    let canonical_paths: Vec<String> = rows
-        .iter()
-        .map(|(c, _)| canonical_source_path(&c.path))
-        .collect();
     let ids: Vec<String> = rows
         .iter()
-        .zip(canonical_paths.iter())
-        .map(|((c, _), path)| chunk_id(path, c.paragraph_index))
+        .map(|(c, _)| chunk_id(&c.path, c.paragraph_index))
         .collect();
     let para_idx: Vec<u32> = rows.iter().map(|(c, _)| c.paragraph_index).collect();
     let timestamps: Vec<i64> = vec![now; rows.len()];
@@ -513,9 +461,9 @@ pub fn build_batch(
     // errors (never silently store an empty string with encrypted=true, which
     // would be a permanently-unrecoverable chunk).
     let mut encrypted_texts: Vec<String> = Vec::with_capacity(rows.len());
-    for ((c, _), path) in rows.iter().zip(canonical_paths.iter()) {
+    for (c, _) in rows.iter() {
         let blob = encrypt_with_key(c.text.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt chunk {}: {e}", path))?;
+            .map_err(|e| anyhow::anyhow!("encrypt chunk {}: {e}", c.path))?;
         encrypted_texts.push(hex::encode(&blob));
     }
 
@@ -524,10 +472,10 @@ pub fn build_batch(
     // wire format as the text column). Plaintext paths are NEVER written.
     let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
     let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
-    for path in canonical_paths.iter() {
-        path_tokens.push(super::crypto::path_token(key, path));
-        let blob = encrypt_with_key(path.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt chunk path {}: {e}", path))?;
+    for (c, _) in rows.iter() {
+        path_tokens.push(super::crypto::path_token(key, &c.path));
+        let blob = encrypt_with_key(c.path.as_bytes(), key)
+            .map_err(|e| anyhow::anyhow!("encrypt chunk path {}: {e}", c.path))?;
         path_encs.push(hex::encode(&blob));
     }
 
@@ -651,14 +599,9 @@ pub fn build_batch_mail(
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
 
-    let canonical_paths: Vec<String> = rows
-        .iter()
-        .map(|(c, _)| canonical_source_path(&c.path))
-        .collect();
     let ids: Vec<String> = rows
         .iter()
-        .zip(canonical_paths.iter())
-        .map(|((c, _), path)| chunk_id(path, c.paragraph_index))
+        .map(|(c, _)| chunk_id(&c.path, c.paragraph_index))
         .collect();
     let para_idx: Vec<u32> = rows.iter().map(|(c, _)| c.paragraph_index).collect();
     let timestamps = vec![now; rows.len()];
@@ -670,9 +613,9 @@ pub fn build_batch_mail(
     // store an empty string with encrypted=true, producing a permanently-
     // unrecoverable chunk. Instead, return Err so the caller sees the failure.
     let mut encrypted_texts: Vec<String> = Vec::with_capacity(rows.len());
-    for ((c, _), path) in rows.iter().zip(canonical_paths.iter()) {
+    for (c, _) in rows.iter() {
         let blob = encrypt_with_key(c.text.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt mail chunk {}: {e}", path))?;
+            .map_err(|e| anyhow::anyhow!("encrypt mail chunk {}: {e}", c.path))?;
         encrypted_texts.push(hex::encode(&blob));
     }
 
@@ -681,10 +624,10 @@ pub fn build_batch_mail(
     // to mailbox provider records), so it gets the same token + path_enc pair.
     let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
     let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
-    for path in canonical_paths.iter() {
-        path_tokens.push(super::crypto::path_token(key, path));
-        let blob = encrypt_with_key(path.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt mail chunk path {}: {e}", path))?;
+    for (c, _) in rows.iter() {
+        path_tokens.push(super::crypto::path_token(key, &c.path));
+        let blob = encrypt_with_key(c.path.as_bytes(), key)
+            .map_err(|e| anyhow::anyhow!("encrypt mail chunk path {}: {e}", c.path))?;
         path_encs.push(hex::encode(&blob));
     }
 
@@ -758,7 +701,6 @@ pub async fn upsert_chunks_for_path(
     privilege: &str,
     key: &[u8; 32],
 ) -> Result<()> {
-    let path = canonical_source_path(path);
     // Always delete first — even if `rows` is empty (the file may have
     // been emptied by the user) we want to drop stale chunks.
     // VG-6e: the column holds the keyed token, so the predicate matches on
@@ -767,7 +709,7 @@ pub async fn upsert_chunks_for_path(
     // the no-plaintext-paths-on-disk guarantee.)
     let predicate = format!(
         "path = '{}'",
-        sql_escape(&super::crypto::path_token(key, &path))
+        sql_escape(&super::crypto::path_token(key, path))
     );
     table
         .delete(&predicate)
@@ -814,11 +756,10 @@ pub async fn upsert_grouped(
     privilege: &str,
     key: &[u8; 32],
 ) -> Result<usize> {
-    let path = canonical_source_path(path);
     // VG-6e: tokenized predicate — see upsert_chunks_for_path.
     let predicate = format!(
         "path = '{}'",
-        sql_escape(&super::crypto::path_token(key, &path))
+        sql_escape(&super::crypto::path_token(key, path))
     );
     table
         .delete(&predicate)
@@ -855,10 +796,9 @@ pub async fn upsert_grouped(
 /// VG-6e: takes the PLAINTEXT path plus the vector master `key` and computes
 /// the stored token internally — callers never handle tokens.
 pub async fn delete_path(table: &Table, path: &str, key: &[u8; 32]) -> Result<()> {
-    let path = canonical_source_path(path);
     let predicate = format!(
         "path = '{}'",
-        sql_escape(&super::crypto::path_token(key, &path))
+        sql_escape(&super::crypto::path_token(key, path))
     );
     table
         .delete(&predicate)
@@ -907,12 +847,11 @@ pub async fn retag_privilege_for_path(
     privilege: &str,
     key: &[u8; 32],
 ) -> Result<u64> {
-    let path = canonical_source_path(path);
     let privilege = validate_privilege(privilege)?;
     // VG-6e: tokenized predicate — the column holds the keyed token.
     let predicate = format!(
         "path = '{}'",
-        sql_escape(&super::crypto::path_token(key, &path))
+        sql_escape(&super::crypto::path_token(key, path))
     );
     // The update expression is a SQL string literal for the new privilege value.
     let value_expr = format!("'{}'", sql_escape(privilege));
@@ -945,12 +884,11 @@ pub async fn retag_matter_for_path(
     matter_id: &str,
     key: &[u8; 32],
 ) -> Result<u64> {
-    let path = canonical_source_path(path);
     let matter_id = validate_matter_id(matter_id)?;
     // VG-6e: tokenized predicate — the column holds the keyed token.
     let predicate = format!(
         "path = '{}'",
-        sql_escape(&super::crypto::path_token(key, &path))
+        sql_escape(&super::crypto::path_token(key, path))
     );
     let value_expr = format!("'{}'", sql_escape(matter_id));
     let result = table
@@ -982,10 +920,9 @@ pub async fn matter_for_path(
     key: &[u8; 32],
 ) -> Result<Option<String>> {
     use futures_util::TryStreamExt;
-    let path = canonical_source_path(path);
     let predicate = format!(
         "path = '{}'",
-        sql_escape(&super::crypto::path_token(key, &path))
+        sql_escape(&super::crypto::path_token(key, path))
     );
     let mut stream = table
         .query()
@@ -1571,39 +1508,6 @@ mod tests {
     }
 
     #[test]
-    fn canonical_source_path_unifies_windows_separator_spellings() {
-        let mixed = "C:/KeepanceTest\\fee-agreement.md";
-        let native = r"C:\KeepanceTest\fee-agreement.md";
-
-        assert_eq!(
-            canonical_source_path(mixed),
-            "C:/KeepanceTest/fee-agreement.md"
-        );
-        assert_eq!(canonical_source_path(mixed), canonical_source_path(native));
-    }
-
-    #[test]
-    fn canonical_source_path_is_idempotent() {
-        let once = canonical_source_path(r"c:\KeepanceTest\fee-agreement.md\");
-        let twice = canonical_source_path(&once);
-
-        assert_eq!(once, "C:/KeepanceTest/fee-agreement.md");
-        assert_eq!(once, twice);
-    }
-
-    #[test]
-    fn canonical_source_path_leaves_mail_keys_unchanged() {
-        let key = r"mail:C:\not\a\filesystem\path";
-
-        assert_eq!(canonical_source_path(key), key);
-    }
-
-    #[test]
-    fn canonical_source_path_leaves_relative_posix_paths_unchanged() {
-        assert_eq!(canonical_source_path("notes/a.md"), "notes/a.md");
-    }
-
-    #[test]
     fn chunk_id_is_stable() {
         let a = chunk_id("/a/b.md", 3);
         let b = chunk_id("/a/b.md", 3);
@@ -1613,14 +1517,6 @@ mod tests {
         assert_ne!(a, chunk_id("/a/c.md", 3));
         // SHA-256 hex is 64 chars.
         assert_eq!(a.len(), 64);
-    }
-
-    #[test]
-    fn chunk_id_uses_canonical_source_path() {
-        let mixed = "C:/KeepanceTest\\fee-agreement.md";
-        let native = r"C:\KeepanceTest\fee-agreement.md";
-
-        assert_eq!(chunk_id(mixed, 7), chunk_id(native, 7));
     }
 
     #[test]
