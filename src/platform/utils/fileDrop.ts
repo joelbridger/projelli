@@ -173,9 +173,7 @@ export async function importPickedFiles({
     const finalName = await resolveUniqueName(service, targetFolder, name);
     const dest = `${targetFolder}/${finalName}`;
     try {
-      // eslint-disable-next-line no-await-in-loop
       const bytes = await readBytes(sourcePath);
-      // eslint-disable-next-line no-await-in-loop
       await service.writeFileBinary(dest, bytes);
     } catch (err) {
       results.push({
@@ -189,11 +187,9 @@ export async function importPickedFiles({
     // Index explicitly so search works without depending on the watcher.
     try {
       if (finalName.toLowerCase().endsWith('.pdf')) {
-        // eslint-disable-next-line no-await-in-loop
         const r = await indexPdf(dest);
         results.push({ path: dest, name: finalName, indexed: r.indexed, ...(r.reason ? { reason: r.reason } : {}) });
       } else {
-        // eslint-disable-next-line no-await-in-loop
         await indexFile(dest);
         results.push({ path: dest, name: finalName, indexed: true });
       }
@@ -223,14 +219,10 @@ export async function writeDroppedFiles({
     const path = `${targetFolder}/${finalName}`;
     try {
       if (isBinaryFile(finalName) || isBinaryFile(file.name)) {
-        // eslint-disable-next-line no-await-in-loop
         const buffer = await file.arrayBuffer();
-        // eslint-disable-next-line no-await-in-loop
         await service.writeFileBinary(path, buffer);
       } else {
-        // eslint-disable-next-line no-await-in-loop
         const content = await file.text();
-        // eslint-disable-next-line no-await-in-loop
         await service.writeFile(path, content);
       }
       results.push({ path, name: finalName, wasRenamed });

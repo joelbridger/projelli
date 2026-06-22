@@ -34,6 +34,21 @@ interface TabBarProps {
   onRenameFile?: (path: string, newName: string) => Promise<void>;
 }
 
+// Drop a group payload on another group chip. Zone decides merge vs. reorder:
+//  left 30 %  -> reorder 'before'
+//  right 30 % -> reorder 'after'
+//  middle 40 % -> merge
+function computeGroupDropZone(e: React.DragEvent): 'merge' | 'before' | 'after' {
+  const target = e.currentTarget as HTMLElement;
+  const rect = target.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const leftCut = rect.width * 0.30;
+  const rightCut = rect.width * 0.70;
+  if (x < leftCut) return 'before';
+  if (x > rightCut) return 'after';
+  return 'merge';
+}
+
 export function TabBar({ onRenameFile }: TabBarProps = {}) {
   const { t } = useTranslation();
   const {
@@ -106,6 +121,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     const newTab = openTabs.find((t) => t.path === pendingRenamePath);
     if (!newTab) return; // tab not yet in store; effect will re-run when it lands
     setActiveTab(pendingRenamePath);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot store flag opens inline rename after the new tab exists.
     setEditingTabPath(pendingRenamePath);
     setEditingTabName(removeExtension(newTab.name));
     setPendingRenamePath(null);
@@ -151,6 +167,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     if (!pendingGroupRenameId) return;
     const group = tabGroups.find((g) => g.id === pendingGroupRenameId);
     if (!group) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot store flag opens the rename dialog for the newly created group.
     setRenamingGroupId(group.id);
     setRenameGroupValue(group.name);
     setIsNewGroupDialog(true);
@@ -178,6 +195,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [now, setNow] = useState(0);
 
   // Confirmation dialog
   const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
@@ -209,6 +227,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   // Wire scroll/resize observers. useLayoutEffect so we read sizes after
   // layout but before paint.
   useLayoutEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- scroll arrow visibility must be measured before paint to avoid flicker.
     updateScrollButtons();
   }, [updateScrollButtons, openTabs.length, tabGroups.length]);
 
@@ -229,6 +248,15 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
       ro.disconnect();
     };
   }, [updateScrollButtons]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1_000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
 
   // When the active tab changes (e.g. user clicked the overflow list or
   // opened a new file), scroll it into view so users don't have to hunt for
@@ -527,21 +555,6 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     setDragOverGroupZone(null);
   }, []);
 
-  // Drop a group payload on another group chip. Zone decides merge vs. reorder:
-  //  left 30 %  → reorder 'before'
-  //  right 30 % → reorder 'after'
-  //  middle 40 % → merge
-  const computeGroupDropZone = (e: React.DragEvent): 'merge' | 'before' | 'after' => {
-    const target = e.currentTarget as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const leftCut = rect.width * 0.30;
-    const rightCut = rect.width * 0.70;
-    if (x < leftCut) return 'before';
-    if (x > rightCut) return 'after';
-    return 'merge';
-  };
-
   const handleGroupDrop = useCallback((e: React.DragEvent, groupId: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -714,7 +727,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
             *
           </span>
         )}
-        {!tab.isDirty && tab.lastSaved && Date.now() - tab.lastSaved < 3000 && (
+        {!tab.isDirty && tab.lastSaved && now > 0 && now - tab.lastSaved < 3000 && (
           <span className="text-green-600 text-[10px] ml-1 opacity-70" title="Auto-saved">
             ✓
           </span>
@@ -1146,7 +1159,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                           *
                         </span>
                       )}
-                      {!tab.isDirty && tab.lastSaved && Date.now() - tab.lastSaved < 3000 && (
+                      {!tab.isDirty && tab.lastSaved && now > 0 && now - tab.lastSaved < 3000 && (
                         <span className="text-green-600 text-xs ml-auto opacity-70" title="Auto-saved">
                           ✓
                         </span>

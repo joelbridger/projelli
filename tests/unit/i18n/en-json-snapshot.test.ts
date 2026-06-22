@@ -54,7 +54,7 @@ describe('en.json structure snapshot', () => {
         "editor": 14,
         "firm": 110,
         "layout": 40,
-        "mail": 5,
+        "mail": 6,
         "marketplace": 14,
         "matter": 105,
         "media": 77,
@@ -82,8 +82,8 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    // 862 = 859 + 3 MCP per-matter grant keys.
-    expect(flat.length).toBe(862);
+    // 863 = 859 + 3 MCP per-matter grant keys + 1 mail connect error key.
+    expect(flat.length).toBe(863);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

@@ -59,7 +59,7 @@ export interface MailIndexChunk { docId: string; subject: string; decryptedText:
 
 export async function mailSetWorkspace(path: string): Promise<void> {
   if (!isTauri()) return;
-  return invoke<void>('mail_set_workspace', { path });
+  await invoke('mail_set_workspace', { path });
 }
 export async function mailBeginLogin(): Promise<DeviceCodePrompt> {
   if (!isTauri()) throw new Error('Email connect is only available in the desktop app.');
@@ -85,11 +85,11 @@ export async function mailSyncAll(matterMap: MailMatterMapEntry[] = [], onlyProv
   if (!isTauri()) throw new Error('Email sync is only available in the desktop app.');
   // The Rust command expects camelCase `folderId` / `matterId` on each entry,
   // which matches MailMatterMapEntry, so we can pass it straight through.
-  return invoke<void>('mail_sync_all', { matterMap, onlyProvider: onlyProvider ?? null });
+  await invoke('mail_sync_all', { matterMap, onlyProvider: onlyProvider ?? null });
 }
 export async function mailCancelSync(): Promise<void> {
   if (!isTauri()) return;
-  return invoke<void>('mail_cancel_sync');
+  await invoke('mail_cancel_sync');
 }
 
 /** Option B healing: re-index mail that was imported while the embedding model
@@ -173,7 +173,7 @@ export async function mailFdeStatus(): Promise<FdeStatus> {
 export interface ImapConnectInput { host: string; port: number; username: string; password: string; }
 export async function mailImapConnect(input: ImapConnectInput): Promise<void> {
   if (!isTauri()) throw new Error('Email connect is only available in the desktop app.');
-  return invoke<void>('mail_imap_connect', { host: input.host, port: input.port, username: input.username, password: input.password });
+  await invoke('mail_imap_connect', { host: input.host, port: input.port, username: input.username, password: input.password });
 }
 export async function mailImapIsConnected(): Promise<boolean> {
   if (!isTauri()) return false;
@@ -181,7 +181,7 @@ export async function mailImapIsConnected(): Promise<boolean> {
 }
 export async function mailImapDisconnect(): Promise<void> {
   if (!isTauri()) return;
-  return invoke<void>('mail_imap_disconnect');
+  await invoke('mail_imap_disconnect');
 }
 
 // ---------------------------------------------------------------------------
@@ -300,7 +300,7 @@ export async function mailListMessages(query: MailListQuery): Promise<MailListPa
 // Microsoft 365 loopback OAuth (one-click flow, mirrors gmail_connect)
 export async function outlookConnect(): Promise<void> {
   if (!isTauri()) throw new Error('Microsoft 365 connect is only available in the desktop app.');
-  return invoke<void>('outlook_connect');
+  await invoke('outlook_connect');
 }
 
 // Disconnect the Microsoft 365 account (delete its refresh token from the
@@ -308,13 +308,13 @@ export async function outlookConnect(): Promise<void> {
 // sign-in can be removed, not only re-authenticated.
 export async function mailDisconnect(): Promise<void> {
   if (!isTauri()) return;
-  return invoke<void>('mail_disconnect');
+  await invoke('mail_disconnect');
 }
 
 // Gmail native provider (loopback PKCE OAuth)
 export async function gmailConnect(): Promise<void> {
   if (!isTauri()) throw new Error('Gmail connect is only available in the desktop app.');
-  return invoke<void>('gmail_connect');
+  await invoke('gmail_connect');
 }
 export async function gmailIsConnected(): Promise<boolean> {
   if (!isTauri()) return false;
@@ -322,7 +322,7 @@ export async function gmailIsConnected(): Promise<boolean> {
 }
 export async function gmailDisconnect(): Promise<void> {
   if (!isTauri()) return;
-  return invoke<void>('gmail_disconnect');
+  await invoke('gmail_disconnect');
 }
 
 /** Re-tag a single message's RAG chunks to a new matter in place.
@@ -333,7 +333,7 @@ export async function mailRetagMessageMatter(
   matterId: string,
 ): Promise<void> {
   if (!isTauri()) return;
-  return invoke<void>('mail_retag_message_matter', { messageId, matterId });
+  await invoke('mail_retag_message_matter', { messageId, matterId });
 }
 
 /** Clear every email's "filed to this matter" tag for a matter being deleted
