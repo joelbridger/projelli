@@ -1571,6 +1571,57 @@ fn test_clean_copy_final_mode_has_no_revisions_or_comments() {
     assert_eq!(again, again2, "clean copy round-trip not idempotent");
 }
 
+fn build_package_with_table_revisions() -> Vec<u8> {
+    let document_xml = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Before </w:t></w:r><w:del w:id="44" w:author="Opposing Counsel" w:date="2026-06-01T00:00:00Z"><w:r><w:delText>SECRET OTHER MATTER</w:delText></w:r></w:del><w:ins w:id="45" w:author="Opposing Counsel" w:date="2026-06-01T00:00:00Z"><w:r><w:t>public table clause</w:t></w:r></w:ins><w:r><w:t> After</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:sectPr/></w:body></w:document>"#;
+    let content_types = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#;
+    let root_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#;
+
+    let mut pkg = Package::new();
+    pkg.insert("[Content_Types].xml", content_types.as_bytes().to_vec());
+    pkg.insert("_rels/.rels", root_rels.as_bytes().to_vec());
+    pkg.insert("word/document.xml", document_xml.as_bytes().to_vec());
+    pkg.write_to_bytes().expect("zip package with table revisions")
+}
+
+#[test]
+fn test_final_clean_accepts_tracked_changes_inside_raw_table_xml() {
+    let original = build_package_with_table_revisions();
+    let opened = open_docx_bytes(&original).expect("open table revisions");
+
+    let bytes = clean_copy_bytes(&opened, ScrubOptions::final_clean()).expect("final clean copy");
+    let pkg = Package::read_from_bytes(&bytes).expect("final clean copy is valid zip");
+    assert!(
+        validate_package(&pkg).ok(),
+        "final clean copy invalid: {:?}",
+        validate_package(&pkg).errors
+    );
+
+    let document_xml = pkg.get_str("word/document.xml").expect("document part");
+    assert!(
+        !document_xml.contains("SECRET OTHER MATTER"),
+        "deleted table text leaked into final clean copy: {document_xml}"
+    );
+    assert!(
+        !document_xml.contains("<w:del"),
+        "deletion markup survived final clean copy: {document_xml}"
+    );
+    assert!(
+        !document_xml.contains("delText"),
+        "deleted-text tag survived final clean copy: {document_xml}"
+    );
+    assert!(
+        !document_xml.contains("<w:ins"),
+        "insertion wrapper survived final clean copy: {document_xml}"
+    );
+    assert!(
+        document_xml.contains("public table clause"),
+        "accepted insertion text inside table was not kept: {document_xml}"
+    );
+}
+
 #[test]
 fn test_clean_copy_preserves_unmodeled_parts() {
     // Preserve-by-default still holds through a clean copy: the unmodeled

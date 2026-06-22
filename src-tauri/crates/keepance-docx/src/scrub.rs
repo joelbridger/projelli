@@ -39,9 +39,9 @@
 //! `document.xml`, the manifests — passes through byte-for-byte, exactly like a
 //! normal round-trip.
 
-use crate::error::Result;
+use crate::error::{DocxError, Result};
 use crate::model::Document;
-use crate::package::{Package, COMMENTS_PART};
+use crate::package::{Package, COMMENTS_PART, DOCUMENT_PART};
 use crate::OpenedDocument;
 
 /// The two metadata parts a `.docx` uses to carry authorship / origin info.
@@ -148,6 +148,95 @@ fn strip_all_comments(doc: &mut Document) {
     }
 }
 
+/// Accept tracked changes directly in raw Word XML. This is the final-clean
+/// backstop for tables and other OOXML blocks we preserve as raw XML rather
+/// than modeling as paragraphs:
+///   * `<w:del>...</w:del>` is removed entirely, so deleted text cannot leak.
+///   * `<w:ins>...</w:ins>` is unwrapped, so inserted text remains visible.
+///   * stray `<w:delText>` is removed as a fail-closed guard.
+fn accept_tracked_changes_in_raw_word_xml(xml: &str) -> Result<String> {
+    use quick_xml::events::Event;
+    use quick_xml::reader::Reader;
+    use quick_xml::writer::Writer;
+
+    let mut reader = Reader::from_str(xml);
+    reader.config_mut().trim_text(false);
+    let mut writer = Writer::new(Vec::with_capacity(xml.len()));
+    let mut skip_depth = 0usize;
+
+    loop {
+        let event = reader
+            .read_event()
+            .map_err(|e| DocxError::Xml(format!("parse raw OOXML for final clean: {e}")))?;
+
+        match event {
+            Event::Start(e) => {
+                if skip_depth > 0 {
+                    skip_depth += 1;
+                    continue;
+                }
+                match local_name(e.name().as_ref()) {
+                    "del" | "delText" => {
+                        skip_depth = 1;
+                    }
+                    "ins" => {
+                        // Accept insertion: keep its children, drop only the
+                        // wrapper carrying review metadata.
+                    }
+                    _ => write_xml_event(&mut writer, Event::Start(e.borrow()))?,
+                }
+            }
+            Event::Empty(e) => {
+                if skip_depth > 0 {
+                    continue;
+                }
+                match local_name(e.name().as_ref()) {
+                    "del" | "delText" | "ins" => {
+                        // Empty deletion/deleted-text contributes nothing.
+                        // Empty insertion has no text to keep.
+                    }
+                    _ => write_xml_event(&mut writer, Event::Empty(e.borrow()))?,
+                }
+            }
+            Event::End(e) => {
+                if skip_depth > 0 {
+                    skip_depth -= 1;
+                    continue;
+                }
+                if local_name(e.name().as_ref()) != "ins" {
+                    write_xml_event(&mut writer, Event::End(e.borrow()))?;
+                }
+            }
+            Event::Eof => break,
+            other => {
+                if skip_depth == 0 {
+                    write_xml_event(&mut writer, other.borrow())?;
+                }
+            }
+        }
+    }
+
+    String::from_utf8(writer.into_inner())
+        .map_err(|e| DocxError::Xml(format!("final-clean OOXML was not UTF-8: {e}")))
+}
+
+fn write_xml_event<'a>(
+    writer: &mut quick_xml::writer::Writer<Vec<u8>>,
+    event: quick_xml::events::Event<'a>,
+) -> Result<()> {
+    writer
+        .write_event(event)
+        .map_err(|e| DocxError::Xml(format!("write final-clean OOXML: {e}")))
+}
+
+fn local_name(bytes: &[u8]) -> &str {
+    let local = match bytes.iter().position(|&b| b == b':') {
+        Some(i) => &bytes[i + 1..],
+        None => bytes,
+    };
+    std::str::from_utf8(local).unwrap_or("")
+}
+
 /// Produce the bytes of a privilege-safe "clean copy" of an opened document.
 ///
 /// Pipeline (only the requested steps run):
@@ -173,6 +262,16 @@ pub fn clean_copy_bytes(opened: &OpenedDocument, options: ScrubOptions) -> Resul
     // Serialize into the original package (preserve-by-default for every
     // unmodeled part), then scrub the metadata parts on the way out.
     let mut pkg = crate::serialize::serialize_into_package(&document, &opened.package)?;
+
+    // The DOM resolver handles modeled paragraphs. Tables and other unmodeled
+    // body blocks are preserved as raw OOXML, so final-clean needs this package
+    // pass too or deleted table text can leak.
+    if options.accept_all_changes {
+        if let Some(document_xml) = pkg.get_str(DOCUMENT_PART) {
+            let cleaned_xml = accept_tracked_changes_in_raw_word_xml(&document_xml)?;
+            pkg.insert(DOCUMENT_PART, cleaned_xml.into_bytes());
+        }
+    }
 
     // When we stripped comments, the general save path deliberately LEAVES any
     // pre-existing `comments.xml` in place (it never removes parts). For a clean
