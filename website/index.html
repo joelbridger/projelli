@@ -341,14 +341,6 @@
             <a href="/download/" class="btn btn-primary">Start your free trial</a>
             <a href="/try/" class="btn btn-outline-light">Try it in your browser</a>
           </div>
-          <p class="hero-note">30 days free. No card, no account. Windows, Mac, and Linux.</p>
-
-          <form id="email-signup-form" class="email-signup" action="/api/forms/keepance/email-list" method="POST">
-            <input type="hidden" name="source" value="homepage-hero">
-            <input type="email" name="email" placeholder="your@email.com" required class="email-signup-input" aria-label="Email address">
-            <button type="submit" class="email-signup-btn">Lock in the founding rate</button>
-          </form>
-          <p class="email-signup-note" id="email-signup-note">The founding cohort locks 30% off, for the life of the subscription. Solo runs $27/mo instead of $39, and the rate never goes up on you. Join the list to claim it before the seats are gone.</p>
         </div>
 
         <!-- App in Preview mode: rendered deposition notes, no raw Markdown visible -->
@@ -766,29 +758,6 @@
   </footer>
 
   <script>
-    // Email form - AJAX submit, same pattern as keepance.com
-    document.getElementById('email-signup-form').addEventListener('submit', async function(e) {
-      e.preventDefault();
-      const note = document.getElementById('email-signup-note');
-      const email = this.querySelector('input[type=email]').value;
-      try {
-        const res = await fetch('/api/forms/keepance/email-list', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, source: 'hero-form' })
-        });
-        if (res.ok) {
-          note.textContent = "You're on the founding list. We'll send your founding rate before the seats are gone.";
-          note.style.color = '#A8EFC0';
-          this.style.display = 'none';
-        } else {
-          note.textContent = 'Something went wrong. Email support@keepance.com directly.';
-        }
-      } catch {
-        note.textContent = 'Something went wrong. Email support@keepance.com directly.';
-      }
-    });
-
     // Nav shadow on scroll
     const nav = document.querySelector('.nav');
     window.addEventListener('scroll', () => {
