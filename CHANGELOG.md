@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Workflow model overrides now reject stale provider names (BUG-091).** Per-template model overrides are runtime-validated: provider must be exactly `claude`, `openai`, `gemini`, or `ollama`, and model must be non-empty. Invalid entries are dropped on settings import and ignored by workflow model resolution, so stale values like `local` or `ollama ` cannot route confidential workflow data to the wrong provider path.
+  - Files modified: `src/platform/settings/templateModelOverrides.ts`, `src/features/workflows/engine/resolveTemplateModel.ts`
+  - Tests: `tests/unit/stores/settings-import.test.ts`, `tests/unit/workflow-template-model.test.ts`
 - **Settings transfer now preserves per-workflow model pins (BUG-090).** Export/import includes the structured `templateModelOverrides` map, so workflows pinned to a local Ollama model keep that pin after a settings transfer instead of silently reverting to the cloud default.
   - Files modified: `src/platform/settings/settingsStore.ts`, `src/platform/settings/templateModelOverrides.ts`, `src/features/workflows/engine/resolveTemplateModel.ts`
   - Tests: `tests/unit/stores/settings-import.test.ts`

@@ -152,4 +152,27 @@ describe('resolveTemplateModel — Q8 priority rules', () => {
     expect(out.provider).toBe('openai');
     expect(out.model).toBe('gpt-4o');
   });
+
+  it('drops an override whose provider is not a supported provider enum (BUG-091)', () => {
+    const template = templateFixture({
+      id: 'tpl-stale-provider',
+      defaultProvider: 'openai',
+      defaultModel: 'gpt-4o-mini',
+    });
+    const overrides = {
+      'tpl-stale-provider': { provider: 'local', model: 'llama3.2:3b' },
+    } as unknown as Record<string, TemplateModelOverride>;
+
+    const out = resolveTemplateModel({
+      template,
+      overrides,
+      globalDefault,
+    });
+
+    expect(out).toEqual({
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      source: 'template',
+    });
+  });
 });

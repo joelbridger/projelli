@@ -19,7 +19,10 @@ export {
   TEMPLATE_MODEL_OVERRIDES_KEY,
   type TemplateModelOverride,
 } from '@/platform/settings/templateModelOverrides';
-import type { TemplateModelOverride } from '@/platform/settings/templateModelOverrides';
+import {
+  isTemplateModelOverride,
+  type TemplateModelOverride,
+} from '@/platform/settings/templateModelOverrides';
 
 export interface TemplateModelResolution {
   provider: TemplateProviderId;
@@ -46,12 +49,7 @@ export function resolveTemplateModel(
   const { template, overrides, globalDefault } = input;
 
   const override = overrides?.[template.id];
-  if (
-    override &&
-    typeof override.provider === 'string' &&
-    typeof override.model === 'string' &&
-    override.model.length > 0
-  ) {
+  if (isTemplateModelOverride(override)) {
     return { provider: override.provider, model: override.model, source: 'override' };
   }
 

@@ -126,4 +126,21 @@ describe('settingsStore workflow model override transfer (BUG-090)', () => {
       'legal-privilege-log': { provider: 'ollama', model: 'llama3.2:3b' },
     });
   });
+
+  it('drops imported per-template overrides with unsupported providers (BUG-091)', () => {
+    const ok = useSettingsStore.getState().importSettings(
+      JSON.stringify({
+        [TEMPLATE_MODEL_OVERRIDES_KEY]: {
+          stale: { provider: 'local', model: 'llama3.2:3b' },
+          trimmed: { provider: 'ollama ', model: 'llama3.2:3b' },
+          valid: { provider: 'ollama', model: 'llama3.2:3b' },
+        },
+      }),
+    );
+
+    expect(ok).toBe(true);
+    expect(useSettingsStore.getState().values[TEMPLATE_MODEL_OVERRIDES_KEY]).toEqual({
+      valid: { provider: 'ollama', model: 'llama3.2:3b' },
+    });
+  });
 });

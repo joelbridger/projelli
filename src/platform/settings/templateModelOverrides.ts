@@ -13,6 +13,26 @@ export interface TemplateModelOverride {
  */
 export const TEMPLATE_MODEL_OVERRIDES_KEY = 'templateModelOverrides';
 
+const TEMPLATE_PROVIDER_IDS = ['claude', 'openai', 'gemini', 'ollama'] as const;
+
+function isTemplateProviderId(value: unknown): value is TemplateProviderId {
+  return (
+    typeof value === 'string' &&
+    (TEMPLATE_PROVIDER_IDS as readonly string[]).includes(value)
+  );
+}
+
+export function isTemplateModelOverride(value: unknown): value is TemplateModelOverride {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    isTemplateProviderId((value as { provider?: unknown }).provider) &&
+    typeof (value as { model?: unknown }).model === 'string' &&
+    (value as { model: string }).model.trim().length > 0
+  );
+}
+
 export function sanitizeTemplateModelOverrides(
   value: unknown,
 ): Record<string, TemplateModelOverride> | undefined {
@@ -22,17 +42,8 @@ export function sanitizeTemplateModelOverrides(
 
   const cleaned: Record<string, TemplateModelOverride> = {};
   for (const [templateId, override] of Object.entries(value)) {
-    if (
-      typeof templateId === 'string' &&
-      templateId.length > 0 &&
-      typeof override === 'object' &&
-      override !== null &&
-      !Array.isArray(override) &&
-      typeof (override as { provider?: unknown }).provider === 'string' &&
-      typeof (override as { model?: unknown }).model === 'string' &&
-      (override as { model: string }).model.length > 0
-    ) {
-      cleaned[templateId] = override as TemplateModelOverride;
+    if (templateId.length > 0 && isTemplateModelOverride(override)) {
+      cleaned[templateId] = override;
     }
   }
 
