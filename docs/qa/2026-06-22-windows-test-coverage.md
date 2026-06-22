@@ -43,3 +43,17 @@ Tracks what's been **driven by hand on the real Legion app** vs. covered only by
 | BUG-038/039/083 + grant boundary | The actual external-MCP-client read enforcement needs a real external MCP client connecting. The grant UI + audit ARE driven live; the wire-level deny is cargo-tested + Codex-reviewed. |
 
 _Updated as the hunt continues._
+
+## Hunt update #2 (2026-06-22, continued)
+Newly confirmed LIVE on Windows:
+- **BUG-069** ✅ — Activity Log has a Matter filter (options "All matters / Garcia v. Meridian Properties") + the "Exporting all matters" scope note (was absent before).
+- **BUG-082** ✅ (partial) — an AI audit entry's detail shows **provider** ("Model: openai"); the token/cost fields are chat-send-only (need a completed chat to observe).
+- **Citation honesty (BUG-016/065 family)** ✅ — on the Search/Ask surface, an off-corpus question declined ("I couldn't find anything…") with the **"Not cited from your files. Verify this before relying on it."** warning — i.e. no fabricated/uncited answer presented as trusted.
+- **Grant audit (BUG-093) re-confirmed** ✅ — grant + revoke both show with proper descriptions ("External AI access granted/revoked to matter: Garcia v. Meridian Properties").
+
+Still NOT cleanly driven live (need config to force the condition; unit-tested + green):
+- **regfix over-limit / "Send anyway"** — the default `chatContextTokenLimit` is high enough that even a 201k-char message didn't trip the gate; to confirm live, lower the limit (Settings → Advanced) first, then send. CHAT-26 unit test covers it green.
+- **BUG-074 Stop/abort** — needs to catch a slow streaming response mid-flight; AIChatViewer opens via **Ctrl+Shift+A** (noted for next time).
+- **BUG-082 token/cost (full)** — needs a completed chat send to inspect the persisted token/cost.
+
+How to open the full chat for these: **Ctrl+Shift+A** (opens AIChatViewer as a main-panel tab with `chat-input` / `chat-send-button`).
