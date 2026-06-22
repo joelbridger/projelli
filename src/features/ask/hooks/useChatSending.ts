@@ -30,7 +30,7 @@ import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
-import { assertLocalOnlyAllowsSend, isLocalOnlyMode, LocalOnlyEgressError } from '@/platform/privacy/localOnlyGuard';
+import { assertLocalOnlyAllowsSend, assertCloudGenerationAllowed, isLocalOnlyMode, LocalOnlyEgressError } from '@/platform/privacy/localOnlyGuard';
 import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { createDemoProvider } from '@/web-demo/demoAIProvider';
@@ -1087,6 +1087,13 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // so the indicator can never lie. (Redline/inline-edit already resolve
           // through useActiveEgressProvider → 'ollama' in Local-only.)
           assertLocalOnlyAllowsSend(chatProvider);
+          // Personal-install choice gate (Task 1.3): a personal install must never
+          // reach a cloud provider for generation before the user has made an
+          // explicit confidentiality choice via Settings → Privacy. Retrieval above
+          // is unaffected — only generation is gated. Local (Ollama) chats skip via
+          // the provider check; local-only mode is already caught above; firm installs
+          // are a no-op (the gate checks isFirm first and passes through).
+          assertCloudGenerationAllowed(chatProvider);
           // WS-C honesty — this switch is the single chat send path. A LOCAL
           // selection ('ollama') is handled by its OWN case and constructs the
           // local provider; it can NEVER fall through to a cloud branch. The

@@ -13,6 +13,20 @@ vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
   getConfidentialityMode: () => h.mode,
 }));
 
+// The personal-install choice gate (Task 1.3) reads firmStore + settingsStore.
+// Stub both so assertCloudGenerationAllowed is a no-op here — these tests focus
+// on local-only enforcement, not on the confidentiality-choice gate itself.
+vi.mock('@/platform/firm/firmStore', () => ({
+  useFirmStore: { getState: () => ({ session: { activated: true } }) },
+}));
+vi.mock('@/platform/settings/settingsStore', () => ({
+  useSettingsStore: {
+    getState: () => ({
+      getSetting: (_key: string) => true,
+    }),
+  },
+}));
+
 // Stub providers so buildProviderAsync constructs identifiable instances.
 vi.mock('@/platform/providers/ClaudeProvider', () => ({ ClaudeProvider: class { kind = 'anthropic'; } }));
 vi.mock('@/platform/providers/OpenAIProvider', () => ({ OpenAIProvider: class { kind = 'openai'; } }));

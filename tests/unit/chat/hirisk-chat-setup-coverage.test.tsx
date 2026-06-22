@@ -101,6 +101,7 @@ import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { useFileContextStore } from '@/platform/state/fileContextStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { CONFIDENTIALITY_CHOICE_MADE_KEY } from '@/platform/privacy/resolvePersonalEgressDefault';
 import { TooltipProvider } from '@/ui/tooltip';
 
 const apiKey = [{ provider: 'anthropic', key: 'stub-key', isValid: true }];
@@ -138,6 +139,9 @@ function resetStores() {
   useFileContextStore.setState({ contexts: {}, disabledPaths: {} });
   useMatterStore.setState({ matters: [], activeMatterId: null });
   useSettingsStore.setState({ values: {} });
+  // Mark the confidentiality choice as made so the Task 1.3 gate is a no-op
+  // in these tests, which focus on chat wiring, not the choice gate itself.
+  useSettingsStore.getState().setSetting(CONFIDENTIALITY_CHOICE_MADE_KEY, true);
   localStorage.clear();
   sessionStorage.clear();
 }
@@ -172,6 +176,8 @@ describe('High-risk chat/setup coverage from the current UI', () => {
       values: {
         chatContextTokenLimit: 10000,
         keepRecentTurns: 6,
+        // Keep the Task 1.3 gate open so the test reaches the context-limit logic.
+        confidentialityChoiceMade: true,
       },
     });
 

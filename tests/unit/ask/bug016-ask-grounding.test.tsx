@@ -77,6 +77,16 @@ vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
   getConfidentialityMode: () => 'local',
   useConfidentialityMode: () => 'local',
 }));
+// The personal-install choice gate (Task 1.3) lives in localOnlyGuard.
+// Stub assertCloudGenerationAllowed as a no-op here — these tests focus on
+// grounding correctness, not on the confidentiality-choice gate itself.
+vi.mock('@/platform/privacy/localOnlyGuard', async (orig) => {
+  const real = await orig<typeof import('@/platform/privacy/localOnlyGuard')>();
+  return {
+    ...real,
+    assertCloudGenerationAllowed: vi.fn(),
+  };
+});
 
 /* ----- retrieval: indexing ON, hits configured per test ------------------- */
 

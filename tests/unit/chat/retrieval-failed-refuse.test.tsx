@@ -65,6 +65,17 @@ vi.mock('@/features/ask/ChatCostChip', () => ({
   ChatCostChip: () => null,
 }));
 
+// The personal-install choice gate (Task 1.3) lives in localOnlyGuard.
+// Stub assertCloudGenerationAllowed as a no-op here — these tests focus on
+// retrieval failure handling, not on the confidentiality-choice gate itself.
+vi.mock('@/platform/privacy/localOnlyGuard', async (orig) => {
+  const real = await orig<typeof import('@/platform/privacy/localOnlyGuard')>();
+  return {
+    ...real,
+    assertCloudGenerationAllowed: vi.fn(),
+  };
+});
+
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import type { AIChatFile } from '@/platform/types/ai';
 import { useAIChatStore } from '@/platform/state/aiChatStore';

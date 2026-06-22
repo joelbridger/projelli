@@ -11,7 +11,7 @@ import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import { KeychainService } from '@/platform/providers/KeychainService';
-import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { assertCloudGenerationAllowed, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import type { Provider } from '@/platform/providers/Provider';
 import type { ChatMessage } from '@/platform/types/ai';
 
@@ -110,6 +110,12 @@ export async function buildProviderAsync(): Promise<Provider> {
   if (isLocalOnlyMode()) {
     return new OllamaProvider({});
   }
+  // Personal-install choice gate (Task 1.3): a personal install must never reach
+  // a cloud provider for generation before the user has made an explicit
+  // confidentiality choice via Settings → Privacy. Retrieval (MemoryService) is
+  // called BEFORE this function and is unaffected — only generation is gated.
+  // Firm installs are a no-op (the gate checks isFirm first and passes through).
+  assertCloudGenerationAllowed();
   const kc = new KeychainService();
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) {

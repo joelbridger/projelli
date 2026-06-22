@@ -94,6 +94,7 @@ import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
+import { CONFIDENTIALITY_CHOICE_MADE_KEY } from '@/platform/privacy/resolvePersonalEgressDefault';
 
 type LoggedEntry = Omit<AuditEntry, 'id' | 'timestamp'>;
 
@@ -184,6 +185,9 @@ describe('Keepance 3.0 audit provenance events', () => {
     useMatterStore.setState({ matters: [], activeMatterId: null });
     // Default confidentiality mode = direct (cloud BYOK).
     useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
+    // Mark the confidentiality choice as made so the Task 1.3 gate is a no-op
+    // in these tests, which focus on audit provenance, not the choice gate itself.
+    useSettingsStore.getState().setSetting(CONFIDENTIALITY_CHOICE_MADE_KEY, true);
 
     mocks.sendMessage.mockResolvedValue({
       content: 'Priced at $49 [pricing.md paragraph 3].',
