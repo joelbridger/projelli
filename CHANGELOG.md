@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **TEST-001 matter-delete RAG purge guard.** Added a Rust integration test that indexes two matters, deletes one, runs all-matters retrieval, and proves the deleted matter's citation text is gone while the surviving matter still returns.
   - Tests: `src-tauri/tests/rag_delete_matter.rs`
+- **Autosave disk-write regression coverage (TEST-003).** Added a hook-level Vitest test proving the 2-second autosave loop writes typed dirty-tab content through `WorkspaceService` and that the backing file reads back the new text, not just a saved indicator state.
+  - Tests: `tests/unit/lifecycle/use-autosave-disk.test.tsx`
 - **Automatic test safety net (testing & CI overhaul, second half).** The strong-but-manual test suite now runs on its own.
   - **Nightly server test gate** — a systemd `--user` timer (`scripts/nightly-tests.sh`, 03:30 UTC) runs the heavy suites (full Rust, Vitest, backend Bun, browser E2E, desktop harness) on the server where RAM is fresh, with a git-state guard that logs the exact tested commit (never a false green) and a `--dry-run` mode; it texts Jameson via `notify-jameson` only on failure.
   - **Real-OS nightly benches** — `scripts/nightly-bench-tests.sh` runs `cargo test` on the always-on Windows (Legion) and macOS (M1) machines over Tailscale, parses output (not exit code) for pass/fail, and keeps a soft-fail status file (`~/.local/share/keepance-bench/status.json`) with per-UTC-day offline escalation; a `--check` probe mode is fully side-effect-free.
