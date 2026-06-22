@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Activity-log exports can be limited to one matter (BUG-069).** The Activity Log filter panel now has a Matter filter, CSV/JSON exports use that filtered set, and the export area states whether it will export all matters or one named matter only.
+  - Files modified: `src/features/audit/audit-export.ts`, `src/features/audit/AuditHome.tsx`, `src/features/audit/auditHomeViews.tsx`
+  - Tests: `tests/unit/audit-export.test.ts`, `tests/unit/reimagined-audit-home.test.tsx`
 - **Chat markdown exports keep citation verification honesty (BUG-068).** Exported `.aichat` markdown now includes a "Sources and verification" section under assistant answers, marking each cited source as either "Source found" or "UNVERIFIED" with its label, path, locator, and excerpt.
   - Files modified: `src/features/ask/renderingHelpers.tsx`
   - Tests: `tests/unit/ask/renderingHelpers.test.ts`

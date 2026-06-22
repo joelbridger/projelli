@@ -182,6 +182,27 @@ export function uniqueModels(entries: AuditEntry[]): string[] {
   return Array.from(set).sort();
 }
 
+export interface AuditMatterScopeOption {
+  matterId: string;
+  label: string;
+}
+
+export function uniqueMatterScopes(entries: AuditEntry[]): AuditMatterScopeOption[] {
+  const byId = new Map<string, AuditMatterScopeOption>();
+  for (const entry of entries) {
+    const scope = getAuditEntryMatterScope(entry);
+    if (scope?.kind === 'matter' && !byId.has(scope.matterId)) {
+      byId.set(scope.matterId, {
+        matterId: scope.matterId,
+        label: scope.matterName ?? scope.matterId,
+      });
+    }
+  }
+  return Array.from(byId.values()).sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }),
+  );
+}
+
 export interface AuditFilter {
   actionTypes?: Set<AuditActionType> | undefined;
   /** Inclusive ISO date string (YYYY-MM-DD) for the start of the range. */
@@ -190,6 +211,10 @@ export interface AuditFilter {
   dateTo?: string | undefined;
   /** Model name to match exactly; empty string or undefined = no filter. */
   model?: string | undefined;
+  /** Matter id to match from metadata scope/matter fields. */
+  matterId?: string | undefined;
+  /** Scope kind to match. `matterId` is more specific when both are present. */
+  scope?: 'matter' | 'allMatters' | undefined;
   /** Free-text search across description, action, model. */
   searchQuery?: string | undefined;
 }
@@ -220,6 +245,18 @@ export function filterEntries(
       return false;
     }
 
+    if (filter.matterId && filter.matterId !== '') {
+      const scope = getAuditEntryMatterScope(entry);
+      if (scope?.kind !== 'matter' || scope.matterId !== filter.matterId) {
+        return false;
+      }
+    } else if (filter.scope) {
+      const scope = getAuditEntryMatterScope(entry);
+      if (scope?.kind !== filter.scope) {
+        return false;
+      }
+    }
+
     if (fromTime !== null || toTime !== null) {
       const t = new Date(entry.timestamp).getTime();
       if (Number.isFinite(t)) {
@@ -238,6 +275,66 @@ export function filterEntries(
 
     return true;
   });
+}
+
+type AuditEntryScope =
+  | { kind: 'matter'; matterId: string; matterName?: string }
+  | { kind: 'allMatters' };
+
+function getAuditEntryMatterScope(entry: AuditEntry): AuditEntryScope | null {
+  const meta = entry.metadata;
+  const scope = meta['scope'];
+  if (isRecord(scope)) {
+    const kind = stringValue(scope['kind']);
+    if (kind === 'allMatters') {
+      return { kind: 'allMatters' };
+    }
+    if (kind === 'matter') {
+      const matterId =
+        stringValue(scope['matterId']) ??
+        stringValue(scope['matter_id']) ??
+        stringValue(meta['matterId']) ??
+        stringValue(meta['matter_id']) ??
+        stringValue(meta['firm_matter_id']);
+      if (matterId) {
+        const matterName =
+          stringValue(scope['matterName']) ??
+          stringValue(scope['matter_name']) ??
+          stringValue(meta['matterName']) ??
+          stringValue(meta['matter_name']) ??
+          undefined;
+        return matterName
+          ? { kind: 'matter', matterId, matterName }
+          : { kind: 'matter', matterId };
+      }
+    }
+  }
+
+  const directMatterId =
+    stringValue(meta['matterId']) ??
+    stringValue(meta['matter_id']) ??
+    stringValue(meta['firm_matter_id']);
+  if (directMatterId) {
+    const directMatterName =
+      stringValue(meta['matterName']) ??
+      stringValue(meta['matter_name']) ??
+      undefined;
+    return directMatterName
+      ? { kind: 'matter', matterId: directMatterId, matterName: directMatterName }
+      : { kind: 'matter', matterId: directMatterId };
+  }
+
+  return null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function stringValue(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed !== '' ? trimmed : null;
 }
 
 function parseLocalDayStart(isoDate: string): number | null {

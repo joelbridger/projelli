@@ -302,6 +302,35 @@ describe('audit-export / filterEntries', () => {
     expect(filterEntries(entries, { searchQuery: 'MODEL_CALL' }).map((e) => e.id)).toEqual(['2']);
     expect(filterEntries(entries, { searchQuery: 'gpt' }).map((e) => e.id)).toEqual(['2']);
   });
+
+  it('filters CSV and JSON exports to one matter scope (BUG-069)', () => {
+    const scopedEntries = [
+      makeEntry({
+        id: 'matter-a',
+        description: 'Defense file answer',
+        metadata: {
+          scope: { kind: 'matter', matterId: 'matter-a', matterName: 'Matter A' },
+        },
+      }),
+      makeEntry({
+        id: 'matter-b',
+        description: 'Other client answer',
+        metadata: {
+          scope: { kind: 'matter', matterId: 'matter-b', matterName: 'Matter B' },
+        },
+      }),
+    ];
+
+    const filtered = filterEntries(scopedEntries, { matterId: 'matter-a' });
+    const csv = entriesToCSV(filtered);
+    const json = entriesToJSON(filtered);
+
+    expect(filtered.map((e) => e.id)).toEqual(['matter-a']);
+    expect(csv).toContain('Defense file answer');
+    expect(csv).not.toContain('Other client answer');
+    expect(json).toContain('Matter A');
+    expect(json).not.toContain('Matter B');
+  });
 });
 
 describe('audit-export / triggerDownload', () => {
