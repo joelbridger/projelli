@@ -25,19 +25,21 @@
 
 ## The contrast rule (this is the one that bit us)
 
-**Light text on the navy/dark background must stay legible.** Two earlier values caused a low-contrast, hard-to-read problem and are now banned for text:
+**No faint secondary text, on any background.** Across the site, low-contrast text was the readability problem (there is no "light" font weight anywhere; all text is already regular/400, so the issue was always COLOR, not weight). Banned faint values and their corrections (applied site-wide 2026-06-22):
 
-- ❌ `--text-muted-dark: #8A9BB0` (old, ~5:1, too faint)
-- ❌ `--text-muted-dark: rgba(255,255,255,0.5)` (old alt, ~3:1, too faint)
-- ✅ `--text-muted-dark: #B6C4D6` (corrected, ~8:1 on navy)
+Muted text on DARK (navy) backgrounds:
+- ❌ `--text-muted-dark: #8A9BB0` / `rgba(255,255,255,0.5)` (too faint)
+- ✅ `--text-muted-dark: #B6C4D6` (~8:1 on navy)
+- Faint white text on dark was raised: any `color: rgba(255,255,255, <0.5)` is banned; floor is ~0.5, secondary text sits ~0.6 to 0.75.
+
+Muted text on LIGHT (bone/white) backgrounds:
+- ❌ `--text-muted: #94A3B8` (the old default on most pages, far too light) / `#64748B` / `#6B6B65`
+- ✅ `--text-muted: #475569` (slate-palette pages) or `#555550` (warm-palette pages) — both ~7:1+ on bone. (These two should be unified when pages are rebuilt.)
 
 Rules going forward:
-1. **Muted/secondary text on dark** uses `--text-muted-dark` (`#B6C4D6`) or brighter. Never below ~7:1 contrast on `--navy`.
-2. **The hero subhead / tagline** (the lead sentence under the H1) is the most important line on the page, so it uses **`--text-on-dark` (near-white) at `font-weight: 400` (regular)**, not the muted token. Reference rule on the homepage:
-   ```css
-   .hero-sub { color: var(--text-on-dark); font-weight: 400; }
-   ```
-3. **Never use a "light"/thin font weight for body or lead copy on dark.** Regular (400) minimum; 500 for small UI labels if needed.
+1. **Muted/secondary text must clear ~7:1 contrast on its background.** On dark use `--text-muted-dark` (`#B6C4D6`) or brighter; on light use `--text-muted` at `#475569`/`#555550` or darker. Never reintroduce `#94A3B8`, `#8A9BB0`, or `color: rgba(255,255,255, <0.5)` for text.
+2. **The hero subhead / tagline** uses **`--text-on-dark` (near-white) at `font-weight: 400`**, not the muted token: `.hero-sub { color: var(--text-on-dark); font-weight: 400; }`.
+3. **Regular (400) is the minimum font weight** for body and lead copy. There is no "light"/thin weight in the type system; never add one. Use 500 for small UI labels if more presence is needed.
 
 ## Hero conventions
 
