@@ -21,6 +21,14 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     placeholder: 'e.g., 2026',
   },
   {
+    id: 'priorTaxYear',
+    question: 'Prior tax year',
+    description: 'The tax year immediately before the current tax year. Used when explaining the prior-year safe harbor calculation.',
+    type: 'text',
+    required: true,
+    placeholder: 'e.g., 2025',
+  },
+  {
     id: 'quarterAndDueDate',
     question: 'Quarter and due date',
     description: 'The estimated tax installment period and payment due date.',
@@ -102,6 +110,7 @@ const quarterlyEstimateReminderPrompt = `You are assisting a licensed tax profes
 
 Client name: {{clientName}}
 Tax year: {{taxYear}}
+Prior tax year: {{priorTaxYear}}
 Quarter and due date: {{quarterAndDueDate}}
 Prior year total tax liability: {{priorYearTaxLiability}}
 Prior year AGI: {{priorYearAGI}}
@@ -141,7 +150,7 @@ This letter covers your {{taxYear}} estimated tax payment due {{quarterAndDueDat
 
 **If using "Prior year liability" method:**
 Walk through the calculation step by step:
-1. Your {{taxYear minus 1}} total tax was {{priorYearTaxLiability}}.
+1. Your {{priorTaxYear}} total tax was {{priorYearTaxLiability}}.
 2. Because your prior year AGI [was / was not] above $150,000, the safe harbor is [100% / 110%] of that amount — meaning your total estimated payments for {{taxYear}} need to equal at least [calculate: 100% or 110% × prior year liability].
 3. That annual safe harbor target divided across four equal installments is [annual ÷ 4] per quarter.
 4. [If prior payments were provided: You have already paid [priorPaymentsThisYear] toward {{taxYear}}. The remaining amount to reach the safe harbor is [annual target minus payments made], spread across [remaining quarters]. This quarter's share is [calculated amount].]

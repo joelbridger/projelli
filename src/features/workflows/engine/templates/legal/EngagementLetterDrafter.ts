@@ -130,13 +130,13 @@ Either party may terminate this engagement at any time by written notice. If you
 
 ---
 
-{{#if additionalTerms}}
+If {{additionalTerms}} contains firm-specific terms, include the following section. If it is blank or says there are no additional terms, omit this section and keep the remaining headings sensible.
+
 ### 5. Additional Terms
 
 {{additionalTerms}}
 
 ---
-{{/if}}
 
 ### AI Disclosure and Consent
 

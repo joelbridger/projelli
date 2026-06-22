@@ -104,11 +104,13 @@ This document is a documentation framework prepared by the advisor using Keepanc
 
 **DRAFT — Verify against current client records before filing.**
 
+Summarize long inputs in this table to the first line or a brief phrase. The full notes appear in later sections where needed.
+
 | Field | Documented value | Last updated |
 |---|---|---|
-| Client description | {{clientProfileSummary — first line or brief summary}} | [Date — complete] |
-| Investment objectives | {{investmentObjectives — first line or brief summary}} | [Date — complete] |
-| Risk tolerance | {{riskTolerance — first line or brief summary}} | [Date — complete] |
+| Client description | {{clientProfileSummary}} | [Date — complete] |
+| Investment objectives | {{investmentObjectives}} | [Date — complete] |
+| Risk tolerance | {{riskTolerance}} | [Date — complete] |
 | Time horizon | {{timeHorizon}} | [Date — complete] |
 | Financial situation (summary) | [ADVISOR: summarize key financial facts relevant to this recommendation] | [Date] |
 | Tax status / considerations | [ADVISOR: complete] | [Date] |
@@ -153,7 +155,9 @@ Key factors considered:
 
 Reg BI requires that the advisor evaluate reasonably available alternatives before making a recommendation. The following alternatives were considered:
 
-{{alternativesConsidered — restructure as a table}}
+Use the advisor's alternatives notes below to complete the table. Restructure them into one row per alternative.
+
+{{alternativesConsidered}}
 
 | Alternative | Why considered | Reason not recommended |
 |---|---|---|
@@ -206,9 +210,11 @@ I determine that the recommended [brief description] is in the best interest of 
 
 ### Disclosure Record
 
+Use the conflicts text below to extract each distinct conflict as a row.
+
 | Conflict | Disclosed to client | Date | Method | Mitigation |
 |---|---|---|---|---|
-| {{conflictsOfInterest — extract each conflict as a row}} | [Yes / No] | [Date] | [Verbal / Written / Form ADV] | [How the conflict was addressed] |
+| [Conflict from inputs: {{conflictsOfInterest}}] | [Yes / No] | [Date] | [Verbal / Written / Form ADV] | [How the conflict was addressed] |
 
 **[ADVISOR: Confirm each conflict is accurately described and that the disclosure is documented. If any conflict is not adequately disclosed, consult your compliance officer before proceeding.]**
 

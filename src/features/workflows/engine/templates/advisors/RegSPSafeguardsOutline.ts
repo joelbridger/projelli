@@ -87,11 +87,11 @@ Produce a Reg S-P safeguards outline in Markdown. At the top, include the compli
 
 ## Part 1: Data Inventory
 
-[Produce a data inventory table based on the inputs provided. For each system or data category, include:]
+[Produce a data inventory table based on the inputs provided. Expand the system types into one row per system. For each system or data category, include:]
 
 | System / Location | Data categories held | Access controls | Encryption at rest | Encryption in transit | Notes / gaps |
 |---|---|---|---|---|---|
-| {{systemTypes — expand each system}} | | | | | |
+| {{systemTypes}} | | | | | |
 | [Additional rows as appropriate] | | | | | |
 
 **[COMPLIANCE NOTE]** This inventory is a draft based on the information provided. The firm must verify each row against its actual systems, access logs, and vendor agreements before finalizing. The inventory must be updated annually and when systems change.
@@ -116,7 +116,7 @@ Produce a Reg S-P safeguards outline in Markdown. At the top, include the compli
 | Threat | Likelihood (H/M/L) | Impact (H/M/L) | Current controls | Gap / residual risk |
 |---|---|---|---|---|
 | Phishing / credential theft | | | | |
-| Vendor breach ({{systemTypes brief list}}) | | | | |
+| Vendor breach affecting one of the listed systems ({{systemTypes}}) | | | | |
 | Unauthorized employee access | | | | |
 | Physical records / device loss | | | | |
 | Ransomware / data loss | | | | |
