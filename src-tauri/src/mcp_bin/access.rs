@@ -6,8 +6,8 @@ use serde::Deserialize;
 
 pub const SCOPE_STATE_REL_PATH: &str = ".keepance/mcp-session-scope.json";
 pub const UNASSIGNED_MATTER_ID: &str = "unassigned";
-const MAX_SCOPE_STATE_AGE_SECONDS: i64 = 60;
-const MAX_SCOPE_STATE_FUTURE_SKEW_SECONDS: i64 = 300;
+const MAX_SCOPE_STATE_AGE_SECONDS: i64 = 30;
+const MAX_SCOPE_STATE_FUTURE_SKEW_SECONDS: i64 = 5;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -234,6 +234,27 @@ mod tests {
         assert_eq!(
             state.resolve_matter_for_path(Path::new("/ws/Acme Corp/secret.md")),
             UNASSIGNED_MATTER_ID
+        );
+    }
+
+    #[test]
+    fn far_future_scope_timestamp_is_invalid() {
+        let state = McpAccessState {
+            version: 1,
+            updated_at: (Utc::now() + Duration::seconds(60)).to_rfc3339(),
+            active_matter_id: Some("a".into()),
+            granted_matter_ids: vec![],
+            network_lockdown: false,
+            matters: vec![McpMatter {
+                id: "a".into(),
+                folder_paths: vec!["/ws/Acme".into()],
+                archived: false,
+            }],
+        };
+
+        assert_eq!(
+            state.validate().unwrap_err(),
+            "MCP access state timestamp is too far in the future"
         );
     }
 }

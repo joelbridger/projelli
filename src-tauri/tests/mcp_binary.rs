@@ -119,6 +119,24 @@ fn write_scope_state_with_updated_at(
     .unwrap();
 }
 
+fn write_deny_all_scope_state(workspace: &std::path::Path) {
+    let state = serde_json::json!({
+        "version": 1,
+        "updatedAt": chrono::Utc::now().to_rfc3339(),
+        "activeMatterId": null,
+        "grantedMatterIds": [],
+        "networkLockdown": true,
+        "matters": []
+    });
+    let dir = workspace.join(".keepance");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("mcp-session-scope.json"),
+        serde_json::to_vec_pretty(&state).unwrap(),
+    )
+    .unwrap();
+}
+
 fn audit_actions(workspace: &std::path::Path) -> Vec<(String, serde_json::Value)> {
     let key_bytes = hex::decode(TEST_AUDIT_KEY_HEX).unwrap();
     let mut key = [0u8; 32];
@@ -387,6 +405,90 @@ fn missing_scope_state_denies_read_and_audits() {
 }
 
 #[test]
+fn future_scope_state_denies_read_and_audits() {
+    let tmp = tempfile::Builder::new()
+        .prefix("keepance-mcp-future-scope-")
+        .tempdir()
+        .expect("tmpdir");
+    let future = (chrono::Utc::now() + chrono::Duration::minutes(2)).to_rfc3339();
+    write_scope_state_with_updated_at(tmp.path(), "matter-a", &["matter-a"], false, &future);
+    std::fs::write(
+        tmp.path().join("Matter A").join("allowed.md"),
+        "client A memo",
+    )
+    .unwrap();
+    let mut child = Command::new(binary_path())
+        .env("KEEPANCE_WORKSPACE_ROOT", tmp.path())
+        .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn keepance-mcp");
+
+    let resp = exchange(
+        &mut child,
+        r#"{"jsonrpc":"2.0","id":39,"method":"tools/call","params":{"name":"read_workspace_file","arguments":{"path":"Matter A/allowed.md"}}}"#,
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&resp).expect("valid JSON");
+    assert_eq!(parsed["result"]["isError"], true, "got: {parsed:?}");
+    let text = parsed["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("not granted"), "got: {text}");
+    assert!(!text.contains("client A memo"), "got: {text}");
+
+    let actions = audit_actions(tmp.path());
+    assert!(
+        actions.iter().any(|(a, payload)| {
+            a == "mcp_read"
+                && payload["metadata"]["path"] == "Matter A/allowed.md"
+                && payload["metadata"]["result"] == "denied"
+                && payload["metadata"]["reason"] == "scope_state_unavailable"
+        }),
+        "missing future-scope audit entry: {actions:?}"
+    );
+
+    let _ = child.kill();
+    std::thread::sleep(Duration::from_millis(50));
+}
+
+#[test]
+fn deny_all_scope_cleanup_denies_read_and_audits() {
+    let (mut child, tmp) = spawn_scoped_workspace(false);
+    std::fs::write(
+        tmp.path().join("Matter A").join("allowed.md"),
+        "client A memo",
+    )
+    .unwrap();
+    write_deny_all_scope_state(tmp.path());
+
+    let resp = exchange(
+        &mut child,
+        r#"{"jsonrpc":"2.0","id":40,"method":"tools/call","params":{"name":"read_workspace_file","arguments":{"path":"Matter A/allowed.md"}}}"#,
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&resp).expect("valid JSON");
+    assert_eq!(parsed["result"]["isError"], true, "got: {parsed:?}");
+    let text = parsed["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(
+        text.contains("Network lockdown is on") || text.contains("outside the granted matter"),
+        "got: {text}"
+    );
+    assert!(!text.contains("client A memo"), "got: {text}");
+
+    let actions = audit_actions(tmp.path());
+    assert!(
+        actions.iter().any(|(a, payload)| {
+            a == "mcp_read"
+                && payload["metadata"]["path"] == "Matter A/allowed.md"
+                && payload["metadata"]["result"] == "denied"
+        }),
+        "missing deny-all read audit entry: {actions:?}"
+    );
+
+    let _ = child.kill();
+    std::thread::sleep(Duration::from_millis(50));
+}
+
+#[test]
 fn list_workspace_files_filters_to_granted_matter_and_audits() {
     let (mut child, tmp) = spawn_scoped_workspace(false);
     std::fs::write(tmp.path().join("Matter A").join("allowed.md"), "allowed").unwrap();
@@ -548,6 +650,142 @@ fn read_workspace_file_rejects_traversal() {
         }),
         "missing invalid-path audit entry: {actions:?}"
     );
+    let _ = child.kill();
+    std::thread::sleep(Duration::from_millis(50));
+}
+
+#[test]
+fn malformed_read_missing_path_is_audited() {
+    let (mut child, tmp) = spawn_with_workspace();
+
+    let resp = exchange(
+        &mut child,
+        r#"{"jsonrpc":"2.0","id":41,"method":"tools/call","params":{"name":"read_workspace_file","arguments":{}}}"#,
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&resp).expect("valid JSON");
+    assert_eq!(parsed["id"], 41);
+    assert!(parsed["error"].is_object(), "got {parsed:?}");
+    assert_eq!(parsed["error"]["code"], -32602);
+
+    let actions = audit_actions(tmp.path());
+    assert!(
+        actions.iter().any(|(a, payload)| {
+            a == "mcp_read"
+                && payload["metadata"]["result"] == "denied"
+                && payload["metadata"]["reason"] == "missing_path"
+        }),
+        "missing malformed read audit entry: {actions:?}"
+    );
+
+    let _ = child.kill();
+    std::thread::sleep(Duration::from_millis(50));
+}
+
+#[test]
+fn malformed_search_empty_query_is_audited() {
+    let (mut child, tmp) = spawn_with_workspace();
+
+    let resp = exchange(
+        &mut child,
+        r#"{"jsonrpc":"2.0","id":42,"method":"tools/call","params":{"name":"search_workspace","arguments":{"query":"   "}}}"#,
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&resp).expect("valid JSON");
+    assert_eq!(parsed["id"], 42);
+    assert!(parsed["error"].is_object(), "got {parsed:?}");
+    assert_eq!(parsed["error"]["code"], -32602);
+
+    let actions = audit_actions(tmp.path());
+    assert!(
+        actions.iter().any(|(a, payload)| {
+            a == "mcp_search"
+                && payload["metadata"]["result"] == "denied"
+                && payload["metadata"]["reason"] == "empty_query"
+        }),
+        "missing malformed search audit entry: {actions:?}"
+    );
+
+    let _ = child.kill();
+    std::thread::sleep(Duration::from_millis(50));
+}
+
+#[test]
+fn malformed_search_missing_query_is_audited() {
+    let (mut child, tmp) = spawn_with_workspace();
+
+    let resp = exchange(
+        &mut child,
+        r#"{"jsonrpc":"2.0","id":44,"method":"tools/call","params":{"name":"search_workspace","arguments":{}}}"#,
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&resp).expect("valid JSON");
+    assert_eq!(parsed["id"], 44);
+    assert!(parsed["error"].is_object(), "got {parsed:?}");
+    assert_eq!(parsed["error"]["code"], -32602);
+
+    let actions = audit_actions(tmp.path());
+    assert!(
+        actions.iter().any(|(a, payload)| {
+            a == "mcp_search"
+                && payload["metadata"]["result"] == "denied"
+                && payload["metadata"]["reason"] == "missing_query"
+        }),
+        "missing missing-query search audit entry: {actions:?}"
+    );
+
+    let _ = child.kill();
+    std::thread::sleep(Duration::from_millis(50));
+}
+
+#[test]
+fn malformed_write_missing_path_is_audited() {
+    let (mut child, tmp) = spawn_with_workspace();
+
+    let resp = exchange(
+        &mut child,
+        r#"{"jsonrpc":"2.0","id":45,"method":"tools/call","params":{"name":"write_workspace_file","arguments":{}}}"#,
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&resp).expect("valid JSON");
+    assert_eq!(parsed["id"], 45);
+    assert!(parsed["error"].is_object(), "got {parsed:?}");
+    assert_eq!(parsed["error"]["code"], -32602);
+
+    let actions = audit_actions(tmp.path());
+    assert!(
+        actions.iter().any(|(a, payload)| {
+            a == "mcp_write_denied"
+                && payload["metadata"]["result"] == "denied"
+                && payload["metadata"]["reason"] == "missing_path"
+        }),
+        "missing missing-path write audit entry: {actions:?}"
+    );
+
+    let _ = child.kill();
+    std::thread::sleep(Duration::from_millis(50));
+}
+
+#[test]
+fn malformed_write_missing_content_is_audited() {
+    let (mut child, tmp) = spawn_with_workspace();
+
+    let resp = exchange(
+        &mut child,
+        r#"{"jsonrpc":"2.0","id":43,"method":"tools/call","params":{"name":"write_workspace_file","arguments":{"path":"Matter A/new.md"}}}"#,
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&resp).expect("valid JSON");
+    assert_eq!(parsed["id"], 43);
+    assert!(parsed["error"].is_object(), "got {parsed:?}");
+    assert_eq!(parsed["error"]["code"], -32602);
+
+    let actions = audit_actions(tmp.path());
+    assert!(
+        actions.iter().any(|(a, payload)| {
+            a == "mcp_write_denied"
+                && payload["metadata"]["path"] == "Matter A/new.md"
+                && payload["metadata"]["result"] == "denied"
+                && payload["metadata"]["reason"] == "missing_content"
+        }),
+        "missing malformed write audit entry: {actions:?}"
+    );
+
     let _ = child.kill();
     std::thread::sleep(Duration::from_millis(50));
 }

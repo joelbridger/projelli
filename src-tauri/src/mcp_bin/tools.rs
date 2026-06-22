@@ -19,9 +19,9 @@
 use super::access::{McpAccessState, UNASSIGNED_MATTER_ID};
 use super::approval::{self, APPROVAL_MARKER};
 use super::protocol::JsonRpcError;
-use super::{crypto, embedder, extractor, resolve_workspace_path, store, ServerCtx};
-use serde_json::{json, Value};
-use std::path::Path;
+use super::{ServerCtx, crypto, embedder, extractor, resolve_workspace_path, store};
+use serde_json::{Value, json};
+use std::path::{Path, PathBuf};
 
 /// Build the `tools/list` response array.
 pub fn describe_tools() -> Vec<Value> {
@@ -258,10 +258,25 @@ pub fn glob_match(pattern: &str, path: &str) -> bool {
 // ---------------------------------------------------------------------------
 
 pub async fn read_workspace_file(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>, JsonRpcError> {
-    let path = args
-        .get("path")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| JsonRpcError::invalid_params("missing required argument: path"))?;
+    let path = match args.get("path").and_then(|v| v.as_str()) {
+        Some(path) => path,
+        None => {
+            append_audit_or_deny(
+                ctx,
+                "mcp_read",
+                "External AI workspace access denied",
+                json!({
+                    "path": null,
+                    "matterId": null,
+                    "result": "denied",
+                    "reason": "missing_path"
+                }),
+            )?;
+            return Err(JsonRpcError::invalid_params(
+                "missing required argument: path",
+            ));
+        }
+    };
 
     let abs = match resolve_workspace_path(&ctx.workspace_root, path) {
         Ok(abs) => abs,
@@ -404,11 +419,37 @@ pub async fn read_workspace_file(ctx: &ServerCtx, args: Value) -> Result<Vec<Val
 // ---------------------------------------------------------------------------
 
 pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>, JsonRpcError> {
-    let query = args
-        .get("query")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| JsonRpcError::invalid_params("missing required argument: query"))?;
+    let query = match args.get("query").and_then(|v| v.as_str()) {
+        Some(query) => query,
+        None => {
+            append_audit_or_deny(
+                ctx,
+                "mcp_search",
+                "External AI workspace access denied",
+                json!({
+                    "path": null,
+                    "matterId": null,
+                    "result": "denied",
+                    "reason": "missing_query"
+                }),
+            )?;
+            return Err(JsonRpcError::invalid_params(
+                "missing required argument: query",
+            ));
+        }
+    };
     if query.trim().is_empty() {
+        append_audit_or_deny(
+            ctx,
+            "mcp_search",
+            "External AI workspace access denied",
+            json!({
+                "path": null,
+                "matterId": null,
+                "result": "denied",
+                "reason": "empty_query"
+            }),
+        )?;
         return Err(JsonRpcError::invalid_params("query is empty"));
     }
     let top_k = args
@@ -509,9 +550,27 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
         raw.append(&mut hits);
     }
     raw.sort_by(|a, b| a.distance.total_cmp(&b.distance));
-    raw.truncate(top_k);
 
-    if raw.is_empty() {
+    // Defence in depth for stale or mis-tagged vector rows. The LanceDB
+    // prefilter above uses the row's stored matter_id, which can be stale after
+    // a file move or matter-folder remap. Before exposing a hit to an external
+    // MCP client, recover its real source path and run the same live path
+    // decision used by read/list. Mail and any source without a verifiable file
+    // path are dropped until they have a separate matter-safe verifier.
+    let enc_key = crypto::get_or_create_master_key().ok();
+    let mut verified = Vec::with_capacity(top_k);
+    let mut dropped_count = 0usize;
+    for hit in raw {
+        if verified.len() >= top_k {
+            break;
+        }
+        match verified_file_search_hit(ctx, &state, hit, enc_key.as_ref()) {
+            Some(hit) => verified.push(hit),
+            None => dropped_count += 1,
+        }
+    }
+
+    if verified.is_empty() {
         append_audit_or_deny(
             ctx,
             "mcp_search",
@@ -521,52 +580,24 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
                 "matterId": allowed_ids,
                 "result": "allowed",
                 "query": query,
-                "returnedCount": 0
+                "returnedCount": 0,
+                "droppedCount": dropped_count
             }),
         )?;
         return Ok(vec![super::text_content("(no results)")]);
     }
 
-    // VG-6e: the store's path column holds keyed tokens; the real path is
-    // recovered by decrypting path_enc under the vector master key (same OS
-    // keychain entry the app uses). If the keychain is unreachable from this
-    // process, fall back to the honest placeholder rather than printing an
-    // opaque token as if it were a path.
-    let enc_key = crypto::get_or_create_master_key().ok();
-    let display_path = |hit: &store::StoredHit| -> String {
-        match hit.path_enc.as_deref() {
-            Some(enc) => enc_key
-                .as_ref()
-                .and_then(|k| {
-                    hex::decode(enc)
-                        .ok()
-                        .and_then(|bytes| {
-                            keepance_lib::commands::mail::crypto::decrypt_with_key(&bytes, k).ok()
-                        })
-                        .and_then(|v| String::from_utf8(v).ok())
-                })
-                .unwrap_or_else(|| "[path unavailable]".to_string()),
-            // Legacy pre-V10 row: the raw column is the plaintext path.
-            None => hit.path.clone(),
-        }
-    };
-
     let mut buf = String::new();
-    for (i, hit) in raw.iter().enumerate() {
-        let score = embedder::cosine_distance_to_score(hit.distance);
-        let path = display_path(hit);
-        let rel_path = path
-            .strip_prefix(ctx.workspace_root.to_string_lossy().as_ref())
-            .unwrap_or(&path)
-            .trim_start_matches(['/', '\\']);
+    for (i, verified_hit) in verified.iter().enumerate() {
+        let score = embedder::cosine_distance_to_score(verified_hit.hit.distance);
         buf.push_str(&format!(
             "[{}] {} (score {:.2}, paragraph {})\n",
             i + 1,
-            rel_path,
+            verified_hit.display_path,
             score,
-            hit.paragraph_index
+            verified_hit.hit.paragraph_index
         ));
-        buf.push_str(&hit.text);
+        buf.push_str(&verified_hit.hit.text);
         buf.push_str("\n\n");
     }
     append_audit_or_deny(
@@ -578,7 +609,8 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
             "matterId": allowed_ids,
             "result": "allowed",
             "query": query,
-            "returnedCount": raw.len()
+            "returnedCount": verified.len(),
+            "droppedCount": dropped_count
         }),
     )?;
     Ok(vec![super::text_content(buf.trim_end())])
@@ -592,14 +624,44 @@ pub async fn write_workspace_file(
     ctx: &ServerCtx,
     args: Value,
 ) -> Result<Vec<Value>, JsonRpcError> {
-    let path = args
-        .get("path")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| JsonRpcError::invalid_params("missing required argument: path"))?;
-    let content = args
-        .get("content")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| JsonRpcError::invalid_params("missing required argument: content"))?;
+    let path = match args.get("path").and_then(|v| v.as_str()) {
+        Some(path) => path,
+        None => {
+            append_audit_or_deny(
+                ctx,
+                "mcp_write_denied",
+                "External AI workspace write denied",
+                json!({
+                    "path": null,
+                    "matterId": null,
+                    "result": "denied",
+                    "reason": "missing_path"
+                }),
+            )?;
+            return Err(JsonRpcError::invalid_params(
+                "missing required argument: path",
+            ));
+        }
+    };
+    let content = match args.get("content").and_then(|v| v.as_str()) {
+        Some(content) => content,
+        None => {
+            append_audit_or_deny(
+                ctx,
+                "mcp_write_denied",
+                "External AI workspace write denied",
+                json!({
+                    "path": path,
+                    "matterId": null,
+                    "result": "denied",
+                    "reason": "missing_content"
+                }),
+            )?;
+            return Err(JsonRpcError::invalid_params(
+                "missing required argument: content",
+            ));
+        }
+    };
     let abs = match resolve_workspace_path(&ctx.workspace_root, path) {
         Ok(abs) => abs,
         Err(e) => {
@@ -937,9 +999,72 @@ fn path_allowed_for_rel(
     Ok(state.decide_path(&abs).allowed)
 }
 
+struct VerifiedSearchHit {
+    hit: store::StoredHit,
+    display_path: String,
+}
+
+fn verified_file_search_hit(
+    ctx: &ServerCtx,
+    state: &McpAccessState,
+    hit: store::StoredHit,
+    enc_key: Option<&[u8; 32]>,
+) -> Option<VerifiedSearchHit> {
+    let real_path = recover_hit_real_path(&hit, enc_key)?;
+    if hit.source_type.as_deref() == Some("mail") || real_path.starts_with("mail:") {
+        return None;
+    }
+    let abs = resolve_hit_file_path(&ctx.workspace_root, &real_path).ok()?;
+    if !abs.is_file() {
+        return None;
+    }
+    let decision = state.decide_path(&abs);
+    if !decision.allowed {
+        return None;
+    }
+    Some(VerifiedSearchHit {
+        hit,
+        display_path: display_workspace_path(&ctx.workspace_root, &abs, &real_path),
+    })
+}
+
+fn recover_hit_real_path(hit: &store::StoredHit, enc_key: Option<&[u8; 32]>) -> Option<String> {
+    match hit.path_enc.as_deref() {
+        Some(enc) => enc_key
+            .and_then(|k| {
+                hex::decode(enc)
+                    .ok()
+                    .and_then(|bytes| {
+                        keepance_lib::commands::mail::crypto::decrypt_with_key(&bytes, k).ok()
+                    })
+                    .and_then(|v| String::from_utf8(v).ok())
+            })
+            .filter(|path| !path.trim().is_empty()),
+        // Legacy pre-V10 row: the raw column is the plaintext path.
+        None => (!hit.path.trim().is_empty()).then(|| hit.path.clone()),
+    }
+}
+
+fn resolve_hit_file_path(workspace: &Path, real_path: &str) -> Result<PathBuf, String> {
+    let candidate = PathBuf::from(real_path);
+    if candidate.is_absolute() {
+        super::access::canonicalized_workspace_child(workspace, &candidate)
+    } else {
+        resolve_workspace_path(workspace, real_path)
+    }
+}
+
+fn display_workspace_path(workspace: &Path, abs: &Path, fallback: &str) -> String {
+    abs.strip_prefix(workspace)
+        .ok()
+        .map(|rel| rel.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|| fallback.trim_start_matches(['/', '\\']).to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn describe_tools_returns_five_entries() {
@@ -991,5 +1116,162 @@ mod tests {
     fn glob_matches_exact() {
         assert!(glob_match("notes.md", "notes.md"));
         assert!(!glob_match("notes.md", "notes.markdown"));
+    }
+
+    fn test_ctx(workspace_root: PathBuf) -> ServerCtx {
+        ServerCtx {
+            workspace_root,
+            approval_dir: std::env::temp_dir(),
+            stderr: Arc::new(Mutex::new(Box::new(Vec::<u8>::new()))),
+        }
+    }
+
+    fn stored_hit(path: String, matter_id: &str, text: &str) -> store::StoredHit {
+        store::StoredHit {
+            id: format!("id-{matter_id}"),
+            path,
+            matter_id: Some(matter_id.to_string()),
+            source_id: None,
+            paragraph_index: 0,
+            text: text.to_string(),
+            distance: 0.1,
+            source_type: Some("text".to_string()),
+            page_number: None,
+            encrypted: false,
+            privilege: Some("none".to_string()),
+            extraction: None,
+            extraction_confidence: None,
+            locator: None,
+            path_enc: None,
+        }
+    }
+
+    #[test]
+    fn search_hit_with_matching_stored_matter_but_live_cross_matter_path_is_dropped() {
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        let matter_a = tmp.path().join("Matter A");
+        let matter_b = tmp.path().join("Matter B");
+        std::fs::create_dir_all(&matter_a).unwrap();
+        std::fs::create_dir_all(&matter_b).unwrap();
+        let secret_path = matter_b.join("secret.md");
+        std::fs::write(&secret_path, "other client secret").unwrap();
+
+        let ctx = test_ctx(tmp.path().to_path_buf());
+        let state = McpAccessState {
+            version: 1,
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            active_matter_id: Some("matter-a".into()),
+            granted_matter_ids: vec!["matter-a".into()],
+            network_lockdown: false,
+            matters: vec![
+                super::super::access::McpMatter {
+                    id: "matter-a".into(),
+                    folder_paths: vec![matter_a.to_string_lossy().to_string()],
+                    archived: false,
+                },
+                super::super::access::McpMatter {
+                    id: "matter-b".into(),
+                    folder_paths: vec![matter_b.to_string_lossy().to_string()],
+                    archived: false,
+                },
+            ],
+        };
+
+        let hit = stored_hit(
+            secret_path.to_string_lossy().to_string(),
+            "matter-a",
+            "other client secret",
+        );
+
+        assert!(
+            verified_file_search_hit(&ctx, &state, hit, None).is_none(),
+            "a stale/mis-tagged search row must not be returned just because stored matter_id matches"
+        );
+    }
+
+    #[test]
+    fn search_hit_for_mail_source_is_dropped_until_mail_scope_verifier_exists() {
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        let matter_a = tmp.path().join("Matter A");
+        std::fs::create_dir_all(&matter_a).unwrap();
+
+        let ctx = test_ctx(tmp.path().to_path_buf());
+        let state = McpAccessState {
+            version: 1,
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            active_matter_id: Some("matter-a".into()),
+            granted_matter_ids: vec!["matter-a".into()],
+            network_lockdown: false,
+            matters: vec![super::super::access::McpMatter {
+                id: "matter-a".into(),
+                folder_paths: vec![matter_a.to_string_lossy().to_string()],
+                archived: false,
+            }],
+        };
+
+        let mut hit = stored_hit("mail:provider-message-id".into(), "matter-a", "mail text");
+        hit.source_type = Some("mail".into());
+
+        assert!(verified_file_search_hit(&ctx, &state, hit, None).is_none());
+    }
+
+    #[test]
+    fn search_hit_for_deleted_file_is_dropped_even_when_matter_matches() {
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        let matter_a = tmp.path().join("Matter A");
+        std::fs::create_dir_all(&matter_a).unwrap();
+        let deleted_path = matter_a.join("deleted.md");
+
+        let ctx = test_ctx(tmp.path().to_path_buf());
+        let state = McpAccessState {
+            version: 1,
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            active_matter_id: Some("matter-a".into()),
+            granted_matter_ids: vec!["matter-a".into()],
+            network_lockdown: false,
+            matters: vec![super::super::access::McpMatter {
+                id: "matter-a".into(),
+                folder_paths: vec![matter_a.to_string_lossy().to_string()],
+                archived: false,
+            }],
+        };
+
+        let hit = stored_hit(
+            deleted_path.to_string_lossy().to_string(),
+            "matter-a",
+            "stale deleted file text",
+        );
+
+        assert!(verified_file_search_hit(&ctx, &state, hit, None).is_none());
+    }
+
+    #[test]
+    fn search_hit_for_directory_is_dropped_even_when_matter_matches() {
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        let matter_a = tmp.path().join("Matter A");
+        let directory_path = matter_a.join("Folder");
+        std::fs::create_dir_all(&directory_path).unwrap();
+
+        let ctx = test_ctx(tmp.path().to_path_buf());
+        let state = McpAccessState {
+            version: 1,
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            active_matter_id: Some("matter-a".into()),
+            granted_matter_ids: vec!["matter-a".into()],
+            network_lockdown: false,
+            matters: vec![super::super::access::McpMatter {
+                id: "matter-a".into(),
+                folder_paths: vec![matter_a.to_string_lossy().to_string()],
+                archived: false,
+            }],
+        };
+
+        let hit = stored_hit(
+            directory_path.to_string_lossy().to_string(),
+            "matter-a",
+            "directory stale text",
+        );
+
+        assert!(verified_file_search_hit(&ctx, &state, hit, None).is_none());
     }
 }

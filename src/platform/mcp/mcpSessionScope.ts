@@ -46,14 +46,8 @@ export function buildMcpSessionScopeFile(input: {
   };
 }
 
-export async function writeMcpSessionScopeFile(input: {
-  service: WorkspaceService;
-  workspaceRoot: string;
-  activeMatterId: string | null;
-  matters: Matter[];
-  networkLockdown: boolean;
-}): Promise<void> {
-  const denyAll: McpSessionScopeFile = {
+export function buildDenyAllMcpSessionScopeFile(): McpSessionScopeFile {
+  return {
     version: 1,
     updatedAt: new Date().toISOString(),
     activeMatterId: null,
@@ -61,17 +55,61 @@ export async function writeMcpSessionScopeFile(input: {
     networkLockdown: true,
     matters: [],
   };
+}
+
+export async function writeMcpSessionScopeFile(input: {
+  service: WorkspaceService;
+  workspaceRoot: string;
+  activeMatterId: string | null;
+  matters: Matter[];
+  networkLockdown: boolean;
+}): Promise<void> {
   const payload = buildMcpSessionScopeFile({
     activeMatterId: input.activeMatterId,
     matters: input.matters,
     networkLockdown: input.networkLockdown,
   });
-  await input.service.writeFile(
-    `${input.workspaceRoot}/${MCP_SESSION_SCOPE_REL_PATH}`,
-    JSON.stringify(denyAll, null, 2),
+  await writeMcpScopeFileAtomically(input.service, input.workspaceRoot, payload);
+}
+
+export async function writeDenyAllMcpSessionScopeFile(input: {
+  service: WorkspaceService;
+  workspaceRoot: string;
+}): Promise<void> {
+  await writeMcpScopeFileAtomically(
+    input.service,
+    input.workspaceRoot,
+    buildDenyAllMcpSessionScopeFile(),
   );
-  await input.service.writeFile(
-    `${input.workspaceRoot}/${MCP_SESSION_SCOPE_REL_PATH}`,
+}
+
+async function writeMcpScopeFileAtomically(
+  service: WorkspaceService,
+  workspaceRoot: string,
+  payload: McpSessionScopeFile,
+): Promise<void> {
+  const tempRelPath = `${MCP_SESSION_SCOPE_REL_PATH}.tmp-${String(Date.now())}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
+  const tempPath = `${workspaceRoot}/${tempRelPath}`;
+  const finalPath = `${workspaceRoot}/${MCP_SESSION_SCOPE_REL_PATH}`;
+  let moved = false;
+
+  await service.writeFile(
+    tempPath,
     JSON.stringify(payload, null, 2),
   );
+  try {
+    try {
+      await service.move(tempPath, finalPath);
+    } catch {
+      await service.delete(finalPath).catch(() => undefined);
+      await service.move(tempPath, finalPath);
+    }
+    moved = true;
+  } finally {
+    if (!moved) {
+      await service.delete(tempPath).catch(() => undefined);
+    }
+  }
 }

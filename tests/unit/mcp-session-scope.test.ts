@@ -1,0 +1,112 @@
+import { describe, expect, it, vi } from 'vitest';
+import {
+  MCP_SESSION_SCOPE_REL_PATH,
+  buildDenyAllMcpSessionScopeFile,
+  writeDenyAllMcpSessionScopeFile,
+  writeMcpSessionScopeFile,
+} from '@/platform/mcp/mcpSessionScope';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import type { Matter } from '@/platform/types/matter';
+
+function createMockWorkspaceService() {
+  const files = new Map<string, string>();
+  const service = {
+    writeFile: vi.fn(async (path: string, content: string) => {
+      files.set(path, content);
+    }),
+    move: vi.fn(async (from: string, to: string) => {
+      const content = files.get(from);
+      if (content === undefined) {
+        throw new Error(`missing temp file: ${from}`);
+      }
+      files.set(to, content);
+      files.delete(from);
+    }),
+    delete: vi.fn(async (path: string) => {
+      files.delete(path);
+    }),
+  };
+  return { service: service as unknown as WorkspaceService, files, raw: service };
+}
+
+const matterA: Matter = {
+  id: 'matter-a',
+  name: 'Matter A',
+  client: 'Client A',
+  folderPaths: ['/workspace/Matter A'],
+  privileged: false,
+  archived: false,
+  createdAt: '2026-06-22T00:00:00.000Z',
+  updatedAt: '2026-06-22T00:00:00.000Z',
+};
+
+describe('MCP session scope file', () => {
+  it('writes the live scope by temp file then final rename', async () => {
+    const { service, files, raw } = createMockWorkspaceService();
+
+    await writeMcpSessionScopeFile({
+      service,
+      workspaceRoot: '/workspace',
+      activeMatterId: 'matter-a',
+      matters: [matterA],
+      networkLockdown: false,
+    });
+
+    const finalPath = `/workspace/${MCP_SESSION_SCOPE_REL_PATH}`;
+    const payload = JSON.parse(files.get(finalPath) ?? '{}') as {
+      activeMatterId?: string;
+      networkLockdown?: boolean;
+      matters?: unknown[];
+    };
+
+    expect(raw.writeFile).toHaveBeenCalledTimes(1);
+    expect(raw.writeFile.mock.calls[0]?.[0]).toContain(`${MCP_SESSION_SCOPE_REL_PATH}.tmp-`);
+    expect(raw.move).toHaveBeenCalledTimes(1);
+    expect(raw.move.mock.calls[0]?.[1]).toBe(finalPath);
+    expect(payload.activeMatterId).toBe('matter-a');
+    expect(payload.networkLockdown).toBe(false);
+    expect(payload.matters).toHaveLength(1);
+  });
+
+  it('writes a deny-all scope for cleanup', async () => {
+    const { service, files } = createMockWorkspaceService();
+
+    await writeDenyAllMcpSessionScopeFile({
+      service,
+      workspaceRoot: '/workspace',
+    });
+
+    const finalPath = `/workspace/${MCP_SESSION_SCOPE_REL_PATH}`;
+    const payload = JSON.parse(files.get(finalPath) ?? '{}') as ReturnType<
+      typeof buildDenyAllMcpSessionScopeFile
+    >;
+
+    expect(payload.activeMatterId).toBeNull();
+    expect(payload.grantedMatterIds).toEqual([]);
+    expect(payload.networkLockdown).toBe(true);
+    expect(payload.matters).toEqual([]);
+  });
+
+  it('fails closed while replacing an existing scope file when direct rename cannot overwrite', async () => {
+    const { service, files, raw } = createMockWorkspaceService();
+    const finalPath = `/workspace/${MCP_SESSION_SCOPE_REL_PATH}`;
+    files.set(finalPath, JSON.stringify({ activeMatterId: 'old-matter' }));
+    raw.move.mockImplementationOnce(async () => {
+      throw new Error('destination exists');
+    });
+
+    await writeDenyAllMcpSessionScopeFile({
+      service,
+      workspaceRoot: '/workspace',
+    });
+
+    const payload = JSON.parse(files.get(finalPath) ?? '{}') as ReturnType<
+      typeof buildDenyAllMcpSessionScopeFile
+    >;
+
+    expect(raw.delete).toHaveBeenCalledWith(finalPath);
+    expect(raw.move).toHaveBeenCalledTimes(2);
+    expect(payload.activeMatterId).toBeNull();
+    expect(payload.networkLockdown).toBe(true);
+  });
+});

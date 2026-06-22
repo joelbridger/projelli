@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **MCP sidecar now fails closed on stale search rows, stale scope files, and malformed denied calls.** External MCP search results are re-checked against the live file path before text is returned, mail/non-file/deleted/directory hits are dropped until they have a matter-safe verifier, scope cleanup writes a deny-all file on shutdown/workspace switch with a fail-closed temp-and-replace path, future-dated scope files are denied, and malformed read/search/write denials now leave audit rows.
+  - Files modified: `src-tauri/src/mcp_bin/tools.rs`, `src-tauri/src/mcp_bin/access.rs`, `src-tauri/tests/mcp_binary.rs`, `src/platform/mcp/mcpSessionScope.ts`, `src/App.tsx`, `src/app/lifecycle/useWorkspaceLifecycle.ts`
+  - Tests: `cargo test --test mcp_binary -- --nocapture`, `cargo test mcp -- --nocapture`, `cargo test access::tests -- --nocapture`, `cargo check`, `npm run typecheck`, `npx vitest run tests/unit/mcp-session-scope.test.ts`
 - **MCP sidecar is now matter-scoped, lockdown-aware, and audited (BUG-038/039/083).** External MCP clients can only list/read/search/write files inside the live active or explicitly granted matter, stale scope files fail closed, network lockdown denies read/search/list/write before content access, global memory facts are denied until matter-scoped memory exists, and MCP list/read/search/write request/approval/denial rows are written to the encrypted audit store.
   - Files modified: `src-tauri/src/mcp_bin/access.rs`, `src-tauri/src/mcp_bin/audit.rs`, `src-tauri/src/mcp_bin/tools.rs`, `src-tauri/src/mcp_bin/main.rs`, `src/platform/mcp/mcpSessionScope.ts`, `src/App.tsx`
   - Tests: `cargo test --test mcp_binary -- --nocapture`

@@ -59,7 +59,7 @@ import { AuditService } from '@/platform/audit/AuditService';
 import { getOrCreateSampleMatter, useMatterStore, useActiveMatter, useMatters } from '@/platform/matter/matterStore';
 import { useMatterUiStore, isWorkingSurface } from '@/platform/matter/matterUiStore';
 import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
-import { writeMcpSessionScopeFile } from '@/platform/mcp/mcpSessionScope';
+import { writeDenyAllMcpSessionScopeFile, writeMcpSessionScopeFile } from '@/platform/mcp/mcpSessionScope';
 
 import {
   TemplateMetadataReader,
@@ -261,6 +261,12 @@ function App() {
     const heartbeat = window.setInterval(persistMcpScope, 15_000);
     return () => {
       window.clearInterval(heartbeat);
+      void writeDenyAllMcpSessionScopeFile({
+        service,
+        workspaceRoot: rootPath,
+      }).catch((err: unknown) => {
+        console.warn('[MCP] Failed to write deny-all session scope file', err);
+      });
     };
   }, [rootPath, activeMatterId, matters, mcpNetworkLockdown]);
 

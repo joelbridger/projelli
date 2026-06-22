@@ -19,6 +19,7 @@ import { isLawExperience } from '@/platform/profile/professionStore';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createFSBackend } from '@/platform/fs/BackendFactory';
 import { AuditService } from '@/platform/audit/AuditService';
+import { writeDenyAllMcpSessionScopeFile } from '@/platform/mcp/mcpSessionScope';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { SourceCard } from '@/features/ask/types/research';
@@ -69,6 +70,17 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
             `Switching workspaces will lose those unsaved changes. Switch anyway?`,
         );
         if (!proceed) return; // abort the switch; keep the current workspace + tabs
+      }
+      const outgoingRoot = outgoing.getRootPath();
+      if (outgoingRoot) {
+        try {
+          await writeDenyAllMcpSessionScopeFile({
+            service: outgoing,
+            workspaceRoot: outgoingRoot,
+          });
+        } catch (err) {
+          console.warn('[MCP] Failed to close outgoing workspace scope:', err);
+        }
       }
     }
 
@@ -249,7 +261,22 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
         console.error('Failed to restore workspace tab state:', error);
       }
     }
-  }, [loadTrashMetadata, loadSourceCards, loadChatFiles]);
+  }, [
+    workspaceServiceRef,
+    auditServiceRef,
+    templatesMarketplaceServiceRef,
+    templatesMetadataReaderRef,
+    setShowWorkspaceSelector,
+    setAuditEntries,
+    setRootPath,
+    loadTrashMetadata,
+    setTrashItems,
+    setTrashStats,
+    loadSourceCards,
+    setSourceCards,
+    loadChatFiles,
+    setChatFiles,
+  ]);
 
   // Handle opening a recent project directly by path (Tauri only)
   const handleOpenRecentProject = useCallback(async (workspacePath: string) => {
