@@ -55,6 +55,17 @@ vi.mock('@/platform/utils/saveFile', () => ({
   saveFile: (...args: unknown[]) => saveFileMock(...args),
 }));
 
+// The personal-install choice gate (Task 1.3) is added to DocxEditor.runRedline.
+// Stub assertCloudGenerationAllowed as a no-op here — these tests focus on the
+// AI redline flow (edit application + tracked changes), not the privacy gate.
+vi.mock('@/platform/privacy/localOnlyGuard', async (orig) => {
+  const real = await orig<typeof import('@/platform/privacy/localOnlyGuard')>();
+  return {
+    ...real,
+    assertCloudGenerationAllowed: vi.fn(),
+  };
+});
+
 import { TooltipProvider } from '@/ui/tooltip';
 import { DocxEditor } from '@/features/documents/media/DocxEditor';
 import type { DocumentJson, DocxAiEdit } from '@/platform/types/docx';

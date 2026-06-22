@@ -26,7 +26,7 @@ import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
-import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import { isAssuredProvider } from '@/platform/firm/resolveAssuredRoute';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder } from '@/platform/state/aiChatStore';
@@ -399,6 +399,19 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     if (isLocalOnlyMode() && !isLocal) {
       extractionStateRef.current = markCheckpointRan(extractionStateRef.current, count);
       return;
+    }
+    // Personal-install choice gate (Task 1.3 fix): auto fact-extraction is cloud
+    // generation; block it until the user has made an explicit confidentiality choice.
+    // Skip for local providers (they never leave the machine). Advance the checkpoint
+    // so we don't spin — when the user makes a choice, the store changes and the next
+    // render will trigger a fresh extraction check.
+    if (!isLocal) {
+      try {
+        assertCloudGenerationAllowed(chatProvider);
+      } catch {
+        extractionStateRef.current = markCheckpointRan(extractionStateRef.current, count);
+        return;
+      }
     }
     const apiKey = isLocal
       ? undefined

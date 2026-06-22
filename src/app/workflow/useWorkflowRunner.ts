@@ -28,6 +28,7 @@ import { createOpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { createGeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider, detectOllama, OLLAMA_DEFAULT_MODEL } from '@/platform/providers/OllamaProvider';
 import { modeRestrictsToLocal } from '@/platform/privacy/egress';
+import { assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { MemoryService } from '@/platform/rag/MemoryService';
 import { getActiveScope } from '@/platform/matter/matterStore';
@@ -287,6 +288,12 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
           `Using Ollama (${providerResolution.model ?? OLLAMA_DEFAULT_MODEL}) for workflow generation [source=${resolution.source}]`
         );
       } else if (providerResolution.kind === 'cloud') {
+        // Personal-install choice gate (Task 1.3 fix): workflow generation is
+        // cloud generation; block it until the user has made an explicit
+        // confidentiality choice. The 'cloud' kind already excludes Ollama, so
+        // no local-provider skip is needed here. Firm installs are a no-op
+        // inside assertCloudGenerationAllowed (it checks isFirm first).
+        assertCloudGenerationAllowed();
         const { provider: cloudProvider, model: cloudModel, key } = providerResolution;
         if (cloudProvider === 'claude') {
           provider = createClaudeProvider({

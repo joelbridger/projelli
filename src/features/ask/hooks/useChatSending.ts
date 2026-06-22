@@ -181,6 +181,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
       return new OllamaProvider({});
     }
     const chatProvider = chatData.provider ?? 'anthropic';
+    // Personal-install choice gate (Task 1.3 fix): compression is cloud generation;
+    // block it until the user has made an explicit confidentiality choice.
+    // assertCloudGenerationAllowed throws synchronously — buildFastProvider is
+    // called inside try/catch in handleManualCompress, so the error surfaces
+    // as the inline error message without crashing the send path.
+    assertCloudGenerationAllowed(chatProvider);
     const apiKey = apiKeys.find(k => k.provider === chatProvider && k.isValid);
     if (!apiKey) return null;
     switch (chatProvider) {
@@ -1517,7 +1523,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
             "Ollama isn't running, so this local chat couldn't get a response. " +
             'Start Ollama (then try again), or switch your confidentiality mode ' +
             'in Settings → AI to use a cloud model. Your message was not sent ' +
-            'anywhere — nothing left your machine.';
+            'anywhere. Nothing left your machine.';
         } else if (error instanceof ApiResponseParseError) {
           // The response came back but couldn't be parsed as JSON.
           // This is the Tauri HTTP plugin compatibility bug — show the user

@@ -94,9 +94,8 @@ export function assertCloudGenerationAllowed(provider?: string): void {
   if (provider !== undefined && isLocalProviderId(provider as ChatProviderId)) return;
   const isFirm = Boolean(useFirmStore.getState().session?.activated);
   const storedMode = getConfidentialityMode();
-  const choiceMade = Boolean(
-    useSettingsStore.getState().getSetting(CONFIDENTIALITY_CHOICE_MADE_KEY),
-  );
+  const choiceMade =
+    useSettingsStore.getState().getSetting(CONFIDENTIALITY_CHOICE_MADE_KEY) === true;
   const { needsChoice } = resolveEffectiveEgress({ isFirm, storedMode, choiceMade });
   if (needsChoice) {
     throw new ConfidentialityChoiceRequiredError();

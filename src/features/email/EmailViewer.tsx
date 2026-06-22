@@ -58,7 +58,7 @@ import { createClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { createOpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { createGeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
-import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import type { Provider } from '@/platform/providers/Provider';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
@@ -107,13 +107,20 @@ const PRIVILEGE_OPTION_KEYS: Record<Privilege, string> = {
 
 // ── buildProviderAsync — mirrors Ask.tsx pattern ─────────────────
 
-async function buildProviderAsync(): Promise<Provider> {
+// eslint-disable-next-line react-refresh/only-export-components -- exported for direct test import
+export async function buildProviderAsync(): Promise<Provider> {
   // BUG-021 (privacy): "Draft with AI" sends the email body to the provider, so
   // it must honour Local-only mode — force the local model instead of picking a
   // cloud key, so an email never leaves the machine when the indicator says so.
   if (isLocalOnlyMode()) {
     return new OllamaProvider({});
   }
+  // Personal-install choice gate (Task 1.3 fix): email draft generation is cloud
+  // generation; block it until the user has made an explicit confidentiality choice.
+  // Called without a provider id because the choice applies to ANY cloud provider
+  // we might pick below. Local-only mode already returned above; firm installs
+  // are a no-op inside assertCloudGenerationAllowed (checks isFirm first).
+  assertCloudGenerationAllowed();
   const kc = createKeychainService();
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) return createClaudeProvider({ apiKey: anthropicKey.trim() });

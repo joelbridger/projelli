@@ -72,6 +72,7 @@ import { writeCoordinator } from '@/platform/fs/writeCoordinator';
 import { createProvider, isLocalProviderId, type ChatProviderId } from '@/platform/providers/providerFactory';
 import { useTrialGate } from '@/platform/hooks/useTrial';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import { getActiveScope } from '@/platform/matter/matterStore';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import {
@@ -794,6 +795,11 @@ export function DocxEditor({
     setRedlineError(null);
     setRedlineSummary(null);
     try {
+      // Personal-install choice gate (Task 1.3 fix): redline is cloud generation;
+      // block it until the user has made an explicit confidentiality choice.
+      // Pass aiProvider so local (Ollama) redlines skip the gate automatically.
+      // Firm installs are a no-op inside assertCloudGenerationAllowed (isFirm first).
+      assertCloudGenerationAllowed(aiProvider);
       // WS-C honesty — createProvider builds the LOCAL provider for 'ollama'
       // (no key, on-machine) and the cloud provider otherwise. A local redline
       // can never be routed to a cloud provider here.

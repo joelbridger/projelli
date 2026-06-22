@@ -15,6 +15,18 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { RunOnAllButton } from '@/features/ask/chat/RunOnAllButton';
 import type { Provider, ProviderResponse } from '@/platform/providers/Provider';
 
+// The personal-install choice gate (Task 1.3) is added to RunOnAllButton.runAll.
+// Stub assertCloudGenerationAllowed as a no-op here — these tests focus on the
+// multi-provider parallel dispatch logic (Q15), not the confidentiality gate.
+vi.mock('@/platform/privacy/localOnlyGuard', async (orig) => {
+  const real = await orig<typeof import('@/platform/privacy/localOnlyGuard')>();
+  return {
+    ...real,
+    assertCloudGenerationAllowed: vi.fn(),
+    ConfidentialityChoiceRequiredError: real.ConfidentialityChoiceRequiredError,
+  };
+});
+
 function makeProvider(
   id: string,
   response: Partial<ProviderResponse> | Error

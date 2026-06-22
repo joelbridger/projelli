@@ -22,6 +22,7 @@ import {
   type ChatProviderId,
 } from '@/platform/providers/providerFactory';
 import type { Provider } from '@/platform/providers/Provider';
+import { assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 
 export interface InlineEditProviderInput {
   /** The provider id resolved by resolveRedlineProvider (agrees with the trust bar). */
@@ -42,6 +43,18 @@ export function resolveInlineEditProvider({
   // Local model: on-machine, keyless. Never reaches the network.
   if (isLocalProviderId(provider)) {
     return createProvider({ provider, ...modelOpt });
+  }
+
+  // Personal-install choice gate (Task 1.3 fix): inline AI edit is cloud generation;
+  // block it until the user has made an explicit confidentiality choice.
+  // Pass the provider id so local providers skip the gate automatically.
+  // Firm installs are a no-op inside assertCloudGenerationAllowed (isFirm first).
+  // Returns null (clean no-op) rather than throwing, so MainPanel's getAiProvider
+  // degrades gracefully — the same as a missing-key case.
+  try {
+    assertCloudGenerationAllowed(provider);
+  } catch {
+    return null;
   }
 
   // Cloud: only build when the user actually has a VALID key for THIS provider,

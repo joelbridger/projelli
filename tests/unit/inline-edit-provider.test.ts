@@ -10,8 +10,19 @@
 // (so the surface degrades cleanly instead of constructing a keyless cloud
 // provider that would 401 mid-stream).
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { resolveInlineEditProvider } from '@/app/shell/layout/resolveInlineEditProvider';
+
+// The personal-install choice gate (Task 1.3) lives in localOnlyGuard.
+// Stub assertCloudGenerationAllowed as a no-op here — these tests focus on
+// provider-key resolution logic (BUG-012), not the confidentiality gate.
+vi.mock('@/platform/privacy/localOnlyGuard', async (orig) => {
+  const real = await orig<typeof import('@/platform/privacy/localOnlyGuard')>();
+  return {
+    ...real,
+    assertCloudGenerationAllowed: vi.fn(),
+  };
+});
 
 const key = (provider: string, isValid: boolean) => ({ provider, key: 'sk-real', isValid });
 

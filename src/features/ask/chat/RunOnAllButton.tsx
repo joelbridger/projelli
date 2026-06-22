@@ -13,6 +13,7 @@
 //     disallowed per the Phase 5 spec).
 
 import { useCallback, useState } from 'react';
+import { assertCloudGenerationAllowed, ConfidentialityChoiceRequiredError } from '@/platform/privacy/localOnlyGuard';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -76,6 +77,32 @@ export function RunOnAllButton({
     setAnalysis(null);
     setResults(null);
     const active = providers.filter((p) => distinctProviderIds.has(p.id));
+
+    // Personal-install choice gate (Task 1.3 fix): "Run on all" is cloud generation
+    // (distinctProviderIds already excludes 'ollama'). Block until the user has made
+    // an explicit confidentiality choice. Surface as per-provider error rows so the
+    // comparison panel renders a clear message rather than a blank screen.
+    try {
+      assertCloudGenerationAllowed();
+    } catch (gateErr) {
+      const msg =
+        gateErr instanceof ConfidentialityChoiceRequiredError
+          ? gateErr.message
+          : 'Cloud generation is not allowed yet.';
+      setResults(
+        active.map((p) => ({
+          providerId: p.id,
+          label: p.label,
+          content: '',
+          cost: 0,
+          tokens: 0,
+          latency: 0,
+          error: msg,
+        })),
+      );
+      setIsRunning(false);
+      return;
+    }
 
     const settled = await Promise.allSettled(
       active.map(async (p) => {

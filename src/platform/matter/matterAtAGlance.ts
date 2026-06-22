@@ -20,7 +20,7 @@ import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import type { Provider } from '@/platform/providers/Provider';
-import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 
 // Re-export types consumed by callers so they don't need to reach into
@@ -71,6 +71,11 @@ export async function buildProviderForGlance(): Promise<Provider> {
   if (isLocalOnlyMode()) {
     return new OllamaProvider({});
   }
+  // Personal-install choice gate (Task 1.3 fix): at-a-glance auto-runs and sends
+  // matter context to a cloud AI; block it until the user has made an explicit
+  // confidentiality choice. Local-only mode already returned above; firm installs
+  // are a no-op inside assertCloudGenerationAllowed (checks isFirm first).
+  assertCloudGenerationAllowed();
   const kc = new KeychainService();
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) {
