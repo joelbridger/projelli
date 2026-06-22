@@ -119,8 +119,8 @@ _Update as tickets move. Keep one row per active ticket._
 | Ticket | Area | Owner (agent) | Branch | Status | Verify evidence |
 |---|---|---|---|---|---|
 | FIND a–e (round 4) | export / audit-log / email-store / settings / providers | 5× Codex `--read-only` | — | ✅ done | 26 findings → backlog BUG-066…091 (2026-06-22) |
-| BUG-084/085/087/088 | email/SQLCipher store (Rust) | Claude worktree (sonnet) | _(worktree)_ | 🟡 in-progress | cargo `commands::mail` |
-| BUG-071/072/073/074/075/076 | AI providers (TS) | Claude worktree (sonnet) | _(worktree)_ | 🟡 in-progress | vitest + typecheck + eslint-gate |
+| BUG-084/085/087/088 | email/SQLCipher store (Rust) | Codex (gpt-5.5) | qa/r4-mail → merge a09bddb | ✅ merged | `cargo check` + `cargo test commands::mail` 197 passed |
+| BUG-071/072/073/074/075/076 | AI providers (TS) | Codex (gpt-5.5) | qa/r4-providers → merge 780b57c | ✅ merged | typecheck clean + full vitest 3675 passed; net-new lint 0 |
 
 **Round-4 queued (not yet dispatched — cap ~2 heavy):** audit cluster (BUG-077/079/080/081/082/069/068), export-scrub cluster (BUG-066/067, Rust), settings cluster (BUG-089/090/091), BUG-070 (Assured stream flag); TEST-001..005. **🔴 flagged for a focused effort:** BUG-078 (audit hash-chain — schema migration + scope confirm), BUG-083 (MCP read/search audit — fold into OPEN BUG-038/039).
 
