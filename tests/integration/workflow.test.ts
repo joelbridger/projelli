@@ -14,7 +14,6 @@ import { WorkflowEngine, type InterviewHandler, type FileOperations, type Progre
 import { MockProvider, createMockProvider } from '@/platform/providers/MockProvider';
 import { ClientIntakeSynthesizer } from '@/features/workflows/engine/templates/legal/ClientIntakeSynthesizer';
 import type { AuditEntry } from '@/platform/types/audit';
-import type { RunRecord, RunRecordStatus } from '@/platform/types/workflow';
 
 describe('Workflow Integration Tests', () => {
   let mockProvider: MockProvider;
@@ -237,6 +236,59 @@ describe('Workflow Integration Tests', () => {
 
       const completion = auditEntries.find((entry) => entry.action === 'workflow_complete');
       expect(completion?.metadata).toMatchObject({ workflowId: 'bug-080-one-step' });
+    });
+
+    it('BUG-094 records the provider resolved model in workflow egress when audit model is blank', async () => {
+      const auditEntries: Omit<AuditEntry, 'id' | 'timestamp'>[] = [];
+      const provider = new MockProvider('workflow-default-model');
+      const template = {
+        id: 'bug-094-one-step',
+        name: 'BUG-094 One Step',
+        description: 'Small audit model regression template',
+        category: 'Legal',
+        icon: 'FileText',
+        estimatedTime: '1 min',
+        steps: [
+          {
+            id: 'generate-memo',
+            type: 'generate' as const,
+            name: 'Generate Memo',
+            config: {
+              outputFile: 'memo.md',
+              promptTemplate: 'Draft a memo for {{clientName}}.',
+            },
+          },
+        ],
+      };
+
+      const engine = new WorkflowEngine(
+        provider,
+        fileOps,
+        interviewHandler,
+        progressHandler,
+        {
+          audit: {
+            onAuditLog: (entry) => auditEntries.push(entry),
+            providerId: 'openai',
+            getConfidentialityMode: () => 'direct',
+            getScope: () => ({ kind: 'matter', matterId: 'matter-123' }),
+          },
+        },
+      );
+
+      await engine.execute(template, { clientName: 'Robert Tran' });
+
+      const egress = auditEntries.find((entry) => entry.action === 'egress');
+      expect(egress?.model).toBe(provider.getMetadata().model);
+      expect(egress?.metadata).toMatchObject({
+        provider: 'openai',
+        model: provider.getMetadata().model,
+        mode: 'direct',
+        destination: 'provider-direct',
+        dataLeaves: true,
+        scope: { kind: 'matter', matterId: 'matter-123' },
+      });
+      expect(egress?.model).not.toBe('unknown');
     });
   });
 

@@ -802,6 +802,7 @@ export function DocxEditor({
         ...(redlineKey ? { apiKey: redlineKey } : {}),
         ...(aiModel ? { model: aiModel } : {}),
       });
+      const effectiveModel = provider.getMetadata().model;
       const activeScope = getActiveScope();
       const edits = await requestRedlineEditsWithAudit(
         provider,
@@ -809,7 +810,7 @@ export function DocxEditor({
         currentDoc,
         {
           providerId: aiProvider,
-          ...(aiModel ? { model: aiModel } : {}),
+          model: effectiveModel,
           mode: getConfidentialityMode(),
           fileName,
           ...(filePath ? { filePath } : {}),
@@ -855,7 +856,7 @@ export function DocxEditor({
       onAuditLog?.({
         action: 'model_call',
         description: `AI redline: ${instruction}`,
-        model: aiModel ?? aiProvider,
+        model: effectiveModel,
         inputs: { instruction, editCount: edits.length, provider: aiProvider },
         outputs: { applied, skipped },
         userDecision: 'auto',

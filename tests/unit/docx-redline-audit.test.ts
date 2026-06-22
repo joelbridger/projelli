@@ -66,4 +66,31 @@ describe('BUG-081 redline egress audit', () => {
       },
     });
   });
+
+  it('BUG-094 records the provider resolved model when the caller leaves model blank', async () => {
+    const provider = noEditProvider();
+    const effectiveModel = provider.getMetadata().model;
+    const auditEntries: Omit<AuditEntry, 'id' | 'timestamp'>[] = [];
+    const context: RedlineEgressAuditContext = {
+      providerId: 'openai',
+      mode: 'direct',
+      fileName: 'settlement.docx',
+      scope: { kind: 'matter', matterId: 'matter-123' },
+      onAuditLog: (entry) => auditEntries.push(entry),
+    };
+
+    await requestRedlineEditsWithAudit(
+      provider,
+      'tighten this',
+      sampleDoc(),
+      context,
+    );
+
+    expect(auditEntries).toHaveLength(1);
+    expect(auditEntries[0]?.model).toBe(effectiveModel);
+    expect(auditEntries[0]?.metadata).toMatchObject({
+      model: effectiveModel,
+    });
+    expect(auditEntries[0]?.model).not.toBe('unknown');
+  });
 });

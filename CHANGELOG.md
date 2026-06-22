@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **AI egress audit rows now record the effective provider model (BUG-094).** Redline, workflow, and chat egress events now use the resolved model from the constructed provider, including default-model sends, so the Confidentiality Report does not show "unknown" for real AI calls.
+  - Files modified: `src/features/documents/media/DocxEditor.tsx`, `src/features/documents/docx/redline.ts`, `src/features/workflows/engine/WorkflowEngine.ts`, `src/features/ask/hooks/useChatSending.ts`, `src/platform/audit/AuditService.ts`
+  - Tests: `tests/unit/docx-redline-audit.test.ts`, `tests/integration/workflow.test.ts`, `tests/unit/audit-provenance-events.test.tsx`
 - **MCP matter grant/revoke audits now use the live app Activity Log pipeline (BUG-093).** The matter store no longer creates a detached audit service for external AI access toggles; App registers its main audit emitter so grant/revoke rows appear immediately in Activity Log and persist through the same AuditService path as chat, workflow, redline, and MCP approval events.
   - Files modified: `src/App.tsx`, `src/platform/matter/matterStore.ts`, `tests/unit/matter-store.test.ts`, `tests/unit/matter/archiveMatterUi.test.tsx`
   - Tests: `npx vitest run tests/unit/matter-store.test.ts tests/unit/matter/archiveMatterUi.test.tsx tests/unit/matter/matterStoreMerge.test.ts`

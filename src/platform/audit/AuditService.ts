@@ -576,7 +576,7 @@ export function auditEventToEntry(
   const base: Omit<AuditEntry, 'id' | 'timestamp'> = {
     action: event.type as AuditActionType,
     description: describeAuditEvent(event),
-    model: undefined,
+    model: typeof payload['model'] === 'string' ? payload['model'] : undefined,
     inputs: {},
     outputs: {},
     userDecision: 'auto',

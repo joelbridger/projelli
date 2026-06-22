@@ -319,6 +319,9 @@ export async function requestRedlineEditsWithAudit(
   selection?: ParagraphSelection,
   options?: { signal?: AbortSignal },
 ): Promise<DocxAiEdit[]> {
-  auditContext.onAuditLog?.(buildRedlineEgressAuditEntry(auditContext));
+  auditContext.onAuditLog?.(buildRedlineEgressAuditEntry({
+    ...auditContext,
+    model: auditContext.model ?? provider.getMetadata().model,
+  }));
   return requestRedlineEdits(provider, instruction, doc, selection, options);
 }

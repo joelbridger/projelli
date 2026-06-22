@@ -543,6 +543,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // Determine provider from chat data, fallback to anthropic
         const chatProvider = chatData.provider ?? 'anthropic';
         const chatModel = chatData.model;
+        let effectiveChatModel = chatModel ?? chatProvider;
 
         // WS-C honesty — a LOCAL provider (Ollama) needs no API key; inference
         // runs on the user's own machine. The key lookup + "no key" error only
@@ -586,7 +587,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               provider: egress.provider,
               // BUG-028: record the model so the confidentiality report names it
               // (the report fell back to "unknown" when the model was absent).
-              ...(chatModel !== undefined ? { model: chatModel } : {}),
+              model: effectiveChatModel,
               mode: getConfidentialityMode(),
               destination: egress.destination,
               dataLeaves: egress.dataLeaves,
@@ -600,10 +601,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
           onAuditLog?.({
             action: 'egress',
             description: `AI request cancelled after sending to ${chatProvider}`,
-            model: chatModel ?? chatProvider,
+            model: effectiveChatModel,
             inputs: {
               provider: egress.provider,
-              ...(chatModel !== undefined ? { model: chatModel } : {}),
+              model: effectiveChatModel,
               mode: getConfidentialityMode(),
               destination: egress.destination,
               dataLeaves: egress.dataLeaves,
@@ -614,7 +615,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
             metadata: {
               auditEventType: 'egress',
               provider: egress.provider,
-              ...(chatModel !== undefined ? { model: chatModel } : {}),
+              model: effectiveChatModel,
               mode: getConfidentialityMode(),
               destination: egress.destination,
               dataLeaves: egress.dataLeaves,
@@ -1161,6 +1162,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
             }
           }
         }
+        effectiveChatModel = provider.getMetadata().model;
 
         // Stream A1 — Read raw bytes for each attachment so providers can
         // build their provider-specific image content blocks. Attachments
@@ -1331,8 +1333,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
             // without it.
             onAuditLog?.({
               action: 'model_call',
-              description: `Chat message to ${chatModel ?? chatProvider}`,
-              model: chatModel ?? chatProvider,
+              description: `Chat message to ${effectiveChatModel}`,
+              model: effectiveChatModel,
               inputs: { promptLength: userMessage.content.length },
               outputs: { contentLength: streamingResponse.content.length },
               userDecision: 'auto',
@@ -1396,8 +1398,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
           });
           onAuditLog?.({
             action: 'model_call',
-            description: `Chat message to ${chatModel ?? chatProvider}`,
-            model: chatModel ?? chatProvider,
+            description: `Chat message to ${effectiveChatModel}`,
+            model: effectiveChatModel,
             inputs: { promptLength: userMessage.content.length },
             outputs: { contentLength: response.content.length },
             userDecision: 'auto',
