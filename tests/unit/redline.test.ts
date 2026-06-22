@@ -183,6 +183,19 @@ describe('redline — requestRedlineEdits (provider translation)', () => {
     ]);
   });
 
+  it('passes a caller abort signal into the structured provider request', async () => {
+    const structuredOutput = vi.fn().mockResolvedValue({ edits: [] });
+    const provider = { structuredOutput } as unknown as Provider;
+    const controller = new AbortController();
+
+    await requestRedlineEdits(provider, 'stop if cancelled', sampleDoc(), undefined, {
+      signal: controller.signal,
+    });
+
+    const [, optsArg] = structuredOutput.mock.calls[0]!;
+    expect(optsArg.signal).toBe(controller.signal);
+  });
+
   it('returns [] when the model proposes no edits', async () => {
     const provider = {
       structuredOutput: vi.fn().mockResolvedValue({ edits: [] }),

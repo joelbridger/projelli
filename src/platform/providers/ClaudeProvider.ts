@@ -13,6 +13,7 @@ import type {
   ClaudeDocumentBlock,
   AttachmentBytes,
 } from './Provider';
+import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInference';
@@ -20,6 +21,13 @@ import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { supportsNativePdf as pdfNativeCheck } from './pdf-capability';
 import { getMaxContextTokens } from './context-limits';
+import {
+  abortAwareSleep,
+  composeRequestSignal,
+  DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS,
+  isAbortError,
+  isTimeoutError,
+} from './requestControl';
 
 // Claude model pricing (per 1K tokens)
 const CLAUDE_PRICING: Record<string, { input: number; output: number }> = {
@@ -56,6 +64,7 @@ export interface ClaudeProviderConfig {
   model?: string;
   maxRetries?: number;
   baseUrl?: string;
+  timeout?: number;
   dangerouslySkipPermissions?: boolean;
   aiRules?: string;
   /**
@@ -166,6 +175,7 @@ export class ClaudeProvider implements Provider {
   private readonly model: string;
   private readonly maxRetries: number;
   private readonly baseUrl: string;
+  private readonly requestTimeoutMs: number;
   private readonly aiRules: string | undefined;
   private readonly assured: AssuredRoute | undefined;
   private tools: ClaudeTool[] = [];
@@ -180,6 +190,7 @@ export class ClaudeProvider implements Provider {
     this.model = config.model ?? 'claude-haiku-4-5-20251001';
     this.maxRetries = config.maxRetries ?? 3;
     this.baseUrl = getAnthropicBaseUrl(config.baseUrl);
+    this.requestTimeoutMs = config.timeout ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS;
     this.aiRules = config.aiRules;
     // Note: dangerouslySkipPermissions in config is accepted but not used
     // as Claude API doesn't have a direct equivalent to Claude Code's permission system
@@ -292,8 +303,19 @@ export class ClaudeProvider implements Provider {
     let totalInputTokens = response.usage.input_tokens;
     let totalOutputTokens = response.usage.output_tokens;
 
+    const maxToolIterations = 16;
+    let toolIteration = 0;
     // Handle tool use loops
     while (response.stop_reason === 'tool_use' && this.toolExecutor) {
+      if (toolIteration >= maxToolIterations) {
+        throw new ProviderError(
+          `Claude tool-call loop exceeded ${String(maxToolIterations)} iterations.`,
+          'api_error',
+          undefined,
+          false,
+        );
+      }
+      toolIteration += 1;
       const toolUses = response.content.filter((c) => c.type === 'tool_use');
 
       if (toolUses.length === 0) break;
@@ -397,6 +419,7 @@ export class ClaudeProvider implements Provider {
       request.stop_sequences = sendOpts.stopSequences;
     }
 
+    const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
     const safeFetch = await getCorsSafeFetch();
     const routed = applyAssuredRoute(this.assured, `${this.baseUrl}/v1/messages`, {
       'Content-Type': 'application/json',
@@ -408,7 +431,7 @@ export class ClaudeProvider implements Provider {
       method: 'POST',
       headers: routed.headers,
       body: JSON.stringify(request),
-      ...(signal ? { signal } : {}),
+      signal: controlled.signal,
     });
 
     if (!response.ok) {
@@ -426,6 +449,33 @@ export class ClaudeProvider implements Provider {
     let stopReason = '';
     let buffer = '';
 
+    const processLine = (line: string) => {
+      if (!line.startsWith('data: ')) return;
+      const data = line.slice(6).trim();
+      if (!data || data === '[DONE]') return;
+
+      try {
+        const event = JSON.parse(data);
+
+        if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+          const text = event.delta.text ?? '';
+          fullContent += text;
+          onChunk(text);
+        } else if (event.type === 'message_start' && event.message?.usage) {
+          inputTokens = event.message.usage.input_tokens ?? 0;
+        } else if (event.type === 'message_delta') {
+          if (event.usage) {
+            outputTokens = event.usage.output_tokens ?? 0;
+          }
+          if (event.delta?.stop_reason) {
+            stopReason = event.delta.stop_reason;
+          }
+        }
+      } catch {
+        // skip unparseable lines
+      }
+    };
+
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -435,34 +485,12 @@ export class ClaudeProvider implements Provider {
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
 
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const data = line.slice(6).trim();
-          if (!data || data === '[DONE]') continue;
-
-          try {
-            const event = JSON.parse(data);
-
-            if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
-              const text = event.delta.text ?? '';
-              fullContent += text;
-              onChunk(text);
-            } else if (event.type === 'message_start' && event.message?.usage) {
-              inputTokens = event.message.usage.input_tokens ?? 0;
-            } else if (event.type === 'message_delta') {
-              if (event.usage) {
-                outputTokens = event.usage.output_tokens ?? 0;
-              }
-              if (event.delta?.stop_reason) {
-                stopReason = event.delta.stop_reason;
-              }
-            }
-          } catch {
-            // skip unparseable lines
-          }
-        }
+        for (const line of lines) processLine(line);
       }
+      buffer += decoder.decode();
+      if (buffer.trim()) processLine(buffer);
     } finally {
+      controlled.cleanup();
       reader.releaseLock();
     }
 
@@ -504,6 +532,9 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
     };
     if (options.maxTokens !== undefined) {
       sendOptions.maxTokens = options.maxTokens;
+    }
+    if (options.signal) {
+      sendOptions.signal = options.signal;
     }
     const response = await this.sendMessage(structuredPrompt, sendOptions);
 
@@ -585,12 +616,23 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true',
         });
-        const response = await safeFetch(routed.url, {
-          method: 'POST',
-          headers: routed.headers,
-          body: JSON.stringify(request),
-          ...(signal ? { signal } : {}),
-        });
+        const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
+        let response: Response;
+        try {
+          response = await safeFetch(routed.url, {
+            method: 'POST',
+            headers: routed.headers,
+            body: JSON.stringify(request),
+            signal: controlled.signal,
+          });
+        } catch (error) {
+          if (isAbortError(error, controlled.signal) || isTimeoutError(error, controlled.signal)) {
+            throw controlled.signal.reason ?? error;
+          }
+          throw error;
+        } finally {
+          controlled.cleanup();
+        }
 
         if (!response.ok) {
           const errorBody = await safeJsonParse<ClaudeError>(response);
@@ -606,7 +648,7 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
             const waitTime = retryAfter
               ? parseInt(retryAfter, 10) * 1000
               : Math.pow(2, attempt) * 1000;
-            await this.sleep(waitTime);
+            await this.sleep(waitTime, signal);
             continue;
           }
 
@@ -616,6 +658,10 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
         return await safeJsonParse<ClaudeResponse>(response);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+
+        if (isAbortError(error, signal) || isTimeoutError(error)) {
+          throw error;
+        }
 
         // Detect network/CORS errors and provide helpful guidance
         if (lastError.message.includes('Failed to fetch') ||
@@ -654,7 +700,7 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
 
         // Exponential backoff
         if (attempt < this.maxRetries - 1) {
-          await this.sleep(Math.pow(2, attempt) * 1000);
+          await this.sleep(Math.pow(2, attempt) * 1000, signal);
         }
       }
     }
@@ -665,8 +711,8 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
   /**
    * Sleep for specified milliseconds
    */
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    return abortAwareSleep(ms, signal);
   }
 
   /**

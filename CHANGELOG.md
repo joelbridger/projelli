@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Provider reliability regressions (BUG-071 through BUG-076).** Cloud and local provider calls now stop runaway tool loops, keep the final no-newline streaming chunk, honor immediate aborts, apply request timeouts, frame Ollama-extracted PDF text as untrusted document data, and include Gemini structured-output schema/limits.
+  - Files modified: `ClaudeProvider.ts`, `OpenAIProvider.ts`, `GeminiProvider.ts`, `OllamaProvider.ts`, `Provider.ts`, `requestControl.ts`, `redline.ts`
+  - Tests: `tests/unit/models/provider-regressions.test.ts`, `tests/unit/models/ollama-pdf-format.test.ts`, `tests/unit/redline.test.ts`
+
 ### Added
 - **Automatic test safety net (testing & CI overhaul, second half).** The strong-but-manual test suite now runs on its own.
   - **Nightly server test gate** — a systemd `--user` timer (`scripts/nightly-tests.sh`, 03:30 UTC) runs the heavy suites (full Rust, Vitest, backend Bun, browser E2E, desktop harness) on the server where RAM is fresh, with a git-state guard that logs the exact tested commit (never a false green) and a `--dry-run` mode; it texts Jameson via `notify-jameson` only on failure.

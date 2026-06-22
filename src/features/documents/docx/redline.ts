@@ -245,6 +245,7 @@ export async function requestRedlineEdits(
   instruction: string,
   doc: DocumentJson,
   selection?: ParagraphSelection,
+  options?: { signal?: AbortSignal },
 ): Promise<DocxAiEdit[]> {
   const paragraphs = extractIndexedParagraphs(doc);
   const prompt = buildRedlinePrompt(instruction, paragraphs, selection);
@@ -253,6 +254,7 @@ export async function requestRedlineEdits(
     systemPrompt: REDLINE_SYSTEM_PROMPT,
     temperature: 0,
     maxTokens: 4096,
+    ...(options?.signal ? { signal: options.signal } : {}),
   });
   return normalizeEdits(raw);
 }
