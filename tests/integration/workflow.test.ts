@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WorkflowEngine, type InterviewHandler, type FileOperations, type ProgressHandler } from '@/features/workflows/engine/WorkflowEngine';
 import { MockProvider, createMockProvider } from '@/platform/providers/MockProvider';
 import { ClientIntakeSynthesizer } from '@/features/workflows/engine/templates/legal/ClientIntakeSynthesizer';
+import type { AuditEntry } from '@/platform/types/audit';
 import type { RunRecord, RunRecordStatus } from '@/platform/types/workflow';
 
 describe('Workflow Integration Tests', () => {
@@ -171,6 +172,71 @@ describe('Workflow Integration Tests', () => {
       // The provider should have received prompts with interpolated values
       const lastPrompt = mockProvider.getLastPrompt();
       expect(lastPrompt).toContain('Robert Tran');
+    });
+
+    it('BUG-080 records workflow egress, model call, generated file, and completion audit events', async () => {
+      const auditEntries: Omit<AuditEntry, 'id' | 'timestamp'>[] = [];
+      const template = {
+        id: 'bug-080-one-step',
+        name: 'BUG-080 One Step',
+        description: 'Small audit regression template',
+        category: 'Legal',
+        icon: 'FileText',
+        estimatedTime: '1 min',
+        steps: [
+          {
+            id: 'generate-memo',
+            type: 'generate' as const,
+            name: 'Generate Memo',
+            config: {
+              outputFile: 'memo.md',
+              promptTemplate: 'Draft a memo for {{clientName}}.',
+            },
+          },
+        ],
+      };
+
+      const engine = new WorkflowEngine(
+        mockProvider,
+        fileOps,
+        interviewHandler,
+        progressHandler,
+        {
+          audit: {
+            onAuditLog: (entry) => auditEntries.push(entry),
+            providerId: 'openai',
+            model: 'gpt-4o-mini',
+            getConfidentialityMode: () => 'direct',
+            getScope: () => ({ kind: 'matter', matterId: 'matter-123' }),
+          },
+        },
+      );
+
+      await engine.execute(template, { clientName: 'Robert Tran' });
+
+      expect(auditEntries.map((entry) => entry.action)).toEqual([
+        'workflow_start',
+        'egress',
+        'model_call',
+        'file_create',
+        'workflow_complete',
+      ]);
+
+      const egress = auditEntries.find((entry) => entry.action === 'egress');
+      expect(egress?.metadata).toMatchObject({
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        mode: 'direct',
+        destination: 'provider-direct',
+        dataLeaves: true,
+        scope: { kind: 'matter', matterId: 'matter-123' },
+      });
+
+      const fileCreate = auditEntries.find((entry) => entry.action === 'file_create');
+      expect(fileCreate?.inputs).toMatchObject({ path: 'memo.md' });
+
+      const completion = auditEntries.find((entry) => entry.action === 'workflow_complete');
+      expect(completion?.metadata).toMatchObject({ workflowId: 'bug-080-one-step' });
     });
   });
 
