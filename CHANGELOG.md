@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Workflow interviews now render `multiselect` questions, so the Privilege Log Drafter is completable (BUG-096).** `InterviewForm` only rendered `text`, `textarea`, and `select` field types; the Privilege Log Drafter's required "Privilege types applicable" question is a `multiselect`, so it rendered no control at all and the required-field check could never pass — the workflow was impossible to run. `InterviewForm` now renders `multiselect` as a checkbox group whose answer is a comma-joined string, compatible with the existing string-based validation and `{{placeholder}}` substitution. Verified live on Windows end-to-end: the workflow now completes and emits the full audit chain (AI Request Sent → Model Call → File Created → Workflow Completed, all with the real `gpt-4o` model) and produces `PRIVILEGE_LOG.docx`.
+  - Files modified: `src/features/workflows/InterviewForm.tsx`
+  - Tests: `tests/unit/InterviewForm.multiselect.test.tsx`
 - **AI egress audit rows now record the effective provider model (BUG-094).** Redline, workflow, and chat egress events now use the resolved model from the constructed provider, including default-model sends, so the Confidentiality Report does not show "unknown" for real AI calls.
   - Files modified: `src/features/documents/media/DocxEditor.tsx`, `src/features/documents/docx/redline.ts`, `src/features/workflows/engine/WorkflowEngine.ts`, `src/features/ask/hooks/useChatSending.ts`, `src/platform/audit/AuditService.ts`
   - Tests: `tests/unit/docx-redline-audit.test.ts`, `tests/integration/workflow.test.ts`, `tests/unit/audit-provenance-events.test.tsx`

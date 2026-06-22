@@ -126,6 +126,43 @@ export function InterviewForm({
               </select>
             )}
 
+            {question.type === 'multiselect' && question.options && (
+              <div
+                className={cn(
+                  'space-y-2',
+                  errors[question.id] && 'rounded-md border border-red-500 p-2'
+                )}
+              >
+                {question.options.map((option) => {
+                  const selected = (answers[question.id] ?? '')
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  const checked = selected.includes(option);
+                  return (
+                    <label
+                      key={option}
+                      className="flex items-center gap-2 text-sm cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={isSubmitting}
+                        onChange={() => {
+                          const next = checked
+                            ? selected.filter((s) => s !== option)
+                            : [...selected, option];
+                          handleChange(question.id, next.join(', '));
+                        }}
+                        className="h-4 w-4 rounded border-input"
+                      />
+                      <span>{option}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
             {errors[question.id] && (
               <p className="text-xs text-red-500 mt-1">{errors[question.id]}</p>
             )}
