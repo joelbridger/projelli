@@ -16,18 +16,19 @@
 //     `store::nearest` helper; LanceDB supports multi-process read
 //     concurrency, so the app indexing and the MCP reading never race).
 
+use super::access::{McpAccessState, UNASSIGNED_MATTER_ID};
 use super::approval::{self, APPROVAL_MARKER};
 use super::protocol::JsonRpcError;
-use super::{crypto, embedder, extractor, resolve_workspace_path, store, ServerCtx};
-use serde_json::{json, Value};
-use std::path::Path;
+use super::{ServerCtx, crypto, embedder, extractor, resolve_workspace_path, store};
+use serde_json::{Value, json};
+use std::path::{Path, PathBuf};
 
 /// Build the `tools/list` response array.
 pub fn describe_tools() -> Vec<Value> {
     vec![
         json!({
             "name": "list_workspace_files",
-            "description": "List all files in the user's Keepance workspace. Optionally filter by a glob pattern like '**/*.md'. Returns workspace-relative paths.",
+            "description": "List files in the external client's active/granted Keepance matter only. Optionally filter by a glob pattern like '**/*.md'. Returns workspace-relative paths.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -40,7 +41,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "read_workspace_file",
-            "description": "Read a file from the user's Keepance workspace. Path must be workspace-relative; absolute paths and '..' traversal are rejected.",
+            "description": "Read a file from the external client's active/granted Keepance matter only. Path must be workspace-relative; absolute paths and '..' traversal are rejected.",
             "inputSchema": {
                 "type": "object",
                 "required": ["path"],
@@ -54,7 +55,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "search_workspace",
-            "description": "Semantic search across the user's Keepance workspace using the same local embedding model the app uses for @workspace queries. Returns the top-k most relevant paragraphs with their source paths.",
+            "description": "Semantic search inside the external client's active/granted Keepance matter only, using the same local embedding model the app uses for @workspace queries. Returns the top-k most relevant paragraphs with their source paths.",
             "inputSchema": {
                 "type": "object",
                 "required": ["query"],
@@ -74,7 +75,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "write_workspace_file",
-            "description": "Write (or overwrite) a file in the user's Keepance workspace. The user must approve every write in an approval modal; there is no way to skip it.",
+            "description": "Write (or overwrite) a file in the external client's active/granted Keepance matter only. The user must approve every write in an approval modal; there is no way to skip it.",
             "inputSchema": {
                 "type": "object",
                 "required": ["path", "content"],
@@ -92,7 +93,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "get_memory_facts",
-            "description": "Return the user's durable memory facts stored in '.keepance/memory.json'. These are short, user-approved statements the AI is meant to always know.",
+            "description": "Return durable memory facts only when Keepance can safely expose a matter-scoped memory set. Global memory is denied by default for external clients.",
             "inputSchema": {
                 "type": "object",
                 "properties": {}
@@ -109,17 +110,35 @@ pub async fn list_workspace_files(
     ctx: &ServerCtx,
     args: Value,
 ) -> Result<Vec<Value>, JsonRpcError> {
-    let pattern = args.get("pattern").and_then(|v| v.as_str()).map(str::to_string);
+    let pattern = args
+        .get("pattern")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let state = load_access_state(ctx, "mcp_list", None)?;
+    deny_if_lockdown(ctx, &state, "mcp_list", None, UNASSIGNED_MATTER_ID)?;
+    let allowed_ids = state.allowed_matter_ids_owned();
+    if allowed_ids.is_empty() {
+        return deny_with_audit(
+            ctx,
+            "mcp_list",
+            None,
+            UNASSIGNED_MATTER_ID,
+            "denied",
+            "MCP access denied: no active or granted matter is available.",
+        );
+    }
 
     let files = collect_workspace_files(&ctx.workspace_root);
     let filtered: Vec<String> = match pattern {
-        Some(p) if !p.trim().is_empty() => {
-            files
-                .into_iter()
-                .filter(|rel| glob_match(&p, rel))
-                .collect()
-        }
-        _ => files,
+        Some(p) if !p.trim().is_empty() => files
+            .into_iter()
+            .filter(|rel| path_allowed_for_rel(ctx, &state, rel).unwrap_or(false))
+            .filter(|rel| glob_match(&p, rel))
+            .collect(),
+        _ => files
+            .into_iter()
+            .filter(|rel| path_allowed_for_rel(ctx, &state, rel).unwrap_or(false))
+            .collect(),
     };
 
     let mut lines = String::with_capacity(filtered.len() * 32);
@@ -131,6 +150,18 @@ pub async fn list_workspace_files(
             lines.push('\n');
         }
     }
+
+    append_audit_or_deny(
+        ctx,
+        "mcp_list",
+        "External AI listed workspace files",
+        json!({
+            "path": null,
+            "matterId": allowed_ids,
+            "result": "allowed",
+            "returnedCount": filtered.len()
+        }),
+    )?;
 
     Ok(vec![super::text_content(&lines)])
 }
@@ -226,41 +257,159 @@ pub fn glob_match(pattern: &str, path: &str) -> bool {
 // read_workspace_file
 // ---------------------------------------------------------------------------
 
-pub async fn read_workspace_file(
-    ctx: &ServerCtx,
-    args: Value,
-) -> Result<Vec<Value>, JsonRpcError> {
-    let path = args
-        .get("path")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| JsonRpcError::invalid_params("missing required argument: path"))?;
+pub async fn read_workspace_file(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>, JsonRpcError> {
+    let path = match args.get("path").and_then(|v| v.as_str()) {
+        Some(path) => path,
+        None => {
+            append_audit_or_deny(
+                ctx,
+                "mcp_read",
+                "External AI workspace access denied",
+                json!({
+                    "path": null,
+                    "matterId": null,
+                    "result": "denied",
+                    "reason": "missing_path"
+                }),
+            )?;
+            return Err(JsonRpcError::invalid_params(
+                "missing required argument: path",
+            ));
+        }
+    };
 
-    let abs = resolve_workspace_path(&ctx.workspace_root, path)
-        .map_err(JsonRpcError::invalid_params)?;
+    let abs = match resolve_workspace_path(&ctx.workspace_root, path) {
+        Ok(abs) => abs,
+        Err(e) => {
+            append_audit_or_deny(
+                ctx,
+                "mcp_read",
+                "External AI workspace access denied",
+                json!({
+                    "path": path,
+                    "matterId": null,
+                    "result": "denied",
+                    "reason": "invalid_path",
+                    "error": e
+                }),
+            )?;
+            return Err(JsonRpcError::invalid_params(e));
+        }
+    };
+    let state = load_access_state(ctx, "mcp_read", Some(path))?;
+    let decision = state.decide_path(&abs);
+    deny_if_lockdown(ctx, &state, "mcp_read", Some(path), &decision.matter_id)?;
+    if !decision.allowed {
+        return deny_with_audit(
+            ctx,
+            "mcp_read",
+            Some(path),
+            &decision.matter_id,
+            "denied",
+            "MCP access denied: requested path is outside the granted matter.",
+        );
+    }
 
     if !abs.exists() {
+        append_audit_or_deny(
+            ctx,
+            "mcp_read",
+            "External AI read workspace file",
+            json!({
+                "path": path,
+                "matterId": decision.matter_id,
+                "result": "failed",
+                "reason": "file does not exist"
+            }),
+        )?;
         return Err(JsonRpcError::internal(format!(
             "file does not exist: {path}"
         )));
     }
     if !abs.is_file() {
+        append_audit_or_deny(
+            ctx,
+            "mcp_read",
+            "External AI read workspace file",
+            json!({
+                "path": path,
+                "matterId": decision.matter_id,
+                "result": "failed",
+                "reason": "path is not a file"
+            }),
+        )?;
         return Err(JsonRpcError::internal(format!(
             "path is not a file: {path}"
         )));
     }
     // Hard cap on file size so a client can't coerce us into slurping a
     // gigabyte-long binary. Matches the RAG extractor's 5 MiB limit.
-    let meta = std::fs::metadata(&abs)
-        .map_err(|e| JsonRpcError::internal(format!("stat failed: {e}")))?;
+    let meta = match std::fs::metadata(&abs) {
+        Ok(meta) => meta,
+        Err(e) => {
+            append_audit_or_deny(
+                ctx,
+                "mcp_read",
+                "External AI read workspace file",
+                json!({
+                    "path": path,
+                    "matterId": decision.matter_id,
+                    "result": "failed",
+                    "reason": "stat_failed",
+                    "error": e.to_string()
+                }),
+            )?;
+            return Err(JsonRpcError::internal(format!("stat failed: {e}")));
+        }
+    };
     if meta.len() > extractor::MAX_FILE_BYTES {
+        append_audit_or_deny(
+            ctx,
+            "mcp_read",
+            "External AI read workspace file",
+            json!({
+                "path": path,
+                "matterId": decision.matter_id,
+                "result": "failed",
+                "reason": "file too large",
+                "bytes": meta.len()
+            }),
+        )?;
         return Err(JsonRpcError::internal(format!(
             "file too large ({} bytes) — max is {} bytes",
             meta.len(),
             extractor::MAX_FILE_BYTES
         )));
     }
-    let text = std::fs::read_to_string(&abs)
-        .map_err(|e| JsonRpcError::internal(format!("read failed: {e}")))?;
+    let text = match std::fs::read_to_string(&abs) {
+        Ok(text) => text,
+        Err(e) => {
+            append_audit_or_deny(
+                ctx,
+                "mcp_read",
+                "External AI read workspace file",
+                json!({
+                    "path": path,
+                    "matterId": decision.matter_id,
+                    "result": "failed",
+                    "reason": "read_failed",
+                    "error": e.to_string()
+                }),
+            )?;
+            return Err(JsonRpcError::internal(format!("read failed: {e}")));
+        }
+    };
+    append_audit_or_deny(
+        ctx,
+        "mcp_read",
+        "External AI read workspace file",
+        json!({
+            "path": path,
+            "matterId": decision.matter_id,
+            "result": "allowed",
+            "bytes": meta.len()
+        }),
+    )?;
 
     Ok(vec![super::text_content(&text)])
 }
@@ -270,11 +419,37 @@ pub async fn read_workspace_file(
 // ---------------------------------------------------------------------------
 
 pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>, JsonRpcError> {
-    let query = args
-        .get("query")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| JsonRpcError::invalid_params("missing required argument: query"))?;
+    let query = match args.get("query").and_then(|v| v.as_str()) {
+        Some(query) => query,
+        None => {
+            append_audit_or_deny(
+                ctx,
+                "mcp_search",
+                "External AI workspace access denied",
+                json!({
+                    "path": null,
+                    "matterId": null,
+                    "result": "denied",
+                    "reason": "missing_query"
+                }),
+            )?;
+            return Err(JsonRpcError::invalid_params(
+                "missing required argument: query",
+            ));
+        }
+    };
     if query.trim().is_empty() {
+        append_audit_or_deny(
+            ctx,
+            "mcp_search",
+            "External AI workspace access denied",
+            json!({
+                "path": null,
+                "matterId": null,
+                "result": "denied",
+                "reason": "empty_query"
+            }),
+        )?;
         return Err(JsonRpcError::invalid_params("query is empty"));
     }
     let top_k = args
@@ -282,16 +457,53 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
         .and_then(|v| v.as_u64())
         .map(|v| v.clamp(1, 50) as usize)
         .unwrap_or(8);
+    let state = load_access_state(ctx, "mcp_search", None)?;
+    deny_if_lockdown(ctx, &state, "mcp_search", None, UNASSIGNED_MATTER_ID)?;
+    let allowed_ids = state.allowed_matter_ids_owned();
+    if allowed_ids.is_empty() {
+        return deny_with_audit(
+            ctx,
+            "mcp_search",
+            None,
+            UNASSIGNED_MATTER_ID,
+            "denied",
+            "MCP access denied: no active or granted matter is available.",
+        );
+    }
 
     let conn = store::open_connection(&ctx.workspace_root)
         .await
-        .map_err(|e| JsonRpcError::internal(format!("open lancedb: {e}")))?;
-    let names = conn
-        .table_names()
-        .execute()
-        .await
-        .map_err(|e| JsonRpcError::internal(format!("list tables: {e}")))?;
+        .map_err(|e| {
+            audited_internal_error(
+                ctx,
+                "mcp_search",
+                None,
+                UNASSIGNED_MATTER_ID,
+                format!("open lancedb: {e}"),
+            )
+        })?;
+    let names = conn.table_names().execute().await.map_err(|e| {
+        audited_internal_error(
+            ctx,
+            "mcp_search",
+            None,
+            UNASSIGNED_MATTER_ID,
+            format!("list tables: {e}"),
+        )
+    })?;
     if !names.iter().any(|n| n == store::TABLE_NAME) {
+        append_audit_or_deny(
+            ctx,
+            "mcp_search",
+            "External AI searched workspace",
+            json!({
+                "path": null,
+                "matterId": allowed_ids,
+                "result": "allowed",
+                "query": query,
+                "returnedCount": 0
+            }),
+        )?;
         return Ok(vec![super::text_content(
             "Workspace hasn't been indexed yet. Open the workspace in Keepance to build the index.",
         )]);
@@ -300,71 +512,107 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
         .open_table(store::TABLE_NAME)
         .execute()
         .await
-        .map_err(|e| JsonRpcError::internal(format!("open table: {e}")))?;
+        .map_err(|e| {
+            audited_internal_error(
+                ctx,
+                "mcp_search",
+                None,
+                UNASSIGNED_MATTER_ID,
+                format!("open table: {e}"),
+            )
+        })?;
 
-    let qvec = embedder::embed_query(query)
-        .await
-        .map_err(|e| JsonRpcError::internal(format!("embed query: {e}")))?;
-    // WS-B/C: the MCP server is the read-only workspace-search surface exposed to
-    // external MCP clients; matter scoping is an in-app (Tauri) concept and the
-    // client/matter UI is a separate task. Pass `None` (no matter prefilter) to
-    // preserve the existing whole-workspace search behaviour here. When matter
-    // scoping is surfaced to MCP clients, thread a `RetrievalScope` through.
+    let qvec = embedder::embed_query(query).await.map_err(|e| {
+        audited_internal_error(
+            ctx,
+            "mcp_search",
+            None,
+            UNASSIGNED_MATTER_ID,
+            format!("embed query: {e}"),
+        )
+    })?;
+    // WS-B/C + BUG-038: MCP is exposed to EXTERNAL AI clients, so it never gets
+    // the in-app "all matters" default. Search each granted matter with the
+    // LanceDB prefilter and merge the hits. If no matter is granted, we denied
+    // above before embedding anything.
     //
-    // WS-PRIV: privileged content must NEVER leak to an external MCP client.
+    // WS-PRIV + BUG-039: privileged content must NEVER leak to an external MCP client.
     // `include_privileged = false` here, and there is intentionally NO way for an
     // MCP client to flip it — the "include privileged" capability is an in-app,
     // user-initiated decision only.
-    let raw = store::nearest(&table, &qvec, top_k, None, false)
-        .await
-        .map_err(|e| JsonRpcError::internal(format!("nearest: {e}")))?;
+    let mut raw = Vec::new();
+    for matter_id in &allowed_ids {
+        let mut hits = store::nearest(&table, &qvec, top_k, Some(matter_id), false)
+            .await
+            .map_err(|e| {
+                audited_internal_error(ctx, "mcp_search", None, matter_id, format!("nearest: {e}"))
+            })?;
+        raw.append(&mut hits);
+    }
+    raw.sort_by(|a, b| a.distance.total_cmp(&b.distance));
 
-    if raw.is_empty() {
+    // Defence in depth for stale or mis-tagged vector rows. The LanceDB
+    // prefilter above uses the row's stored matter_id, which can be stale after
+    // a file move or matter-folder remap. Before exposing a hit to an external
+    // MCP client, recover its real source path and run the same live path
+    // decision used by read/list. Mail and any source without a verifiable file
+    // path are dropped until they have a separate matter-safe verifier.
+    let enc_key = crypto::get_or_create_master_key().ok();
+    let mut verified = Vec::with_capacity(top_k);
+    let mut dropped_count = 0usize;
+    for hit in raw {
+        if verified.len() >= top_k {
+            break;
+        }
+        match verified_file_search_hit(ctx, &state, hit, enc_key.as_ref()) {
+            Some(hit) => verified.push(hit),
+            None => dropped_count += 1,
+        }
+    }
+
+    if verified.is_empty() {
+        append_audit_or_deny(
+            ctx,
+            "mcp_search",
+            "External AI searched workspace",
+            json!({
+                "path": null,
+                "matterId": allowed_ids,
+                "result": "allowed",
+                "query": query,
+                "returnedCount": 0,
+                "droppedCount": dropped_count
+            }),
+        )?;
         return Ok(vec![super::text_content("(no results)")]);
     }
 
-    // VG-6e: the store's path column holds keyed tokens; the real path is
-    // recovered by decrypting path_enc under the vector master key (same OS
-    // keychain entry the app uses). If the keychain is unreachable from this
-    // process, fall back to the honest placeholder rather than printing an
-    // opaque token as if it were a path.
-    let enc_key = crypto::get_or_create_master_key().ok();
-    let display_path = |hit: &store::StoredHit| -> String {
-        match hit.path_enc.as_deref() {
-            Some(enc) => enc_key
-                .as_ref()
-                .and_then(|k| {
-                    hex::decode(enc)
-                        .ok()
-                        .and_then(|bytes| {
-                            keepance_lib::commands::mail::crypto::decrypt_with_key(&bytes, k).ok()
-                        })
-                        .and_then(|v| String::from_utf8(v).ok())
-                })
-                .unwrap_or_else(|| "[path unavailable]".to_string()),
-            // Legacy pre-V10 row: the raw column is the plaintext path.
-            None => hit.path.clone(),
-        }
-    };
-
     let mut buf = String::new();
-    for (i, hit) in raw.iter().enumerate() {
-        let score = embedder::cosine_distance_to_score(hit.distance);
-        let path = display_path(hit);
-        let rel_path = path
-            .strip_prefix(ctx.workspace_root.to_string_lossy().as_ref())
-            .unwrap_or(&path)
-            .trim_start_matches(['/', '\\']);
+    for (i, verified_hit) in verified.iter().enumerate() {
+        let score = embedder::cosine_distance_to_score(verified_hit.hit.distance);
         buf.push_str(&format!(
             "[{}] {} (score {:.2}, paragraph {})\n",
             i + 1,
-            rel_path,
+            verified_hit.display_path,
             score,
-            hit.paragraph_index
+            verified_hit.hit.paragraph_index
         ));
-        buf.push_str(&hit.text);
+        buf.push_str(&verified_hit.hit.text);
         buf.push_str("\n\n");
     }
+    append_audit_or_deny(
+        ctx,
+        "mcp_search",
+        "External AI searched workspace",
+        json!({
+            "path": null,
+            "matterId": allowed_ids,
+            "result": "allowed",
+            "query": query,
+            "returnedCount": verified.len(),
+            "droppedCount": dropped_count
+        }),
+    )?;
     Ok(vec![super::text_content(buf.trim_end())])
 }
 
@@ -376,16 +624,107 @@ pub async fn write_workspace_file(
     ctx: &ServerCtx,
     args: Value,
 ) -> Result<Vec<Value>, JsonRpcError> {
-    let path = args
-        .get("path")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| JsonRpcError::invalid_params("missing required argument: path"))?;
-    let content = args
-        .get("content")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| JsonRpcError::invalid_params("missing required argument: content"))?;
-    let abs = resolve_workspace_path(&ctx.workspace_root, path)
-        .map_err(JsonRpcError::invalid_params)?;
+    let path = match args.get("path").and_then(|v| v.as_str()) {
+        Some(path) => path,
+        None => {
+            append_audit_or_deny(
+                ctx,
+                "mcp_write_denied",
+                "External AI workspace write denied",
+                json!({
+                    "path": null,
+                    "matterId": null,
+                    "result": "denied",
+                    "reason": "missing_path"
+                }),
+            )?;
+            return Err(JsonRpcError::invalid_params(
+                "missing required argument: path",
+            ));
+        }
+    };
+    let content = match args.get("content").and_then(|v| v.as_str()) {
+        Some(content) => content,
+        None => {
+            append_audit_or_deny(
+                ctx,
+                "mcp_write_denied",
+                "External AI workspace write denied",
+                json!({
+                    "path": path,
+                    "matterId": null,
+                    "result": "denied",
+                    "reason": "missing_content"
+                }),
+            )?;
+            return Err(JsonRpcError::invalid_params(
+                "missing required argument: content",
+            ));
+        }
+    };
+    let abs = match resolve_workspace_path(&ctx.workspace_root, path) {
+        Ok(abs) => abs,
+        Err(e) => {
+            append_audit_or_deny(
+                ctx,
+                "mcp_write_requested",
+                "External AI workspace write denied",
+                json!({
+                    "path": path,
+                    "matterId": null,
+                    "result": "denied",
+                    "reason": "invalid_path",
+                    "error": e
+                }),
+            )?;
+            return Err(JsonRpcError::invalid_params(e));
+        }
+    };
+    let state = load_access_state(ctx, "mcp_write_requested", Some(path))?;
+    let decision = state.decide_path(&abs);
+    append_audit_or_deny(
+        ctx,
+        "mcp_write_requested",
+        "External AI requested workspace write",
+        json!({
+            "path": path,
+            "matterId": decision.matter_id,
+            "result": "requested",
+            "bytes": content.len()
+        }),
+    )?;
+    if state.network_lockdown {
+        append_audit_or_deny(
+            ctx,
+            "mcp_write_denied",
+            "External AI workspace write denied",
+            json!({
+                "path": path,
+                "matterId": decision.matter_id,
+                "result": "denied",
+                "reason": "network_lockdown"
+            }),
+        )?;
+        return Err(JsonRpcError::internal(
+            "Network lockdown is on. MCP workspace access is disabled for this matter.".to_string(),
+        ));
+    }
+    if !decision.allowed {
+        append_audit_or_deny(
+            ctx,
+            "mcp_write_denied",
+            "External AI workspace write denied",
+            json!({
+                "path": path,
+                "matterId": decision.matter_id,
+                "result": "denied",
+                "reason": "outside_granted_matter"
+            }),
+        )?;
+        return Err(JsonRpcError::internal(
+            "MCP access denied: requested path is outside the granted matter.".to_string(),
+        ));
+    }
 
     // BUG-022 (security): every MCP write requires explicit user approval. The
     // old `require_confirmation` argument let an external MCP client skip the
@@ -432,13 +771,33 @@ pub async fn write_workspace_file(
         }
 
         match approval::wait_for_response(&ctx.approval_dir, &token) {
-            Ok(true) => {
-                // approved — fall through to write
-            }
+            Ok(true) => {}
             Ok(false) => {
+                append_audit_or_deny(
+                    ctx,
+                    "mcp_write_denied",
+                    "External AI workspace write denied",
+                    json!({
+                        "path": path,
+                        "matterId": decision.matter_id,
+                        "result": "denied",
+                        "reason": "user_denied"
+                    }),
+                )?;
                 return Err(JsonRpcError::internal("user denied the write".to_string()));
             }
             Err(e) => {
+                append_audit_or_deny(
+                    ctx,
+                    "mcp_write_denied",
+                    "External AI workspace write denied",
+                    json!({
+                        "path": path,
+                        "matterId": decision.matter_id,
+                        "result": "denied",
+                        "reason": "approval_channel_failed"
+                    }),
+                )?;
                 return Err(JsonRpcError::internal(format!(
                     "approval channel failed: {e}"
                 )));
@@ -448,11 +807,49 @@ pub async fn write_workspace_file(
 
     // Ensure parent dir exists.
     if let Some(parent) = abs.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| JsonRpcError::internal(format!("mkdir parent: {e}")))?;
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            append_audit_or_deny(
+                ctx,
+                "mcp_write_denied",
+                "External AI workspace write failed",
+                json!({
+                    "path": path,
+                    "matterId": decision.matter_id,
+                    "result": "failed",
+                    "reason": "mkdir_parent_failed",
+                    "error": e.to_string()
+                }),
+            )?;
+            return Err(JsonRpcError::internal(format!("mkdir parent: {e}")));
+        }
     }
-    std::fs::write(&abs, content)
-        .map_err(|e| JsonRpcError::internal(format!("write failed: {e}")))?;
+    if let Err(e) = std::fs::write(&abs, content) {
+        append_audit_or_deny(
+            ctx,
+            "mcp_write_denied",
+            "External AI workspace write failed",
+            json!({
+                "path": path,
+                "matterId": decision.matter_id,
+                "result": "failed",
+                "reason": "write_failed",
+                "error": e.to_string()
+            }),
+        )?;
+        return Err(JsonRpcError::internal(format!("write failed: {e}")));
+    }
+
+    append_audit_or_deny(
+        ctx,
+        "mcp_write_approved",
+        "External AI workspace write approved",
+        json!({
+            "path": path,
+            "matterId": decision.matter_id,
+            "result": "written",
+            "bytes": content.len()
+        }),
+    )?;
 
     Ok(vec![super::text_content(&format!(
         "Wrote {} bytes to {}",
@@ -469,37 +866,205 @@ use std::io::Write;
 // ---------------------------------------------------------------------------
 
 pub async fn get_memory_facts(ctx: &ServerCtx, _args: Value) -> Result<Vec<Value>, JsonRpcError> {
-    let facts_path = ctx.workspace_root.join(".keepance").join("memory.json");
-    if !facts_path.exists() {
-        return Ok(vec![super::text_content(
-            "(no memory facts — the user hasn't approved any yet)",
-        )]);
-    }
-    let raw = std::fs::read_to_string(&facts_path)
-        .map_err(|e| JsonRpcError::internal(format!("read memory.json: {e}")))?;
-    let parsed: serde_json::Value = serde_json::from_str(&raw)
-        .map_err(|e| JsonRpcError::internal(format!("parse memory.json: {e}")))?;
-    let facts = parsed
-        .get("facts")
-        .and_then(|v| v.as_array())
-        .cloned()
-        .unwrap_or_default();
-    if facts.is_empty() {
-        return Ok(vec![super::text_content("(no memory facts saved yet)")]);
-    }
-    let mut buf = String::from("Memory facts:\n");
-    for (i, f) in facts.iter().enumerate() {
-        let text = f.get("text").and_then(|v| v.as_str()).unwrap_or("");
-        if !text.is_empty() {
-            buf.push_str(&format!("{}. {}\n", i + 1, text));
+    let state = load_access_state(ctx, "mcp_read", Some(".keepance/memory.json"))?;
+    deny_if_lockdown(
+        ctx,
+        &state,
+        "mcp_read",
+        Some(".keepance/memory.json"),
+        UNASSIGNED_MATTER_ID,
+    )?;
+    deny_with_audit(
+        ctx,
+        "mcp_read",
+        Some(".keepance/memory.json"),
+        UNASSIGNED_MATTER_ID,
+        "denied",
+        "MCP access denied: durable memory is not matter-scoped yet.",
+    )
+}
+
+fn load_access_state(
+    ctx: &ServerCtx,
+    audit_action: &str,
+    path: Option<&str>,
+) -> Result<McpAccessState, JsonRpcError> {
+    match McpAccessState::load(&ctx.workspace_root) {
+        Ok(state) => Ok(state),
+        Err(e) => {
+            append_audit_or_deny(
+                ctx,
+                audit_action,
+                "External AI workspace access denied",
+                json!({
+                    "path": path,
+                    "matterId": null,
+                    "result": "denied",
+                    "reason": "scope_state_unavailable",
+                    "error": e
+                }),
+            )?;
+            Err(JsonRpcError::internal(
+                "MCP access denied: Keepance has not granted this external client a matter scope."
+                    .to_string(),
+            ))
         }
     }
-    Ok(vec![super::text_content(buf.trim_end())])
+}
+
+fn deny_if_lockdown(
+    ctx: &ServerCtx,
+    state: &McpAccessState,
+    audit_action: &str,
+    path: Option<&str>,
+    matter_id: &str,
+) -> Result<(), JsonRpcError> {
+    if !state.network_lockdown {
+        return Ok(());
+    }
+    append_audit_or_deny(
+        ctx,
+        audit_action,
+        "External AI workspace access denied",
+        json!({
+            "path": path,
+            "matterId": matter_id,
+            "result": "denied",
+            "reason": "network_lockdown"
+        }),
+    )?;
+    Err(JsonRpcError::internal(
+        "Network lockdown is on. MCP workspace access is disabled for this matter.".to_string(),
+    ))
+}
+
+fn deny_with_audit<T>(
+    ctx: &ServerCtx,
+    audit_action: &str,
+    path: Option<&str>,
+    matter_id: &str,
+    result: &str,
+    message: &str,
+) -> Result<T, JsonRpcError> {
+    append_audit_or_deny(
+        ctx,
+        audit_action,
+        "External AI workspace access denied",
+        json!({
+            "path": path,
+            "matterId": matter_id,
+            "result": result
+        }),
+    )?;
+    Err(JsonRpcError::internal(message.to_string()))
+}
+
+fn audited_internal_error(
+    ctx: &ServerCtx,
+    audit_action: &str,
+    path: Option<&str>,
+    matter_id: &str,
+    message: String,
+) -> JsonRpcError {
+    let _ = super::audit::append_mcp_audit(
+        &ctx.workspace_root,
+        audit_action,
+        "External AI workspace access failed",
+        json!({
+            "path": path,
+            "matterId": matter_id,
+            "result": "failed",
+            "reason": message
+        }),
+    );
+    JsonRpcError::internal(message)
+}
+
+fn append_audit_or_deny(
+    ctx: &ServerCtx,
+    action: &str,
+    description: &str,
+    metadata: Value,
+) -> Result<(), JsonRpcError> {
+    super::audit::append_mcp_audit(&ctx.workspace_root, action, description, metadata)
+        .map_err(|e| JsonRpcError::internal(format!("MCP audit failed: {e}")))
+}
+
+fn path_allowed_for_rel(
+    ctx: &ServerCtx,
+    state: &McpAccessState,
+    rel: &str,
+) -> Result<bool, String> {
+    let abs = resolve_workspace_path(&ctx.workspace_root, rel)?;
+    Ok(state.decide_path(&abs).allowed)
+}
+
+struct VerifiedSearchHit {
+    hit: store::StoredHit,
+    display_path: String,
+}
+
+fn verified_file_search_hit(
+    ctx: &ServerCtx,
+    state: &McpAccessState,
+    hit: store::StoredHit,
+    enc_key: Option<&[u8; 32]>,
+) -> Option<VerifiedSearchHit> {
+    let real_path = recover_hit_real_path(&hit, enc_key)?;
+    if hit.source_type.as_deref() == Some("mail") || real_path.starts_with("mail:") {
+        return None;
+    }
+    let abs = resolve_hit_file_path(&ctx.workspace_root, &real_path).ok()?;
+    if !abs.is_file() {
+        return None;
+    }
+    let decision = state.decide_path(&abs);
+    if !decision.allowed {
+        return None;
+    }
+    Some(VerifiedSearchHit {
+        hit,
+        display_path: display_workspace_path(&ctx.workspace_root, &abs, &real_path),
+    })
+}
+
+fn recover_hit_real_path(hit: &store::StoredHit, enc_key: Option<&[u8; 32]>) -> Option<String> {
+    match hit.path_enc.as_deref() {
+        Some(enc) => enc_key
+            .and_then(|k| {
+                hex::decode(enc)
+                    .ok()
+                    .and_then(|bytes| {
+                        keepance_lib::commands::mail::crypto::decrypt_with_key(&bytes, k).ok()
+                    })
+                    .and_then(|v| String::from_utf8(v).ok())
+            })
+            .filter(|path| !path.trim().is_empty()),
+        // Legacy pre-V10 row: the raw column is the plaintext path.
+        None => (!hit.path.trim().is_empty()).then(|| hit.path.clone()),
+    }
+}
+
+fn resolve_hit_file_path(workspace: &Path, real_path: &str) -> Result<PathBuf, String> {
+    let candidate = PathBuf::from(real_path);
+    if candidate.is_absolute() {
+        super::access::canonicalized_workspace_child(workspace, &candidate)
+    } else {
+        resolve_workspace_path(workspace, real_path)
+    }
+}
+
+fn display_workspace_path(workspace: &Path, abs: &Path, fallback: &str) -> String {
+    abs.strip_prefix(workspace)
+        .ok()
+        .map(|rel| rel.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|| fallback.trim_start_matches(['/', '\\']).to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn describe_tools_returns_five_entries() {
@@ -551,5 +1116,162 @@ mod tests {
     fn glob_matches_exact() {
         assert!(glob_match("notes.md", "notes.md"));
         assert!(!glob_match("notes.md", "notes.markdown"));
+    }
+
+    fn test_ctx(workspace_root: PathBuf) -> ServerCtx {
+        ServerCtx {
+            workspace_root,
+            approval_dir: std::env::temp_dir(),
+            stderr: Arc::new(Mutex::new(Box::new(Vec::<u8>::new()))),
+        }
+    }
+
+    fn stored_hit(path: String, matter_id: &str, text: &str) -> store::StoredHit {
+        store::StoredHit {
+            id: format!("id-{matter_id}"),
+            path,
+            matter_id: Some(matter_id.to_string()),
+            source_id: None,
+            paragraph_index: 0,
+            text: text.to_string(),
+            distance: 0.1,
+            source_type: Some("text".to_string()),
+            page_number: None,
+            encrypted: false,
+            privilege: Some("none".to_string()),
+            extraction: None,
+            extraction_confidence: None,
+            locator: None,
+            path_enc: None,
+        }
+    }
+
+    #[test]
+    fn search_hit_with_matching_stored_matter_but_live_cross_matter_path_is_dropped() {
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        let matter_a = tmp.path().join("Matter A");
+        let matter_b = tmp.path().join("Matter B");
+        std::fs::create_dir_all(&matter_a).unwrap();
+        std::fs::create_dir_all(&matter_b).unwrap();
+        let secret_path = matter_b.join("secret.md");
+        std::fs::write(&secret_path, "other client secret").unwrap();
+
+        let ctx = test_ctx(tmp.path().to_path_buf());
+        let state = McpAccessState {
+            version: 1,
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            active_matter_id: Some("matter-a".into()),
+            granted_matter_ids: vec!["matter-a".into()],
+            network_lockdown: false,
+            matters: vec![
+                super::super::access::McpMatter {
+                    id: "matter-a".into(),
+                    folder_paths: vec![matter_a.to_string_lossy().to_string()],
+                    archived: false,
+                },
+                super::super::access::McpMatter {
+                    id: "matter-b".into(),
+                    folder_paths: vec![matter_b.to_string_lossy().to_string()],
+                    archived: false,
+                },
+            ],
+        };
+
+        let hit = stored_hit(
+            secret_path.to_string_lossy().to_string(),
+            "matter-a",
+            "other client secret",
+        );
+
+        assert!(
+            verified_file_search_hit(&ctx, &state, hit, None).is_none(),
+            "a stale/mis-tagged search row must not be returned just because stored matter_id matches"
+        );
+    }
+
+    #[test]
+    fn search_hit_for_mail_source_is_dropped_until_mail_scope_verifier_exists() {
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        let matter_a = tmp.path().join("Matter A");
+        std::fs::create_dir_all(&matter_a).unwrap();
+
+        let ctx = test_ctx(tmp.path().to_path_buf());
+        let state = McpAccessState {
+            version: 1,
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            active_matter_id: Some("matter-a".into()),
+            granted_matter_ids: vec!["matter-a".into()],
+            network_lockdown: false,
+            matters: vec![super::super::access::McpMatter {
+                id: "matter-a".into(),
+                folder_paths: vec![matter_a.to_string_lossy().to_string()],
+                archived: false,
+            }],
+        };
+
+        let mut hit = stored_hit("mail:provider-message-id".into(), "matter-a", "mail text");
+        hit.source_type = Some("mail".into());
+
+        assert!(verified_file_search_hit(&ctx, &state, hit, None).is_none());
+    }
+
+    #[test]
+    fn search_hit_for_deleted_file_is_dropped_even_when_matter_matches() {
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        let matter_a = tmp.path().join("Matter A");
+        std::fs::create_dir_all(&matter_a).unwrap();
+        let deleted_path = matter_a.join("deleted.md");
+
+        let ctx = test_ctx(tmp.path().to_path_buf());
+        let state = McpAccessState {
+            version: 1,
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            active_matter_id: Some("matter-a".into()),
+            granted_matter_ids: vec!["matter-a".into()],
+            network_lockdown: false,
+            matters: vec![super::super::access::McpMatter {
+                id: "matter-a".into(),
+                folder_paths: vec![matter_a.to_string_lossy().to_string()],
+                archived: false,
+            }],
+        };
+
+        let hit = stored_hit(
+            deleted_path.to_string_lossy().to_string(),
+            "matter-a",
+            "stale deleted file text",
+        );
+
+        assert!(verified_file_search_hit(&ctx, &state, hit, None).is_none());
+    }
+
+    #[test]
+    fn search_hit_for_directory_is_dropped_even_when_matter_matches() {
+        let tmp = tempfile::tempdir().expect("tmpdir");
+        let matter_a = tmp.path().join("Matter A");
+        let directory_path = matter_a.join("Folder");
+        std::fs::create_dir_all(&directory_path).unwrap();
+
+        let ctx = test_ctx(tmp.path().to_path_buf());
+        let state = McpAccessState {
+            version: 1,
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            active_matter_id: Some("matter-a".into()),
+            granted_matter_ids: vec!["matter-a".into()],
+            network_lockdown: false,
+            matters: vec![super::super::access::McpMatter {
+                id: "matter-a".into(),
+                folder_paths: vec![matter_a.to_string_lossy().to_string()],
+                archived: false,
+            }],
+        };
+
+        let hit = stored_hit(
+            directory_path.to_string_lossy().to_string(),
+            "matter-a",
+            "directory stale text",
+        );
+
+        assert!(verified_file_search_hit(&ctx, &state, hit, None).is_none());
     }
 }

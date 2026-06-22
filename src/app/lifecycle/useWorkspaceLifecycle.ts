@@ -19,6 +19,7 @@ import { isLawExperience } from '@/platform/profile/professionStore';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createFSBackend } from '@/platform/fs/BackendFactory';
 import { AuditService } from '@/platform/audit/AuditService';
+import { writeDenyAllMcpSessionScopeFile } from '@/platform/mcp/mcpSessionScope';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
@@ -71,6 +72,17 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
             `Switching workspaces will lose those unsaved changes. Switch anyway?`,
         );
         if (!proceed) return; // abort the switch; keep the current workspace + tabs
+      }
+      const outgoingRoot = outgoing.getRootPath();
+      if (outgoingRoot) {
+        try {
+          await writeDenyAllMcpSessionScopeFile({
+            service: outgoing,
+            workspaceRoot: outgoingRoot,
+          });
+        } catch (err) {
+          console.warn('[MCP] Failed to close outgoing workspace scope:', err);
+        }
       }
     }
 

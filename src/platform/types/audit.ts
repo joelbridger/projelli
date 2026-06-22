@@ -33,6 +33,12 @@ export type AuditActionType =
   // on. Stored under `action = 'mcp_blocked'` so the audit log can label/filter
   // it as a defensible "nothing exfiltrated" record.
   | 'mcp_blocked'
+  | 'mcp_list'
+  | 'mcp_read'
+  | 'mcp_search'
+  | 'mcp_write_requested'
+  | 'mcp_write_approved'
+  | 'mcp_write_denied'
   // Firm Phase 1 (Task 3) — matter sharing and member management.
   | 'matter_shared'
   | 'matter_unshared'
