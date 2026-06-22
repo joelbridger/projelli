@@ -87,3 +87,10 @@ Ran the Evidence Gap Analyzer workflow to completion (filled its 4-field intervi
 - **BUG-094 for workflow egress** ✅ — every workflow event recorded the real model gpt-4o (not "unknown").
 - **Confidentiality Report accuracy** ✅ — now shows 3 calls: the workflow egress (gpt-4o) + the new redline (gpt-4o-mini) both with real models; only the single pre-fix historical entry stays "unknown" (append-only, correct). The workflow egress correctly appears in the matter report (definitively ruling out the earlier BUG-095 hypothesis — it appears when the workflow actually egresses).
 - Workflow completed + created a file (EVIDENCE_GAP_ANALYSIS) — end-to-end success.
+
+## Hunt update #7 (2026-06-22) — Word "clean copy" scrub leak test (via the native save dialog)
+Drove the full flow on real Windows: open redline-test.docx (with a tracked insertion + a tracked deletion) → Export → "Clean copy, accept all changes" → native Save As dialog driven by the pyautogui desktop agent (paste path + Enter) → pulled the exported .docx back → unzipped + inspected.
+- **BUG-066** ✅ — the exported clean copy: deleted text "Payment are due within thirty days…" is GONE (count 0); ALL tracked-change markup (`<w:del>`/`<w:delText>`/`<w:ins>`) is gone; the accepted insertion "thirty (30) days" is kept. NO leak of deleted/privileged text.
+- **BUG-067** ✅ — the clean-copy package has only the 4 essential parts ([Content_Types], _rels/.rels, word/document.xml, word/_rels) — NO customXml/**, NO docProps/custom.xml, no residual metadata parts.
+- Note: this test doc's tracked changes were in PARAGRAPH text; BUG-066's specific raw/table-XML tracked-change case (a `<w:tbl>` with `<w:delText>`) remains covered by the keepance-docx cargo roundtrip test, not by this live doc.
+- This was the test flagged as the best remaining bug-finder (leak risk) — it PASSED, no leak.
