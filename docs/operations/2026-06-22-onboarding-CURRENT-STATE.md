@@ -85,7 +85,34 @@ always-on Chrome at `http://100.68.20.52:<port>`.
   rule. The journey only reuses that path. Deserves a separate security task.
 - For VISUAL decisions, Jameson needs to SEE options, not read text choices.
 
-## 2026-06-22: evaluating HyperFrames (in progress)
-Jameson asked to look into **HyperFrames** (reportedly a direct Claude-Code integration for
-creating "HTML videos") as a possible alternative to the Rive approach. Findings + decision
-to be appended here.
+## 2026-06-22: HyperFrames evaluated — IT WORKS (decision pending)
+**HyperFrames** (HeyGen, Apache-2.0, github.com/heygen-com/hyperframes) = "video as code":
+write HTML/CSS/GSAP → renders a deterministic MP4, agent-driven (Claude writes the
+composition). Output is **baked video, not interactive** — but that fits our full-bleed plan
+(animation = the background video; clickable parts stay in my React layer on top).
+
+**Proven on the server (works):**
+- Needs Node 22+ (system is Node 20) → installed standalone at `~/node22` (system untouched).
+  ffmpeg present; uses system Chrome at `/usr/bin/google-chrome` for headless capture.
+- Trial project at `~/hyperframes-trial/keepance-onboarding/`. Authored a premium "welcome"
+  scene (kinetic Sora type + brand aurora + grain + trust pills, on-brand navy/pink/blue),
+  `npm run check` clean, `npm run render` → **1080p MP4 in ~9 seconds**. It looks genuinely
+  professional — a real step up from the hand-built CSS.
+- Gotchas: fonts must be LOCAL (@font-face → captured woff2 in `capture/assets/fonts/`,
+  Google/Fontshare links are lint-blocked); composition rules in the project's `CLAUDE.md`
+  (clips need `class="clip"` + data-start/duration/track-index; paused GSAP timeline on
+  `window.__timelines["main"]`; deterministic only — no random/Date.now/repeat:-1).
+- Preview shown to Jameson: served the MP4 on a port, opened in the always-on Chrome.
+
+**The honest catch:** HyperFrames still has CLAUDE authoring the visuals (rendered as video),
+so it shines for **premium motion-graphics** (kinetic type, gradients, compositing real app
+screenshots, data) but does NOT produce hand-drawn **illustration** (the brain/robot/house
+characters). So the choice is a STYLE fork:
+- Motion-graphics look that Claude generates + Jameson art-directs (fast, free, agent-made) → **HyperFrames**.
+- Illustrated scenes Jameson controls → **Rive** (he makes them).
+- Possibly hybrid (HyperFrames for type/data/cinematic; Rive for illustrated moments).
+
+**DECISION PENDING:** Jameson to react to the live HyperFrames sample and pick the direction.
+If HyperFrames: I generate all 8 full-bleed scenes this way, he art-directs each, I build the
+interactive overlay + wire to the existing journey machinery (which still stands). The Rive
+guide stays valid if he prefers illustration.
