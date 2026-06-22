@@ -55,6 +55,29 @@ describe('resolveCitationPath (strict — BUG-065)', () => {
   it('returns null when the basename is unknown', () => {
     expect(resolveCitationPath(cite('[nowhere.md paragraph 1]'), hits)).toBe(null);
   });
+
+  // BUG-098 (Windows): the RAG store can hold the SAME physical file under two
+  // path-separator forms — e.g. a mixed `C:/root\file` and an all-backslash
+  // `C:\root\file`. These are NOT a cross-folder collision; they are one file.
+  // Separator-normalizing the uniqueness check must collapse them to a single
+  // source so the citation resolves (otherwise EVERY grounded answer on Windows
+  // renders "Not cited"). The genuine cross-folder collision above must STILL
+  // return null — separator normalization alone distinguishes the two.
+  it('resolves a Windows same-file duplicate that differs only by path separator', () => {
+    const winDup: RagHit[] = [
+      { path: 'C:/KeepanceTest\\fee-agreement.md', chunkText: 'x', score: 0.9, paragraphIndex: 0 },
+      { path: 'C:\\KeepanceTest\\fee-agreement.md', chunkText: 'x', score: 0.8, paragraphIndex: 0 },
+    ];
+    expect(resolveCitationPath(cite('[fee-agreement.md paragraph 0]'), winDup)).not.toBe(null);
+  });
+
+  it('still treats a genuine cross-folder basename collision as ambiguous (Windows separators)', () => {
+    const collide: RagHit[] = [
+      { path: 'C:\\KeepanceTest\\a\\dup.md', chunkText: 'x', score: 0.9, paragraphIndex: 2 },
+      { path: 'C:\\KeepanceTest\\b\\dup.md', chunkText: 'y', score: 0.8, paragraphIndex: 2 },
+    ];
+    expect(resolveCitationPath(cite('[dup.md paragraph 2]'), collide)).toBe(null);
+  });
 });
 
 describe('verifyCitations (fail-closed + scope — BUG-065)', () => {

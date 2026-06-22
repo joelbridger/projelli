@@ -265,7 +265,15 @@ export function resolveCitationTarget<T extends CitationTargetLike>(
     (h) => h.paragraphIndex === citation.paragraphIndex || h.pageNumber === citation.paragraphIndex,
   );
   if (exact.length === 0) return null; // wrong/unretrieved locator → unverifiable
-  const uniquePaths = new Set(exact.map((h) => h.path));
+  // BUG-098 (Windows): the RAG store can hold the SAME physical file under two
+  // path-separator forms (a mixed `C:/root\file` and an all-backslash
+  // `C:\root\file`). Those are ONE file, not a cross-folder collision, so the
+  // ambiguity check compares paths with separators normalized — otherwise the
+  // phantom duplicate trips `size > 1` and EVERY grounded answer on Windows
+  // renders "Not cited". A genuine cross-folder collision (a/dup.md vs b/dup.md)
+  // still normalizes to two distinct paths and stays ambiguous.
+  const canonicalPath = (p: string): string => p.replace(/\\/g, '/');
+  const uniquePaths = new Set(exact.map((h) => canonicalPath(h.path)));
   if (uniquePaths.size > 1) return null; // basename collision across folders → ambiguous
   return exact[0] ?? null;
 }
