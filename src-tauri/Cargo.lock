@@ -4580,6 +4580,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "dirs 5.0.1",
+ "encoding_rs",
  "fastembed",
  "flate2",
  "futures-util",

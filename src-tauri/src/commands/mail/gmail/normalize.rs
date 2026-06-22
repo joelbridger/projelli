@@ -204,8 +204,8 @@ fn walk_parts(
     }
 }
 
-/// Decode the `body.data` field (base64url, no padding). Returns `None` if the
-/// field is absent or decoding / UTF-8 conversion fails.
+/// Decode the `body.data` field (base64url, no padding). Returns `None` only if
+/// the field is absent or base64 decoding fails.
 fn decode_body_data(node: &serde_json::Value) -> Option<String> {
     let data = node
         .get("body")
@@ -220,7 +220,54 @@ fn decode_body_data(node: &serde_json::Value) -> Option<String> {
         .decode(data)
         .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(data))
         .ok()?;
-    String::from_utf8(bytes).ok()
+    Some(decode_text_bytes(&bytes, body_charset(node).as_deref()))
+}
+
+fn decode_text_bytes(bytes: &[u8], charset: Option<&str>) -> String {
+    if let Some(label) = charset {
+        if let Some(encoding) = encoding_rs::Encoding::for_label(label.as_bytes()) {
+            let (decoded, _, _) = encoding.decode(bytes);
+            return decoded.into_owned();
+        }
+    }
+
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+fn body_charset(node: &serde_json::Value) -> Option<String> {
+    node.get("headers")
+        .and_then(|h| h.as_array())
+        .and_then(|headers| {
+            headers.iter().find_map(|h| {
+                let name = h.get("name")?.as_str()?;
+                if name.eq_ignore_ascii_case("Content-Type") {
+                    h.get("value")?.as_str().and_then(extract_charset)
+                } else {
+                    None
+                }
+            })
+        })
+        .or_else(|| {
+            node.get("mimeType")
+                .and_then(|m| m.as_str())
+                .and_then(extract_charset)
+        })
+}
+
+fn extract_charset(content_type: &str) -> Option<String> {
+    content_type.split(';').find_map(|part| {
+        let (name, value) = part.trim().split_once('=')?;
+        if name.trim().eq_ignore_ascii_case("charset") {
+            let charset = value.trim().trim_matches('"').trim_matches('\'');
+            if charset.is_empty() {
+                None
+            } else {
+                Some(charset.to_string())
+            }
+        } else {
+            None
+        }
+    })
 }
 
 // ── Address parsing ───────────────────────────────────────────────────────────
@@ -400,6 +447,26 @@ mod tests {
         let m = from_gmail("user@gmail.com", &sample_full_message()).expect("parse");
         assert_eq!(m.body_content_type, BodyContentType::Text);
         assert_eq!(m.body_text, "Hello from Gmail!");
+    }
+
+    #[test]
+    fn decodes_latin1_body_using_part_charset() {
+        let latin1_cafe = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b"Caf\xe9");
+        let v = serde_json::json!({
+            "id": "latin1",
+            "payload": {
+                "mimeType": "text/plain",
+                "headers": [
+                    { "name": "Content-Type", "value": "text/plain; charset=ISO-8859-1" }
+                ],
+                "body": {
+                    "data": latin1_cafe
+                }
+            }
+        });
+
+        let m = from_gmail("user@gmail.com", &v).expect("parse");
+        assert_eq!(m.body_text, "Café");
     }
 
     #[test]

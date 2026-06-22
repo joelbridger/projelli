@@ -130,6 +130,7 @@ aes-gcm = "0.10"
 rand = "0.8"
 # Mail import — RFC822 parser used by the IMAP normalizer.
 mail-parser = "0.11"
+encoding_rs = "0.8"
 # SMTP send — async transport (STARTTLS, port 587) + RFC822 message builder.
 # Used by the IMAP/SMTP send path (imap/send.rs) and the Gmail raw-RFC822
 # path (gmail/api.rs). M365 uses the Graph REST API (no lettre needed there).
