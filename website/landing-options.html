@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Landing page options - Keepance (internal)</title>
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,500,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --obsidian:#1A1C20; --navy:#0A2540; --grad-pink:#FF3CE8; --grad-blue:#5DC6FF;
+      --bone:#F5F5F0; --bone-dark:#EEEEE8; --white:#FFFFFF;
+      --text-on-dark:#E8E8E2; --text-muted-dark:#8A9BB0;
+      --text-heading:#0A2540; --text-body:#3A3A38; --text-muted:#6B6B65; --border:#E0E0D8;
+      --container:1100px;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html{font-size:16px;scroll-behavior:smooth;}
+    body{font-family:'Satoshi',system-ui,sans-serif;background:var(--bone);color:var(--text-body);line-height:1.65;-webkit-font-smoothing:antialiased;}
+    .container{width:100%;max-width:var(--container);margin:0 auto;padding:0 28px;}
+
+    /* explorer header */
+    .xp-head{background:var(--obsidian);color:#fff;padding:18px 0;}
+    .xp-head .container{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+    .xp-head h1{font-size:15px;font-weight:700;letter-spacing:.01em;}
+    .xp-head p{font-size:12.5px;color:rgba(255,255,255,.55);max-width:620px;}
+    .xp-badge{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);background:var(--grad-blue);padding:3px 10px;border-radius:20px;}
+
+    /* tab bar */
+    .tabbar{position:sticky;top:0;z-index:50;background:rgba(10,37,64,.97);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,.08);}
+    .tabbar-inner{display:flex;gap:8px;overflow-x:auto;padding:12px 28px;max-width:var(--container);margin:0 auto;}
+    .tab{flex-shrink:0;border:1px solid rgba(255,255,255,.16);background:transparent;color:rgba(255,255,255,.7);font-family:inherit;font-size:13px;font-weight:600;padding:8px 14px;border-radius:20px;cursor:pointer;white-space:nowrap;transition:all .15s;}
+    .tab:hover{color:#fff;border-color:rgba(255,255,255,.4);}
+    .tab.active{background:linear-gradient(135deg,var(--grad-pink),var(--grad-blue));color:#fff;border-color:transparent;}
+
+    /* hero (mirrors keepance.com) */
+    .hero{background:var(--navy);padding:84px 0 80px;position:relative;overflow:hidden;}
+    .hero::before{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(ellipse 60% 50% at 72% 38%,rgba(255,60,232,.08) 0%,transparent 70%),
+                 radial-gradient(ellipse 45% 60% at 8% 85%,rgba(93,198,255,.06) 0%,transparent 60%);}
+    .hero .container{position:relative;max-width:860px;}
+    .v-meta{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--grad-blue);background:rgba(93,198,255,.1);border:1px solid rgba(93,198,255,.25);padding:4px 12px;border-radius:20px;margin-bottom:22px;}
+    .v-eyebrow{display:block;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--grad-pink);margin-bottom:18px;}
+    .hero h2{font-family:'Satoshi',sans-serif;font-size:clamp(2.1rem,4.4vw,3.1rem);font-weight:700;color:#fff;line-height:1.15;letter-spacing:-.02em;margin-bottom:22px;}
+    .hero h2 em{font-style:normal;background:linear-gradient(135deg,var(--grad-pink),var(--grad-blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+    .v-sub{font-size:1.075rem;color:var(--text-muted-dark);line-height:1.7;max-width:660px;margin-bottom:30px;}
+    .v-sub strong{color:var(--text-on-dark);font-weight:600;}
+    .hero-ctas{display:flex;gap:12px;flex-wrap:wrap;}
+    .btn{display:inline-flex;align-items:center;gap:8px;font-family:'Satoshi',sans-serif;font-size:15px;font-weight:600;text-decoration:none;border-radius:6px;padding:12px 24px;transition:all .2s;border:none;cursor:pointer;}
+    .btn-primary{background:linear-gradient(135deg,var(--grad-pink),var(--grad-blue));color:#fff;}
+    .btn-outline-light{background:transparent;color:var(--text-on-dark);border:1.5px solid rgba(255,255,255,.2);}
+    .hero-note{font-size:13px;color:var(--text-muted-dark);margin-top:22px;}
+
+    /* reference sections */
+    section{padding:64px 0;border-top:1px solid var(--border);}
+    .sec-label{display:block;font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--grad-pink);margin-bottom:12px;}
+    h3.sec{font-size:1.5rem;font-weight:700;color:var(--text-heading);letter-spacing:-.02em;margin-bottom:8px;}
+    .sec-intro{font-size:.98rem;color:var(--text-muted);margin-bottom:28px;max-width:640px;}
+    .pick{font-size:12px;color:var(--text-muted);font-style:italic;}
+
+    .tagline-list{display:flex;flex-direction:column;gap:12px;}
+    .tagline{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px 20px;font-size:1.05rem;font-weight:600;color:var(--text-heading);}
+    .tagline.top{border-left:3px solid var(--grad-blue);}
+    .tagline small{display:block;font-size:11px;font-weight:600;color:var(--grad-blue);letter-spacing:.04em;text-transform:uppercase;margin-top:6px;}
+
+    .head-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+    @media(max-width:680px){.head-grid{grid-template-columns:1fr;}}
+    .head-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px 18px;font-size:1rem;font-weight:600;color:var(--text-heading);}
+    .head-card.strong{background:var(--navy);color:#fff;border-color:transparent;}
+
+    .concept-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;}
+    @media(max-width:680px){.concept-grid{grid-template-columns:1fr;}}
+    .concept{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:22px 24px;}
+    .concept h4{font-size:1.05rem;font-weight:700;color:var(--text-heading);margin-bottom:8px;}
+    .concept p{font-size:.92rem;color:var(--text-body);line-height:1.6;}
+
+    .ba{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+    @media(max-width:680px){.ba{grid-template-columns:1fr;}}
+    .ba-col{border-radius:12px;padding:22px 24px;}
+    .ba-before{background:var(--bone-dark);border:1px solid var(--border);}
+    .ba-after{background:var(--navy);color:#fff;}
+    .ba-col h4{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px;}
+    .ba-before h4{color:var(--text-muted);} .ba-after h4{color:var(--grad-blue);}
+    .ba-col p{font-size:.92rem;line-height:1.6;}
+    .ba-after p{color:var(--text-muted-dark);}
+
+    .system{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+    .system-row{display:grid;grid-template-columns:200px 1fr;gap:16px;padding:14px 20px;border-bottom:1px solid var(--border);font-size:.95rem;}
+    .system-row:last-child{border-bottom:none;}
+    .system-row b{color:var(--grad-pink);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}
+    @media(max-width:560px){.system-row{grid-template-columns:1fr;gap:4px;}}
+
+    footer{background:var(--obsidian);color:rgba(255,255,255,.4);font-size:12px;padding:28px 0;text-align:center;}
+  </style>
+</head>
+<body>
+
+  <div class="xp-head">
+    <div class="container">
+      <div>
+        <h1>Keepance landing page options</h1>
+        <p>Switch the tabs to see each hero direction from the marketing vision rendered in the real brand design. The building blocks below (taglines, headlines, named concepts) are the shared menu to mix and match. Internal preview, not the live site.</p>
+      </div>
+      <span class="xp-badge">Internal</span>
+    </div>
+  </div>
+
+  <div class="tabbar"><div class="tabbar-inner" id="tabs"></div></div>
+
+  <!-- SWAPPABLE HERO -->
+  <section class="hero" style="border-top:none;">
+    <div class="container">
+      <span class="v-meta" id="v-meta"></span>
+      <span class="v-eyebrow" id="v-eyebrow"></span>
+      <h2 id="v-h1"></h2>
+      <p class="v-sub" id="v-sub"></p>
+      <div class="hero-ctas">
+        <a href="#" class="btn btn-primary" id="v-cta1"></a>
+        <a href="#" class="btn btn-outline-light" id="v-cta2"></a>
+      </div>
+      <p class="hero-note">Same hero, eight directions. The tab name says where each one comes from in the guide.</p>
+    </div>
+  </section>
+
+  <!-- BUILDING BLOCKS (shared menu) -->
+  <section>
+    <div class="container">
+      <span class="sec-label">Pick a line</span>
+      <h3 class="sec">Tagline directions</h3>
+      <p class="sec-intro">The short line that sits under the logo and in ads. Top three are highlighted.</p>
+      <div class="tagline-list">
+        <div class="tagline top">Private client intelligence for professional firms.<small>Most mature</small></div>
+        <div class="tagline top">The private AI memory for every client, matter, and household.<small>Clearest</small></div>
+        <div class="tagline top">Turn scattered client files into living client intelligence.<small>Most explanatory</small></div>
+        <div class="tagline">The client context layer for high-trust work.</div>
+        <div class="tagline">Know every client like your best partner does.</div>
+        <div class="tagline">The secure AI workspace that remembers the details clients expect you to know.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+      <span class="sec-label">The big idea, one line</span>
+      <h3 class="sec">Facts vs people</h3>
+      <p class="sec-intro">A headline option that draws the line between generic AI and Keepance.</p>
+      <div class="head-grid">
+        <div class="head-card strong">Generic AI knows the world. Keepance knows the client.</div>
+        <div class="head-card">Most AI helps you find facts. Keepance helps you understand clients.</div>
+        <div class="head-card">Chatbots answer questions. Keepance understands the client file.</div>
+        <div class="head-card">Search finds the document. Keepance explains the client.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+      <span class="sec-label">The product, in four words</span>
+      <h3 class="sec">The named concepts</h3>
+      <p class="sec-intro">The four ideas the brand is built around. These appear as real sections on the page.</p>
+      <div class="concept-grid">
+        <div class="concept"><h4>Client Map</h4><p>A living profile of every client, matter, or household: the people, history, goals, risks, open questions, preferences, and your firm's way of serving them.</p></div>
+        <div class="concept"><h4>Context Completeness</h4><p>See what you know, what you assume, and what you still need to ask. A risk and quality check, not just a productivity feature.</p></div>
+        <div class="concept"><h4>Guided Client Interview</h4><p>Keepance walks you through the questions that turn a folder of documents into a full client picture.</p></div>
+        <div class="concept"><h4>Firm Philosophy</h4><p>Keepance stores your firm's way of working and applies it as context across every map, memo, draft, and handoff.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+      <span class="sec-label">Why it matters</span>
+      <h3 class="sec">Before and after</h3>
+      <div class="ba">
+        <div class="ba-col ba-before"><h4>Before Keepance</h4><p>Client knowledge is scattered, fragile, and trapped in memory. New staff need hand-holding. Old context gets missed. Important facts hide in email. Client nuance disappears between meetings.</p></div>
+        <div class="ba-col ba-after"><h4>After Keepance</h4><p>Each client has a living map. The firm can ask questions, verify sources, see what's missing, prepare for meetings, onboard staff, create notes, and serve with continuity.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+      <span class="sec-label">The system underneath</span>
+      <h3 class="sec">Messaging system</h3>
+      <div class="system">
+        <div class="system-row"><b>Category</b><span>Private client intelligence layer.</span></div>
+        <div class="system-row"><b>Primary promise</b><span>Securely ask questions across your files and emails, with citations you can verify.</span></div>
+        <div class="system-row"><b>Differentiator</b><span>A living Client Map for every client, matter, or household, built from documents, notes, and guided interviews.</span></div>
+        <div class="system-row"><b>Outcome</b><span>Better advice, faster onboarding, fewer missed details, stronger continuity.</span></div>
+        <div class="system-row"><b>Trust proof</b><span>Local-first, cited answers, a client-controlled data path, human review.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>Internal options explorer for Keepance. Source of truth: docs/marketing/MARKETING_VISION.md</footer>
+
+  <script>
+    const VARIANTS = [
+      {
+        tab: "Client intelligence", meta: "Guide: recommended hero",
+        eyebrow: "Private client intelligence",
+        h1: "Private <em>client intelligence</em> for high-trust professionals.",
+        sub: "Keepance securely indexes your files and emails, then answers questions with citations you can verify. For every client, matter, or household, it builds a living Client Map: history, goals, risks, relationships, preferences, and missing context, so your team can solve the specific problem in front of them.",
+        cta1: "Build your first Client Map", cta2: "See how private it is"
+      },
+      {
+        tab: "Living memory", meta: "Guide: alternate, more direct",
+        eyebrow: "Private client intelligence for high-trust professionals",
+        h1: "Give every client a <em>living memory.</em>",
+        sub: "Keepance is a secure AI workspace that indexes your files and emails, answers questions with citations, and builds a Client Map for every matter or household. Your team gets the full context: the people, history, goals, risks, and open questions, before drafting, advising, onboarding, or handing off work.",
+        cta1: "Start your free trial", cta2: "See a sample Client Map"
+      },
+      {
+        tab: "Knows your clients", meta: "Live now: current build",
+        eyebrow: "Private client intelligence for high-trust professionals",
+        h1: "Private AI that <em>knows your clients.</em>",
+        sub: "Private client intelligence for high-trust professionals. <strong>Keepance turns your own files and emails into cited answers and a living map of every client, all on your computer.</strong>",
+        cta1: "Start your free trial", cta2: "See how private it is"
+      },
+      {
+        tab: "People behind paperwork", meta: "Guide: sharper (likely favorite)",
+        eyebrow: "Private client intelligence",
+        h1: "Understand the <em>people behind the paperwork.</em>",
+        sub: "Keepance is a secure AI workspace that indexes your files and emails, answers questions with citations, and builds a living Client Map for every client or household. It helps your team understand the people behind the paperwork: their history, goals, risks, open questions, and context, so every answer, note, draft, and handoff is specific to them.",
+        cta1: "Build your first Client Map", cta2: "See how private it is"
+      },
+      {
+        tab: "Operating system", meta: "Guide: premium / strategic",
+        eyebrow: "The private client intelligence layer",
+        h1: "Turn scattered client knowledge into <em>client intelligence.</em>",
+        sub: "Keepance turns your firm's scattered client knowledge (emails, files, notes, and interviews) into private client intelligence. Ask questions, find cited answers, see what you still need to learn, and give every client advice shaped by their actual life, matter, family, and history.",
+        cta1: "Build your first Client Map", cta2: "See how private it is"
+      },
+      {
+        tab: "Private AI memory", meta: "Guide: punchy / brandable",
+        eyebrow: "Private client intelligence",
+        h1: "A private <em>AI memory</em> for every client.",
+        sub: "Keepance gives your firm a private AI memory for every client. It indexes your files and emails, maps each client's full context, and helps your team answer, draft, prepare, and hand off work with the details that matter.",
+        cta1: "Start your free trial", cta2: "See how private it is"
+      },
+      {
+        tab: "For lawyers", meta: "Guide: lawyer-specific (matter)",
+        eyebrow: "Private client intelligence for law practices",
+        h1: "Know every <em>matter</em> like the partner who lived it.",
+        sub: "Keepance is a private AI workspace that indexes every matter file, email, transcript, and note, then answers questions with citations you can verify. For each client or matter, it builds a living Client Map: facts, parties, timeline, risks, open questions, preferences, and firm strategy, so attorneys and staff can understand the case faster and act with context.",
+        cta1: "Build your first Client Map", cta2: "See how private it is"
+      },
+      {
+        tab: "For advisors", meta: "Guide: advisor-specific (household)",
+        eyebrow: "Private client intelligence for financial advisors",
+        h1: "Know every <em>household</em> like family.",
+        sub: "Keepance is a private AI workspace that indexes client files, emails, plans, notes, and reviews, then answers questions with citations you can verify. For every household, it builds a living Client Map: family relationships, goals, accounts, estate concerns, tax context, risk tolerance, open questions, and service preferences, so advisors can prepare, document, and serve with the full picture.",
+        cta1: "Build your first Client Map", cta2: "See how private it is"
+      }
+    ];
+
+    const tabsEl = document.getElementById('tabs');
+    const el = id => document.getElementById(id);
+
+    function render(i){
+      const v = VARIANTS[i];
+      el('v-meta').textContent = v.meta;
+      el('v-eyebrow').textContent = v.eyebrow;
+      el('v-h1').innerHTML = v.h1;
+      el('v-sub').innerHTML = v.sub;
+      el('v-cta1').textContent = v.cta1;
+      el('v-cta2').textContent = v.cta2;
+      [...tabsEl.children].forEach((b,bi)=>b.classList.toggle('active', bi===i));
+      window.scrollTo({top:0,behavior:'instant'});
+    }
+
+    VARIANTS.forEach((v,i)=>{
+      const b = document.createElement('button');
+      b.className='tab'; b.textContent=v.tab; b.onclick=()=>render(i);
+      tabsEl.appendChild(b);
+    });
+    render(0);
+  </script>
+</body>
+</html>
