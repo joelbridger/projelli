@@ -56,6 +56,7 @@ import type { TrashedItem } from '@/platform/history/TrashService';
 
 import type { AuditEntry } from '@/platform/types/audit';
 import { AuditService } from '@/platform/audit/AuditService';
+import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 import { getOrCreateSampleMatter, useMatterStore, useActiveMatter } from '@/platform/matter/matterStore';
 import { useMatterUiStore, isWorkingSurface } from '@/platform/matter/matterUiStore';
 
@@ -220,6 +221,13 @@ function App() {
 
   // Audit log state
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const [auditIntegrity, setAuditIntegrity] = useState<AuditIntegrityVerdict | undefined>();
+
+  const verifyAuditIntegrity = useCallback(async (): Promise<AuditIntegrityVerdict | undefined> => {
+    const verdict = await auditServiceRef.current.verifyIntegrity();
+    setAuditIntegrity(verdict);
+    return verdict;
+  }, []);
 
   const { theme, setTheme, effectiveTheme } = useThemeManager();
 
@@ -642,7 +650,7 @@ function App() {
   // Handle workspace selection and recent-project opening (extracted to hook)
   const { handleWorkspaceSelected, handleOpenRecentProject } = useWorkspaceLifecycle({
     workspaceServiceRef, auditServiceRef, templatesMarketplaceServiceRef, templatesMetadataReaderRef,
-    setShowWorkspaceSelector, setAuditEntries, setRootPath,
+    setShowWorkspaceSelector, setAuditEntries, setAuditIntegrity, setRootPath,
     loadTrashMetadata, setTrashItems, setTrashStats,
     loadSourceCards, setSourceCards, loadChatFiles, setChatFiles,
   });
@@ -654,7 +662,7 @@ function App() {
   // OPFS rather than a user folder picker.
   useEffect(() => {
     if (!IS_DEMO_MODE || rootPath) return;
-    let cancelled = false;
+    const cancelled = { current: false };
     void (async () => {
       try {
         const opfsRoot = await navigator.storage.getDirectory();
@@ -663,14 +671,14 @@ function App() {
         backend.setRootHandle(demoDir);
         const service = createWorkspaceService();
         await service.initialize(backend, '/keepance-demo');
-        if (cancelled) return;
+        if (cancelled.current) return;
         await handleWorkspaceSelected(service);
       } catch (err) {
         console.error('[App] demo workspace auto-open failed:', err);
-        if (!cancelled) setDemoOpenFailed(true);
+        if (!cancelled.current) setDemoOpenFailed(true);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled.current = true; };
   }, [IS_DEMO_MODE, rootPath, handleWorkspaceSelected]);
 
 
@@ -848,7 +856,10 @@ function App() {
       ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
     });
     setAuditEntries((prev) => [newEntry, ...prev]);
-    void persisted.then((settledEntry) => { setAuditEntries((prev) => prev.map((existing) => existing.id === settledEntry.id ? { ...settledEntry, metadata: { ...settledEntry.metadata } } : existing)); });
+    void persisted.then((settledEntry) => {
+      setAuditEntries((prev) => prev.map((existing) => existing.id === settledEntry.id ? { ...settledEntry, metadata: { ...settledEntry.metadata } } : existing));
+      return auditServiceRef.current.verifyIntegrity();
+    }).then(setAuditIntegrity).catch(() => undefined);
   }, []);
 
 
@@ -908,8 +919,8 @@ function App() {
         // UX-33: activate the last-dropped file so the user lands on
         // something they just dropped rather than the previously-active tab.
         if (results.length > 0) {
-          const last = results[results.length - 1]!;
-          useEditorStore.getState().setActiveTab(last.path);
+          const last = results.at(-1);
+          if (last) useEditorStore.getState().setActiveTab(last.path);
         }
       } catch (err) {
         console.error('[App] Drag-drop upload failed:', err);
@@ -969,13 +980,12 @@ function App() {
       setFileTree(tree);
       for (const r of results) {
         if (!r.error) {
-          // eslint-disable-next-line no-await-in-loop
           await handleFileOpen(r.path, r.name);
         }
       }
       if (results.length > 0) {
-        const last = results[results.length - 1]!;
-        if (!last.error) useEditorStore.getState().setActiveTab(last.path);
+        const last = results.at(-1);
+        if (last && !last.error) useEditorStore.getState().setActiveTab(last.path);
       }
       const failed = results.filter((r) => r.error);
       if (failed.length > 0) {
@@ -1338,6 +1348,8 @@ This file contains rules and guidelines for AI assistants in this workspace.
           workflowProviderError={workflowProviderError}
           runHistory={runHistory}
           auditEntries={auditEntries}
+          auditIntegrity={auditIntegrity}
+          verifyAuditIntegrity={verifyAuditIntegrity}
           apiKeys={apiKeys}
           rootPath={rootPath}
           trashItems={trashItems}

@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Audit log is now tamper-evident with a Rust-owned hash-chain (BUG-078).** The encrypted desktop audit store now seals each row to the previous row with SHA-256, verifies the chain on demand, backfills legacy rows during migration, shows Activity Log integrity badges, and includes the integrity verdict in CSV/JSON exports.
+  - Files modified: `src-tauri/src/commands/audit/store.rs`, `src-tauri/src/commands/audit/mod.rs`, `src-tauri/src/lib.rs`, `src/platform/audit/AuditService.ts`, `src/platform/utils/tauri-commands.ts`, `src/features/audit/AuditHome.tsx`, `src/features/audit/audit-export.ts`
+  - Tests: `cargo test commands::audit`, `npx vitest run tests/unit/audit/audit-persistence.test.ts tests/unit/reimagined-audit-home.test.tsx tests/unit/audit-export.test.ts tests/unit/i18n/en-json-snapshot.test.ts tests/unit/i18n/locale-smoke.test.ts tests/unit/i18n/locale-coverage.test.ts`
 - **Audit egress regression reconciliation for Word redline and over-limit chat sends.** AI redline tests now exercise the audit-aware request path while still proving tracked changes go through the Word engine, and the chat over-limit warning uses a real one-time "Send anyway" bypass without logging egress while the send is blocked.
   - Files modified: `src/features/ask/hooks/useChatSending.ts`, `src/features/ask/AIChatViewer.tsx`, `tests/unit/DocxEditor.test.tsx`, `tests/unit/chat/hirisk-chat-setup-coverage.test.tsx`
   - Tests: `npx vitest run tests/unit/DocxEditor.test.tsx tests/unit/chat/hirisk-chat-setup-coverage.test.tsx`

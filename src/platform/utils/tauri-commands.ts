@@ -591,6 +591,10 @@ export interface AuditEntryRecord {
   payloadJson: string;
 }
 
+export type AuditIntegrityVerdict =
+  | { status: 'verified'; checked: number }
+  | { status: 'altered'; seq: number; id: string; reason: string; checked: number };
+
 /** Point the encrypted audit store at a workspace. No-op in the browser. */
 export async function auditSetWorkspace(path: string): Promise<void> {
   if (!isTauri()) return;
@@ -621,4 +625,11 @@ export async function auditList(
 export async function auditCount(): Promise<number> {
   if (!isTauri()) return 0;
   return invoke<number>('audit_count');
+}
+
+/** Verify the encrypted audit log hash-chain. Browser mode has no encrypted
+ *  chain, so there is no integrity verdict to report. */
+export async function auditVerifyIntegrity(): Promise<AuditIntegrityVerdict | undefined> {
+  if (!isTauri()) return undefined;
+  return invoke<AuditIntegrityVerdict>('audit_verify_integrity');
 }

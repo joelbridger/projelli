@@ -22,11 +22,13 @@ import {
   useCallback,
   useDeferredValue,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ShieldCheck,
   Download,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
+import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 import {
   filterEntries,
   uniqueModels,
@@ -62,11 +64,14 @@ import {
 
 export interface AuditHomeProps {
   entries: AuditEntry[];
+  integrity?: AuditIntegrityVerdict | undefined;
+  onVerifyIntegrity?: (() => Promise<AuditIntegrityVerdict | undefined>) | undefined;
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function AuditHome({ entries }: AuditHomeProps) {
+export function AuditHome({ entries, integrity, onVerifyIntegrity }: AuditHomeProps) {
+  const { t } = useTranslation();
   // ── Filter state ──────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -206,15 +211,35 @@ export function AuditHome({ entries }: AuditHomeProps) {
     setVisibleCount(PAGE_SIZE);
   }, []);
 
+  const resolveIntegrityForExport = useCallback(async () => {
+    if (!onVerifyIntegrity) return integrity;
+    try {
+      return await onVerifyIntegrity();
+    } catch {
+      return integrity;
+    }
+  }, [integrity, onVerifyIntegrity]);
+
   const handleExportCSV = useCallback(() => {
-    downloadAuditCSV(filteredEntries);
-  }, [filteredEntries]);
+    void (async () => {
+      const verdict = await resolveIntegrityForExport();
+      downloadAuditCSV(filteredEntries, new Date(), verdict);
+    })();
+  }, [filteredEntries, resolveIntegrityForExport]);
 
   const handleExportJSON = useCallback(() => {
-    downloadAuditJSON(filteredEntries);
-  }, [filteredEntries]);
+    void (async () => {
+      const verdict = await resolveIntegrityForExport();
+      downloadAuditJSON(filteredEntries, new Date(), verdict);
+    })();
+  }, [filteredEntries, resolveIntegrityForExport]);
 
   const encrypted = isAuditEncrypted();
+  const integrityLabel = integrity?.status === 'altered'
+    ? t('common.audit-log.integrity-altered', { seq: integrity.seq })
+    : integrity?.status === 'verified'
+      ? t('common.audit-log.integrity-verified')
+      : null;
 
 
   return (
@@ -238,6 +263,32 @@ export function AuditHome({ entries }: AuditHomeProps) {
           title="Activity Log"
           description="Every AI request, file change, and workflow run in your workspace, logged and exportable."
         />
+        {integrityLabel !== null && (
+          <span
+            data-testid="audit-integrity-badge"
+            title={integrity?.status === 'altered' ? integrity.reason : undefined}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              marginTop: 10,
+              padding: '3px 8px',
+              borderRadius: 'var(--radius-sm)',
+              border: integrity?.status === 'altered'
+                ? '1px solid rgba(185,28,28,0.28)'
+                : '1px solid rgba(21,128,61,0.28)',
+              background: integrity?.status === 'altered'
+                ? 'rgba(254,242,242,0.9)'
+                : 'rgba(240,253,244,0.9)',
+              color: integrity?.status === 'altered' ? '#991b1b' : '#166534',
+              fontSize: 'var(--kp-font-xs)',
+              fontWeight: 'var(--kp-weight-semibold)',
+              lineHeight: 'var(--kp-leading-snug)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {integrityLabel}
+          </span>
+        )}
       </div>
       {/* eslint-enable keepance-i18n/no-hardcoded-string */}
 

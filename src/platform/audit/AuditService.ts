@@ -19,7 +19,9 @@ import {
   auditAppend,
   auditList,
   auditSetWorkspace,
+  auditVerifyIntegrity,
   type AuditEntryRecord,
+  type AuditIntegrityVerdict,
 } from '@/platform/utils/tauri-commands';
 // Tauri presence is detected via the injected window global in
 // isAuditEncrypted(), not the SDK's isTauri export: vitest throws when code
@@ -156,6 +158,13 @@ export class AuditService {
       // Best-effort hydrate; an unreadable store leaves the session log empty
       // rather than crashing the app.
     }
+  }
+
+  async verifyIntegrity(): Promise<AuditIntegrityVerdict | undefined> {
+    if (!this.encrypted) {
+      return undefined;
+    }
+    return auditVerifyIntegrity();
   }
 
   /**
