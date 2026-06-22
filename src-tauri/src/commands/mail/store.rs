@@ -159,6 +159,9 @@ fn escape_like(kw: &str) -> String {
 /// Builds a fully-parameterized query — user text is NEVER interpolated into SQL.
 /// The list path NEVER touches an encrypted blob.
 fn query_list_messages(conn: &Connection, q: &MailListQuery) -> Result<MailListPage> {
+    let limit = q.limit.clamp(1, 200);
+    let offset = q.offset.max(0);
+
     // Map sort_by to a whitelisted column name; default to received_date_time.
     let order_col = match q.sort_by.as_str() {
         "subject" => "subject",
@@ -246,8 +249,8 @@ fn query_list_messages(conn: &Connection, q: &MailListQuery) -> Result<MailListP
          ORDER BY {order_col} {dir}
          LIMIT ?{limit_idx} OFFSET ?{offset_idx}"
     );
-    params.push(Box::new(q.limit));
-    params.push(Box::new(q.offset));
+    params.push(Box::new(limit));
+    params.push(Box::new(offset));
 
     let mut stmt = conn.prepare(&items_sql)?;
     let items = stmt
@@ -330,6 +333,16 @@ pub trait MailStore: Send + Sync {
 /// `messages` upsert never touches it. (BUG-013.)
 pub fn message_matter_key(message_id: &str) -> String {
     format!("matter:{message_id}")
+}
+
+fn legacy_imap_message_id(current_id: &str) -> Option<String> {
+    let (prefix_and_folder, uid) = current_id.rsplit_once(':')?;
+    let (prefix, uidvalidity) = prefix_and_folder.rsplit_once(':')?;
+    let (provider_and_account, _folder_key) = prefix.rsplit_once(':')?;
+    if !provider_and_account.starts_with("imap:") {
+        return None;
+    }
+    Some(format!("{provider_and_account}:{uidvalidity}:{uid}"))
 }
 
 // ---------------------------------------------------------------------------
@@ -544,19 +557,30 @@ impl MailStore for SqliteMailStore {
 // ---------------------------------------------------------------------------
 
 use crate::commands::mail::crypto::{decrypt_with_key, encrypt_with_key};
+use sha2::{Digest, Sha256};
 
 pub struct EncryptedMailStore {
     conn: std::sync::Mutex<Connection>,
     workspace_root: PathBuf,
 }
 
-/// Sanitize an arbitrary message id into a filesystem-safe filename component.
-/// Only alphanumerics and hyphens are preserved; anything else becomes '_'.
-/// This prevents path-traversal attacks (e.g. ids containing '/' or '..').
-fn safe_id(id: &str) -> String {
-    id.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '_' })
-        .collect()
+/// Collision-safe encrypted body filename. The original provider id stays in
+/// SQL; the filesystem only sees this fixed-width digest.
+pub(crate) fn encrypted_blob_filename(provider: &str, account: &str, id: &str) -> String {
+    let mut h = Sha256::new();
+    h.update(provider.as_bytes());
+    h.update([0]);
+    h.update(account.as_bytes());
+    h.update([0]);
+    h.update(id.as_bytes());
+    format!("{}.enc", hex::encode(h.finalize()))
+}
+
+pub(crate) fn encrypted_blob_relative_path(provider: &str, account: &str, id: &str) -> String {
+    format!(
+        ".keepance/mail/blobs/{}",
+        encrypted_blob_filename(provider, account, id)
+    )
 }
 
 impl EncryptedMailStore {
@@ -626,7 +650,7 @@ impl EncryptedMailStore {
         Self::open_with_key(workspace_root, &key)
     }
 
-    /// Encrypt `plaintext` and write to `.keepance/mail/blobs/<safe-id>.enc`
+    /// Encrypt `plaintext` and write to `.keepance/mail/blobs/<sha256>.enc`
     /// (relative to `workspace_root`). Returns the relative path.
     pub fn write_blob_with_key(
         &self,
@@ -634,14 +658,15 @@ impl EncryptedMailStore {
         plaintext: &[u8],
         key: &[u8; 32],
     ) -> Result<String> {
-        let blob_dir = self.workspace_root.join(".keepance").join("mail").join("blobs");
-        std::fs::create_dir_all(&blob_dir).context("create blobs dir")?;
-        let filename = format!("{}.enc", safe_id(id));
-        let abs = blob_dir.join(&filename);
+        let rel = encrypted_blob_relative_path("", "", id);
+        let abs = self.workspace_root.join(&rel);
+        if let Some(parent) = abs.parent() {
+            std::fs::create_dir_all(parent).context("create blobs dir")?;
+        }
         let encrypted = encrypt_with_key(plaintext, key)?;
         std::fs::write(&abs, &encrypted)
             .with_context(|| format!("write blob {}", abs.display()))?;
-        Ok(format!(".keepance/mail/blobs/{}", filename))
+        Ok(rel)
     }
 
     /// Decrypt and return the contents of an encrypted blob at `rel`
@@ -750,7 +775,13 @@ impl EncryptedMailStore {
 impl MailStore for EncryptedMailStore {
     /// BUG-013: read the durable per-message matter override from `meta`.
     fn get_message_matter(&self, id: &str) -> Result<Option<String>> {
-        self.get_meta(&message_matter_key(id))
+        if let Some(matter) = self.get_meta(&message_matter_key(id))? {
+            return Ok(Some(matter));
+        }
+        if let Some(legacy_id) = legacy_imap_message_id(id) {
+            return self.get_meta(&message_matter_key(&legacy_id));
+        }
+        Ok(None)
     }
 
     fn upsert(&self, rec: &MailRecord) -> Result<()> {
@@ -1184,6 +1215,19 @@ mod tests {
     }
 
     #[test]
+    fn enc_message_matter_reads_legacy_imap_override_after_folder_scoped_id_change() {
+        let (_dir, s) = enc_store();
+        s.set_message_matter("imap:lawyer@example.com:123:42", "matter-acme").unwrap();
+
+        let current_id = "imap:lawyer@example.com:494e424f58:123:42";
+        assert_eq!(
+            s.get_message_matter(current_id).unwrap().as_deref(),
+            Some("matter-acme"),
+            "new folder-scoped IMAP ids must still see old per-message matter overrides"
+        );
+    }
+
+    #[test]
     fn enc_clear_message_matter_for_matter_tombstones_only_that_matters_filings() {
         // BUG-042: deleting a matter must re-file EVERY message filed to it as
         // "unassigned" (a tombstone), so the next sync can't (a) resurface them
@@ -1271,6 +1315,34 @@ mod tests {
         // Path-traversal chars must be sanitized; blob must land under blobs/.
         assert!(rel.starts_with(".keepance/mail/blobs/"));
         assert!(!rel.contains(".."));
+    }
+
+    #[test]
+    fn write_blob_paths_are_collision_safe_for_punctuation_ids() {
+        let (_d, s) = enc_store();
+        let key = [0x42u8; 32];
+        let ids = ["a/b", "a_b", "a:b", "a@b"];
+        let mut rels = std::collections::HashSet::new();
+
+        for id in ids {
+            let rel = s.write_blob_with_key(id, id.as_bytes(), &key).unwrap();
+            assert!(rels.insert(rel.clone()), "{id} reused blob path {rel}");
+        }
+
+        assert_eq!(rels.len(), ids.len());
+    }
+
+    #[test]
+    fn encrypted_blob_path_includes_provider_and_account_in_digest() {
+        let same_id = "same-remote-id";
+        let gmail = encrypted_blob_relative_path("gmail", "acct-a", same_id);
+        let m365 = encrypted_blob_relative_path("m365", "acct-a", same_id);
+        let other_account = encrypted_blob_relative_path("gmail", "acct-b", same_id);
+
+        assert_ne!(gmail, m365);
+        assert_ne!(gmail, other_account);
+        assert!(gmail.starts_with(".keepance/mail/blobs/"));
+        assert!(gmail.ends_with(".enc"));
     }
 
     #[test]
@@ -1572,6 +1644,39 @@ mod tests {
         let ids1: std::collections::HashSet<_> = page1.items.iter().map(|i| &i.id).collect();
         let ids2: std::collections::HashSet<_> = page2.items.iter().map(|i| &i.id).collect();
         assert!(ids1.is_disjoint(&ids2));
+    }
+
+    #[test]
+    fn list_negative_limit_is_clamped_not_unbounded() {
+        let (_d, s) = store();
+        for i in 0..250u32 {
+            s.upsert(&mk_full(
+                &format!("m{i:03}"),
+                "inbox",
+                "m365",
+                "def",
+                &format!("Subject {i}"),
+                "a@x",
+                "A",
+                "",
+                &format!("2026-01-{:02}T00:00:00Z", (i % 28) + 1),
+                false,
+            ))
+            .unwrap();
+        }
+
+        let page = s
+            .list_messages(&MailListQuery {
+                limit: -1,
+                offset: -10,
+                sort_desc: false,
+                ..default_query()
+            })
+            .unwrap();
+
+        assert_eq!(page.total, 250);
+        assert_eq!(page.items.len(), 1, "negative limit must clamp, not become unbounded");
+        assert_eq!(page.items[0].id, "m000", "negative offset must clamp to zero");
     }
 
     #[test]

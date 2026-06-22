@@ -17,6 +17,11 @@ use self::normalize::from_rfc822;
 /// Maximum messages fetched per `fetch_changes` call.
 const BATCH: u32 = 200;
 
+pub(crate) fn imap_message_id(account: &str, folder_id: &str, uidvalidity: u32, uid: u32) -> String {
+    let folder_key = hex::encode(folder_id.as_bytes());
+    format!("imap:{account}:{folder_key}:{uidvalidity}:{uid}")
+}
+
 // ─────────────────────────────────────────────────────────
 // Pure cursor helpers (unit-tested; no network required)
 // ─────────────────────────────────────────────────────────
@@ -163,7 +168,7 @@ impl MailProvider for ImapProvider {
         let mut messages = Vec::with_capacity(raw_pairs.len());
         for (uid, raw) in raw_pairs {
             // Stable, account+folder-scoped message id.
-            let id = format!("imap:{}:{}:{}", self.account, current_uidvalidity, uid);
+            let id = imap_message_id(&self.account, &folder.id, current_uidvalidity, uid);
             if let Some(msg) = from_rfc822(&id, &self.account, &folder.id, &raw) {
                 messages.push(msg);
             }
@@ -255,6 +260,22 @@ mod tests {
     fn batch_empty_mailbox_returns_none() {
         // uid_next 1 => no messages yet.
         assert_eq!(compute_batch_range(0, 0, 42, 1), None);
+    }
+
+    #[test]
+    fn imap_message_id_is_folder_scoped_for_uid_collisions() {
+        let inbox = imap_message_id("lawyer@example.com", "INBOX", 123, 42);
+        let sent = imap_message_id("lawyer@example.com", "Sent", 123, 42);
+
+        assert_ne!(inbox, sent, "same UID in different folders must not collapse");
+        assert!(
+            inbox.contains("494e424f58"),
+            "folder id must be encoded into the stable id"
+        );
+        assert!(
+            sent.contains("53656e74"),
+            "folder id must be encoded into the stable id"
+        );
     }
 
     #[test]
