@@ -37,9 +37,11 @@ pub mod store;
 pub mod transcript;
 
 use serde::{Deserialize, Serialize};
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex;
 
@@ -178,6 +180,13 @@ pub enum IndexingStatus {
 /// Tauri event name. Mirrored in `src/utils/tauri-commands.ts`.
 pub const PROGRESS_EVENT: &str = "rag-indexing-progress";
 
+/// BUG-099 hardening: a single pathological file must not hold the whole
+/// workspace walk forever. Five minutes is intentionally generous for normal
+/// text/office sources under the existing size caps (5 MiB text, 50 MiB office)
+/// while still giving the Windows bench a clear skip instead of an infinite
+/// "20/21 files" stall.
+const WORKSPACE_FILE_INDEX_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+
 /// Shared state managed by Tauri. Holds:
 ///   - the currently-active workspace root (so `rag_index_workspace` and
 ///     incremental file-change handlers know where to walk),
@@ -226,6 +235,61 @@ impl Drop for IndexingGuard {
     fn drop(&mut self) {
         self.0.store(false, Ordering::SeqCst);
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum FileIndexOutcome {
+    Indexed,
+    Failed(String),
+    TimedOut,
+}
+
+/// Run one file's extract+embed job behind a timeout. The job is spawned before
+/// waiting so a file that blocks inside synchronous extraction cannot block the
+/// outer walk's clock or the final index-version marker write.
+async fn run_file_index_task<F>(file: PathBuf, timeout: Duration, fut: F) -> FileIndexOutcome
+where
+    F: Future<Output = anyhow::Result<()>> + Send + 'static,
+{
+    let started = Instant::now();
+    log::info!(
+        "rag_index_workspace: START extract+embed {}",
+        file.display()
+    );
+
+    let mut handle = tokio::spawn(fut);
+    let outcome = match tokio::time::timeout(timeout, &mut handle).await {
+        Ok(Ok(Ok(()))) => FileIndexOutcome::Indexed,
+        Ok(Ok(Err(e))) => FileIndexOutcome::Failed(format!("{e:#}")),
+        Ok(Err(e)) => FileIndexOutcome::Failed(format!("index task join failed: {e}")),
+        Err(_) => {
+            handle.abort();
+            FileIndexOutcome::TimedOut
+        }
+    };
+
+    let elapsed = started.elapsed();
+    match &outcome {
+        FileIndexOutcome::Indexed => log::info!(
+            "rag_index_workspace: FINISH extract+embed {} in {} ms",
+            file.display(),
+            elapsed.as_millis()
+        ),
+        FileIndexOutcome::Failed(e) => log::warn!(
+            "rag_index_workspace: SKIP failed file {} after {} ms: {}",
+            file.display(),
+            elapsed.as_millis(),
+            e
+        ),
+        FileIndexOutcome::TimedOut => log::warn!(
+            "rag_index_workspace: SKIP timed-out file {} after {} ms (limit {} ms)",
+            file.display(),
+            elapsed.as_millis(),
+            timeout.as_millis()
+        ),
+    }
+
+    outcome
 }
 
 /// Helper: load the active workspace root, returning a friendly error if
@@ -765,7 +829,7 @@ pub async fn rag_index_workspace(
     // in which case indexing proceeds on plaintext files unchanged. The VMK is
     // held for the duration of the walk and zeroized on drop (ZeroizedVmk).
     let vault_vmk_holder = crate::commands::vault::try_load_vault_vmk(&workspace);
-    let vault_vmk: Option<&[u8; 32]> = vault_vmk_holder.as_ref().map(|v| v.as_bytes());
+    let vault_vmk: Option<[u8; 32]> = vault_vmk_holder.as_ref().map(|v| *v.as_bytes());
 
     // Phase 1: walk the tree.
     let files: Vec<PathBuf> = walkdir::WalkDir::new(&workspace)
@@ -793,6 +857,10 @@ pub async fn rag_index_workspace(
     );
 
     // Phase 2: index, emitting progress per file.
+    let walk_started = Instant::now();
+    let mut skipped_files: u32 = 0;
+    let mut failed_files: u32 = 0;
+    let mut timed_out_files: u32 = 0;
     for (i, file) in files.iter().enumerate() {
         if cancel.load(Ordering::SeqCst) {
             let _ = app.emit(
@@ -820,24 +888,45 @@ pub async fn rag_index_workspace(
         // privileged), applied via the privilege store + `rag_retag_privilege`
         // after indexing — mirroring how per-file matter assignment re-tags on top
         // of the unassigned full walk.
-        if let Err(e) = index_one_file(
-            &table,
-            file,
-            &matter,
-            store::PRIVILEGE_NONE,
-            &key,
-            Some(cancel.as_ref()),
-            vault_vmk,
-        )
-        .await
-        {
-            // Don't abort the whole walk on a single bad file — log and move on.
-            log::warn!(
-                "rag_index_workspace: failed to index {}: {}",
-                file.display(),
-                e
-            );
+        let table_for_task = table.clone();
+        let file_for_task = file.clone();
+        let matter_for_task = matter.clone();
+        let key_for_task = key;
+        let cancel_for_task = cancel.clone();
+        let vault_vmk_for_task = vault_vmk;
+        let outcome = run_file_index_task(file.clone(), WORKSPACE_FILE_INDEX_TIMEOUT, async move {
+            index_one_file(
+                &table_for_task,
+                &file_for_task,
+                &matter_for_task,
+                store::PRIVILEGE_NONE,
+                &key_for_task,
+                Some(cancel_for_task.as_ref()),
+                vault_vmk_for_task.as_ref(),
+            )
+            .await
+        })
+        .await;
+        match outcome {
+            FileIndexOutcome::Indexed => {}
+            FileIndexOutcome::Failed(_) => {
+                skipped_files += 1;
+                failed_files += 1;
+            }
+            FileIndexOutcome::TimedOut => {
+                skipped_files += 1;
+                timed_out_files += 1;
+            }
         }
+        let _ = app.emit(
+            PROGRESS_EVENT,
+            IndexingProgress {
+                status: IndexingStatus::Indexing,
+                processed: i as u32 + 1,
+                total,
+                current_path: Some(file.to_string_lossy().to_string()),
+            },
+        );
     }
 
     // WS-B/C: stamp the index version so the one-time migration does not re-run.
@@ -854,6 +943,14 @@ pub async fn rag_index_workspace(
             total,
             current_path: None,
         },
+    );
+    log::info!(
+        "rag_index_workspace: DONE {} files in {} ms (skipped={}, failed={}, timed_out={})",
+        total,
+        walk_started.elapsed().as_millis(),
+        skipped_files,
+        failed_files,
+        timed_out_files
     );
     Ok(())
 }
@@ -1918,6 +2015,70 @@ mod tests {
         assert!(s.contains("\"processed\":12"));
         assert!(s.contains("\"total\":100"));
         assert!(s.contains("\"status\":\"Indexing\"") || s.contains("\"status\":\"indexing\""));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn workspace_walk_guard_skips_bad_files_and_still_allows_completion_marker() {
+        use std::pin::Pin;
+
+        let dir = tempfile::tempdir().expect("tempdir must succeed");
+        let files = [
+            dir.path().join("01-good.md"),
+            dir.path().join("02-bad.md"),
+            dir.path().join("03-slow.md"),
+            dir.path().join("04-after.md"),
+        ];
+        for file in &files {
+            std::fs::write(file, "fixture").expect("write fixture file");
+        }
+
+        let mut processed = 0u32;
+        let mut skipped = 0u32;
+        let mut failed = 0u32;
+        let mut timed_out = 0u32;
+
+        for file in files {
+            let name = file
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default()
+                .to_string();
+            let fut: Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> =
+                if name.contains("bad") {
+                    Box::pin(async { anyhow::bail!("forced extraction failure") })
+                } else if name.contains("slow") {
+                    Box::pin(async {
+                        tokio::time::sleep(Duration::from_secs(60)).await;
+                        Ok(())
+                    })
+                } else {
+                    Box::pin(async { Ok(()) })
+                };
+
+            match run_file_index_task(file, Duration::from_millis(25), fut).await {
+                FileIndexOutcome::Indexed => {}
+                FileIndexOutcome::Failed(_) => {
+                    skipped += 1;
+                    failed += 1;
+                }
+                FileIndexOutcome::TimedOut => {
+                    skipped += 1;
+                    timed_out += 1;
+                }
+            }
+            processed += 1;
+        }
+
+        // This is the critical BUG-099 contract: even after one failed file and
+        // one timed-out file, the walk can finish and stamp completion so the
+        // next launch does not drop/rebuild the index forever.
+        store::write_index_version(dir.path()).expect("write completion marker");
+
+        assert_eq!(processed, 4);
+        assert_eq!(skipped, 2);
+        assert_eq!(failed, 1);
+        assert_eq!(timed_out, 1);
+        assert_eq!(store::read_index_version(dir.path()), store::INDEX_VERSION);
     }
 
     // -----------------------------------------------------------------------

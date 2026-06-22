@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **BUG-099 hardening: one bad local RAG file can no longer block the whole workspace index walk.** The Rust workspace indexer now logs each file as extract+embed starts and finishes, runs each file behind a five-minute guard, skips failed or timed-out files with warning logs and skip counts, continues to the remaining files, and still writes the index-version completion marker at the end of the walk. This is defensive Linux-verified hardening only; the real Windows stall still needs bench confirmation.
+  - Files modified: `src-tauri/src/commands/rag/mod.rs`
+  - Tests: `cargo test rag`
 - **BUG-098 (Windows): cited answers no longer render "Not cited from your files."** On Windows the RAG store could hold the same document under two path-separator spellings (`C:/root\file` vs `C:\root\file`), so the citation resolver treated one file as an ambiguous cross-folder collision and dropped EVERY citation — the headline "every answer cites its source" promise was broken for all grounded answers. `resolveCitationTarget` now separator-normalizes paths when checking for collisions, so a same-file duplicate resolves while a genuine cross-folder basename collision still fails closed. Live-verified on real Windows: an in-corpus question now returns a green citation chip, the "Answered over your own files" banner, and a "Source found" panel. (A deeper store-side path-canonicalization + forced re-index was attempted as the Rust layer but reverted: the forced rebuild exposed a separate pre-existing indexing hang that ran the rebuild out of memory. The TS resolver fully restores cited answers on its own; the store-side dedup is deferred until the indexing hang is fixed.)
   - Files modified: `src/platform/rag/workspaceCommand.ts`
   - Tests: `tests/unit/rag/citation-grounding-strict.test.ts`
