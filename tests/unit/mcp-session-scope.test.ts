@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   MCP_SESSION_SCOPE_REL_PATH,
+  buildMcpSessionScopeFile,
   buildDenyAllMcpSessionScopeFile,
   writeDenyAllMcpSessionScopeFile,
   writeMcpSessionScopeFile,
@@ -40,6 +41,18 @@ const matterA: Matter = {
   updatedAt: '2026-06-22T00:00:00.000Z',
 };
 
+const matterB: Matter = {
+  id: 'matter-b',
+  name: 'Matter B',
+  client: 'Client B',
+  folderPaths: ['/workspace/Matter B'],
+  privileged: false,
+  archived: false,
+  mcpAccessGranted: true,
+  createdAt: '2026-06-22T00:00:00.000Z',
+  updatedAt: '2026-06-22T00:00:00.000Z',
+};
+
 describe('MCP session scope file', () => {
   it('writes the live scope by temp file then final rename', async () => {
     const { service, files, raw } = createMockWorkspaceService();
@@ -66,6 +79,64 @@ describe('MCP session scope file', () => {
     expect(payload.activeMatterId).toBe('matter-a');
     expect(payload.networkLockdown).toBe(false);
     expect(payload.matters).toHaveLength(1);
+  });
+
+  it('writes only explicitly granted matters, not the active matter', async () => {
+    const { service, files } = createMockWorkspaceService();
+
+    await writeMcpSessionScopeFile({
+      service,
+      workspaceRoot: '/workspace',
+      activeMatterId: 'matter-a',
+      matters: [matterA, matterB],
+      networkLockdown: false,
+    });
+
+    const finalPath = `/workspace/${MCP_SESSION_SCOPE_REL_PATH}`;
+    const payload = JSON.parse(files.get(finalPath) ?? '{}') as {
+      activeMatterId?: string;
+      grantedMatterIds?: string[];
+    };
+
+    expect(payload.activeMatterId).toBe('matter-a');
+    expect(payload.grantedMatterIds).toEqual(['matter-b']);
+  });
+
+  it('keeps the granted scope stable when the active matter changes', () => {
+    const activeA = buildMcpSessionScopeFile({
+      activeMatterId: 'matter-a',
+      matters: [matterA, matterB],
+      networkLockdown: false,
+    });
+    const activeB = buildMcpSessionScopeFile({
+      activeMatterId: 'matter-b',
+      matters: [matterA, matterB],
+      networkLockdown: false,
+    });
+
+    expect(activeA.activeMatterId).toBe('matter-a');
+    expect(activeB.activeMatterId).toBe('matter-b');
+    expect(activeA.grantedMatterIds).toEqual(['matter-b']);
+    expect(activeB.grantedMatterIds).toEqual(['matter-b']);
+  });
+
+  it('writes an empty grant list when no matter is explicitly granted', async () => {
+    const { service, files } = createMockWorkspaceService();
+
+    await writeMcpSessionScopeFile({
+      service,
+      workspaceRoot: '/workspace',
+      activeMatterId: 'matter-a',
+      matters: [matterA],
+      networkLockdown: false,
+    });
+
+    const finalPath = `/workspace/${MCP_SESSION_SCOPE_REL_PATH}`;
+    const payload = JSON.parse(files.get(finalPath) ?? '{}') as {
+      grantedMatterIds?: string[];
+    };
+
+    expect(payload.grantedMatterIds).toEqual([]);
   });
 
   it('writes a deny-all scope for cleanup', async () => {

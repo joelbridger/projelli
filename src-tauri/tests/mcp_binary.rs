@@ -290,6 +290,52 @@ fn read_workspace_file_denies_cross_matter_path() {
 }
 
 #[test]
+fn read_workspace_file_denies_active_matter_without_explicit_grant() {
+    let tmp = tempfile::Builder::new()
+        .prefix("keepance-mcp-active-not-granted-")
+        .tempdir()
+        .expect("tmpdir");
+    write_scope_state(tmp.path(), "matter-a", &[], false);
+    std::fs::write(
+        tmp.path().join("Matter A").join("active.md"),
+        "active client secret",
+    )
+    .unwrap();
+    let mut child = Command::new(binary_path())
+        .env("KEEPANCE_WORKSPACE_ROOT", tmp.path())
+        .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn keepance-mcp");
+
+    let resp = exchange(
+        &mut child,
+        r#"{"jsonrpc":"2.0","id":311,"method":"tools/call","params":{"name":"read_workspace_file","arguments":{"path":"Matter A/active.md"}}}"#,
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&resp).expect("valid JSON");
+    assert_eq!(parsed["id"], 311);
+    assert_eq!(parsed["result"]["isError"], true, "got: {parsed:?}");
+    let text = parsed["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("outside the granted matter"), "got: {text}");
+    assert!(!text.contains("active client secret"), "got: {text}");
+
+    let actions = audit_actions(tmp.path());
+    assert!(
+        actions.iter().any(|(a, payload)| {
+            a == "mcp_read"
+                && payload["metadata"]["result"] == "denied"
+                && payload["metadata"]["matterId"] == "matter-a"
+        }),
+        "missing denied active-matter read audit entry: {actions:?}"
+    );
+
+    let _ = child.kill();
+    std::thread::sleep(Duration::from_millis(50));
+}
+
+#[test]
 fn read_workspace_file_allows_in_scope_path() {
     let (mut child, tmp) = spawn_scoped_workspace(false);
     std::fs::write(

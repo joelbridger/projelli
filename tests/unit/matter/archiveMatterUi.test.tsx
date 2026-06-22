@@ -14,6 +14,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { useMatterStore } from '@/platform/matter/matterStore';
 
+const auditMocks = vi.hoisted(() => ({
+  append: vi.fn(),
+}));
+
 // ── Mail commands (async probes used by GetStartedCard) ────────────────────────
 vi.mock('@/platform/utils/mail-commands', () => ({
   mailIsConnected: async () => false,
@@ -64,7 +68,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 // ── AuditService ───────────────────────────────────────────────────────────────
 vi.mock('@/platform/audit/AuditService', () => ({
-  AuditService: class { append() { /* noop */ } },
+  AuditService: class { append = auditMocks.append; },
   isAuditEncrypted: () => false,
 }));
 
@@ -90,6 +94,7 @@ import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 
 function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null });
+  auditMocks.append.mockClear();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -234,5 +239,39 @@ describe('MatterManagerDialog — archive: clicking Restore restores the matter'
 
     // Archived section should be gone (no archived matters left)
     expect(screen.queryByTestId('archived-matters-section')).not.toBeInTheDocument();
+  });
+});
+
+describe('MatterManagerDialog — external AI tool access grant', () => {
+  beforeEach(resetStore);
+
+  it('shows default-off per-matter MCP access and audits grant/revoke toggles', () => {
+    useMatterStore.getState().createMatter({ name: 'Acme', client: 'Client' });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+
+    const grantToggle = screen.getByTestId(`matter-mcp-access-${matter.id}`);
+    expect(grantToggle).toHaveAttribute('data-checked', 'false');
+    expect(screen.queryByTestId(`matter-mcp-access-badge-${matter.id}`)).not.toBeInTheDocument();
+
+    const input = screen.getByLabelText(
+      'Allow external AI tools (MCP) to access this matter',
+    ) as HTMLInputElement;
+    fireEvent.click(input);
+
+    expect(useMatterStore.getState().matters[0]!.mcpAccessGranted).toBe(true);
+    expect(screen.getByTestId(`matter-mcp-access-badge-${matter.id}`)).toBeInTheDocument();
+    expect(auditMocks.append).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: 'mcp_matter_access_granted' }),
+    );
+
+    fireEvent.click(input);
+
+    expect(useMatterStore.getState().matters[0]!.mcpAccessGranted).toBe(false);
+    expect(screen.queryByTestId(`matter-mcp-access-badge-${matter.id}`)).not.toBeInTheDocument();
+    expect(auditMocks.append).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: 'mcp_matter_access_revoked' }),
+    );
   });
 });

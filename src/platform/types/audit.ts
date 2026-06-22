@@ -39,6 +39,8 @@ export type AuditActionType =
   | 'mcp_write_requested'
   | 'mcp_write_approved'
   | 'mcp_write_denied'
+  | 'mcp_matter_access_granted'
+  | 'mcp_matter_access_revoked'
   // Firm Phase 1 (Task 3) — matter sharing and member management.
   | 'matter_shared'
   | 'matter_unshared'
@@ -136,6 +138,16 @@ export type AuditEvent =
    * nothing was exfiltrated or modified by a network-capable MCP server.
    */
   | { type: 'mcp_blocked'; timestamp: string; payload: { path: string; reason: string } }
+  | {
+      type: 'mcp_matter_access_granted';
+      timestamp: string;
+      payload: { matterId: string; matterName?: string; detail?: string };
+    }
+  | {
+      type: 'mcp_matter_access_revoked';
+      timestamp: string;
+      payload: { matterId: string; matterName?: string; detail?: string };
+    }
   // ───────────────────────────────────────────────────────────────────────
   // Firm Phase 1 (Task 3) — matter sharing and member governance events.
   //

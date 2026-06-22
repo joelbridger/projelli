@@ -27,6 +27,7 @@ const ROOT = '/home/lawyer/Keepance';
 
 function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null });
+  localStorage.removeItem('audit_log_default');
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +163,32 @@ describe('useMatterStore CRUD', () => {
     expect(m.id).toMatch(/^matter_/);
     expect(useMatterStore.getState().matters).toHaveLength(1);
     expect(m.folderPaths).toEqual([`${ROOT}/Acme`]); // trailing slash stripped, empty dropped
+  });
+
+  it('defaults external AI tool access to off', () => {
+    const m = useMatterStore.getState().createMatter({ name: 'Acme', client: 'Acme Corp' });
+    expect(m.mcpAccessGranted).toBe(false);
+    expect(useMatterStore.getState().matters[0]!.mcpAccessGranted).toBe(false);
+  });
+
+  it('audits external AI tool grants and revocations', () => {
+    const m = useMatterStore.getState().createMatter({ name: 'Acme', client: 'Acme Corp' });
+
+    useMatterStore.getState().setMatterMcpAccess(m.id, true);
+    useMatterStore.getState().setMatterMcpAccess(m.id, false);
+
+    const audit = JSON.parse(localStorage.getItem('audit_log_default') ?? '[]') as Array<{
+      action: string;
+      metadata: Record<string, unknown>;
+    }>;
+
+    expect(useMatterStore.getState().matters[0]!.mcpAccessGranted).toBe(false);
+    expect(audit.map((entry) => entry.action)).toEqual([
+      'mcp_matter_access_granted',
+      'mcp_matter_access_revoked',
+    ]);
+    expect(audit[0]!.metadata.matterId).toBe(m.id);
+    expect(audit[1]!.metadata.matterId).toBe(m.id);
   });
 
   it('renames name and client independently', () => {

@@ -248,9 +248,9 @@ function App() {
   // BUG-038/039/083: the external MCP sidecar cannot read React state or
   // browser localStorage, so the desktop app writes a tiny scope file inside the
   // workspace. The sidecar reads it on EVERY request and fails closed when it is
-  // missing or invalid. No explicit MCP grant UI exists yet, so only the active
-  // matter is exposed; "all matters" in the app does not become all-workspace
-  // access for an outside AI client.
+  // missing or invalid. External MCP clients see only the matters the user has
+  // explicitly granted in matter management; the active matter is written for
+  // UI context only and never counts as permission.
   useEffect(() => {
     const service = workspaceServiceRef.current;
     if (!service || !rootPath) return;

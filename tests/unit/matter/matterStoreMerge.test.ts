@@ -6,7 +6,7 @@
  * `persist` writes ONE localStorage key per store, but we MUST keep the three
  * distinct legacy keys byte-compatible so existing users' data hydrates and is
  * written back unchanged:
- *   - keepance:matters             { matters, activeMatterId }   (v4 + migrate)
+ *   - keepance:matters             { matters, activeMatterId }   (v5 + migrate)
  *   - keepance:matter-ui-snapshots { snapshots }                 (v0)
  *   - keepance:matter-at-a-glance  { cache }                     (v0)
  * The sync slice (statusByMatterId) is ephemeral and is NEVER persisted.
@@ -60,12 +60,24 @@ beforeEach(async () => {
 });
 
 describe('matter-store merge — hydration from each legacy key', () => {
-  it('hydrates matters + activeMatterId from keepance:matters (v4, no migration)', async () => {
+  it('hydrates matters + activeMatterId from keepance:matters (v5, no migration)', async () => {
+    const sampleMatterV5 = { ...sampleMatterV4, mcpAccessGranted: false };
+    seed(MATTERS_KEY, { state: { matters: [sampleMatterV5], activeMatterId: 'm1' }, version: 5 });
+    await useMatterStore.persist.rehydrate();
+    const s = useMatterStore.getState();
+    expect(s.matters).toHaveLength(1);
+    expect(s.matters[0]!.id).toBe('m1');
+    expect(s.matters[0]!.mcpAccessGranted).toBe(false);
+    expect(s.activeMatterId).toBe('m1');
+  });
+
+  it('migrates a v4 matters fixture (backfills external AI tool access off)', async () => {
     seed(MATTERS_KEY, { state: { matters: [sampleMatterV4], activeMatterId: 'm1' }, version: 4 });
     await useMatterStore.persist.rehydrate();
     const s = useMatterStore.getState();
     expect(s.matters).toHaveLength(1);
     expect(s.matters[0]!.id).toBe('m1');
+    expect(s.matters[0]!.mcpAccessGranted).toBe(false);
     expect(s.activeMatterId).toBe('m1');
   });
 
@@ -136,7 +148,7 @@ describe('matter-store merge — writes preserve all three legacy keys', () => {
     expect((matters!.state!.matters as unknown[]).length).toBe(1);
     expect(matters!.state).not.toHaveProperty('snapshots');
     expect(matters!.state).not.toHaveProperty('cache');
-    expect(matters!.version).toBe(4);
+    expect(matters!.version).toBe(5);
 
     expect((ui!.state!.snapshots as Record<string, unknown>)[m.id]).toEqual({ surface: 'workflows', activeTabPath: null });
     expect(ui!.state).not.toHaveProperty('matters');

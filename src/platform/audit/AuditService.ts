@@ -67,6 +67,8 @@ const CRITICAL_ACTIONS = new Set<AuditActionType>([
   'mcp_write_requested',
   'mcp_write_approved',
   'mcp_write_denied',
+  'mcp_matter_access_granted',
+  'mcp_matter_access_revoked',
   'matter_shared',
   'matter_unshared',
   'member_invited',
@@ -617,6 +619,10 @@ function describeAuditEvent(event: AuditEvent): string {
     }
     case 'mcp_blocked':
       return `External AI write blocked by Privileged Matter Mode: ${event.payload.path}`;
+    case 'mcp_matter_access_granted':
+      return `External AI access granted to matter: ${event.payload.matterName ?? event.payload.matterId}`;
+    case 'mcp_matter_access_revoked':
+      return `External AI access revoked from matter: ${event.payload.matterName ?? event.payload.matterId}`;
     case 'matter_shared':
       return `Matter shared with firm${event.payload.detail ? `: ${event.payload.detail}` : ''}`;
     case 'matter_unshared':
