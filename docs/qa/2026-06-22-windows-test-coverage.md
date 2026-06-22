@@ -80,3 +80,10 @@ Everything cleanly observable via the in-app CDP bridge has been driven live (ab
 - **BUG-021/023 (mode-reactive egress)** ✅ — switching confidentiality mode to Local-only flipped the indicator to "On your machine / Nothing leaves your machine / local model"; that claim appears ONLY in Local-only (absent in cloud/Direct).
 - **BUG-013 (durable email filing)** ✅ — filed an email to a matter, navigated away, reopened → still "Filed to Roberto Garcia…".
 - Email keyword search ✅ (50 → 11 matches). Investigated + RULED OUT a suspected "workflow missing from Confidentiality Report" gap — the workflow had only emitted Workflow Started (stopped at the input step, made no AI call), so the report's count was correct.
+
+## Hunt update #6 (2026-06-22) — full workflow run
+Ran the Evidence Gap Analyzer workflow to completion (filled its 4-field interview):
+- **BUG-080 full chain** ✅ — the COMPLETE workflow audit chain fired live: Workflow Started → AI Request Sent (egress) → Model Call → File Created → Workflow Completed (all gpt-4o). (Previously only Workflow Started was confirmed; this exercises the whole chain.)
+- **BUG-094 for workflow egress** ✅ — every workflow event recorded the real model gpt-4o (not "unknown").
+- **Confidentiality Report accuracy** ✅ — now shows 3 calls: the workflow egress (gpt-4o) + the new redline (gpt-4o-mini) both with real models; only the single pre-fix historical entry stays "unknown" (append-only, correct). The workflow egress correctly appears in the matter report (definitively ruling out the earlier BUG-095 hypothesis — it appears when the workflow actually egresses).
+- Workflow completed + created a file (EVIDENCE_GAP_ANALYSIS) — end-to-end success.
