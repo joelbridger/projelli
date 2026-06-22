@@ -1,7 +1,7 @@
 import type { ConfidentialityMode } from './egress';
 
 /** Settings key recording that a personal user made an explicit confidentiality choice. */
-export const CONFIDENTIALITY_CHOICE_MADE_KEY = 'confidentialityChoiceMade';
+export const CONFIDENTIALITY_CHOICE_MADE_KEY = 'confidentialityChoiceMade' as const;
 
 export interface EgressResolutionInput {
   isFirm: boolean;

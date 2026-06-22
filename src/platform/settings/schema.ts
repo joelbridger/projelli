@@ -285,6 +285,20 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
 
   // ── AI & Privacy: AI ──────────────────────────────────────────────────
   {
+    // Internal marker — not shown in the Settings UI. Set to true the first
+    // time the user picks a confidentiality mode from the informed-choice
+    // screen (or from ConfidentialityModeSettings via useRecordConfidentialityChoice).
+    // resolveEffectiveEgress reads this to decide whether a personal install
+    // has made an explicit, informed choice and cloud generation is allowed.
+    // Must be in the schema so sanitizeSettingValue accepts the boolean value.
+    key: 'confidentialityChoiceMade',
+    category: 'ai-privacy',
+    label: 'Confidentiality choice made',
+    description: 'Internal flag: set when the user has explicitly chosen a confidentiality mode.',
+    type: 'toggle',
+    defaultValue: false,
+  },
+  {
     key: 'confidentialityMode',
     category: 'ai-privacy',
     label: 'Confidentiality mode',

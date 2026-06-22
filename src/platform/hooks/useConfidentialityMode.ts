@@ -15,6 +15,7 @@ import {
   DEFAULT_CONFIDENTIALITY_MODE,
   CONFIDENTIALITY_MODES,
 } from '@/platform/privacy/egress';
+import { CONFIDENTIALITY_CHOICE_MADE_KEY } from '@/platform/privacy/resolvePersonalEgressDefault';
 
 const SAFE_CONFIDENTIALITY_MODE: ConfidentialityMode = 'local-only';
 
@@ -39,6 +40,30 @@ export function useSetConfidentialityMode(): (mode: ConfidentialityMode) => void
   const setSetting = useSettingsStore((s) => s.setSetting);
   return (mode: ConfidentialityMode) => {
     setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, mode);
+  };
+}
+
+/**
+ * Records an explicit, informed confidentiality choice made by the user.
+ *
+ * Writes TWO values atomically via the settings store:
+ *   1. The chosen mode under `CONFIDENTIALITY_MODE_SETTING_KEY`.
+ *   2. `true` under `CONFIDENTIALITY_CHOICE_MADE_KEY`.
+ *
+ * The second write is what unlocks cloud generation on personal installs:
+ * `resolveEffectiveEgress` checks `choiceMade` (read from the store via the
+ * same key) before it allows any cloud provider to run. A mode stored without
+ * this marker is treated as an unchoiced default, not an informed decision.
+ *
+ * Firm installs are not affected — they bypass the choice gate entirely in
+ * `resolveEffectiveEgress` — but calling this setter for a firm user is
+ * harmless (the marker is simply stored and ignored).
+ */
+export function useRecordConfidentialityChoice(): (mode: ConfidentialityMode) => void {
+  const setSetting = useSettingsStore((s) => s.setSetting);
+  return (mode: ConfidentialityMode) => {
+    setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, mode);
+    setSetting(CONFIDENTIALITY_CHOICE_MADE_KEY, true);
   };
 }
 

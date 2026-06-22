@@ -29,4 +29,11 @@ describe('resolveEffectiveEgress (personal installs)', () => {
     expect(r.effectiveMode).toBe('assured');
     expect(r.needsChoice).toBe(false);
   });
+
+  it('firm installs default to direct when no mode is stored', () => {
+    const r = resolveEffectiveEgress({ isFirm: true, storedMode: undefined, choiceMade: false });
+    expect(r.effectiveMode).toBe('direct');
+    expect(r.allowCloudGeneration).toBe(true);
+    expect(r.needsChoice).toBe(false);
+  });
 });

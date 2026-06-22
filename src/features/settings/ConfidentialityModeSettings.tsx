@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import {
   useConfidentialityMode,
-  useSetConfidentialityMode,
+  useRecordConfidentialityChoice,
 } from '@/platform/hooks/useConfidentialityMode';
 import { modeNeedsManagedKey, type ConfidentialityMode } from '@/platform/privacy/egress';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
@@ -85,7 +85,7 @@ const ASSURED_CARD: ModeCard = {
 
 export function ConfidentialityModeSettings() {
   const active = useConfidentialityMode();
-  const setMode = useSetConfidentialityMode();
+  const setMode = useRecordConfidentialityChoice();
   const [dataMapOpen, setDataMapOpen] = useState(false);
   const privileged = usePrivilegedMatterMode();
   const setPrivileged = useSetPrivilegedMatterMode();
