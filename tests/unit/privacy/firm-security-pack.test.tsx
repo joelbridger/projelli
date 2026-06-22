@@ -138,20 +138,18 @@ describe('FirmSecurityPack — no em dash', () => {
 // ---------------------------------------------------------------------------
 
 describe('FirmSecurityPack — honest assurance status', () => {
-  it('does not claim "SOC 2 certified"', () => {
+  it('does not claim "SOC 2 certified" without negation — every occurrence', () => {
     const text = renderAndGetText().toLowerCase();
-    // The phrase "soc 2 certified" implies we hold a certification we do not
-    // have. The component must NOT include it without negation context.
-    // We check that the substring "soc 2 certified" only appears with "not"
-    // before it (i.e. "not soc 2 certified").
-    const certIdx = text.indexOf('soc 2 certified');
-    if (certIdx !== -1) {
-      // Extract context: the 10 chars before the phrase.
-      const before = text.slice(Math.max(0, certIdx - 10), certIdx);
+    // Check EVERY occurrence of "soc 2 certified" — not just the first one.
+    // Each instance must be preceded by "not" within the 10 chars before it,
+    // so a future edit that adds an unqualified "SOC 2 certified" anywhere fails.
+    const matches = [...text.matchAll(/soc 2 certified/g)];
+    for (const match of matches) {
+      const idx = match.index ?? 0;
+      const before = text.slice(Math.max(0, idx - 10), idx);
       expect(before).toContain('not');
     }
-    // Passes trivially if "soc 2 certified" does not appear at all,
-    // but we also assert the SOC 2 section IS present.
+    // Also assert the SOC 2 section IS present so the test cannot pass by omission.
     expect(text).toContain('soc 2');
   });
 
@@ -174,6 +172,22 @@ describe('FirmSecurityPack — honest assurance status', () => {
   it('states DPA is available on request', () => {
     const text = renderAndGetText().toLowerCase();
     expect(text).toContain('available on request');
+  });
+
+  it('discloses that the Assured proxy is not yet generally available', () => {
+    // The security pack must NOT represent the Assured zero-retention proxy as
+    // a live, independently audited, generally available production service.
+    // It must include a plain disclosure to that effect so a GC reviewer is
+    // not misled. We assert the key truthful phrases from the DPA Section 6.4
+    // status note are present in the rendered output.
+    const text = renderAndGetText().toLowerCase();
+    // Must say "not yet" in relation to general availability or independent audit.
+    expect(text).toContain('not yet');
+    // Must mention that the independent audit is not yet complete.
+    expect(text).toContain('independent audit');
+    // Must indicate the proxy is not yet generally available or not yet a
+    // production service.
+    expect(text).toMatch(/not yet.*generally available|generally available.*not yet|not yet.*production/);
   });
 });
 

@@ -52,6 +52,7 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
   return (
     <div
       style={{
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         height: '100%',

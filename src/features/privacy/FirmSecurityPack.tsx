@@ -119,6 +119,14 @@ const SECTIONS: Section[] = [
           <span style={{ color: '#555' }}>
             (data passes through firm&apos;s zero-retention proxy under a DPA)
           </span>
+          <span style={{ display: 'block', marginTop: '0.35rem', color: '#b45309', fontStyle: 'italic' }}>
+            Note: the Assured zero-retention proxy is the firm-tier architecture
+            we have designed and de-risked. Its independent audit is planned and
+            not yet complete, and it is not yet represented as a generally available
+            production service. We encourage you to inspect the design directly
+            rather than rely on an asserted guarantee. The DPA template describes
+            this honestly in Section 6.4.
+          </span>
         </div>
       </div>
     ),
@@ -171,7 +179,11 @@ const SECTIONS: Section[] = [
           request. A template is on file (see{' '}
           <code>docs/legal/DPA-template.md</code>) and requires review by qualified
           counsel before execution. It accurately describes the local-first
-          architecture and covers all three operating modes.
+          architecture and covers all three operating modes. The Assured proxy
+          described in the DPA is in development and not yet generally available;
+          the contractual terms for that path should be aligned with what the
+          deployed service and its independent audit can actually support before
+          execution.
         </p>
         <p style={{ marginTop: '0.5rem' }}>
           <strong>Firm installation:</strong> Keepance runs as a desktop application
@@ -295,7 +307,7 @@ export function FirmSecurityPackContent() {
         This is a plain-English summary of how Keepance handles a lawyer&apos;s
         data, written so your security and ethics reviewers can evaluate it
         quickly. Every claim here matches how the software actually works. If
-        something is not finished yet, we say so.
+        something isn&apos;t finished yet, I say so.
       </p>
 
       <div className="space-y-0" data-testid="firm-security-pack-sections">
