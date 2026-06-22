@@ -176,7 +176,7 @@ describe('GuidedOnboarding', () => {
   });
 
   // 3. Profession selection — advance through each real step embedding check
-  it('AI key step embeds the AiSetupStep stub', async () => {
+  it('AI key step embeds the AiSetupStep stub (after choosing Cloud on the choice screen)', async () => {
     render(<GuidedOnboarding {...defaultProps} />);
     // 0 -> 1 (welcome -> profession)
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
@@ -185,8 +185,10 @@ describe('GuidedOnboarding', () => {
     fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     // 2 -> 3 (workspace -> trust)
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
-    // 3 -> 4 (trust -> AI key)
+    // 3 -> 4 (trust -> AI key: confidentiality choice screen)
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
+    // On the choice screen, pick Cloud to reach the existing AiSetupStep sub-flow.
+    fireEvent.click(screen.getByTestId('confidentiality-choice-cloud'));
 
     expect(screen.getByTestId('ai-setup-step-stub')).toBeInTheDocument();
     expect(screen.getByTestId('onboarding-step-ai-key')).toBeInTheDocument();
@@ -212,7 +214,8 @@ describe('GuidedOnboarding', () => {
     fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
-    fireEvent.click(screen.getByTestId('stub-skip-ai'));
+    // "Decide later" advances past the AI step without recording a choice.
+    fireEvent.click(screen.getByTestId('confidentiality-choice-later'));
 
     expect(screen.getByTestId('onboarding-step-email')).toBeInTheDocument();
     expect(screen.getByTestId('mail-connect-stub')).toBeInTheDocument();
@@ -227,6 +230,8 @@ describe('GuidedOnboarding', () => {
     fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
+    // On the choice screen, pick Cloud to reach the AiSetupStep sub-flow.
+    fireEvent.click(screen.getByTestId('confidentiality-choice-cloud'));
 
     expect(screen.getByTestId('ai-setup-step-stub')).toBeInTheDocument();
 
@@ -247,7 +252,8 @@ describe('GuidedOnboarding', () => {
     fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
-    fireEvent.click(screen.getByTestId('stub-skip-ai'));
+    // "Decide later" advances without recording a choice.
+    fireEvent.click(screen.getByTestId('confidentiality-choice-later'));
     expect(screen.getByTestId('onboarding-step-email')).toBeInTheDocument();
   });
 
@@ -259,7 +265,7 @@ describe('GuidedOnboarding', () => {
     fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
-    fireEvent.click(screen.getByTestId('stub-skip-ai'));
+    fireEvent.click(screen.getByTestId('confidentiality-choice-later'));
     fireEvent.click(screen.getByTestId('email-connect-later'));
     expect(screen.getByTestId('onboarding-step-firm')).toBeInTheDocument();
   });
@@ -362,7 +368,7 @@ describe('GuidedOnboarding', () => {
     fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
-    fireEvent.click(screen.getByTestId('stub-skip-ai'));
+    fireEvent.click(screen.getByTestId('confidentiality-choice-later'));
     fireEvent.click(screen.getByTestId('email-connect-later'));
 
     expect(screen.getByTestId('firm-signin-content')).toBeInTheDocument();
@@ -405,7 +411,7 @@ describe('GuidedOnboarding', () => {
     fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
-    fireEvent.click(screen.getByTestId('stub-skip-ai'));
+    fireEvent.click(screen.getByTestId('confidentiality-choice-later'));
     fireEvent.click(screen.getByTestId('email-connect-later'));
 
     // Before expanding, FirmSignIn is not shown
@@ -435,13 +441,13 @@ describe('GuidedOnboarding', () => {
     render(<GuidedOnboarding {...defaultProps} onComplete={onComplete} />);
 
     // Navigate to Done step (index 7): welcome -> profession -> workspace ->
-    // trust -> ai-skip -> email-skip -> firm-skip -> done
+    // trust -> ai-choice(decide later) -> email-skip -> firm-skip -> done
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
     fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
-    fireEvent.click(screen.getByTestId('stub-skip-ai'));
+    fireEvent.click(screen.getByTestId('confidentiality-choice-later'));
     fireEvent.click(screen.getByTestId('email-connect-later'));
     fireEvent.click(screen.getByTestId('onboarding-firm-continue'));
 
@@ -463,7 +469,8 @@ describe('GuidedOnboarding', () => {
     fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
-    fireEvent.click(screen.getByTestId('stub-skip-ai'));
+    // "Decide later" skips the AI setup without recording a confidentiality choice.
+    fireEvent.click(screen.getByTestId('confidentiality-choice-later'));
     fireEvent.click(screen.getByTestId('email-connect-later'));
     fireEvent.click(screen.getByTestId('onboarding-firm-continue'));
   }
@@ -496,20 +503,22 @@ describe('GuidedOnboarding', () => {
     fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
-    fireEvent.click(screen.getByTestId('stub-skip-ai'));
+    fireEvent.click(screen.getByTestId('confidentiality-choice-later'));
     fireEvent.click(screen.getByTestId('email-connect-later'));
     fireEvent.click(screen.getByTestId('onboarding-firm-continue'));
 
     expect(screen.getByTestId('onboarding-done-no-ai-note')).toBeInTheDocument();
   });
 
-  it('Done step hides the no-AI note when AI was connected via local model', () => {
+  it('Done step hides the no-AI note when AI was connected via local model (through Cloud sub-flow)', () => {
     render(<GuidedOnboarding {...defaultProps} />);
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
     fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
+    // Pick Cloud to enter the AiSetupStep sub-flow, then use local within it.
+    fireEvent.click(screen.getByTestId('confidentiality-choice-cloud'));
     fireEvent.click(screen.getByTestId('stub-use-local'));
     fireEvent.click(screen.getByTestId('email-connect-later'));
     fireEvent.click(screen.getByTestId('onboarding-firm-continue'));

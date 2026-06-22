@@ -86,7 +86,9 @@ function navigateToFirmStep() {
   fireEvent.click(screen.getByTestId('onboarding-identity-next'));
   fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
   fireEvent.click(screen.getByTestId('onboarding-data-continue'));
-  fireEvent.click(screen.getByTestId('stub-skip-ai'));
+  // Personal install: the confidentiality choice screen shows first. "Decide later"
+  // skips past the AI step without recording a choice.
+  fireEvent.click(screen.getByTestId('confidentiality-choice-later'));
   fireEvent.click(screen.getByTestId('email-connect-later'));
 }
 

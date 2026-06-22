@@ -112,7 +112,8 @@ describe('App — GuidedOnboarding as live first-run surface', () => {
     const first = await renderAppAndOpenOnboarding();
 
     advanceToAiSetup();
-    fireEvent.click(screen.getByTestId('ai-path-later'));
+    // New: the confidentiality choice screen shows first; "Decide later" advances.
+    fireEvent.click(screen.getByTestId('confidentiality-choice-later'));
     await finishFromEmailStep();
 
     await waitFor(() => expect(hasCompletedOnboarding()).toBe(true));
@@ -134,8 +135,9 @@ describe('App — GuidedOnboarding as live first-run surface', () => {
     await renderAppAndOpenOnboarding();
     advanceToAiSetup();
 
-    // Defer: no key entered. The deferred reminder flag is set immediately.
-    fireEvent.click(screen.getByTestId('ai-path-later'));
+    // New: the confidentiality choice screen shows first; "Decide later" advances.
+    // This path calls markAiSetupDeferred() before advancing, so the flag is set.
+    fireEvent.click(screen.getByTestId('confidentiality-choice-later'));
     expect(hasDeferredAiSetup()).toBe(true);
 
     // The flow still finishes (never dead-ends on the key step).
@@ -151,7 +153,9 @@ describe('App — GuidedOnboarding as live first-run surface', () => {
     await renderAppAndOpenOnboarding();
     advanceToAiSetup();
 
-    // Choose the "use your own account" path and paste a well-formed key.
+    // New: pick Cloud on the choice screen to get to the AiSetupStep, then
+    // choose the "use your own account" path and paste a well-formed key.
+    fireEvent.click(screen.getByTestId('confidentiality-choice-cloud'));
     fireEvent.click(screen.getByTestId('ai-path-own-account'));
     const validKey = 'sk-ant-api03-aaaaaaaaaaaaaaaaaaaaaaaa';
     fireEvent.change(screen.getByTestId('ai-setup-key-input'), {

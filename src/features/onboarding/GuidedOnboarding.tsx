@@ -36,6 +36,7 @@ import { FirmAdminConsole } from '@/features/firm/FirmAdminConsole';
 import { FirmSignIn } from '@/features/firm/FirmSignIn';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import { useFirm } from '@/platform/hooks/useFirm';
+import { useRecordConfidentialityChoice } from '@/platform/hooks/useConfidentialityMode';
 
 import { writeSampleFiles, getSamplesForProfession } from '@/platform/matter/samples';
 import { persistProfessionModelDefault, getModelForProfession } from '@/platform/profile/professionModel';
@@ -596,6 +597,18 @@ function TrustStep({ onBack, onNext }: { onBack: () => void; onNext: () => void 
         subtitle="The short version, before we connect an AI account."
       />
 
+      {/* Trust sentence — verbatim per spec */}
+      <p
+        data-testid="onboarding-trust-sentence"
+        style={{
+          fontSize: 14, color: 'hsl(222.2 84% 4.9%)', lineHeight: 1.6, marginBottom: 20,
+          padding: '14px 16px', background: 'hsl(210 40% 96.1%)',
+          border: '1.5px solid hsl(214.3 31.8% 85%)', borderRadius: 10,
+        }}
+      >
+        Keepance runs on your computer. In Local-only mode, nothing about your matters leaves this device, not to me and not to any AI provider. Using any tool on client work can still be governed by your firm&apos;s policies, so here&apos;s exactly what Keepance does with your data. Read it, and hand it to your firm if you need to.
+      </p>
+
       <ul style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28, listStyle: 'none', padding: 0 }}>
         {([
           'Your files and notes stay on your computer.',
@@ -636,8 +649,21 @@ function TrustStep({ onBack, onNext }: { onBack: () => void; onNext: () => void 
 }
 
 // ---------------------------------------------------------------------------
-// Step 5 — AI key
+// Step 5 — AI confidentiality choice (personal) + AI key setup
 // ---------------------------------------------------------------------------
+
+/**
+ * Which sub-screen the AI key step is on.
+ *
+ * For personal installs: first show the informed confidentiality choice, then
+ * branch into the existing AiSetupStep if the user picks Cloud, or advance
+ * immediately if they pick Local-only or Decide later.
+ *
+ * Firm installs skip the choice screen entirely and go straight to AiSetupStep,
+ * which is unchanged (the firm manages confidentiality mode via their admin
+ * console and the Assured provider; the gate doesn't apply to them).
+ */
+type AiKeySubView = 'choice' | 'cloud-setup';
 
 interface AiKeyStepProps {
   defaultProvider: ProviderId;
@@ -647,27 +673,183 @@ interface AiKeyStepProps {
 }
 
 function AiKeyStep({ defaultProvider, onSaveKey, onBack, onAdvance }: AiKeyStepProps) {
+  const firm = useFirm();
+  const recordChoice = useRecordConfidentialityChoice();
+  const [subView, setSubView] = useState<AiKeySubView>('choice');
+
+  // Firm installs go straight to the existing AI setup (unchanged behavior).
+  if (firm.isSignedIn && firm.hasActiveSeat) {
+    return (
+      <div data-testid="onboarding-step-ai-key">
+        <AiSetupStep
+          defaultProvider={defaultProvider}
+          onBack={onBack}
+          onOpenDataMap={() => {}}
+          onSaveKey={async (provider, key) => {
+            await onSaveKey(provider, key);
+            onAdvance(true);
+          }}
+          onUseLocal={() => { onAdvance(true); }}
+          onSkip={() => {
+            markAiSetupDeferred();
+            onAdvance(false);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Personal installs: informed choice first.
+  if (subView === 'choice') {
+    return (
+      <div data-testid="onboarding-step-ai-key">
+        <ConfidentialityChoiceStep
+          onPickLocalOnly={() => {
+            recordChoice('local-only');
+            onAdvance(false);
+          }}
+          onPickCloud={() => {
+            // Record the informed choice now; key setup follows.
+            recordChoice('direct');
+            setSubView('cloud-setup');
+          }}
+          onDecideLater={() => {
+            // Advances WITHOUT recording (choiceMade stays false, gate stays blocking).
+            markAiSetupDeferred();
+            onAdvance(false);
+          }}
+          onBack={onBack}
+        />
+      </div>
+    );
+  }
+
+  // Cloud path: show the existing AiSetupStep cloud flows.
   return (
     <div data-testid="onboarding-step-ai-key">
       <AiSetupStep
         defaultProvider={defaultProvider}
-        onBack={onBack}
-        onOpenDataMap={() => {
-          // The trust step (step 3) is always reachable via Back. Opening the
-          // DataMapDialog inline is also fine but keeping it simple here.
-        }}
+        onBack={() => { setSubView('choice'); }}
+        onOpenDataMap={() => {}}
         onSaveKey={async (provider, key) => {
           await onSaveKey(provider, key);
           onAdvance(true);
         }}
-        onUseLocal={() => {
-          onAdvance(true);
-        }}
+        onUseLocal={() => { onAdvance(true); }}
         onSkip={() => {
           markAiSetupDeferred();
           onAdvance(false);
         }}
       />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Confidentiality choice screen — personal installs only
+// ---------------------------------------------------------------------------
+
+interface ConfidentialityChoiceStepProps {
+  onPickLocalOnly: () => void;
+  onPickCloud: () => void;
+  onDecideLater: () => void;
+  onBack: () => void;
+}
+
+function ConfidentialityChoiceStep({
+  onPickLocalOnly,
+  onPickCloud,
+  onDecideLater,
+  onBack,
+}: ConfidentialityChoiceStepProps) {
+  return (
+    <div data-testid="onboarding-confidentiality-choice">
+      <Heading
+        title="How should Keepance handle your AI?"
+        subtitle="Keepance indexes and searches everything on your computer, with nothing leaving the machine. The one place your text can travel is when an AI writes an answer. Pick how you want that handled. You can change this anytime."
+      />
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
+        {/* Option A — Local-only */}
+        <button
+          type="button"
+          data-testid="confidentiality-choice-local"
+          onClick={onPickLocalOnly}
+          style={{
+            borderRadius: 10,
+            border: '1.5px solid hsl(214.3 31.8% 60%)',
+            padding: '16px 18px',
+            textAlign: 'left',
+            cursor: 'pointer',
+            background: '#fff',
+            transition: 'border-color 0.15s, background 0.15s',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{
+              fontSize: 11, fontWeight: 700, color: 'hsl(142 71% 25%)',
+              background: 'hsl(142 76% 93%)', borderRadius: 4, padding: '2px 7px',
+              flexShrink: 0,
+            }}>
+              Most private
+            </span>
+            <p style={{ fontSize: 14, fontWeight: 700, color: 'hsl(222.2 84% 4.9%)', margin: 0 }}>Local-only</p>
+          </div>
+          <p style={{ fontSize: 13, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.55, margin: 0 }}>
+            Nothing leaves this computer, ever. Answers are written by a model running on your own machine. You&apos;ll need a local model installed, and I&apos;ll help you set one up.
+          </p>
+        </button>
+
+        {/* Option B — Cloud (BYOK-direct) */}
+        <button
+          type="button"
+          data-testid="confidentiality-choice-cloud"
+          onClick={onPickCloud}
+          style={{
+            borderRadius: 10,
+            border: '2px solid var(--kp-navy)',
+            padding: '16px 18px',
+            textAlign: 'left',
+            cursor: 'pointer',
+            background: 'rgba(10,37,64,0.04)',
+            boxShadow: '0 2px 10px rgba(10,37,64,0.10)',
+            transition: 'border-color 0.15s, background 0.15s',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{
+              fontSize: 11, fontWeight: 700, color: 'var(--kp-navy)',
+              background: 'rgba(10,37,64,0.08)', borderRadius: 4, padding: '2px 7px',
+              flexShrink: 0,
+            }}>
+              Recommended
+            </span>
+            <p style={{ fontSize: 14, fontWeight: 700, color: 'hsl(222.2 84% 4.9%)', margin: 0 }}>Cloud (bring your own key)</p>
+          </div>
+          <p style={{ fontSize: 13, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.55, margin: 0 }}>
+            Faster and stronger answers from your own OpenAI, Anthropic, or Google account. Your prompt and the matter text it needs go to that provider. Check your firm&apos;s policy before you use this on client work.
+          </p>
+        </button>
+      </div>
+
+      {/* Tertiary action — Decide later */}
+      <div style={{ marginBottom: 28 }}>
+        <button
+          type="button"
+          data-testid="confidentiality-choice-later"
+          onClick={onDecideLater}
+          style={{
+            background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+            color: 'hsl(215.4 16.3% 44%)', fontSize: 13, textDecoration: 'underline',
+          }}
+        >
+          Decide later (stays local-only until you choose)
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-start', paddingTop: 16, borderTop: '1px solid hsl(214.3 31.8% 90%)' }}>
+        <Button variant="ghost" onClick={onBack}>Back</Button>
+      </div>
     </div>
   );
 }
