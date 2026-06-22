@@ -57,3 +57,14 @@ Still NOT cleanly driven live (need config to force the condition; unit-tested +
 - **BUG-082 token/cost (full)** — needs a completed chat send to inspect the persisted token/cost.
 
 How to open the full chat for these: **Ctrl+Shift+A** (opens AIChatViewer as a main-panel tab with `chat-input` / `chat-send-button`).
+
+## Hunt update #3 (2026-06-22) — forced conditions, more confirmed live
+By injecting settings + reloading, I forced the harder conditions:
+- **regfix over-limit / "Send anyway"** ✅ — with a valid low `chatContextTokenLimit` (10000) + a ~50k-token message, the compression-confirm modal appeared ("This conversation is getting long…"); clicking **"Send anyway" actually sent** (modal did NOT re-trigger — the exact broken behavior I'd fixed). Both halves confirmed live.
+- **BUG-089** ✅ — injecting an out-of-range `chatContextTokenLimit=50` (schema min 10000) was DROPPED on hydrate (the chat used the 200k default), i.e. the migration validates persisted values + fails safe. Also saw `version:1` in the persisted settings (the new schema version).
+- **BUG-079** ✅ — a failed AI send logs as a FAILURE with full provenance (`User Action — AI request failed — {provider, model, mode, destination, dataLeaves, success:false, reason:"OpenAI API error: HTTP 400…"}`), NOT a false "AI Request Sent" success. Strong audit-honesty confirmation.
+- **BUG-082 (provider)** ✅ — audit entry detail carries provider/model/mode/destination even on failure. Token/cost specifically need a SUCCESSFUL chat; see the config note below.
+
+Observation (NOT a product bug): the bench's KeepanceTest chat defaults to **gpt-3.5-turbo**, which OpenAI now returns HTTP 400 for — so live chat sends in that workspace fail (the app handles it correctly: logs the failure, shows an error, no crash). The earlier working AI used gpt-4o (workflow) / the redline model. To live-confirm BUG-082 token/cost, switch the chat model to an available one (e.g. gpt-4o) first.
+
+Still test-only (not forced live): BUG-074 Stop (stream completes faster than CDP poll-and-click), BUG-071/072/073/075/076 provider internals, mail-store internals, the wire-level MCP deny (needs an external MCP client). All green in the suite + Codex-reviewed.
