@@ -402,7 +402,7 @@ async fn index_one_file(
     cancel: Option<&AtomicBool>,
     vault_vmk: Option<&[u8; 32]>,
 ) -> anyhow::Result<()> {
-    let path_str = file_path.to_string_lossy().to_string();
+    let path_str = store::canonical_source_path(&file_path.to_string_lossy());
     let Some(kind) = extractor::classify(file_path) else {
         // Callers gate on `is_indexable` (== classify().is_some()), so this
         // arm is defensive only.
@@ -1338,9 +1338,10 @@ pub async fn rag_index_pdf_chunks(
 
     // {e:#} = full anyhow chain, so the typed model-not-ready marker at the
     // root cause survives any .context() wrapping when it crosses IPC.
+    let canonical_path = store::canonical_source_path(&path);
     let count = pdf_indexer::index_pdf_chunks(
         &table,
-        &path,
+        &canonical_path,
         &pages,
         page_count,
         &matter,

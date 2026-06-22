@@ -131,7 +131,7 @@ pub async fn watch_workspace(app: AppHandle, path: String) -> Result<(), String>
         };
         let now = Instant::now();
         for p in ev.paths.iter() {
-            let p_str = p.to_string_lossy().to_string();
+            let p_str = crate::commands::rag::store::canonical_source_path(&p.to_string_lossy());
             let emit = {
                 let mut d = debouncer_for_closure.lock().expect("debouncer poisoned");
                 d.should_emit(&p_str, now)
