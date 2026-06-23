@@ -1435,6 +1435,61 @@ fn index_version_path(workspace_root: &Path) -> PathBuf {
     dataset_path(workspace_root).join(INDEX_VERSION_FILE)
 }
 
+/// BUG-099: filename (under the vectors dir) holding the DURABLE per-path
+/// tombstone set — the plaintext paths whose stale-row cleanup DELETE failed.
+/// One path per line. This makes the fail-closed guarantee survive an app
+/// restart: without it, the in-memory `RagState::unsafe_paths` is empty on
+/// relaunch while the stale rows are still on disk, so retrieval could cite the
+/// old version. We never write plaintext source CONTENT here (that stays
+/// encrypted in the table); a path string is the same kind of metadata the
+/// workspace tree already exposes, and the file lives inside the user's own
+/// workspace under `.keepance/`.
+const UNSAFE_PATHS_FILE: &str = ".unsafe_paths";
+
+/// Path of the durable tombstone file for a workspace's vector dir.
+fn unsafe_paths_path(workspace_root: &Path) -> PathBuf {
+    dataset_path(workspace_root).join(UNSAFE_PATHS_FILE)
+}
+
+/// BUG-099: load the durable tombstone set (plaintext paths) for a workspace.
+/// Returns an empty set when the file is absent (the healthy default). Blank
+/// lines are ignored. Used to re-hydrate `RagState::unsafe_paths` on workspace
+/// open so the fail-closed exclusion survives a restart.
+pub fn read_unsafe_paths(workspace_root: &Path) -> HashSet<String> {
+    std::fs::read_to_string(unsafe_paths_path(workspace_root))
+        .ok()
+        .map(|s| {
+            s.lines()
+                .map(|l| l.trim())
+                .filter(|l| !l.is_empty())
+                .map(|l| l.to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// BUG-099: persist the durable tombstone set for a workspace. Called after any
+/// change to the unsafe-paths set (a path tombstoned on a cleanup failure, or a
+/// path cleared on a clean re-index) so the on-disk set always matches memory.
+/// An empty set writes an empty file (rather than deleting it) so a later read
+/// is unambiguous. Best-effort write errors are surfaced to the caller.
+pub fn write_unsafe_paths(workspace_root: &Path, paths: &HashSet<String>) -> Result<()> {
+    let path = unsafe_paths_path(workspace_root);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    let mut sorted: Vec<&String> = paths.iter().collect();
+    sorted.sort();
+    let body = sorted
+        .iter()
+        .map(|s| s.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    std::fs::write(&path, body)
+        .with_context(|| format!("write unsafe-paths tombstone at {:?}", path))?;
+    Ok(())
+}
+
 /// Read the index version the on-disk `chunks` table was built with. Returns 0
 /// when the marker is absent (i.e. a pre-3.0 table, or no table yet).
 pub fn read_index_version(workspace_root: &Path) -> u32 {
@@ -1531,6 +1586,33 @@ mod tests {
     fn dataset_path_lives_under_dot_keepance() {
         let p = dataset_path(Path::new("/tmp/work"));
         assert_eq!(p, PathBuf::from("/tmp/work/.keepance/vectors"));
+    }
+
+    /// BUG-099 durable tombstone: the unsafe-paths set round-trips through disk,
+    /// so the fail-closed exclusion survives an app restart. Absent file = empty.
+    #[test]
+    fn unsafe_paths_round_trip_through_disk() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+
+        // No file yet → empty set (the healthy default).
+        assert!(read_unsafe_paths(root).is_empty());
+
+        // Persist two tombstoned paths, then read them back identically.
+        let mut set = HashSet::new();
+        set.insert("/w/stuck.docx".to_string());
+        set.insert("/w/broken.rtf".to_string());
+        write_unsafe_paths(root, &set).expect("write tombstone set");
+
+        let loaded = read_unsafe_paths(root);
+        assert_eq!(loaded, set, "tombstone set must survive a write/read cycle (restart)");
+
+        // Clearing to empty writes an empty file that reads back as empty (not stale).
+        write_unsafe_paths(root, &HashSet::new()).expect("clear tombstone set");
+        assert!(
+            read_unsafe_paths(root).is_empty(),
+            "an emptied tombstone file must read back as empty"
+        );
     }
 
     #[test]

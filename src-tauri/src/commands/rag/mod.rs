@@ -478,6 +478,37 @@ async fn purge_stale_rows_on_skip(
     }
 }
 
+/// BUG-099 durable tombstone — record `path` as unsafe (both in the in-memory
+/// set and on disk) so retrieval and verification exclude its stale rows even
+/// after an app restart. Best-effort disk write: a failed persist is logged but
+/// never aborts indexing (the in-memory exclusion still applies this session).
+async fn tombstone_path(state: &RagState, workspace: &Path, path: &str) {
+    let snapshot = {
+        let mut guard = state.unsafe_paths.lock().await;
+        guard.insert(path.to_string());
+        guard.clone()
+    };
+    if let Err(e) = store::write_unsafe_paths(workspace, &snapshot) {
+        log::error!("rag: failed to persist unsafe-paths tombstone for {path}: {e:#}");
+    }
+}
+
+/// BUG-099 durable tombstone — clear `path` from the unsafe set (in memory and
+/// on disk) after a clean re-index. No-op (and no disk write) when the path was
+/// not tombstoned, so the happy path never touches the file.
+async fn clear_tombstone(state: &RagState, workspace: &Path, path: &str) {
+    let snapshot = {
+        let mut guard = state.unsafe_paths.lock().await;
+        if !guard.remove(path) {
+            return; // not tombstoned — nothing to persist.
+        }
+        guard.clone()
+    };
+    if let Err(e) = store::write_unsafe_paths(workspace, &snapshot) {
+        log::error!("rag: failed to persist cleared tombstone for {path}: {e:#}");
+    }
+}
+
 /// Helper: load the active workspace root, returning a friendly error if
 /// the user hasn't opened one.
 async fn require_workspace(state: &RagState) -> Result<PathBuf, String> {
@@ -510,6 +541,16 @@ pub async fn rag_set_workspace(
     // SAME already-active workspace is a no-op for indexing (the watcher keeps the
     // index live incrementally); a real switch to a DIFFERENT workspace re-arms.
     let changed = guard.as_deref() != Some(target.as_path());
+    // BUG-099 durable tombstone: re-hydrate the in-memory unsafe-paths set from
+    // disk whenever the active workspace is (re)set — including on app start and
+    // a workspace switch. Without this, a restart after a PurgeFailed would leave
+    // the in-memory set empty while the stale rows are still durable on disk, so
+    // retrieval could cite the old version. Reading the durable set here keeps the
+    // fail-closed exclusion alive across restarts.
+    {
+        let durable = store::read_unsafe_paths(&target);
+        *state.unsafe_paths.lock().await = durable;
+    }
     *guard = Some(target);
     state.cancel_flag.store(false, Ordering::SeqCst);
     if changed {
@@ -569,23 +610,24 @@ pub async fn rag_index_file(
         Ok(()) => {
             // vault_vmk_holder is dropped (and ZeroizedVmk zeroizes) at fn exit.
             // BUG-099 tombstone self-heal: the file watcher's per-file re-index
-            // CLEARS this path's tombstone. Without this, a file the user fixed
-            // (whose cleanup had failed during a walk) would re-index its fresh
-            // rows but stay filtered out of retrieval until a full walk or
-            // restart. `index_one_file` is delete-then-add (an upsert), so a
-            // successful return means the path's rows are consistent and safe.
-            state.unsafe_paths.lock().await.remove(&path);
+            // CLEARS this path's tombstone (in memory AND on disk). Without this,
+            // a file the user fixed (whose cleanup had failed during a walk) would
+            // re-index its fresh rows but stay filtered out of retrieval until a
+            // full walk or restart. `index_one_file` is delete-then-add (an
+            // upsert), so a successful return means the path's rows are consistent.
+            clear_tombstone(&state, &workspace, &path).await;
             Ok(())
         }
         Err(e) => {
             // BUG-099 fail-closed (watcher parity with the full walk): a failed
             // incremental index may have left stale rows (e.g. its internal
             // delete-then-add failed mid-way, or the stale-row cleanup delete
-            // for a now-unreadable/oversized file failed). Tombstone the path so
-            // GUI retrieval cannot serve those stale rows until a later
-            // successful re-index clears it. A stale citation must be impossible
-            // after a cleanup failure on EITHER indexing path.
-            state.unsafe_paths.lock().await.insert(path.clone());
+            // for a now-unreadable/oversized file failed). Durably tombstone the
+            // path so GUI retrieval cannot serve those stale rows until a later
+            // successful re-index clears it — including after an app restart. A
+            // stale citation must be impossible after a cleanup failure on EITHER
+            // indexing path.
+            tombstone_path(&state, &workspace, &path).await;
             log::error!(
                 "rag_index_file: path tombstoned for {} — incremental re-index \
                  failed; its stale rows are excluded from retrieval until a \
@@ -1424,7 +1466,11 @@ pub async fn rag_index_workspace(
                 {
                     Ok(true) => {
                         // SkippedUnreadable: extraction failed on a readable file.
-                        // Count as a failed skip so the UI can surface it.
+                        // Count as a failed skip so the UI can surface it. The stale
+                        // rows WERE deleted (write_extracted_file returns Ok(true)
+                        // only after a successful delete), so the path is now safe —
+                        // CLEAR any prior tombstone (no stale rows remain to hide).
+                        clear_tombstone(&state, &workspace, &path_str).await;
                         skipped_files += 1;
                         failed_files += 1;
                         skipped_paths.push(file.to_string_lossy().to_string());
@@ -1451,8 +1497,9 @@ pub async fn rag_index_workspace(
                         // Normal success (indexed or silent empty/missing delete).
                         // BUG-099 tombstone: a successful re-index CLEARS this path's
                         // tombstone (self-healing — the stale rows are now replaced
-                        // with fresh ones, so retrieval is safe again).
-                        state.unsafe_paths.lock().await.remove(&path_str);
+                        // with fresh ones, so retrieval is safe again). Durable: the
+                        // on-disk tombstone is cleared too so the heal survives restart.
+                        clear_tombstone(&state, &workspace, &path_str).await;
                     }
                     Err(e) => {
                         log::warn!(
@@ -1462,9 +1509,10 @@ pub async fn rag_index_workspace(
                         // Treat a write failure the same as an extraction failure.
                         // BUG-099 tombstone: a failed write may leave old rows in the
                         // DB (if the write was an insert that partially failed, or if
-                        // the new delete-then-add cycle failed mid-way). Tombstone the
-                        // path so retrieval cannot serve any stale rows for it.
-                        state.unsafe_paths.lock().await.insert(path_str.clone());
+                        // the new delete-then-add cycle failed mid-way). Durably
+                        // tombstone the path so retrieval cannot serve any stale rows
+                        // for it — including after an app restart.
+                        tombstone_path(&state, &workspace, &path_str).await;
                         cleanup_failed_files += 1;
                         skipped_files += 1;
                         failed_files += 1;
@@ -1513,7 +1561,11 @@ pub async fn rag_index_workspace(
         match purge {
             PurgeOutcome::NotNeeded => {}
             PurgeOutcome::PurgedCleanly => {
-                skipped_paths.push(file.to_string_lossy().to_string());
+                let path_str = file.to_string_lossy().to_string();
+                // The stale rows were dropped cleanly — the path is safe now, so
+                // CLEAR any prior tombstone (self-heal on a clean purge too).
+                clear_tombstone(&state, &workspace, &path_str).await;
+                skipped_paths.push(path_str);
             }
             PurgeOutcome::PurgeFailed => {
                 // The skip was already counted above (once). Do NOT double-count.
@@ -1523,9 +1575,10 @@ pub async fn rag_index_workspace(
                 let path_str = file.to_string_lossy().to_string();
                 skipped_paths.push(path_str.clone());
                 // BUG-099 durable tombstone: stale rows remain in the DB for this
-                // path. Mark it unsafe so `rag_retrieve` excludes it until a
-                // successful re-index clears the tombstone (self-healing).
-                state.unsafe_paths.lock().await.insert(path_str);
+                // path. Mark it unsafe (in memory AND on disk) so `rag_retrieve`
+                // excludes it until a successful re-index clears the tombstone —
+                // the fail-closed exclusion survives an app restart.
+                tombstone_path(&state, &workspace, &path_str).await;
                 log::error!(
                     "rag_index_workspace: path tombstoned for {} — skipped file \
                      AND cleanup failed; its stale rows are excluded from retrieval \
