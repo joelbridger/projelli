@@ -68,7 +68,7 @@ Best,
 **Date:** May 20, 2024
 **Subject:** RE: Roth conversion question + a couple of follow-ups
 
-Thanks for the detailed reply. The IRMAA explanation really helped -- we had been worried we might accidentally cross a threshold.
+Thanks for the detailed reply. The IRMAA explanation really helped, we had been worried we might accidentally cross a threshold.
 
 Quick question: the $11,500 estimated tax on the conversion, is that money we need to have set aside in cash, or does it get withheld from the converted amount? We want to make sure we are not caught short at tax time.
 
@@ -111,7 +111,7 @@ Done. Robert logged into Schwab and updated both accounts: the rollover IRA and 
 
 We are confirmed for June 5 to talk through the 529 strategy. Looking forward to it.
 
-Also, our daughter's wedding is June 15 -- just wanted to make sure you had that date. We want all the account housekeeping to be finished well before then so we can enjoy the day without any lingering to-dos.
+Also, our daughter's wedding is June 15, just wanted to make sure you had that date. We want all the account housekeeping to be finished well before then so we can enjoy the day without any lingering to-dos.
 
 Susan
 

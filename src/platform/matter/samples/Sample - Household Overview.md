@@ -36,8 +36,8 @@ They own their home outright (estimated value $740K) and carry no debt.
 ## Risk Profile (DataPoints)
 
 - **Risk tolerance score:** 58 out of 100 (moderate)
-- **Risk capacity:** High -- no debt, two income sources through 2026, Social Security available to both
-- **Risk composure:** Moderate -- Robert is comfortable with short-term volatility; Susan prefers a calmer ride and was unsettled by the 2022 drawdown
+- **Risk capacity:** High, no debt, two income sources through 2026, Social Security available to both
+- **Risk composure:** Moderate, Robert is comfortable with short-term volatility; Susan prefers a calmer ride and was unsettled by the 2022 drawdown
 - **Current allocation:** 65% equities / 30% bonds / 5% cash
 - **Target allocation:** 60% equities / 35% bonds / 5% cash (shifting at Susan's retirement)
 
@@ -46,7 +46,7 @@ They own their home outright (estimated value $740K) and carry no debt.
 ## Open Items
 
 - [ ] Complete Roth conversion analysis for this calendar year (up to the top of the 24% bracket)
-- [ ] Update beneficiary designations on all accounts -- Robert's IRA still lists his mother, who passed in 2022
+- [ ] Update beneficiary designations on all accounts, Robert's IRA still lists his mother, who passed in 2022
 - [ ] Review 529 funding strategy and contribution schedule for all three grandchildren
 - [ ] Finalize charitable remainder trust structure with estate attorney (referral sent)
 - [ ] Collect Susan's pension estimate letter from the school district HR office

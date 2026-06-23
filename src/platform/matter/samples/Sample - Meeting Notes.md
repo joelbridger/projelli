@@ -51,7 +51,7 @@ Good meeting. Robert and Susan came in prepared with questions and a clear sense
 
 ## Notes
 
-Robert asked whether they should consider adding a second property as a rental income source. We discussed briefly -- the cash flow math works at current rates, but it adds concentration risk and management burden at a stage when they are trying to simplify. We agreed it is worth a fuller conversation in October with numbers, not before.
+Robert asked whether they should consider adding a second property as a rental income source. We discussed briefly, the cash flow math works at current rates, but it adds concentration risk and management burden at a stage when they are trying to simplify. We agreed it is worth a fuller conversation in October with numbers, not before.
 
 Susan raised the charitable remainder trust again. I confirmed we have a referral out to an estate attorney who specializes in CRTs. Waiting on that connection before we model the structure.
 

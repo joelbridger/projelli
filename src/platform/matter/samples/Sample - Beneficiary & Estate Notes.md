@@ -15,10 +15,10 @@
 
 ## Household Members
 
-- **Robert Hendricks** (age 64) -- primary account holder, retired civil engineer
-- **Susan Hendricks** (age 62) -- spouse, high school principal (planning to retire at 64)
-- **Daughter:** Emily Hendricks (getting married June 15, 2024) -- intended primary beneficiary on Susan's accounts after marriage
-- **Three grandchildren** (ages 2, 4, and 7 as of 2024) -- intended equal contingent beneficiaries across all household accounts
+- **Robert Hendricks** (age 64), primary account holder, retired civil engineer
+- **Susan Hendricks** (age 62), spouse, high school principal (planning to retire at 64)
+- **Daughter:** Emily Hendricks (getting married June 15, 2024), intended primary beneficiary on Susan's accounts after marriage
+- **Three grandchildren** (ages 2, 4, and 7 as of 2024), intended equal contingent beneficiaries across all household accounts
 
 ---
 
@@ -31,7 +31,7 @@ All accounts are custodied at Schwab.
 | Account | Account Type | Primary Beneficiary | Contingent Beneficiary | Status |
 |---------|-------------|---------------------|----------------------|--------|
 | Rollover IRA (Robert) | Traditional IRA | Susan Hendricks (updated May 2024) | Three grandchildren, equal shares (updated May 2024) | Current |
-| Taxable Brokerage (Robert) | Joint Taxable | N/A -- joint ownership with Susan | Three grandchildren, equal shares (updated May 2024) | Current |
+| Taxable Brokerage (Robert) | Joint Taxable | N/A, joint ownership with Susan | Three grandchildren, equal shares (updated May 2024) | Current |
 | Consulting 401(k) (Robert) | 401(k) | Susan Hendricks | To be confirmed | Review needed |
 
 **Prior issue resolved:** Robert's rollover IRA previously listed his mother, Margaret Hendricks, as primary beneficiary. She passed in September 2022. This was identified as an open item at the April 2024 annual meeting. Robert and Susan updated both the rollover IRA and the taxable brokerage at Schwab on May 29, 2024. Confirmation copies held by household.
@@ -41,7 +41,7 @@ All accounts are custodied at Schwab.
 | Account | Account Type | Primary Beneficiary | Contingent Beneficiary | Status |
 |---------|-------------|---------------------|----------------------|--------|
 | 403(b) (Susan, school district) | 403(b) | Robert Hendricks | Three grandchildren, equal shares | Current |
-| Roth IRA (to be opened) | Roth IRA | Robert Hendricks | Three grandchildren, equal shares | Pending -- account not yet open |
+| Roth IRA (to be opened) | Roth IRA | Robert Hendricks | Three grandchildren, equal shares | Pending, account not yet open |
 
 **Note:** Susan's school district 403(b) beneficiary designations are administered by the district HR office, not Schwab. Verify they are on file with the district and match the intended designations above.
 

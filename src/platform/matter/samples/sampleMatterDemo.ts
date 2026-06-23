@@ -275,13 +275,13 @@ const CLIENT_RESEARCH_NOTE_LABEL = SAMPLE_FILE_CLIENT_RESEARCH_NOTE;
 const TAX_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
   'Can Diane deduct her home office?': {
     answer:
-      'Yes, the studio room almost certainly qualifies for a home-office deduction. {1} Under IRC Section 280A(c)(1), a portion of a dwelling is deductible when it is used exclusively and regularly as the principal place of business. Diane\'s dedicated 280-square-foot studio, used solely for client meetings and design work, appears to satisfy both tests -- but she needs to confirm no personal use ever occurs there. {1} The living-room desk, by contrast, almost certainly fails the exclusive-use test and should not be included in the deduction. {2}',
+      'Yes, the studio room almost certainly qualifies for a home-office deduction. {1} Under IRC Section 280A(c)(1), a portion of a dwelling is deductible when it is used exclusively and regularly as the principal place of business. Diane\'s dedicated 280-square-foot studio, used solely for client meetings and design work, appears to satisfy both tests, but she needs to confirm no personal use ever occurs there. {1} The living-room desk, by contrast, almost certainly fails the exclusive-use test and should not be included in the deduction. {2}',
     citations: [
       {
         n: 1,
         label: CLIENT_RESEARCH_NOTE_LABEL,
         excerpt:
-          'IRC Section 280A(a) disallows deductions for expenses attributable to the use of a dwelling unit as a residence. Section 280A(c)(1) creates an exception when a portion of the home is used exclusively and regularly as the principal place of business for any trade or business of the taxpayer.\n\nThe studio room. Based on what Diane described, the studio appears to satisfy both tests. "Exclusive" use is the harder standard. If she never uses that room for personal activities, the exclusivity test is met. She needs to confirm this -- even occasional personal use (a guest sleeping there, a TV for personal viewing) can break it.',
+          'IRC Section 280A(a) disallows deductions for expenses attributable to the use of a dwelling unit as a residence. Section 280A(c)(1) creates an exception when a portion of the home is used exclusively and regularly as the principal place of business for any trade or business of the taxpayer.\n\nThe studio room. Based on what Diane described, the studio appears to satisfy both tests. "Exclusive" use is the harder standard. If she never uses that room for personal activities, the exclusivity test is met. She needs to confirm this, even occasional personal use (a guest sleeping there, a TV for personal viewing) can break it.',
         path: CLIENT_RESEARCH_NOTE_PATH,
         locator: 'Sample - Client Research Note.md §Preliminary Analysis',
         verified: true,
@@ -300,7 +300,7 @@ const TAX_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
 
   'What open questions remain for the Dwyer return?': {
     answer:
-      'There are four open items before I can finalize the home-office position. {1} First, Diane needs to confirm the studio is used exclusively for business -- no personal use, no guests, no dual purpose. Second, I need the square footage confirmed against a floor plan or appraisal record. Third, if we go with the actual-expense method, I need the 2025 Form 1098, utility bills, homeowner\'s insurance, and any repair receipts. Fourth, I should ask whether she has any employees who work in the home, which would affect the deduction calculation. {1}',
+      'There are four open items before I can finalize the home-office position. {1} First, Diane needs to confirm the studio is used exclusively for business, no personal use, no guests, no dual purpose. Second, I need the square footage confirmed against a floor plan or appraisal record. Third, if we go with the actual-expense method, I need the 2025 Form 1098, utility bills, homeowner\'s insurance, and any repair receipts. Fourth, I should ask whether she has any employees who work in the home, which would affect the deduction calculation. {1}',
     citations: [
       {
         n: 1,
@@ -319,7 +319,7 @@ const TAX_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
 
   'Which deduction method should we use?': {
     answer:
-      'Diane has two options. {1} The simplified method (Rev. Proc. 2013-13) gives her $5 per square foot up to 300 square feet -- at 280 square feet that is a $1,400 deduction with minimal record-keeping. The actual-expense method computes 280/1400 = 20% of her mortgage interest, utilities, insurance, and repairs, which may produce a larger deduction but requires receipts and mortgage documentation. I recommend getting the actual-expense numbers first to see whether the extra paperwork pays off; if the difference is small, the simplified method saves time and reduces audit risk. {1}',
+      'Diane has two options. {1} The simplified method (Rev. Proc. 2013-13) gives her $5 per square foot up to 300 square feet, at 280 square feet that is a $1,400 deduction with minimal record-keeping. The actual-expense method computes 280/1400 = 20% of her mortgage interest, utilities, insurance, and repairs, which may produce a larger deduction but requires receipts and mortgage documentation. I recommend getting the actual-expense numbers first to see whether the extra paperwork pays off; if the difference is small, the simplified method saves time and reduces audit risk. {1}',
     citations: [
       {
         n: 1,
@@ -335,13 +335,13 @@ const TAX_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
 
   'What is the exclusive-use test?': {
     answer:
-      'The exclusive-use test is the hardest element of the home-office deduction to satisfy. {1} Under IRC 280A, the portion of the home must be used ONLY for business -- even occasional personal use (a guest sleeping in the room, a TV for personal viewing, or any dual-purpose activity) breaks the test entirely. This is the element the IRS focuses on almost exclusively in audits. {1} Diane needs to confirm she never uses the studio for anything personal before I can finalize the position.',
+      'The exclusive-use test is the hardest element of the home-office deduction to satisfy. {1} Under IRC 280A, the portion of the home must be used ONLY for business, even occasional personal use (a guest sleeping in the room, a TV for personal viewing, or any dual-purpose activity) breaks the test entirely. This is the element the IRS focuses on almost exclusively in audits. {1} Diane needs to confirm she never uses the studio for anything personal before I can finalize the position.',
     citations: [
       {
         n: 1,
         label: CLIENT_RESEARCH_NOTE_LABEL,
         excerpt:
-          '"Exclusive" use is the harder standard. If she never uses that room for personal activities, the exclusivity test is met. She needs to confirm this -- even occasional personal use (a guest sleeping there, a TV for personal viewing) can break it.\n\nThis note reflects a preliminary read of the facts as Diane described them. Do not finalize the deduction position until you have reviewed the actual space and confirmed exclusive use with Diane directly. If exclusivity is in doubt, document your determination and keep it in the file. IRC 280A audits focus almost entirely on this element.',
+          '"Exclusive" use is the harder standard. If she never uses that room for personal activities, the exclusivity test is met. She needs to confirm this, even occasional personal use (a guest sleeping there, a TV for personal viewing) can break it.\n\nThis note reflects a preliminary read of the facts as Diane described them. Do not finalize the deduction position until you have reviewed the actual space and confirmed exclusive use with Diane directly. If exclusivity is in doubt, document your determination and keep it in the file. IRC 280A audits focus almost entirely on this element.',
         path: CLIENT_RESEARCH_NOTE_PATH,
         locator: 'Sample - Client Research Note.md §Preliminary Analysis + §Verification Reminder',
         verified: true,
@@ -359,15 +359,15 @@ const ENGAGEMENT_SUMMARY_LABEL = SAMPLE_FILE_ENGAGEMENT_SUMMARY;
 const CONSULTING_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
   'What are the key findings so far?': {
     answer:
-      'I have identified four significant findings in the Hartwell engagement. {1} The Springfield facility averages 2.7 days to pick, pack, and ship versus 1.4 days at Columbus -- and the difference is the WMS, not staffing. Springfield runs a 14-year-old system that requires manual pick-list printing. Second, month-end inventory reconciliation shows a consistent 3 to 4% variance at Springfield, which the data pattern suggests is a data-entry problem in receiving rather than cycle-count procedures. Third, 22% of customer escalations over the last six months trace to split-shipment confusion where items ordered as a set ship from different facilities on different days. Fourth, only three people at Springfield understand the legacy WMS well enough to configure it, and one is eligible to retire in 2027. {1}',
+      'I have identified four significant findings in the Hartwell engagement. {1} The Springfield facility averages 2.7 days to pick, pack, and ship versus 1.4 days at Columbus, and the difference is the WMS, not staffing. Springfield runs a 14-year-old system that requires manual pick-list printing. Second, month-end inventory reconciliation shows a consistent 3 to 4% variance at Springfield, which the data pattern suggests is a data-entry problem in receiving rather than cycle-count procedures. Third, 22% of customer escalations over the last six months trace to split-shipment confusion where items ordered as a set ship from different facilities on different days. Fourth, only three people at Springfield understand the legacy WMS well enough to configure it, and one is eligible to retire in 2027. {1}',
     citations: [
       {
         n: 1,
         label: ENGAGEMENT_SUMMARY_LABEL,
         excerpt:
-          '1. Order fulfillment lag. The Springfield facility averages 2.7 days to pick, pack, and ship. The Columbus facility averages 1.4 days. The difference is not staffing -- it is the WMS. Springfield runs a 14-year-old system that requires manual pick-list printing. Columbus uses the newer platform acquired with the 2023 Brentwood deal.\n\n' +
+          '1. Order fulfillment lag. The Springfield facility averages 2.7 days to pick, pack, and ship. The Columbus facility averages 1.4 days. The difference is not staffing, it is the WMS. Springfield runs a 14-year-old system that requires manual pick-list printing. Columbus uses the newer platform acquired with the 2023 Brentwood deal.\n\n' +
           '2. Inventory discrepancies. Month-end reconciliation reveals a consistent 3 to 4% variance between recorded and physical inventory at Springfield. Hartwell\'s operations director attributes this to cycle-count procedures, but the data pattern suggests a data entry problem in the receiving workflow.\n\n' +
-          '3. Customer service escalations. 22% of escalations over the last six months trace back to split-shipment confusion -- items ordered as a set ship from different facilities on different days, and the customer receives no consolidated tracking.\n\n' +
+          '3. Customer service escalations. 22% of escalations over the last six months trace back to split-shipment confusion, items ordered as a set ship from different facilities on different days, and the customer receives no consolidated tracking.\n\n' +
           '4. Staff knowledge concentration. Three people at Springfield understand the legacy WMS deeply enough to configure it. One is eligible to retire in 2027.',
         path: ENGAGEMENT_SUMMARY_PATH,
         locator: 'Sample - Engagement Summary.md §Key Findings So Far',
@@ -394,14 +394,14 @@ const CONSULTING_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
 
   'What are the next steps for Hartwell?': {
     answer:
-      'There are five immediate next steps. {1} First, complete the time-motion study at Springfield with field visits on April 8 to 9. Second, interview the Columbus operations lead about the Brentwood integration -- specifically what was hard and what was lost. Third, request 12 months of order data from both facilities for throughput modeling. Fourth, draft the consolidation options memo covering three scenarios: expand the Columbus WMS to Springfield, move to a third-party platform, or go hybrid. Fifth, schedule a readout with the CEO and CFO for April 25. {1}',
+      'There are five immediate next steps. {1} First, complete the time-motion study at Springfield with field visits on April 8 to 9. Second, interview the Columbus operations lead about the Brentwood integration, specifically what was hard and what was lost. Third, request 12 months of order data from both facilities for throughput modeling. Fourth, draft the consolidation options memo covering three scenarios: expand the Columbus WMS to Springfield, move to a third-party platform, or go hybrid. Fifth, schedule a readout with the CEO and CFO for April 25. {1}',
     citations: [
       {
         n: 1,
         label: ENGAGEMENT_SUMMARY_LABEL,
         excerpt:
           '- [ ] Complete the time-motion study at Springfield (field visits April 8 to 9)\n' +
-          '- [ ] Interview the Columbus operations lead about the Brentwood integration -- what was hard, what was lost\n' +
+          '- [ ] Interview the Columbus operations lead about the Brentwood integration, what was hard, what was lost\n' +
           '- [ ] Request 12 months of order data from both facilities for throughput modeling\n' +
           '- [ ] Draft the consolidation options memo (expand Columbus WMS to Springfield vs. third-party platform vs. hybrid)\n' +
           '- [ ] Schedule readout with CEO and CFO for April 25',
@@ -414,13 +414,13 @@ const CONSULTING_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
 
   'Why does the Springfield facility have a longer fulfillment lag?': {
     answer:
-      'The fulfillment lag at Springfield is a WMS problem, not a staffing problem. {1} Springfield averages 2.7 days to pick, pack, and ship while Columbus averages 1.4 days. Springfield runs a 14-year-old warehouse management system that requires manual pick-list printing -- operators print paper lists, walk the floor, and reconcile by hand. Columbus uses the newer platform acquired with the 2023 Brentwood deal, which automates pick-list routing. The gap is structural and will not close through hiring or scheduling changes alone. {1}',
+      'The fulfillment lag at Springfield is a WMS problem, not a staffing problem. {1} Springfield averages 2.7 days to pick, pack, and ship while Columbus averages 1.4 days. Springfield runs a 14-year-old warehouse management system that requires manual pick-list printing, operators print paper lists, walk the floor, and reconcile by hand. Columbus uses the newer platform acquired with the 2023 Brentwood deal, which automates pick-list routing. The gap is structural and will not close through hiring or scheduling changes alone. {1}',
     citations: [
       {
         n: 1,
         label: ENGAGEMENT_SUMMARY_LABEL,
         excerpt:
-          'Order fulfillment lag. The Springfield facility averages 2.7 days to pick, pack, and ship. The Columbus facility averages 1.4 days. The difference is not staffing -- it is the WMS. Springfield runs a 14-year-old system that requires manual pick-list printing. Columbus uses the newer platform acquired with the 2023 Brentwood deal.',
+          'Order fulfillment lag. The Springfield facility averages 2.7 days to pick, pack, and ship. The Columbus facility averages 1.4 days. The difference is not staffing, it is the WMS. Springfield runs a 14-year-old system that requires manual pick-list printing. Columbus uses the newer platform acquired with the 2023 Brentwood deal.',
         path: ENGAGEMENT_SUMMARY_PATH,
         locator: 'Sample - Engagement Summary.md §Key Findings So Far (finding 1)',
         verified: true,
@@ -472,7 +472,7 @@ const ADVISOR_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
   },
   "What are the Hendricks' top goals?": {
     answer:
-      'The Hendricks have four main goals. {1} First, Robert wants to fully retire at 66 and Susan at 64 -- the target is complete income replacement from their portfolio and Social Security by 2026. Second, they want to seed 529 plans for each of their three grandchildren (ages 2, 4, and 7) with $30,000 per account over the next three years. Third, they plan to fund a charitable remainder trust with $250,000 to support a scholarship at Susan\'s alma mater before she retires. Fourth, they want to maintain their current monthly spending of around $9,200 in early retirement. {1}',
+      'The Hendricks have four main goals. {1} First, Robert wants to fully retire at 66 and Susan at 64, the target is complete income replacement from their portfolio and Social Security by 2026. Second, they want to seed 529 plans for each of their three grandchildren (ages 2, 4, and 7) with $30,000 per account over the next three years. Third, they plan to fund a charitable remainder trust with $250,000 to support a scholarship at Susan\'s alma mater before she retires. Fourth, they want to maintain their current monthly spending of around $9,200 in early retirement. {1}',
     citations: [
       {
         n: 1,
@@ -487,13 +487,13 @@ const ADVISOR_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
   },
   'What is their risk tolerance?': {
     answer:
-      'The Hendricks score 58 out of 100 on the DataPoints risk tolerance scale, putting them in the moderate range. {1} Their risk capacity is high -- they carry no debt and have two income sources running through 2026 with Social Security available to both. Risk composure is more mixed: Robert is comfortable with short-term volatility, but Susan was unsettled by the 2022 drawdown and prefers a calmer portfolio ride. {1} Their current allocation is 65% equities, 30% bonds, and 5% cash. The target shifts to 60/35/5 at Susan\'s retirement. {1}',
+      'The Hendricks score 58 out of 100 on the DataPoints risk tolerance scale, putting them in the moderate range. {1} Their risk capacity is high, they carry no debt and have two income sources running through 2026 with Social Security available to both. Risk composure is more mixed: Robert is comfortable with short-term volatility, but Susan was unsettled by the 2022 drawdown and prefers a calmer portfolio ride. {1} Their current allocation is 65% equities, 30% bonds, and 5% cash. The target shifts to 60/35/5 at Susan\'s retirement. {1}',
     citations: [
       {
         n: 1,
         label: HOUSEHOLD_OVERVIEW_LABEL,
         excerpt:
-          'Risk tolerance score: 58 out of 100 (moderate). Risk capacity: High -- no debt, two income sources through 2026, Social Security available to both. Risk composure: Moderate -- Robert is comfortable with short-term volatility; Susan prefers a calmer ride and was unsettled by the 2022 drawdown. Current allocation: 65% equities / 30% bonds / 5% cash. Target allocation: 60% equities / 35% bonds / 5% cash.',
+          'Risk tolerance score: 58 out of 100 (moderate). Risk capacity: High, no debt, two income sources through 2026, Social Security available to both. Risk composure: Moderate, Robert is comfortable with short-term volatility; Susan prefers a calmer ride and was unsettled by the 2022 drawdown. Current allocation: 65% equities / 30% bonds / 5% cash. Target allocation: 60% equities / 35% bonds / 5% cash.',
         path: HOUSEHOLD_OVERVIEW_PATH,
         locator: 'Sample - Household Overview.md §Risk Profile (DataPoints)',
         verified: true,
@@ -502,7 +502,7 @@ const ADVISOR_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
   },
   'What is coming up for this household?': {
     answer:
-      'Several things are in motion. Robert needs to update his beneficiary designations at Schwab before their daughter\'s wedding in June -- his IRA and taxable brokerage still list his mother, who passed in September 2022. {1} The portfolio has drifted from the 65/35 target to 68/32 due to equity growth, so we need to rebalance within 60 days. {1} The Roth conversion documents need to be prepared for Q4 execution. {1} For 2025, the priorities are an LTC insurance review before Susan\'s school district group coverage lapses at retirement, and revisiting 529 funding once retirement income is confirmed. {2} The charitable remainder trust referral to an estate attorney is pending. {1}',
+      'Several things are in motion. Robert needs to update his beneficiary designations at Schwab before their daughter\'s wedding in June, his IRA and taxable brokerage still list his mother, who passed in September 2022. {1} The portfolio has drifted from the 65/35 target to 68/32 due to equity growth, so we need to rebalance within 60 days. {1} The Roth conversion documents need to be prepared for Q4 execution. {1} For 2025, the priorities are an LTC insurance review before Susan\'s school district group coverage lapses at retirement, and revisiting 529 funding once retirement income is confirmed. {2} The charitable remainder trust referral to an estate attorney is pending. {1}',
     citations: [
       {
         n: 1,

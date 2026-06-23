@@ -41,11 +41,11 @@ The 94% probability reflects the current allocation and projected income sources
 
 The recommended withdrawal sequence for the Hendricks household is:
 
-1. **Susan's pension income** -- taxable from day one; no control over timing
-2. **Social Security** -- up to 85% may be taxable depending on combined income; delay maximizes tax-free compounding
-3. **Taxable brokerage** -- use first in early retirement to keep IRA assets compounding; long-term capital gains rates apply
-4. **Traditional IRA and 401(k)/403(b)** -- draw down strategically to stay below IRMAA thresholds; accelerate via Roth conversions in low-income years
-5. **Roth IRA** -- last resort; tax-free and no required minimum distributions; pass to heirs if unused
+1. **Susan's pension income**, taxable from day one; no control over timing
+2. **Social Security**, up to 85% may be taxable depending on combined income; delay maximizes tax-free compounding
+3. **Taxable brokerage**, use first in early retirement to keep IRA assets compounding; long-term capital gains rates apply
+4. **Traditional IRA and 401(k)/403(b)**, draw down strategically to stay below IRMAA thresholds; accelerate via Roth conversions in low-income years
+5. **Roth IRA**, last resort; tax-free and no required minimum distributions; pass to heirs if unused
 
 **IRMAA consideration:** Combined income above $206,000 (2024 threshold) triggers Medicare surcharges. We are targeting IRA distributions and Roth conversion amounts to stay just below this level each year.
 
