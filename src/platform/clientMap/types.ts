@@ -67,6 +67,23 @@ export interface ProposedUpdate {
   draft?: ClientMapItem; // for add/change
   reason: string;
   createdAt: string;
+  /** Stable content identity of THIS proposal (section + op + normalized text).
+   *  Lets a proposal be deduped across passes and matched to a dismissal so it
+   *  is not re-issued with a fresh id (which would reset an in-progress edit).
+   *  Present on proposals from `proposeUpdates`; older persisted ones may omit it. */
+  signature?: string;
+  /** Fingerprint of the source(s) that produced this proposal. A dismissal is
+   *  keyed to this so the proposal only reappears when ITS source changes. */
+  sourceSignature?: string;
+}
+
+/** A proposal the user explicitly dismissed. Keyed by the proposal's stable
+ *  `signature` plus the `sourceSignature` of the source that produced it, so the
+ *  same proposal stays suppressed until THAT source changes again (spec §3.2). */
+export interface DismissedSignature {
+  signature: string;
+  sourceSignature: string;
+  dismissedAt: string;
 }
 
 /** A gap question plus the section its answer should file into. The Guided
@@ -94,6 +111,12 @@ export interface ClientMap {
   pendingUpdates: ProposedUpdate[];
   lastBuiltAt: string; // ISO 8601, '' when never built
   lastSourceFingerprint: string;
+  /** Proposals the user dismissed; suppresses re-proposing them until their
+   *  source changes. Optional for back-compat with maps persisted before this. */
+  dismissedSignatures?: DismissedSignature[];
+  /** Normalized texts of gap questions the user has answered or flagged, so the
+   *  Guided Interview does not replay them (BUG-106). Optional for back-compat. */
+  resolvedGaps?: string[];
 }
 
 export interface CustomCategoryTemplate {

@@ -42,15 +42,20 @@ export function GuidedInterview({ matterId, onClose }: GuidedInterviewProps) {
     );
   }
 
+  // Answering or flagging marks the current gap resolved (BUG-106), so it is
+  // pruned from interviewQuestions and the next gap slides into the same index.
+  // We therefore clamp rather than increment: incrementing would skip the gap
+  // that just took this slot.
   function advance() {
     setAnswer('');
-    setIndex((i) => i + 1);
+    setIndex((i) => Math.max(0, Math.min(i, questions.length - 2)));
   }
 
   function handleSubmit() {
     if (!question || !answer.trim()) return;
-    // Route the answer to the section this gap question came from.
-    answerQuestion(matterId, question.sectionKey, answer.trim());
+    // Route the answer to the section this gap question came from, and mark the
+    // gap resolved so the interview does not replay it (BUG-106).
+    answerQuestion(matterId, question.sectionKey, answer.trim(), question.text);
     advance();
   }
 

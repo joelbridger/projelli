@@ -1,7 +1,8 @@
 // src/platform/clientMap/clientMapStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { ClientMap, ClientMapSection, ClientQuestion, ProposedUpdate, GapQuestion } from './types';
+import type { ClientMap, ClientMapSection, ClientQuestion, DismissedSignature, ProposedUpdate, GapQuestion } from './types';
+import { proposalSignature } from './updater';
 
 interface ClientMapState {
   maps: Record<string, ClientMap>;
@@ -19,12 +20,18 @@ interface ClientMapState {
   addClientQuestion: (matterId: string, text: string) => void;
   removeClientQuestion: (matterId: string, id: string) => void;
   getClientQuestions: (matterId: string) => ClientQuestion[];
+  markGapResolved: (matterId: string, gapText: string) => void;
   invalidate: (matterId: string) => void;
   clearAll: () => void;
 }
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** Normalize a question/gap text for dedup + resolved tracking (BUG-106). */
+function normalizeQuestion(text: string): string {
+  return text.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 /** Persisted (partialized) shape of this store. */
@@ -204,13 +211,40 @@ export const useClientMapStore = create<ClientMapState>()(
         set((s) => {
           const map = s.maps[matterId];
           if (!map) return {};
+          const upd = map.pendingUpdates.find((u) => u.id === updateId);
+          if (!upd) return {};
+          // BUG-100: record the dismissal so the same proposal is not re-issued
+          // on the next pass unless its backing source changes. Keyed by the
+          // stable signature + the source fingerprint at dismissal time. De-dup
+          // only the EXACT (signature, sourceSignature) pair, so dismissing the
+          // same text from a different source does not erase an earlier dismissal.
+          const signature = upd.signature ?? proposalSignature(upd.sectionKey, upd.op, upd.draft?.text ?? '');
+          const sourceSignature = upd.sourceSignature ?? '';
+          const existing = (map.dismissedSignatures ?? []).filter(
+            (d) => !(d.signature === signature && d.sourceSignature === sourceSignature),
+          );
+          const dismissedSignatures: DismissedSignature[] = [
+            ...existing,
+            { signature, sourceSignature, dismissedAt: nowIso() },
+          ];
           return {
-            maps: { ...s.maps, [matterId]: { ...map, pendingUpdates: map.pendingUpdates.filter((u) => u.id !== updateId) } },
+            maps: {
+              ...s.maps,
+              [matterId]: {
+                ...map,
+                pendingUpdates: map.pendingUpdates.filter((u) => u.id !== updateId),
+                dismissedSignatures,
+              },
+            },
           };
         }),
       addClientQuestion: (matterId, text) =>
         set((s) => {
           const existing = s.clientQuestions[matterId] ?? [];
+          // BUG-106: dedup by normalized text so flagging the same gap twice does
+          // not create duplicate "Questions for the client" rows.
+          const norm = normalizeQuestion(text);
+          if (existing.some((q) => normalizeQuestion(q.text) === norm)) return {};
           const newQ = {
             id: `cq-${String(Date.now())}-${String(Math.random()).slice(2, 8)}`,
             text,
@@ -223,6 +257,18 @@ export const useClientMapStore = create<ClientMapState>()(
           return { clientQuestions: { ...s.clientQuestions, [matterId]: existing.filter((q) => q.id !== id) } };
         }),
       getClientQuestions: (matterId) => get().clientQuestions[matterId] ?? [],
+      markGapResolved: (matterId, gapText) =>
+        set((s) => {
+          // BUG-106: record that the user answered/flagged this gap so the Guided
+          // Interview does not replay it. Stored normalized on the matter's map.
+          const map = s.maps[matterId];
+          if (!map) return {};
+          const norm = normalizeQuestion(gapText);
+          if (!norm) return {};
+          const resolved = map.resolvedGaps ?? [];
+          if (resolved.includes(norm)) return {};
+          return { maps: { ...s.maps, [matterId]: { ...map, resolvedGaps: [...resolved, norm] } } };
+        }),
       invalidate: (matterId) =>
         set((s) => {
           const { [matterId]: _drop, ...rest } = s.maps;

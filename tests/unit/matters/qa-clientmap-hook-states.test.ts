@@ -3,9 +3,9 @@
 // KEEPANCE 5 (adversarial QA) — useClientMap status + regeneration safety.
 //
 // Mirrors the mocking harness in useClientMap.test.ts (generator + updater mocked).
-// Bug-documenting tests are `it.fails`: they assert the CORRECT behavior, stay
-// green today (the assertion currently throws), and flip RED when the bug is
-// fixed. Backlog: BUG-101, BUG-103, BUG-104.
+// These were `it.fails` bug-docs; the bugs are now fixed, so they are normal
+// passing regression tests. Backlog: BUG-101, BUG-103, BUG-104 (+ Codex review
+// findings: empty-custom-section preservation, gap-only ready).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
@@ -15,10 +15,14 @@ vi.mock('@/platform/clientMap/generator', () => ({ buildClientMap: buildMock }))
 
 const computeFingerprintMock = vi.hoisted(() => vi.fn());
 const proposeUpdatesMock = vi.hoisted(() => vi.fn());
-vi.mock('@/platform/clientMap/updater', () => ({
-  computeSourceFingerprint: computeFingerprintMock,
-  proposeUpdates: proposeUpdatesMock,
-}));
+vi.mock('@/platform/clientMap/updater', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/clientMap/updater')>();
+  return {
+    ...actual, // keep the real mergePendingUpdates (pure, store-free)
+    computeSourceFingerprint: computeFingerprintMock,
+    proposeUpdates: proposeUpdatesMock,
+  };
+});
 
 import { useClientMap } from '@/features/matters/useClientMap';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
@@ -36,7 +40,7 @@ beforeEach(() => {
   proposeUpdatesMock.mockReset();
 });
 
-describe('useClientMap — documented bugs (KEEPANCE 5, it.fails until fixed)', () => {
+describe('useClientMap — regression tests for fixed bugs (KEEPANCE 5)', () => {
   // BUG-101 — generate() overwrites the whole stored map, destroying user-origin
   // items (and accepted updates + custom sections). It calls setMap(matterId,
   // {...built}) unconditionally. It is currently only reachable when status is
@@ -44,7 +48,7 @@ describe('useClientMap — documented bugs (KEEPANCE 5, it.fails until fixed)', 
   // function is unsafe by construction: any future refresh/invalidate path would
   // silently delete the professional's own edits. Spec §6 rule 3: user-origin
   // items must NEVER be overwritten by an AI pass.
-  it.fails('BUG-101: regenerate keeps user-origin items instead of wiping them', async () => {
+  it('BUG-101: regenerate keeps user-origin items instead of wiping them', async () => {
     // Seed a stored map that already holds a user-written item.
     const seeded = { ...emptyClientMap('m1'), lastBuiltAt: 't' };
     seeded.sections[2]!.items = [userItem('Client insists on settling by year end')];
@@ -57,14 +61,23 @@ describe('useClientMap — documented bugs (KEEPANCE 5, it.fails until fixed)', 
     ];
     buildMock.mockResolvedValue(aiOnly);
     computeFingerprintMock.mockResolvedValue('fp');
+    // The fresh AI content is routed through the approve-first tray; no items are
+    // overwritten. (The merge of proposals is the real mergePendingUpdates.)
+    proposeUpdatesMock.mockReturnValue([
+      { id: 'p1', sectionKey: 'story', op: 'add', reason: 'r', createdAt: 't2',
+        draft: { id: 'ai1', text: 'Matter is a contract dispute', origin: 'ai', isAssumption: false, sources: [{ kind: 'document', ref: '/a', snippet: 's' }], updatedAt: 't2' } },
+    ]);
 
     const { result } = renderHook(() => useClientMap('m1'));
     await act(async () => { await result.current.generate(); });
 
     const stored = useClientMapStore.getState().getMap('m1');
     const allTexts = stored?.sections.flatMap((s) => s.items.map((i) => i.text)) ?? [];
-    // DESIRED: the user's note survives a regenerate. ACTUAL: it is wiped.
+    // The user's note survives a regenerate.
     expect(allTexts).toContain('Client insists on settling by year end');
+    // The fresh AI content lands in the approve-first tray, not the map body.
+    expect(stored?.pendingUpdates.map((u) => u.draft?.text)).toContain('Matter is a contract dispute');
+    expect(allTexts).not.toContain('Matter is a contract dispute');
   });
 
   // BUG-103 — a matter with no indexed content shows a blank map, not the honest
@@ -72,7 +85,7 @@ describe('useClientMap — documented bugs (KEEPANCE 5, it.fails until fixed)', 
   // generate() stores an (empty) map object the status is forced to 'ready',
   // making MatterHub's 'empty' branch ("No information found yet...") dead code.
   // Spec §7 open-question 5: an honest empty state.
-  it.fails('BUG-103: an empty build reports status "empty", not "ready"', async () => {
+  it('BUG-103: an empty build reports status "empty", not "ready"', async () => {
     buildMock.mockResolvedValue({ ...emptyClientMap('m2'), lastBuiltAt: 't' }); // zero items
     computeFingerprintMock.mockResolvedValue('0:');
 
@@ -89,7 +102,7 @@ describe('useClientMap — documented bugs (KEEPANCE 5, it.fails until fixed)', 
   // whole tray. A proposal the user has not yet accepted/dismissed vanishes if the
   // next fresh build no longer reproduces its exact item. Spec §6 rule 3:
   // approve-first review (the user decides every AI change).
-  it.fails('BUG-104: a still-pending proposal survives the next update check', async () => {
+  it('BUG-104: a still-pending proposal survives the next update check', async () => {
     const pendingU1: ProposedUpdate = {
       id: 'U1', sectionKey: 'standing', op: 'add', reason: 'from an earlier pass', createdAt: 't',
       draft: { id: 'd1', text: 'Earlier proposed fact', origin: 'ai', isAssumption: false, sources: [], updatedAt: 't' },
@@ -112,5 +125,38 @@ describe('useClientMap — documented bugs (KEEPANCE 5, it.fails until fixed)', 
     const ids = useClientMapStore.getState().getMap('m3')?.pendingUpdates.map((u) => u.id) ?? [];
     // DESIRED: U1 is still awaiting the user's decision. ACTUAL: it was replaced away.
     expect(ids).toContain('U1');
+  });
+
+  // BUG-101 (Codex finding 1) — a map whose only state is a user-created (empty)
+  // custom section must NOT be overwritten by a regenerate.
+  it('BUG-101: regenerate preserves an empty user-created custom section', async () => {
+    const seeded = { ...emptyClientMap('mC'), lastBuiltAt: 't' };
+    seeded.sections.push({ id: 'cs1', kind: 'custom', key: 'cs1', title: 'Insurance', prompt: 'track coverage', scope: 'matter', items: [] });
+    useClientMapStore.getState().setMap('mC', seeded);
+
+    buildMock.mockResolvedValue({ ...emptyClientMap('mC'), lastBuiltAt: 't2' }); // AI build has no custom section
+    computeFingerprintMock.mockResolvedValue('fp');
+    proposeUpdatesMock.mockReturnValue([]);
+
+    const { result } = renderHook(() => useClientMap('mC'));
+    await act(async () => { await result.current.generate(); });
+
+    const stored = useClientMapStore.getState().getMap('mC');
+    expect(stored?.sections.some((s) => s.id === 'cs1')).toBe(true);
+  });
+
+  // BUG-103 (Codex finding 4) — a map with no section items but open gap questions
+  // is NOT empty; it reports 'ready' so the Guided Interview can render.
+  it('BUG-103: a gap-only map reports "ready", not "empty"', async () => {
+    const gapOnly = { ...emptyClientMap('mG'), lastBuiltAt: 't' };
+    gapOnly.completeness.ask = [{ text: 'What outcome does the client want?', sectionKey: 'story' }];
+    buildMock.mockResolvedValue(gapOnly);
+    computeFingerprintMock.mockResolvedValue('fp');
+
+    const { result } = renderHook(() => useClientMap('mG'));
+    await act(async () => { await result.current.generate(); });
+    await waitFor(() => expect(useClientMapStore.getState().getMap('mG')).toBeDefined());
+
+    expect(result.current.status).toBe('ready');
   });
 });

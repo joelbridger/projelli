@@ -7,10 +7,14 @@ vi.mock('@/platform/clientMap/generator', () => ({ buildClientMap: buildMock }))
 
 const computeFingerprintMock = vi.hoisted(() => vi.fn());
 const proposeUpdatesMock = vi.hoisted(() => vi.fn());
-vi.mock('@/platform/clientMap/updater', () => ({
-  computeSourceFingerprint: computeFingerprintMock,
-  proposeUpdates: proposeUpdatesMock,
-}));
+vi.mock('@/platform/clientMap/updater', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/clientMap/updater')>();
+  return {
+    ...actual, // keep the real mergePendingUpdates (pure, store-free)
+    computeSourceFingerprint: computeFingerprintMock,
+    proposeUpdates: proposeUpdatesMock,
+  };
+});
 
 import { useClientMap } from '@/features/matters/useClientMap';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
@@ -26,7 +30,13 @@ beforeEach(() => {
 
 describe('useClientMap', () => {
   it('serves a cached map immediately as ready', () => {
-    useClientMapStore.getState().setMap('m1', { ...emptyClientMap('m1'), lastBuiltAt: 't' });
+    // A cached map WITH content mounts as ready without re-generating.
+    // (An empty cached map surfaces the honest empty state — see BUG-103.)
+    const cached = { ...emptyClientMap('m1'), lastBuiltAt: 't' };
+    cached.sections[0]!.items = [
+      { id: 'i', text: 'Matter overview', origin: 'ai', isAssumption: false, sources: [{ kind: 'document', ref: '/f', snippet: 's' }], updatedAt: 't' },
+    ];
+    useClientMapStore.getState().setMap('m1', cached);
     const { result } = renderHook(() => useClientMap('m1'));
     expect(result.current.status).toBe('ready');
   });
