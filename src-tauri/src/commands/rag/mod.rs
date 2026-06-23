@@ -157,19 +157,36 @@ pub enum Verdict {
 
 /// Payload emitted on `rag-indexing-progress` Tauri events. The frontend
 /// `useRagStatus` hook subscribes and renders a banner / status badge.
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexingProgress {
     pub status: IndexingStatus,
     pub processed: u32,
     pub total: u32,
     pub current_path: Option<String>,
+    /// BUG-099: how many files were skipped so far (= `failed` + `timed_out`),
+    /// surfaced to the UI so a completed walk can honestly report "done, N
+    /// skipped" instead of a silent "Done". Cumulative on per-file `Indexing`
+    /// events; final on the terminal `Done` / `Cancelled` event.
+    pub skipped: u32,
+    /// Of `skipped`: files dropped because extraction/embedding returned an
+    /// unrecoverable error.
+    pub failed: u32,
+    /// Of `skipped`: files dropped because they exceeded the per-file index
+    /// timeout (a stuck parser or blocking embedder — the original BUG-099 stall).
+    pub timed_out: u32,
+    /// The paths that were skipped. Omitted from the wire payload when empty so
+    /// the per-file events stay small; populated (bounded by
+    /// `MAX_REPORTED_SKIPPED_PATHS`) on the terminal event so the UI can list them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub skipped_paths: Vec<String>,
 }
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)] // Idle / Error are valid wire values even if not currently emitted
 pub enum IndexingStatus {
+    #[default]
     Idle,
     Indexing,
     Done,
@@ -186,6 +203,21 @@ pub const PROGRESS_EVENT: &str = "rag-indexing-progress";
 /// while still giving the Windows bench a clear skip instead of an infinite
 /// "20/21 files" stall.
 const WORKSPACE_FILE_INDEX_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+
+/// BUG-099: cap how many skipped paths ride the terminal progress event. The
+/// exact skip/fail/timeout COUNTS are always reported; this only bounds the path
+/// LIST so a pathological workspace (everything failing) can't emit a giant
+/// payload. The UI shows the first N and relies on the counts for the total.
+const MAX_REPORTED_SKIPPED_PATHS: usize = 100;
+
+/// BUG-099: bound the skipped-path list that rides a terminal progress event.
+fn cap_skipped_paths(paths: &[String]) -> Vec<String> {
+    paths
+        .iter()
+        .take(MAX_REPORTED_SKIPPED_PATHS)
+        .cloned()
+        .collect()
+}
 
 /// Shared state managed by Tauri. Holds:
 ///   - the currently-active workspace root (so `rag_index_workspace` and
@@ -290,6 +322,49 @@ where
     }
 
     outcome
+}
+
+/// BUG-099 finding #1 — reconcile the index after one file's outcome.
+///
+/// A SUCCESSFUL re-index already keeps the index consistent: `index_one_file`
+/// deletes the path's old rows and adds the new ones (an upsert). But when a file
+/// is SKIPPED — it timed out mid-parse/embed, or failed unrecoverably — that
+/// delete+add never ran, so any rows from a PREVIOUS index are still present and
+/// may now be stale (the file changed and we couldn't read the new version).
+/// Retrieval could then cite an OLD version of the file as current. Because a
+/// stale citation is worse than a missing one, we drop the file's rows on any
+/// skip.
+///
+/// Best-effort: a failed cleanup delete is logged and swallowed — one
+/// un-deletable file must not abort the whole walk (the same stance
+/// `index_one_file` takes for an unreadable file).
+///
+/// Returns `true` iff a purge was issued (for the caller's counting / logging /
+/// tests); `false` for a cleanly indexed file, which is left untouched.
+async fn purge_stale_rows_on_skip(
+    table: &lancedb::Table,
+    file_path: &Path,
+    key: &[u8; 32],
+    outcome: &FileIndexOutcome,
+) -> bool {
+    match outcome {
+        FileIndexOutcome::Indexed => false,
+        FileIndexOutcome::Failed(_) | FileIndexOutcome::TimedOut => {
+            let path_str = file_path.to_string_lossy();
+            match store::delete_path(table, &path_str, key).await {
+                Ok(()) => log::info!(
+                    "rag_index_workspace: purged stale rows for skipped file {}",
+                    file_path.display()
+                ),
+                Err(e) => log::warn!(
+                    "rag_index_workspace: failed to purge stale rows for skipped file {} \
+                     (a stale citation may remain): {e:#}",
+                    file_path.display()
+                ),
+            }
+            true
+        }
+    }
 }
 
 /// Helper: load the active workspace root, returning a friendly error if
@@ -853,6 +928,7 @@ pub async fn rag_index_workspace(
             processed: 0,
             total,
             current_path: None,
+            ..Default::default()
         },
     );
 
@@ -861,6 +937,9 @@ pub async fn rag_index_workspace(
     let mut skipped_files: u32 = 0;
     let mut failed_files: u32 = 0;
     let mut timed_out_files: u32 = 0;
+    // BUG-099: the paths we skipped, surfaced (bounded) on the terminal event so
+    // the UI can list them. The counts above stay exact regardless of the cap.
+    let mut skipped_paths: Vec<String> = Vec::new();
     for (i, file) in files.iter().enumerate() {
         if cancel.load(Ordering::SeqCst) {
             let _ = app.emit(
@@ -870,6 +949,10 @@ pub async fn rag_index_workspace(
                     processed: i as u32,
                     total,
                     current_path: None,
+                    skipped: skipped_files,
+                    failed: failed_files,
+                    timed_out: timed_out_files,
+                    skipped_paths: cap_skipped_paths(&skipped_paths),
                 },
             );
             return Ok(());
@@ -881,6 +964,10 @@ pub async fn rag_index_workspace(
                 processed: i as u32,
                 total,
                 current_path: Some(file.to_string_lossy().to_string()),
+                skipped: skipped_files,
+                failed: failed_files,
+                timed_out: timed_out_files,
+                ..Default::default()
             },
         );
         // WS-PRIV: the full-workspace walk indexes everything at PRIVILEGE_NONE.
@@ -907,6 +994,10 @@ pub async fn rag_index_workspace(
             .await
         })
         .await;
+        // BUG-099 finding #1: drop stale rows for any skipped file BEFORE moving
+        // on, so retrieval can never cite an old version of a file we couldn't
+        // re-read. A cleanly indexed file is left untouched.
+        let purged = purge_stale_rows_on_skip(&table, file, &key, &outcome).await;
         match outcome {
             FileIndexOutcome::Indexed => {}
             FileIndexOutcome::Failed(_) => {
@@ -918,6 +1009,9 @@ pub async fn rag_index_workspace(
                 timed_out_files += 1;
             }
         }
+        if purged {
+            skipped_paths.push(file.to_string_lossy().to_string());
+        }
         let _ = app.emit(
             PROGRESS_EVENT,
             IndexingProgress {
@@ -925,6 +1019,10 @@ pub async fn rag_index_workspace(
                 processed: i as u32 + 1,
                 total,
                 current_path: Some(file.to_string_lossy().to_string()),
+                skipped: skipped_files,
+                failed: failed_files,
+                timed_out: timed_out_files,
+                ..Default::default()
             },
         );
     }
@@ -942,6 +1040,10 @@ pub async fn rag_index_workspace(
             processed: total,
             total,
             current_path: None,
+            skipped: skipped_files,
+            failed: failed_files,
+            timed_out: timed_out_files,
+            skipped_paths: cap_skipped_paths(&skipped_paths),
         },
     );
     log::info!(
@@ -2009,6 +2111,7 @@ mod tests {
             processed: 12,
             total: 100,
             current_path: Some("/w/x.md".into()),
+            ..Default::default()
         };
         let s = serde_json::to_string(&p).unwrap();
         assert!(s.contains("\"currentPath\":\"/w/x.md\""), "got {}", s);
@@ -2079,6 +2182,185 @@ mod tests {
         assert_eq!(failed, 1);
         assert_eq!(timed_out, 1);
         assert_eq!(store::read_index_version(dir.path()), store::INDEX_VERSION);
+    }
+
+    // -----------------------------------------------------------------------
+    // BUG-099 hardening (gaps from the 2026-06-22 Codex review)
+    // -----------------------------------------------------------------------
+
+    /// Gap 2: the progress event must carry the skip/fail counts AND the skipped
+    /// paths, not just the logs, so the UI can render "done, N skipped" instead
+    /// of a silent "Done".
+    #[test]
+    fn progress_serializes_skip_counts_and_paths() {
+        let p = IndexingProgress {
+            status: IndexingStatus::Done,
+            processed: 21,
+            total: 21,
+            current_path: None,
+            skipped: 2,
+            failed: 1,
+            timed_out: 1,
+            skipped_paths: vec!["/w/stuck.docx".into(), "/w/broken.rtf".into()],
+        };
+        let s = serde_json::to_string(&p).unwrap();
+        assert!(s.contains("\"skipped\":2"), "got {s}");
+        assert!(s.contains("\"failed\":1"), "got {s}");
+        assert!(s.contains("\"timedOut\":1"), "got {s}");
+        assert!(
+            s.contains("\"skippedPaths\":[\"/w/stuck.docx\",\"/w/broken.rtf\"]"),
+            "got {s}"
+        );
+    }
+
+    /// Gap 2: per-file events stay small — when there are no skipped paths the
+    /// `skippedPaths` array is omitted from the wire payload entirely.
+    #[test]
+    fn progress_omits_empty_skipped_paths() {
+        let p = IndexingProgress {
+            status: IndexingStatus::Indexing,
+            processed: 3,
+            total: 21,
+            current_path: Some("/w/a.md".into()),
+            skipped: 0,
+            failed: 0,
+            timed_out: 0,
+            skipped_paths: Vec::new(),
+        };
+        let s = serde_json::to_string(&p).unwrap();
+        assert!(!s.contains("skippedPaths"), "empty paths must be omitted: {s}");
+        assert!(s.contains("\"skipped\":0"), "got {s}");
+    }
+
+    /// Gap 1 + Gap 3 (the highest-severity finding): a file we SKIPPED (timed out
+    /// or failed mid-extract/embed) must have its now-possibly-stale rows dropped,
+    /// so retrieval can never cite an OLD version of a file we couldn't re-read.
+    /// A cleanly indexed file must be left untouched (its re-index already
+    /// replaced its rows atomically).
+    #[tokio::test]
+    async fn skip_outcome_purges_stale_rows_but_indexed_outcome_keeps_them() {
+        let key = [0x42u8; 32];
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = store::open_connection(dir.path()).await.expect("open conn");
+        let table = store::open_or_create_table(&conn).await.expect("open table");
+
+        let path = "/w/contract.docx";
+        let mk_rows = |text: &str| {
+            vec![(
+                chunker::Chunk {
+                    path: path.into(),
+                    paragraph_index: 0,
+                    text: text.into(),
+                    start_offset: 0,
+                    end_offset: text.len(),
+                    locator: None,
+                },
+                vec![0.10f32; embedder::EMBEDDING_DIM],
+            )]
+        };
+        let q = vec![0.10f32; embedder::EMBEDDING_DIM];
+        let present = |table: &lancedb::Table| {
+            let q = q.clone();
+            let table = table.clone();
+            async move { !store::nearest(&table, &q, 10, None, false).await.unwrap().is_empty() }
+        };
+
+        // Seed v1 — the file's rows now exist.
+        store::upsert_chunks_for_path(
+            &table,
+            path,
+            mk_rows("old version"),
+            store::SourceType::Text,
+            store::UNASSIGNED_MATTER,
+            store::PRIVILEGE_NONE,
+            &key,
+        )
+        .await
+        .expect("seed v1");
+        assert!(present(&table).await, "precondition: the file is indexed");
+
+        // A cleanly INDEXED outcome must NOT purge — wiping a good file's rows
+        // would itself create a missing-citation regression.
+        let purged =
+            purge_stale_rows_on_skip(&table, Path::new(path), &key, &FileIndexOutcome::Indexed)
+                .await;
+        assert!(!purged, "indexed files must not be purged");
+        assert!(present(&table).await, "indexed file's rows must remain");
+
+        // A TIMED-OUT outcome drops the stale rows.
+        let purged =
+            purge_stale_rows_on_skip(&table, Path::new(path), &key, &FileIndexOutcome::TimedOut)
+                .await;
+        assert!(purged, "timed-out files must be purged");
+        assert!(!present(&table).await, "stale rows must be gone after a timeout skip");
+
+        // A FAILED outcome likewise purges (re-seed, then fail).
+        store::upsert_chunks_for_path(
+            &table,
+            path,
+            mk_rows("old version"),
+            store::SourceType::Text,
+            store::UNASSIGNED_MATTER,
+            store::PRIVILEGE_NONE,
+            &key,
+        )
+        .await
+        .expect("re-seed");
+        let purged = purge_stale_rows_on_skip(
+            &table,
+            Path::new(path),
+            &key,
+            &FileIndexOutcome::Failed("forced extraction failure".into()),
+        )
+        .await;
+        assert!(purged, "failed files must be purged");
+        assert!(!present(&table).await, "stale rows must be gone after a failed skip");
+    }
+
+    /// Gap 4: the guard must time out on GENUINELY BLOCKING work — a file whose
+    /// extraction (or the blocking embedder) pins a runtime thread synchronously,
+    /// the real BUG-099 case — not just a cancellable `tokio::time::sleep`. The
+    /// walk must return promptly instead of being frozen by the one stuck file.
+    /// This also documents finding #1: `abort()` does NOT hard-kill the blocking
+    /// thread (the work is still pending right after the timeout), which is why a
+    /// true hard-kill would require process isolation (see the BUG-099 report).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_walk_guard_times_out_on_genuinely_blocking_work() {
+        use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+
+        let finished = Arc::new(AtomicBool::new(false));
+        let finished_in_task = finished.clone();
+        let started = Instant::now();
+        let outcome = run_file_index_task(
+            PathBuf::from("/w/stuck.docx"),
+            Duration::from_millis(30),
+            async move {
+                // Synchronous, non-cancellable block on a runtime worker thread.
+                std::thread::sleep(Duration::from_millis(800));
+                finished_in_task.store(true, AtomicOrdering::SeqCst);
+                Ok(())
+            },
+        )
+        .await;
+        let elapsed = started.elapsed();
+
+        assert_eq!(
+            outcome,
+            FileIndexOutcome::TimedOut,
+            "genuinely blocking work must be reported as timed out"
+        );
+        // The guard returned long before the blocked work would finish: one stuck
+        // file cannot freeze the whole walk.
+        assert!(
+            elapsed < Duration::from_millis(500),
+            "guard must return promptly, not wait for the blocked work; took {elapsed:?}"
+        );
+        // Finding #1: the blocking task is STILL running after abort() — a Rust
+        // task abort is not a hard kill of synchronous work.
+        assert!(
+            !finished.load(AtomicOrdering::SeqCst),
+            "blocking task is expected to still be running after abort (no hard-kill)"
+        );
     }
 
     // -----------------------------------------------------------------------
