@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Briefcase, Lock, ChevronRight, Sparkles, FileText, Mail, GitBranch, Clock, ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
+import { Briefcase, Lock, ChevronRight, Sparkles, FileText, Mail, GitBranch, Clock, ArrowLeft, RefreshCw, Loader2, Map } from 'lucide-react';
 import { useMatters, useActiveMatterPrivileged, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
@@ -23,6 +23,17 @@ import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
 import { Button, IconButton, SearchField, Chip, Badge, Eyebrow, Card } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
+import { useClientMap } from '@/features/matters/useClientMap';
+import { ClientMapView } from '@/features/matters/ClientMapView';
+import { GuidedInterview } from '@/features/matters/GuidedInterview';
+import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
+import { ClientMapUpdatesTray } from '@/features/matters/ClientMapUpdatesTray';
+import { AddCustomSectionForm } from '@/features/matters/AddCustomSectionForm';
+import { ClientMapTemplates } from '@/features/matters/ClientMapTemplates';
+import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
+import { answerQuestion, flagForClient } from '@/platform/clientMap/guidedInterview';
+import type { SourceRef } from '@/platform/clientMap/types';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -49,9 +60,18 @@ function basename(p: string): string {
   return p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p;
 }
 
+// ── Labels ─────────────────────────────────────────────────────────────────
+
+const LABEL_START_INTERVIEW = 'Start the guided interview';
+const LABEL_YOUR_ANSWER_PROMPT = 'Your answer to:';
+
 // ── MatterHub ──────────────────────────────────────────────────────────────
 
 export function MatterHub({ matterId, onBack }: MatterHubProps) {
+  // ── Client Map wiring ────────────────────────────────────────────────────
+  // Declare client map hook at component top — must not be inside a condition.
+  const clientMap = useClientMap(matterId);
+  const { checkForUpdates } = clientMap;
   const matters = useMatters();
   const matter = matters.find((m) => m.id === matterId) ?? null;
   const isPrivileged = useActiveMatterPrivileged();
@@ -140,6 +160,13 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
     };
   }, [matterId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // When the Client Map becomes ready, check for updates from new source material.
+  useEffect(() => {
+    if (clientMap.status === 'ready') {
+      void checkForUpdates();
+    }
+  }, [clientMap.status, checkForUpdates]);
+
   const handleGlanceRefresh = useCallback(() => {
     glanceAbortRef.current?.abort();
     glanceStore.invalidate(matterId);
@@ -160,6 +187,24 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
       }),
     );
   };
+
+  // ── Client Map handlers ──────────────────────────────────────────────────
+  const [showClientMap, setShowClientMap] = useState(false);
+  const [showInterview, setShowInterview] = useState(false);
+
+  const handleOpenSource = useCallback((ref: SourceRef) => {
+    const surface = ref.kind === 'email' ? 'email' : 'files';
+    window.dispatchEvent(
+      new CustomEvent('keepance:matter-launch', { detail: { matterId, surface } }),
+    );
+  }, [matterId]);
+
+  const handleEditItem = useCallback((sectionKey: string, itemId: string) => {
+    const text = window.prompt('Edit item:');
+    if (text !== null && text.trim() !== '') {
+      useClientMapStore.getState().editItem(matterId, sectionKey, itemId, text.trim());
+    }
+  }, [matterId]);
 
   const handleAskSubmit = () => {
     const q = askQ.trim();
@@ -748,6 +793,165 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               <span>Matter created {formatDate(matter.createdAt)}</span>
             )}
           </div>
+        </Card>
+      </div>
+
+      {/* ── E. Client Map ──────────────────────────────────────────────── */}
+      <div
+        data-testid="hub-panel-clientmap"
+        style={{
+          padding: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-section-gap)',
+        }}
+      >
+        <Card variant="raised" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-stack-gap)' }}>
+          {/* Header row */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+            }}
+          >
+            <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Map style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
+              Client Map
+            </Eyebrow>
+            <IconButton
+              icon={ChevronRight}
+              label="Open Client Map"
+              variant="ghost"
+              size="sm"
+              data-testid="hub-panel-clientmap-open"
+              onClick={() => {
+                if (!showClientMap && clientMap.status === 'idle') {
+                  void clientMap.generate();
+                }
+                setShowClientMap((v) => !v);
+              }}
+            />
+          </div>
+
+          {/* Body — only shown when expanded */}
+          {showClientMap && (
+            <div data-testid="hub-panel-clientmap-body">
+              {/* Local-only notice */}
+              {isLocalOnlyMode() && (
+                <div
+                  data-testid="hub-clientmap-local-notice"
+                  style={{
+                    fontSize: 'var(--kp-font-xs)',
+                    color: 'var(--color-muted-foreground)',
+                    marginBottom: 6,
+                  }}
+                >
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  Running on-device only. Generation uses your local model.
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </div>
+              )}
+
+              {/* States */}
+              {(clientMap.status === 'idle' || clientMap.status === 'generating') && (
+                <div
+                  data-testid="hub-clientmap-loading"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    color: 'var(--color-muted-foreground)',
+                    fontSize: 'var(--kp-font-xs)',
+                  }}
+                >
+                  <Loader2
+                    className="animate-spin"
+                    style={{
+                      width: 'var(--kp-icon-sm)',
+                      height: 'var(--kp-icon-sm)',
+                      strokeWidth: 2,
+                    }}
+                  />
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  Building client map...
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </div>
+              )}
+
+              {clientMap.status === 'empty' && (
+                <div
+                  data-testid="hub-clientmap-empty"
+                  style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
+                >
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  No information found yet. Add documents or email to this matter first.
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </div>
+              )}
+
+              {clientMap.status === 'error' && (
+                <div
+                  data-testid="hub-clientmap-error"
+                  style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
+                >
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  Could not build client map. Check your AI connection and try again.
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </div>
+              )}
+
+              {clientMap.status === 'ready' && clientMap.map !== undefined && (
+                <>
+                  {/* Approve-first updates tray — shown at the top so the marker is visible */}
+                  <ClientMapUpdatesTray matterId={matterId} />
+
+                  <div style={{ marginBottom: 8 }}>
+                    <Button
+                      type="button"
+                      data-testid="clientmap-start-interview"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => { setShowInterview((v) => !v); }}
+                    >
+                      {LABEL_START_INTERVIEW}
+                    </Button>
+                  </div>
+                  {showInterview && (
+                    <div style={{ marginBottom: 12 }}>
+                      <GuidedInterview
+                        matterId={matterId}
+                        onClose={() => { setShowInterview(false); }}
+                      />
+                    </div>
+                  )}
+                  <ClientMapView
+                    map={clientMap.map}
+                    onOpenSource={handleOpenSource}
+                    onEditItem={handleEditItem}
+                    onAnswerQuestion={(q) => {
+                      const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${q}`);
+                      if (a != null && a.trim() !== '') {
+                        answerQuestion(matterId, 'standing', a.trim());
+                      }
+                    }}
+                    onFlagForClient={(q) => { flagForClient(matterId, q); }}
+                  />
+                  <div style={{ marginTop: 12 }}>
+                    <ClientQuestionsList matterId={matterId} />
+                  </div>
+
+                  {/* Add a custom section */}
+                  <div style={{ marginTop: 16, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                    <AddCustomSectionForm matterId={matterId} />
+                  </div>
+
+                  {/* Save / apply templates */}
+                  <div style={{ marginTop: 16, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                    <ClientMapTemplates matterId={matterId} />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </Card>
       </div>
     </div>

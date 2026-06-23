@@ -1,0 +1,66 @@
+// tests/unit/clientMap/generator.test.ts
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
+
+const retrieveMock = vi.hoisted(() => vi.fn());
+const sendMock = vi.hoisted(() => vi.fn());
+vi.mock('@/platform/rag/MemoryService', () => ({
+  MemoryService: { retrieve: retrieveMock },
+  isMemoryEnabled: vi.fn(() => true),
+}));
+vi.mock('@/platform/rag/workspaceCommand', () => ({
+  buildWorkspaceContextBlock: (hits: RagHit[]) => (hits.length === 0 ? '' : '<workspace_context>ctx</workspace_context>'),
+}));
+vi.mock('@/platform/clientMap/provider', () => ({
+  buildProviderForClientMap: async () => ({
+    sendMessage: sendMock,
+    getMetadata: () => ({ model: 'test' }),
+  }),
+}));
+
+import { buildClientMap } from '@/platform/clientMap/generator';
+
+const hit = (path: string, text: string): RagHit => ({ path, chunkText: text, score: 0.9, paragraphIndex: 0, id: `${path}#0`, sourceId: path, matterId: 'm1' });
+
+beforeEach(() => {
+  retrieveMock.mockReset();
+  sendMock.mockReset();
+});
+
+describe('buildClientMap', () => {
+  it('retrieves with matter scope only (never allMatters)', async () => {
+    retrieveMock.mockResolvedValue([hit('/a.docx', 'fact')]);
+    sendMock.mockResolvedValue({ content: JSON.stringify({ items: [{ text: 'Acme case', sourceNumbers: [1], assumption: false }] }) });
+    await buildClientMap('m1');
+    for (const call of retrieveMock.mock.calls) {
+      const scope = call[2] as RetrievalScope;
+      expect(scope).toEqual({ kind: 'matter', matterId: 'm1' });
+    }
+  });
+
+  it('maps source numbers back to RagHit sources and flags unsourced items as assumptions', async () => {
+    retrieveMock.mockResolvedValue([hit('/a.docx', 'fact one')]);
+    sendMock.mockResolvedValue({
+      content: JSON.stringify({ items: [
+        { text: 'Sourced fact', sourceNumbers: [1], assumption: false },
+        { text: 'Guessed fact', sourceNumbers: [], assumption: false },
+      ] }),
+    });
+    const map = await buildClientMap('m1');
+    const items = map.sections.flatMap((s) => s.items);
+    const sourced = items.find((i) => i.text === 'Sourced fact')!;
+    expect(sourced.sources[0].ref).toBe('/a.docx');
+    expect(sourced.isAssumption).toBe(false);
+    const guessed = items.find((i) => i.text === 'Guessed fact')!;
+    expect(guessed.isAssumption).toBe(true); // no source numbers => assumption
+  });
+
+  it('returns an empty-but-valid map when nothing is indexed', async () => {
+    retrieveMock.mockResolvedValue([]);
+    const map = await buildClientMap('m1');
+    expect(map.matterId).toBe('m1');
+    expect(map.sections.flatMap((s) => s.items)).toEqual([]);
+    expect(map.lastBuiltAt).not.toBe('');
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+});
