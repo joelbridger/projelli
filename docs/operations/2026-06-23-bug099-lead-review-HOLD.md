@@ -18,6 +18,17 @@ During the 2026-06-23 parallel build, KEEPANCE 4 produced a robust pass at BUG-0
 2. **A timed-out task can still write after the parent's cleanup** (abort is not a hard kill — `mod.rs:292`, `:297`). Best fix (per the review): make the timed child do extract/embed ONLY, and make the parent the single DB writer. This is the "single-writer" design — smaller than full process isolation, which can stay deferred.
 3. **Skip counts never reach the UI.** The Rust event now carries `skipped/failed/timed_out/skipped_paths` (`mod.rs:160`), but the TS path drops them (`tauri-commands.ts:175`, `useRagStatus.ts:54`, `RagProgressBanner.tsx:115`), so the banner still says a plain "Memory ready." Either surface them in the banner or stop claiming "no silent Done." NOTE: this step crosses into the frontend, which was outside KEEPANCE 4's Rust-only lane — the next pass should include it.
 
+## Update — 2nd robust pass reviewed (2026-06-23, still HELD)
+
+A robust pass closed the single-writer + surfacing work; an independent Codex final review = **STILL DO-NOT-SHIP**, but much closer:
+- ✅ **Single-writer: PASS** — the timed child does extract/embed ONLY (no DB handle); the parent walk is the sole writer; a timed-out child returns no result to write. The write-after-cleanup race is genuinely closed (`mod.rs` `run_file_extract_task` / `extract_embed_one_file` / `write_extracted_file`).
+- ✅ INDEX_VERSION still 10; no f98aac6; happy path intact.
+- ❌ **Cleanup failure is surfaced but NOT fail-closed (the remaining data-integrity hole):** when the stale-row delete FAILS (`PurgeFailed`), the file is counted as failed but **retrieval still serves its stale rows** — there is no tombstone/unsafe-path exclusion on the query path (`store.rs` retrieval). A changed+hung file whose cleanup failed can still be cited as current. Fix: **fail closed** — add a durable per-path tombstone that retrieval ALWAYS excludes (surgical: only that file's rows are suppressed; cleared when the path later re-indexes cleanly). Marking the whole index unsafe is the heavier fallback.
+- ❌ **Double-count:** `PurgeFailed` counts the file twice (failed + skipped) → UI undercounts indexed. Use separate counters (unique skipped vs cleanup-failed/unsafe).
+- ❌ **Test gap:** `purge_failure_is_not_swallowed_as_clean_skip` doesn't actually FORCE a purge failure (structural fallback). Add a test that truly forces it and asserts retrieval excludes the stale rows.
+
+A third focused pass is closing these three on `fix/bug099-robust`.
+
 ### Deferred (acceptable, not a blocker)
 - Full process isolation of the extract/embed step. The single-writer fix (#2) addresses the immediate write-after-cleanup risk without it.
 - Real-Windows bench verification remains the final follow-up before this ships.
