@@ -109,7 +109,7 @@ describe('AuditService.append accepts v2.0 events', () => {
       },
     });
     expect(entry.action).toBe('wall_set_from_manager');
-    expect(entry.description).toBe('Ethical wall set: lateral conflict');
+    expect(entry.description).toBe('Information barrier set: lateral conflict');
     expect(entry.metadata['target_user_id']).toBe('user-abcdefgh12');
   });
 
