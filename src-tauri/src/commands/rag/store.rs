@@ -1513,11 +1513,18 @@ pub fn read_unsafe_tokens(workspace_root: &Path) -> HashSet<String> {
 /// errors are surfaced to the caller, which treats a failed persist as part of
 /// the unsafe state (does not stamp the index complete).
 ///
-/// ATOMICITY: written to a temp file in the SAME dir, then `rename`d over the
-/// target. `rename` is atomic on a POSIX filesystem (and replaces on Windows),
-/// so a crash mid-write can never leave a half-written / truncated tombstone
-/// that would silently drop tokens (fail-open) on the next read. A leftover temp
-/// file from a crash is harmless: `read_unsafe_tokens` only reads the final name.
+/// ATOMICITY: written to a temp file in the SAME dir, then renamed over the
+/// target so a crash mid-write can never leave a half-written / truncated
+/// tombstone that would silently drop tokens (fail-open) on the next read.
+///
+/// WINDOWS-SAFE REPLACE: `std::fs::rename` is an atomic replace on POSIX, and on
+/// Windows it maps to a replacing move — BUT a Windows move over an EXISTING
+/// target can still fail with a sharing violation if the target is momentarily
+/// open. Losing the tombstone there would be a fail-OPEN, so on ANY rename
+/// failure we FALL BACK to a direct in-place write of the same bytes: that loses
+/// the crash-atomicity for this one write but GUARANTEES the tombstone persists
+/// (fail-closed beats elegant). The fallback's own error is surfaced to the
+/// caller, which treats a failed persist as part of the unsafe state.
 pub fn write_unsafe_tokens(workspace_root: &Path, tokens: &HashSet<String>) -> Result<()> {
     let path = unsafe_paths_path(workspace_root);
     if let Some(parent) = path.parent() {
@@ -1530,16 +1537,24 @@ pub fn write_unsafe_tokens(workspace_root: &Path, tokens: &HashSet<String>) -> R
         .map(|s| s.as_str())
         .collect::<Vec<_>>()
         .join("\n");
-    // Atomic replace: write temp + rename. Use a pid-tagged temp name so two
-    // processes (e.g. GUI + a future writer) don't collide on the temp path.
+    // Preferred path: write temp + atomic rename-replace. Pid-tagged temp name so
+    // concurrent writers don't collide on the temp path.
     let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
     std::fs::write(&tmp, &body)
         .with_context(|| format!("write unsafe-tokens temp at {:?}", tmp))?;
-    std::fs::rename(&tmp, &path).with_context(|| {
-        // Best-effort cleanup of the temp file on a failed rename.
+    if let Err(rename_err) = std::fs::rename(&tmp, &path) {
+        // Windows: a replacing move can fail with a sharing violation if the
+        // existing target is briefly open. Fall back to a direct write so the
+        // tombstone STILL persists (never fail-open), then drop the temp file.
+        log::warn!(
+            "rag: atomic rename of unsafe-tokens failed ({rename_err}); \
+             falling back to a direct write to keep the tombstone durable"
+        );
+        let direct = std::fs::write(&path, &body)
+            .with_context(|| format!("direct-write unsafe-tokens tombstone at {:?}", path));
         let _ = std::fs::remove_file(&tmp);
-        format!("atomically replace unsafe-tokens tombstone at {:?}", path)
-    })?;
+        direct?;
+    }
     Ok(())
 }
 
@@ -1662,6 +1677,19 @@ mod tests {
 
         let loaded = read_unsafe_tokens(root);
         assert_eq!(loaded, set, "tombstone tokens must survive a write/read cycle (restart)");
+
+        // WINDOWS-SAFE REPLACE regression: a SECOND write over the now-EXISTING
+        // file must succeed (this is exactly the Windows rename-over-existing case
+        // — adding another tombstone after the first). Add a third token and
+        // confirm all three persist.
+        let mut set2 = set.clone();
+        set2.insert(super::super::crypto::path_token(&key, "/w/third.txt"));
+        write_unsafe_tokens(root, &set2).expect("second write over existing file");
+        assert_eq!(
+            read_unsafe_tokens(root),
+            set2,
+            "a second write over an existing tombstone file must persist (Windows-safe replace)"
+        );
 
         // Clearing to empty writes an empty file that reads back as empty (not stale).
         write_unsafe_tokens(root, &HashSet::new()).expect("clear tombstone set");
