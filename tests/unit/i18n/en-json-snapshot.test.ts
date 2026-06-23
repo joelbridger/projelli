@@ -58,7 +58,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 105,
         "media": 77,
-        "memory": 3,
+        "memory": 5,
         "model-download": 9,
         "onboarding": 65,
         "plugins": 4,
@@ -82,8 +82,8 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    // 863 = 859 + 3 MCP per-matter grant keys + 1 mail connect error key.
-    expect(flat.length).toBe(863);
+    // 865 = 863 + 2 BUG-099 ready-with-skips plural keys (ready-with-skips_one + ready-with-skips_other).
+    expect(flat.length).toBe(865);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
