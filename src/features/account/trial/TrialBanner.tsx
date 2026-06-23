@@ -19,8 +19,14 @@ import { useState, useEffect } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { useTrial } from '@/platform/hooks/useTrial';
 import { useLicense } from '@/platform/hooks/useLicense';
+import { TIER_BY_CODE } from '@/config/pricing';
 import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
+
+// Solo headline price, read from the canonical pricing config (never hardcoded
+// so a price change in one place updates every surface). String()-wrapped to
+// keep it out of a number-typed template expression.
+const SOLO_PRICE = `$${String(TIER_BY_CODE.personal.annualPerMonth)}/mo`;
 
 const SESSION_DISMISS_KEY = 'keepance_trial_banner_dismissed_at';
 // Re-show banner if the dismissal is older than this many minutes (so a
@@ -37,14 +43,17 @@ export function TrialBanner({ onActivate }: TrialBannerProps) {
   const [dismissed, setDismissed] = useState<boolean>(() => isFreshDismiss());
 
   // Re-evaluate dismissal as trial state changes (so the banner can come
-  // back when the day-count drops past a threshold).
+  // back when the day-count drops past a threshold). The synchronous setState
+  // here re-syncs a value held in sessionStorage; it is an intentional,
+  // pre-existing pattern that only runs when the trial day-count flips.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDismissed(isFreshDismiss());
   }, [trial.daysRemaining, trial.isExpired]);
 
   if (isActivated) return null;
 
-  const { daysRemaining, isExpired, trialDays } = trial;
+  const { daysRemaining, isExpired } = trial;
 
   // Only show in the final week or after expiry.
   if (!isExpired && daysRemaining > 7) return null;
@@ -54,17 +63,24 @@ export function TrialBanner({ onActivate }: TrialBannerProps) {
 
   const tone: 'amber' | 'red' = isExpired || daysRemaining <= 3 ? 'red' : 'amber';
 
+  // Frictionless framing: the trial is full-featured, no card, no account, and
+  // private by default. The no-egress claim is scoped to the user's own files
+  // and work (the accurate guarantee), not every network call (the app still
+  // checks for updates and validates a license code). The convert line reads
+  // the Solo price from pricing config.
+  const convertLine = `Full features, and your files stay on your computer unless you turn on cloud AI. Keep going for ${SOLO_PRICE}, billed yearly. No account needed.`;
+
   let headline: string;
   let body: string;
   if (isExpired) {
-    headline = 'Your trial has ended.';
-    body = `Your ${trialDays}-day free trial is over. Activate a license to keep using AI chat and workflows. Your files stay readable either way.`;
+    headline = 'Your free trial has ended.';
+    body = 'AI chat and workflows pause until you activate. Your files stay readable, and you keep everything you have made. No account needed.';
   } else if (daysRemaining === 1) {
-    headline = '1 day left in your free trial.';
-    body = 'After tomorrow, AI chat and workflows pause until you activate a license. Existing files stay accessible.';
+    headline = 'Your free trial ends tomorrow.';
+    body = convertLine;
   } else {
     headline = `${daysRemaining} days left in your free trial.`;
-    body = 'Activate a license now to keep AI chat and workflows running once the trial ends.';
+    body = convertLine;
   }
 
   return (

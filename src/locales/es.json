@@ -256,6 +256,10 @@
       "get-license-cta__sourceHash": "3cd49792283e16e730cdac6d3efc1ad24488d5266392e6621443ba9ed357e833",
       "already-have-key": "¿Ya tienes una clave de licencia?",
       "already-have-key__sourceHash": "b0be03f349873e8bf1511090c79a05688ea392e60f07faf3fc0400a814f90ee2",
+      "recovery-heading": "¿Ya compraste Keepance?",
+      "recovery-detail": "Introduce tu código de licencia para restaurarlo en este ordenador. No necesitas cuenta.",
+      "recovery-restore": "Restaurar",
+      "recovery-restoring": "Restaurando...",
       "unlocks-heading": "Lo que incluye tu licencia:",
       "unlocks-heading__sourceHash": "119e767d78bddc29b83a07778b1e9ad6f0a1666b67f7d570ad7948a9e8c09020",
       "unlocks": {
