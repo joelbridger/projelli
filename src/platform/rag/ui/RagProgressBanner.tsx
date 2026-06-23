@@ -113,6 +113,19 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
   }
 
   if (snap.status === 'done' && doneVisible && snap.total > 0) {
+    // BUG-099: show "Memory ready (N files skipped)" when some files were
+    // skipped, so the user knows the index is not a silent complete success.
+    // No em dash in the string (house style rule).
+    // Use the SUCCESSFULLY INDEXED count (total minus skipped), not total,
+    // so "indexed 8 files (2 skipped)" is honest vs "indexed 10 files (2 skipped)".
+    const indexedCount = Math.max(0, snap.total - snap.skipped);
+    const readyLabel =
+      snap.skipped > 0
+        ? t('memory.rag-banner.ready-with-skips', {
+            count: indexedCount,
+            skipped: snap.skipped,
+          })
+        : t('memory.rag-banner.ready', { count: snap.total });
     return (
       <div
         data-testid="rag-progress-banner"
@@ -120,7 +133,7 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
         aria-live="polite"
         className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30 text-xs text-muted-foreground"
       >
-        <span>{t('memory.rag-banner.ready', { count: snap.total })}</span>
+        <span data-testid="rag-progress-banner-ready-label">{readyLabel}</span>
         <button
           type="button"
           data-testid="rag-progress-banner-dismiss"

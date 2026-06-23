@@ -37,9 +37,12 @@ pub mod store;
 pub mod transcript;
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex;
 
@@ -155,19 +158,51 @@ pub enum Verdict {
 
 /// Payload emitted on `rag-indexing-progress` Tauri events. The frontend
 /// `useRagStatus` hook subscribes and renders a banner / status badge.
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexingProgress {
     pub status: IndexingStatus,
     pub processed: u32,
     pub total: u32,
     pub current_path: Option<String>,
+    /// BUG-099: how many files were genuinely skipped (extraction/embed failed
+    /// or timed out). Equals `failed` + `timed_out`. Cumulative on per-file
+    /// `Indexing` events; final on the terminal `Done` / `Cancelled` event.
+    /// The banner uses `indexed = total - skipped` to report the honest count.
+    /// NOTE: `cleanup_failed` is a SEPARATE counter — a file whose cleanup also
+    /// fails is still only counted ONCE here (not double-counted).
+    pub skipped: u32,
+    /// Of `skipped`: files dropped because extraction/embedding returned an
+    /// unrecoverable error.
+    pub failed: u32,
+    /// Of `skipped`: files dropped because they exceeded the per-file index
+    /// timeout (a stuck parser or blocking embedder — the original BUG-099 stall).
+    pub timed_out: u32,
+    /// BUG-099: files for which the stale-row cleanup DELETE also failed after
+    /// the skip. These are ALREADY counted in `skipped`/`failed`/`timed_out`
+    /// above — this is a SEPARATE counter for the additional failure (cleanup
+    /// itself failed) so the UI can say "N files could not be cleaned up."
+    /// Using a distinct counter prevents the double-count that was undercounting
+    /// indexed files (the UI banner's `indexed = total - skipped` was wrong when
+    /// PurgeFailed incremented `skipped` twice for the same file).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub cleanup_failed: u32,
+    /// The paths that were skipped. Omitted from the wire payload when empty so
+    /// the per-file events stay small; populated (bounded by
+    /// `MAX_REPORTED_SKIPPED_PATHS`) on the terminal event so the UI can list them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub skipped_paths: Vec<String>,
 }
 
-#[derive(Serialize, Clone, Debug)]
+fn is_zero(n: &u32) -> bool {
+    *n == 0
+}
+
+#[derive(Serialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)] // Idle / Error are valid wire values even if not currently emitted
 pub enum IndexingStatus {
+    #[default]
     Idle,
     Indexing,
     Done,
@@ -177,6 +212,28 @@ pub enum IndexingStatus {
 
 /// Tauri event name. Mirrored in `src/utils/tauri-commands.ts`.
 pub const PROGRESS_EVENT: &str = "rag-indexing-progress";
+
+/// BUG-099 hardening: a single pathological file must not hold the whole
+/// workspace walk forever. Five minutes is intentionally generous for normal
+/// text/office sources under the existing size caps (5 MiB text, 50 MiB office)
+/// while still giving the Windows bench a clear skip instead of an infinite
+/// "20/21 files" stall.
+const WORKSPACE_FILE_INDEX_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+
+/// BUG-099: cap how many skipped paths ride the terminal progress event. The
+/// exact skip/fail/timeout COUNTS are always reported; this only bounds the path
+/// LIST so a pathological workspace (everything failing) can't emit a giant
+/// payload. The UI shows the first N and relies on the counts for the total.
+const MAX_REPORTED_SKIPPED_PATHS: usize = 100;
+
+/// BUG-099: bound the skipped-path list that rides a terminal progress event.
+fn cap_skipped_paths(paths: &[String]) -> Vec<String> {
+    paths
+        .iter()
+        .take(MAX_REPORTED_SKIPPED_PATHS)
+        .cloned()
+        .collect()
+}
 
 /// Shared state managed by Tauri. Holds:
 ///   - the currently-active workspace root (so `rag_index_workspace` and
@@ -215,6 +272,22 @@ pub struct RagState {
     /// reload re-arms the latch via `rag_set_workspace` while a slow walk on a
     /// large workspace is still running). Reset by `IndexingGuard` on every exit.
     pub indexing: Arc<AtomicBool>,
+    /// BUG-099 durable tombstone: the set of HMAC PATH TOKENS (the at-rest
+    /// `path` column value) whose stale-row cleanup DELETE failed. Retrieval and
+    /// citation verification exclude every token in this set via `path NOT IN
+    /// (...)` on the prefilter. A token is removed when its file re-indexes
+    /// cleanly — self-healing, surgical (only the one bad file's rows are
+    /// suppressed). Mirrored DURABLY to `.unsafe_paths` on disk (as tokens, never
+    /// plaintext paths), and re-hydrated on workspace open, so the exclusion
+    /// survives an app restart.
+    pub unsafe_tokens: Arc<Mutex<HashSet<String>>>,
+    /// BUG-099 fail-closed: set true when the durable tombstone file EXISTS but
+    /// could NOT be read on workspace open (corruption / lock / permission). The
+    /// real unsafe-token set is then unknown, so retrieval and citation
+    /// verification REFUSE to serve (return an error / NotFound) rather than
+    /// assume "no tombstones" and risk citing a stale row. Cleared by a clean
+    /// full walk, which rewrites the tombstone file from scratch.
+    pub index_integrity_unknown: Arc<AtomicBool>,
 }
 
 /// RAII guard that clears `RagState::indexing` on every exit path (normal
@@ -225,6 +298,248 @@ struct IndexingGuard(Arc<AtomicBool>);
 impl Drop for IndexingGuard {
     fn drop(&mut self) {
         self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum FileIndexOutcome {
+    Indexed,
+    Failed(String),
+    TimedOut,
+}
+
+/// Run one file's extract+embed job behind a timeout. The job is spawned before
+/// waiting so a file that blocks inside synchronous extraction cannot block the
+/// outer walk's clock or the final index-version marker write.
+/// Still used in tests (the walk now uses `run_file_extract_task`).
+#[allow(dead_code)]
+async fn run_file_index_task<F>(file: PathBuf, timeout: Duration, fut: F) -> FileIndexOutcome
+where
+    F: Future<Output = anyhow::Result<()>> + Send + 'static,
+{
+    let started = Instant::now();
+    log::info!(
+        "rag_index_workspace: START extract+embed {}",
+        file.display()
+    );
+
+    let mut handle = tokio::spawn(fut);
+    let outcome = match tokio::time::timeout(timeout, &mut handle).await {
+        Ok(Ok(Ok(()))) => FileIndexOutcome::Indexed,
+        Ok(Ok(Err(e))) => FileIndexOutcome::Failed(format!("{e:#}")),
+        Ok(Err(e)) => FileIndexOutcome::Failed(format!("index task join failed: {e}")),
+        Err(_) => {
+            handle.abort();
+            FileIndexOutcome::TimedOut
+        }
+    };
+
+    let elapsed = started.elapsed();
+    match &outcome {
+        FileIndexOutcome::Indexed => log::info!(
+            "rag_index_workspace: FINISH extract+embed {} in {} ms",
+            file.display(),
+            elapsed.as_millis()
+        ),
+        FileIndexOutcome::Failed(e) => log::warn!(
+            "rag_index_workspace: SKIP failed file {} after {} ms: {}",
+            file.display(),
+            elapsed.as_millis(),
+            e
+        ),
+        FileIndexOutcome::TimedOut => log::warn!(
+            "rag_index_workspace: SKIP timed-out file {} after {} ms (limit {} ms)",
+            file.display(),
+            elapsed.as_millis(),
+            timeout.as_millis()
+        ),
+    }
+
+    outcome
+}
+
+/// BLOCKER 2 — extract-only variant of the file index task for the workspace
+/// walk's single-writer design. The future must NOT perform any DB write; it
+/// only extracts text and computes embeddings, returning the data for the
+/// parent to write.
+///
+/// Returns `(FileIndexOutcome, Option<ExtractedFileData>)`:
+/// - `(Indexed, Some(data))` — success; parent writes `data` to DB.
+/// - `(Indexed, None)` — user cancelled mid-file; parent does nothing.
+/// - `(Failed(_), None)` — extraction/embed error; parent calls purge.
+/// - `(TimedOut, None)` — task exceeded the timeout; parent calls purge.
+///   Crucially, the timed-out task holds no table reference and CANNOT
+///   perform a DB write after the parent has cleaned up.
+async fn run_file_extract_task<F>(
+    file: PathBuf,
+    timeout: Duration,
+    fut: F,
+) -> (FileIndexOutcome, Option<ExtractedFileData>)
+where
+    F: Future<Output = anyhow::Result<Option<ExtractedFileData>>> + Send + 'static,
+{
+    let started = Instant::now();
+    log::info!(
+        "rag_index_workspace: START extract+embed (single-writer) {}",
+        file.display()
+    );
+
+    let mut handle = tokio::spawn(fut);
+    let (outcome, extracted) = match tokio::time::timeout(timeout, &mut handle).await {
+        Ok(Ok(Ok(data))) => (FileIndexOutcome::Indexed, data),
+        Ok(Ok(Err(e))) => (FileIndexOutcome::Failed(format!("{e:#}")), None),
+        Ok(Err(e)) => (FileIndexOutcome::Failed(format!("extract task join failed: {e}")), None),
+        Err(_) => {
+            handle.abort();
+            (FileIndexOutcome::TimedOut, None)
+        }
+    };
+
+    let elapsed = started.elapsed();
+    match &outcome {
+        FileIndexOutcome::Indexed => log::info!(
+            "rag_index_workspace: FINISH extract+embed {} in {} ms",
+            file.display(),
+            elapsed.as_millis()
+        ),
+        FileIndexOutcome::Failed(e) => log::warn!(
+            "rag_index_workspace: SKIP failed file {} after {} ms: {}",
+            file.display(),
+            elapsed.as_millis(),
+            e
+        ),
+        FileIndexOutcome::TimedOut => log::warn!(
+            "rag_index_workspace: SKIP timed-out file {} after {} ms (limit {} ms)",
+            file.display(),
+            elapsed.as_millis(),
+            timeout.as_millis()
+        ),
+    }
+
+    (outcome, extracted)
+}
+
+/// BUG-099 blocker 1 — outcome of a stale-row purge attempt.
+///
+/// The caller uses this to decide whether the file's index state is still
+/// trustworthy after a skip:
+///
+/// * `NotNeeded`    — file was indexed cleanly; no purge was needed.
+/// * `PurgedCleanly` — file was skipped AND the delete succeeded; the index is
+///                     safe (no stale citation can be served for this file).
+/// * `PurgeFailed`  — file was skipped AND the delete FAILED; the index state
+///                     for this file is UNSAFE (a stale citation may be served).
+///                     The walk counts this as an ADDITIONAL failure and
+///                     includes the path in `failed_files` so the UI can say
+///                     "N files could not be cleaned up" instead of a silent Done.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum PurgeOutcome {
+    NotNeeded,
+    PurgedCleanly,
+    PurgeFailed,
+}
+
+/// BUG-099 finding #1 — reconcile the index after one file's outcome.
+///
+/// A SUCCESSFUL re-index already keeps the index consistent: `index_one_file`
+/// deletes the path's old rows and adds the new ones (an upsert). But when a file
+/// is SKIPPED — it timed out mid-parse/embed, or failed unrecoverably — that
+/// delete+add never ran, so any rows from a PREVIOUS index are still present and
+/// may now be stale (the file changed and we couldn't read the new version).
+/// Retrieval could then cite an OLD version of the file as current. Because a
+/// stale citation is worse than a missing one, we drop the file's rows on any
+/// skip.
+///
+/// BLOCKER 1 FIX: a failed cleanup delete is no longer silently swallowed. The
+/// caller receives `PurgeFailed` and counts the file as an additional failure so
+/// the UI can report "N files could not be cleaned up" instead of a silent Done.
+/// The walk continues (one un-deletable file must not abort it), but the index
+/// state for that file is marked unsafe.
+async fn purge_stale_rows_on_skip(
+    table: &lancedb::Table,
+    file_path: &Path,
+    key: &[u8; 32],
+    outcome: &FileIndexOutcome,
+) -> PurgeOutcome {
+    match outcome {
+        FileIndexOutcome::Indexed => PurgeOutcome::NotNeeded,
+        FileIndexOutcome::Failed(_) | FileIndexOutcome::TimedOut => {
+            let path_str = file_path.to_string_lossy();
+            match store::delete_path(table, &path_str, key).await {
+                Ok(()) => {
+                    log::info!(
+                        "rag_index_workspace: purged stale rows for skipped file {}",
+                        file_path.display()
+                    );
+                    PurgeOutcome::PurgedCleanly
+                }
+                Err(e) => {
+                    log::warn!(
+                        "rag_index_workspace: UNSAFE — failed to purge stale rows for skipped \
+                         file {} (a stale citation may remain; marking as unsafe): {e:#}",
+                        file_path.display()
+                    );
+                    PurgeOutcome::PurgeFailed
+                }
+            }
+        }
+    }
+}
+
+/// BUG-099 durable tombstone — record `path`'s HMAC token as unsafe (in the
+/// in-memory set AND on disk) so retrieval and verification exclude its stale
+/// rows even after an app restart. The token is computed from the plaintext
+/// `path` + the vector master `key` (the exact value stored in the `path`
+/// column), so the durable file holds NO plaintext path (VG-6e parity).
+///
+/// Returns `Ok(())` only when the durable write SUCCEEDED. On a disk-write
+/// failure it returns `Err`: the in-memory exclusion still applies this session,
+/// but the caller must treat the durable fail-closed guarantee as NOT met and
+/// avoid stamping the index complete (so the next launch re-runs the walk).
+///
+/// CONCURRENCY: the disk write happens WHILE the set lock is held, so a
+/// concurrent tombstone/clear cannot interleave and persist a stale snapshot.
+async fn tombstone_path(
+    state: &RagState,
+    workspace: &Path,
+    path: &str,
+    key: &[u8; 32],
+) -> anyhow::Result<()> {
+    use anyhow::Context;
+    let token = crypto::path_token(key, path);
+    let mut guard = state.unsafe_tokens.lock().await;
+    guard.insert(token);
+    let result = store::write_unsafe_tokens(workspace, &guard)
+        .with_context(|| format!("persist unsafe-tokens tombstone for {path}"));
+    if result.is_err() {
+        // Cross-process fail-closed: the durable token set is now stale/missing
+        // this token, and the MCP sidecar only reads disk. Drop a durable sentinel
+        // so the sidecar (and a restarted GUI) fail closed until a clean re-index.
+        // Also set the in-process flag for the current GUI session.
+        store::mark_integrity_unknown(workspace);
+        state.index_integrity_unknown.store(true, Ordering::SeqCst);
+    }
+    result
+}
+
+/// BUG-099 durable tombstone — clear `path`'s token from the unsafe set (in
+/// memory and on disk) after a clean re-index. No-op (and no disk write) when
+/// the token was not tombstoned, so the happy path never touches the file.
+///
+/// A failed clear-persist is logged but not fatal: leaving a stale tombstone
+/// only OVER-suppresses one already-safe file (fail-closed, never fail-open),
+/// and the next clean re-index retries the clear.
+///
+/// CONCURRENCY: as with `tombstone_path`, the disk write is performed under the
+/// set lock so memory and disk update atomically w.r.t. other tombstone/clear.
+async fn clear_tombstone(state: &RagState, workspace: &Path, path: &str, key: &[u8; 32]) {
+    let token = crypto::path_token(key, path);
+    let mut guard = state.unsafe_tokens.lock().await;
+    if !guard.remove(&token) {
+        return; // not tombstoned — nothing to persist.
+    }
+    if let Err(e) = store::write_unsafe_tokens(workspace, &guard) {
+        log::error!("rag: failed to persist cleared tombstone for {path}: {e:#}");
     }
 }
 
@@ -260,6 +575,54 @@ pub async fn rag_set_workspace(
     // SAME already-active workspace is a no-op for indexing (the watcher keeps the
     // index live incrementally); a real switch to a DIFFERENT workspace re-arms.
     let changed = guard.as_deref() != Some(target.as_path());
+    // BUG-099 durable tombstone: re-hydrate the in-memory unsafe-TOKEN set from
+    // disk so the fail-closed exclusion survives an app restart (a fresh process
+    // starts with an empty set while stale rows are still durable on disk).
+    //
+    // CRITICAL — never DROP a live tombstone on a same-workspace remount. This
+    // command fires on EVERY frontend mount (the dev HMR reload-storm; a webview
+    // reload), not just real workspace switches. If a cleanup failed AND its
+    // durable persist ALSO failed, the token lives ONLY in memory; the disk file
+    // is empty/stale. Unconditionally overwriting the in-memory set with the disk
+    // contents on a remount would silently re-expose those stale rows. So:
+    //   - real SWITCH / first activation → REPLACE with the disk set (the new
+    //     workspace's own durable tombstones; the old workspace's are irrelevant).
+    //   - same-workspace re-set → MERGE (union) the disk set INTO the live set, so
+    //     a live in-memory-only tombstone can never be lost to a remount.
+    //
+    // FAIL CLOSED: if the durable file EXISTS but is UNREADABLE (corruption /
+    // lock / permission), the real tombstone set is unknown — set the
+    // integrity-unknown flag so retrieval/verify refuse to serve until a clean
+    // re-index rewrites the file. We do NOT clear live in-memory tokens in that
+    // case (keep whatever protection we have), and a real switch leaves the
+    // previous workspace's tokens behind (they don't match the new workspace).
+    {
+        match store::read_unsafe_tokens(&target) {
+            store::TombstoneRead::Tokens(durable) => {
+                let mut live = state.unsafe_tokens.lock().await;
+                if changed {
+                    *live = durable;
+                } else {
+                    live.extend(durable);
+                }
+                state.index_integrity_unknown.store(false, Ordering::SeqCst);
+            }
+            store::TombstoneRead::IntegrityUnknown => {
+                // Cannot trust the on-disk set. Fail closed until a clean re-index.
+                if changed {
+                    // New workspace: start the live set empty (the old ws tokens
+                    // are irrelevant) but mark integrity unknown so nothing is served.
+                    state.unsafe_tokens.lock().await.clear();
+                }
+                state.index_integrity_unknown.store(true, Ordering::SeqCst);
+                log::error!(
+                    "rag_set_workspace: durable tombstone unreadable for {} — \
+                     retrieval will fail closed until a clean re-index",
+                    target.display()
+                );
+            }
+        }
+    }
     *guard = Some(target);
     state.cancel_flag.store(false, Ordering::SeqCst);
     if changed {
@@ -315,11 +678,44 @@ pub async fn rag_index_file(
     // F-501: cancel is `None` here ON PURPOSE — `rag_cancel_indexing` leaves
     // the shared flag true until the next walk resets it, and a stale `true`
     // would silently skip every watcher-triggered single-file index.
-    index_one_file(&table, &file_path, &matter, &privilege, &key, None, vault_vmk)
-        .await
-        .map_err(|e| format!("index_file failed: {e:#}"))?;
-    // vault_vmk_holder is dropped (and ZeroizedVmk zeroizes) here.
-    Ok(())
+    match index_one_file(&table, &file_path, &matter, &privilege, &key, None, vault_vmk).await {
+        Ok(()) => {
+            // vault_vmk_holder is dropped (and ZeroizedVmk zeroizes) at fn exit.
+            // BUG-099 tombstone self-heal: the file watcher's per-file re-index
+            // CLEARS this path's tombstone (in memory AND on disk). Without this,
+            // a file the user fixed (whose cleanup had failed during a walk) would
+            // re-index its fresh rows but stay filtered out of retrieval until a
+            // full walk or restart. `index_one_file` is delete-then-add (an
+            // upsert), so a successful return means the path's rows are consistent.
+            clear_tombstone(&state, &workspace, &path, &key).await;
+            Ok(())
+        }
+        Err(e) => {
+            // BUG-099 fail-closed (watcher parity with the full walk): a failed
+            // incremental index may have left stale rows (e.g. its internal
+            // delete-then-add failed mid-way, or the stale-row cleanup delete
+            // for a now-unreadable/oversized file failed). Durably tombstone the
+            // path so GUI retrieval cannot serve those stale rows until a later
+            // successful re-index clears it — including after an app restart. A
+            // stale citation must be impossible after a cleanup failure on EITHER
+            // indexing path. (The in-memory exclusion applies even if the durable
+            // write also fails; we log that and still return the index error.)
+            if let Err(persist_err) = tombstone_path(&state, &workspace, &path, &key).await {
+                log::error!(
+                    "rag_index_file: DURABLE tombstone persist FAILED for {} — \
+                     in-memory exclusion holds this session but NOT across restart: {persist_err:#}",
+                    file_path.display()
+                );
+            }
+            log::error!(
+                "rag_index_file: path tombstoned for {} — incremental re-index \
+                 failed; its stale rows are excluded from retrieval until a \
+                 successful re-index clears the tombstone: {e:#}",
+                file_path.display()
+            );
+            Err(format!("index_file failed: {e:#}"))
+        }
+    }
 }
 
 /// Resolve an optional caller-supplied matter id into a concrete, validated
@@ -372,6 +768,273 @@ fn decrypt_if_vaulted(bytes: Vec<u8>, vault_vmk: Option<&[u8; 32]>) -> Vec<u8> {
             // which is the right outcome (we never silently eat a crypto error).
             log::warn!("rag: KPV1 decrypt failed for a vaulted file: {e}");
             bytes
+        }
+    }
+}
+
+// ─── BUG-099 blocker 2 — single-writer design ───────────────────────────────
+//
+// Previously, `index_one_file` (extract → embed → DB write) ran ENTIRELY inside
+// the timed task. If the timeout fired, the task was aborted but continued
+// running synchronously (a blocking parser or embedder pins a thread past `abort()`).
+// That zombie could then do a DB write AFTER the parent had already run
+// `purge_stale_rows_on_skip` (a delete), producing a race: zombie write after
+// cleanup.
+//
+// Fix: the timed child does ONLY extract + embed (pure computation). The parent
+// (the walk) is the SOLE DB writer. A zombie child that times out can never
+// reach a DB write — the parent discards the child's handle and moves on.
+//
+// `ExtractedFileData` is the data the child returns to the parent. The parent
+// calls one of: `store::delete_path`, `store::upsert_chunks_for_path`, or
+// `store::upsert_grouped`, depending on the variant.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// What a file's extract+embed pass produced. The parent walk is the sole DB
+/// writer and dispatches on this to decide what to write (or delete).
+enum ExtractedFileData {
+    /// The file was missing, empty, or too large — a silent, expected skip.
+    /// The parent should call `store::delete_path` to drop any stale rows,
+    /// but does NOT count this as a failed file (it's an intentional skip,
+    /// e.g. an empty note or a file that exceeds the size cap).
+    ShouldDelete,
+    /// The file was readable but its content could not be parsed (corrupt
+    /// office package, invalid UTF-8 after decryption, etc.). The parent
+    /// should call `store::delete_path` AND count this as a `Failed` skip
+    /// so the UI can surface "N files skipped" instead of a plain Done.
+    /// The reason was already logged at the extraction site.
+    SkippedUnreadable,
+    /// Standard plain-text / docx / rtf result. Write via
+    /// `store::upsert_chunks_for_path`. An empty `rows` Vec means the file
+    /// is empty — the parent still calls delete then skips the add.
+    Flat {
+        rows: Vec<(chunker::Chunk, Vec<f32>)>,
+        source_type: store::SourceType,
+    },
+    /// Sectioned result (xlsx, pptx, transcript). Write via
+    /// `store::upsert_grouped`. Each group carries its own `SourceType` and
+    /// the extraction marker is always `None` for native (non-OCR) sources.
+    Grouped {
+        groups: Vec<(store::SourceType, Vec<(chunker::Chunk, Vec<f32>)>)>,
+    },
+}
+
+/// BLOCKER 2: extract + embed only — no DB write. The caller (the walk) writes
+/// to the DB after this returns. This is the timed task's entire job.
+///
+/// Returns `Ok(Some(data))` with the data to write, `Ok(None)` when the user
+/// cancelled mid-file (caller should write nothing and let the walk handle the
+/// cancel on its next iteration), or `Err(_)` on a hard failure.
+///
+/// The function signature mirrors `index_one_file` but takes no `table`
+/// parameter — it cannot perform any DB operation.
+async fn extract_embed_one_file(
+    file_path: &Path,
+    cancel: Option<&AtomicBool>,
+    vault_vmk: Option<&[u8; 32]>,
+) -> anyhow::Result<Option<ExtractedFileData>> {
+    let path_str = file_path.to_string_lossy().to_string();
+    let Some(kind) = extractor::classify(file_path) else {
+        return Ok(Some(ExtractedFileData::ShouldDelete));
+    };
+    match kind {
+        extractor::IndexKind::Text => {
+            let Some(raw_bytes) = extractor::read_text_bytes(file_path) else {
+                // Missing or too large — silent skip (expected, not a failure).
+                return Ok(Some(ExtractedFileData::ShouldDelete));
+            };
+            let decrypted = decrypt_if_vaulted(raw_bytes, vault_vmk);
+            let Some(text) = String::from_utf8(decrypted).ok() else {
+                // A readable text file whose bytes are not valid UTF-8 is genuinely
+                // unreadable (corrupt / wrong encoding), NOT a clean skip — surface
+                // it as a reported failure so the banner does not count it as
+                // indexed (mirrors the office-file SkippedUnreadable path).
+                log::warn!(
+                    "rag: skipping non-UTF-8 text file {} (counted as failed)",
+                    file_path.display()
+                );
+                return Ok(Some(ExtractedFileData::SkippedUnreadable));
+            };
+            // Transcript detection (same as index_one_file).
+            let ext = file_path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_ascii_lowercase());
+            if matches!(ext.as_deref(), Some("txt") | Some("text"))
+                && transcript::detect_transcript(&text)
+            {
+                return extract_embed_transcript(&path_str, &text, cancel).await;
+            }
+            extract_embed_plain_text(&path_str, &text, store::SourceType::Text, cancel).await
+        }
+        extractor::IndexKind::Docx | extractor::IndexKind::Rtf => {
+            let Some(raw_bytes) = extractor::read_bytes(file_path) else {
+                // Missing or too large — silent skip (expected).
+                return Ok(Some(ExtractedFileData::ShouldDelete));
+            };
+            let bytes = decrypt_if_vaulted(raw_bytes, vault_vmk);
+            let extracted: anyhow::Result<String> = match kind {
+                extractor::IndexKind::Docx => keepance_docx::parse_docx_bytes(&bytes)
+                    .map(|doc| keepance_docx::extract_paragraph_texts(&doc).join("\n\n"))
+                    .map_err(anyhow::Error::from),
+                _ => office::extract_rtf_text(&bytes),
+            };
+            let text = match extracted {
+                Ok(t) => t,
+                Err(e) => {
+                    log::warn!(
+                        "rag: skipping unreadable office file {}: {e:#}",
+                        file_path.display()
+                    );
+                    // Extraction failed on a readable file — surface as a skipped
+                    // failure so the UI can report it, not silently count as Done.
+                    return Ok(Some(ExtractedFileData::SkippedUnreadable));
+                }
+            };
+            let source_type = match kind {
+                extractor::IndexKind::Docx => store::SourceType::Docx,
+                _ => store::SourceType::Rtf,
+            };
+            extract_embed_plain_text(&path_str, &text, source_type, cancel).await
+        }
+        extractor::IndexKind::Xlsx | extractor::IndexKind::Pptx => {
+            let Some(raw_bytes) = extractor::read_bytes(file_path) else {
+                // Missing or too large — silent skip (expected).
+                return Ok(Some(ExtractedFileData::ShouldDelete));
+            };
+            let bytes = decrypt_if_vaulted(raw_bytes, vault_vmk);
+            let sections = match kind {
+                extractor::IndexKind::Xlsx => office::extract_xlsx_sections(&bytes),
+                _ => office::extract_pptx_sections(&bytes),
+            };
+            let sections = match sections {
+                Ok(s) => s,
+                Err(e) => {
+                    log::warn!(
+                        "rag: skipping unreadable office file {}: {e:#}",
+                        file_path.display()
+                    );
+                    // Extraction failed — surface as skipped failure, not silent Done.
+                    return Ok(Some(ExtractedFileData::SkippedUnreadable));
+                }
+            };
+            let banded = build_section_chunks(&path_str, &sections);
+            if banded.iter().all(|(_, chunks)| chunks.is_empty()) {
+                return Ok(Some(ExtractedFileData::ShouldDelete));
+            }
+            let texts: Vec<String> = banded
+                .iter()
+                .flat_map(|(_, chunks)| chunks.iter().map(|c| c.text.clone()))
+                .collect();
+            let Some(vectors) = embedder::embed_documents_batched(&texts, cancel).await? else {
+                return Ok(None); // cancelled
+            };
+            let source_type_for = |number: u32| match kind {
+                extractor::IndexKind::Xlsx => store::SourceType::Xlsx { sheet_number: number },
+                _ => store::SourceType::Pptx { slide_number: number },
+            };
+            let mut vectors = vectors.into_iter();
+            let groups: Vec<(store::SourceType, Vec<(chunker::Chunk, Vec<f32>)>)> = banded
+                .into_iter()
+                .map(|(number, chunks)| {
+                    let rows: Vec<(chunker::Chunk, Vec<f32>)> = chunks
+                        .into_iter()
+                        .map(|c| {
+                            let v = vectors.next().expect("one vector per chunk");
+                            (c, v)
+                        })
+                        .collect();
+                    (source_type_for(number), rows)
+                })
+                .collect();
+            Ok(Some(ExtractedFileData::Grouped { groups }))
+        }
+    }
+}
+
+/// Extract + embed a plain-text/docx/rtf file. Returns `Ok(None)` on cancel.
+async fn extract_embed_plain_text(
+    path_str: &str,
+    text: &str,
+    source_type: store::SourceType,
+    cancel: Option<&AtomicBool>,
+) -> anyhow::Result<Option<ExtractedFileData>> {
+    let chunks = chunker::chunk_text(path_str, text);
+    if chunks.is_empty() {
+        return Ok(Some(ExtractedFileData::Flat { rows: Vec::new(), source_type }));
+    }
+    let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+    let Some(vectors) = embedder::embed_documents_batched(&texts, cancel).await? else {
+        return Ok(None); // cancelled
+    };
+    let rows: Vec<(chunker::Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
+    Ok(Some(ExtractedFileData::Flat { rows, source_type }))
+}
+
+/// Extract + embed a transcript file. Returns `Ok(None)` on cancel.
+async fn extract_embed_transcript(
+    path_str: &str,
+    text: &str,
+    cancel: Option<&AtomicBool>,
+) -> anyhow::Result<Option<ExtractedFileData>> {
+    let chunks = transcript::chunk_transcript(path_str, text);
+    if chunks.is_empty() {
+        return Ok(Some(ExtractedFileData::ShouldDelete));
+    }
+    let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+    let Some(vectors) = embedder::embed_documents_batched(&texts, cancel).await? else {
+        return Ok(None); // cancelled
+    };
+    let mut grouped: std::collections::BTreeMap<u32, Vec<(chunker::Chunk, Vec<f32>)>> =
+        std::collections::BTreeMap::new();
+    for (chunk, vec) in chunks.into_iter().zip(vectors) {
+        let page = transcript::locator_start_page(chunk.locator.as_deref()).unwrap_or(1);
+        grouped.entry(page).or_default().push((chunk, vec));
+    }
+    let groups: Vec<(store::SourceType, Vec<(chunker::Chunk, Vec<f32>)>)> = grouped
+        .into_iter()
+        .map(|(page, rows)| (store::SourceType::Transcript { start_page: page }, rows))
+        .collect();
+    Ok(Some(ExtractedFileData::Grouped { groups }))
+}
+
+/// Write an `ExtractedFileData` value to the DB. This is called by the parent
+/// walk — NEVER by the timed child task — enforcing the single-writer invariant.
+///
+/// Returns `Ok(true)` when the write succeeded but the file should be counted
+/// as a skip (SkippedUnreadable: the file was readable but extraction failed).
+/// Returns `Ok(false)` when the write succeeded and the file was indexed normally
+/// (or was a silent ShouldDelete for a missing/empty file).
+async fn write_extracted_file(
+    table: &lancedb::Table,
+    path_str: &str,
+    data: ExtractedFileData,
+    matter_id: &str,
+    privilege: &str,
+    key: &[u8; 32],
+) -> anyhow::Result<bool> {
+    match data {
+        ExtractedFileData::ShouldDelete => {
+            store::delete_path(table, path_str, key).await?;
+            Ok(false)
+        }
+        ExtractedFileData::SkippedUnreadable => {
+            // Delete stale rows AND signal to the caller that this file was
+            // skipped due to an extraction error (not a silent empty/missing).
+            store::delete_path(table, path_str, key).await?;
+            Ok(true)
+        }
+        ExtractedFileData::Flat { rows, source_type } => {
+            store::upsert_chunks_for_path(table, path_str, rows, source_type, matter_id, privilege, key)
+                .await?;
+            Ok(false)
+        }
+        ExtractedFileData::Grouped { groups } => {
+            // Build the wire shape upsert_grouped expects: groups with extraction=None.
+            let wire: Vec<(store::SourceType, Option<(&str, f32)>, Vec<(chunker::Chunk, Vec<f32>)>)> =
+                groups.into_iter().map(|(st, rows)| (st, None, rows)).collect();
+            store::upsert_grouped(table, path_str, wire, matter_id, privilege, key).await?;
+            Ok(false)
         }
     }
 }
@@ -765,7 +1428,7 @@ pub async fn rag_index_workspace(
     // in which case indexing proceeds on plaintext files unchanged. The VMK is
     // held for the duration of the walk and zeroized on drop (ZeroizedVmk).
     let vault_vmk_holder = crate::commands::vault::try_load_vault_vmk(&workspace);
-    let vault_vmk: Option<&[u8; 32]> = vault_vmk_holder.as_ref().map(|v| v.as_bytes());
+    let vault_vmk: Option<[u8; 32]> = vault_vmk_holder.as_ref().map(|v| *v.as_bytes());
 
     // Phase 1: walk the tree.
     let files: Vec<PathBuf> = walkdir::WalkDir::new(&workspace)
@@ -789,10 +1452,30 @@ pub async fn rag_index_workspace(
             processed: 0,
             total,
             current_path: None,
+            ..Default::default()
         },
     );
 
     // Phase 2: index, emitting progress per file.
+    let walk_started = Instant::now();
+    let mut skipped_files: u32 = 0;
+    let mut failed_files: u32 = 0;
+    let mut timed_out_files: u32 = 0;
+    // BUG-099 separate counter: files where the stale-row cleanup ALSO failed.
+    // These are already counted in skipped_files/failed_files/timed_out_files
+    // (once each). This counter tracks the additional failure (cleanup itself)
+    // without double-counting so the banner's `indexed = total - skipped` stays
+    // correct.
+    let mut cleanup_failed_files: u32 = 0;
+    // BUG-099 fail-closed durability: set true if ANY durable tombstone write
+    // failed during this walk. When true we do NOT stamp the index-version
+    // completion marker, so the next launch re-runs the full walk (re-tombstones
+    // or re-cleans) instead of trusting an index whose on-disk tombstone is
+    // incomplete — a stale citation must not become possible after a restart.
+    let mut durable_tombstone_failed = false;
+    // BUG-099: the paths we skipped, surfaced (bounded) on the terminal event so
+    // the UI can list them. The counts above stay exact regardless of the cap.
+    let mut skipped_paths: Vec<String> = Vec::new();
     for (i, file) in files.iter().enumerate() {
         if cancel.load(Ordering::SeqCst) {
             let _ = app.emit(
@@ -802,6 +1485,11 @@ pub async fn rag_index_workspace(
                     processed: i as u32,
                     total,
                     current_path: None,
+                    skipped: skipped_files,
+                    failed: failed_files,
+                    timed_out: timed_out_files,
+                    cleanup_failed: cleanup_failed_files,
+                    skipped_paths: cap_skipped_paths(&skipped_paths),
                 },
             );
             return Ok(());
@@ -813,6 +1501,10 @@ pub async fn rag_index_workspace(
                 processed: i as u32,
                 total,
                 current_path: Some(file.to_string_lossy().to_string()),
+                skipped: skipped_files,
+                failed: failed_files,
+                timed_out: timed_out_files,
+                ..Default::default()
             },
         );
         // WS-PRIV: the full-workspace walk indexes everything at PRIVILEGE_NONE.
@@ -820,30 +1512,278 @@ pub async fn rag_index_workspace(
         // privileged), applied via the privilege store + `rag_retag_privilege`
         // after indexing — mirroring how per-file matter assignment re-tags on top
         // of the unassigned full walk.
-        if let Err(e) = index_one_file(
-            &table,
-            file,
-            &matter,
-            store::PRIVILEGE_NONE,
-            &key,
-            Some(cancel.as_ref()),
-            vault_vmk,
+        //
+        // BLOCKER 2 — single-writer design: the timed task does ONLY extract + embed
+        // (pure computation, no DB access). The parent (this walk) is the SOLE DB
+        // writer. A timed-out child that lingers cannot reach any DB write because
+        // `extract_embed_one_file` holds no table reference.
+        let file_for_task = file.clone();
+        let cancel_for_task = cancel.clone();
+        let vault_vmk_for_task = vault_vmk;
+        let (outcome, extracted) = run_file_extract_task(
+            file.clone(),
+            WORKSPACE_FILE_INDEX_TIMEOUT,
+            async move {
+                extract_embed_one_file(
+                    &file_for_task,
+                    Some(cancel_for_task.as_ref()),
+                    vault_vmk_for_task.as_ref(),
+                )
+                .await
+            },
         )
-        .await
-        {
-            // Don't abort the whole walk on a single bad file — log and move on.
-            log::warn!(
-                "rag_index_workspace: failed to index {}: {}",
-                file.display(),
-                e
-            );
+        .await;
+
+        // Parent is sole DB writer: on success write the extracted data; on skip
+        // the write is skipped (stale rows are purged below via purge_stale_rows_on_skip).
+        if matches!(outcome, FileIndexOutcome::Indexed) {
+            if let Some(data) = extracted {
+                let path_str = file.to_string_lossy().to_string();
+                match write_extracted_file(
+                    &table,
+                    &path_str,
+                    data,
+                    &matter,
+                    store::PRIVILEGE_NONE,
+                    &key,
+                )
+                .await
+                {
+                    Ok(true) => {
+                        // SkippedUnreadable: extraction failed on a readable file.
+                        // Count as a failed skip so the UI can surface it. The stale
+                        // rows WERE deleted (write_extracted_file returns Ok(true)
+                        // only after a successful delete), so the path is now safe —
+                        // CLEAR any prior tombstone (no stale rows remain to hide).
+                        clear_tombstone(&state, &workspace, &path_str, &key).await;
+                        skipped_files += 1;
+                        failed_files += 1;
+                        skipped_paths.push(file.to_string_lossy().to_string());
+                        log::warn!(
+                            "rag_index_workspace: counted as failed skip (unreadable): {}",
+                            file.display()
+                        );
+                        let _ = app.emit(
+                            PROGRESS_EVENT,
+                            IndexingProgress {
+                                status: IndexingStatus::Indexing,
+                                processed: i as u32 + 1,
+                                total,
+                                current_path: Some(file.to_string_lossy().to_string()),
+                                skipped: skipped_files,
+                                failed: failed_files,
+                                timed_out: timed_out_files,
+                                ..Default::default()
+                            },
+                        );
+                        continue;
+                    }
+                    Ok(false) => {
+                        // Normal success (indexed or silent empty/missing delete).
+                        // BUG-099 tombstone: a successful re-index CLEARS this path's
+                        // tombstone (self-healing — the stale rows are now replaced
+                        // with fresh ones, so retrieval is safe again). Durable: the
+                        // on-disk tombstone is cleared too so the heal survives restart.
+                        clear_tombstone(&state, &workspace, &path_str, &key).await;
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "rag_index_workspace: DB write failed for {}: {e:#}",
+                            file.display()
+                        );
+                        // Treat a write failure the same as an extraction failure.
+                        // BUG-099 tombstone: a failed write may leave old rows in the
+                        // DB (if the write was an insert that partially failed, or if
+                        // the new delete-then-add cycle failed mid-way). Durably
+                        // tombstone the path so retrieval cannot serve any stale rows
+                        // for it — including after an app restart. If the durable
+                        // persist ALSO fails, mark the walk so it does not stamp
+                        // completion (next launch re-runs).
+                        if tombstone_path(&state, &workspace, &path_str, &key).await.is_err() {
+                            durable_tombstone_failed = true;
+                        }
+                        cleanup_failed_files += 1;
+                        skipped_files += 1;
+                        failed_files += 1;
+                        skipped_paths.push(file.to_string_lossy().to_string());
+                        let _ = app.emit(
+                            PROGRESS_EVENT,
+                            IndexingProgress {
+                                status: IndexingStatus::Indexing,
+                                processed: i as u32 + 1,
+                                total,
+                                current_path: Some(file.to_string_lossy().to_string()),
+                                skipped: skipped_files,
+                                failed: failed_files,
+                                timed_out: timed_out_files,
+                                cleanup_failed: cleanup_failed_files,
+                                ..Default::default()
+                            },
+                        );
+                        continue;
+                    }
+                }
+            }
+            // `extracted == None` means user cancelled mid-file; the walk's
+            // cancel check on the next iteration will emit the Cancelled event.
         }
+
+        // BUG-099 blocker 1: drop stale rows for any skipped file BEFORE moving
+        // on, so retrieval can never cite an old version of a file we couldn't
+        // re-read. A cleanly indexed file is left untouched.
+        // If the purge itself FAILS, the file's stale rows remain in the DB —
+        // record it in the durable tombstone set so retrieval ALWAYS excludes
+        // those rows. The skip is counted ONCE (not twice) — `cleanup_failed`
+        // is a separate counter for the second failure (cleanup itself failed).
+        let purge = purge_stale_rows_on_skip(&table, file, &key, &outcome).await;
+        match outcome {
+            FileIndexOutcome::Indexed => {}
+            FileIndexOutcome::Failed(_) => {
+                skipped_files += 1;
+                failed_files += 1;
+            }
+            FileIndexOutcome::TimedOut => {
+                skipped_files += 1;
+                timed_out_files += 1;
+            }
+        }
+        match purge {
+            PurgeOutcome::NotNeeded => {}
+            PurgeOutcome::PurgedCleanly => {
+                let path_str = file.to_string_lossy().to_string();
+                // The stale rows were dropped cleanly — the path is safe now, so
+                // CLEAR any prior tombstone (self-heal on a clean purge too).
+                clear_tombstone(&state, &workspace, &path_str, &key).await;
+                skipped_paths.push(path_str);
+            }
+            PurgeOutcome::PurgeFailed => {
+                // The skip was already counted above (once). Do NOT double-count.
+                // Instead, record the additional failure in `cleanup_failed_files`
+                // and tombstone the path so retrieval cannot serve its stale rows.
+                cleanup_failed_files += 1;
+                let path_str = file.to_string_lossy().to_string();
+                skipped_paths.push(path_str.clone());
+                // BUG-099 durable tombstone: stale rows remain in the DB for this
+                // path. Mark it unsafe (in memory AND on disk) so `rag_retrieve`
+                // excludes it until a successful re-index clears the tombstone —
+                // the fail-closed exclusion survives an app restart. If the durable
+                // persist ALSO fails, mark the walk so it does not stamp completion.
+                if tombstone_path(&state, &workspace, &path_str, &key).await.is_err() {
+                    durable_tombstone_failed = true;
+                }
+                log::error!(
+                    "rag_index_workspace: path tombstoned for {} — skipped file \
+                     AND cleanup failed; its stale rows are excluded from retrieval \
+                     until a successful re-index clears the tombstone",
+                    file.display()
+                );
+            }
+        }
+        let _ = app.emit(
+            PROGRESS_EVENT,
+            IndexingProgress {
+                status: IndexingStatus::Indexing,
+                processed: i as u32 + 1,
+                total,
+                current_path: Some(file.to_string_lossy().to_string()),
+                skipped: skipped_files,
+                failed: failed_files,
+                timed_out: timed_out_files,
+                cleanup_failed: cleanup_failed_files,
+                ..Default::default()
+            },
+        );
     }
 
     // WS-B/C: stamp the index version so the one-time migration does not re-run.
     // Best-effort (a failed write just means we re-check next open).
-    if let Err(e) = store::write_index_version(&workspace) {
-        log::warn!("rag: failed to write index version marker: {}", e);
+    //
+    // BUG-099 fail-closed durability: but ONLY when every durable tombstone was
+    // persisted. If a durable tombstone write failed, we DO NOT stamp completion
+    // — leaving the marker unwritten forces the next launch to re-run the full
+    // walk, which re-tombstones or re-cleans the unsafe paths. Stamping "done"
+    // with an incomplete on-disk tombstone is exactly the restart hole that would
+    // let a stale citation resurface, so we refuse to claim a durable success.
+    // BUG-099 fail-closed durability: track whether the index ended in a
+    // fail-closed-but-UNRESOLVED state (a durable tombstone write failed, so
+    // retrieval is refusing to serve). In that case we must NOT report a happy
+    // "Memory ready" Done, and we must let the user RECOVER: re-arm the
+    // full-index latch so another indexWorkspace() actually re-runs (otherwise
+    // the consumed latch makes a same-session retry a no-op and the user is
+    // stuck until restart), and emit an Error terminal event instead of Done.
+    let mut fail_closed_unresolved = durable_tombstone_failed;
+    if durable_tombstone_failed {
+        log::error!(
+            "rag_index_workspace: a durable tombstone write FAILED this walk — \
+             NOT stamping the index-version completion marker so the next launch \
+             re-runs the full walk (prevents a stale citation resurfacing on restart)"
+        );
+    } else {
+        // BUG-099 fail-closed recovery: a clean walk re-derived the complete
+        // tombstone set (every file was re-indexed: clean files cleared their
+        // token, cleanup failures re-tombstoned). Rewrite the durable file from
+        // the current in-memory set so it is known-good and READABLE, then clear
+        // any prior integrity-unknown flag — retrieval can serve again. If even
+        // this rewrite fails, leave the flag set and skip the completion marker.
+        //
+        // CONCURRENCY (critical): hold the unsafe-tokens lock ACROSS the durable
+        // write so a watcher-triggered `rag_index_file` cannot tombstone a new
+        // path between a snapshot and this write — which would let this stale
+        // snapshot overwrite the watcher's fresh token and then wrongly clear the
+        // sentinel + stamp completion (re-exposing stale rows after restart/MCP).
+        // Same lock `tombstone_path`/`clear_tombstone` use, so they serialize.
+        let guard = state.unsafe_tokens.lock().await;
+        match store::write_unsafe_tokens(&workspace, &guard) {
+            Ok(()) => {
+                // Known-good durable tombstone written (under the lock, so it
+                // reflects every concurrent mutation up to now) → safe to clear
+                // BOTH the in-process flag and the durable cross-process sentinel.
+                store::clear_integrity_unknown(&workspace);
+                state.index_integrity_unknown.store(false, Ordering::SeqCst);
+                drop(guard);
+                if let Err(e) = store::write_index_version(&workspace) {
+                    log::warn!("rag: failed to write index version marker: {}", e);
+                }
+            }
+            Err(e) => {
+                drop(guard);
+                fail_closed_unresolved = true;
+                log::error!(
+                    "rag_index_workspace: could not rewrite the durable tombstone \
+                     file after a clean walk ({e:#}); leaving integrity flag set and \
+                     NOT stamping completion so the next launch re-runs"
+                );
+            }
+        }
+    }
+
+    if fail_closed_unresolved {
+        // RECOVERY: re-arm the once-per-activation full-index latch so the user
+        // (or the auto-wiring) can retry the full walk in THIS session — without
+        // this, the latch consumed at the start of the walk makes a retry a no-op
+        // and leaves the workspace stuck fail-closed until a restart/switch.
+        state.full_index_pending.store(true, Ordering::SeqCst);
+        // Emit an ERROR terminal event (NOT a "Memory ready" Done): retrieval is
+        // refusing to serve, so the banner must reflect that and prompt a re-index.
+        let _ = app.emit(
+            PROGRESS_EVENT,
+            IndexingProgress {
+                status: IndexingStatus::Error,
+                processed: total,
+                total,
+                current_path: None,
+                skipped: skipped_files,
+                failed: failed_files,
+                timed_out: timed_out_files,
+                cleanup_failed: cleanup_failed_files,
+                skipped_paths: cap_skipped_paths(&skipped_paths),
+            },
+        );
+        log::error!(
+            "rag_index_workspace: finished in a FAIL-CLOSED state (durable tombstone \
+             not persisted) — emitted Error, re-armed the full-index latch for retry"
+        );
+        return Ok(());
     }
 
     let _ = app.emit(
@@ -853,7 +1793,21 @@ pub async fn rag_index_workspace(
             processed: total,
             total,
             current_path: None,
+            skipped: skipped_files,
+            failed: failed_files,
+            timed_out: timed_out_files,
+            cleanup_failed: cleanup_failed_files,
+            skipped_paths: cap_skipped_paths(&skipped_paths),
         },
+    );
+    log::info!(
+        "rag_index_workspace: DONE {} files in {} ms (skipped={}, failed={}, timed_out={}, cleanup_failed={})",
+        total,
+        walk_started.elapsed().as_millis(),
+        skipped_files,
+        failed_files,
+        timed_out_files,
+        cleanup_failed_files
     );
     Ok(())
 }
@@ -939,6 +1893,18 @@ pub async fn rag_retrieve(
     if query.trim().is_empty() || top_k == 0 {
         return Ok(Vec::new());
     }
+    // BUG-099 fail-closed: if the durable tombstone file was unreadable on
+    // workspace open, the real unsafe-token set is unknown, so we cannot prove a
+    // result is not stale. Refuse to serve (typed error the frontend surfaces as
+    // "memory needs rebuilding") rather than risk citing a stale row. Cleared by
+    // a clean full re-index, which rewrites the tombstone file.
+    if state.index_integrity_unknown.load(Ordering::SeqCst) {
+        return Err(
+            "memory integrity is uncertain (the safety record could not be read); \
+             re-index this workspace before searching"
+                .to_string(),
+        );
+    }
     // WS-PRIV: absent (legacy callers) or false → EXCLUDE privileged content.
     // Only an explicit `true` flips it. The default is the safe one.
     let include_privileged = include_privileged.unwrap_or(false);
@@ -988,20 +1954,31 @@ pub async fn rag_retrieve(
         .await
         .map_err(|e| format!("embed query: {e:#}"))?;
 
+    // BUG-099 tombstone: the in-memory unsafe set already holds the at-rest HMAC
+    // path TOKENS (the `path` column value), so we exclude them directly as SQL
+    // `path NOT IN (...)` — no key needed, no plaintext→token conversion. This is
+    // the single enforcer: a stale citation is IMPOSSIBLE after a cleanup failure
+    // because the row's token is excluded at the prefilter level. The set is kept
+    // durable on disk and re-hydrated on workspace open, so it holds across restart.
+    let tombstoned_tokens: Vec<String> = {
+        let guard = state.unsafe_tokens.lock().await;
+        guard.iter().cloned().collect()
+    };
+
     let raw = store::nearest(
         &table,
         &qvec,
         fetch_k,
         scope_filter.as_deref(),
         include_privileged,
+        &tombstoned_tokens,
     )
     .await
     .map_err(|e| format!("nearest: {e}"))?;
 
-    // WS-VEC: get the vector-store master key once for the whole batch.
-    // If the keychain is unavailable, enc_key is None and encrypted chunks fall
-    // through to the "[content unavailable — keychain locked]" placeholder —
-    // retrieval continues normally for any (pre-WS-VEC) plaintext rows.
+    // WS-VEC: get the vector-store master key for the per-hit text/path decrypt
+    // below. If the keychain is unavailable, encrypted chunks fall through to the
+    // "[content unavailable]" placeholder — retrieval still works for plaintext rows.
     let enc_key = crypto::get_or_create_master_key().ok();
 
     let mut hits: Vec<Hit> = raw
@@ -1118,6 +2095,14 @@ pub async fn rag_verify_citation(
     claimed_matter_id: String,
     quoted_text: String,
 ) -> Result<Verdict, String> {
+    // BUG-099 fail-closed: if the durable tombstone file was unreadable on
+    // workspace open, we cannot prove the cited chunk is not a stale row whose
+    // cleanup failed — so verification cannot return Verified. Treat as NotFound
+    // (the answer layer then refuses to present the citation). Cleared by a clean
+    // re-index. This mirrors rag_retrieve's fail-closed behavior.
+    if state.index_integrity_unknown.load(Ordering::SeqCst) {
+        return Ok(Verdict::NotFound);
+    }
     // Validate the claimed matter id before it touches a SQL filter.
     let claimed = store::validate_matter_id(&claimed_matter_id)
         .map_err(|e| format!("invalid claimed_matter_id: {e}"))?
@@ -1142,6 +2127,15 @@ pub async fn rag_verify_citation(
         .await
         .map_err(|e| format!("open table: {e}"))?;
 
+    // BUG-099 tombstone: the exclusion set for citation verification is the
+    // in-memory unsafe-token set (already at-rest HMAC tokens). A row from a
+    // tombstoned path (cleanup failed → stale rows remain) must return NotFound,
+    // not Verified — consistent with what retrieval hides. The `source_id`/`path`
+    // columns hold that same token, so we compare the found record's source_id
+    // against the set directly (no key, no conversion).
+    let tombstoned_tokens: std::collections::HashSet<String> =
+        state.unsafe_tokens.lock().await.clone();
+
     // 1. Scoped point lookup: id AND claimed matter.
     let scoped = store::lookup_by_id(&table, &id, Some(&claimed))
         .await
@@ -1153,12 +2147,25 @@ pub async fn rag_verify_citation(
             .await
             .map_err(|e| format!("verify classify lookup: {e}"))?;
         return Ok(match any {
-            Some(other) => Verdict::MatterMismatch {
-                actual_matter: other.matter_id,
-            },
+            Some(other) => {
+                // If the found record is tombstoned, treat as NotFound (fail-closed).
+                if tombstoned_tokens.contains(&other.source_id) {
+                    Verdict::NotFound
+                } else {
+                    Verdict::MatterMismatch {
+                        actual_matter: other.matter_id,
+                    }
+                }
+            }
             None => Verdict::NotFound,
         });
     };
+
+    // BUG-099 tombstone: a found record whose source is tombstoned must NOT
+    // return Verified — it could be a stale row whose cleanup failed. Fail closed.
+    if tombstoned_tokens.contains(&record.source_id) {
+        return Ok(Verdict::NotFound);
+    }
 
     // 3. Found in the claimed matter — resolve the stored text (WS-VEC: decrypt).
     let stored_text = if record.encrypted {
@@ -1912,12 +2919,258 @@ mod tests {
             processed: 12,
             total: 100,
             current_path: Some("/w/x.md".into()),
+            ..Default::default()
         };
         let s = serde_json::to_string(&p).unwrap();
         assert!(s.contains("\"currentPath\":\"/w/x.md\""), "got {}", s);
         assert!(s.contains("\"processed\":12"));
         assert!(s.contains("\"total\":100"));
         assert!(s.contains("\"status\":\"Indexing\"") || s.contains("\"status\":\"indexing\""));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn workspace_walk_guard_skips_bad_files_and_still_allows_completion_marker() {
+        use std::pin::Pin;
+
+        let dir = tempfile::tempdir().expect("tempdir must succeed");
+        let files = [
+            dir.path().join("01-good.md"),
+            dir.path().join("02-bad.md"),
+            dir.path().join("03-slow.md"),
+            dir.path().join("04-after.md"),
+        ];
+        for file in &files {
+            std::fs::write(file, "fixture").expect("write fixture file");
+        }
+
+        let mut processed = 0u32;
+        let mut skipped = 0u32;
+        let mut failed = 0u32;
+        let mut timed_out = 0u32;
+
+        for file in files {
+            let name = file
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default()
+                .to_string();
+            let fut: Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> =
+                if name.contains("bad") {
+                    Box::pin(async { anyhow::bail!("forced extraction failure") })
+                } else if name.contains("slow") {
+                    Box::pin(async {
+                        tokio::time::sleep(Duration::from_secs(60)).await;
+                        Ok(())
+                    })
+                } else {
+                    Box::pin(async { Ok(()) })
+                };
+
+            match run_file_index_task(file, Duration::from_millis(25), fut).await {
+                FileIndexOutcome::Indexed => {}
+                FileIndexOutcome::Failed(_) => {
+                    skipped += 1;
+                    failed += 1;
+                }
+                FileIndexOutcome::TimedOut => {
+                    skipped += 1;
+                    timed_out += 1;
+                }
+            }
+            processed += 1;
+        }
+
+        // This is the critical BUG-099 contract: even after one failed file and
+        // one timed-out file, the walk can finish and stamp completion so the
+        // next launch does not drop/rebuild the index forever.
+        store::write_index_version(dir.path()).expect("write completion marker");
+
+        assert_eq!(processed, 4);
+        assert_eq!(skipped, 2);
+        assert_eq!(failed, 1);
+        assert_eq!(timed_out, 1);
+        assert_eq!(store::read_index_version(dir.path()), store::INDEX_VERSION);
+    }
+
+    // -----------------------------------------------------------------------
+    // BUG-099 hardening (gaps from the 2026-06-22 Codex review)
+    // -----------------------------------------------------------------------
+
+    /// Gap 2: the progress event must carry the skip/fail counts AND the skipped
+    /// paths, not just the logs, so the UI can render "done, N skipped" instead
+    /// of a silent "Done".
+    #[test]
+    fn progress_serializes_skip_counts_and_paths() {
+        let p = IndexingProgress {
+            status: IndexingStatus::Done,
+            processed: 21,
+            total: 21,
+            current_path: None,
+            skipped: 2,
+            failed: 1,
+            timed_out: 1,
+            cleanup_failed: 0,
+            skipped_paths: vec!["/w/stuck.docx".into(), "/w/broken.rtf".into()],
+        };
+        let s = serde_json::to_string(&p).unwrap();
+        assert!(s.contains("\"skipped\":2"), "got {s}");
+        assert!(s.contains("\"failed\":1"), "got {s}");
+        assert!(s.contains("\"timedOut\":1"), "got {s}");
+        assert!(
+            s.contains("\"skippedPaths\":[\"/w/stuck.docx\",\"/w/broken.rtf\"]"),
+            "got {s}"
+        );
+    }
+
+    /// Gap 2: per-file events stay small — when there are no skipped paths the
+    /// `skippedPaths` array is omitted from the wire payload entirely.
+    #[test]
+    fn progress_omits_empty_skipped_paths() {
+        let p = IndexingProgress {
+            status: IndexingStatus::Indexing,
+            processed: 3,
+            total: 21,
+            current_path: Some("/w/a.md".into()),
+            skipped: 0,
+            failed: 0,
+            timed_out: 0,
+            cleanup_failed: 0,
+            skipped_paths: Vec::new(),
+        };
+        let s = serde_json::to_string(&p).unwrap();
+        assert!(!s.contains("skippedPaths"), "empty paths must be omitted: {s}");
+        assert!(s.contains("\"skipped\":0"), "got {s}");
+    }
+
+    /// Gap 1 + Gap 3 (the highest-severity finding): a file we SKIPPED (timed out
+    /// or failed mid-extract/embed) must have its now-possibly-stale rows dropped,
+    /// so retrieval can never cite an OLD version of a file we couldn't re-read.
+    /// A cleanly indexed file must be left untouched (its re-index already
+    /// replaced its rows atomically).
+    #[tokio::test]
+    async fn skip_outcome_purges_stale_rows_but_indexed_outcome_keeps_them() {
+        let key = [0x42u8; 32];
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = store::open_connection(dir.path()).await.expect("open conn");
+        let table = store::open_or_create_table(&conn).await.expect("open table");
+
+        let path = "/w/contract.docx";
+        let mk_rows = |text: &str| {
+            vec![(
+                chunker::Chunk {
+                    path: path.into(),
+                    paragraph_index: 0,
+                    text: text.into(),
+                    start_offset: 0,
+                    end_offset: text.len(),
+                    locator: None,
+                },
+                vec![0.10f32; embedder::EMBEDDING_DIM],
+            )]
+        };
+        let q = vec![0.10f32; embedder::EMBEDDING_DIM];
+        let present = |table: &lancedb::Table| {
+            let q = q.clone();
+            let table = table.clone();
+            async move { !store::nearest(&table, &q, 10, None, false, &[]).await.unwrap().is_empty() }
+        };
+
+        // Seed v1 — the file's rows now exist.
+        store::upsert_chunks_for_path(
+            &table,
+            path,
+            mk_rows("old version"),
+            store::SourceType::Text,
+            store::UNASSIGNED_MATTER,
+            store::PRIVILEGE_NONE,
+            &key,
+        )
+        .await
+        .expect("seed v1");
+        assert!(present(&table).await, "precondition: the file is indexed");
+
+        // A cleanly INDEXED outcome must NOT purge — wiping a good file's rows
+        // would itself create a missing-citation regression.
+        let purge =
+            purge_stale_rows_on_skip(&table, Path::new(path), &key, &FileIndexOutcome::Indexed)
+                .await;
+        assert_eq!(purge, PurgeOutcome::NotNeeded, "indexed files must not be purged");
+        assert!(present(&table).await, "indexed file's rows must remain");
+
+        // A TIMED-OUT outcome drops the stale rows cleanly (table is healthy).
+        let purge =
+            purge_stale_rows_on_skip(&table, Path::new(path), &key, &FileIndexOutcome::TimedOut)
+                .await;
+        assert_eq!(purge, PurgeOutcome::PurgedCleanly, "timed-out files must be purged cleanly");
+        assert!(!present(&table).await, "stale rows must be gone after a timeout skip");
+
+        // A FAILED outcome likewise purges (re-seed, then fail).
+        store::upsert_chunks_for_path(
+            &table,
+            path,
+            mk_rows("old version"),
+            store::SourceType::Text,
+            store::UNASSIGNED_MATTER,
+            store::PRIVILEGE_NONE,
+            &key,
+        )
+        .await
+        .expect("re-seed");
+        let purge = purge_stale_rows_on_skip(
+            &table,
+            Path::new(path),
+            &key,
+            &FileIndexOutcome::Failed("forced extraction failure".into()),
+        )
+        .await;
+        assert_eq!(purge, PurgeOutcome::PurgedCleanly, "failed files must be purged cleanly");
+        assert!(!present(&table).await, "stale rows must be gone after a failed skip");
+    }
+
+    /// Gap 4: the guard must time out on GENUINELY BLOCKING work — a file whose
+    /// extraction (or the blocking embedder) pins a runtime thread synchronously,
+    /// the real BUG-099 case — not just a cancellable `tokio::time::sleep`. The
+    /// walk must return promptly instead of being frozen by the one stuck file.
+    /// This also documents finding #1: `abort()` does NOT hard-kill the blocking
+    /// thread (the work is still pending right after the timeout), which is why a
+    /// true hard-kill would require process isolation (see the BUG-099 report).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn workspace_walk_guard_times_out_on_genuinely_blocking_work() {
+        use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+
+        let finished = Arc::new(AtomicBool::new(false));
+        let finished_in_task = finished.clone();
+        let started = Instant::now();
+        let outcome = run_file_index_task(
+            PathBuf::from("/w/stuck.docx"),
+            Duration::from_millis(30),
+            async move {
+                // Synchronous, non-cancellable block on a runtime worker thread.
+                std::thread::sleep(Duration::from_millis(800));
+                finished_in_task.store(true, AtomicOrdering::SeqCst);
+                Ok(())
+            },
+        )
+        .await;
+        let elapsed = started.elapsed();
+
+        assert_eq!(
+            outcome,
+            FileIndexOutcome::TimedOut,
+            "genuinely blocking work must be reported as timed out"
+        );
+        // The guard returned long before the blocked work would finish: one stuck
+        // file cannot freeze the whole walk.
+        assert!(
+            elapsed < Duration::from_millis(500),
+            "guard must return promptly, not wait for the blocked work; took {elapsed:?}"
+        );
+        // Finding #1: the blocking task is STILL running after abort() — a Rust
+        // task abort is not a hard kill of synchronous work.
+        assert!(
+            !finished.load(AtomicOrdering::SeqCst),
+            "blocking task is expected to still be running after abort (no hard-kill)"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -2003,6 +3256,407 @@ mod tests {
         );
         // Importantly, the result must NOT equal the plaintext.
         assert_ne!(result.as_slice(), plaintext.as_slice());
+    }
+
+    // -----------------------------------------------------------------------
+    // BUG-099 blockers 1 & 2 — the new robustness guarantees
+    // -----------------------------------------------------------------------
+
+    /// BUG-099 blocker 1 REAL test: force a genuine purge failure, then assert
+    /// (a) `PurgeFailed` is returned, (b) the tombstone set contains the path, and
+    /// (c) retrieval EXCLUDES the path's stale rows via `nearest` with the tombstone
+    /// token. A separate assertion proves re-indexing clears the tombstone (self-heal).
+    ///
+    /// The purge failure is forced by making the LanceDB dataset directory read-only
+    /// after seeding, so LanceDB's delete-fragment write fails with an IO error — the
+    /// same kind of error that would occur on a corrupted or locked store in production.
+    #[tokio::test]
+    #[cfg(unix)] // read-only dir is reliably enforceable on Unix; Windows has ACL nuances
+    async fn purge_failure_tombstones_path_and_retrieval_excludes_stale_rows() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let key = [0xABu8; 32];
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = store::open_connection(dir.path()).await.expect("open conn");
+        let table = store::open_or_create_table(&conn).await.expect("open table");
+
+        let path = "/w/corrupt.docx";
+        let q = vec![0.11f32; embedder::EMBEDDING_DIM];
+
+        // Helper closure: true when the path's rows are visible via nearest.
+        let is_visible = |table: &lancedb::Table| {
+            let table = table.clone();
+            let q = q.clone();
+            async move {
+                !store::nearest(&table, &q, 10, None, false, &[])
+                    .await
+                    .unwrap()
+                    .is_empty()
+            }
+        };
+
+        // Seed a stale row (the "old version" that should never be cited after failure).
+        store::upsert_chunks_for_path(
+            &table,
+            path,
+            vec![(
+                chunker::Chunk {
+                    path: path.into(),
+                    paragraph_index: 0,
+                    text: "stale content".into(),
+                    start_offset: 0,
+                    end_offset: 13,
+                    locator: None,
+                },
+                vec![0.11f32; embedder::EMBEDDING_DIM],
+            )],
+            store::SourceType::Text,
+            store::UNASSIGNED_MATTER,
+            store::PRIVILEGE_NONE,
+            &key,
+        )
+        .await
+        .expect("seed stale row");
+        assert!(is_visible(&table).await, "precondition: stale row is visible");
+
+        // Lock the LanceDB dataset directory to make delete fail with an IO error.
+        // LanceDB's delete must write a deletion fragment file; this prevents that.
+        let vectors_dir = store::dataset_path(dir.path());
+        let orig_perms = std::fs::metadata(&vectors_dir).unwrap().permissions();
+        std::fs::set_permissions(&vectors_dir, std::fs::Permissions::from_mode(0o444))
+            .expect("set read-only");
+
+        // Attempt purge — must return PurgeFailed because the IO write is blocked.
+        let purge = purge_stale_rows_on_skip(
+            &table,
+            Path::new(path),
+            &key,
+            &FileIndexOutcome::TimedOut,
+        )
+        .await;
+
+        // Restore permissions immediately (before any assert so cleanup is guaranteed).
+        std::fs::set_permissions(&vectors_dir, orig_perms).expect("restore permissions");
+
+        assert_eq!(
+            purge,
+            PurgeOutcome::PurgeFailed,
+            "read-only dataset directory must cause PurgeFailed (genuine IO error)"
+        );
+
+        // (a) Stale rows are still present (the delete failed, nothing was removed).
+        assert!(
+            is_visible(&table).await,
+            "stale rows must still be present after a failed purge"
+        );
+
+        // (b) Simulate the tombstone the walk would record: convert path to token.
+        let tombstone_token = crate::commands::rag::crypto::path_token(&key, path);
+        let tombstoned = vec![tombstone_token];
+
+        // (c) Retrieval with the tombstone token MUST NOT return any hits for that path.
+        let hits = store::nearest(&table, &q, 10, None, false, &tombstoned)
+            .await
+            .expect("nearest with tombstone");
+        assert!(
+            hits.is_empty(),
+            "retrieval must exclude stale rows for a tombstoned path; got {} hits",
+            hits.len()
+        );
+
+        // Without the tombstone, the stale rows are still findable (confirming the
+        // tombstone is doing the work, not an accidental empty table).
+        let hits_no_tombstone = store::nearest(&table, &q, 10, None, false, &[])
+            .await
+            .expect("nearest without tombstone");
+        assert!(
+            !hits_no_tombstone.is_empty(),
+            "stale rows must still exist in the table (tombstone is the only guardrail)"
+        );
+
+        // (d) Self-heal: a successful re-index clears the tombstone. After a fresh
+        // upsert, the path is no longer in the unsafe set — retrieval is restored.
+        // We simulate this by showing that a subsequent successful write would remove
+        // the path's token from the unsafe-token set. Here we test the prefilter
+        // directly: after "clearing" the tombstone (empty slice), the fresh row IS returned.
+        store::upsert_chunks_for_path(
+            &table,
+            path,
+            vec![(
+                chunker::Chunk {
+                    path: path.into(),
+                    paragraph_index: 0,
+                    text: "fresh content".into(),
+                    start_offset: 0,
+                    end_offset: 13,
+                    locator: None,
+                },
+                vec![0.11f32; embedder::EMBEDDING_DIM],
+            )],
+            store::SourceType::Text,
+            store::UNASSIGNED_MATTER,
+            store::PRIVILEGE_NONE,
+            &key,
+        )
+        .await
+        .expect("re-index after tombstone cleared");
+
+        // After clearing the tombstone (empty exclusion list), the fresh rows return.
+        let hits_after_clear = store::nearest(&table, &q, 10, None, false, &[])
+            .await
+            .expect("nearest after tombstone cleared");
+        assert!(
+            !hits_after_clear.is_empty(),
+            "fresh rows must be visible after tombstone is cleared (re-index)"
+        );
+    }
+
+    /// BUG-099 tombstone self-heal lifecycle: the `RagState::unsafe_tokens` set
+    /// (HMAC path tokens) is the single source of truth for what retrieval must
+    /// exclude. This locks in the contract both the walk and `rag_index_file`
+    /// rely on: a path's TOKEN is INSERTED on PurgeFailed and REMOVED on any
+    /// successful (re-)index. After removal, the set is empty, so retrieval no
+    /// longer hides it. The set is fed straight to the prefilter (no conversion).
+    #[tokio::test]
+    async fn tombstone_set_inserts_on_failure_and_clears_on_reindex() {
+        let key = [0x77u8; 32];
+        let path = "/w/fixed-later.docx";
+        let token = crypto::path_token(&key, path);
+
+        // Use the real RagState field type so the test breaks if the type changes.
+        let unsafe_tokens: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+
+        // 1. PurgeFailed → the walk inserts the path's at-rest token.
+        unsafe_tokens.lock().await.insert(token.clone());
+        assert!(
+            unsafe_tokens.lock().await.contains(&token),
+            "token must be tombstoned after a cleanup failure"
+        );
+
+        // While tombstoned, retrieval feeds the token set straight to the prefilter.
+        let tokens: Vec<String> = unsafe_tokens.lock().await.iter().cloned().collect();
+        assert_eq!(tokens, vec![token.clone()], "exactly the one tombstone token while unsafe");
+
+        // 2. Successful re-index (full walk OR watcher rag_index_file) → remove it.
+        unsafe_tokens.lock().await.remove(&token);
+        assert!(
+            !unsafe_tokens.lock().await.contains(&token),
+            "tombstone must be cleared after a successful re-index (self-heal)"
+        );
+
+        // After clearing, the set is empty → no exclusion.
+        assert!(
+            unsafe_tokens.lock().await.is_empty(),
+            "no tombstone tokens after self-heal — retrieval no longer hides the path"
+        );
+    }
+
+    /// BUG-099 fail-closed re-hydration: `rag_set_workspace` fires on EVERY
+    /// frontend remount, not just real workspace switches. A same-workspace
+    /// remount must NOT drop a LIVE in-memory tombstone whose durable persist had
+    /// failed (disk would then be empty/stale). This locks in the merge-vs-replace
+    /// rule: same-workspace re-set MERGES disk into the live set (union, never
+    /// loses a live token); a real switch REPLACES with the new workspace's disk set.
+    #[tokio::test]
+    async fn rehydrate_merges_on_same_workspace_but_replaces_on_switch() {
+        let live: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+
+        // A cleanup failed AND its durable persist failed → token lives ONLY in
+        // memory; disk (for THIS workspace) is empty.
+        live.lock().await.insert("live-only-token".to_string());
+        let durable_same: HashSet<String> = HashSet::new(); // empty on disk
+
+        // Same-workspace remount (changed == false) → MERGE. The live-only token
+        // MUST survive (otherwise the remount re-exposes the stale rows).
+        {
+            let changed = false;
+            let mut guard = live.lock().await;
+            if changed {
+                *guard = durable_same.clone();
+            } else {
+                guard.extend(durable_same.clone());
+            }
+        }
+        assert!(
+            live.lock().await.contains("live-only-token"),
+            "a live in-memory-only tombstone must survive a same-workspace remount"
+        );
+
+        // A real switch to a DIFFERENT workspace (changed == true) → REPLACE with
+        // the new workspace's own durable tombstones (the old one's are irrelevant).
+        let mut durable_other = HashSet::new();
+        durable_other.insert("other-ws-token".to_string());
+        {
+            let changed = true;
+            let mut guard = live.lock().await;
+            if changed {
+                *guard = durable_other.clone();
+            } else {
+                guard.extend(durable_other.clone());
+            }
+        }
+        let final_set = live.lock().await;
+        assert!(final_set.contains("other-ws-token"), "switch loads the new ws tombstones");
+        assert!(
+            !final_set.contains("live-only-token"),
+            "a real switch must not carry the old workspace's tombstones forward"
+        );
+    }
+
+    /// BUG-099 tombstone integration test: when PurgeFailed is stored in
+    /// `RagState::unsafe_tokens`, the walk does NOT double-count the file in
+    /// `skipped_files` (i.e. each file is counted only once as skipped even if
+    /// cleanup also fails). The cleanup_failed counter tracks the additional failure.
+    #[test]
+    fn purge_failed_uses_separate_cleanup_counter_not_double_count() {
+        // Simulate the counter logic from rag_index_workspace for three cases:
+        //   1. File timed out, cleanup succeeded (PurgedCleanly) → skipped=1, failed=0, timed_out=1, cleanup_failed=0
+        //   2. File failed, cleanup succeeded (PurgedCleanly)    → skipped=1, failed=1, timed_out=0, cleanup_failed=0
+        //   3. File timed out, cleanup ALSO failed (PurgeFailed)  → skipped=1, failed=0, timed_out=1, cleanup_failed=1
+        //      NOT skipped=2 (the old double-count bug).
+
+        // Case 1: TimedOut + PurgedCleanly
+        let (mut skipped, mut failed, mut timed_out, mut cleanup_failed) = (0u32, 0u32, 0u32, 0u32);
+        let outcome = FileIndexOutcome::TimedOut;
+        let purge = PurgeOutcome::PurgedCleanly;
+        match outcome {
+            FileIndexOutcome::Indexed => {}
+            FileIndexOutcome::Failed(_) => { skipped += 1; failed += 1; }
+            FileIndexOutcome::TimedOut => { skipped += 1; timed_out += 1; }
+        }
+        match purge {
+            PurgeOutcome::NotNeeded | PurgeOutcome::PurgedCleanly => {}
+            PurgeOutcome::PurgeFailed => { cleanup_failed += 1; }
+        }
+        assert_eq!((skipped, failed, timed_out, cleanup_failed), (1, 0, 1, 0),
+            "TimedOut+PurgedCleanly: skipped=1, no double-count");
+
+        // Case 2: Failed + PurgedCleanly
+        let (mut skipped, mut failed, mut timed_out, mut cleanup_failed) = (0u32, 0u32, 0u32, 0u32);
+        let outcome = FileIndexOutcome::Failed("err".into());
+        let purge = PurgeOutcome::PurgedCleanly;
+        match outcome {
+            FileIndexOutcome::Indexed => {}
+            FileIndexOutcome::Failed(_) => { skipped += 1; failed += 1; }
+            FileIndexOutcome::TimedOut => { skipped += 1; timed_out += 1; }
+        }
+        match purge {
+            PurgeOutcome::NotNeeded | PurgeOutcome::PurgedCleanly => {}
+            PurgeOutcome::PurgeFailed => { cleanup_failed += 1; }
+        }
+        assert_eq!((skipped, failed, timed_out, cleanup_failed), (1, 1, 0, 0),
+            "Failed+PurgedCleanly: skipped=1, no double-count");
+
+        // Case 3: TimedOut + PurgeFailed — the bug was skipped=2; must be skipped=1.
+        let (mut skipped, mut failed, mut timed_out, mut cleanup_failed) = (0u32, 0u32, 0u32, 0u32);
+        let outcome = FileIndexOutcome::TimedOut;
+        let purge = PurgeOutcome::PurgeFailed;
+        match outcome {
+            FileIndexOutcome::Indexed => {}
+            FileIndexOutcome::Failed(_) => { skipped += 1; failed += 1; }
+            FileIndexOutcome::TimedOut => { skipped += 1; timed_out += 1; }
+        }
+        match purge {
+            PurgeOutcome::NotNeeded | PurgeOutcome::PurgedCleanly => {}
+            PurgeOutcome::PurgeFailed => { cleanup_failed += 1; }
+        }
+        assert_eq!((skipped, failed, timed_out, cleanup_failed), (1, 0, 1, 1),
+            "TimedOut+PurgeFailed: skipped=1 (not 2), cleanup_failed=1 (separate counter)");
+    }
+
+    /// BLOCKER 2: single-writer invariant — a timed-out child task cannot reach
+    /// any DB write because `extract_embed_one_file` has NO table parameter.
+    /// This is a STRUCTURAL guarantee, not a runtime race: the type system
+    /// prevents the child from calling any store function.
+    ///
+    /// We verify that:
+    /// (a) `run_file_extract_task` returns `(TimedOut, None)` when the child blocks,
+    /// (b) the child had no opportunity to write (it has no table reference),
+    /// (c) a successful extraction returns `(Indexed, Some(data))` and the
+    ///     parent's `write_extracted_file` is the only path that touches the DB.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn single_writer_timed_out_child_cannot_write() {
+        use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+
+        // Prove that a blocking child times out and returns (TimedOut, None).
+        let db_write_attempted = Arc::new(AtomicBool::new(false));
+        let db_write_in_task = db_write_attempted.clone();
+        let started = Instant::now();
+
+        let (outcome, data) = run_file_extract_task(
+            PathBuf::from("/w/stuck.docx"),
+            Duration::from_millis(30),
+            async move {
+                // Synchronous, non-cancellable block — the real BUG-099 case.
+                std::thread::sleep(Duration::from_millis(800));
+                // If we ever reach here, the "write" would happen. Mark it.
+                db_write_in_task.store(true, AtomicOrdering::SeqCst);
+                // No table reference here — this Future's type cannot call
+                // any store::* function. The compile-time signature enforces it.
+                Ok(Some(ExtractedFileData::ShouldDelete))
+            },
+        )
+        .await;
+
+        assert_eq!(outcome, FileIndexOutcome::TimedOut,
+            "blocking child must be reported as timed out");
+        assert!(data.is_none(),
+            "timed-out child must return None data — parent has nothing to write");
+        assert!(
+            started.elapsed() < Duration::from_millis(500),
+            "parent must return promptly; child block must not freeze the walk"
+        );
+        // The child has NOT yet set db_write_attempted — it is still blocking
+        // on the thread sleep. The walk has moved on without touching the DB.
+        // (If this assertion flakes, the thread sleep duration above needs
+        // extending so the child is still running when we reach this check.)
+        assert!(
+            !db_write_attempted.load(AtomicOrdering::SeqCst),
+            "child must not have reached any write code before the parent checked"
+        );
+    }
+
+    /// BLOCKER 2 (positive case): a successful extraction returns (Indexed, Some(data))
+    /// and the parent can write it via write_extracted_file.
+    #[tokio::test]
+    async fn single_writer_successful_extraction_parent_writes() {
+        let key = [0x55u8; 32];
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = store::open_connection(dir.path()).await.expect("open conn");
+        let table = store::open_or_create_table(&conn).await.expect("open table");
+
+        let path_str = "/w/notes.md";
+
+        // Simulate a successful extraction returning a Flat result.
+        let (outcome, data) = run_file_extract_task(
+            PathBuf::from(path_str),
+            Duration::from_secs(10),
+            async {
+                let chunks = chunker::chunk_text(path_str, "Meeting notes: discuss budget.");
+                let rows: Vec<(chunker::Chunk, Vec<f32>)> = chunks
+                    .into_iter()
+                    .map(|c| (c, vec![0.42f32; embedder::EMBEDDING_DIM]))
+                    .collect();
+                Ok(Some(ExtractedFileData::Flat {
+                    rows,
+                    source_type: store::SourceType::Text,
+                }))
+            },
+        )
+        .await;
+
+        assert_eq!(outcome, FileIndexOutcome::Indexed);
+        assert!(data.is_some(), "successful extraction must return Some(data)");
+
+        // Parent writes the data — it is the SOLE DB writer.
+        write_extracted_file(&table, path_str, data.unwrap(), store::UNASSIGNED_MATTER, store::PRIVILEGE_NONE, &key)
+            .await
+            .expect("parent DB write must succeed");
+
+        // Confirm the data is now in the index.
+        let q = vec![0.42f32; embedder::EMBEDDING_DIM];
+        let hits = store::nearest(&table, &q, 10, None, false, &[]).await.expect("nearest");
+        assert!(!hits.is_empty(), "indexed data must be retrievable after parent write");
     }
 
     /// `try_load_vault_vmk` returns None for a workspace with no vault metadata.

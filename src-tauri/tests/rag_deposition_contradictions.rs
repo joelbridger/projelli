@@ -112,7 +112,7 @@ async fn nearest(
     include_privileged: bool,
 ) -> anyhow::Result<Vec<store::StoredHit>> {
     use keepance_lib::commands::mail::crypto::decrypt_with_key;
-    let mut hits = store::nearest(table, query_vec, top_k, scope, include_privileged).await?;
+    let mut hits = store::nearest(table, query_vec, top_k, scope, include_privileged, &[]).await?;
     for h in &mut hits {
         let enc = h.path_enc.as_deref().expect("V10 rows must carry path_enc");
         let blob = hex::decode(enc).expect("path_enc must be hex ciphertext");

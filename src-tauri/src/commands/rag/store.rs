@@ -1015,9 +1015,9 @@ pub struct StoredHit {
 }
 
 /// Compose the LanceDB `only_if` PREFILTER predicate for a retrieval query from
-/// the matter scope and the privilege rule. This is the single place the two
-/// security boundaries are AND-ed together, so the composition is auditable and
-/// tested as a unit.
+/// the matter scope, the privilege rule, and the per-path tombstone exclusion
+/// (BUG-099 fail-closed). This is the single place ALL three safety boundaries
+/// are AND-ed together, so the composition is auditable and tested as a unit.
 ///
 /// WS-B/C — matter scope:
 ///   - `scope = Some(matter_id)` → `matter_id = '<escaped>'`
@@ -1028,14 +1028,23 @@ pub struct StoredHit {
 ///     attorney-client / work-product rows are never even candidates.
 ///   - `include_privileged = true` (deliberate)   → no privilege clause.
 ///
-/// Both clauses are validated + SQL-escaped before interpolation. Returns
-/// `None` only when BOTH are absent (cross-matter AND include-privileged) — a
-/// fully unconstrained scan that callers must reach via two explicit choices.
+/// BUG-099 tombstone — per-path unsafe exclusion:
+///   - `tombstoned_tokens` is a slice of HMAC path tokens for files whose
+///     cleanup DELETE failed. Those files' stale rows MUST NOT be returned as
+///     citations. Each token is the same opaque string stored in the `path`
+///     column (computed by `crypto::path_token`), so the exclusion can be
+///     pushed as a SQL prefilter: `path NOT IN ('tok1', 'tok2', ...)`.
+///   - An empty slice means no exclusion (the normal case on a healthy index).
+///
+/// Both matter and privilege clauses are validated + SQL-escaped before
+/// interpolation. Returns `None` only when ALL three are absent — a fully
+/// unconstrained scan that callers must reach via explicit choices.
 pub fn build_retrieval_predicate(
     scope: Option<&str>,
     include_privileged: bool,
+    tombstoned_tokens: &[String],
 ) -> Result<Option<String>> {
-    let mut clauses: Vec<String> = Vec::with_capacity(2);
+    let mut clauses: Vec<String> = Vec::with_capacity(3);
     if let Some(matter_id) = scope {
         let matter_id = validate_matter_id(matter_id)?;
         clauses.push(format!("matter_id = '{}'", sql_escape(matter_id)));
@@ -1045,6 +1054,17 @@ pub fn build_retrieval_predicate(
         // fixed constant, but escape it anyway so the predicate-building rule is
         // uniform and future-proof.
         clauses.push(format!("privilege = '{}'", sql_escape(PRIVILEGE_NONE)));
+    }
+    // BUG-099: exclude any path whose cleanup failed (stale rows that we could
+    // not delete). The tokens are already HMAC-opaque — safe to embed directly
+    // in the SQL literal list without escaping (they are hex strings).
+    if !tombstoned_tokens.is_empty() {
+        let list: String = tombstoned_tokens
+            .iter()
+            .map(|t| format!("'{}'", sql_escape(t)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        clauses.push(format!("path NOT IN ({})", list));
     }
     Ok(if clauses.is_empty() {
         None
@@ -1073,6 +1093,11 @@ pub fn build_retrieval_predicate(
 ///   - `true` is a deliberate, separately-named capability (mirrors AllMatters)
 ///     that omits the privilege clause so privileged content can be retrieved.
 ///
+/// BUG-099 tombstone — `tombstoned_tokens` is a slice of HMAC path tokens for
+/// paths whose cleanup DELETE failed after a skip. Those paths' stale rows are
+/// excluded from the vector search prefilter. Pass `&[]` (the normal case) to
+/// apply no tombstone exclusion. See `build_retrieval_predicate` for the design.
+///
 /// SECURITY: we NEVER call `.postfilter()` here. Postfilter runs the vector
 /// search first and filters afterward, which can both drop in-scope hits and
 /// admit ranking approximation. The scoped path must stay prefilter-only.
@@ -1082,6 +1107,7 @@ pub async fn nearest(
     top_k: usize,
     scope: Option<&str>,
     include_privileged: bool,
+    tombstoned_tokens: &[String],
 ) -> Result<Vec<StoredHit>> {
     use futures_util::TryStreamExt;
     let mut query = table
@@ -1089,9 +1115,9 @@ pub async fn nearest(
         .nearest_to(query_vec)
         .context("nearest_to failed")?
         .limit(top_k);
-    // WS-B/C + WS-PRIV: compose the matter AND privilege predicate. It is part
+    // WS-B/C + WS-PRIV + BUG-099: compose all safety predicates. They are part
     // of the query PLAN (prefilter), not a post-hoc filter on the returned Vec.
-    if let Some(predicate) = build_retrieval_predicate(scope, include_privileged)? {
+    if let Some(predicate) = build_retrieval_predicate(scope, include_privileged, tombstoned_tokens)? {
         query = query.only_if(predicate);
     }
     let mut stream = query
@@ -1409,6 +1435,216 @@ fn index_version_path(workspace_root: &Path) -> PathBuf {
     dataset_path(workspace_root).join(INDEX_VERSION_FILE)
 }
 
+/// BUG-099: filename holding the DURABLE tombstone set — the HMAC PATH TOKENS
+/// (not plaintext paths) of files whose stale-row cleanup DELETE failed. One
+/// token per line. This makes the fail-closed guarantee survive an app restart:
+/// without it, the in-memory `RagState::unsafe_tokens` is empty on relaunch while
+/// the stale rows are still on disk, so retrieval could cite the old version.
+///
+/// LOCATION (decorrelated from the failing dir): this file lives in the
+/// `.keepance/` PARENT dir, NOT inside `.keepance/vectors/`. The tombstone is
+/// written precisely WHEN a LanceDB delete in the vectors dataset dir failed
+/// (lock contention / a locked or unwritable dataset). Writing the tombstone
+/// into that SAME dataset dir would likely fail for the same reason, defeating
+/// the durable guarantee. The sibling `.keepance/` dir is a separate directory,
+/// so a dataset-scoped failure does not block persisting the tombstone.
+///
+/// PRIVACY (VG-6e parity): we persist the OPAQUE keyed token — the exact value
+/// stored in the `path` column — NOT the plaintext path. A raw-disk reader
+/// therefore learns nothing about client/matter file names from this file,
+/// consistent with the tokenized `path`/`source_id` columns and the encrypted
+/// `path_enc`. The token is what retrieval excludes anyway, so this is both
+/// safer and simpler (no plaintext→token conversion on read).
+const UNSAFE_PATHS_FILE: &str = ".unsafe_tokens";
+
+/// BUG-099: a DURABLE, cross-process "integrity unknown" sentinel. Written when a
+/// durable tombstone WRITE itself fails (so the on-disk `.unsafe_tokens` is
+/// stale/missing a token while stale rows are still in LanceDB). Its mere
+/// PRESENCE forces every reader — the GUI on workspace open AND the separate MCP
+/// sidecar process — to fail closed, because the GUI's in-memory tombstone set is
+/// invisible across processes. Removed only by a clean full walk that rewrites
+/// the tombstone file successfully.
+const INTEGRITY_UNKNOWN_FILE: &str = ".integrity_unknown";
+
+/// Path of the durable tombstone file. Lives in the `.keepance/` dir (the parent
+/// of `vectors/`) so a locked/unwritable LanceDB dataset dir cannot block it.
+fn unsafe_paths_path(workspace_root: &Path) -> PathBuf {
+    workspace_root.join(".keepance").join(UNSAFE_PATHS_FILE)
+}
+
+/// Path of the durable integrity-unknown sentinel (sibling of `.unsafe_tokens`).
+fn integrity_unknown_path(workspace_root: &Path) -> PathBuf {
+    workspace_root.join(".keepance").join(INTEGRITY_UNKNOWN_FILE)
+}
+
+/// BUG-099: mark the workspace integrity UNKNOWN durably (cross-process). Called
+/// when a durable tombstone write fails, so the MCP sidecar (which only reads
+/// disk) also fails closed. Best-effort; logged on failure.
+pub fn mark_integrity_unknown(workspace_root: &Path) {
+    let path = integrity_unknown_path(workspace_root);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    if let Err(e) = std::fs::write(&path, b"1") {
+        log::error!("rag: failed to write integrity-unknown sentinel {:?}: {e}", path);
+    }
+}
+
+/// BUG-099: clear the durable integrity-unknown sentinel after a clean re-index.
+pub fn clear_integrity_unknown(workspace_root: &Path) {
+    let path = integrity_unknown_path(workspace_root);
+    match std::fs::remove_file(&path) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => log::warn!("rag: failed to clear integrity-unknown sentinel {:?}: {e}", path),
+    }
+}
+
+/// BUG-099: outcome of reading the durable tombstone file. We MUST distinguish
+/// "no tombstones" from "couldn't read the tombstones", because treating the
+/// latter as the former is a fail-OPEN: in the exact cleanup-failure case this
+/// feature protects, stale rows are still in LanceDB, so an unreadable tombstone
+/// file (corruption / lock / permission fault) must make retrieval fail CLOSED,
+/// not serve unfiltered results.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TombstoneRead {
+    /// File absent (healthy: no cleanup ever failed) or read cleanly. Carries the
+    /// token set (possibly empty). Retrieval applies it as the exclusion.
+    Tokens(HashSet<String>),
+    /// File EXISTS but could not be read (corruption / lock / permission). The
+    /// real tombstone set is unknown, so callers must FAIL CLOSED (refuse to
+    /// serve / force a re-index) rather than assume "no tombstones".
+    IntegrityUnknown,
+}
+
+impl TombstoneRead {
+    /// True when the durable tombstone could not be read and the index integrity
+    /// is therefore unknown — callers must fail closed.
+    pub fn is_integrity_unknown(&self) -> bool {
+        matches!(self, TombstoneRead::IntegrityUnknown)
+    }
+
+    /// The token set when readable; an empty set when integrity is unknown.
+    /// Use ONLY where a fail-closed decision has already been made separately
+    /// (e.g. the MCP path checks `is_integrity_unknown()` first and refuses).
+    pub fn into_tokens(self) -> HashSet<String> {
+        match self {
+            TombstoneRead::Tokens(t) => t,
+            TombstoneRead::IntegrityUnknown => HashSet::new(),
+        }
+    }
+}
+
+/// BUG-099: load the durable tombstone token set for a workspace. Used to
+/// re-hydrate `RagState::unsafe_tokens` on workspace open so the fail-closed
+/// exclusion survives a restart, and read directly by the MCP sidecar. Tokens
+/// are hex strings, taken verbatim after stripping only the line terminator.
+///
+/// Returns `Tokens(set)` when the file is ABSENT (healthy → empty) or read
+/// cleanly, and `IntegrityUnknown` when (a) the durable integrity-unknown
+/// SENTINEL is present (a prior durable tombstone WRITE failed — cross-process
+/// fail-closed signal, so the MCP sidecar honors it too), or (b) the tombstone
+/// file EXISTS but cannot be read. The file is written ATOMICALLY (temp + rename,
+/// with a direct-write fallback), so a torn/truncated write cannot happen; an
+/// unreadable existing file is genuine corruption or a permission/lock fault.
+pub fn read_unsafe_tokens(workspace_root: &Path) -> TombstoneRead {
+    // Durable cross-process sentinel: a prior tombstone WRITE failed, so the
+    // on-disk token set cannot be trusted. Fail closed regardless of the file.
+    if integrity_unknown_path(workspace_root).exists() {
+        return TombstoneRead::IntegrityUnknown;
+    }
+    let path = unsafe_paths_path(workspace_root);
+    match std::fs::read_to_string(&path) {
+        Ok(s) => TombstoneRead::Tokens(
+            s.split('\n')
+                .map(|l| l.strip_suffix('\r').unwrap_or(l))
+                .filter(|l| !l.is_empty())
+                .map(|l| l.to_string())
+                .collect(),
+        ),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            // Absent = healthy default (no tombstones).
+            TombstoneRead::Tokens(HashSet::new())
+        }
+        Err(e) => {
+            // Present-but-unreadable = corruption / lock / permission fault.
+            // FAIL CLOSED: the caller must not serve as if there were no
+            // tombstones (stale rows may still be in the DB).
+            log::error!(
+                "rag: durable tombstone file {:?} exists but could not be read \
+                 ({e}); marking index integrity UNKNOWN — retrieval will fail \
+                 closed until a clean re-index rewrites the tombstone file",
+                path
+            );
+            TombstoneRead::IntegrityUnknown
+        }
+    }
+}
+
+/// BUG-099: persist the durable tombstone TOKEN set for a workspace. Called
+/// after any change (a token tombstoned on a cleanup failure, or cleared on a
+/// clean re-index) so the on-disk set always matches memory. An empty set writes
+/// an empty file (rather than deleting it) so a later read is unambiguous. Write
+/// errors are surfaced to the caller, which treats a failed persist as part of
+/// the unsafe state (does not stamp the index complete).
+///
+/// ATOMICITY: written to a temp file in the SAME dir, then renamed over the
+/// target so a crash mid-write can never leave a half-written / truncated
+/// tombstone that would silently drop tokens (fail-open) on the next read.
+///
+/// WINDOWS-SAFE REPLACE: `std::fs::rename` is an atomic replace on POSIX, and on
+/// Windows it maps to a replacing move — BUT a Windows move over an EXISTING
+/// target can still fail with a sharing violation if the target is momentarily
+/// open. Losing the tombstone there would be a fail-OPEN, so on ANY rename
+/// failure we FALL BACK to a direct in-place write of the same bytes: that loses
+/// the crash-atomicity for this one write but GUARANTEES the tombstone persists
+/// (fail-closed beats elegant). The fallback's own error is surfaced to the
+/// caller, which treats a failed persist as part of the unsafe state.
+pub fn write_unsafe_tokens(workspace_root: &Path, tokens: &HashSet<String>) -> Result<()> {
+    let path = unsafe_paths_path(workspace_root);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    let mut sorted: Vec<&String> = tokens.iter().collect();
+    sorted.sort();
+    let body = sorted
+        .iter()
+        .map(|s| s.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    // Preferred path: write temp + atomic rename-replace. Pid-tagged temp name so
+    // concurrent writers don't collide on the temp path.
+    let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
+    std::fs::write(&tmp, &body)
+        .with_context(|| format!("write unsafe-tokens temp at {:?}", tmp))?;
+    if let Err(rename_err) = std::fs::rename(&tmp, &path) {
+        // Windows: a replacing move can fail with a sharing violation if the
+        // existing target is briefly open. Fall back to a direct write so the
+        // tombstone STILL persists, then drop the temp file.
+        //
+        // TRUNCATION SAFETY: a direct `std::fs::write` TRUNCATES the known-good
+        // file before rewriting it, so a crash or a concurrent reader (the MCP
+        // sidecar) mid-write could see an EMPTY/partial-but-readable tombstone —
+        // a fail-OPEN. To prevent that, mark `.integrity_unknown` FIRST so any
+        // reader during the destructive write fails CLOSED; only clear it once
+        // the direct write fully succeeds. If the direct write itself fails, the
+        // sentinel stays set (fail closed) and the error propagates.
+        log::warn!(
+            "rag: atomic rename of unsafe-tokens failed ({rename_err}); \
+             marking integrity-unknown and falling back to a direct write"
+        );
+        mark_integrity_unknown(workspace_root);
+        let direct = std::fs::write(&path, &body)
+            .with_context(|| format!("direct-write unsafe-tokens tombstone at {:?}", path));
+        let _ = std::fs::remove_file(&tmp);
+        direct?;
+        // The direct write fully succeeded → the known-good file is complete
+        // again, so it is safe to clear the sentinel.
+        clear_integrity_unknown(workspace_root);
+    }
+    Ok(())
+}
+
 /// Read the index version the on-disk `chunks` table was built with. Returns 0
 /// when the marker is absent (i.e. a pre-3.0 table, or no table yet).
 pub fn read_index_version(workspace_root: &Path) -> u32 {
@@ -1505,6 +1741,187 @@ mod tests {
     fn dataset_path_lives_under_dot_keepance() {
         let p = dataset_path(Path::new("/tmp/work"));
         assert_eq!(p, PathBuf::from("/tmp/work/.keepance/vectors"));
+    }
+
+    /// BUG-099 durable tombstone: the unsafe-TOKEN set round-trips through disk,
+    /// so the fail-closed exclusion survives an app restart. Absent file = empty.
+    #[test]
+    fn unsafe_tokens_round_trip_through_disk() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        let key = [0x5Au8; 32];
+
+        // No file yet → Tokens(empty) (the healthy default — NOT IntegrityUnknown).
+        assert_eq!(read_unsafe_tokens(root), TombstoneRead::Tokens(HashSet::new()));
+
+        // Persist two tombstoned tokens (the at-rest path-column values), then
+        // read them back identically. We use real tokens so the test exercises
+        // the same opaque hex strings the production path computes.
+        let mut set = HashSet::new();
+        set.insert(super::super::crypto::path_token(&key, "/w/stuck.docx"));
+        set.insert(super::super::crypto::path_token(&key, "/w/broken.rtf"));
+        write_unsafe_tokens(root, &set).expect("write tombstone set");
+
+        assert_eq!(
+            read_unsafe_tokens(root).into_tokens(),
+            set,
+            "tombstone tokens must survive a write/read cycle (restart)"
+        );
+
+        // WINDOWS-SAFE REPLACE regression: a SECOND write over the now-EXISTING
+        // file must succeed (this is exactly the Windows rename-over-existing case
+        // — adding another tombstone after the first). Add a third token and
+        // confirm all three persist.
+        let mut set2 = set.clone();
+        set2.insert(super::super::crypto::path_token(&key, "/w/third.txt"));
+        write_unsafe_tokens(root, &set2).expect("second write over existing file");
+        assert_eq!(
+            read_unsafe_tokens(root).into_tokens(),
+            set2,
+            "a second write over an existing tombstone file must persist (Windows-safe replace)"
+        );
+
+        // Clearing to empty writes an empty file that reads back as empty (not stale).
+        write_unsafe_tokens(root, &HashSet::new()).expect("clear tombstone set");
+        assert_eq!(
+            read_unsafe_tokens(root),
+            TombstoneRead::Tokens(HashSet::new()),
+            "an emptied tombstone file must read back as empty (not IntegrityUnknown)"
+        );
+    }
+
+    /// BUG-099 durable tombstone PRIVACY: the on-disk file holds opaque HMAC
+    /// tokens, NEVER the plaintext path — consistent with the tokenized
+    /// `path`/`source_id` columns (VG-6e). A raw-disk reader learns nothing about
+    /// client/matter file names from this file.
+    #[test]
+    fn unsafe_tokens_file_holds_no_plaintext_path() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        let key = [0x5Au8; 32];
+
+        let secret_path = "/clients/Acme Corp/privileged-memo.docx";
+        let mut set = HashSet::new();
+        set.insert(super::super::crypto::path_token(&key, secret_path));
+        write_unsafe_tokens(root, &set).expect("write");
+
+        let on_disk = std::fs::read_to_string(unsafe_paths_path(root)).expect("read raw file");
+        assert!(
+            !on_disk.contains("Acme")
+                && !on_disk.contains("privileged-memo")
+                && !on_disk.contains("/clients/"),
+            "the durable tombstone file must NOT contain any plaintext path bytes; got {on_disk:?}"
+        );
+        // But the token round-trips so the exclusion still works after restart.
+        assert!(read_unsafe_tokens(root)
+            .into_tokens()
+            .contains(&super::super::crypto::path_token(&key, secret_path)));
+    }
+
+    /// BUG-099 fail-closed DECORRELATION: the durable tombstone is written when a
+    /// LanceDB DELETE in the `vectors/` dataset dir failed — often because that
+    /// dir is locked/unwritable. The tombstone must persist anyway, so it lives in
+    /// the SIBLING `.keepance/` dir, not inside `vectors/`. This test makes the
+    /// `vectors/` dataset dir read-only and asserts the tombstone STILL persists.
+    #[test]
+    #[cfg(unix)]
+    fn unsafe_tokens_persist_even_when_vectors_dir_is_readonly() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        let key = [0x5Au8; 32];
+
+        // Create the dataset dir, then lock it read-only (the failing-cleanup case).
+        let vectors_dir = dataset_path(root);
+        std::fs::create_dir_all(&vectors_dir).unwrap();
+        let orig = std::fs::metadata(&vectors_dir).unwrap().permissions();
+        std::fs::set_permissions(&vectors_dir, std::fs::Permissions::from_mode(0o444))
+            .expect("lock vectors dir");
+
+        let mut set = HashSet::new();
+        set.insert(super::super::crypto::path_token(&key, "/w/stuck.docx"));
+        let result = write_unsafe_tokens(root, &set);
+
+        // Restore before asserting so the tempdir cleans up.
+        std::fs::set_permissions(&vectors_dir, orig).expect("restore");
+
+        assert!(
+            result.is_ok(),
+            "tombstone must persist even when the vectors dataset dir is read-only \
+             (it lives in the sibling .keepance/ dir): {result:?}"
+        );
+        assert_eq!(read_unsafe_tokens(root).into_tokens().len(), 1, "the persisted token must read back");
+    }
+
+    /// BUG-099 fail-CLOSED on unreadable tombstone: a file that EXISTS but cannot
+    /// be read (corruption / lock / permission) returns IntegrityUnknown, NOT an
+    /// empty token set — so callers refuse to serve rather than fail open.
+    #[test]
+    #[cfg(unix)]
+    fn unreadable_tombstone_file_reports_integrity_unknown() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        let key = [0x5Au8; 32];
+
+        // Write a real tombstone, then make it unreadable (chmod 000).
+        let mut set = HashSet::new();
+        set.insert(super::super::crypto::path_token(&key, "/w/stuck.docx"));
+        write_unsafe_tokens(root, &set).expect("write");
+        let file = unsafe_paths_path(root);
+        let orig = std::fs::metadata(&file).unwrap().permissions();
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o000))
+            .expect("make unreadable");
+
+        let result = read_unsafe_tokens(root);
+
+        // Restore before asserting so the tempdir cleans up.
+        std::fs::set_permissions(&file, orig).expect("restore");
+
+        assert!(
+            result.is_integrity_unknown(),
+            "an existing-but-unreadable tombstone file must report IntegrityUnknown \
+             (fail closed), not an empty token set; got {result:?}"
+        );
+        // Sanity: an ABSENT file is NOT integrity-unknown (it is the healthy default).
+        let empty_dir = tempfile::TempDir::new().unwrap();
+        assert!(!read_unsafe_tokens(empty_dir.path()).is_integrity_unknown());
+    }
+
+    /// BUG-099 cross-process fail-closed: the durable integrity-unknown SENTINEL
+    /// forces `read_unsafe_tokens` to report IntegrityUnknown even when the
+    /// `.unsafe_tokens` file itself is perfectly readable. This is how a durable
+    /// tombstone WRITE failure in the GUI reaches the separate MCP sidecar
+    /// process (which only reads disk). A clean re-index clears it.
+    #[test]
+    fn integrity_sentinel_forces_fail_closed_across_processes() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        let key = [0x5Au8; 32];
+
+        // A perfectly readable tombstone file exists...
+        let mut set = HashSet::new();
+        set.insert(super::super::crypto::path_token(&key, "/w/stuck.docx"));
+        write_unsafe_tokens(root, &set).expect("write tombstone");
+        assert!(!read_unsafe_tokens(root).is_integrity_unknown(), "clean state first");
+
+        // ...but a prior durable WRITE failure dropped the sentinel. Any reader
+        // (GUI hydration OR the MCP sidecar) must now fail closed.
+        mark_integrity_unknown(root);
+        assert!(
+            read_unsafe_tokens(root).is_integrity_unknown(),
+            "the durable sentinel must force IntegrityUnknown even with a readable file"
+        );
+
+        // A clean re-index clears the sentinel → readers serve again.
+        clear_integrity_unknown(root);
+        assert!(
+            !read_unsafe_tokens(root).is_integrity_unknown(),
+            "clearing the sentinel restores normal (readable) tombstone reads"
+        );
+        assert_eq!(read_unsafe_tokens(root).into_tokens(), set, "tokens still intact");
     }
 
     #[test]
@@ -1639,7 +2056,7 @@ mod tests {
     fn predicate_default_excludes_privileged_with_matter_scope() {
         // The DEFAULT (include_privileged = false) composes matter AND privilege
         // into one prefilter: `matter_id = '..' AND privilege = 'none'`.
-        let p = build_retrieval_predicate(Some("matter-acme"), false)
+        let p = build_retrieval_predicate(Some("matter-acme"), false, &[])
             .expect("predicate")
             .expect("some predicate");
         assert_eq!(p, "matter_id = 'matter-acme' AND privilege = 'none'");
@@ -1649,7 +2066,7 @@ mod tests {
     fn predicate_default_excludes_privileged_even_cross_matter() {
         // Cross-matter (scope None) still excludes privileged by default — the
         // privilege clause stands alone.
-        let p = build_retrieval_predicate(None, false)
+        let p = build_retrieval_predicate(None, false, &[])
             .expect("predicate")
             .expect("some predicate");
         assert_eq!(p, "privilege = 'none'");
@@ -1659,7 +2076,7 @@ mod tests {
     fn predicate_include_privileged_drops_privilege_clause() {
         // include_privileged = true is the deliberate capability: only the matter
         // clause remains; privileged rows become candidates.
-        let p = build_retrieval_predicate(Some("matter-acme"), true)
+        let p = build_retrieval_predicate(Some("matter-acme"), true, &[])
             .expect("predicate")
             .expect("some predicate");
         assert_eq!(p, "matter_id = 'matter-acme'");
@@ -1669,14 +2086,14 @@ mod tests {
     fn predicate_fully_unconstrained_only_when_both_chosen() {
         // The only way to a None predicate (no prefilter at all) is BOTH explicit
         // choices: cross-matter AND include-privileged. Neither is a silent default.
-        let p = build_retrieval_predicate(None, true).expect("predicate");
+        let p = build_retrieval_predicate(None, true, &[]).expect("predicate");
         assert!(p.is_none(), "cross-matter + include-privileged => no prefilter");
     }
 
     #[test]
     fn predicate_sql_escapes_matter_id() {
         // SECURITY: a crafted matter id is escaped inside the composed predicate.
-        let p = build_retrieval_predicate(Some("a'b"), false)
+        let p = build_retrieval_predicate(Some("a'b"), false, &[])
             .expect("predicate")
             .expect("some predicate");
         assert_eq!(p, "matter_id = 'a''b' AND privilege = 'none'");
@@ -1684,7 +2101,42 @@ mod tests {
 
     #[test]
     fn predicate_rejects_invalid_matter_id() {
-        assert!(build_retrieval_predicate(Some("bad\0id"), false).is_err());
+        assert!(build_retrieval_predicate(Some("bad\0id"), false, &[]).is_err());
+    }
+
+    /// BUG-099 tombstone — tombstoned path tokens are excluded from the predicate
+    /// via a SQL `path NOT IN (...)` clause, composed with the other safety clauses.
+    #[test]
+    fn predicate_excludes_tombstoned_tokens() {
+        let tokens = vec!["deadbeef01".to_string(), "cafebabe02".to_string()];
+        let p = build_retrieval_predicate(Some("matter-acme"), false, &tokens)
+            .expect("predicate")
+            .expect("some predicate");
+        // The matter + privilege clauses come first; the NOT IN clause is last.
+        assert_eq!(
+            p,
+            "matter_id = 'matter-acme' AND privilege = 'none' AND path NOT IN ('deadbeef01', 'cafebabe02')"
+        );
+    }
+
+    /// BUG-099 tombstone — an empty tombstone slice adds NO extra clause.
+    #[test]
+    fn predicate_empty_tombstone_adds_no_clause() {
+        let p = build_retrieval_predicate(Some("matter-acme"), false, &[])
+            .expect("predicate")
+            .expect("some predicate");
+        assert_eq!(p, "matter_id = 'matter-acme' AND privilege = 'none'");
+    }
+
+    /// BUG-099 tombstone — tombstone tokens are SQL-escaped so a crafted token
+    /// (with a single-quote) cannot break out of the predicate literal list.
+    #[test]
+    fn predicate_sql_escapes_tombstoned_tokens() {
+        let tokens = vec!["tok'evil".to_string()];
+        let p = build_retrieval_predicate(None, true, &tokens)
+            .expect("predicate")
+            .expect("some predicate");
+        assert_eq!(p, "path NOT IN ('tok''evil')");
     }
 
     #[test]
@@ -2142,7 +2594,7 @@ mod tests {
         }
 
         let q = vec![0.10f32; EMBEDDING_DIM];
-        let hits = nearest(&table, &q, 10, None, false).await.expect("nearest");
+        let hits = nearest(&table, &q, 10, None, false, &[]).await.expect("nearest");
         // VG-6e: the raw path column holds tokens — resolve via path_enc.
         let scan = hits.iter().find(|h| stored_path(h) == "/scan.pdf").expect("scan hit");
         assert_eq!(scan.extraction.as_deref(), Some("ocr"));
@@ -2421,13 +2873,13 @@ mod tests {
 
         // Scoped to Matter A: only the Matter-A mail comes back.
         // (VG-6e: the raw path column holds tokens — resolve via path_enc.)
-        let hits_a = nearest(&table, &q, 10, Some("matter_a"), false).await.expect("nearest a");
+        let hits_a = nearest(&table, &q, 10, Some("matter_a"), false, &[]).await.expect("nearest a");
         let paths_a: Vec<String> = hits_a.iter().map(stored_path).collect();
         assert!(paths_a.iter().any(|p| p == "mail:a-msg"), "Matter A scope must return Matter A mail");
         assert!(!paths_a.iter().any(|p| p == "mail:b-msg"), "Matter A scope must NOT return Matter B mail");
 
         // Scoped to Matter B: only the Matter-B mail comes back.
-        let hits_b = nearest(&table, &q, 10, Some("matter_b"), false).await.expect("nearest b");
+        let hits_b = nearest(&table, &q, 10, Some("matter_b"), false, &[]).await.expect("nearest b");
         let paths_b: Vec<String> = hits_b.iter().map(stored_path).collect();
         assert!(paths_b.iter().any(|p| p == "mail:b-msg"));
         assert!(!paths_b.iter().any(|p| p == "mail:a-msg"));
@@ -2445,7 +2897,7 @@ mod tests {
         let q = vec![0.10f32; EMBEDDING_DIM];
 
         // Initially under Matter A. (VG-6e: resolve real paths via path_enc.)
-        let before = nearest(&table, &q, 10, Some("matter_a"), false).await.unwrap();
+        let before = nearest(&table, &q, 10, Some("matter_a"), false, &[]).await.unwrap();
         assert!(before.iter().any(|h| stored_path(h) == "mail:movable"));
 
         // Re-tag to Matter B in place (VG-6e: the retag takes the plaintext
@@ -2456,9 +2908,9 @@ mod tests {
         assert_eq!(updated, 1, "exactly one chunk re-tagged");
 
         // Now it is gone from Matter A and present under Matter B.
-        let after_a = nearest(&table, &q, 10, Some("matter_a"), false).await.unwrap();
+        let after_a = nearest(&table, &q, 10, Some("matter_a"), false, &[]).await.unwrap();
         assert!(!after_a.iter().any(|h| stored_path(h) == "mail:movable"), "must leave Matter A after re-tag");
-        let after_b = nearest(&table, &q, 10, Some("matter_b"), false).await.unwrap();
+        let after_b = nearest(&table, &q, 10, Some("matter_b"), false, &[]).await.unwrap();
         assert!(after_b.iter().any(|h| stored_path(h) == "mail:movable"), "must appear under Matter B after re-tag");
     }
 
@@ -2543,7 +2995,7 @@ mod tests {
         upsert_chunks_for_path(&table, path, mk_rows("v2"), SourceType::Text, "matter_a", PRIVILEGE_NONE, &TEST_KEY)
             .await
             .expect("second upsert");
-        let hits = nearest(&table, &q, 10, Some("matter_a"), false).await.unwrap();
+        let hits = nearest(&table, &q, 10, Some("matter_a"), false, &[]).await.unwrap();
         assert_eq!(hits.len(), 1, "re-upsert must replace, not duplicate");
         assert_eq!(stored_path(&hits[0]), path);
 
@@ -2556,12 +3008,12 @@ mod tests {
             .await
             .expect("retag matter");
         assert_eq!(n, 1, "retag_matter_for_path must hit the tokenized row");
-        let moved = nearest(&table, &q, 10, Some("matter_b"), true).await.unwrap();
+        let moved = nearest(&table, &q, 10, Some("matter_b"), true, &[]).await.unwrap();
         assert!(moved.iter().any(|h| stored_path(h) == path));
 
         // delete_path drops the rows through the tokenized predicate.
         delete_path(&table, path, &TEST_KEY).await.expect("delete");
-        let gone = nearest(&table, &q, 10, Some("matter_b"), true).await.unwrap();
+        let gone = nearest(&table, &q, 10, Some("matter_b"), true, &[]).await.unwrap();
         assert!(gone.is_empty(), "delete_path must remove the tokenized rows");
     }
 
@@ -2597,7 +3049,7 @@ mod tests {
 
         // Read path first: the real path comes back via path_enc...
         let q = vec![0.10f32; EMBEDDING_DIM];
-        let hits = nearest(&table, &q, 5, Some("matter_a"), false).await.unwrap();
+        let hits = nearest(&table, &q, 5, Some("matter_a"), false, &[]).await.unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(stored_path(&hits[0]), secret_path);
         // ...while the raw queryable columns are opaque tokens.

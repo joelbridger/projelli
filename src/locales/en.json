@@ -776,7 +776,9 @@
   "memory": {
     "rag-banner": {
       "ready_one": "Memory ready, indexed 1 file.",
-      "ready_other": "Memory ready, indexed {{count}} files."
+      "ready_other": "Memory ready, indexed {{count}} files.",
+      "ready-with-skips_one": "Memory ready, indexed 1 file ({{skipped}} skipped).",
+      "ready-with-skips_other": "Memory ready, indexed {{count}} files ({{skipped}} skipped)."
     },
     "ocr-progress": "Reading scanned pages with local OCR: page {{page}} of {{total}}. Nothing leaves your machine."
   },

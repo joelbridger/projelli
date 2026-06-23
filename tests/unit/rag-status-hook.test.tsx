@@ -128,4 +128,54 @@ describe('useRagStatus', () => {
     unmount();
     expect(unlistenCalled).toBe(true);
   });
+
+  // BUG-099 blocker 3: skip counts must flow through the hook.
+  it('threads skip counts from a done event with skips', async () => {
+    const { result } = renderHook(() => useRagStatus());
+    await waitFor(() => expect(capturedListener).not.toBeNull());
+    act(() => {
+      capturedListener?.({
+        payload: {
+          status: 'done',
+          processed: 21,
+          total: 21,
+          currentPath: null,
+          skipped: 2,
+          failed: 1,
+          timedOut: 1,
+          cleanupFailed: 1,
+          skippedPaths: ['/w/stuck.docx', '/w/broken.rtf'],
+        },
+      });
+    });
+    expect(result.current.status).toBe('done');
+    expect(result.current.skipped).toBe(2);
+    expect(result.current.failed).toBe(1);
+    expect(result.current.timedOut).toBe(1);
+    // BUG-099: cleanupFailed is a SEPARATE counter (not part of skipped).
+    expect(result.current.cleanupFailed).toBe(1);
+    expect(result.current.skippedPaths).toEqual(['/w/stuck.docx', '/w/broken.rtf']);
+  });
+
+  it('defaults skip counts to zero when the event omits them', async () => {
+    const { result } = renderHook(() => useRagStatus());
+    await waitFor(() => expect(capturedListener).not.toBeNull());
+    act(() => {
+      capturedListener?.({
+        payload: {
+          status: 'done',
+          processed: 10,
+          total: 10,
+          currentPath: null,
+          // No skip fields — older event shape.
+        },
+      });
+    });
+    expect(result.current.skipped).toBe(0);
+    expect(result.current.failed).toBe(0);
+    expect(result.current.timedOut).toBe(0);
+    // BUG-099: cleanupFailed is omitted from the wire when zero — defaults to 0.
+    expect(result.current.cleanupFailed).toBe(0);
+    expect(result.current.skippedPaths).toEqual([]);
+  });
 });
