@@ -509,8 +509,17 @@ async fn tombstone_path(
     let token = crypto::path_token(key, path);
     let mut guard = state.unsafe_tokens.lock().await;
     guard.insert(token);
-    store::write_unsafe_tokens(workspace, &guard)
-        .with_context(|| format!("persist unsafe-tokens tombstone for {path}"))
+    let result = store::write_unsafe_tokens(workspace, &guard)
+        .with_context(|| format!("persist unsafe-tokens tombstone for {path}"));
+    if result.is_err() {
+        // Cross-process fail-closed: the durable token set is now stale/missing
+        // this token, and the MCP sidecar only reads disk. Drop a durable sentinel
+        // so the sidecar (and a restarted GUI) fail closed until a clean re-index.
+        // Also set the in-process flag for the current GUI session.
+        store::mark_integrity_unknown(workspace);
+        state.index_integrity_unknown.store(true, Ordering::SeqCst);
+    }
+    result
 }
 
 /// BUG-099 durable tombstone — clear `path`'s token from the unsafe set (in
@@ -1711,6 +1720,10 @@ pub async fn rag_index_workspace(
         let snapshot = state.unsafe_tokens.lock().await.clone();
         match store::write_unsafe_tokens(&workspace, &snapshot) {
             Ok(()) => {
+                // Known-good durable tombstone written → safe to clear BOTH the
+                // in-process flag and the durable cross-process sentinel, so the
+                // GUI and the MCP sidecar can serve again.
+                store::clear_integrity_unknown(&workspace);
                 state.index_integrity_unknown.store(false, Ordering::SeqCst);
                 if let Err(e) = store::write_index_version(&workspace) {
                     log::warn!("rag: failed to write index version marker: {}", e);

@@ -1457,10 +1457,47 @@ fn index_version_path(workspace_root: &Path) -> PathBuf {
 /// safer and simpler (no plaintext→token conversion on read).
 const UNSAFE_PATHS_FILE: &str = ".unsafe_tokens";
 
+/// BUG-099: a DURABLE, cross-process "integrity unknown" sentinel. Written when a
+/// durable tombstone WRITE itself fails (so the on-disk `.unsafe_tokens` is
+/// stale/missing a token while stale rows are still in LanceDB). Its mere
+/// PRESENCE forces every reader — the GUI on workspace open AND the separate MCP
+/// sidecar process — to fail closed, because the GUI's in-memory tombstone set is
+/// invisible across processes. Removed only by a clean full walk that rewrites
+/// the tombstone file successfully.
+const INTEGRITY_UNKNOWN_FILE: &str = ".integrity_unknown";
+
 /// Path of the durable tombstone file. Lives in the `.keepance/` dir (the parent
 /// of `vectors/`) so a locked/unwritable LanceDB dataset dir cannot block it.
 fn unsafe_paths_path(workspace_root: &Path) -> PathBuf {
     workspace_root.join(".keepance").join(UNSAFE_PATHS_FILE)
+}
+
+/// Path of the durable integrity-unknown sentinel (sibling of `.unsafe_tokens`).
+fn integrity_unknown_path(workspace_root: &Path) -> PathBuf {
+    workspace_root.join(".keepance").join(INTEGRITY_UNKNOWN_FILE)
+}
+
+/// BUG-099: mark the workspace integrity UNKNOWN durably (cross-process). Called
+/// when a durable tombstone write fails, so the MCP sidecar (which only reads
+/// disk) also fails closed. Best-effort; logged on failure.
+pub fn mark_integrity_unknown(workspace_root: &Path) {
+    let path = integrity_unknown_path(workspace_root);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    if let Err(e) = std::fs::write(&path, b"1") {
+        log::error!("rag: failed to write integrity-unknown sentinel {:?}: {e}", path);
+    }
+}
+
+/// BUG-099: clear the durable integrity-unknown sentinel after a clean re-index.
+pub fn clear_integrity_unknown(workspace_root: &Path) {
+    let path = integrity_unknown_path(workspace_root);
+    match std::fs::remove_file(&path) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => log::warn!("rag: failed to clear integrity-unknown sentinel {:?}: {e}", path),
+    }
 }
 
 /// BUG-099: outcome of reading the durable tombstone file. We MUST distinguish
@@ -1504,11 +1541,18 @@ impl TombstoneRead {
 /// are hex strings, taken verbatim after stripping only the line terminator.
 ///
 /// Returns `Tokens(set)` when the file is ABSENT (healthy → empty) or read
-/// cleanly, and `IntegrityUnknown` when the file EXISTS but cannot be read. The
-/// file is written ATOMICALLY (temp + rename, with a direct-write fallback), so
-/// a torn/truncated write cannot happen; an unreadable existing file is genuine
-/// corruption or a permission/lock fault — rare, but it must fail closed.
+/// cleanly, and `IntegrityUnknown` when (a) the durable integrity-unknown
+/// SENTINEL is present (a prior durable tombstone WRITE failed — cross-process
+/// fail-closed signal, so the MCP sidecar honors it too), or (b) the tombstone
+/// file EXISTS but cannot be read. The file is written ATOMICALLY (temp + rename,
+/// with a direct-write fallback), so a torn/truncated write cannot happen; an
+/// unreadable existing file is genuine corruption or a permission/lock fault.
 pub fn read_unsafe_tokens(workspace_root: &Path) -> TombstoneRead {
+    // Durable cross-process sentinel: a prior tombstone WRITE failed, so the
+    // on-disk token set cannot be trusted. Fail closed regardless of the file.
+    if integrity_unknown_path(workspace_root).exists() {
+        return TombstoneRead::IntegrityUnknown;
+    }
     let path = unsafe_paths_path(workspace_root);
     match std::fs::read_to_string(&path) {
         Ok(s) => TombstoneRead::Tokens(
@@ -1832,6 +1876,40 @@ mod tests {
         // Sanity: an ABSENT file is NOT integrity-unknown (it is the healthy default).
         let empty_dir = tempfile::TempDir::new().unwrap();
         assert!(!read_unsafe_tokens(empty_dir.path()).is_integrity_unknown());
+    }
+
+    /// BUG-099 cross-process fail-closed: the durable integrity-unknown SENTINEL
+    /// forces `read_unsafe_tokens` to report IntegrityUnknown even when the
+    /// `.unsafe_tokens` file itself is perfectly readable. This is how a durable
+    /// tombstone WRITE failure in the GUI reaches the separate MCP sidecar
+    /// process (which only reads disk). A clean re-index clears it.
+    #[test]
+    fn integrity_sentinel_forces_fail_closed_across_processes() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        let key = [0x5Au8; 32];
+
+        // A perfectly readable tombstone file exists...
+        let mut set = HashSet::new();
+        set.insert(super::super::crypto::path_token(&key, "/w/stuck.docx"));
+        write_unsafe_tokens(root, &set).expect("write tombstone");
+        assert!(!read_unsafe_tokens(root).is_integrity_unknown(), "clean state first");
+
+        // ...but a prior durable WRITE failure dropped the sentinel. Any reader
+        // (GUI hydration OR the MCP sidecar) must now fail closed.
+        mark_integrity_unknown(root);
+        assert!(
+            read_unsafe_tokens(root).is_integrity_unknown(),
+            "the durable sentinel must force IntegrityUnknown even with a readable file"
+        );
+
+        // A clean re-index clears the sentinel → readers serve again.
+        clear_integrity_unknown(root);
+        assert!(
+            !read_unsafe_tokens(root).is_integrity_unknown(),
+            "clearing the sentinel restores normal (readable) tombstone reads"
+        );
+        assert_eq!(read_unsafe_tokens(root).into_tokens(), set, "tokens still intact");
     }
 
     #[test]
