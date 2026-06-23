@@ -241,9 +241,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
           fontSize: 'var(--kp-font-md)',
         }}
       >
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
         {entityLabel.One} not found
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         <button
           type="button"
           onClick={onBack}
@@ -791,9 +789,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
           </div>
           <div style={panelPreview}>
             {isSample ? (
-              /* eslint-disable keepance-i18n/no-hardcoded-string */
               <span>{entityLabel.One} opened Apr 3, 2026</span>
-              /* eslint-enable keepance-i18n/no-hardcoded-string */
             ) : (
               <span>{entityLabel.One} created {formatDate(matter.createdAt)}</span>
             )}

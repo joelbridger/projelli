@@ -476,15 +476,15 @@ describe('GuidedOnboarding', () => {
   }
 
   // 11. Done step: primary CTA reflects sample toggle
-  it('Done step CTA reads "Explore the sample matter" when samples toggle is ON (default)', () => {
+  it('Done step CTA reads "Explore the sample client" when samples toggle is ON (default)', () => {
     render(<GuidedOnboarding {...defaultProps} />);
     navigateToDoneStep();
 
-    // Default is populateSamples=true
-    expect(screen.getByTestId('onboarding-done-confirm')).toHaveTextContent(/explore the sample matter/i);
+    // Default is populateSamples=true; default profession is advisor, so the unit label is "client".
+    expect(screen.getByTestId('onboarding-done-confirm')).toHaveTextContent(/explore the sample client/i);
   });
 
-  it('Done step CTA reads "Create your first matter" when samples toggle is OFF', () => {
+  it('Done step CTA reads "Create your first client" when samples toggle is OFF', () => {
     render(<GuidedOnboarding {...defaultProps} />);
     navigateToDoneStep();
 
@@ -492,7 +492,7 @@ describe('GuidedOnboarding', () => {
     const toggle = screen.getByTestId('onboarding-samples-toggle');
     fireEvent.click(toggle);
 
-    expect(screen.getByTestId('onboarding-done-confirm')).toHaveTextContent(/create your first matter/i);
+    expect(screen.getByTestId('onboarding-done-confirm')).toHaveTextContent(/create your first client/i);
   });
 
   // 12. Done step: shows no-AI note when AI was skipped; hides it when AI was connected

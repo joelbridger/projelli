@@ -61,11 +61,11 @@ describe('Spine', () => {
     expect(container.firstChild).toBeTruthy();
   });
 
-  it('renders Matters nav item', () => {
+  it('renders the unit (Clients) nav item', () => {
     render(<Spine />);
     const navEl = screen.getByTestId('spine-nav');
-    // The matters label comes from t('layout.sidebar.tabs.matters') which is mocked as the key
-    expect(navEl.textContent).toMatch(/matters/i);
+    // The unit label comes from useEntityLabel; the default profession is advisor, so it renders "Clients".
+    expect(navEl.textContent).toMatch(/clients/i);
   });
 
   it('renders a Settings nav item directly after Activity Log', () => {

@@ -577,7 +577,7 @@ describe('MattersHome — sortable columns', () => {
 
     render(<MattersHome />);
 
-    const nameSortBtn = screen.getByRole('button', { name: /Sort by Matter/i });
+    const nameSortBtn = screen.getByRole('button', { name: /Sort by Client/i });
     // Click once — should toggle to descending (was already asc by default)
     fireEvent.click(nameSortBtn);
     // The aria-label should now reflect descending
