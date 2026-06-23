@@ -321,22 +321,22 @@
     .client-map-card p { font-size: 13.5px; color: var(--text-muted-dark); line-height: 1.6; margin: 0; }
 
     /* Client Map animated stage (live GSAP) */
-    .cm-stage { position: relative; width: 100%; max-width: 1260px; margin: 14px auto 0; aspect-ratio: 1000 / 600; }
+    .cm-stage { position: relative; width: 100%; max-width: 1040px; margin: 36px auto 8px; aspect-ratio: 1000 / 560; }
     .cm-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-    .cm-link { stroke: url(#cmLineG); stroke-width: 4; fill: none; stroke-dasharray: 5 14; stroke-linecap: round; }
+    .cm-link { stroke: url(#cmLineG); stroke-width: 3; fill: none; stroke-dasharray: 4 11; stroke-linecap: round; }
     .cm-hub-pos, .cm-node-pos { position: absolute; transform: translate(-50%, -50%); }
     .cm-hub { position: relative; display: flex; align-items: center; justify-content: center; }
-    .cm-ring { position: absolute; left: 50%; top: 50%; width: 232px; height: 232px; margin: -116px 0 0 -116px; border-radius: 50%; border: 1.5px solid var(--grad-blue); opacity: 0; pointer-events: none; }
-    .cm-hub-core { position: relative; width: 232px; height: 232px; border-radius: 50%; background: radial-gradient(circle at 35% 28%, rgba(255,60,232,0.28), rgba(10,37,64,0.92)); border: 1.5px solid rgba(255,255,255,0.18); box-shadow: 0 0 50px rgba(93,198,255,0.28); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-    .cm-hub-avatar { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue)); color: #fff; font-weight: 800; font-size: 34px; display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
-    .cm-hub-name { font-size: 28px; font-weight: 700; color: #fff; }
-    .cm-hub-meta { font-size: 16px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--grad-blue); margin-top: 4px; }
-    .cm-node { width: 360px; background: rgba(13,40,68,0.9); border: 1px solid rgba(255,255,255,0.14); border-radius: 16px; padding: 22px 26px; box-shadow: 0 12px 32px rgba(0,0,0,0.32); }
-    .cm-node-head { display: flex; align-items: center; gap: 12px; font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 10px; }
-    .cm-dot { width: 13px; height: 13px; border-radius: 50%; background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue)); flex-shrink: 0; box-shadow: 0 0 8px rgba(93,198,255,0.75); }
-    .cm-node-detail { font-size: 24px; color: var(--text-muted-dark); line-height: 1.5; }
+    .cm-ring { position: absolute; left: 50%; top: 50%; width: 168px; height: 168px; margin: -84px 0 0 -84px; border-radius: 50%; border: 1.5px solid var(--grad-blue); opacity: 0; pointer-events: none; }
+    .cm-hub-core { position: relative; width: 168px; height: 168px; border-radius: 50%; background: radial-gradient(circle at 35% 28%, rgba(255,60,232,0.28), rgba(10,37,64,0.92)); border: 1.5px solid rgba(255,255,255,0.18); box-shadow: 0 0 50px rgba(93,198,255,0.28); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .cm-hub-avatar { width: 58px; height: 58px; border-radius: 50%; background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue)); color: #fff; font-weight: 800; font-size: 23px; display: flex; align-items: center; justify-content: center; margin-bottom: 9px; }
+    .cm-hub-name { font-size: 19px; font-weight: 700; color: #fff; }
+    .cm-hub-meta { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--grad-blue); margin-top: 4px; }
+    .cm-node { width: 282px; background: rgba(13,40,68,0.9); border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; padding: 15px 19px; box-shadow: 0 12px 32px rgba(0,0,0,0.32); }
+    .cm-node-head { display: flex; align-items: center; gap: 9px; font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+    .cm-dot { width: 9px; height: 9px; border-radius: 50%; background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue)); flex-shrink: 0; box-shadow: 0 0 8px rgba(93,198,255,0.75); }
+    .cm-node-detail { font-size: 15px; color: var(--text-muted-dark); line-height: 1.5; }
     .cm-stack { display: none; }
-    @media (max-width: 1100px) {
+    @media (max-width: 980px) {
       .cm-stage { display: none; }
       .cm-stack { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 640px; margin: 0 auto; }
     }
@@ -459,11 +459,11 @@
         <div class="cm-stage" id="cmStage" aria-hidden="true">
           <svg class="cm-links" viewBox="0 0 1000 600" preserveAspectRatio="none">
             <defs><linearGradient id="cmLineG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1000" y2="600"><stop offset="0" stop-color="#FF3CE8"/><stop offset="1" stop-color="#5DC6FF"/></linearGradient></defs>
-            <path class="cm-link" d="M500 300 L500 36"/>
-            <path class="cm-link" d="M500 300 L830 204"/>
-            <path class="cm-link" d="M500 300 L700 528"/>
-            <path class="cm-link" d="M500 300 L300 528"/>
-            <path class="cm-link" d="M500 300 L170 204"/>
+            <path class="cm-link" d="M500 280 L500 56"/>
+            <path class="cm-link" d="M500 280 L830 207"/>
+            <path class="cm-link" d="M500 280 L700 476"/>
+            <path class="cm-link" d="M500 280 L300 476"/>
+            <path class="cm-link" d="M500 280 L170 207"/>
           </svg>
           <div class="cm-hub-pos" style="left:50%;top:50%">
             <div class="cm-hub">
@@ -475,11 +475,11 @@
               </div>
             </div>
           </div>
-          <div class="cm-node-pos" style="left:50%;top:6%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>People &amp; relationships</div><div class="cm-node-detail">Allison &amp; David &middot; 2 children &middot; family trustee</div></div></div>
-          <div class="cm-node-pos" style="left:83%;top:34%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>History &amp; timeline</div><div class="cm-node-detail">Client since 2019 &middot; estate amended Mar 2026</div></div></div>
-          <div class="cm-node-pos" style="left:70%;top:88%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Goals &amp; preferences</div><div class="cm-node-detail">Prefers email &middot; risk-averse &middot; college funding</div></div></div>
-          <div class="cm-node-pos" style="left:30%;top:88%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Risks &amp; open questions</div><div class="cm-node-detail">Beneficiary form unsigned &middot; address out of date</div></div></div>
-          <div class="cm-node-pos" style="left:17%;top:34%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Firm context</div><div class="cm-node-detail">House style &middot; plain-language memos &middot; two-reviewer rule</div></div></div>
+          <div class="cm-node-pos" style="left:50%;top:10%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>People &amp; relationships</div><div class="cm-node-detail">Allison &amp; David &middot; 2 children &middot; family trustee</div></div></div>
+          <div class="cm-node-pos" style="left:83%;top:37%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>History &amp; timeline</div><div class="cm-node-detail">Client since 2019 &middot; estate amended Mar 2026</div></div></div>
+          <div class="cm-node-pos" style="left:70%;top:85%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Goals &amp; preferences</div><div class="cm-node-detail">Prefers email &middot; risk-averse &middot; college funding</div></div></div>
+          <div class="cm-node-pos" style="left:30%;top:85%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Risks &amp; open questions</div><div class="cm-node-detail">Beneficiary form unsigned &middot; address out of date</div></div></div>
+          <div class="cm-node-pos" style="left:17%;top:37%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Firm context</div><div class="cm-node-detail">House style &middot; plain-language memos &middot; two-reviewer rule</div></div></div>
         </div>
         <div class="cm-stack">
           <div class="client-map-card"><div class="client-map-num">01</div><h3>People &amp; relationships</h3><p>The people who shape the work: family, decision-makers, beneficiaries, opposing parties, and advisors.</p></div>
