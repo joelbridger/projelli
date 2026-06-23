@@ -281,6 +281,13 @@ pub struct RagState {
     /// plaintext paths), and re-hydrated on workspace open, so the exclusion
     /// survives an app restart.
     pub unsafe_tokens: Arc<Mutex<HashSet<String>>>,
+    /// BUG-099 fail-closed: set true when the durable tombstone file EXISTS but
+    /// could NOT be read on workspace open (corruption / lock / permission). The
+    /// real unsafe-token set is then unknown, so retrieval and citation
+    /// verification REFUSE to serve (return an error / NotFound) rather than
+    /// assume "no tombstones" and risk citing a stale row. Cleared by a clean
+    /// full walk, which rewrites the tombstone file from scratch.
+    pub index_integrity_unknown: Arc<AtomicBool>,
 }
 
 /// RAII guard that clears `RagState::indexing` on every exit path (normal
@@ -573,13 +580,38 @@ pub async fn rag_set_workspace(
     //     workspace's own durable tombstones; the old workspace's are irrelevant).
     //   - same-workspace re-set → MERGE (union) the disk set INTO the live set, so
     //     a live in-memory-only tombstone can never be lost to a remount.
+    //
+    // FAIL CLOSED: if the durable file EXISTS but is UNREADABLE (corruption /
+    // lock / permission), the real tombstone set is unknown — set the
+    // integrity-unknown flag so retrieval/verify refuse to serve until a clean
+    // re-index rewrites the file. We do NOT clear live in-memory tokens in that
+    // case (keep whatever protection we have), and a real switch leaves the
+    // previous workspace's tokens behind (they don't match the new workspace).
     {
-        let durable = store::read_unsafe_tokens(&target);
-        let mut live = state.unsafe_tokens.lock().await;
-        if changed {
-            *live = durable;
-        } else {
-            live.extend(durable);
+        match store::read_unsafe_tokens(&target) {
+            store::TombstoneRead::Tokens(durable) => {
+                let mut live = state.unsafe_tokens.lock().await;
+                if changed {
+                    *live = durable;
+                } else {
+                    live.extend(durable);
+                }
+                state.index_integrity_unknown.store(false, Ordering::SeqCst);
+            }
+            store::TombstoneRead::IntegrityUnknown => {
+                // Cannot trust the on-disk set. Fail closed until a clean re-index.
+                if changed {
+                    // New workspace: start the live set empty (the old ws tokens
+                    // are irrelevant) but mark integrity unknown so nothing is served.
+                    state.unsafe_tokens.lock().await.clear();
+                }
+                state.index_integrity_unknown.store(true, Ordering::SeqCst);
+                log::error!(
+                    "rag_set_workspace: durable tombstone unreadable for {} — \
+                     retrieval will fail closed until a clean re-index",
+                    target.display()
+                );
+            }
         }
     }
     *guard = Some(target);
@@ -1669,8 +1701,29 @@ pub async fn rag_index_workspace(
              NOT stamping the index-version completion marker so the next launch \
              re-runs the full walk (prevents a stale citation resurfacing on restart)"
         );
-    } else if let Err(e) = store::write_index_version(&workspace) {
-        log::warn!("rag: failed to write index version marker: {}", e);
+    } else {
+        // BUG-099 fail-closed recovery: a clean walk re-derived the complete
+        // tombstone set (every file was re-indexed: clean files cleared their
+        // token, cleanup failures re-tombstoned). Rewrite the durable file from
+        // the current in-memory set so it is known-good and READABLE, then clear
+        // any prior integrity-unknown flag — retrieval can serve again. If even
+        // this rewrite fails, leave the flag set and skip the completion marker.
+        let snapshot = state.unsafe_tokens.lock().await.clone();
+        match store::write_unsafe_tokens(&workspace, &snapshot) {
+            Ok(()) => {
+                state.index_integrity_unknown.store(false, Ordering::SeqCst);
+                if let Err(e) = store::write_index_version(&workspace) {
+                    log::warn!("rag: failed to write index version marker: {}", e);
+                }
+            }
+            Err(e) => {
+                log::error!(
+                    "rag_index_workspace: could not rewrite the durable tombstone \
+                     file after a clean walk ({e:#}); leaving integrity flag set and \
+                     NOT stamping completion so the next launch re-runs"
+                );
+            }
+        }
     }
 
     let _ = app.emit(
@@ -1779,6 +1832,18 @@ pub async fn rag_retrieve(
 ) -> Result<Vec<Hit>, String> {
     if query.trim().is_empty() || top_k == 0 {
         return Ok(Vec::new());
+    }
+    // BUG-099 fail-closed: if the durable tombstone file was unreadable on
+    // workspace open, the real unsafe-token set is unknown, so we cannot prove a
+    // result is not stale. Refuse to serve (typed error the frontend surfaces as
+    // "memory needs rebuilding") rather than risk citing a stale row. Cleared by
+    // a clean full re-index, which rewrites the tombstone file.
+    if state.index_integrity_unknown.load(Ordering::SeqCst) {
+        return Err(
+            "memory integrity is uncertain (the safety record could not be read); \
+             re-index this workspace before searching"
+                .to_string(),
+        );
     }
     // WS-PRIV: absent (legacy callers) or false → EXCLUDE privileged content.
     // Only an explicit `true` flips it. The default is the safe one.
@@ -1970,6 +2035,14 @@ pub async fn rag_verify_citation(
     claimed_matter_id: String,
     quoted_text: String,
 ) -> Result<Verdict, String> {
+    // BUG-099 fail-closed: if the durable tombstone file was unreadable on
+    // workspace open, we cannot prove the cited chunk is not a stale row whose
+    // cleanup failed — so verification cannot return Verified. Treat as NotFound
+    // (the answer layer then refuses to present the citation). Cleared by a clean
+    // re-index. This mirrors rag_retrieve's fail-closed behavior.
+    if state.index_integrity_unknown.load(Ordering::SeqCst) {
+        return Ok(Verdict::NotFound);
+    }
     // Validate the claimed matter id before it touches a SQL filter.
     let claimed = store::validate_matter_id(&claimed_matter_id)
         .map_err(|e| format!("invalid claimed_matter_id: {e}"))?

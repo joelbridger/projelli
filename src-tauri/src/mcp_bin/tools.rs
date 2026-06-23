@@ -542,14 +542,36 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
     // user-initiated decision only.
     // BUG-099 tombstone: the MCP sidecar is a SEPARATE process from the GUI, so
     // it cannot see the GUI's in-memory tombstone set. But the tombstone is also
-    // persisted DURABLY to `.unsafe_paths` under the workspace vectors dir as
-    // at-rest HMAC TOKENS (the `path` column value, never plaintext), so the
-    // sidecar reads them from disk and applies the SAME fail-closed exclusion:
-    // a file whose cleanup delete failed has its stale rows hidden from external
-    // MCP clients too, not just GUI retrieval. No key needed — the tokens ARE the
-    // at-rest values the SQL prefilter matches on.
-    let tombstoned_tokens: Vec<String> =
-        store::read_unsafe_tokens(&ctx.workspace_root).into_iter().collect();
+    // persisted DURABLY to `.keepance/.unsafe_tokens` as at-rest HMAC TOKENS (the
+    // `path` column value, never plaintext), so the sidecar reads them from disk
+    // and applies the SAME fail-closed exclusion: a file whose cleanup delete
+    // failed has its stale rows hidden from external MCP clients too. No key
+    // needed — the tokens ARE the at-rest values the SQL prefilter matches on.
+    //
+    // FAIL CLOSED: if that durable file EXISTS but is UNREADABLE, the real unsafe
+    // set is unknown — we must NOT search as if there were no tombstones (stale
+    // rows could still be in LanceDB). Refuse the search with a clean message.
+    let tombstoned_tokens: Vec<String> = match store::read_unsafe_tokens(&ctx.workspace_root) {
+        store::TombstoneRead::Tokens(t) => t.into_iter().collect(),
+        store::TombstoneRead::IntegrityUnknown => {
+            append_audit_or_deny(
+                ctx,
+                "mcp_search",
+                "External AI search refused (memory integrity uncertain)",
+                json!({
+                    "path": null,
+                    "matterId": allowed_ids,
+                    "result": "refused",
+                    "query": query,
+                    "returnedCount": 0
+                }),
+            )?;
+            return Ok(vec![super::text_content(
+                "Search is unavailable: this workspace's memory integrity is uncertain. \
+                 Open the workspace in Keepance and re-index it, then try again.",
+            )]);
+        }
+    };
 
     let mut raw = Vec::new();
     for matter_id in &allowed_ids {

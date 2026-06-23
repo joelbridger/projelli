@@ -1463,45 +1463,76 @@ fn unsafe_paths_path(workspace_root: &Path) -> PathBuf {
     workspace_root.join(".keepance").join(UNSAFE_PATHS_FILE)
 }
 
-/// BUG-099: load the durable tombstone token set for a workspace. Returns an
-/// empty set when the file is ABSENT (the healthy default — no cleanup ever
-/// failed). Used to re-hydrate `RagState::unsafe_tokens` on workspace open so
-/// the fail-closed exclusion survives a restart. Tokens are hex strings, so each
-/// line is taken verbatim after stripping only the line terminator; empty lines
-/// are skipped.
+/// BUG-099: outcome of reading the durable tombstone file. We MUST distinguish
+/// "no tombstones" from "couldn't read the tombstones", because treating the
+/// latter as the former is a fail-OPEN: in the exact cleanup-failure case this
+/// feature protects, stale rows are still in LanceDB, so an unreadable tombstone
+/// file (corruption / lock / permission fault) must make retrieval fail CLOSED,
+/// not serve unfiltered results.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TombstoneRead {
+    /// File absent (healthy: no cleanup ever failed) or read cleanly. Carries the
+    /// token set (possibly empty). Retrieval applies it as the exclusion.
+    Tokens(HashSet<String>),
+    /// File EXISTS but could not be read (corruption / lock / permission). The
+    /// real tombstone set is unknown, so callers must FAIL CLOSED (refuse to
+    /// serve / force a re-index) rather than assume "no tombstones".
+    IntegrityUnknown,
+}
+
+impl TombstoneRead {
+    /// True when the durable tombstone could not be read and the index integrity
+    /// is therefore unknown — callers must fail closed.
+    pub fn is_integrity_unknown(&self) -> bool {
+        matches!(self, TombstoneRead::IntegrityUnknown)
+    }
+
+    /// The token set when readable; an empty set when integrity is unknown.
+    /// Use ONLY where a fail-closed decision has already been made separately
+    /// (e.g. the MCP path checks `is_integrity_unknown()` first and refuses).
+    pub fn into_tokens(self) -> HashSet<String> {
+        match self {
+            TombstoneRead::Tokens(t) => t,
+            TombstoneRead::IntegrityUnknown => HashSet::new(),
+        }
+    }
+}
+
+/// BUG-099: load the durable tombstone token set for a workspace. Used to
+/// re-hydrate `RagState::unsafe_tokens` on workspace open so the fail-closed
+/// exclusion survives a restart, and read directly by the MCP sidecar. Tokens
+/// are hex strings, taken verbatim after stripping only the line terminator.
 ///
-/// CORRUPTION (fail-loud): an empty result means "absent" only. The file is now
-/// written ATOMICALLY (temp + rename in `write_unsafe_tokens`), so a torn /
-/// truncated write cannot happen — the only way an EXISTING file fails to read
-/// is genuine disk corruption or a permission fault, both rare. We distinguish
-/// that case from "absent" and log an ERROR so it is visible rather than a
-/// silent fail-open. (The caller hydrating on workspace open also keeps any
-/// live in-memory tombstones via the merge-on-same-workspace rule, so a bad read
-/// here does not drop a live exclusion this session.)
-pub fn read_unsafe_tokens(workspace_root: &Path) -> HashSet<String> {
+/// Returns `Tokens(set)` when the file is ABSENT (healthy → empty) or read
+/// cleanly, and `IntegrityUnknown` when the file EXISTS but cannot be read. The
+/// file is written ATOMICALLY (temp + rename, with a direct-write fallback), so
+/// a torn/truncated write cannot happen; an unreadable existing file is genuine
+/// corruption or a permission/lock fault — rare, but it must fail closed.
+pub fn read_unsafe_tokens(workspace_root: &Path) -> TombstoneRead {
     let path = unsafe_paths_path(workspace_root);
     match std::fs::read_to_string(&path) {
-        Ok(s) => s
-            .split('\n')
-            .map(|l| l.strip_suffix('\r').unwrap_or(l))
-            .filter(|l| !l.is_empty())
-            .map(|l| l.to_string())
-            .collect(),
+        Ok(s) => TombstoneRead::Tokens(
+            s.split('\n')
+                .map(|l| l.strip_suffix('\r').unwrap_or(l))
+                .filter(|l| !l.is_empty())
+                .map(|l| l.to_string())
+                .collect(),
+        ),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             // Absent = healthy default (no tombstones).
-            HashSet::new()
+            TombstoneRead::Tokens(HashSet::new())
         }
         Err(e) => {
-            // Present-but-unreadable = corruption/permission fault. Fail loud so
-            // it is not a silent fail-open; return empty (we cannot recover the
-            // tokens), but the error log flags the integrity question for ops.
+            // Present-but-unreadable = corruption / lock / permission fault.
+            // FAIL CLOSED: the caller must not serve as if there were no
+            // tombstones (stale rows may still be in the DB).
             log::error!(
                 "rag: durable tombstone file {:?} exists but could not be read \
-                 ({e}); the fail-closed exclusion for this workspace may be \
-                 incomplete until the next full re-index re-tombstones",
+                 ({e}); marking index integrity UNKNOWN — retrieval will fail \
+                 closed until a clean re-index rewrites the tombstone file",
                 path
             );
-            HashSet::new()
+            TombstoneRead::IntegrityUnknown
         }
     }
 }
@@ -1664,8 +1695,8 @@ mod tests {
         let root = dir.path();
         let key = [0x5Au8; 32];
 
-        // No file yet → empty set (the healthy default).
-        assert!(read_unsafe_tokens(root).is_empty());
+        // No file yet → Tokens(empty) (the healthy default — NOT IntegrityUnknown).
+        assert_eq!(read_unsafe_tokens(root), TombstoneRead::Tokens(HashSet::new()));
 
         // Persist two tombstoned tokens (the at-rest path-column values), then
         // read them back identically. We use real tokens so the test exercises
@@ -1675,8 +1706,11 @@ mod tests {
         set.insert(super::super::crypto::path_token(&key, "/w/broken.rtf"));
         write_unsafe_tokens(root, &set).expect("write tombstone set");
 
-        let loaded = read_unsafe_tokens(root);
-        assert_eq!(loaded, set, "tombstone tokens must survive a write/read cycle (restart)");
+        assert_eq!(
+            read_unsafe_tokens(root).into_tokens(),
+            set,
+            "tombstone tokens must survive a write/read cycle (restart)"
+        );
 
         // WINDOWS-SAFE REPLACE regression: a SECOND write over the now-EXISTING
         // file must succeed (this is exactly the Windows rename-over-existing case
@@ -1686,16 +1720,17 @@ mod tests {
         set2.insert(super::super::crypto::path_token(&key, "/w/third.txt"));
         write_unsafe_tokens(root, &set2).expect("second write over existing file");
         assert_eq!(
-            read_unsafe_tokens(root),
+            read_unsafe_tokens(root).into_tokens(),
             set2,
             "a second write over an existing tombstone file must persist (Windows-safe replace)"
         );
 
         // Clearing to empty writes an empty file that reads back as empty (not stale).
         write_unsafe_tokens(root, &HashSet::new()).expect("clear tombstone set");
-        assert!(
-            read_unsafe_tokens(root).is_empty(),
-            "an emptied tombstone file must read back as empty"
+        assert_eq!(
+            read_unsafe_tokens(root),
+            TombstoneRead::Tokens(HashSet::new()),
+            "an emptied tombstone file must read back as empty (not IntegrityUnknown)"
         );
     }
 
@@ -1722,7 +1757,9 @@ mod tests {
             "the durable tombstone file must NOT contain any plaintext path bytes; got {on_disk:?}"
         );
         // But the token round-trips so the exclusion still works after restart.
-        assert!(read_unsafe_tokens(root).contains(&super::super::crypto::path_token(&key, secret_path)));
+        assert!(read_unsafe_tokens(root)
+            .into_tokens()
+            .contains(&super::super::crypto::path_token(&key, secret_path)));
     }
 
     /// BUG-099 fail-closed DECORRELATION: the durable tombstone is written when a
@@ -1758,7 +1795,43 @@ mod tests {
             "tombstone must persist even when the vectors dataset dir is read-only \
              (it lives in the sibling .keepance/ dir): {result:?}"
         );
-        assert_eq!(read_unsafe_tokens(root).len(), 1, "the persisted token must read back");
+        assert_eq!(read_unsafe_tokens(root).into_tokens().len(), 1, "the persisted token must read back");
+    }
+
+    /// BUG-099 fail-CLOSED on unreadable tombstone: a file that EXISTS but cannot
+    /// be read (corruption / lock / permission) returns IntegrityUnknown, NOT an
+    /// empty token set — so callers refuse to serve rather than fail open.
+    #[test]
+    #[cfg(unix)]
+    fn unreadable_tombstone_file_reports_integrity_unknown() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        let key = [0x5Au8; 32];
+
+        // Write a real tombstone, then make it unreadable (chmod 000).
+        let mut set = HashSet::new();
+        set.insert(super::super::crypto::path_token(&key, "/w/stuck.docx"));
+        write_unsafe_tokens(root, &set).expect("write");
+        let file = unsafe_paths_path(root);
+        let orig = std::fs::metadata(&file).unwrap().permissions();
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o000))
+            .expect("make unreadable");
+
+        let result = read_unsafe_tokens(root);
+
+        // Restore before asserting so the tempdir cleans up.
+        std::fs::set_permissions(&file, orig).expect("restore");
+
+        assert!(
+            result.is_integrity_unknown(),
+            "an existing-but-unreadable tombstone file must report IntegrityUnknown \
+             (fail closed), not an empty token set; got {result:?}"
+        );
+        // Sanity: an ABSENT file is NOT integrity-unknown (it is the healthy default).
+        let empty_dir = tempfile::TempDir::new().unwrap();
+        assert!(!read_unsafe_tokens(empty_dir.path()).is_integrity_unknown());
     }
 
     #[test]
