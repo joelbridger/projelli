@@ -74,6 +74,12 @@ export const SAMPLE_FILE_HOUSEHOLD_OVERVIEW = 'Sample - Household Overview.md';
 export const SAMPLE_FILE_MEETING_NOTES = 'Sample - Meeting Notes.md';
 /** Filename written to the workspace root for the advisor plan summary sample. */
 export const SAMPLE_FILE_PLAN_SUMMARY = 'Sample - Plan Summary.md';
+/** Filename written to the workspace root for the advisor email thread sample. */
+export const SAMPLE_FILE_EMAIL_THREAD = 'Sample - Email Thread.md';
+/** Filename written to the workspace root for the advisor beneficiary and estate notes sample. */
+export const SAMPLE_FILE_BENEFICIARY_ESTATE = 'Sample - Beneficiary & Estate Notes.md';
+/** Filename written to the workspace root for the advisor account summary sample. */
+export const SAMPLE_FILE_ACCOUNT_SUMMARY = 'Sample - Account Summary.md';
 
 /**
  * Build the full workspace-absolute path for a sample file.
@@ -428,10 +434,16 @@ const CONSULTING_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
 const HOUSEHOLD_OVERVIEW_PATH = `${PLACEHOLDER_ROOT}/${SAMPLE_FILE_HOUSEHOLD_OVERVIEW}`;
 const MEETING_NOTES_PATH = `${PLACEHOLDER_ROOT}/${SAMPLE_FILE_MEETING_NOTES}`;
 const PLAN_SUMMARY_PATH = `${PLACEHOLDER_ROOT}/${SAMPLE_FILE_PLAN_SUMMARY}`;
+const EMAIL_THREAD_PATH = `${PLACEHOLDER_ROOT}/${SAMPLE_FILE_EMAIL_THREAD}`;
+const BENEFICIARY_ESTATE_PATH = `${PLACEHOLDER_ROOT}/${SAMPLE_FILE_BENEFICIARY_ESTATE}`;
+const ACCOUNT_SUMMARY_PATH = `${PLACEHOLDER_ROOT}/${SAMPLE_FILE_ACCOUNT_SUMMARY}`;
 
 const HOUSEHOLD_OVERVIEW_LABEL = SAMPLE_FILE_HOUSEHOLD_OVERVIEW;
 const MEETING_NOTES_LABEL = SAMPLE_FILE_MEETING_NOTES;
 const PLAN_SUMMARY_LABEL = SAMPLE_FILE_PLAN_SUMMARY;
+const EMAIL_THREAD_LABEL = SAMPLE_FILE_EMAIL_THREAD;
+const BENEFICIARY_ESTATE_LABEL = SAMPLE_FILE_BENEFICIARY_ESTATE;
+const ACCOUNT_SUMMARY_LABEL = SAMPLE_FILE_ACCOUNT_SUMMARY;
 
 const ADVISOR_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
   'What did we decide about the Roth conversion?': {
@@ -508,6 +520,56 @@ const ADVISOR_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
           'Open items: Complete Roth conversion analysis. Update beneficiary designations on all accounts. Review 529 funding strategy. Finalize charitable remainder trust structure. Collect Susan\'s pension estimate letter. Review long-term care insurance options.',
         path: HOUSEHOLD_OVERVIEW_PATH,
         locator: 'Sample - Household Overview.md §Open Items',
+        verified: true,
+      },
+    ],
+  },
+
+  'Whose beneficiaries need updating?': {
+    answer:
+      'The beneficiary issue has been resolved. Robert\'s rollover IRA and taxable brokerage account both previously listed his mother, Margaret Hendricks, as primary beneficiary. She passed in September 2022. {1} Robert and Susan updated both accounts at Schwab on May 29, 2024, confirmed via email the same day. Susan is now primary on both accounts; the three grandchildren are listed as equal contingent beneficiaries. {1} Two items still need attention: the beneficiary designations on Robert\'s consulting 401(k) have not been verified, and Susan\'s 403(b) designations are administered by the school district HR office rather than Schwab and need a separate confirmation. {2} Once the Roth IRA is opened after the Q4 conversion, beneficiary designations should be established immediately. {2}',
+    citations: [
+      {
+        n: 1,
+        label: EMAIL_THREAD_LABEL,
+        excerpt:
+          'Done. Robert logged into Schwab and updated both accounts: the rollover IRA and the taxable brokerage. Susan is primary on both; the three grandchildren are listed as equal contingent beneficiaries. He printed the confirmation pages and we have copies.',
+        path: EMAIL_THREAD_PATH,
+        locator: 'Sample - Email Thread.md §Email 5',
+        verified: true,
+      },
+      {
+        n: 2,
+        label: BENEFICIARY_ESTATE_LABEL,
+        excerpt:
+          'Confirm Robert\'s consulting 401(k) beneficiary designations match the intended primary/contingent lineup. Confirm Susan\'s 403(b) beneficiary designations with school district HR. Once the Roth IRA is opened (post-conversion in Q4 2024), establish beneficiary designations immediately.',
+        path: BENEFICIARY_ESTATE_PATH,
+        locator: 'Sample - Beneficiary & Estate Notes.md §Estate Planning Gaps and Next Actions',
+        verified: true,
+      },
+    ],
+  },
+
+  'How are the accounts currently allocated?': {
+    answer:
+      'The Hendricks hold approximately $2,362,000 across five accounts, all custodied at Schwab. {1} The largest position is Robert\'s rollover IRA at roughly $1,400,000. Susan\'s school district 403(b) holds approximately $520,000. The joint taxable brokerage holds around $380,000, and Robert\'s consulting 401(k) holds about $62,000. A Roth IRA will be opened after the Q4 2024 conversion. {1} The current portfolio allocation is approximately 68% equities, 30% bonds, and 2% cash, which has drifted from the 65/30/5 working target due to equity market gains in 2023. A rebalance back to 65/35/5 is planned within 60 days of the April 2024 meeting, with a further shift to 60/35/5 planned at Susan\'s retirement in 2026. {2}',
+    citations: [
+      {
+        n: 1,
+        label: ACCOUNT_SUMMARY_LABEL,
+        excerpt:
+          'Rollover IRA (Robert): $1,400,000. Taxable Brokerage (Joint): $380,000. Consulting 401(k) (Robert): $62,000. 403(b) (Susan): $520,000. Total approximate household portfolio: $2,362,000.',
+        path: ACCOUNT_SUMMARY_PATH,
+        locator: 'Sample - Account Summary.md §Account Holdings',
+        verified: true,
+      },
+      {
+        n: 2,
+        label: ACCOUNT_SUMMARY_LABEL,
+        excerpt:
+          'Current Allocation: Equities 68% (target 60%, drift +8%); Bonds/Fixed Income 30% (target 35%, drift -5%); Cash 2% (target 5%, drift -3%). The rebalance will bring equities back to 65% in the near term, with a planned shift to the 60/35/5 target at Susan\'s retirement (2026).',
+        path: ACCOUNT_SUMMARY_PATH,
+        locator: 'Sample - Account Summary.md §Current vs. Target Allocation',
         verified: true,
       },
     ],
