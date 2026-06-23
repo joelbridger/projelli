@@ -5,11 +5,11 @@
 // These tests exercise the REAL updater + REAL clientMapStore (only MemoryService
 // is mocked, exactly like updater.test.ts). They split into two groups:
 //
-//   * Confirmed-working tests — assert real guarantees that hold today. They PASS.
-//   * Bug-documenting tests — each asserts the CORRECT/desired behavior and is
-//     marked `it.fails`, so it stays green now (the desired assertion currently
-//     throws) and turns RED the moment the bug is fixed, signaling the fixer to
-//     drop the `.fails`. Each carries the BUG-### id from the backlog.
+//   * Confirmed-working tests — assert real guarantees that hold today.
+//   * Regression tests for fixed bugs — these were `it.fails` bug-docs; the
+//     bugs are now fixed so they are normal passing tests, each carrying its
+//     BUG-### id (plus the Codex-review follow-ups: multi-source dismissal and
+//     source-less assumption re-surfacing).
 //
 // Backlog: docs/quality/2026-06-20-test-bug-backlog.md (BUG-100, BUG-102, BUG-104, BUG-106).
 
@@ -89,7 +89,7 @@ describe('Client Map — confirmed-working guarantees (KEEPANCE 5)', () => {
   });
 });
 
-describe('Client Map — documented bugs (KEEPANCE 5, it.fails until fixed)', () => {
+describe('Client Map — regression tests for fixed bugs (KEEPANCE 5)', () => {
   // BUG-100 — dismissed updates reappear after any later source change.
   // dismissUpdate only drops the row from pendingUpdates; nothing records that the
   // user rejected it. proposeUpdates compares the fresh build only against items

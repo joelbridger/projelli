@@ -3,9 +3,9 @@
 // KEEPANCE 5 (adversarial QA) — useClientMap status + regeneration safety.
 //
 // Mirrors the mocking harness in useClientMap.test.ts (generator + updater mocked).
-// Bug-documenting tests are `it.fails`: they assert the CORRECT behavior, stay
-// green today (the assertion currently throws), and flip RED when the bug is
-// fixed. Backlog: BUG-101, BUG-103, BUG-104.
+// These were `it.fails` bug-docs; the bugs are now fixed, so they are normal
+// passing regression tests. Backlog: BUG-101, BUG-103, BUG-104 (+ Codex review
+// findings: empty-custom-section preservation, gap-only ready).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
@@ -40,7 +40,7 @@ beforeEach(() => {
   proposeUpdatesMock.mockReset();
 });
 
-describe('useClientMap — documented bugs (KEEPANCE 5, it.fails until fixed)', () => {
+describe('useClientMap — regression tests for fixed bugs (KEEPANCE 5)', () => {
   // BUG-101 — generate() overwrites the whole stored map, destroying user-origin
   // items (and accepted updates + custom sections). It calls setMap(matterId,
   // {...built}) unconditionally. It is currently only reachable when status is
