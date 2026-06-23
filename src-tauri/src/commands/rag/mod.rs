@@ -1426,6 +1426,12 @@ pub async fn rag_index_workspace(
                             file.display()
                         );
                         // Treat a write failure the same as an extraction failure.
+                        // BUG-099 tombstone: a failed write may leave old rows in the
+                        // DB (if the write was an insert that partially failed, or if
+                        // the new delete-then-add cycle failed mid-way). Tombstone the
+                        // path so retrieval cannot serve any stale rows for it.
+                        state.unsafe_paths.lock().await.insert(path_str.clone());
+                        cleanup_failed_files += 1;
                         skipped_files += 1;
                         failed_files += 1;
                         skipped_paths.push(file.to_string_lossy().to_string());
@@ -1439,6 +1445,7 @@ pub async fn rag_index_workspace(
                                 skipped: skipped_files,
                                 failed: failed_files,
                                 timed_out: timed_out_files,
+                                cleanup_failed: cleanup_failed_files,
                                 ..Default::default()
                             },
                         );
@@ -1846,6 +1853,19 @@ pub async fn rag_verify_citation(
         .await
         .map_err(|e| format!("open table: {e}"))?;
 
+    // BUG-099 tombstone: build the exclusion set for citation verification.
+    // A row from a tombstoned path (cleanup failed → stale rows remain) must
+    // return NotFound, not Verified — consistent with what retrieval hides.
+    // The `source_id` column holds the same HMAC token as `path`, so we compare
+    // the found record's source_id against the tombstoned token set.
+    let verify_master_key = crypto::get_or_create_master_key().ok();
+    let tombstoned_tokens: std::collections::HashSet<String> = if let Some(ref k) = verify_master_key {
+        let guard = state.unsafe_paths.lock().await;
+        guard.iter().map(|p| crypto::path_token(k, p)).collect()
+    } else {
+        std::collections::HashSet::new()
+    };
+
     // 1. Scoped point lookup: id AND claimed matter.
     let scoped = store::lookup_by_id(&table, &id, Some(&claimed))
         .await
@@ -1857,12 +1877,25 @@ pub async fn rag_verify_citation(
             .await
             .map_err(|e| format!("verify classify lookup: {e}"))?;
         return Ok(match any {
-            Some(other) => Verdict::MatterMismatch {
-                actual_matter: other.matter_id,
-            },
+            Some(other) => {
+                // If the found record is tombstoned, treat as NotFound (fail-closed).
+                if tombstoned_tokens.contains(&other.source_id) {
+                    Verdict::NotFound
+                } else {
+                    Verdict::MatterMismatch {
+                        actual_matter: other.matter_id,
+                    }
+                }
+            }
             None => Verdict::NotFound,
         });
     };
+
+    // BUG-099 tombstone: a found record whose source is tombstoned must NOT
+    // return Verified — it could be a stale row whose cleanup failed. Fail closed.
+    if tombstoned_tokens.contains(&record.source_id) {
+        return Ok(Verdict::NotFound);
+    }
 
     // 3. Found in the claimed matter — resolve the stored text (WS-VEC: decrypt).
     let stored_text = if record.encrypted {

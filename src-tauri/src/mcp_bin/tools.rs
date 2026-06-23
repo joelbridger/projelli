@@ -542,7 +542,14 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
     // user-initiated decision only.
     let mut raw = Vec::new();
     for matter_id in &allowed_ids {
-        let mut hits = store::nearest(&table, &qvec, top_k, Some(matter_id), false)
+        // BUG-099 tombstone: the MCP sidecar is a separate process from the GUI
+        // and does not have access to the GUI's in-memory `RagState::unsafe_paths`.
+        // We pass an empty tombstone slice here (no exclusion in the MCP path).
+        // This is an acceptable narrow gap: PurgeFailed in the GUI tombstones
+        // for all GUI retrieval; MCP retrieval operates as a separate process
+        // and re-indexes on restart, which clears any lingering stale rows.
+        // A process-level tombstone store is deferred to a future hardening pass.
+        let mut hits = store::nearest(&table, &qvec, top_k, Some(matter_id), false, &[])
             .await
             .map_err(|e| {
                 audited_internal_error(ctx, "mcp_search", None, matter_id, format!("nearest: {e}"))
