@@ -33,7 +33,7 @@ function parseItems(content: string): RawItem[] {
       .map((i) => ({
         text: i.text,
         sourceNumbers: Array.isArray(i.sourceNumbers) ? i.sourceNumbers.filter((n) => typeof n === 'number') : [],
-        assumption: i.assumption === true,
+        assumption: (i as { assumption?: unknown }).assumption === true,
       }));
   } catch {
     return [];
@@ -48,7 +48,7 @@ function itemsFromRaw(raw: RawItem[], hits: RagHit[]): ClientMapItem[] {
       .filter((h): h is RagHit => h !== undefined)
       .map(sourceRefFromRagHit);
     return {
-      id: `${now}-${idx}-${Math.round(r.text.length)}`,
+      id: `${now}-${String(idx)}-${String(Math.round(r.text.length))}`,
       text: r.text,
       origin: 'ai' as const,
       isAssumption: sources.length === 0 ? true : r.assumption,

@@ -103,7 +103,7 @@ export function sourceRefFromRagHit(hit: RagHit): SourceRef {
   const kind: SourceRef['kind'] = hit.sourceType === 'mail' ? 'email' : 'document';
   const locator =
     hit.locator ??
-    (hit.pageNumber !== undefined ? `p. ${hit.pageNumber}` : undefined);
+    (hit.pageNumber !== undefined ? `p. ${String(hit.pageNumber)}` : undefined);
   const out: SourceRef = { kind, ref, snippet: hit.chunkText };
   if (hit.id !== undefined) out.citationId = hit.id;
   if (locator !== undefined) out.locator = locator;
