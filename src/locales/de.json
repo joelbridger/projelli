@@ -1331,6 +1331,12 @@
       "create-paid-note": "Der Kanzleiplan ist ein kostenpflichtiger Plan, getrennt von Ihrer Einzellizenz. Holen Sie ihn hier und beanspruchen Sie dann unten Ihre Kanzlei:",
       "create-paid-link": "Den Kanzleiplan holen",
       "cancel": "Jetzt nicht"
+    },
+    "prompt": {
+      "title": "Keepance mit Ihrer Kanzlei nutzen",
+      "body": "Holen Sie Kollegen dazu und teilen Sie Mandate, oder treten Sie einer Kanzlei bei, die Keepance bereits nutzt. Ihre privaten Mandate bleiben privat.",
+      "action": "Mit meiner Kanzlei nutzen",
+      "dismiss": "Schliessen"
     }
   },
   "media": {

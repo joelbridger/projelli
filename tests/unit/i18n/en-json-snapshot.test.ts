@@ -52,7 +52,7 @@ describe('en.json structure snapshot', () => {
         "citation": 3,
         "common": 27,
         "editor": 14,
-        "firm": 139,
+        "firm": 143,
         "layout": 40,
         "mail": 6,
         "marketplace": 14,
@@ -82,9 +82,9 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    // 896 = 867 + 19 carry-over keys (firm.carry.*) + 10 bridge keys
-    // (firm.bridge.*), both Phase 4 (solo-to-firm bridge).
-    expect(flat.length).toBe(896);
+    // 900 = 867 + 33 Phase 4 solo-to-firm bridge keys: 19 carry-over
+    // (firm.carry.*) + 10 bridge (firm.bridge.*) + 4 prompt (firm.prompt.*).
+    expect(flat.length).toBe(900);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

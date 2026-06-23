@@ -1133,6 +1133,12 @@
       "create-paid-note": "The firm plan is a paid plan, separate from your solo license. Get it here, then claim your firm below:",
       "create-paid-link": "Get the firm plan",
       "cancel": "Not now"
+    },
+    "prompt": {
+      "title": "Use Keepance with your firm",
+      "body": "Bring colleagues in and share matters, or join a firm that already uses Keepance. Your private matters stay private.",
+      "action": "Use this with my firm",
+      "dismiss": "Dismiss"
     }
   },
   "privacy": {

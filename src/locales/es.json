@@ -1331,6 +1331,12 @@
       "create-paid-note": "El plan de bufete es un plan de pago, separado de tu licencia individual. Obtenlo aqui y luego reclama tu bufete abajo:",
       "create-paid-link": "Obtener el plan de bufete",
       "cancel": "Ahora no"
+    },
+    "prompt": {
+      "title": "Usa Keepance con tu bufete",
+      "body": "Trae a tus colegas y comparte asuntos, o unete a un bufete que ya usa Keepance. Tus asuntos privados siguen siendo privados.",
+      "action": "Usar esto con mi bufete",
+      "dismiss": "Descartar"
     }
   },
   "media": {
