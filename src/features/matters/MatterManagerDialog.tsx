@@ -56,15 +56,12 @@ import { mailConnectedAccounts, type ConnectedAccount } from '@/platform/utils/m
 import { mailFolderKey } from '@/platform/rag/matterResolver';
 import { useFirm } from '@/platform/hooks/useFirm';
 import { useFirmStore } from '@/platform/firm/firmStore';
-import {
-  getOrCreateMatterKey,
-  publishMatterKeyToMembers,
-  obtainMatterKey,
-} from '@/platform/firm/matterKeyService';
+import { obtainMatterKey } from '@/platform/firm/matterKeyService';
 import { registerDevice } from '@/platform/firm/deviceKeys';
 import type { MatterMineSummary } from '@/platform/firm/contract';
 import { openMatterNotes } from '@/features/matters/logic/openMatterNotes';
 import { stopMatterSync } from '@/features/matters/logic/matterNotesSync';
+import { promoteMatterToShared } from '@/features/matters/logic/promoteMatterToShared';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { collectFolderPaths, relLabel, audit } from './matterManagerDialogHelpers';
 import { MemberRoster } from './MemberRoster';
@@ -94,7 +91,6 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
     setMatterPrivileged,
     setMatterMcpAccess,
     setMatterArchived,
-    linkFirmMatter,
     unlinkFirmMatter,
   } = useMatterStore();
 
@@ -198,58 +194,13 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
   const handleShare = async (matterId: string, clientName: string) => {
     setSharingMatterId(matterId);
     setShareError(null);
-    // Track whether linkFirmMatter was called so the catch block can roll back
-    // correctly. We cannot read `matters` in the catch — it is a render-time
-    // snapshot and may be stale by the time the async op fails.
-    let linkedLocalId: string | null = null;
-    try {
-      const client = getClient();
-
-      // 1. Create the matter on the backend
-      const createRes = await client.createMatter(clientName);
-      const firmMatterId = createRes.matter.matter_id;
-      const orgId = createRes.matter.org_id;
-      const epoch = createRes.matter.key_epoch;
-
-      // 2. Link the local matter to the firm matter
-      linkFirmMatter(matterId, { firmMatterId, orgId, role: 'owner' });
-      linkedLocalId = matterId;
-
-      // 3. Ensure a local matter key exists
-      await getOrCreateMatterKey(firmMatterId);
-
-      // 4. Register this device with the backend
-      await registerDevice(client);
-
-      // 5. Publish the matter key to all members (just the owner for now)
-      await publishMatterKeyToMembers(client, firmMatterId, epoch);
-
-      // 6. Audit
-      audit.append({
-        type: 'matter_shared',
-        timestamp: new Date().toISOString(),
-        payload: {
-          matter_id: matterId,
-          firm_matter_id: firmMatterId,
-          org_id: orgId,
-          detail: `shared as firm matter ${firmMatterId}`,
-        },
-      });
-    } catch (err) {
-      setShareError(
-        t('matter.manager.firm-share-error', {
-          error: err instanceof Error ? err.message : String(err),
-        }),
-      );
-      // Rollback: unlink using the tracked id rather than reading the stale
-      // render-time `matters` snapshot, which may not reflect the link we just set.
-      if (linkedLocalId) {
-        const freshMatter = useMatterStore.getState().matters.find((x) => x.id === linkedLocalId);
-        if (freshMatter?.firmMatterId) unlinkFirmMatter(linkedLocalId);
-      }
-    } finally {
-      setSharingMatterId(null);
+    // Delegates to the shared promote routine (also used by the solo-to-firm
+    // carry-over flow) so firm-matter creation + key publishing live in one place.
+    const result = await promoteMatterToShared(matterId, clientName, getClient());
+    if (result.status === 'failed') {
+      setShareError(t('matter.manager.firm-share-error', { error: result.error }));
     }
+    setSharingMatterId(null);
   };
 
   const handleLeave = (matterId: string) => {

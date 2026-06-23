@@ -1100,6 +1100,45 @@
         "remove-action": "Remove SSO",
         "remove-ok": "SSO configuration removed."
       }
+    },
+    "carry": {
+      "heading": "Bring your matters into the firm",
+      "intro": "For each matter, choose to leave it private (stays just on your computer) or share it with the firm so colleagues can collaborate. Sharing moves the shared notes and any documents you co-edit, all encrypted. Your files, email, and search index stay on your computer.",
+      "empty": "You have no matters to bring over yet. You can share any matter later from the matter screen.",
+      "privileged-badge": "Privileged",
+      "keep-private-action": "Keep private",
+      "share-action": "Share with firm",
+      "skip-action": "Skip for now",
+      "submit-action": "Bring matters over",
+      "submitting": "Working...",
+      "progress": "Sharing matter {{done}} of {{total}}...",
+      "done-heading": "Here is what happened",
+      "continue-action": "Continue",
+      "outcome-shared": "Shared with firm",
+      "outcome-private": "Kept private",
+      "outcome-failed": "Could not share: {{error}}",
+      "privileged-confirm-title": "Share a privileged matter?",
+      "privileged-confirm-body": "Sharing turns on encrypted internet sync for this privileged matter so colleagues can collaborate. The relay only ever stores encrypted data it cannot read. Continue?",
+      "privileged-confirm-cancel": "Keep it private",
+      "privileged-confirm-accept": "Share it"
+    },
+    "bridge": {
+      "heading": "Use Keepance with your firm",
+      "intro": "Pick how you want to get into a firm. Then you can bring your existing matters over, choosing for each one whether to keep it private or share it with colleagues.",
+      "door-create-title": "Start a firm",
+      "door-create-body": "You become the admin and the first seat. Invite colleagues, share matters, set up single sign-on and the firm security.",
+      "door-join-title": "Join a firm",
+      "door-join-body": "Sign in to a firm that already exists and claim your seat. An admin sets you up first.",
+      "back": "Back",
+      "create-paid-note": "The firm plan is a paid plan, separate from your solo license. Get it here, then claim your firm below:",
+      "create-paid-link": "Get the firm plan",
+      "cancel": "Not now"
+    },
+    "prompt": {
+      "title": "Use Keepance with your firm",
+      "body": "Bring colleagues in and share matters, or join a firm that already uses Keepance. Your private matters stay private.",
+      "action": "Use this with my firm",
+      "dismiss": "Dismiss"
     }
   },
   "privacy": {

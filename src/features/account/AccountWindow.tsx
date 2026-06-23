@@ -1,5 +1,5 @@
 /* eslint-disable keepance-i18n/no-hardcoded-string */
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Upload, User, Building2, X } from 'lucide-react';
 import {
   Dialog,
@@ -15,6 +15,7 @@ import type { AuditEntry } from '@/platform/types/audit';
 import { LicenseSettings } from '@/features/settings/LicenseSettings';
 import { FirmSignIn } from '@/features/firm/FirmSignIn';
 import { FirmAdminConsole } from '@/features/firm/FirmAdminConsole';
+import { UseWithFirmFlow } from '@/features/firm/UseWithFirmFlow';
 import { CostMetrics } from '@/platform/analysis/ui/CostMetrics';
 import { MailConnect } from '@/features/settings/MailConnect';
 import { MailImapConnect } from '@/features/settings/MailImapConnect';
@@ -44,8 +45,12 @@ const ACCOUNT_TABS = [
  * Connections). The Account tab was removed from Settings in favor of this.
  */
 export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: AccountWindowProps) {
-  const { isSignedIn, org } = useFirm();
+  const { isSignedIn, hasActiveSeat, org } = useFirm();
   const isFirm = isSignedIn;
+  // A solo user has no active firm seat; they get the "Use this with my firm"
+  // bridge entry. Active-seat firm users see the normal firm console instead.
+  const isSolo = !isSignedIn || !hasActiveSeat;
+  const [showBridge, setShowBridge] = useState(false);
   const profile = useProfileStore();
   const fileRef = useRef<HTMLInputElement>(null);
   // Horizontal tabs, collapsed by default: no tab selected on open, so the
@@ -55,14 +60,16 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
   // pre-select that tab on open.
   const [activeTab, setActiveTab] = useState<string>(initialTab ?? '');
 
-  // Sync the active tab whenever the window opens: if `initialTab` is given,
-  // jump to it; otherwise reset to the collapsed state. Runs when `open` toggles
-  // so re-opening with a different target lands on the right tab each time.
-  useEffect(() => {
-    if (open) {
-      setActiveTab(initialTab ?? '');
-    }
-  }, [open, initialTab]);
+  // Reset the active tab whenever the window transitions to open: if
+  // `initialTab` is given, jump to it; otherwise collapse to no tab. This uses
+  // React's "adjust state during render on a prop change" pattern (tracking the
+  // previous `open` value) rather than a setState-in-effect, so re-opening with
+  // a different target lands on the right tab without a cascading render.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) setActiveTab(initialTab ?? '');
+  }
 
   const name = isFirm ? profile.firmName : profile.soloName;
   const image = isFirm ? profile.firmLogo : profile.soloAvatar;
@@ -235,8 +242,50 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
             {activeTab === 'account' && <LicenseSettings />}
             {activeTab === 'firm' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-lg)' }}>
-                <FirmSignIn />
-                <FirmAdminConsole />
+                {isSolo && !showBridge && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 'var(--kp-space-md)',
+                      padding: 'var(--kp-space-md)',
+                      borderRadius: 'var(--kp-radius-md)',
+                      border: '1px solid var(--color-primary)',
+                      background: 'color-mix(in srgb, var(--color-primary) 6%, transparent)',
+                    }}
+                  >
+                    <Building2 size={20} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: 2 }} aria-hidden />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontWeight: 600, fontSize: 'var(--kp-font-sm)' }}>
+                        Use Keepance with your firm
+                      </p>
+                      <p style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', margin: '4px 0 8px' }}>
+                        Start a firm or join one, then bring your matters over. You choose for each matter whether it stays private or is shared with colleagues.
+                      </p>
+                      <Button
+                        size="sm"
+                        data-testid="use-with-firm-action"
+                        onClick={() => {
+                          setShowBridge(true);
+                        }}
+                      >
+                        Use this with my firm
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {showBridge ? (
+                  <UseWithFirmFlow
+                    onClose={() => {
+                      setShowBridge(false);
+                    }}
+                  />
+                ) : (
+                  <>
+                    <FirmSignIn />
+                    <FirmAdminConsole />
+                  </>
+                )}
               </div>
             )}
             {activeTab === 'usage' && <CostMetrics entries={auditEntries ?? []} />}

@@ -1298,6 +1298,45 @@
         "remove-action": "Eliminar SSO",
         "remove-ok": "Configuración SSO eliminada."
       }
+    },
+    "carry": {
+      "heading": "Lleva tus asuntos al bufete",
+      "intro": "Para cada asunto, elige dejarlo privado (permanece solo en tu computadora) o compartirlo con el bufete para que los colegas colaboren. Al compartir se mueven las notas compartidas y los documentos que coedites, todo cifrado. Tus archivos, correo e indice de busqueda permanecen en tu computadora.",
+      "empty": "Aun no tienes asuntos para traer. Puedes compartir cualquier asunto mas tarde desde la pantalla de asuntos.",
+      "privileged-badge": "Privilegiado",
+      "keep-private-action": "Mantener privado",
+      "share-action": "Compartir con el bufete",
+      "skip-action": "Omitir por ahora",
+      "submit-action": "Traer los asuntos",
+      "submitting": "Trabajando...",
+      "progress": "Compartiendo asunto {{done}} de {{total}}...",
+      "done-heading": "Esto es lo que paso",
+      "continue-action": "Continuar",
+      "outcome-shared": "Compartido con el bufete",
+      "outcome-private": "Mantenido privado",
+      "outcome-failed": "No se pudo compartir: {{error}}",
+      "privileged-confirm-title": "Compartir un asunto privilegiado?",
+      "privileged-confirm-body": "Compartir activa la sincronizacion cifrada por internet para este asunto privilegiado para que los colegas colaboren. El relevo solo almacena datos cifrados que no puede leer. Continuar?",
+      "privileged-confirm-cancel": "Mantenerlo privado",
+      "privileged-confirm-accept": "Compartirlo"
+    },
+    "bridge": {
+      "heading": "Usa Keepance con tu bufete",
+      "intro": "Elige como quieres entrar a un bufete. Luego puedes traer tus asuntos existentes y decidir para cada uno si lo mantienes privado o lo compartes con colegas.",
+      "door-create-title": "Crear un bufete",
+      "door-create-body": "Te conviertes en el administrador y el primer puesto. Invita colegas, comparte asuntos, configura el inicio de sesion unico y la seguridad del bufete.",
+      "door-join-title": "Unirse a un bufete",
+      "door-join-body": "Inicia sesion en un bufete que ya existe y reclama tu puesto. Un administrador te configura primero.",
+      "back": "Atras",
+      "create-paid-note": "El plan de bufete es un plan de pago, separado de tu licencia individual. Obtenlo aqui y luego reclama tu bufete abajo:",
+      "create-paid-link": "Obtener el plan de bufete",
+      "cancel": "Ahora no"
+    },
+    "prompt": {
+      "title": "Usa Keepance con tu bufete",
+      "body": "Trae a tus colegas y comparte asuntos, o unete a un bufete que ya usa Keepance. Tus asuntos privados siguen siendo privados.",
+      "action": "Usar esto con mi bufete",
+      "dismiss": "Descartar"
     }
   },
   "media": {
