@@ -321,20 +321,20 @@
     .client-map-card p { font-size: 13.5px; color: var(--text-muted-dark); line-height: 1.6; margin: 0; }
 
     /* Client Map animated stage (live GSAP) */
-    .cm-stage { position: relative; width: 100%; max-width: 1040px; margin: 14px auto 0; aspect-ratio: 1000 / 600; }
+    .cm-stage { position: relative; width: 100%; max-width: 1100px; margin: 14px auto 0; aspect-ratio: 1000 / 600; }
     .cm-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-    .cm-link { stroke: url(#cmLineG); stroke-width: 2; fill: none; stroke-dasharray: 2 11; stroke-linecap: round; }
+    .cm-link { stroke: url(#cmLineG); stroke-width: 2.5; fill: none; stroke-dasharray: 3 9; stroke-linecap: round; }
     .cm-hub-pos, .cm-node-pos { position: absolute; transform: translate(-50%, -50%); }
     .cm-hub { position: relative; display: flex; align-items: center; justify-content: center; }
-    .cm-ring { position: absolute; left: 50%; top: 50%; width: 138px; height: 138px; margin: -69px 0 0 -69px; border-radius: 50%; border: 1.5px solid var(--grad-blue); opacity: 0; pointer-events: none; }
-    .cm-hub-core { position: relative; width: 138px; height: 138px; border-radius: 50%; background: radial-gradient(circle at 35% 28%, rgba(255,60,232,0.28), rgba(10,37,64,0.92)); border: 1.5px solid rgba(255,255,255,0.18); box-shadow: 0 0 50px rgba(93,198,255,0.28); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-    .cm-hub-avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue)); color: #fff; font-weight: 800; font-size: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 9px; }
-    .cm-hub-name { font-size: 13px; font-weight: 700; color: #fff; }
-    .cm-hub-meta { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--grad-blue); margin-top: 4px; }
-    .cm-node { width: 212px; background: rgba(13,40,68,0.86); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 13px 16px; box-shadow: 0 12px 32px rgba(0,0,0,0.32); }
-    .cm-node-head { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 700; color: #fff; margin-bottom: 5px; }
+    .cm-ring { position: absolute; left: 50%; top: 50%; width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%; border: 1.5px solid var(--grad-blue); opacity: 0; pointer-events: none; }
+    .cm-hub-core { position: relative; width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle at 35% 28%, rgba(255,60,232,0.28), rgba(10,37,64,0.92)); border: 1.5px solid rgba(255,255,255,0.18); box-shadow: 0 0 50px rgba(93,198,255,0.28); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .cm-hub-avatar { width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue)); color: #fff; font-weight: 800; font-size: 18px; display: flex; align-items: center; justify-content: center; margin-bottom: 9px; }
+    .cm-hub-name { font-size: 15px; font-weight: 700; color: #fff; }
+    .cm-hub-meta { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--grad-blue); margin-top: 4px; }
+    .cm-node { width: 238px; background: rgba(13,40,68,0.88); border: 1px solid rgba(255,255,255,0.13); border-radius: 12px; padding: 14px 17px; box-shadow: 0 12px 32px rgba(0,0,0,0.32); }
+    .cm-node-head { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 5px; }
     .cm-dot { width: 7px; height: 7px; border-radius: 50%; background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue)); flex-shrink: 0; box-shadow: 0 0 8px rgba(93,198,255,0.75); }
-    .cm-node-detail { font-size: 12px; color: var(--text-muted-dark); line-height: 1.5; }
+    .cm-node-detail { font-size: 14px; color: var(--text-muted-dark); line-height: 1.55; }
     .cm-stack { display: none; }
     @media (max-width: 900px) {
       .cm-stage { display: none; }
@@ -459,11 +459,11 @@
         <div class="cm-stage" id="cmStage" aria-hidden="true">
           <svg class="cm-links" viewBox="0 0 1000 600" preserveAspectRatio="none">
             <defs><linearGradient id="cmLineG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF3CE8"/><stop offset="1" stop-color="#5DC6FF"/></linearGradient></defs>
-            <path class="cm-link" d="M500 300 L500 66"/>
-            <path class="cm-link" d="M500 300 L845 228"/>
-            <path class="cm-link" d="M500 300 L710 516"/>
-            <path class="cm-link" d="M500 300 L290 516"/>
-            <path class="cm-link" d="M500 300 L155 228"/>
+            <path class="cm-link" d="M500 300 L500 48"/>
+            <path class="cm-link" d="M500 300 L855 222"/>
+            <path class="cm-link" d="M500 300 L710 528"/>
+            <path class="cm-link" d="M500 300 L290 528"/>
+            <path class="cm-link" d="M500 300 L145 222"/>
           </svg>
           <div class="cm-hub-pos" style="left:50%;top:50%">
             <div class="cm-hub">
@@ -475,11 +475,11 @@
               </div>
             </div>
           </div>
-          <div class="cm-node-pos" style="left:50%;top:11%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>People &amp; relationships</div><div class="cm-node-detail">Allison &amp; David &middot; 2 children &middot; family trustee</div></div></div>
-          <div class="cm-node-pos" style="left:84.5%;top:38%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>History &amp; timeline</div><div class="cm-node-detail">Client since 2019 &middot; estate amended Mar 2026</div></div></div>
-          <div class="cm-node-pos" style="left:71%;top:86%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Goals &amp; preferences</div><div class="cm-node-detail">Prefers email &middot; risk-averse &middot; college funding</div></div></div>
-          <div class="cm-node-pos" style="left:29%;top:86%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Risks &amp; open questions</div><div class="cm-node-detail">Beneficiary form unsigned &middot; address out of date</div></div></div>
-          <div class="cm-node-pos" style="left:15.5%;top:38%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Firm context</div><div class="cm-node-detail">House style &middot; plain-language memos &middot; two-reviewer rule</div></div></div>
+          <div class="cm-node-pos" style="left:50%;top:8%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>People &amp; relationships</div><div class="cm-node-detail">Allison &amp; David &middot; 2 children &middot; family trustee</div></div></div>
+          <div class="cm-node-pos" style="left:85.5%;top:37%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>History &amp; timeline</div><div class="cm-node-detail">Client since 2019 &middot; estate amended Mar 2026</div></div></div>
+          <div class="cm-node-pos" style="left:71%;top:88%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Goals &amp; preferences</div><div class="cm-node-detail">Prefers email &middot; risk-averse &middot; college funding</div></div></div>
+          <div class="cm-node-pos" style="left:29%;top:88%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Risks &amp; open questions</div><div class="cm-node-detail">Beneficiary form unsigned &middot; address out of date</div></div></div>
+          <div class="cm-node-pos" style="left:14.5%;top:37%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Firm context</div><div class="cm-node-detail">House style &middot; plain-language memos &middot; two-reviewer rule</div></div></div>
         </div>
         <div class="cm-stack">
           <div class="client-map-card"><div class="client-map-num">01</div><h3>People &amp; relationships</h3><p>The people who shape the work: family, decision-makers, beneficiaries, opposing parties, and advisors.</p></div>
@@ -488,7 +488,7 @@
           <div class="client-map-card"><div class="client-map-num">04</div><h3>Risks &amp; open questions</h3><p>Contradictions, missing details, unsigned documents, stale information, and issues worth reviewing.</p></div>
           <div class="client-map-card"><div class="client-map-num">05</div><h3>Firm context</h3><p>Your firm's preferred language, templates, tone, and review standards, applied across client work.</p></div>
         </div>
-        <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+        <script src="/scripts/gsap.min.js"></script>
         <script>
           (function(){
             function runCM(){
@@ -500,7 +500,7 @@
               tl.to('.cm-hub',{autoAlpha:1,scale:1,duration:0.7,ease:'back.out(1.7)'},0.15)
                 .to('.cm-link',{opacity:0.9,duration:0.6,stagger:0.07,ease:'power2.out'},0.55)
                 .to('.cm-node',{autoAlpha:1,scale:1,y:0,duration:0.55,stagger:0.1,ease:'back.out(1.5)'},0.78);
-              gsap.to('.cm-link',{strokeDashoffset:'-=13',duration:0.9,ease:'none',repeat:-1});
+              gsap.to('.cm-link',{strokeDashoffset:'-=12',duration:0.9,ease:'none',repeat:-1});
               gsap.to('.cm-node',{y:'-=7',duration:3.2,ease:'sine.inOut',repeat:-1,yoyo:true,stagger:{each:0.5,from:'random'}});
               gsap.fromTo('.cm-ring',{scale:1,opacity:0.55},{scale:1.65,opacity:0,duration:2.6,ease:'sine.out',repeat:-1,stagger:1.3});
               setTimeout(function(){try{tl.progress(1);gsap.set('.cm-hub,.cm-node',{autoAlpha:1,scale:1,y:0});gsap.set('.cm-link',{opacity:0.9});}catch(e){}},3600);
