@@ -1,19 +1,24 @@
 // src/platform/clientMap/clientMapStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { ClientMap, ClientMapSection, ProposedUpdate } from './types';
+import type { ClientMap, ClientMapSection, ClientQuestion, ProposedUpdate } from './types';
 
 interface ClientMapState {
   maps: Record<string, ClientMap>;
+  clientQuestions: Record<string, ClientQuestion[]>;
   getMap: (matterId: string) => ClientMap | undefined;
   setMap: (matterId: string, map: ClientMap) => void;
   editItem: (matterId: string, sectionKey: string, itemId: string, text: string) => void;
   removeItem: (matterId: string, sectionKey: string, itemId: string) => void;
+  addUserItem: (matterId: string, sectionKey: string, text: string) => void;
   addCustomSection: (matterId: string, section: ClientMapSection) => void;
   removeSection: (matterId: string, sectionId: string) => void;
   setPendingUpdates: (matterId: string, updates: ProposedUpdate[]) => void;
   acceptUpdate: (matterId: string, updateId: string, override?: string) => void;
   dismissUpdate: (matterId: string, updateId: string) => void;
+  addClientQuestion: (matterId: string, text: string) => void;
+  removeClientQuestion: (matterId: string, id: string) => void;
+  getClientQuestions: (matterId: string) => ClientQuestion[];
   invalidate: (matterId: string) => void;
   clearAll: () => void;
 }
@@ -26,6 +31,7 @@ export const useClientMapStore = create<ClientMapState>()(
   persist(
     (set, get) => ({
       maps: {},
+      clientQuestions: {},
       getMap: (matterId) => get().maps[matterId],
       setMap: (matterId, map) =>
         set((s) => ({ maps: { ...s.maps, [matterId]: map } })),
@@ -53,6 +59,23 @@ export const useClientMapStore = create<ClientMapState>()(
           if (!map) return {};
           const sections = map.sections.map((sec) =>
             sec.key !== sectionKey ? sec : { ...sec, items: sec.items.filter((it) => it.id !== itemId) },
+          );
+          return { maps: { ...s.maps, [matterId]: { ...map, sections } } };
+        }),
+      addUserItem: (matterId, sectionKey, text) =>
+        set((s) => {
+          const map = s.maps[matterId];
+          if (!map) return {};
+          const newItem = {
+            id: `user-${String(Date.now())}-${String(Math.random()).slice(2, 8)}`,
+            text,
+            origin: 'user' as const,
+            isAssumption: false,
+            sources: [],
+            updatedAt: nowIso(),
+          };
+          const sections = map.sections.map((sec) =>
+            sec.key !== sectionKey ? sec : { ...sec, items: [...sec.items, newItem] },
           );
           return { maps: { ...s.maps, [matterId]: { ...map, sections } } };
         }),
@@ -111,18 +134,33 @@ export const useClientMapStore = create<ClientMapState>()(
             maps: { ...s.maps, [matterId]: { ...map, pendingUpdates: map.pendingUpdates.filter((u) => u.id !== updateId) } },
           };
         }),
+      addClientQuestion: (matterId, text) =>
+        set((s) => {
+          const existing = s.clientQuestions[matterId] ?? [];
+          const newQ = {
+            id: `cq-${String(Date.now())}-${String(Math.random()).slice(2, 8)}`,
+            text,
+          };
+          return { clientQuestions: { ...s.clientQuestions, [matterId]: [...existing, newQ] } };
+        }),
+      removeClientQuestion: (matterId, id) =>
+        set((s) => {
+          const existing = s.clientQuestions[matterId] ?? [];
+          return { clientQuestions: { ...s.clientQuestions, [matterId]: existing.filter((q) => q.id !== id) } };
+        }),
+      getClientQuestions: (matterId) => get().clientQuestions[matterId] ?? [],
       invalidate: (matterId) =>
         set((s) => {
           const { [matterId]: _drop, ...rest } = s.maps;
           return { maps: rest };
         }),
-      clearAll: () => set({ maps: {} }),
+      clearAll: () => set({ maps: {}, clientQuestions: {} }),
     }),
     {
       name: 'keepance:client-maps',
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ maps: state.maps }),
+      partialize: (state) => ({ maps: state.maps, clientQuestions: state.clientQuestions }),
     },
   ),
 );
