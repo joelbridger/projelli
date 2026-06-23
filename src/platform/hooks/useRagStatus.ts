@@ -19,6 +19,14 @@ export interface RagStatusSnapshot {
   processed: number;
   total: number;
   currentPath: string | null;
+  /** BUG-099: total files skipped (failed + timedOut). Zero when no skips. */
+  skipped: number;
+  /** Of skipped: extraction / embedding failures. */
+  failed: number;
+  /** Of skipped: per-file timeout hits (the original BUG-099 stall). */
+  timedOut: number;
+  /** Paths of skipped files (capped to 100 by the Rust layer). */
+  skippedPaths: string[];
 }
 
 const INITIAL: RagStatusSnapshot = {
@@ -26,6 +34,10 @@ const INITIAL: RagStatusSnapshot = {
   processed: 0,
   total: 0,
   currentPath: null,
+  skipped: 0,
+  failed: 0,
+  timedOut: 0,
+  skippedPaths: [],
 };
 
 /**
@@ -56,6 +68,14 @@ export function useRagStatus(): RagStatusSnapshot {
               processed: p.processed,
               total: p.total,
               currentPath: p.currentPath ?? null,
+              // BUG-099: thread skip counts through to the banner so it can
+              // display "Memory ready (N files skipped)" instead of a plain
+              // "Memory ready." The Rust side uses 0 as the default so these
+              // are always defined once the event fires.
+              skipped: p.skipped ?? 0,
+              failed: p.failed ?? 0,
+              timedOut: p.timedOut ?? 0,
+              skippedPaths: p.skippedPaths ?? [],
             });
           },
         );

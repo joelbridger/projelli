@@ -171,12 +171,26 @@ export type RagIndexingStatus =
   | 'error';
 
 /** Payload emitted on the `rag-indexing-progress` event. The
- *  `useRagStatus` hook subscribes to this event. */
+ *  `useRagStatus` hook subscribes to this event.
+ *
+ *  BUG-099: `skipped`, `failed`, `timedOut`, and `skippedPaths` carry the
+ *  per-walk skip counts surfaced by the Rust indexer. They are optional/zero
+ *  on per-file `indexing` events (kept small); populated on the terminal
+ *  `done` / `cancelled` event so the UI can say "Memory ready (2 files skipped)"
+ *  instead of a plain "Memory ready." */
 export interface RagIndexingProgress {
   status: RagIndexingStatus;
   processed: number;
   total: number;
   currentPath?: string | null;
+  /** Total files skipped (= failed + timedOut). */
+  skipped?: number;
+  /** Of skipped: extraction / embedding failures. */
+  failed?: number;
+  /** Of skipped: files that exceeded the per-file index timeout. */
+  timedOut?: number;
+  /** Paths of skipped files (bounded to 100 on the wire; use counts for total). */
+  skippedPaths?: string[];
 }
 
 /** Tauri event name. Mirror of `PROGRESS_EVENT` in mod.rs. */
