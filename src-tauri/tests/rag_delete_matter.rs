@@ -27,7 +27,7 @@ async fn add_matter(table: &lancedb::Table, source: &str, text: &str, matter_id:
 
 async fn matter_ids(table: &lancedb::Table) -> std::collections::HashSet<String> {
     let q = vec![0.1f32; DIM];
-    let hits = store::nearest(table, &q, 100, None, false).await.expect("nearest");
+    let hits = store::nearest(table, &q, 100, None, false, &[]).await.expect("nearest");
     hits.into_iter().filter_map(|h| h.matter_id).collect()
 }
 
@@ -42,7 +42,7 @@ fn decrypt_hit_text(hit: &store::StoredHit) -> String {
 
 async fn all_matter_plaintexts(table: &lancedb::Table) -> Vec<String> {
     let q = vec![0.1f32; DIM];
-    store::nearest(table, &q, 100, None, false)
+    store::nearest(table, &q, 100, None, false, &[])
         .await
         .expect("all-matters nearest")
         .iter()
@@ -100,7 +100,7 @@ async fn delete_matter_purges_deleted_content_from_all_matters_retrieval() {
 
     store::delete_matter(&table, "matter-a").await.expect("delete matter-a");
 
-    let after_hits = store::nearest(&table, &[0.1f32; DIM], 100, None, false)
+    let after_hits = store::nearest(&table, &[0.1f32; DIM], 100, None, false, &[])
         .await
         .expect("all-matters retrieval after delete");
     assert!(

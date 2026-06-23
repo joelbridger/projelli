@@ -169,6 +169,7 @@ async fn fixture_email_import_lists_searches_and_files_to_matter_durably() {
         5,
         Some(FOLDER_MATTER),
         false,
+        &[],
     )
     .await
     .expect("AI/vector search");

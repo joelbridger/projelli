@@ -110,7 +110,7 @@ async fn nearest(
     include_privileged: bool,
 ) -> anyhow::Result<Vec<store::StoredHit>> {
     use keepance_lib::commands::mail::crypto::decrypt_with_key;
-    let mut hits = store::nearest(table, query_vec, top_k, scope, include_privileged).await?;
+    let mut hits = store::nearest(table, query_vec, top_k, scope, include_privileged, &[]).await?;
     for h in &mut hits {
         let enc = h.path_enc.as_deref().expect("V10 rows must carry path_enc");
         let blob = hex::decode(enc).expect("path_enc must be hex ciphertext");
@@ -794,7 +794,7 @@ async fn priv_composed_prefilter_is_matter_and_privilege() {
     // privilege, built by build_retrieval_predicate. This is the standing guard
     // that the two boundaries are AND-ed into a single prefilter (not applied as
     // two separate post-hoc filters), mirroring the matter prefilter regression.
-    let p = store::build_retrieval_predicate(Some(MATTER_ACME), false)
+    let p = store::build_retrieval_predicate(Some(MATTER_ACME), false, &[])
         .expect("predicate")
         .expect("some predicate");
     assert_eq!(p, "matter_id = 'matter-acme' AND privilege = 'none'");
