@@ -126,7 +126,7 @@ export function ClientMapTemplates({ matterId, onApplied }: ClientMapTemplatesPr
             type="text"
             value={savePrompt}
             onChange={(e) => { setSavePrompt(e.target.value); }}
-            placeholder="What to track (optional — defaults to name)"
+            placeholder="What to track (optional, defaults to name)"
             style={{ fontSize: 13, padding: '6px 10px', border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)' }}
           />
           <Button

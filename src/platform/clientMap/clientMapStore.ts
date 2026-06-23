@@ -105,6 +105,21 @@ export const useClientMapStore = create<ClientMapState>()(
           if (!upd) return {};
           let sections = map.sections;
           if ((upd.op === 'add' || upd.op === 'change') && upd.draft) {
+            if (upd.op === 'change' && override === undefined) {
+              // AI-driven change (no user override) targeting a user-origin item is blocked.
+              const targetItem = map.sections
+                .find((sec) => sec.key === upd.sectionKey)
+                ?.items.find((it) => it.id === upd.itemId);
+              if (targetItem?.origin === 'user') {
+                // Refuse the AI change but still clear the pending proposal.
+                return {
+                  maps: {
+                    ...s.maps,
+                    [matterId]: { ...map, pendingUpdates: map.pendingUpdates.filter((u) => u.id !== updateId) },
+                  },
+                };
+              }
+            }
             const draft =
               override !== undefined
                 ? { ...upd.draft, text: override, origin: 'user' as const, isAssumption: false, updatedAt: nowIso() }
@@ -115,6 +130,18 @@ export const useClientMapStore = create<ClientMapState>()(
               return { ...sec, items: sec.items.map((it) => (it.id === upd.itemId ? draft : it)) };
             });
           } else if (upd.op === 'remove') {
+            // AI-driven remove targeting a user-origin item is blocked.
+            const targetItem = map.sections
+              .find((sec) => sec.key === upd.sectionKey)
+              ?.items.find((it) => it.id === upd.itemId);
+            if (targetItem?.origin === 'user') {
+              return {
+                maps: {
+                  ...s.maps,
+                  [matterId]: { ...map, pendingUpdates: map.pendingUpdates.filter((u) => u.id !== updateId) },
+                },
+              };
+            }
             sections = map.sections.map((sec) =>
               sec.key !== upd.sectionKey ? sec : { ...sec, items: sec.items.filter((it) => it.id !== upd.itemId) },
             );

@@ -8,6 +8,10 @@ const item = (id: string, text: string): ClientMapItem => ({
   id, text, origin: 'ai', isAssumption: false, sources: [], updatedAt: '2026-06-22T00:00:00Z',
 });
 
+const userItem = (id: string, text: string): ClientMapItem => ({
+  id, text, origin: 'user', isAssumption: false, sources: [], updatedAt: '2026-06-22T00:00:00Z',
+});
+
 beforeEach(() => { useClientMapStore.setState({ maps: {} }); });
 
 describe('clientMapStore', () => {
@@ -52,5 +56,25 @@ describe('clientMapStore', () => {
     useClientMapStore.getState().dismissUpdate('m1', 'u2');
     expect(useClientMapStore.getState().getMap('m1')!.pendingUpdates).toEqual([]);
     expect(useClientMapStore.getState().getMap('m1')!.sections.find((s) => s.key === 'next')!.items).toEqual([]);
+  });
+
+  it('acceptUpdate(change, no override) on a user-origin item leaves text unchanged and clears the pending update', () => {
+    const m = emptyClientMap('m1');
+    m.sections[0].items.push(userItem('u-item-1', 'My own text'));
+    useClientMapStore.getState().setMap('m1', m);
+    const upd: ProposedUpdate = {
+      id: 'upd-ai-change', sectionKey: 'story', op: 'change', itemId: 'u-item-1',
+      draft: { ...item('u-item-1', 'AI replacement text'), id: 'u-item-1' },
+      reason: 'AI thinks it knows better', createdAt: '2026-06-22T00:00:00Z',
+    };
+    useClientMapStore.getState().setPendingUpdates('m1', [upd]);
+    useClientMapStore.getState().acceptUpdate('m1', 'upd-ai-change');
+    const map = useClientMapStore.getState().getMap('m1')!;
+    // The proposal must be cleared.
+    expect(map.pendingUpdates).toEqual([]);
+    // The user-origin item must be unchanged.
+    const targetItem = map.sections.find((s) => s.key === 'story')!.items.find((i) => i.id === 'u-item-1');
+    expect(targetItem?.text).toBe('My own text');
+    expect(targetItem?.origin).toBe('user');
   });
 });
