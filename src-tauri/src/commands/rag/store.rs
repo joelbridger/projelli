@@ -1620,15 +1620,27 @@ pub fn write_unsafe_tokens(workspace_root: &Path, tokens: &HashSet<String>) -> R
     if let Err(rename_err) = std::fs::rename(&tmp, &path) {
         // Windows: a replacing move can fail with a sharing violation if the
         // existing target is briefly open. Fall back to a direct write so the
-        // tombstone STILL persists (never fail-open), then drop the temp file.
+        // tombstone STILL persists, then drop the temp file.
+        //
+        // TRUNCATION SAFETY: a direct `std::fs::write` TRUNCATES the known-good
+        // file before rewriting it, so a crash or a concurrent reader (the MCP
+        // sidecar) mid-write could see an EMPTY/partial-but-readable tombstone —
+        // a fail-OPEN. To prevent that, mark `.integrity_unknown` FIRST so any
+        // reader during the destructive write fails CLOSED; only clear it once
+        // the direct write fully succeeds. If the direct write itself fails, the
+        // sentinel stays set (fail closed) and the error propagates.
         log::warn!(
             "rag: atomic rename of unsafe-tokens failed ({rename_err}); \
-             falling back to a direct write to keep the tombstone durable"
+             marking integrity-unknown and falling back to a direct write"
         );
+        mark_integrity_unknown(workspace_root);
         let direct = std::fs::write(&path, &body)
             .with_context(|| format!("direct-write unsafe-tokens tombstone at {:?}", path));
         let _ = std::fs::remove_file(&tmp);
         direct?;
+        // The direct write fully succeeded → the known-good file is complete
+        // again, so it is safe to clear the sentinel.
+        clear_integrity_unknown(workspace_root);
     }
     Ok(())
 }
