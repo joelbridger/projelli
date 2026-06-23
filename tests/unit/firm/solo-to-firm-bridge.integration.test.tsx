@@ -89,7 +89,12 @@ describe('solo-to-firm bridge — end to end', () => {
     expect(selections).toContainEqual(expect.objectContaining({ matterId: 'm1', action: 'share' }));
     expect(selections).toContainEqual(expect.objectContaining({ matterId: 'm2', action: 'private' }));
 
-    // onDone closes the flow.
+    // The results screen shows per-matter outcomes; the flow does NOT close yet.
+    await waitFor(() => expect(screen.getByTestId('carry-done')).toBeInTheDocument());
+    expect(onClose).not.toHaveBeenCalled();
+
+    // Clicking Continue on the results screen closes the flow.
+    fireEvent.click(screen.getByTestId('carry-done'));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
 
     // The bridge itself never touches firm-tier auth.

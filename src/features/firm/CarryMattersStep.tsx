@@ -46,9 +46,12 @@ export function CarryMattersStep({ onDone, onSkip }: CarryMattersStepProps) {
   const { t } = useTranslation();
   const getClient = useFirmStore((s) => s.client);
 
-  // Eligible matters: not archived, not already shared with the firm.
+  // Eligible matters: not archived, and not already linked to the firm. We
+  // check BOTH `shared` and `firmMatterId` so a matter that is linked but has a
+  // stale/missing `shared` flag is never offered again (which would create a
+  // duplicate firm shell).
   const eligible = useMatterStore((s) =>
-    s.matters.filter((m) => !m.archived && !m.shared),
+    s.matters.filter((m) => !m.archived && !m.shared && !m.firmMatterId),
   );
 
   // Per-matter choice. Default everything to private (the safe default).
@@ -114,9 +117,11 @@ export function CarryMattersStep({ onDone, onSkip }: CarryMattersStepProps) {
     const results = await carryMattersToFirm(selections, getClient(), (done, total) => {
       setProgress({ done, total });
     });
+    // Show the per-matter results screen so partial failures are visible. The
+    // flow advances (onDone) only when the user clicks Continue there, so a
+    // failed matter is never silently hidden by closing the step.
     setOutcomes(results);
     setSubmitting(false);
-    onDone(results);
   };
 
   // ── Empty state: nothing eligible to bring over ──────────────────────────

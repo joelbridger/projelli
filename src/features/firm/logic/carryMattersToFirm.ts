@@ -34,14 +34,26 @@ export async function carryMattersToFirm(
   const toShare = selections.filter((s) => s.action === 'share');
   let done = 0;
   for (const s of toShare) {
-    const r = await promoteMatterToShared(s.matterId, s.clientName, client);
-    outcomes.push(
-      r.status === 'shared'
-        ? { matterId: s.matterId, status: 'shared', firmMatterId: r.firmMatterId }
-        : { matterId: s.matterId, status: 'failed', error: r.error },
-    );
-    done += 1;
-    onProgress?.(done, toShare.length);
+    try {
+      const r = await promoteMatterToShared(s.matterId, s.clientName, client);
+      outcomes.push(
+        r.status === 'shared'
+          ? { matterId: s.matterId, status: 'shared', firmMatterId: r.firmMatterId }
+          : { matterId: s.matterId, status: 'failed', error: r.error },
+      );
+    } catch (err) {
+      // Defense in depth: promoteMatterToShared returns a 'failed' result rather
+      // than throwing, but if it ever does throw we still isolate that one
+      // matter and keep carrying the rest over.
+      outcomes.push({
+        matterId: s.matterId,
+        status: 'failed',
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      done += 1;
+      onProgress?.(done, toShare.length);
+    }
   }
   return outcomes;
 }

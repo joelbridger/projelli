@@ -15,6 +15,9 @@ vi.mock('@/platform/matter/matterStore', () => ({
         { id: 'm2', name: 'Secret', client: 'Secret', privileged: true },
         { id: 'm3', name: 'Old', client: 'Old', archived: true },
         { id: 'm4', name: 'Shared', client: 'Shared', shared: true, firmMatterId: 'fm_x' },
+        // Linked to the firm but with a stale/missing `shared` flag: must still
+        // be excluded (would otherwise create a duplicate firm shell).
+        { id: 'm5', name: 'Linked', client: 'Linked', firmMatterId: 'fm_y' },
       ],
     }),
 }));
@@ -29,12 +32,13 @@ import { CarryMattersStep } from '@/features/firm/CarryMattersStep';
 beforeEach(() => vi.clearAllMocks());
 
 describe('CarryMattersStep', () => {
-  it('lists only eligible matters (excludes archived + already-shared)', () => {
+  it('lists only eligible matters (excludes archived, already-shared, and firm-linked)', () => {
     render(<CarryMattersStep onDone={() => {}} onSkip={() => {}} />);
     expect(screen.getByText('Acme')).toBeInTheDocument();
     expect(screen.getByText('Secret')).toBeInTheDocument();
     expect(screen.queryByText('Old')).not.toBeInTheDocument();
     expect(screen.queryByText('Shared')).not.toBeInTheDocument();
+    expect(screen.queryByText('Linked')).not.toBeInTheDocument();
   });
 
   it('requires a confirm before a privileged matter can be set to share', async () => {
@@ -66,6 +70,24 @@ describe('CarryMattersStep', () => {
     await waitFor(() => expect(carryMattersToFirm).toHaveBeenCalled());
     const selections = carryMattersToFirm.mock.calls[0][0];
     expect(selections).toContainEqual(expect.objectContaining({ matterId: 'm1', action: 'share' }));
+  });
+
+  it('shows the per-matter results screen on submit and only finishes on Continue', async () => {
+    carryMattersToFirm.mockResolvedValueOnce([
+      { matterId: 'm1', status: 'shared', firmMatterId: 'fm_m1' },
+      { matterId: 'm2', status: 'failed', error: 'relay down' },
+    ]);
+    const onDone = vi.fn();
+    render(<CarryMattersStep onDone={onDone} onSkip={() => {}} />);
+    fireEvent.click(screen.getByTestId('carry-share-m1'));
+    fireEvent.click(screen.getByTestId('carry-submit'));
+    // The results screen renders (with the failure visible); onDone has NOT fired.
+    await waitFor(() => expect(screen.getByTestId('carry-done')).toBeInTheDocument());
+    expect(screen.getByTestId('carry-outcome-error-m2')).toBeInTheDocument();
+    expect(onDone).not.toHaveBeenCalled();
+    // Only Continue advances the flow.
+    fireEvent.click(screen.getByTestId('carry-done'));
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 
   it('Skip for now calls onSkip and does not carry anything', () => {

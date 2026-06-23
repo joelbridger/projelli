@@ -43,6 +43,22 @@ describe('carryMattersToFirm', () => {
     expect(outcomes).toContainEqual({ matterId: 'c', status: 'shared', firmMatterId: 'fm_c' });
   });
 
+  it('isolates a THROWN error (not just a failed result) without aborting the rest', async () => {
+    promoteMatterToShared
+      .mockRejectedValueOnce(new Error('kaboom'))
+      .mockResolvedValueOnce({ status: 'shared', matterId: 'c', firmMatterId: 'fm_c', orgId: 'o' });
+    const outcomes = await carryMattersToFirm(
+      [
+        { matterId: 'a', clientName: 'A', action: 'share' },
+        { matterId: 'c', clientName: 'C', action: 'share' },
+      ],
+      {} as never,
+    );
+    expect(promoteMatterToShared).toHaveBeenCalledTimes(2);
+    expect(outcomes).toContainEqual({ matterId: 'a', status: 'failed', error: 'kaboom' });
+    expect(outcomes).toContainEqual({ matterId: 'c', status: 'shared', firmMatterId: 'fm_c' });
+  });
+
   it('runs share selections sequentially (never overlapping) and reports progress', async () => {
     let active = 0;
     let maxActive = 0;
