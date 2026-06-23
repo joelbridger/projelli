@@ -1,6 +1,6 @@
 # BUG-099 robust fix — LEAD HOLD (2026-06-23)
 
-**Status: NOT MERGED. Held on branch `fix/bug099-robust` (based on `harden-rag-indexer`).**
+**Status: ✅ MERGED to `keepance-3.0` 2026-06-23 (merge `8554ee2a`).** Verified by the lead: Linux `cargo test --lib rag` 170 pass (incl. the forcing test); **real-Windows bench on the Legion = `cargo test --lib rag` 167 pass, 0 fail** (durable tombstone round-trips on disk, fail-closed sentinel works cross-process, no plaintext paths); full `npm run gate` green on the merged line. NOT deployed (signed build is Jameson's go). One out-of-scope follow-up: VMK-zeroization in the vaulted single-writer path (pre-existing, see end of this doc) — tracked separately.
 
 During the 2026-06-23 parallel build, KEEPANCE 4 produced a robust pass at BUG-099 (the RAG indexer freezing when one file gets stuck). KEEPANCE 4's own report: `docs/operations/2026-06-23-bug099-robust-fix-report.md` (on the branch). An **independent lead Codex review (read-only, gpt-5.5)** then re-checked it against the original DO-NOT-SHIP findings.
 
