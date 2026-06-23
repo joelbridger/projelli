@@ -24,7 +24,7 @@ export function makeFixture(opts?: {
 }): Fixture {
   const store = new Store(":memory:");
   const plan = opts?.plan ?? "practice";
-  const packs = opts?.packs ?? ["legal", "tax", "consulting"];
+  const packs = opts?.packs ?? ["advisor", "legal", "tax", "consulting"];
   const seatLimit = opts?.seatLimit ?? 2;
   const memberCount = opts?.memberCount ?? 3;
 

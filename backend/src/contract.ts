@@ -25,7 +25,7 @@
 // Shared vocabulary (identical to src/hooks/useLicense.ts)
 // ---------------------------------------------------------------------------
 export type Plan = "personal" | "professional" | "practice";
-export type ProfessionPack = "legal" | "tax" | "consulting";
+export type ProfessionPack = "advisor" | "legal" | "tax" | "consulting";
 export type UserRole = "admin" | "member";
 
 // ---------------------------------------------------------------------------

@@ -15,12 +15,12 @@ import {
 
 describe("seat activation + seat_limit", () => {
   test("binds a seat and returns a signed seat token with the org's entitlements", () => {
-    const f = makeFixture({ plan: "practice", packs: ["legal", "tax", "consulting"], seatLimit: 2 });
+    const f = makeFixture({ plan: "practice", packs: ["advisor", "legal", "tax", "consulting"], seatLimit: 2 });
     const r = activateSeatForUser(f.store, { user: f.members[0]!, licenseKey: f.licenseKey, machineId: "machine-A", machineLabel: "Laptop A" });
     expect(r.status).toBe("activated");
     expect(r.http).toBe(200);
     expect(r.body.tier).toBe("practice");
-    expect(r.body.packs).toEqual(["legal", "tax", "consulting"]);
+    expect(r.body.packs).toEqual(["advisor", "legal", "tax", "consulting"]);
     expect(r.body.seats).toBe(2);
     expect(typeof r.body.token).toBe("string");
     // The minted token validates.

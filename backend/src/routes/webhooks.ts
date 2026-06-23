@@ -22,6 +22,9 @@ import { randomBytes } from "node:crypto";
 import { hmacHash } from "../lib/crypto.ts";
 import { config } from "../lib/config.ts";
 import type { Store } from "../lib/db.ts";
+import type { ProfessionPack } from "../lib/types.ts";
+
+const DEFAULT_FIRM_PACKS: ProfessionPack[] = ["advisor"];
 
 // ---------------------------------------------------------------------------
 // HMAC-SHA256 signature verification
@@ -180,7 +183,7 @@ export async function handleLemonSqueezyWebhook(req: Request, store: Store): Pro
     const newOrg = store.createOrg({
       name: orgName,
       plan: "practice",
-      packs: ["legal"],
+      packs: DEFAULT_FIRM_PACKS,
       seat_limit: seatLimit,
       billing_customer_id: (attrs.customer_id as string) ?? null,
     });
@@ -190,7 +193,7 @@ export async function handleLemonSqueezyWebhook(req: Request, store: Store): Pro
       org_id: newOrg.org_id,
       key_hash: keyHash,
       plan: "practice",
-      packs: ["legal"],
+      packs: DEFAULT_FIRM_PACKS,
       seat_limit: seatLimit,
     });
     return { org: newOrg };

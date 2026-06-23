@@ -12,7 +12,7 @@
  *   - POST /org/claim                 (happy path + already-claimed 409 + wrong-key 404
  *                                      + tokens usable on /auth/me)
  *   - POST /webhooks/lemonsqueezy     (bad sig 401 + duplicate idempotency + quantity
- *                                      clamped to 3 + non-Firm ignored + Firm provisioned)
+ *                                      exact + non-Firm ignored + Firm provisioned)
  *   - member-remove purges wrapped keys + old epoch; remaining member gets 404
  *     until re-publish at new epoch
  */
@@ -862,11 +862,13 @@ describe("POST /webhooks/lemonsqueezy", () => {
       const org = store.getOrg(orgId);
       expect(org?.status).toBe("unclaimed");
       expect(org?.plan).toBe("practice");
+      expect(org?.packs).toEqual(["advisor"]);
       expect(org?.seat_limit).toBe(1);
 
       // License key hash stored
       const found = store.findOrgByLicenseKeyHash(hmacHash(licenseKey));
       expect(found?.org.org_id).toBe(orgId);
+      expect(found?.licenseKey.packs).toEqual(["advisor"]);
     } finally { server.stop(true); }
   });
 

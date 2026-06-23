@@ -20,7 +20,7 @@ export interface SeatTokenClaims {
   seat_id: string;
   machine_id: string;
   tier: 'personal' | 'professional' | 'practice';
-  packs: Array<'legal' | 'tax' | 'consulting'>;
+  packs: Array<'advisor' | 'legal' | 'tax' | 'consulting'>;
   seats: number;
   iss?: string;
   sub?: string;

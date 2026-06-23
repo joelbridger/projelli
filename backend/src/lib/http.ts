@@ -70,7 +70,7 @@ export function isValidPassword(v: unknown): v is string {
 }
 
 export const VALID_PLANS = new Set(["personal", "professional", "practice"]);
-export const VALID_PACKS = new Set(["legal", "tax", "consulting"]);
+export const VALID_PACKS = new Set(["advisor", "legal", "tax", "consulting"]);
 
 export function sanitizePacks(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
