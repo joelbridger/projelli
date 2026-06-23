@@ -8,13 +8,18 @@
  *   tax       → client / clients / Client / Clients
  *   consulting→ engagement / engagements / Engagement / Engagements
  *   advisor   → client / clients / Client / Clients
+ *               household / households / Household / Households (advisor only)
  *   other     → matter / matters / Matter / Matters  (safe default)
  *
- * Shape: { one, other, One, Other }
- *   one   – lowercase singular  e.g. "matter"
- *   other – lowercase plural    e.g. "matters"
- *   One   – capitalized singular e.g. "Matter"
- *   Other – capitalized plural   e.g. "Matters"
+ * Shape: { one, other, One, Other, household, households, Household, Households }
+ *   one        – lowercase singular  e.g. "matter"
+ *   other      – lowercase plural    e.g. "matters"
+ *   One        – capitalized singular e.g. "Matter"
+ *   Other      – capitalized plural   e.g. "Matters"
+ *   household  – lowercase singular group noun  (advisor: "household"; others mirror `one`)
+ *   households – lowercase plural group noun    (advisor: "households"; others mirror `other`)
+ *   Household  – capitalized singular group noun (advisor: "Household"; others mirror `One`)
+ *   Households – capitalized plural group noun   (advisor: "Households"; others mirror `Other`)
  *
  * Internal Matter type, ids, store names, and SAMPLE_MATTER_ID are NEVER
  * changed by this hook; only the visible words adapt.
@@ -31,6 +36,14 @@ export interface EntityLabel {
   One: string;
   /** capitalized plural   – "Matters" / "Clients" / "Engagements" */
   Other: string;
+  /** lowercase singular group noun – "household" for advisor, mirrors `one` for others */
+  household: string;
+  /** lowercase plural group noun – "households" for advisor, mirrors `other` for others */
+  households: string;
+  /** capitalized singular group noun – "Household" for advisor, mirrors `One` for others */
+  Household: string;
+  /** capitalized plural group noun – "Households" for advisor, mirrors `Other` for others */
+  Households: string;
 }
 
 const LABELS: Record<Profession, EntityLabel> = {
@@ -39,30 +52,50 @@ const LABELS: Record<Profession, EntityLabel> = {
     other: 'matters',
     One: 'Matter',
     Other: 'Matters',
+    household: 'matter',
+    households: 'matters',
+    Household: 'Matter',
+    Households: 'Matters',
   },
   tax: {
     one: 'client',
     other: 'clients',
     One: 'Client',
     Other: 'Clients',
+    household: 'client',
+    households: 'clients',
+    Household: 'Client',
+    Households: 'Clients',
   },
   consulting: {
     one: 'engagement',
     other: 'engagements',
     One: 'Engagement',
     Other: 'Engagements',
+    household: 'engagement',
+    households: 'engagements',
+    Household: 'Engagement',
+    Households: 'Engagements',
   },
   advisor: {
     one: 'client',
     other: 'clients',
     One: 'Client',
     Other: 'Clients',
+    household: 'household',
+    households: 'households',
+    Household: 'Household',
+    Households: 'Households',
   },
   other: {
     one: 'matter',
     other: 'matters',
     One: 'Matter',
     Other: 'Matters',
+    household: 'matter',
+    households: 'matters',
+    Household: 'Matter',
+    Households: 'Matters',
   },
 };
 

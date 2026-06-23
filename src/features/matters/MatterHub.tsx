@@ -242,7 +242,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         }}
       >
         {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-        Matter not found
+        {entityLabel.One} not found
         {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         <button
           type="button"
@@ -660,7 +660,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <span style={{ color: 'var(--color-foreground)', fontSize: 'var(--kp-font-xs)' }}>
-                  Matter created {formatDate(matter.createdAt)}
+                  {entityLabel.One} created {formatDate(matter.createdAt)}
                 </span>
                 <span style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
                   {/* eslint-disable keepance-i18n/no-hardcoded-string */}
@@ -792,10 +792,10 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
           <div style={panelPreview}>
             {isSample ? (
               /* eslint-disable keepance-i18n/no-hardcoded-string */
-              <span>Matter opened Apr 3, 2026</span>
+              <span>{entityLabel.One} opened Apr 3, 2026</span>
               /* eslint-enable keepance-i18n/no-hardcoded-string */
             ) : (
-              <span>Matter created {formatDate(matter.createdAt)}</span>
+              <span>{entityLabel.One} created {formatDate(matter.createdAt)}</span>
             )}
           </div>
         </Card>

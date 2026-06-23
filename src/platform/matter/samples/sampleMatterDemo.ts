@@ -68,6 +68,12 @@ export const SAMPLE_FILE_WEEKLY_REVIEW = 'Sample - Weekly Review.md';
 export const SAMPLE_FILE_CLIENT_RESEARCH_NOTE = 'Sample - Client Research Note.md';
 /** Filename written to the workspace root for the primary consulting sample. */
 export const SAMPLE_FILE_ENGAGEMENT_SUMMARY = 'Sample - Engagement Summary.md';
+/** Filename written to the workspace root for the advisor household overview sample. */
+export const SAMPLE_FILE_HOUSEHOLD_OVERVIEW = 'Sample - Household Overview.md';
+/** Filename written to the workspace root for the advisor meeting notes sample. */
+export const SAMPLE_FILE_MEETING_NOTES = 'Sample - Meeting Notes.md';
+/** Filename written to the workspace root for the advisor plan summary sample. */
+export const SAMPLE_FILE_PLAN_SUMMARY = 'Sample - Plan Summary.md';
 
 /**
  * Build the full workspace-absolute path for a sample file.
@@ -86,7 +92,7 @@ const SAMPLE_MATTER_NAMES: Record<Profession, string> = {
   legal: 'Garcia v. Meridian Properties LLC',
   tax: 'Dwyer - 2025 Form 1040',
   consulting: 'Northwind - Go-to-Market Engagement',
-  advisor: 'Sample Client Portfolio Review',
+  advisor: 'The Hendricks Household',
   other: 'Sample Matter',
 };
 
@@ -125,10 +131,10 @@ const DEMO_QUESTIONS_BY_PROFESSION: Record<Profession, [string, string, string, 
     'Why does the Springfield facility have a longer fulfillment lag?',
   ],
   advisor: [
-    'What are the open issues in this matter?',
-    'Summarize the client situation.',
-    'What is the fee arrangement?',
-    'What documents are outstanding?',
+    'What did we decide about the Roth conversion?',
+    "What are the Hendricks' top goals?",
+    'What is their risk tolerance?',
+    'What is coming up for this household?',
   ],
   other: [
     'What are the open issues in this matter?',
@@ -417,6 +423,97 @@ const CONSULTING_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
   },
 };
 
+// ── Advisor demo answers ─────────────────────────────────────────────────────
+
+const HOUSEHOLD_OVERVIEW_PATH = `${PLACEHOLDER_ROOT}/${SAMPLE_FILE_HOUSEHOLD_OVERVIEW}`;
+const MEETING_NOTES_PATH = `${PLACEHOLDER_ROOT}/${SAMPLE_FILE_MEETING_NOTES}`;
+const PLAN_SUMMARY_PATH = `${PLACEHOLDER_ROOT}/${SAMPLE_FILE_PLAN_SUMMARY}`;
+
+const HOUSEHOLD_OVERVIEW_LABEL = SAMPLE_FILE_HOUSEHOLD_OVERVIEW;
+const MEETING_NOTES_LABEL = SAMPLE_FILE_MEETING_NOTES;
+const PLAN_SUMMARY_LABEL = SAMPLE_FILE_PLAN_SUMMARY;
+
+const ADVISOR_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
+  'What did we decide about the Roth conversion?': {
+    answer:
+      'In the April 10, 2024 meeting the Hendricks agreed to convert approximately $48,000 of Robert\'s rollover IRA to a Roth IRA this calendar year. {1} That amount takes them to the top of the 24% bracket without hitting the 32% rate. Robert will initiate the conversion at Schwab in Q4 once the Holistiplan projections are finalised. {1} The estimated federal tax on the conversion is around $11,500, with projected long-term savings of $38,000 to $62,000 in reduced RMD tax and Medicare costs over 10 years. {2}',
+    citations: [
+      {
+        n: 1,
+        label: MEETING_NOTES_LABEL,
+        excerpt:
+          'Roth conversion: We agreed to convert a portion of Robert\'s rollover IRA to a Roth IRA this year. The target conversion amount is approximately $48,000, which takes them to the top of the 24% bracket without triggering the 32% rate.',
+        path: MEETING_NOTES_PATH,
+        locator: 'Sample - Meeting Notes.md §Decisions Made',
+        verified: true,
+      },
+      {
+        n: 2,
+        label: PLAN_SUMMARY_LABEL,
+        excerpt:
+          '2024 target conversion: $48,000 (fills the 24% bracket based on projected income). Estimated federal tax on conversion: ~$11,500. Projected long-term tax savings: $38,000 to $62,000 in reduced RMD tax and Medicare surcharges over 10 years.',
+        path: PLAN_SUMMARY_PATH,
+        locator: 'Sample - Plan Summary.md §Roth Conversion Strategy',
+        verified: true,
+      },
+    ],
+  },
+  "What are the Hendricks' top goals?": {
+    answer:
+      'The Hendricks have four main goals. {1} First, Robert wants to fully retire at 66 and Susan at 64 -- the target is complete income replacement from their portfolio and Social Security by 2026. Second, they want to seed 529 plans for each of their three grandchildren (ages 2, 4, and 7) with $30,000 per account over the next three years. Third, they plan to fund a charitable remainder trust with $250,000 to support a scholarship at Susan\'s alma mater before she retires. Fourth, they want to maintain their current monthly spending of around $9,200 in early retirement. {1}',
+    citations: [
+      {
+        n: 1,
+        label: HOUSEHOLD_OVERVIEW_LABEL,
+        excerpt:
+          'Goals: 1. Retire at 66 (Robert) and 64 (Susan). 2. Fund grandchildren\'s 529 plans. Three grandchildren, ages 2, 4, and 7. They want to seed each account with $30,000 over the next three years. 3. Leave a legacy. They have earmarked $250,000 for a charitable remainder trust. 4. Maintain current lifestyle. Monthly spending is approximately $9,200.',
+        path: HOUSEHOLD_OVERVIEW_PATH,
+        locator: 'Sample - Household Overview.md §Goals',
+        verified: true,
+      },
+    ],
+  },
+  'What is their risk tolerance?': {
+    answer:
+      'The Hendricks score 58 out of 100 on the DataPoints risk tolerance scale, putting them in the moderate range. {1} Their risk capacity is high -- they carry no debt and have two income sources running through 2026 with Social Security available to both. Risk composure is more mixed: Robert is comfortable with short-term volatility, but Susan was unsettled by the 2022 drawdown and prefers a calmer portfolio ride. {1} Their current allocation is 65% equities, 30% bonds, and 5% cash. The target shifts to 60/35/5 at Susan\'s retirement. {1}',
+    citations: [
+      {
+        n: 1,
+        label: HOUSEHOLD_OVERVIEW_LABEL,
+        excerpt:
+          'Risk tolerance score: 58 out of 100 (moderate). Risk capacity: High -- no debt, two income sources through 2026, Social Security available to both. Risk composure: Moderate -- Robert is comfortable with short-term volatility; Susan prefers a calmer ride and was unsettled by the 2022 drawdown. Current allocation: 65% equities / 30% bonds / 5% cash. Target allocation: 60% equities / 35% bonds / 5% cash.',
+        path: HOUSEHOLD_OVERVIEW_PATH,
+        locator: 'Sample - Household Overview.md §Risk Profile (DataPoints)',
+        verified: true,
+      },
+    ],
+  },
+  'What is coming up for this household?': {
+    answer:
+      'Several things are in motion. Robert needs to update his beneficiary designations at Schwab before their daughter\'s wedding in June -- his IRA and taxable brokerage still list his mother, who passed in September 2022. {1} The portfolio has drifted from the 65/35 target to 68/32 due to equity growth, so we need to rebalance within 60 days. {1} The Roth conversion documents need to be prepared for Q4 execution. {1} For 2025, the priorities are an LTC insurance review before Susan\'s school district group coverage lapses at retirement, and revisiting 529 funding once retirement income is confirmed. {2} The charitable remainder trust referral to an estate attorney is pending. {1}',
+    citations: [
+      {
+        n: 1,
+        label: MEETING_NOTES_LABEL,
+        excerpt:
+          'Action items: Robert to update beneficiary designations at Schwab before June. Advisor to prepare Roth conversion authorization documents for Q4 execution. Advisor to schedule LTC specialist call for May. Rebalance portfolio to 65/35 within 60 days. Revisit 529 funding strategy at October meeting.',
+        path: MEETING_NOTES_PATH,
+        locator: 'Sample - Meeting Notes.md §Action Items',
+        verified: true,
+      },
+      {
+        n: 2,
+        label: HOUSEHOLD_OVERVIEW_LABEL,
+        excerpt:
+          'Open items: Complete Roth conversion analysis. Update beneficiary designations on all accounts. Review 529 funding strategy. Finalize charitable remainder trust structure. Collect Susan\'s pension estimate letter. Review long-term care insurance options.',
+        path: HOUSEHOLD_OVERVIEW_PATH,
+        locator: 'Sample - Household Overview.md §Open Items',
+        verified: true,
+      },
+    ],
+  },
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Profession -> answers map
 // ─────────────────────────────────────────────────────────────────────────────
@@ -425,8 +522,7 @@ const DEMO_ANSWERS_BY_PROFESSION: Record<Profession, Record<string, DemoAnswer>>
   legal: LEGAL_DEMO_ANSWERS_MAP,
   tax: TAX_DEMO_ANSWERS_MAP,
   consulting: CONSULTING_DEMO_ANSWERS_MAP,
-  // advisor and other fall back to legal demo content
-  advisor: LEGAL_DEMO_ANSWERS_MAP,
+  advisor: ADVISOR_DEMO_ANSWERS_MAP,
   other: LEGAL_DEMO_ANSWERS_MAP,
 };
 

@@ -1,14 +1,15 @@
 /**
  * professionStore — the reactive source of truth for the user's profession.
  *
- * The reimagining is law-first: Keepance is "the private intelligence layer for
- * a law practice." The profession the user picked in onboarding (stored under
- * `keepance_profession`) decides whether the founder-era surfaces (Research,
- * Whiteboard, founder templates) appear at all. Before this store, that value
- * sat read-only in localStorage and gated almost nothing; promoting it to
- * reactive Zustand state lets the nav, scaffolding, templates, and copy react.
+ * The lead ICP is now financial advisors: Keepance is "the private intelligence
+ * layer for your advisory practice." The profession the user picked in onboarding
+ * (stored under `keepance_profession`) decides whether the founder-era surfaces
+ * (Research, Whiteboard, founder templates) appear at all. Before this store,
+ * that value sat read-only in localStorage and gated almost nothing; promoting
+ * it to reactive Zustand state lets the nav, scaffolding, templates, and copy
+ * react.
  *
- * Default when unset: 'legal' (law is the lead ICP and the product's identity).
+ * Default when unset: 'advisor' (financial advisors are the lead ICP).
  */
 import { create } from 'zustand';
 import type { Profession } from '@/platform/profile/professionModel';
@@ -25,7 +26,7 @@ function readInitial(): Profession {
   } catch {
     // localStorage may be unavailable (strict privacy mode); fall through.
   }
-  return 'legal';
+  return 'advisor';
 }
 
 interface ProfessionState {
