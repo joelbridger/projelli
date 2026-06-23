@@ -1,7 +1,7 @@
 // src/platform/clientMap/clientMapStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { ClientMap, ProposedUpdate } from './types';
+import type { ClientMap, ClientMapSection, ProposedUpdate } from './types';
 
 interface ClientMapState {
   maps: Record<string, ClientMap>;
@@ -9,6 +9,8 @@ interface ClientMapState {
   setMap: (matterId: string, map: ClientMap) => void;
   editItem: (matterId: string, sectionKey: string, itemId: string, text: string) => void;
   removeItem: (matterId: string, sectionKey: string, itemId: string) => void;
+  addCustomSection: (matterId: string, section: ClientMapSection) => void;
+  removeSection: (matterId: string, sectionId: string) => void;
   setPendingUpdates: (matterId: string, updates: ProposedUpdate[]) => void;
   acceptUpdate: (matterId: string, updateId: string, override?: string) => void;
   dismissUpdate: (matterId: string, updateId: string) => void;
@@ -53,6 +55,18 @@ export const useClientMapStore = create<ClientMapState>()(
             sec.key !== sectionKey ? sec : { ...sec, items: sec.items.filter((it) => it.id !== itemId) },
           );
           return { maps: { ...s.maps, [matterId]: { ...map, sections } } };
+        }),
+      addCustomSection: (matterId, section) =>
+        set((s) => {
+          const map = s.maps[matterId];
+          if (!map) return {};
+          return { maps: { ...s.maps, [matterId]: { ...map, sections: [...map.sections, section] } } };
+        }),
+      removeSection: (matterId, sectionId) =>
+        set((s) => {
+          const map = s.maps[matterId];
+          if (!map) return {};
+          return { maps: { ...s.maps, [matterId]: { ...map, sections: map.sections.filter((sec) => sec.id !== sectionId) } } };
         }),
       setPendingUpdates: (matterId, updates) =>
         set((s) => {

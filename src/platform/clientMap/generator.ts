@@ -1,13 +1,13 @@
 // src/platform/clientMap/generator.ts
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
-import type { RagHit } from '@/platform/utils/tauri-commands';
 import { buildProviderForClientMap } from './provider';
 import { deriveCompleteness } from './completeness';
 import {
-  CORE_SECTION_ORDER, CORE_SECTION_TITLE, sourceRefFromRagHit, emptyClientMap,
+  CORE_SECTION_ORDER, CORE_SECTION_TITLE, emptyClientMap,
 } from './types';
-import type { ClientMap, ClientMapItem, ClientMapSection, CoreSectionKey } from './types';
+import type { ClientMap, ClientMapSection, CoreSectionKey } from './types';
+import { parseItems, itemsFromRaw } from './aiSection';
 
 const SECTION_QUERIES: Record<CoreSectionKey, string> = {
   story: 'overview background what this matter is about who the client is',
@@ -18,45 +18,6 @@ const SECTION_QUERIES: Record<CoreSectionKey, string> = {
 };
 const ASK_QUERY = 'what key facts are still unknown or unclear about this client';
 const TOP_K = 8;
-
-interface RawItem { text: string; sourceNumbers: number[]; assumption: boolean }
-
-function parseItems(content: string): RawItem[] {
-  let raw = content.trim();
-  if (raw.startsWith('```')) raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    const items = (parsed as { items?: unknown }).items;
-    if (!Array.isArray(items)) return [];
-    return items
-      .filter((i): i is RawItem => typeof i === 'object' && i !== null && typeof (i as RawItem).text === 'string')
-      .map((i) => ({
-        text: i.text,
-        sourceNumbers: Array.isArray(i.sourceNumbers) ? i.sourceNumbers.filter((n) => typeof n === 'number') : [],
-        assumption: (i as { assumption?: unknown }).assumption === true,
-      }));
-  } catch {
-    return [];
-  }
-}
-
-function itemsFromRaw(raw: RawItem[], hits: RagHit[]): ClientMapItem[] {
-  const now = new Date().toISOString();
-  return raw.map((r, idx) => {
-    const sources = r.sourceNumbers
-      .map((n) => hits[n - 1])
-      .filter((h): h is RagHit => h !== undefined)
-      .map(sourceRefFromRagHit);
-    return {
-      id: `${now}-${String(idx)}-${String(Math.round(r.text.length))}`,
-      text: r.text,
-      origin: 'ai' as const,
-      isAssumption: sources.length === 0 ? true : r.assumption,
-      sources,
-      updatedAt: now,
-    };
-  });
-}
 
 const sectionPrompt = (title: string, ctx: string) =>
   `You are a private legal assistant building a client profile section: "${title}".
