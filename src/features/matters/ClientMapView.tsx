@@ -112,6 +112,7 @@ export function ClientMapView({
         <ul>
           {c.know.map((it) => (
             <li key={it.id} data-testid="clientmap-item">
+              <span>{it.text}</span>
               {it.sources.map((s, i) => (
                 <button
                   key={i}
@@ -134,6 +135,7 @@ export function ClientMapView({
         <ul>
           {c.assuming.map((it) => (
             <li key={it.id} data-testid="clientmap-item">
+              <span>{it.text}</span>
               {it.sources.map((s, i) => (
                 <button
                   key={i}
