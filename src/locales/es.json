@@ -1298,6 +1298,27 @@
         "remove-action": "Eliminar SSO",
         "remove-ok": "Configuración SSO eliminada."
       }
+    },
+    "carry": {
+      "heading": "Lleva tus asuntos al bufete",
+      "intro": "Para cada asunto, elige dejarlo privado (permanece solo en tu computadora) o compartirlo con el bufete para que los colegas colaboren. Al compartir se mueven las notas compartidas y los documentos que coedites, todo cifrado. Tus archivos, correo e indice de busqueda permanecen en tu computadora.",
+      "empty": "Aun no tienes asuntos para traer. Puedes compartir cualquier asunto mas tarde desde la pantalla de asuntos.",
+      "privileged-badge": "Privilegiado",
+      "keep-private-action": "Mantener privado",
+      "share-action": "Compartir con el bufete",
+      "skip-action": "Omitir por ahora",
+      "submit-action": "Traer los asuntos",
+      "submitting": "Trabajando...",
+      "progress": "Compartiendo asunto {{done}} de {{total}}...",
+      "done-heading": "Esto es lo que paso",
+      "continue-action": "Continuar",
+      "outcome-shared": "Compartido con el bufete",
+      "outcome-private": "Mantenido privado",
+      "outcome-failed": "No se pudo compartir: {{error}}",
+      "privileged-confirm-title": "Compartir un asunto privilegiado?",
+      "privileged-confirm-body": "Compartir activa la sincronizacion cifrada por internet para este asunto privilegiado para que los colegas colaboren. El relevo solo almacena datos cifrados que no puede leer. Continuar?",
+      "privileged-confirm-cancel": "Mantenerlo privado",
+      "privileged-confirm-accept": "Compartirlo"
     }
   },
   "media": {

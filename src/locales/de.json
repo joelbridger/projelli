@@ -1298,6 +1298,27 @@
         "remove-action": "SSO entfernen",
         "remove-ok": "SSO-Konfiguration entfernt."
       }
+    },
+    "carry": {
+      "heading": "Bringen Sie Ihre Mandate in die Kanzlei",
+      "intro": "Waehlen Sie fuer jedes Mandat, ob es privat bleibt (nur auf Ihrem Computer) oder mit der Kanzlei geteilt wird, damit Kollegen zusammenarbeiten koennen. Beim Teilen werden die geteilten Notizen und alle Dokumente uebertragen, die Sie gemeinsam bearbeiten, alles verschluesselt. Ihre Dateien, E-Mails und der Suchindex bleiben auf Ihrem Computer.",
+      "empty": "Sie haben noch keine Mandate zum Uebertragen. Sie koennen jedes Mandat spaeter ueber den Mandatsbildschirm teilen.",
+      "privileged-badge": "Privilegiert",
+      "keep-private-action": "Privat halten",
+      "share-action": "Mit Kanzlei teilen",
+      "skip-action": "Vorerst ueberspringen",
+      "submit-action": "Mandate uebertragen",
+      "submitting": "Wird bearbeitet...",
+      "progress": "Mandat {{done}} von {{total}} wird geteilt...",
+      "done-heading": "Das ist passiert",
+      "continue-action": "Weiter",
+      "outcome-shared": "Mit Kanzlei geteilt",
+      "outcome-private": "Privat gehalten",
+      "outcome-failed": "Teilen nicht moeglich: {{error}}",
+      "privileged-confirm-title": "Ein privilegiertes Mandat teilen?",
+      "privileged-confirm-body": "Das Teilen aktiviert die verschluesselte Internetsynchronisierung fuer dieses privilegierte Mandat, damit Kollegen zusammenarbeiten koennen. Der Relay speichert nur verschluesselte Daten, die er nicht lesen kann. Fortfahren?",
+      "privileged-confirm-cancel": "Privat behalten",
+      "privileged-confirm-accept": "Teilen"
     }
   },
   "media": {

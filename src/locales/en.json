@@ -1100,6 +1100,27 @@
         "remove-action": "Remove SSO",
         "remove-ok": "SSO configuration removed."
       }
+    },
+    "carry": {
+      "heading": "Bring your matters into the firm",
+      "intro": "For each matter, choose to leave it private (stays just on your computer) or share it with the firm so colleagues can collaborate. Sharing moves the shared notes and any documents you co-edit, all encrypted. Your files, email, and search index stay on your computer.",
+      "empty": "You have no matters to bring over yet. You can share any matter later from the matter screen.",
+      "privileged-badge": "Privileged",
+      "keep-private-action": "Keep private",
+      "share-action": "Share with firm",
+      "skip-action": "Skip for now",
+      "submit-action": "Bring matters over",
+      "submitting": "Working...",
+      "progress": "Sharing matter {{done}} of {{total}}...",
+      "done-heading": "Here is what happened",
+      "continue-action": "Continue",
+      "outcome-shared": "Shared with firm",
+      "outcome-private": "Kept private",
+      "outcome-failed": "Could not share: {{error}}",
+      "privileged-confirm-title": "Share a privileged matter?",
+      "privileged-confirm-body": "Sharing turns on encrypted internet sync for this privileged matter so colleagues can collaborate. The relay only ever stores encrypted data it cannot read. Continue?",
+      "privileged-confirm-cancel": "Keep it private",
+      "privileged-confirm-accept": "Share it"
     }
   },
   "privacy": {
