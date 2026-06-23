@@ -1704,6 +1704,14 @@ pub async fn rag_index_workspace(
     // walk, which re-tombstones or re-cleans the unsafe paths. Stamping "done"
     // with an incomplete on-disk tombstone is exactly the restart hole that would
     // let a stale citation resurface, so we refuse to claim a durable success.
+    // BUG-099 fail-closed durability: track whether the index ended in a
+    // fail-closed-but-UNRESOLVED state (a durable tombstone write failed, so
+    // retrieval is refusing to serve). In that case we must NOT report a happy
+    // "Memory ready" Done, and we must let the user RECOVER: re-arm the
+    // full-index latch so another indexWorkspace() actually re-runs (otherwise
+    // the consumed latch makes a same-session retry a no-op and the user is
+    // stuck until restart), and emit an Error terminal event instead of Done.
+    let mut fail_closed_unresolved = durable_tombstone_failed;
     if durable_tombstone_failed {
         log::error!(
             "rag_index_workspace: a durable tombstone write FAILED this walk — \
@@ -1739,6 +1747,7 @@ pub async fn rag_index_workspace(
             }
             Err(e) => {
                 drop(guard);
+                fail_closed_unresolved = true;
                 log::error!(
                     "rag_index_workspace: could not rewrite the durable tombstone \
                      file after a clean walk ({e:#}); leaving integrity flag set and \
@@ -1746,6 +1755,35 @@ pub async fn rag_index_workspace(
                 );
             }
         }
+    }
+
+    if fail_closed_unresolved {
+        // RECOVERY: re-arm the once-per-activation full-index latch so the user
+        // (or the auto-wiring) can retry the full walk in THIS session — without
+        // this, the latch consumed at the start of the walk makes a retry a no-op
+        // and leaves the workspace stuck fail-closed until a restart/switch.
+        state.full_index_pending.store(true, Ordering::SeqCst);
+        // Emit an ERROR terminal event (NOT a "Memory ready" Done): retrieval is
+        // refusing to serve, so the banner must reflect that and prompt a re-index.
+        let _ = app.emit(
+            PROGRESS_EVENT,
+            IndexingProgress {
+                status: IndexingStatus::Error,
+                processed: total,
+                total,
+                current_path: None,
+                skipped: skipped_files,
+                failed: failed_files,
+                timed_out: timed_out_files,
+                cleanup_failed: cleanup_failed_files,
+                skipped_paths: cap_skipped_paths(&skipped_paths),
+            },
+        );
+        log::error!(
+            "rag_index_workspace: finished in a FAIL-CLOSED state (durable tombstone \
+             not persisted) — emitted Error, re-armed the full-index latch for retry"
+        );
+        return Ok(());
     }
 
     let _ = app.emit(
