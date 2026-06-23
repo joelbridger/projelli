@@ -29,6 +29,53 @@ A robust pass closed the single-writer + surfacing work; an independent Codex fi
 
 A third focused pass is closing these three on `fix/bug099-robust`.
 
+## Update — 3rd robust pass DONE (2026-06-23, KEEPANCE-9-BUG099B)
+
+The third pass closed all three blockers AND hardened the new tombstone through
+8 rounds of independent Codex (gpt-5.5) review. Branch `fix/bug099-robust`,
+HEAD `39f1478b`. **Still HELD pending lead review + real-Windows bench.**
+
+What the 3rd pass delivered:
+- **Fail-closed via a DURABLE per-path tombstone.** When a skipped file's
+  stale-row cleanup DELETE fails (PurgeFailed), the file's at-rest HMAC PATH
+  TOKEN (the `path` column value, NOT plaintext — VG-6e parity) is recorded in
+  `RagState::unsafe_tokens` AND persisted to a durable `.keepance/.unsafe_tokens`
+  file. Retrieval (`rag_retrieve`), citation verification (`rag_verify_citation`),
+  and the external MCP search all exclude those tokens via `path NOT IN (...)` on
+  the prefilter. A stale citation is now impossible after a cleanup failure —
+  on every read path, and across an app restart (the set re-hydrates on workspace
+  open). Surgical (only the one bad file is suppressed) and self-healing (cleared
+  on any clean re-index — full walk OR file-watcher). Fail-closed on BOTH indexing
+  paths (full walk + watcher).
+- **Separate counters — no double-count.** A cleanup failure no longer counts the
+  file twice in `skipped`; a distinct `cleanupFailed` counter tracks the extra
+  failure so the banner's `indexed = total - skipped` stays correct. TS types +
+  hook updated.
+- **A REAL test** forces a genuine purge failure (read-only LanceDB dataset dir)
+  and asserts the path is tombstoned, retrieval excludes its stale rows, and a
+  clean re-index restores it. Codex independently re-ran the rag suite (167 pass)
+  + typecheck (clean).
+- **Durability hardening surfaced by review:** tombstone persists OUTSIDE the
+  failing vectors dir (sibling `.keepance/`, so a locked dataset dir can't block
+  it); atomic temp+rename write (no torn file on crash); fail-loud on a corrupt
+  read; durable-persist failure refuses to stamp the index-version marker (forces
+  a re-run); and a same-workspace remount MERGES the disk set into the live set
+  so a live in-memory-only tombstone is never dropped.
+
+Gates (Linux): `cargo test --lib rag` 168 pass; rag integration (mcp_binary 21,
+rag_matter_scope 11+2 ignored, rag_deposition_contradictions 24, rag_delete_matter
+4, mail_fixture_import 1) pass; `npm run typecheck` 0; full `npx vitest run` 3732
+pass; `node scripts/eslint-gate.mjs` 0 new. INDEX_VERSION still 10; no f98aac6;
+single-writer + happy path intact.
+
+### Flagged for the lead (NOT fixed in this pass — out of scope)
+- **VMK zeroization (pre-existing).** Codex flagged that the vaulted-workspace VMK
+  is copied into a plain `Option<[u8; 32]>` (and into each spawned file task) that
+  is not zeroized on drop. This copy PRE-DATES this branch (it lives in the
+  `harden-rag-indexer` base) and is part of the single-writer design this ticket
+  was told NOT to regress. It is a separate vault-feature security item, not a
+  BUG-099 stale-citation issue. Recommend a dedicated ticket.
+
 ### Deferred (acceptable, not a blocker)
 - Full process isolation of the extract/embed step. The single-writer fix (#2) addresses the immediate write-after-cleanup risk without it.
 - Real-Windows bench verification remains the final follow-up before this ships.
