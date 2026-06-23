@@ -8,7 +8,7 @@
 // Mirrors src/hooks/useLicense.ts LicenseTier (sans 'free', which is the
 // unlicensed fallback the client applies locally, never something we issue).
 export type Plan = "personal" | "professional" | "practice";
-export type ProfessionPack = "legal" | "tax" | "consulting";
+export type ProfessionPack = "advisor" | "legal" | "tax" | "consulting";
 
 export type OrgStatus = "active" | "suspended" | "unclaimed";
 export type UserRole = "admin" | "member";

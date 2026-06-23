@@ -295,7 +295,7 @@ async function maybeBootstrap(store: Store): Promise<void> {
     | "personal"
     | "professional"
     | "practice";
-  const org = store.createOrg({ name: b.orgName, plan, packs: plan === "practice" ? ["legal", "tax", "consulting"] : [], seat_limit: b.seatLimit });
+  const org = store.createOrg({ name: b.orgName, plan, packs: plan === "practice" ? ["advisor", "legal", "tax", "consulting"] : [], seat_limit: b.seatLimit });
   const hash = await hashPassword(b.adminPassword);
   const admin = store.createUser({ org_id: org.org_id, email: b.adminEmail, password_hash: hash, role: "admin" });
   const key = generateLicenseKey();

@@ -12,6 +12,7 @@
 
 import { test, expect, describe, beforeAll, afterAll } from "bun:test";
 import { server } from "../src/server.ts";
+import { sanitizePacks } from "../src/lib/http.ts";
 
 const BASE = () => `http://${server.hostname}:${server.port}`;
 
@@ -50,17 +51,22 @@ describe("full HTTP lifecycle", () => {
     expect(pem).toContain("BEGIN PUBLIC KEY");
   });
 
+  test("advisor survives profession-pack sanitization", () => {
+    expect(sanitizePacks(["advisor", "legal", "bad-pack", 42])).toEqual(["advisor", "legal"]);
+  });
+
   test("provision an org + admin + license key", async () => {
     const r = await post("/admin/org", {
       name: `Acme Law ${crypto.randomUUID()}`,
       plan: "practice",
-      packs: ["legal"],
+      packs: ["advisor"],
       seat_limit: 2,
       admin_email: `admin-${crypto.randomUUID()}@acme.test`,
       admin_password: "admin-password-1234",
     });
     expect(r.status).toBe(201);
     expect(r.json.license_key).toMatch(/^KEEP-/);
+    expect(r.json.org.packs).toEqual(["advisor"]);
     licenseKey = r.json.license_key;
     orgId = r.json.org.org_id;
     // login as admin
@@ -93,6 +99,7 @@ describe("full HTTP lifecycle", () => {
     const r = await post("/org/activate", { license_key: licenseKey, machine_id: "machine-0", machine_label: "Laptop 0" }, memberAccess[0]);
     expect(r.status).toBe(200);
     expect(r.json.tier).toBe("practice");
+    expect(r.json.packs).toEqual(["advisor"]);
     expect(r.json.seats).toBe(2);
     expect(typeof r.json.token).toBe("string");
     firstSeatId = r.json.seat_id;
@@ -105,6 +112,7 @@ describe("full HTTP lifecycle", () => {
     expect(v.json.valid).toBe(true);
     expect(v.json.seats_used).toBe(1);
     expect(v.json.tier).toBe("practice");
+    expect(v.json.packs).toEqual(["advisor"]);
   });
 
   test("heartbeat works and reports correct plan/used", async () => {
