@@ -1464,22 +1464,46 @@ fn unsafe_paths_path(workspace_root: &Path) -> PathBuf {
 }
 
 /// BUG-099: load the durable tombstone token set for a workspace. Returns an
-/// empty set when the file is absent (the healthy default). Used to re-hydrate
-/// `RagState::unsafe_paths` (which holds TOKENS) on workspace open so the
-/// fail-closed exclusion survives a restart. Tokens are hex strings, so each
+/// empty set when the file is ABSENT (the healthy default — no cleanup ever
+/// failed). Used to re-hydrate `RagState::unsafe_tokens` on workspace open so
+/// the fail-closed exclusion survives a restart. Tokens are hex strings, so each
 /// line is taken verbatim after stripping only the line terminator; empty lines
 /// are skipped.
+///
+/// CORRUPTION (fail-loud): an empty result means "absent" only. The file is now
+/// written ATOMICALLY (temp + rename in `write_unsafe_tokens`), so a torn /
+/// truncated write cannot happen — the only way an EXISTING file fails to read
+/// is genuine disk corruption or a permission fault, both rare. We distinguish
+/// that case from "absent" and log an ERROR so it is visible rather than a
+/// silent fail-open. (The caller hydrating on workspace open also keeps any
+/// live in-memory tombstones via the merge-on-same-workspace rule, so a bad read
+/// here does not drop a live exclusion this session.)
 pub fn read_unsafe_tokens(workspace_root: &Path) -> HashSet<String> {
-    std::fs::read_to_string(unsafe_paths_path(workspace_root))
-        .ok()
-        .map(|s| {
-            s.split('\n')
-                .map(|l| l.strip_suffix('\r').unwrap_or(l))
-                .filter(|l| !l.is_empty())
-                .map(|l| l.to_string())
-                .collect()
-        })
-        .unwrap_or_default()
+    let path = unsafe_paths_path(workspace_root);
+    match std::fs::read_to_string(&path) {
+        Ok(s) => s
+            .split('\n')
+            .map(|l| l.strip_suffix('\r').unwrap_or(l))
+            .filter(|l| !l.is_empty())
+            .map(|l| l.to_string())
+            .collect(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            // Absent = healthy default (no tombstones).
+            HashSet::new()
+        }
+        Err(e) => {
+            // Present-but-unreadable = corruption/permission fault. Fail loud so
+            // it is not a silent fail-open; return empty (we cannot recover the
+            // tokens), but the error log flags the integrity question for ops.
+            log::error!(
+                "rag: durable tombstone file {:?} exists but could not be read \
+                 ({e}); the fail-closed exclusion for this workspace may be \
+                 incomplete until the next full re-index re-tombstones",
+                path
+            );
+            HashSet::new()
+        }
+    }
 }
 
 /// BUG-099: persist the durable tombstone TOKEN set for a workspace. Called
@@ -1488,6 +1512,12 @@ pub fn read_unsafe_tokens(workspace_root: &Path) -> HashSet<String> {
 /// an empty file (rather than deleting it) so a later read is unambiguous. Write
 /// errors are surfaced to the caller, which treats a failed persist as part of
 /// the unsafe state (does not stamp the index complete).
+///
+/// ATOMICITY: written to a temp file in the SAME dir, then `rename`d over the
+/// target. `rename` is atomic on a POSIX filesystem (and replaces on Windows),
+/// so a crash mid-write can never leave a half-written / truncated tombstone
+/// that would silently drop tokens (fail-open) on the next read. A leftover temp
+/// file from a crash is harmless: `read_unsafe_tokens` only reads the final name.
 pub fn write_unsafe_tokens(workspace_root: &Path, tokens: &HashSet<String>) -> Result<()> {
     let path = unsafe_paths_path(workspace_root);
     if let Some(parent) = path.parent() {
@@ -1500,8 +1530,16 @@ pub fn write_unsafe_tokens(workspace_root: &Path, tokens: &HashSet<String>) -> R
         .map(|s| s.as_str())
         .collect::<Vec<_>>()
         .join("\n");
-    std::fs::write(&path, body)
-        .with_context(|| format!("write unsafe-tokens tombstone at {:?}", path))?;
+    // Atomic replace: write temp + rename. Use a pid-tagged temp name so two
+    // processes (e.g. GUI + a future writer) don't collide on the temp path.
+    let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
+    std::fs::write(&tmp, &body)
+        .with_context(|| format!("write unsafe-tokens temp at {:?}", tmp))?;
+    std::fs::rename(&tmp, &path).with_context(|| {
+        // Best-effort cleanup of the temp file on a failed rename.
+        let _ = std::fs::remove_file(&tmp);
+        format!("atomically replace unsafe-tokens tombstone at {:?}", path)
+    })?;
     Ok(())
 }
 

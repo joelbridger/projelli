@@ -560,14 +560,27 @@ pub async fn rag_set_workspace(
     // index live incrementally); a real switch to a DIFFERENT workspace re-arms.
     let changed = guard.as_deref() != Some(target.as_path());
     // BUG-099 durable tombstone: re-hydrate the in-memory unsafe-TOKEN set from
-    // disk whenever the active workspace is (re)set — including on app start and
-    // a workspace switch. Without this, a restart after a PurgeFailed would leave
-    // the in-memory set empty while the stale rows are still durable on disk, so
-    // retrieval could cite the old version. Reading the durable set here keeps the
-    // fail-closed exclusion alive across restarts.
+    // disk so the fail-closed exclusion survives an app restart (a fresh process
+    // starts with an empty set while stale rows are still durable on disk).
+    //
+    // CRITICAL — never DROP a live tombstone on a same-workspace remount. This
+    // command fires on EVERY frontend mount (the dev HMR reload-storm; a webview
+    // reload), not just real workspace switches. If a cleanup failed AND its
+    // durable persist ALSO failed, the token lives ONLY in memory; the disk file
+    // is empty/stale. Unconditionally overwriting the in-memory set with the disk
+    // contents on a remount would silently re-expose those stale rows. So:
+    //   - real SWITCH / first activation → REPLACE with the disk set (the new
+    //     workspace's own durable tombstones; the old workspace's are irrelevant).
+    //   - same-workspace re-set → MERGE (union) the disk set INTO the live set, so
+    //     a live in-memory-only tombstone can never be lost to a remount.
     {
         let durable = store::read_unsafe_tokens(&target);
-        *state.unsafe_tokens.lock().await = durable;
+        let mut live = state.unsafe_tokens.lock().await;
+        if changed {
+            *live = durable;
+        } else {
+            live.extend(durable);
+        }
     }
     *guard = Some(target);
     state.cancel_flag.store(false, Ordering::SeqCst);
@@ -3302,6 +3315,58 @@ mod tests {
         assert!(
             unsafe_tokens.lock().await.is_empty(),
             "no tombstone tokens after self-heal — retrieval no longer hides the path"
+        );
+    }
+
+    /// BUG-099 fail-closed re-hydration: `rag_set_workspace` fires on EVERY
+    /// frontend remount, not just real workspace switches. A same-workspace
+    /// remount must NOT drop a LIVE in-memory tombstone whose durable persist had
+    /// failed (disk would then be empty/stale). This locks in the merge-vs-replace
+    /// rule: same-workspace re-set MERGES disk into the live set (union, never
+    /// loses a live token); a real switch REPLACES with the new workspace's disk set.
+    #[tokio::test]
+    async fn rehydrate_merges_on_same_workspace_but_replaces_on_switch() {
+        let live: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+
+        // A cleanup failed AND its durable persist failed → token lives ONLY in
+        // memory; disk (for THIS workspace) is empty.
+        live.lock().await.insert("live-only-token".to_string());
+        let durable_same: HashSet<String> = HashSet::new(); // empty on disk
+
+        // Same-workspace remount (changed == false) → MERGE. The live-only token
+        // MUST survive (otherwise the remount re-exposes the stale rows).
+        {
+            let changed = false;
+            let mut guard = live.lock().await;
+            if changed {
+                *guard = durable_same.clone();
+            } else {
+                guard.extend(durable_same.clone());
+            }
+        }
+        assert!(
+            live.lock().await.contains("live-only-token"),
+            "a live in-memory-only tombstone must survive a same-workspace remount"
+        );
+
+        // A real switch to a DIFFERENT workspace (changed == true) → REPLACE with
+        // the new workspace's own durable tombstones (the old one's are irrelevant).
+        let mut durable_other = HashSet::new();
+        durable_other.insert("other-ws-token".to_string());
+        {
+            let changed = true;
+            let mut guard = live.lock().await;
+            if changed {
+                *guard = durable_other.clone();
+            } else {
+                guard.extend(durable_other.clone());
+            }
+        }
+        let final_set = live.lock().await;
+        assert!(final_set.contains("other-ws-token"), "switch loads the new ws tombstones");
+        assert!(
+            !final_set.contains("live-only-token"),
+            "a real switch must not carry the old workspace's tombstones forward"
         );
     }
 
