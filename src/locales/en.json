@@ -903,7 +903,7 @@
       "no-mail-accounts": "Connect an email account in Settings to map it to this matter.",
       "mail-account-hint": "Email from a mapped account is scoped to this matter.",
       "privileged-label": "Network lockdown for this matter",
-      "privileged-hint": "When this matter is active, network plugins and MCP servers are turned off so nothing can leave your machine through an extension. Unrelated to attorney-client privilege tagging.",
+      "privileged-hint": "When this matter is active, network plugins and MCP servers are turned off so nothing can leave your machine through an extension. Unrelated to email sensitivity tagging.",
       "mcp-access-label": "Allow external AI tools (MCP) to access this matter",
       "mcp-access-hint": "Off by default. Turning this on lets external MCP clients read only this matter, even when another matter is active.",
       "mcp-access-badge": "External AI access allowed",
@@ -1033,7 +1033,7 @@
       "matter-created": "Matter created.",
       "no-matters": "No matters yet.",
       "epoch-label": "Key version {{epoch}}",
-      "members-section": "Membership and ethical walls",
+      "members-section": "Membership and information barriers",
       "invite-label": "Invite by email",
       "invite-placeholder": "member@lawfirm.com",
       "invite-action": "Invite",
@@ -1042,10 +1042,10 @@
       "invite-new-user-hint": "This email is not in your org yet. I'll create their account and show you a temporary password to share.",
       "temp-password-label": "Temporary password for {{email}}",
       "temp-password-hint": "This is shown once. Copy and share it with {{email}} directly.",
-      "wall-label": "Raise ethical wall (email)",
+      "wall-label": "Raise information barrier (email)",
       "wall-placeholder": "member@lawfirm.com",
       "wall-action": "Wall",
-      "wall-ok": "Ethical wall raised.",
+      "wall-ok": "Information barrier raised.",
       "members-epoch": "Members (key version {{epoch}})",
       "remove-member-action": "Remove",
       "remove-member-ok": "Member removed.",
@@ -1171,11 +1171,11 @@
       "error-prefix": "Something went wrong:"
     },
     "viewer": {
-      "privilege-label": "Privilege",
-      "privilege-mark-ac": "Attorney-Client Privileged",
+      "privilege-label": "Sensitivity",
+      "privilege-mark-ac": "Sensitive Client",
       "privilege-mark-wp": "Work Product",
-      "privilege-clear": "Not privileged",
-      "privilege-note": "Excluded from AI retrieval by default. The Include privileged toggle in chat is the only way to bring it back in."
+      "privilege-clear": "Standard",
+      "privilege-note": "Excluded from AI retrieval by default. The Include sensitive content toggle in chat is the only way to bring it back in."
     }
   },
   "vault": {

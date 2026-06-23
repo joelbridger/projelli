@@ -126,7 +126,7 @@ describe('EmailViewer per-message privilege control (VG-5c)', () => {
     fireEvent.click(screen.getByTestId('email-privilege-option-attorney-client'));
     const note = screen.getByTestId('email-privilege-note');
     expect(note).toHaveTextContent('Excluded from AI retrieval by default.');
-    expect(note).toHaveTextContent('Include privileged');
+    expect(note).toHaveTextContent('Include sensitive content');
 
     fireEvent.click(screen.getByTestId('email-privilege-option-none'));
     expect(screen.queryByTestId('email-privilege-note')).toBeNull();

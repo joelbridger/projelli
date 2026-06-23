@@ -58,3 +58,63 @@ describe('prioritizeByProfession (PIVOT-16)', () => {
     expect(list.map((t) => t.id)).toEqual(before);
   });
 });
+
+// PIVOT-A5 — Advisor profession must exclude legal templates and feature advisor pack first.
+describe('prioritizeByProfession — advisor (PIVOT-A5)', () => {
+  const mixed = [
+    tpl('weekly-review', 'planning'),
+    tpl('deposition-contradiction-finder', 'legal'),
+    tpl('annual-review-packet', 'advisors'),
+    tpl('research-memo', 'research'),
+    tpl('reg-bi-doc', 'advisors'),
+    tpl('privilege-log-drafter', 'legal'),
+    tpl('engagement-letter', 'tax'),
+  ];
+
+  it('starts with advisor templates when profession is advisor', () => {
+    const out = prioritizeByProfession(mixed, 'advisor');
+    const ids = out.map((t) => t.id);
+    expect(ids[0]).toBe('annual-review-packet');
+    expect(ids[1]).toBe('reg-bi-doc');
+  });
+
+  it('contains NO legal-pack templates for advisor', () => {
+    const out = prioritizeByProfession(mixed, 'advisor');
+    const legalIds = out.filter((t) => t.category === 'legal').map((t) => t.id);
+    expect(legalIds).toEqual([]);
+  });
+
+  it('excludes DepositionContradictionFinder (and all legal) for advisor', () => {
+    const out = prioritizeByProfession(mixed, 'advisor');
+    expect(out.find((t) => t.id === 'deposition-contradiction-finder')).toBeUndefined();
+    expect(out.find((t) => t.id === 'privilege-log-drafter')).toBeUndefined();
+  });
+
+  it('preserves non-legal non-advisor templates after the advisor pack', () => {
+    const out = prioritizeByProfession(mixed, 'advisor');
+    const ids = out.map((t) => t.id);
+    // advisor templates first, then the rest in original order
+    expect(ids).toEqual([
+      'annual-review-packet',
+      'reg-bi-doc',
+      'weekly-review',
+      'research-memo',
+      'engagement-letter',
+    ]);
+  });
+
+  it('does not mutate the input array for advisor', () => {
+    const before = mixed.map((t) => t.id);
+    prioritizeByProfession(mixed, 'advisor');
+    expect(mixed.map((t) => t.id)).toEqual(before);
+  });
+
+  it('legal profession still gets legal templates (unchanged)', () => {
+    const out = prioritizeByProfession(mixed, 'legal');
+    const ids = out.map((t) => t.id);
+    expect(ids[0]).toBe('deposition-contradiction-finder');
+    expect(ids[1]).toBe('privilege-log-drafter');
+    // all legal templates are present
+    expect(out.filter((t) => t.category === 'legal')).toHaveLength(2);
+  });
+});
