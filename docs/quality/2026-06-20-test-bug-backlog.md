@@ -484,14 +484,14 @@ Adversarial test pass of the **Client Map** on `keepance-3.0` as-is. Method: clo
 
 **Verified-correct (do NOT re-investigate):** matter isolation holds — every Client Map retrieval uses `{ kind: 'matter', matterId }`; no `allMatters` anywhere in the feature (store-level isolation test added, passes). Cloud-egress guard mirrors `matterAtAGlance` exactly: `isLocalOnlyMode()` → Ollama first, then `assertCloudGenerationAllowed()` on each cloud branch; `isLocalOnlyMode()` covers a matter-forced local-only matter, so an isolated/privileged matter won't egress. No em dashes or banned words in any user-facing Client Map string (the em-dash grep hits are code comments, which are allowed). User-origin sovereignty in the STORE is enforced for `acceptUpdate(change/remove)` (tests pass). **Codex got one thing wrong:** it claimed `checkForUpdates()` is never wired — it IS, in `MatterHub.tsx:163-168` (fires when status becomes `ready`, i.e. on matter/map open). The real residual is only that there is no LIVE index-change subscription (updates are detected on open, not while the panel is already open) — acceptable per spec open-question 1, so not logged.
 
-### BUG-100 — Dismissed Client Map updates reappear after any later source change 🟠 Significant · 🔴 OPEN
+### BUG-100 — Dismissed Client Map updates reappear after any later source change 🟠 Significant · 🟢 FIXED 2026-06-23 (fix/clientmap-hardening, merged)
 **Rule broken:** spec §3.2 / §6 rule 5 ("dismissed ones don't reappear unless the underlying source changes again").
 **What's wrong:** `dismissUpdate` (`clientMapStore.ts:156`) only removes the row from `pendingUpdates`; nothing records that the user rejected it. `proposeUpdates` (`updater.ts:13`) compares the fresh build only against items PRESENT in the current map. A dismissed item was never added, so it is re-proposed on the next fingerprint change even though ITS source never changed.
 **Repro:** AI proposes "Carrier denied coverage" → user dismisses it → later an UNRELATED new email changes the matter fingerprint → `checkForUpdates` rebuilds → the same "Carrier denied coverage" is proposed again.
 **Fix plan:** persist a per-matter set of dismissed signatures keyed to the source ref/fingerprint that produced them; suppress a proposal whose signature is dismissed until THAT source's fingerprint changes. (Shares a root cause with BUG-104 — both stem from proposals having no durable identity. Consider one fix.)
 **Test:** `qa-clientmap-update-flow.test.ts` → `BUG-100: a dismissed proposal is not re-proposed...` (`it.fails`).
 
-### BUG-101 — `generate()` overwrites the whole map, destroying user-origin items 🔴 High (data-loss class) · 🔴 OPEN (LATENT today)
+### BUG-101 — `generate()` overwrites the whole map, destroying user-origin items 🔴 High (data-loss class) · 🟢 FIXED 2026-06-23 (fix/clientmap-hardening, merged)
 **Rule broken:** spec §6 rule 3 ("user-origin items must NEVER be overwritten by an AI pass").
 **What's wrong:** `useClientMap.generate` (`useClientMap.ts:19-21`) does `setMap(matterId, {...built})` unconditionally — replacing any user-edited/added items, accepted updates, and custom sections with a fresh AI-only map.
 **Reachability (important):** today `generate()` is only called from `MatterHub.tsx:828`, gated on `status === 'idle'`, and the hook reports `ready` whenever a map exists — so the single "open" button cannot re-trigger it. The defect is therefore LATENT, not user-reachable on the current UI. But the function is unsafe by construction: adding any "refresh/rebuild" control or an `invalidate()` path (both plausible) would silently delete the professional's own work. Keepance's "no shortcuts on core / robust" rule says fix it now, not when it bites.
@@ -499,45 +499,45 @@ Adversarial test pass of the **Client Map** on `keepance-3.0` as-is. Method: clo
 **Fix plan:** `generate()` should full-store ONLY when no map exists; when a map exists, route fresh AI content through `proposeUpdates` → `pendingUpdates` (the approve-first path), never a blind overwrite.
 **Test:** `qa-clientmap-hook-states.test.ts` → `BUG-101: regenerate keeps user-origin items...` (`it.fails`).
 
-### BUG-102 — Staleness fingerprint ignores content changes (in-place edits + beyond top-200) 🟠 Significant · 🔴 OPEN
+### BUG-102 — Staleness fingerprint ignores content changes (in-place edits + beyond top-200) 🟠 Significant · 🟢 FIXED 2026-06-23 (fix/clientmap-hardening, merged)
 **Rule broken:** spec §4.3 staleness behavior + the "saved and living / stays current" promise (decision 2).
 **What's wrong:** `computeSourceFingerprint` (`updater.ts:7-11`) hashes only the set of unique `sourceId ?? path` values from a single broad retrieval capped at 200. It ignores the content-addressed chunk `id` (which DOES change on edit) and any timestamp. So (a) editing a file in place (same path, new content) leaves the fingerprint identical → `checkForUpdates` early-returns → no proposed update ever; and (b) on a matter with >200 chunks a newly added file whose chunks don't rank in the top-200 for the broad query is invisible to staleness detection.
 **Repro:** index `/a.docx` → build map → edit `/a.docx` and re-index (same path) → reopen Client Map → no "updates to review" appears though the file changed.
 **Fix plan:** fold the content-addressed chunk `id`s (or a source mtime / content hash) into the fingerprint, and/or raise/scope the retrieval so it can't miss new sources. Spec open-q 1 itself recommended "count + latest timestamps" — the impl dropped the timestamp half.
 **Test:** `qa-clientmap-update-flow.test.ts` → `BUG-102: fingerprint changes when an existing file is edited in place` (`it.fails`).
 
-### BUG-103 — A matter with no indexed content shows a blank map, not the honest empty state 🟡 Medium · 🔴 OPEN
+### BUG-103 — A matter with no indexed content shows a blank map, not the honest empty state 🟡 Medium · 🟢 FIXED 2026-06-23 (fix/clientmap-hardening, merged)
 **Rule broken:** spec §7 open-question 5 (an honest empty state inviting indexing / the Guided Interview).
 **What's wrong:** `useClientMap` returns `status: map ? 'ready' : status` (`useClientMap.ts:40`). `generate()` correctly computes `status='empty'` for a no-content matter, but it has already stored an (empty) map object, so the returned status is forced to `'ready'`. MatterHub's `status === 'empty'` branch ("No information found yet. Add documents or email to this matter first.") is therefore DEAD CODE; the user instead sees five blank section cards + a "Thin" completeness chip.
 **Repro:** open a matter with no indexed documents/email → open Client Map → blank map renders instead of the friendly empty message.
 **Fix plan:** derive the returned status from whether the stored map has any items (or carry an explicit `empty` flag), rather than from "a map object exists."
 **Test:** `qa-clientmap-hook-states.test.ts` → `BUG-103: an empty build reports status "empty", not "ready"` (`it.fails`).
 
-### BUG-104 — Un-reviewed pending proposals are discarded on the next update check 🟠 Significant · 🔴 OPEN
+### BUG-104 — Un-reviewed pending proposals are discarded on the next update check 🟠 Significant · 🟢 FIXED 2026-06-23 (fix/clientmap-hardening, merged)
 **Rule broken:** spec §6 rule 3 (approve-first; the user decides every AI change).
 **What's wrong:** `checkForUpdates` (`useClientMap.ts:37`) does `setMap(..., pendingUpdates: proposals)`, REPLACING the whole tray with a freshly recomputed set. A proposal the user has not yet accepted/dismissed is lost if the next fresh build no longer reproduces its exact item; even when it survives it is re-issued with a NEW id, resetting any in-progress edit in the tray row.
 **Repro:** a proposal U1 is pending and unreviewed → an unrelated source change triggers `checkForUpdates` whose fresh pass yields a different proposal U2 → the tray now shows only U2; U1 is gone without the user deciding.
 **Fix plan:** merge/dedupe new proposals into the existing `pendingUpdates` (stable identity per proposal) instead of wholesale replacement. (Same root as BUG-100: proposals/dismissals need durable identity.)
 **Test:** `qa-clientmap-hook-states.test.ts` → `BUG-104: a still-pending proposal survives the next update check` (`it.fails`).
 
-### BUG-105 — In-map item edit opens a blank browser prompt with no current text 🟡 Minor · 🔴 OPEN
+### BUG-105 — In-map item edit opens a blank browser prompt with no current text 🟡 Minor · 🟢 FIXED 2026-06-23 (fix/clientmap-hardening, merged)
 **What's wrong:** `MatterHub.handleEditItem` (`MatterHub.tsx:202`) calls `window.prompt('Edit item:')` with no second argument, so the dialog is EMPTY — the user can't see or tweak the existing wording and must retype the whole item from scratch (easy to accidentally truncate/lose it). It is also a raw, unstyled browser prompt that may not surface cleanly in the Tauri desktop webview.
 **Repro:** click "edit" on any Client Map item → a blank prompt appears (current text not shown).
 **Fix plan:** prefill the prompt with the item's current text (`window.prompt(label, item.text)`), or replace with an inline styled editor consistent with the light theme. No test (UI-prompt path); documented by inspection.
 
-### BUG-106 — Guided Interview replays answered gaps + flagging duplicates client questions 🟡 Minor · 🔴 OPEN
+### BUG-106 — Guided Interview replays answered gaps + flagging duplicates client questions 🟡 Minor · 🟢 FIXED 2026-06-23 (fix/clientmap-hardening, merged)
 **Rule touched:** spec §3.3 (the interview walks the biggest gaps; "questions for the client" is reviewable).
 **What's wrong:** (a) `interviewQuestions` derives from `completeness.ask`, which is never pruned when a gap is answered (answers file into a section, not back into `ask`) and `index` resets to 0 on each open — so re-opening the interview replays already-answered/flagged questions. (b) `addClientQuestion` (`clientMapStore.ts:164`) has no dedup, so flagging the same gap twice creates duplicate "Questions for the client" rows.
 **Repro:** flag "What is the client trying to achieve?" twice → two identical rows; OR answer a gap, close + reopen the interview → the same question is asked again.
 **Fix plan:** prune answered/flagged gaps from the interview queue (track per-matter answered/flagged question ids), and dedupe `addClientQuestion` by normalized text.
 **Test:** `qa-clientmap-update-flow.test.ts` → `BUG-106: flagging the same question twice...` + `BUG-106: an answered gap question drops out...` (both `it.fails`).
 
-### BUG-107 — A failed custom-section build leaves a permanent empty section + an unhandled rejection 🟡 Medium · 🔴 OPEN
+### BUG-107 — A failed custom-section build leaves a permanent empty section + an unhandled rejection 🟡 Medium · 🟢 FIXED 2026-06-23 (fix/clientmap-hardening, merged)
 **What's wrong:** `AddCustomSectionForm.handleSubmit` (`AddCustomSectionForm.tsx:38-53`) adds the empty section to the map FIRST, then `await buildCustomSection(...)` inside a `try { } finally { setBusy(false) }` with NO `catch`. If population fails (provider error, Ollama not running, `assertCloudGenerationAllowed` throws on an un-chosen personal install), the empty section persists with no rollback and the user gets NO error message — plus the rejection escapes `void handleSubmit(e)` as an unhandled promise rejection.
 **Repro:** make the Client Map provider fail (no cloud choice made / Ollama down) → add a custom section → a permanently-empty section remains and nothing tells the user why.
 **Fix plan:** wrap the populate in a `catch` that either rolls back the just-added section or marks it as failed with a visible, plain-language error, and surfaces a retry. (Core-app robustness rule applies.) Not auto-tested here: reproducing it raises an unhandled rejection that would destabilize the shared suite; needs the product-code catch first (out of QA lane) — documented for the owning lane.
 
-### BUG-108 — "Questions for the client" list is view-only (no copy, no remove) 🟡 Minor · 🔴 OPEN
+### BUG-108 — "Questions for the client" list is view-only (no copy, no remove) 🟡 Minor · 🟢 FIXED 2026-06-23 (fix/clientmap-hardening, merged)
 **Rule touched:** spec §3.3 ("a simple per-matter list the user can review/copy before a meeting").
 **What's wrong:** `ClientQuestionsList.tsx` renders plain bullets only — there is no copy action (spec says review/COPY) and no remove control, even though the store already exposes `removeClientQuestion`. Combined with BUG-106's missing dedup, the list can only ever grow and can't be cleaned before a client meeting.
 **Repro:** flag several questions → open "Questions for the client" → no way to copy the list or delete a mistaken/duplicate entry.
