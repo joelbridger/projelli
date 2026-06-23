@@ -4,8 +4,8 @@ Net-new feature: a living, structured, source-linked profile of each client/matt
 
 Read order:
 1. **`01-design-spec.md`** — the approved design (brainstormed with Jameson 2026-06-22, one question at a time). Start here.
-2. `02-implementation-plan.md` — the task-by-task build plan (written next, via `superpowers:writing-plans`).
+2. **`02-implementation-plan.md`** — the task-by-task build plan (13 tasks, Phases A-F), via `superpowers:writing-plans`.
 
 Build method: `superpowers:subagent-driven-development`; implementation subagents on `model: "sonnet"`; Codex for independent review. Ledger: `.superpowers/sdd/progress.md`.
 
-Status (2026-06-22): design approved; implementation plan not yet written; nothing built.
+Status (2026-06-22): design approved; implementation plan written (13 tasks); build starting via subagent-driven-development.
