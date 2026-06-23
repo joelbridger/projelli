@@ -69,11 +69,22 @@ export interface ProposedUpdate {
   createdAt: string;
 }
 
+/** A gap question plus the section its answer should file into. The Guided
+ *  Interview routes the user's answer to `sectionKey` so it lands in the right
+ *  section (not always 'standing'). For AI-generated completeness gaps the
+ *  generator tags the most relevant core section; for empty custom sections the
+ *  key is that custom section's own key. */
+export interface GapQuestion {
+  text: string;
+  /** A CoreSectionKey or a custom section's uuid key. */
+  sectionKey: string;
+}
+
 export interface ContextCompleteness {
   level: CompletenessLevel;
   know: ClientMapItem[]; // sourced facts (aggregated view)
   assuming: ClientMapItem[]; // isAssumption items
-  ask: string[]; // gap questions -> feed the Guided Interview
+  ask: GapQuestion[]; // gap questions (with target section) -> feed the Guided Interview
 }
 
 export interface ClientMap {

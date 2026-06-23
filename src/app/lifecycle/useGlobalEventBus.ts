@@ -2,7 +2,6 @@
  * useGlobalEventBus — centralizes the app-wide `keepance:*` CustomEvent wiring
  * that surfaces (the matter hub, the rail account chip, get-started cards, the
  * navy spine) dispatch on `window` to drive the shell.
- *
  * Extracted from App.tsx (Phase 3 decomposition). Uses the latest-handlers-ref
  * pattern so the listeners are registered exactly once (stable `[]` effect) and
  * always call the current handlers — preserving the original behavior where
@@ -13,7 +12,8 @@ import type { SettingCategory } from '@/platform/settings/schema';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterUiStore } from '@/platform/matter/matterUiStore';
 import { useEditorStore } from '@/platform/state/editorStore';
-
+import { openSourceDocument } from '@/platform/clientMap/openSource';
+import { getActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
 /** The shell's left-nav surfaces (the `sidebarActiveTab` union). */
 export type AppSurface =
   | 'files'
@@ -88,13 +88,34 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
     };
 
     // Matter launch: an explicit surface jumps there; no surface restores the
-    // matter's remembered working surface + focused document (or its hub).
+    // matter's remembered working surface + focused document (or its hub). A
+    // `source` payload (Client Map document source link) opens that exact file.
     const onMatterLaunch = (e: Event) => {
       const detail = (
-        e as CustomEvent<{ matterId?: string; surface?: string; question?: string } | null>
+        e as CustomEvent<{
+          matterId?: string;
+          surface?: string;
+          question?: string;
+          source?: { kind?: string; ref?: string; snippet?: string };
+        } | null>
       ).detail;
       if (!detail?.matterId) return;
       const matterId = detail.matterId;
+
+      // Client Map source link -> open the EXACT cited document and scroll to
+      // the cited spot. (Email sources open via keepance:open-email, so only
+      // document sources arrive here.) Falls back to the document browser if the
+      // file can't be opened.
+      const source = detail.source;
+      if (source && source.kind === 'document' && typeof source.ref === 'string') {
+        useMatterStore.getState().setActiveMatter(matterId);
+        ref.current.setSidebarActiveTab('files');
+        void openSourceDocument(source.ref, matterId, getActiveWorkspaceService(), source.snippet).then((opened) => {
+          ref.current.setDocumentsView(opened ? 'editor' : 'browser');
+        });
+        return;
+      }
+
       const hasExplicitSurface = ALLOWED_SURFACES.has(detail.surface as AllowedSurface);
       useMatterStore.getState().setActiveMatter(matterId);
 

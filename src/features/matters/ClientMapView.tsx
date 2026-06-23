@@ -1,7 +1,7 @@
 // src/features/matters/ClientMapView.tsx
 import { Card, Eyebrow, Chip, Button } from '@/ui/kp';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
-import type { ClientMap, ClientMapItem, SourceRef, CompletenessLevel } from '@/platform/clientMap/types';
+import type { ClientMap, ClientMapItem, SourceRef, CompletenessLevel, GapQuestion } from '@/platform/clientMap/types';
 import { flagForClient } from '@/platform/clientMap/guidedInterview';
 
 const LEVEL_LABEL: Record<CompletenessLevel, string> = {
@@ -60,8 +60,8 @@ export function ClientMapView({
   map: ClientMap;
   onOpenSource: (r: SourceRef) => void;
   onEditItem: (sectionKey: string, itemId: string) => void;
-  onAnswerQuestion?: (question: string) => void;
-  onFlagForClient?: (question: string) => void;
+  onAnswerQuestion?: (question: GapQuestion) => void;
+  onFlagForClient?: (question: GapQuestion) => void;
 }) {
   const c = map.completeness;
   return (
@@ -165,7 +165,7 @@ export function ClientMapView({
         <ul>
           {c.ask.map((q, i) => (
             <li key={i} data-testid="clientmap-ask">
-              <span>{q}</span>
+              <span>{q.text}</span>
               <Button
                 data-testid="clientmap-ask-know"
                 size="sm"
@@ -184,7 +184,7 @@ export function ClientMapView({
                   if (onFlagForClient) {
                     onFlagForClient(q);
                   } else {
-                    flagForClient(map.matterId, q);
+                    flagForClient(map.matterId, q.text);
                   }
                 }}
               >

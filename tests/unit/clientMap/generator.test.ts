@@ -63,4 +63,35 @@ describe('buildClientMap', () => {
     expect(map.lastBuiltAt).not.toBe('');
     expect(sendMock).not.toHaveBeenCalled();
   });
+
+  it('tags gap questions with their target section and defaults unknown sections to standing', async () => {
+    retrieveMock.mockResolvedValue([hit('/a.docx', 'fact')]);
+    sendMock.mockImplementation((msg: string, opts?: { systemPrompt?: string }) => {
+      const isGapCall = msg.toLowerCase().includes('gap') || (opts?.systemPrompt ?? '').toLowerCase().includes('question');
+      if (isGapCall) {
+        return Promise.resolve({ content: JSON.stringify({ questions: [
+          { text: 'What is the filing deadline?', section: 'upcoming' },
+          { text: 'Who signed the lease?', section: 'bogus' },
+        ] }) });
+      }
+      return Promise.resolve({ content: JSON.stringify({ items: [] }) });
+    });
+    const map = await buildClientMap('m1');
+    expect(map.completeness.ask).toContainEqual({ text: 'What is the filing deadline?', sectionKey: 'upcoming' });
+    // Unknown / invalid section names fall back to 'standing'.
+    expect(map.completeness.ask).toContainEqual({ text: 'Who signed the lease?', sectionKey: 'standing' });
+  });
+
+  it('still accepts a plain list of gap question strings (defaults them to standing)', async () => {
+    retrieveMock.mockResolvedValue([hit('/a.docx', 'fact')]);
+    sendMock.mockImplementation((msg: string, opts?: { systemPrompt?: string }) => {
+      const isGapCall = msg.toLowerCase().includes('gap') || (opts?.systemPrompt ?? '').toLowerCase().includes('question');
+      if (isGapCall) {
+        return Promise.resolve({ content: JSON.stringify({ questions: ['Is there a counterclaim?'] }) });
+      }
+      return Promise.resolve({ content: JSON.stringify({ items: [] }) });
+    });
+    const map = await buildClientMap('m1');
+    expect(map.completeness.ask).toContainEqual({ text: 'Is there a counterclaim?', sectionKey: 'standing' });
+  });
 });

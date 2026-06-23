@@ -33,6 +33,7 @@ import { ClientMapTemplates } from '@/features/matters/ClientMapTemplates';
 import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { answerQuestion, flagForClient } from '@/platform/clientMap/guidedInterview';
+import { dispatchOpenSource } from '@/platform/clientMap/openSource';
 import type { SourceRef } from '@/platform/clientMap/types';
 
 // ── Props ──────────────────────────────────────────────────────────────────
@@ -192,11 +193,10 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
   const [showClientMap, setShowClientMap] = useState(false);
   const [showInterview, setShowInterview] = useState(false);
 
+  // Open the EXACT cited source (the specific document, scrolled to the cited
+  // spot, or the specific email), not just the general Documents/Email surface.
   const handleOpenSource = useCallback((ref: SourceRef) => {
-    const surface = ref.kind === 'email' ? 'email' : 'files';
-    window.dispatchEvent(
-      new CustomEvent('keepance:matter-launch', { detail: { matterId, surface } }),
-    );
+    dispatchOpenSource(matterId, ref);
   }, [matterId]);
 
   const handleEditItem = useCallback((sectionKey: string, itemId: string) => {
@@ -927,13 +927,14 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                     map={clientMap.map}
                     onOpenSource={handleOpenSource}
                     onEditItem={handleEditItem}
-                    onAnswerQuestion={(q) => {
-                      const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${q}`);
+                    onAnswerQuestion={(gap) => {
+                      const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`);
                       if (a != null && a.trim() !== '') {
-                        answerQuestion(matterId, 'standing', a.trim());
+                        // File the answer in the section this gap question came from.
+                        answerQuestion(matterId, gap.sectionKey, a.trim());
                       }
                     }}
-                    onFlagForClient={(q) => { flagForClient(matterId, q); }}
+                    onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
                   />
                   <div style={{ marginTop: 12 }}>
                     <ClientQuestionsList matterId={matterId} />

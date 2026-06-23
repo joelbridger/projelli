@@ -29,6 +29,15 @@ export function setActiveWorkspaceService(service: WorkspaceService | null): voi
 }
 
 /**
+ * The currently-active workspace service, or null before a workspace is open.
+ * Lets read paths (e.g. opening a Client Map source document by path) reuse the
+ * same service the flush helpers use, without threading it through every caller.
+ */
+export function getActiveWorkspaceService(): WorkspaceService | null {
+  return activeService;
+}
+
+/**
  * Binary-aware tab writer — the single place that decodes a binary editor's
  * `data:...base64,...` tab content back to bytes before hitting disk (so
  * .docx/.xlsx/.pptx aren't stored as a text blob). Shared by the autosave/

@@ -6,8 +6,45 @@ import { deriveCompleteness } from './completeness';
 import {
   CORE_SECTION_ORDER, CORE_SECTION_TITLE, emptyClientMap,
 } from './types';
-import type { ClientMap, ClientMapSection, CoreSectionKey } from './types';
+import type { ClientMap, ClientMapSection, CoreSectionKey, GapQuestion } from './types';
 import { parseItems, itemsFromRaw } from './aiSection';
+
+// Gap questions are tagged with the section their answer belongs to so the
+// Guided Interview can file the answer in the right section. Unknown / missing
+// section names fall back to 'standing'.
+const VALID_GAP_SECTIONS = new Set<string>(CORE_SECTION_ORDER);
+const DEFAULT_GAP_SECTION = 'standing';
+const SECTION_NAME_LIST = CORE_SECTION_ORDER.join(', ');
+
+/** Parse the gap-questions AI response. Accepts both the section-tagged shape
+ *  ({text, section}) and a plain string list (back-compat); both are coerced to
+ *  GapQuestion with a validated sectionKey. */
+export function parseGapQuestions(content: string): GapQuestion[] {
+  let raw = content.trim();
+  if (raw.startsWith('```')) raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  try {
+    const parsed = JSON.parse(raw) as { questions?: unknown };
+    if (!Array.isArray(parsed.questions)) return [];
+    const out: GapQuestion[] = [];
+    for (const q of parsed.questions.slice(0, 5)) {
+      if (typeof q === 'string') {
+        const text = q.trim();
+        if (text) out.push({ text, sectionKey: DEFAULT_GAP_SECTION });
+        continue;
+      }
+      if (q && typeof q === 'object' && typeof (q as { text?: unknown }).text === 'string') {
+        const text = (q as { text: string }).text.trim();
+        if (!text) continue;
+        const section = (q as { section?: unknown }).section;
+        const sectionKey = typeof section === 'string' && VALID_GAP_SECTIONS.has(section) ? section : DEFAULT_GAP_SECTION;
+        out.push({ text, sectionKey });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
 
 const SECTION_QUERIES: Record<CoreSectionKey, string> = {
   story: 'overview background what this matter is about who the client is',
@@ -51,18 +88,16 @@ export async function buildClientMap(
     sections.push({ id: key, kind: 'core', key, title: CORE_SECTION_TITLE[key], items: itemsFromRaw(parseItems(res.content), hits) });
   }
 
-  // Gap questions for Context Completeness.
-  let ask: string[] = [];
+  // Gap questions for Context Completeness. Each gap carries the section its
+  // answer belongs to, so the Guided Interview files the answer in the right place.
+  let ask: GapQuestion[] = [];
   if (askHits.length > 0) {
     const ctx = buildWorkspaceContextBlock(askHits);
-    const res = await provider.sendMessage('List the gaps.', {
-      systemPrompt: `Given this client context, list up to 5 short questions whose answers are missing and that you would need to ask the client. ${ctx} Return ONLY JSON (no fences): {"questions":["..."]}. No em dashes.`,
-      maxTokens: 300,
+    const res = await provider.sendMessage('List the gap questions.', {
+      systemPrompt: `Given this client context, list up to 5 short questions whose answers are missing and that you would need to ask the client. For each question name the section its answer belongs to: one of ${SECTION_NAME_LIST}. ${ctx} Return ONLY JSON (no fences): {"questions":[{"text":"...","section":"standing"}]}. No em dashes.`,
+      maxTokens: 400,
     });
-    try {
-      const parsed = JSON.parse(res.content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()) as { questions?: unknown };
-      if (Array.isArray(parsed.questions)) ask = parsed.questions.filter((q): q is string => typeof q === 'string').slice(0, 5);
-    } catch { ask = []; }
+    ask = parseGapQuestions(res.content);
   }
 
   return {

@@ -21,7 +21,7 @@ function mapWithItem(): ClientMap {
     level: 'getting-there',
     know: [m.sections[0].items[0]],
     assuming: [assumed],
-    ask: ['What is the damages figure?'],
+    ask: [{ text: 'What is the damages figure?', sectionKey: 'standing' }],
   };
   return m;
 }

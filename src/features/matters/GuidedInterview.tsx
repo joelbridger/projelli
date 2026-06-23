@@ -28,8 +28,9 @@ export function GuidedInterview({ matterId, onClose }: GuidedInterviewProps) {
   if (!map) return null;
 
   const questions = interviewQuestions(map);
+  const question = questions[index];
 
-  if (questions.length === 0 || index >= questions.length) {
+  if (questions.length === 0 || !question) {
     return (
       <Card variant="raised">
         <Eyebrow>{LABEL_ALL_CAUGHT_UP}</Eyebrow>
@@ -41,28 +42,28 @@ export function GuidedInterview({ matterId, onClose }: GuidedInterviewProps) {
     );
   }
 
-  const question = questions[index] ?? '';
-
   function advance() {
     setAnswer('');
     setIndex((i) => i + 1);
   }
 
   function handleSubmit() {
-    if (!answer.trim()) return;
-    answerQuestion(matterId, 'standing', answer.trim());
+    if (!question || !answer.trim()) return;
+    // Route the answer to the section this gap question came from.
+    answerQuestion(matterId, question.sectionKey, answer.trim());
     advance();
   }
 
   function handleFlag() {
-    flagForClient(matterId, question);
+    if (!question) return;
+    flagForClient(matterId, question.text);
     advance();
   }
 
   return (
     <Card variant="raised">
       <Eyebrow>{questionOfLabel(index + 1, questions.length)}</Eyebrow>
-      <p style={{ marginBottom: '0.75rem' }}>{question}</p>
+      <p style={{ marginBottom: '0.75rem' }}>{question.text}</p>
       <input
         data-testid="clientmap-interview-answer"
         type="text"
