@@ -565,19 +565,36 @@ pub async fn rag_index_file(
     // F-501: cancel is `None` here ON PURPOSE — `rag_cancel_indexing` leaves
     // the shared flag true until the next walk resets it, and a stale `true`
     // would silently skip every watcher-triggered single-file index.
-    index_one_file(&table, &file_path, &matter, &privilege, &key, None, vault_vmk)
-        .await
-        .map_err(|e| format!("index_file failed: {e:#}"))?;
-    // vault_vmk_holder is dropped (and ZeroizedVmk zeroizes) here.
-
-    // BUG-099 tombstone self-heal: the file watcher's per-file re-index also
-    // CLEARS this path's tombstone. Without this, a file the user fixed (whose
-    // cleanup had failed during a walk) would re-index its fresh rows but stay
-    // filtered out of retrieval until a full walk or restart. `index_one_file`
-    // is delete-then-add (an upsert), so a successful return means the path's
-    // rows are now consistent and safe to serve again.
-    state.unsafe_paths.lock().await.remove(&path);
-    Ok(())
+    match index_one_file(&table, &file_path, &matter, &privilege, &key, None, vault_vmk).await {
+        Ok(()) => {
+            // vault_vmk_holder is dropped (and ZeroizedVmk zeroizes) at fn exit.
+            // BUG-099 tombstone self-heal: the file watcher's per-file re-index
+            // CLEARS this path's tombstone. Without this, a file the user fixed
+            // (whose cleanup had failed during a walk) would re-index its fresh
+            // rows but stay filtered out of retrieval until a full walk or
+            // restart. `index_one_file` is delete-then-add (an upsert), so a
+            // successful return means the path's rows are consistent and safe.
+            state.unsafe_paths.lock().await.remove(&path);
+            Ok(())
+        }
+        Err(e) => {
+            // BUG-099 fail-closed (watcher parity with the full walk): a failed
+            // incremental index may have left stale rows (e.g. its internal
+            // delete-then-add failed mid-way, or the stale-row cleanup delete
+            // for a now-unreadable/oversized file failed). Tombstone the path so
+            // GUI retrieval cannot serve those stale rows until a later
+            // successful re-index clears it. A stale citation must be impossible
+            // after a cleanup failure on EITHER indexing path.
+            state.unsafe_paths.lock().await.insert(path.clone());
+            log::error!(
+                "rag_index_file: path tombstoned for {} — incremental re-index \
+                 failed; its stale rows are excluded from retrieval until a \
+                 successful re-index clears the tombstone: {e:#}",
+                file_path.display()
+            );
+            Err(format!("index_file failed: {e:#}"))
+        }
+    }
 }
 
 /// Resolve an optional caller-supplied matter id into a concrete, validated
