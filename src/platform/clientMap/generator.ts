@@ -47,17 +47,17 @@ export function parseGapQuestions(content: string): GapQuestion[] {
 }
 
 const SECTION_QUERIES: Record<CoreSectionKey, string> = {
-  story: 'overview background what this matter is about who the client is',
-  people: 'people involved parties opposing counsel judge witnesses key contacts',
-  standing: 'open issues current status disputes problems loose ends',
-  upcoming: 'deadlines key dates hearings filing dates court dates',
-  next: 'next steps action items follow up tasks to do',
+  story: 'overview background who the client is goals priorities retirement timeline objectives concerns',
+  people: 'household members spouse children beneficiaries key contacts CPA estate attorney',
+  standing: 'accounts assets liabilities net worth holdings custodian Schwab portfolio risk tolerance risk profile time horizon',
+  upcoming: 'upcoming reviews meetings deadlines key dates next actions required minimum distributions',
+  next: 'prior advice recommendations decisions Roth conversion rebalancing next steps follow up',
 };
 const ASK_QUERY = 'what key facts are still unknown or unclear about this client';
 const TOP_K = 8;
 
 const sectionPrompt = (title: string, ctx: string) =>
-  `You are a private legal assistant building a client profile section: "${title}".
+  `You are a private assistant building a client/household profile section: "${title}".
 ${ctx}
 Return ONLY JSON (no fences): {"items":[{"text":"one short factual sentence","sourceNumbers":[1],"assumption":false}]}.
 Rules: base every item ONLY on the context; cite the [N] numbers that support it in sourceNumbers; if you must infer without a source, set assumption true and sourceNumbers []; under 20 words each; no em dashes; empty items array if nothing applies.`;

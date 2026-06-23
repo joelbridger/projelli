@@ -45,4 +45,4 @@ export function itemsFromRaw(raw: RawItem[], hits: RagHit[]): ClientMapItem[] {
 }
 
 export const aiSectionPrompt = (title: string, ctx: string): string =>
-  `You are a private legal assistant building a client profile section: "${title}".\n${ctx}\nReturn ONLY JSON (no fences): {"items":[{"text":"one short factual sentence","sourceNumbers":[1],"assumption":false}]}. Cite supporting [N] numbers; if you infer without a source set assumption true and sourceNumbers []; under 20 words each; no em dashes; empty items if nothing applies.`;
+  `You are a private assistant building a client/household profile section: "${title}".\n${ctx}\nReturn ONLY JSON (no fences): {"items":[{"text":"one short factual sentence","sourceNumbers":[1],"assumption":false}]}. Cite supporting [N] numbers; if you infer without a source set assumption true and sourceNumbers []; under 20 words each; no em dashes; empty items if nothing applies.`;
