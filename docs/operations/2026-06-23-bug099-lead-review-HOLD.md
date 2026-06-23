@@ -32,8 +32,20 @@ A third focused pass is closing these three on `fix/bug099-robust`.
 ## Update — 3rd robust pass DONE (2026-06-23, KEEPANCE-9-BUG099B)
 
 The third pass closed all three blockers AND hardened the new tombstone through
-8 rounds of independent Codex (gpt-5.5) review. Branch `fix/bug099-robust`,
-HEAD `39f1478b`. **Still HELD pending lead review + real-Windows bench.**
+**14 rounds of independent Codex (gpt-5.5) review** (each re-ran the test suite;
+findings converged from real data-integrity holes → rare multi-failure durability
+edges, all fixed + tested). Branch `fix/bug099-robust`, HEAD `bae302f1`.
+**Still HELD pending lead review + real-Windows bench.**
+
+Cross-process + restart + Windows durability the later rounds added on top of the
+core fix: the tombstone is stored as opaque HMAC TOKENS in `.keepance/.unsafe_tokens`
+(no plaintext paths, decorrelated from the failing vectors dir); written via atomic
+temp+rename with a Windows-safe direct-write fallback that marks a durable
+`.integrity_unknown` sentinel first (so a torn fallback write can't fail open);
+an unreadable tombstone OR the sentinel makes retrieval/verify/MCP fail CLOSED;
+a durable-write failure re-arms the full-index latch + emits an Error (not a false
+"Memory ready") so the user can recover without a restart; and the clean-walk
+rewrite holds the tombstone lock to serialize with the file-watcher.
 
 What the 3rd pass delivered:
 - **Fail-closed via a DURABLE per-path tombstone.** When a skipped file's
