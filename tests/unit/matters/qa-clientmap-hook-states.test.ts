@@ -15,10 +15,14 @@ vi.mock('@/platform/clientMap/generator', () => ({ buildClientMap: buildMock }))
 
 const computeFingerprintMock = vi.hoisted(() => vi.fn());
 const proposeUpdatesMock = vi.hoisted(() => vi.fn());
-vi.mock('@/platform/clientMap/updater', () => ({
-  computeSourceFingerprint: computeFingerprintMock,
-  proposeUpdates: proposeUpdatesMock,
-}));
+vi.mock('@/platform/clientMap/updater', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/clientMap/updater')>();
+  return {
+    ...actual, // keep the real mergePendingUpdates (pure, store-free)
+    computeSourceFingerprint: computeFingerprintMock,
+    proposeUpdates: proposeUpdatesMock,
+  };
+});
 
 import { useClientMap } from '@/features/matters/useClientMap';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
@@ -44,7 +48,7 @@ describe('useClientMap — documented bugs (KEEPANCE 5, it.fails until fixed)', 
   // function is unsafe by construction: any future refresh/invalidate path would
   // silently delete the professional's own edits. Spec §6 rule 3: user-origin
   // items must NEVER be overwritten by an AI pass.
-  it.fails('BUG-101: regenerate keeps user-origin items instead of wiping them', async () => {
+  it('BUG-101: regenerate keeps user-origin items instead of wiping them', async () => {
     // Seed a stored map that already holds a user-written item.
     const seeded = { ...emptyClientMap('m1'), lastBuiltAt: 't' };
     seeded.sections[2]!.items = [userItem('Client insists on settling by year end')];
@@ -57,14 +61,23 @@ describe('useClientMap — documented bugs (KEEPANCE 5, it.fails until fixed)', 
     ];
     buildMock.mockResolvedValue(aiOnly);
     computeFingerprintMock.mockResolvedValue('fp');
+    // The fresh AI content is routed through the approve-first tray; no items are
+    // overwritten. (The merge of proposals is the real mergePendingUpdates.)
+    proposeUpdatesMock.mockReturnValue([
+      { id: 'p1', sectionKey: 'story', op: 'add', reason: 'r', createdAt: 't2',
+        draft: { id: 'ai1', text: 'Matter is a contract dispute', origin: 'ai', isAssumption: false, sources: [{ kind: 'document', ref: '/a', snippet: 's' }], updatedAt: 't2' } },
+    ]);
 
     const { result } = renderHook(() => useClientMap('m1'));
     await act(async () => { await result.current.generate(); });
 
     const stored = useClientMapStore.getState().getMap('m1');
     const allTexts = stored?.sections.flatMap((s) => s.items.map((i) => i.text)) ?? [];
-    // DESIRED: the user's note survives a regenerate. ACTUAL: it is wiped.
+    // The user's note survives a regenerate.
     expect(allTexts).toContain('Client insists on settling by year end');
+    // The fresh AI content lands in the approve-first tray, not the map body.
+    expect(stored?.pendingUpdates.map((u) => u.draft?.text)).toContain('Matter is a contract dispute');
+    expect(allTexts).not.toContain('Matter is a contract dispute');
   });
 
   // BUG-103 — a matter with no indexed content shows a blank map, not the honest
@@ -72,7 +85,7 @@ describe('useClientMap — documented bugs (KEEPANCE 5, it.fails until fixed)', 
   // generate() stores an (empty) map object the status is forced to 'ready',
   // making MatterHub's 'empty' branch ("No information found yet...") dead code.
   // Spec §7 open-question 5: an honest empty state.
-  it.fails('BUG-103: an empty build reports status "empty", not "ready"', async () => {
+  it('BUG-103: an empty build reports status "empty", not "ready"', async () => {
     buildMock.mockResolvedValue({ ...emptyClientMap('m2'), lastBuiltAt: 't' }); // zero items
     computeFingerprintMock.mockResolvedValue('0:');
 
@@ -89,7 +102,7 @@ describe('useClientMap — documented bugs (KEEPANCE 5, it.fails until fixed)', 
   // whole tray. A proposal the user has not yet accepted/dismissed vanishes if the
   // next fresh build no longer reproduces its exact item. Spec §6 rule 3:
   // approve-first review (the user decides every AI change).
-  it.fails('BUG-104: a still-pending proposal survives the next update check', async () => {
+  it('BUG-104: a still-pending proposal survives the next update check', async () => {
     const pendingU1: ProposedUpdate = {
       id: 'U1', sectionKey: 'standing', op: 'add', reason: 'from an earlier pass', createdAt: 't',
       draft: { id: 'd1', text: 'Earlier proposed fact', origin: 'ai', isAssumption: false, sources: [], updatedAt: 't' },

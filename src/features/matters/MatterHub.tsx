@@ -200,7 +200,12 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
   }, [matterId]);
 
   const handleEditItem = useCallback((sectionKey: string, itemId: string) => {
-    const text = window.prompt('Edit item:');
+    // BUG-105: prefill the prompt with the item's current text so the user can
+    // tweak it instead of retyping the whole thing from a blank box.
+    const current = useClientMapStore.getState().getMap(matterId);
+    const existingText =
+      current?.sections.find((sec) => sec.key === sectionKey)?.items.find((it) => it.id === itemId)?.text ?? '';
+    const text = window.prompt('Edit item:', existingText);
     if (text !== null && text.trim() !== '') {
       useClientMapStore.getState().editItem(matterId, sectionKey, itemId, text.trim());
     }
@@ -930,8 +935,9 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                     onAnswerQuestion={(gap) => {
                       const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`);
                       if (a != null && a.trim() !== '') {
-                        // File the answer in the section this gap question came from.
-                        answerQuestion(matterId, gap.sectionKey, a.trim());
+                        // File the answer in the section this gap question came from,
+                        // and mark the gap resolved so it stops being asked (BUG-106).
+                        answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
                       }
                     }}
                     onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}

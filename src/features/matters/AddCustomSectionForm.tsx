@@ -5,6 +5,8 @@ import { Button } from '@/ui/kp';
 import { buildCustomSection } from '@/platform/clientMap/customSection';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 
+const LABEL_ERROR = 'Could not fill this section. Your AI provider may be unavailable, or no account key is set. Nothing was added. Try again.';
+
 export interface AddCustomSectionFormProps {
   matterId: string;
   onAdded?: () => void;
@@ -14,17 +16,20 @@ export function AddCustomSectionForm({ matterId, onAdded }: AddCustomSectionForm
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const addCustomSection = useClientMapStore((s) => s.addCustomSection);
   const setMap = useClientMapStore((s) => s.setMap);
   const getMap = useClientMapStore((s) => s.getMap);
+  const removeSection = useClientMapStore((s) => s.removeSection);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || busy) return;
     setBusy(true);
+    setError(null);
+    const sectionId = uuidv4();
     try {
-      const sectionId = uuidv4();
       // Add an empty section immediately so the UI responds fast.
       const empty = {
         id: sectionId,
@@ -54,6 +59,12 @@ export function AddCustomSectionForm({ matterId, onAdded }: AddCustomSectionForm
       setTitle('');
       setDescription('');
       onAdded?.();
+    } catch {
+      // BUG-107: a failed populate must NOT leave a permanently-empty section or
+      // an unhandled rejection. Roll back the just-added section and surface a
+      // plain-language error; the user's title/description stay so they can retry.
+      removeSection(matterId, sectionId);
+      setError(LABEL_ERROR);
     } finally {
       setBusy(false);
     }
@@ -88,6 +99,15 @@ export function AddCustomSectionForm({ matterId, onAdded }: AddCustomSectionForm
           placeholder="e.g. track the insurance coverage limits and policy numbers"
         />
       </div>
+      {error !== null && (
+        <p
+          data-testid="custom-section-error"
+          role="alert"
+          style={{ color: '#b91c1c', fontSize: 13, margin: '6px 0 0' }}
+        >
+          {error}
+        </p>
+      )}
       <Button
         type="submit"
         data-testid="custom-section-submit"
