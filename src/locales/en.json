@@ -153,6 +153,10 @@
       "days-left_other": "{{count}} days left",
       "get-license-cta": "Get a license at keepance.com",
       "already-have-key": "Already have a license key?",
+      "recovery-heading": "Already bought Keepance?",
+      "recovery-detail": "Enter your license code to restore it on this computer. No account needed.",
+      "recovery-restore": "Restore",
+      "recovery-restoring": "Restoring...",
       "unlocks-heading": "What your license unlocks:",
       "unlocks": {
         "ai-chat": "AI chat with your own keys (Claude, OpenAI, Gemini)",

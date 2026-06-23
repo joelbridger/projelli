@@ -3,9 +3,12 @@
  *
  * Three states:
  *   - Activated license → green "Personal / Professional / Practice active" chip (reassurance)
- *   - Trial, 5+ days    → amber "Free trial · N days left · Upgrade"
- *   - Trial, 1-4 days   → red "N days left · Upgrade"
+ *   - Trial, 5+ days    → amber "Free trial · N days left"
+ *   - Trial, 1-4 days   → red "Free trial · N days left"
  *   - Expired           → red "Trial ended · Activate"
+ *
+ * During the trial the chip tooltip carries the frictionless framing (full
+ * features, private by default, no card, no account).
  *
  * Click → opens Settings to the License section in every state.
  */
@@ -25,7 +28,14 @@ export function TrialStatusChip({ onClick }: TrialStatusChipProps) {
 
   let label: string;
   let tone: 'green' | 'amber' | 'red';
+  let title: string;
   let Icon = Sparkles;
+
+  // Frictionless trial framing, surfaced in the chip tooltip: full features,
+  // private by default, no card, no account. The no-egress claim is scoped to
+  // the user's own files (the accurate guarantee), not every network call.
+  const trialTooltip =
+    'Full features, and your files stay on your computer unless you turn on cloud AI. No card, no account.';
 
   if (isActivated) {
     const tierLabel =
@@ -35,16 +45,20 @@ export function TrialStatusChip({ onClick }: TrialStatusChipProps) {
       'Activated';
     label = `${tierLabel} license · Active`;
     tone = 'green';
+    title = 'View license settings';
     Icon = CheckCircle2;
   } else if (trial.isExpired) {
     label = 'Trial ended · Activate';
     tone = 'red';
+    title = 'View license settings';
   } else if (trial.daysRemaining < 5) {
-    label = `${trial.daysRemaining} day${trial.daysRemaining === 1 ? '' : 's'} left · Upgrade`;
+    label = `Free trial · ${trial.daysRemaining} day${trial.daysRemaining === 1 ? '' : 's'} left`;
     tone = 'red';
+    title = trialTooltip;
   } else {
-    label = `Free trial · ${trial.daysRemaining} days left · Upgrade`;
+    label = `Free trial · ${trial.daysRemaining} days left`;
     tone = 'amber';
+    title = trialTooltip;
   }
 
   return (
@@ -53,7 +67,7 @@ export function TrialStatusChip({ onClick }: TrialStatusChipProps) {
       data-testid="status-bar-trial-chip"
       data-trial-tone={tone}
       onClick={onClick}
-      title="View license settings"
+      title={title}
       className={cn(
         'flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-colors',
         tone === 'green' &&

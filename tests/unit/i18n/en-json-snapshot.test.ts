@@ -66,7 +66,7 @@ describe('en.json structure snapshot', () => {
         "quick-open": 1,
         "research": 11,
         "search": 6,
-        "settings": 163,
+        "settings": 167,
         "shortcuts-overlay": 2,
         "tts": 1,
         "updater": 2,
@@ -82,8 +82,9 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    // 863 = 859 + 3 MCP per-matter grant keys + 1 mail connect error key.
-    expect(flat.length).toBe(863);
+    // 867 = 863 + 4 solo license-recovery keys (recovery-heading / -detail /
+    // -restore / -restoring under settings.license, Phase 5.1).
+    expect(flat.length).toBe(867);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

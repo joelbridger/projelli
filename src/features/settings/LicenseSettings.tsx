@@ -238,11 +238,22 @@ export function LicenseSettings() {
                 {t('settings.license.get-license-cta')}
               </a>
             </Button>
-            <div>
-              <Label htmlFor="license-key" className="text-sm">
-                {t('settings.license.already-have-key')}
+            {/* Solo license recovery, no account. A returning buyer who
+                reinstalled, or moved to a new machine, restores Keepance by
+                re-entering the license code they kept. This drives the same
+                activate() path (POSTs license_key + machine_id to the validator,
+                no login), so recovery is local-first and account-free. */}
+            <div
+              data-testid="license-recovery"
+              className="rounded-lg border border-border bg-muted/30 p-4"
+            >
+              <Label htmlFor="license-key" className="text-sm font-medium">
+                {t('settings.license.recovery-heading')}
               </Label>
-              <div className="flex gap-2 mt-2">
+              <p className="text-xs text-muted-foreground mt-1">
+                {t('settings.license.recovery-detail')}
+              </p>
+              <div className="flex gap-2 mt-3">
                 <Input
                   id="license-key"
                   type="text"
@@ -251,13 +262,15 @@ export function LicenseSettings() {
                   onChange={(e) => setLicenseKeyInput(e.target.value)}
                   disabled={isLoading}
                   className="font-mono"
+                  data-testid="license-recovery-input"
                 />
                 <Button
                   variant="outline"
                   onClick={handleActivate}
                   disabled={isLoading || !licenseKeyInput.trim()}
+                  data-testid="license-recovery-submit"
                 >
-                  {isLoading ? t('settings.license.activating') : t('settings.license.activate')}
+                  {isLoading ? t('settings.license.recovery-restoring') : t('settings.license.recovery-restore')}
                 </Button>
               </div>
             </div>
