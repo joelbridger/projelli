@@ -126,4 +126,37 @@ describe('useClientMap — documented bugs (KEEPANCE 5, it.fails until fixed)', 
     // DESIRED: U1 is still awaiting the user's decision. ACTUAL: it was replaced away.
     expect(ids).toContain('U1');
   });
+
+  // BUG-101 (Codex finding 1) — a map whose only state is a user-created (empty)
+  // custom section must NOT be overwritten by a regenerate.
+  it('BUG-101: regenerate preserves an empty user-created custom section', async () => {
+    const seeded = { ...emptyClientMap('mC'), lastBuiltAt: 't' };
+    seeded.sections.push({ id: 'cs1', kind: 'custom', key: 'cs1', title: 'Insurance', prompt: 'track coverage', scope: 'matter', items: [] });
+    useClientMapStore.getState().setMap('mC', seeded);
+
+    buildMock.mockResolvedValue({ ...emptyClientMap('mC'), lastBuiltAt: 't2' }); // AI build has no custom section
+    computeFingerprintMock.mockResolvedValue('fp');
+    proposeUpdatesMock.mockReturnValue([]);
+
+    const { result } = renderHook(() => useClientMap('mC'));
+    await act(async () => { await result.current.generate(); });
+
+    const stored = useClientMapStore.getState().getMap('mC');
+    expect(stored?.sections.some((s) => s.id === 'cs1')).toBe(true);
+  });
+
+  // BUG-103 (Codex finding 4) — a map with no section items but open gap questions
+  // is NOT empty; it reports 'ready' so the Guided Interview can render.
+  it('BUG-103: a gap-only map reports "ready", not "empty"', async () => {
+    const gapOnly = { ...emptyClientMap('mG'), lastBuiltAt: 't' };
+    gapOnly.completeness.ask = [{ text: 'What outcome does the client want?', sectionKey: 'story' }];
+    buildMock.mockResolvedValue(gapOnly);
+    computeFingerprintMock.mockResolvedValue('fp');
+
+    const { result } = renderHook(() => useClientMap('mG'));
+    await act(async () => { await result.current.generate(); });
+    await waitFor(() => expect(useClientMapStore.getState().getMap('mG')).toBeDefined());
+
+    expect(result.current.status).toBe('ready');
+  });
 });

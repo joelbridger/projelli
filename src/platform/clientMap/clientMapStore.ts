@@ -215,10 +215,14 @@ export const useClientMapStore = create<ClientMapState>()(
           if (!upd) return {};
           // BUG-100: record the dismissal so the same proposal is not re-issued
           // on the next pass unless its backing source changes. Keyed by the
-          // stable signature + the source fingerprint at dismissal time.
+          // stable signature + the source fingerprint at dismissal time. De-dup
+          // only the EXACT (signature, sourceSignature) pair, so dismissing the
+          // same text from a different source does not erase an earlier dismissal.
           const signature = upd.signature ?? proposalSignature(upd.sectionKey, upd.op, upd.draft?.text ?? '');
           const sourceSignature = upd.sourceSignature ?? '';
-          const existing = (map.dismissedSignatures ?? []).filter((d) => d.signature !== signature);
+          const existing = (map.dismissedSignatures ?? []).filter(
+            (d) => !(d.signature === signature && d.sourceSignature === sourceSignature),
+          );
           const dismissedSignatures: DismissedSignature[] = [
             ...existing,
             { signature, sourceSignature, dismissedAt: nowIso() },

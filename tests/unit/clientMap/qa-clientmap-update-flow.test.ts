@@ -147,6 +147,64 @@ describe('Client Map — documented bugs (KEEPANCE 5, it.fails until fixed)', ()
     expect(second.map((u) => u.draft?.text)).toContain('Carrier denied coverage');
   });
 
+  // BUG-100 (Codex finding 2) — dismissing the SAME text from a DIFFERENT source
+  // must not erase an earlier dismissal of the first source. Dismissals are keyed
+  // by (signature, sourceSignature), not signature alone.
+  it('BUG-100: dismissing the same text from a second source keeps the first source dismissed', () => {
+    const store = useClientMapStore.getState();
+    const current: ClientMap = { ...emptyClientMap('m1'), lastBuiltAt: 't' };
+
+    const fromA = aiItem('Carrier denied coverage');
+    fromA.sources = [{ kind: 'document', ref: '/a.pdf', snippet: 's', citationId: 'A' }];
+    const builtA: ClientMap = { ...emptyClientMap('m1') };
+    builtA.sections[2]!.items = [fromA];
+    const p1 = proposeUpdates('m1', current, builtA);
+    store.setMap('m1', { ...current, pendingUpdates: p1 });
+    store.dismissUpdate('m1', p1[0]!.id);
+
+    // Same text, different source B — also proposed, also dismissed.
+    const fromB = aiItem('Carrier denied coverage');
+    fromB.sources = [{ kind: 'document', ref: '/b.pdf', snippet: 's', citationId: 'B' }];
+    const builtB: ClientMap = { ...emptyClientMap('m1') };
+    builtB.sections[2]!.items = [fromB];
+    let dismissed = useClientMapStore.getState().getMap('m1')!.dismissedSignatures ?? [];
+    const p2 = proposeUpdates('m1', current, builtB, dismissed);
+    expect(p2.map((u) => u.draft?.text)).toContain('Carrier denied coverage'); // B not yet dismissed
+    store.setMap('m1', { ...useClientMapStore.getState().getMap('m1')!, pendingUpdates: p2 });
+    store.dismissUpdate('m1', p2[0]!.id);
+
+    // Source A, unchanged, must STILL be suppressed (the B dismissal didn't wipe A's).
+    dismissed = useClientMapStore.getState().getMap('m1')!.dismissedSignatures ?? [];
+    const again = proposeUpdates('m1', current, builtA, dismissed);
+    expect(again.map((u) => u.draft?.text)).not.toContain('Carrier denied coverage');
+  });
+
+  // BUG-100 (Codex finding 3) — a dismissed SOURCE-LESS assumption must reappear
+  // once matter content changes (its sourceSignature falls back to the matter
+  // fingerprint), not stay suppressed forever.
+  it('BUG-100: a dismissed source-less assumption reappears after matter content changes', () => {
+    const store = useClientMapStore.getState();
+    const current: ClientMap = { ...emptyClientMap('m1'), lastBuiltAt: 't' };
+    const assumption = aiItem('Likely a contract dispute');
+    assumption.sources = []; // unsourced assumption
+    assumption.isAssumption = true;
+    const built: ClientMap = { ...emptyClientMap('m1') };
+    built.sections[0]!.items = [assumption];
+
+    // Propose + dismiss at matter fingerprint fp1.
+    const p1 = proposeUpdates('m1', current, built, [], 'fp1');
+    store.setMap('m1', { ...current, pendingUpdates: p1, lastSourceFingerprint: 'fp1' });
+    store.dismissUpdate('m1', p1[0]!.id);
+    const dismissed = useClientMapStore.getState().getMap('m1')!.dismissedSignatures ?? [];
+
+    // Same fingerprint -> still suppressed.
+    expect(proposeUpdates('m1', current, built, dismissed, 'fp1').map((u) => u.draft?.text))
+      .not.toContain('Likely a contract dispute');
+    // Matter content changed (fp2) -> the assumption reappears for review.
+    expect(proposeUpdates('m1', current, built, dismissed, 'fp2').map((u) => u.draft?.text))
+      .toContain('Likely a contract dispute');
+  });
+
   // BUG-102 — staleness fingerprint ignores content changes.
   // computeSourceFingerprint hashes only the set of unique sourceId/path values,
   // ignoring the content-addressed chunk `id` (which DOES change on edit) and any
