@@ -49,6 +49,7 @@ const makeSnap = (overrides: Partial<RagStatusSnapshot>): RagStatusSnapshot => (
   skipped: 0,
   failed: 0,
   timedOut: 0,
+  cleanupFailed: 0,
   skippedPaths: [],
   ...overrides,
 });

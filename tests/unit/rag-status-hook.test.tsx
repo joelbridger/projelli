@@ -143,6 +143,7 @@ describe('useRagStatus', () => {
           skipped: 2,
           failed: 1,
           timedOut: 1,
+          cleanupFailed: 1,
           skippedPaths: ['/w/stuck.docx', '/w/broken.rtf'],
         },
       });
@@ -151,6 +152,8 @@ describe('useRagStatus', () => {
     expect(result.current.skipped).toBe(2);
     expect(result.current.failed).toBe(1);
     expect(result.current.timedOut).toBe(1);
+    // BUG-099: cleanupFailed is a SEPARATE counter (not part of skipped).
+    expect(result.current.cleanupFailed).toBe(1);
     expect(result.current.skippedPaths).toEqual(['/w/stuck.docx', '/w/broken.rtf']);
   });
 
@@ -171,6 +174,8 @@ describe('useRagStatus', () => {
     expect(result.current.skipped).toBe(0);
     expect(result.current.failed).toBe(0);
     expect(result.current.timedOut).toBe(0);
+    // BUG-099: cleanupFailed is omitted from the wire when zero — defaults to 0.
+    expect(result.current.cleanupFailed).toBe(0);
     expect(result.current.skippedPaths).toEqual([]);
   });
 });
