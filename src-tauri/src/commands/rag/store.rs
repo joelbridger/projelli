@@ -1015,9 +1015,9 @@ pub struct StoredHit {
 }
 
 /// Compose the LanceDB `only_if` PREFILTER predicate for a retrieval query from
-/// the matter scope and the privilege rule. This is the single place the two
-/// security boundaries are AND-ed together, so the composition is auditable and
-/// tested as a unit.
+/// the matter scope, the privilege rule, and the per-path tombstone exclusion
+/// (BUG-099 fail-closed). This is the single place ALL three safety boundaries
+/// are AND-ed together, so the composition is auditable and tested as a unit.
 ///
 /// WS-B/C — matter scope:
 ///   - `scope = Some(matter_id)` → `matter_id = '<escaped>'`
@@ -1028,14 +1028,23 @@ pub struct StoredHit {
 ///     attorney-client / work-product rows are never even candidates.
 ///   - `include_privileged = true` (deliberate)   → no privilege clause.
 ///
-/// Both clauses are validated + SQL-escaped before interpolation. Returns
-/// `None` only when BOTH are absent (cross-matter AND include-privileged) — a
-/// fully unconstrained scan that callers must reach via two explicit choices.
+/// BUG-099 tombstone — per-path unsafe exclusion:
+///   - `tombstoned_tokens` is a slice of HMAC path tokens for files whose
+///     cleanup DELETE failed. Those files' stale rows MUST NOT be returned as
+///     citations. Each token is the same opaque string stored in the `path`
+///     column (computed by `crypto::path_token`), so the exclusion can be
+///     pushed as a SQL prefilter: `path NOT IN ('tok1', 'tok2', ...)`.
+///   - An empty slice means no exclusion (the normal case on a healthy index).
+///
+/// Both matter and privilege clauses are validated + SQL-escaped before
+/// interpolation. Returns `None` only when ALL three are absent — a fully
+/// unconstrained scan that callers must reach via explicit choices.
 pub fn build_retrieval_predicate(
     scope: Option<&str>,
     include_privileged: bool,
+    tombstoned_tokens: &[String],
 ) -> Result<Option<String>> {
-    let mut clauses: Vec<String> = Vec::with_capacity(2);
+    let mut clauses: Vec<String> = Vec::with_capacity(3);
     if let Some(matter_id) = scope {
         let matter_id = validate_matter_id(matter_id)?;
         clauses.push(format!("matter_id = '{}'", sql_escape(matter_id)));
@@ -1045,6 +1054,17 @@ pub fn build_retrieval_predicate(
         // fixed constant, but escape it anyway so the predicate-building rule is
         // uniform and future-proof.
         clauses.push(format!("privilege = '{}'", sql_escape(PRIVILEGE_NONE)));
+    }
+    // BUG-099: exclude any path whose cleanup failed (stale rows that we could
+    // not delete). The tokens are already HMAC-opaque — safe to embed directly
+    // in the SQL literal list without escaping (they are hex strings).
+    if !tombstoned_tokens.is_empty() {
+        let list: String = tombstoned_tokens
+            .iter()
+            .map(|t| format!("'{}'", sql_escape(t)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        clauses.push(format!("path NOT IN ({})", list));
     }
     Ok(if clauses.is_empty() {
         None
@@ -1073,6 +1093,11 @@ pub fn build_retrieval_predicate(
 ///   - `true` is a deliberate, separately-named capability (mirrors AllMatters)
 ///     that omits the privilege clause so privileged content can be retrieved.
 ///
+/// BUG-099 tombstone — `tombstoned_tokens` is a slice of HMAC path tokens for
+/// paths whose cleanup DELETE failed after a skip. Those paths' stale rows are
+/// excluded from the vector search prefilter. Pass `&[]` (the normal case) to
+/// apply no tombstone exclusion. See `build_retrieval_predicate` for the design.
+///
 /// SECURITY: we NEVER call `.postfilter()` here. Postfilter runs the vector
 /// search first and filters afterward, which can both drop in-scope hits and
 /// admit ranking approximation. The scoped path must stay prefilter-only.
@@ -1082,6 +1107,7 @@ pub async fn nearest(
     top_k: usize,
     scope: Option<&str>,
     include_privileged: bool,
+    tombstoned_tokens: &[String],
 ) -> Result<Vec<StoredHit>> {
     use futures_util::TryStreamExt;
     let mut query = table
@@ -1089,9 +1115,9 @@ pub async fn nearest(
         .nearest_to(query_vec)
         .context("nearest_to failed")?
         .limit(top_k);
-    // WS-B/C + WS-PRIV: compose the matter AND privilege predicate. It is part
+    // WS-B/C + WS-PRIV + BUG-099: compose all safety predicates. They are part
     // of the query PLAN (prefilter), not a post-hoc filter on the returned Vec.
-    if let Some(predicate) = build_retrieval_predicate(scope, include_privileged)? {
+    if let Some(predicate) = build_retrieval_predicate(scope, include_privileged, tombstoned_tokens)? {
         query = query.only_if(predicate);
     }
     let mut stream = query
@@ -1639,7 +1665,7 @@ mod tests {
     fn predicate_default_excludes_privileged_with_matter_scope() {
         // The DEFAULT (include_privileged = false) composes matter AND privilege
         // into one prefilter: `matter_id = '..' AND privilege = 'none'`.
-        let p = build_retrieval_predicate(Some("matter-acme"), false)
+        let p = build_retrieval_predicate(Some("matter-acme"), false, &[])
             .expect("predicate")
             .expect("some predicate");
         assert_eq!(p, "matter_id = 'matter-acme' AND privilege = 'none'");
@@ -1649,7 +1675,7 @@ mod tests {
     fn predicate_default_excludes_privileged_even_cross_matter() {
         // Cross-matter (scope None) still excludes privileged by default — the
         // privilege clause stands alone.
-        let p = build_retrieval_predicate(None, false)
+        let p = build_retrieval_predicate(None, false, &[])
             .expect("predicate")
             .expect("some predicate");
         assert_eq!(p, "privilege = 'none'");
@@ -1659,7 +1685,7 @@ mod tests {
     fn predicate_include_privileged_drops_privilege_clause() {
         // include_privileged = true is the deliberate capability: only the matter
         // clause remains; privileged rows become candidates.
-        let p = build_retrieval_predicate(Some("matter-acme"), true)
+        let p = build_retrieval_predicate(Some("matter-acme"), true, &[])
             .expect("predicate")
             .expect("some predicate");
         assert_eq!(p, "matter_id = 'matter-acme'");
@@ -1669,14 +1695,14 @@ mod tests {
     fn predicate_fully_unconstrained_only_when_both_chosen() {
         // The only way to a None predicate (no prefilter at all) is BOTH explicit
         // choices: cross-matter AND include-privileged. Neither is a silent default.
-        let p = build_retrieval_predicate(None, true).expect("predicate");
+        let p = build_retrieval_predicate(None, true, &[]).expect("predicate");
         assert!(p.is_none(), "cross-matter + include-privileged => no prefilter");
     }
 
     #[test]
     fn predicate_sql_escapes_matter_id() {
         // SECURITY: a crafted matter id is escaped inside the composed predicate.
-        let p = build_retrieval_predicate(Some("a'b"), false)
+        let p = build_retrieval_predicate(Some("a'b"), false, &[])
             .expect("predicate")
             .expect("some predicate");
         assert_eq!(p, "matter_id = 'a''b' AND privilege = 'none'");
@@ -1684,7 +1710,42 @@ mod tests {
 
     #[test]
     fn predicate_rejects_invalid_matter_id() {
-        assert!(build_retrieval_predicate(Some("bad\0id"), false).is_err());
+        assert!(build_retrieval_predicate(Some("bad\0id"), false, &[]).is_err());
+    }
+
+    /// BUG-099 tombstone — tombstoned path tokens are excluded from the predicate
+    /// via a SQL `path NOT IN (...)` clause, composed with the other safety clauses.
+    #[test]
+    fn predicate_excludes_tombstoned_tokens() {
+        let tokens = vec!["deadbeef01".to_string(), "cafebabe02".to_string()];
+        let p = build_retrieval_predicate(Some("matter-acme"), false, &tokens)
+            .expect("predicate")
+            .expect("some predicate");
+        // The matter + privilege clauses come first; the NOT IN clause is last.
+        assert_eq!(
+            p,
+            "matter_id = 'matter-acme' AND privilege = 'none' AND path NOT IN ('deadbeef01', 'cafebabe02')"
+        );
+    }
+
+    /// BUG-099 tombstone — an empty tombstone slice adds NO extra clause.
+    #[test]
+    fn predicate_empty_tombstone_adds_no_clause() {
+        let p = build_retrieval_predicate(Some("matter-acme"), false, &[])
+            .expect("predicate")
+            .expect("some predicate");
+        assert_eq!(p, "matter_id = 'matter-acme' AND privilege = 'none'");
+    }
+
+    /// BUG-099 tombstone — tombstone tokens are SQL-escaped so a crafted token
+    /// (with a single-quote) cannot break out of the predicate literal list.
+    #[test]
+    fn predicate_sql_escapes_tombstoned_tokens() {
+        let tokens = vec!["tok'evil".to_string()];
+        let p = build_retrieval_predicate(None, true, &tokens)
+            .expect("predicate")
+            .expect("some predicate");
+        assert_eq!(p, "path NOT IN ('tok''evil')");
     }
 
     #[test]
@@ -2142,7 +2203,7 @@ mod tests {
         }
 
         let q = vec![0.10f32; EMBEDDING_DIM];
-        let hits = nearest(&table, &q, 10, None, false).await.expect("nearest");
+        let hits = nearest(&table, &q, 10, None, false, &[]).await.expect("nearest");
         // VG-6e: the raw path column holds tokens — resolve via path_enc.
         let scan = hits.iter().find(|h| stored_path(h) == "/scan.pdf").expect("scan hit");
         assert_eq!(scan.extraction.as_deref(), Some("ocr"));
@@ -2421,13 +2482,13 @@ mod tests {
 
         // Scoped to Matter A: only the Matter-A mail comes back.
         // (VG-6e: the raw path column holds tokens — resolve via path_enc.)
-        let hits_a = nearest(&table, &q, 10, Some("matter_a"), false).await.expect("nearest a");
+        let hits_a = nearest(&table, &q, 10, Some("matter_a"), false, &[]).await.expect("nearest a");
         let paths_a: Vec<String> = hits_a.iter().map(stored_path).collect();
         assert!(paths_a.iter().any(|p| p == "mail:a-msg"), "Matter A scope must return Matter A mail");
         assert!(!paths_a.iter().any(|p| p == "mail:b-msg"), "Matter A scope must NOT return Matter B mail");
 
         // Scoped to Matter B: only the Matter-B mail comes back.
-        let hits_b = nearest(&table, &q, 10, Some("matter_b"), false).await.expect("nearest b");
+        let hits_b = nearest(&table, &q, 10, Some("matter_b"), false, &[]).await.expect("nearest b");
         let paths_b: Vec<String> = hits_b.iter().map(stored_path).collect();
         assert!(paths_b.iter().any(|p| p == "mail:b-msg"));
         assert!(!paths_b.iter().any(|p| p == "mail:a-msg"));
@@ -2445,7 +2506,7 @@ mod tests {
         let q = vec![0.10f32; EMBEDDING_DIM];
 
         // Initially under Matter A. (VG-6e: resolve real paths via path_enc.)
-        let before = nearest(&table, &q, 10, Some("matter_a"), false).await.unwrap();
+        let before = nearest(&table, &q, 10, Some("matter_a"), false, &[]).await.unwrap();
         assert!(before.iter().any(|h| stored_path(h) == "mail:movable"));
 
         // Re-tag to Matter B in place (VG-6e: the retag takes the plaintext
@@ -2456,9 +2517,9 @@ mod tests {
         assert_eq!(updated, 1, "exactly one chunk re-tagged");
 
         // Now it is gone from Matter A and present under Matter B.
-        let after_a = nearest(&table, &q, 10, Some("matter_a"), false).await.unwrap();
+        let after_a = nearest(&table, &q, 10, Some("matter_a"), false, &[]).await.unwrap();
         assert!(!after_a.iter().any(|h| stored_path(h) == "mail:movable"), "must leave Matter A after re-tag");
-        let after_b = nearest(&table, &q, 10, Some("matter_b"), false).await.unwrap();
+        let after_b = nearest(&table, &q, 10, Some("matter_b"), false, &[]).await.unwrap();
         assert!(after_b.iter().any(|h| stored_path(h) == "mail:movable"), "must appear under Matter B after re-tag");
     }
 
@@ -2543,7 +2604,7 @@ mod tests {
         upsert_chunks_for_path(&table, path, mk_rows("v2"), SourceType::Text, "matter_a", PRIVILEGE_NONE, &TEST_KEY)
             .await
             .expect("second upsert");
-        let hits = nearest(&table, &q, 10, Some("matter_a"), false).await.unwrap();
+        let hits = nearest(&table, &q, 10, Some("matter_a"), false, &[]).await.unwrap();
         assert_eq!(hits.len(), 1, "re-upsert must replace, not duplicate");
         assert_eq!(stored_path(&hits[0]), path);
 
@@ -2556,12 +2617,12 @@ mod tests {
             .await
             .expect("retag matter");
         assert_eq!(n, 1, "retag_matter_for_path must hit the tokenized row");
-        let moved = nearest(&table, &q, 10, Some("matter_b"), true).await.unwrap();
+        let moved = nearest(&table, &q, 10, Some("matter_b"), true, &[]).await.unwrap();
         assert!(moved.iter().any(|h| stored_path(h) == path));
 
         // delete_path drops the rows through the tokenized predicate.
         delete_path(&table, path, &TEST_KEY).await.expect("delete");
-        let gone = nearest(&table, &q, 10, Some("matter_b"), true).await.unwrap();
+        let gone = nearest(&table, &q, 10, Some("matter_b"), true, &[]).await.unwrap();
         assert!(gone.is_empty(), "delete_path must remove the tokenized rows");
     }
 
@@ -2597,7 +2658,7 @@ mod tests {
 
         // Read path first: the real path comes back via path_enc...
         let q = vec![0.10f32; EMBEDDING_DIM];
-        let hits = nearest(&table, &q, 5, Some("matter_a"), false).await.unwrap();
+        let hits = nearest(&table, &q, 5, Some("matter_a"), false, &[]).await.unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(stored_path(&hits[0]), secret_path);
         // ...while the raw queryable columns are opaque tokens.
