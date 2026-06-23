@@ -87,6 +87,11 @@ interface ProfessionOption {
 
 const PROFESSION_OPTIONS: ProfessionOption[] = [
   {
+    id: 'advisor',
+    heading: 'Financial advisor / wealth',
+    description: 'RIAs, wealth managers, and financial planners. Comes with the Financial Advisory template pack.',
+  },
+  {
     id: 'legal',
     heading: 'Legal practice',
     description: 'Attorneys, paralegals, and legal professionals. Comes with the Legal Practice template pack.',

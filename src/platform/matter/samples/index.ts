@@ -23,6 +23,9 @@ import weeklyReview from './Sample - Weekly Review.md?raw';
 import matterOverview from './Sample - Matter Overview.md?raw';
 import clientResearchNote from './Sample - Client Research Note.md?raw';
 import engagementSummary from './Sample - Engagement Summary.md?raw';
+import householdOverview from './Sample - Household Overview.md?raw';
+import meetingNotes from './Sample - Meeting Notes.md?raw';
+import planSummary from './Sample - Plan Summary.md?raw';
 
 export type OnboardingProfession = 'legal' | 'tax' | 'consulting' | 'advisor' | 'other';
 
@@ -62,6 +65,21 @@ const CONSULTING_PRIMARY: SampleFile = {
   content: engagementSummary,
 };
 
+const ADVISOR_OVERVIEW: SampleFile = {
+  filename: 'Sample - Household Overview.md',
+  content: householdOverview,
+};
+
+const ADVISOR_MEETING: SampleFile = {
+  filename: 'Sample - Meeting Notes.md',
+  content: meetingNotes,
+};
+
+const ADVISOR_PLAN: SampleFile = {
+  filename: 'Sample - Plan Summary.md',
+  content: planSummary,
+};
+
 const WEEKLY_REVIEW_SAMPLE: SampleFile = {
   filename: 'Sample - Weekly Review.md',
   content: weeklyReview,
@@ -70,6 +88,7 @@ const WEEKLY_REVIEW_SAMPLE: SampleFile = {
 /**
  * Return the ordered list of sample files to seed for the given profession.
  *
+ * - advisor: Household Overview + Meeting Notes + Plan Summary
  * - legal: Matter Overview (primary) + Weekly Review
  * - tax: Client Research Note (primary) + Weekly Review
  * - consulting: Engagement Summary (primary) + Weekly Review
@@ -77,6 +96,8 @@ const WEEKLY_REVIEW_SAMPLE: SampleFile = {
  */
 export function getSamplesForProfession(profession: OnboardingProfession): SampleFile[] {
   switch (profession) {
+    case 'advisor':
+      return [ADVISOR_OVERVIEW, ADVISOR_MEETING, ADVISOR_PLAN];
     case 'legal':
       return [LEGAL_PRIMARY, WEEKLY_REVIEW_SAMPLE];
     case 'tax':
