@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Private client intelligence for high-trust work | Keepance</title>
-  <meta name="description" content="Keepance is a secure AI workspace that turns your files, emails, notes, and interviews into a living Client Map. Ask cited questions, draft documents and replies, keep your team aligned, and serve clients with the context they expect you to remember.">
+  <title>Secure client intelligence for high-trust work | Keepance</title>
+  <meta name="description" content="Keepance is a private AI workspace that turns your files, emails, notes, and interviews into a living Client Map. Ask cited questions, draft documents and replies, keep your team aligned, and serve clients with the context they expect you to remember.">
   <link rel="canonical" href="https://keepance.com/">
   <meta name="robots" content="index, follow">
   <meta name="author" content="Jameson Daines">
@@ -18,7 +18,7 @@
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://keepance.com/">
-  <meta property="og:title" content="Private client intelligence for high-trust work | Keepance">
+  <meta property="og:title" content="Secure client intelligence for high-trust work | Keepance">
   <meta property="og:description" content="Keepance turns your files, emails, notes, and interviews into a living Client Map. Ask cited questions, draft documents, keep your team aligned, and serve clients with the context they expect you to remember.">
   <meta property="og:site_name" content="Keepance">
   <meta property="og:image" content="https://keepance.com/og-image.png">
@@ -27,13 +27,13 @@
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Keepance: private client intelligence for high-trust work">
+  <meta name="twitter:title" content="Keepance: secure client intelligence for high-trust work">
   <meta name="twitter:description" content="Keepance turns your files, emails, notes, and interviews into a living Client Map. Ask cited questions, draft documents, and serve clients with the context they expect you to remember.">
   <meta name="twitter:image" content="https://keepance.com/og-image.png">
 
   <!-- JSON-LD -->
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Keepance","operatingSystem":"Windows, macOS, Linux","applicationCategory":"BusinessApplication","url":"https://keepance.com","description":"Keepance is a secure AI workspace and private client intelligence layer for high-trust work. It turns your files, emails, notes, and interviews into a living Client Map, answers questions with citations you can verify, drafts in real Word, keeps your files on your own computer, and shows where every AI request goes. Bring your own AI key.","creator":{"@type":"Person","name":"Jameson Daines","url":"https://jamesondaines.com"},"offers":[{"@type":"Offer","name":"Solo","price":"468","priceCurrency":"USD","priceSpecification":{"@type":"UnitPriceSpecification","price":"468","priceCurrency":"USD","unitText":"per seat per year"}},{"@type":"Offer","name":"Professional","price":"948","priceCurrency":"USD","priceSpecification":{"@type":"UnitPriceSpecification","price":"948","priceCurrency":"USD","unitText":"per seat per year"}},{"@type":"Offer","name":"Firm","price":"1548","priceCurrency":"USD","priceSpecification":{"@type":"UnitPriceSpecification","price":"1548","priceCurrency":"USD","unitText":"per seat per year"}}]}
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Keepance","operatingSystem":"Windows, macOS, Linux","applicationCategory":"BusinessApplication","url":"https://keepance.com","description":"Keepance is a private AI workspace and secure client intelligence layer for high-trust work. It turns your files, emails, notes, and interviews into a living Client Map, answers questions with citations you can verify, drafts in real Word, keeps your files on your own computer, and shows where every AI request goes. Bring your own AI key.","creator":{"@type":"Person","name":"Jameson Daines","url":"https://jamesondaines.com"},"offers":[{"@type":"Offer","name":"Solo","price":"468","priceCurrency":"USD","priceSpecification":{"@type":"UnitPriceSpecification","price":"468","priceCurrency":"USD","unitText":"per seat per year"}},{"@type":"Offer","name":"Professional","price":"948","priceCurrency":"USD","priceSpecification":{"@type":"UnitPriceSpecification","price":"948","priceCurrency":"USD","unitText":"per seat per year"}},{"@type":"Offer","name":"Firm","price":"1548","priceCurrency":"USD","priceSpecification":{"@type":"UnitPriceSpecification","price":"1548","priceCurrency":"USD","unitText":"per seat per year"}}]}
   </script>
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"Organization","name":"Keepance","url":"https://keepance.com","founder":{"@type":"Person","name":"Jameson Daines","url":"https://jamesondaines.com"}}
@@ -319,6 +319,28 @@
     .client-map-num { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--grad-pink); margin-bottom: 10px; }
     .client-map-card h3 { font-size: 1rem; font-weight: 700; color: var(--white); margin-bottom: 8px; }
     .client-map-card p { font-size: 13.5px; color: var(--text-muted-dark); line-height: 1.6; margin: 0; }
+
+    /* Client Map animated stage (live GSAP) */
+    .cm-stage { position: relative; width: 100%; max-width: 1040px; margin: 14px auto 0; aspect-ratio: 1000 / 600; }
+    .cm-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+    .cm-link { stroke: url(#cmLineG); stroke-width: 2; fill: none; stroke-dasharray: 2 11; stroke-linecap: round; }
+    .cm-hub-pos, .cm-node-pos { position: absolute; transform: translate(-50%, -50%); }
+    .cm-hub { position: relative; display: flex; align-items: center; justify-content: center; }
+    .cm-ring { position: absolute; left: 50%; top: 50%; width: 138px; height: 138px; margin: -69px 0 0 -69px; border-radius: 50%; border: 1.5px solid var(--grad-blue); opacity: 0; pointer-events: none; }
+    .cm-hub-core { position: relative; width: 138px; height: 138px; border-radius: 50%; background: radial-gradient(circle at 35% 28%, rgba(255,60,232,0.28), rgba(10,37,64,0.92)); border: 1.5px solid rgba(255,255,255,0.18); box-shadow: 0 0 50px rgba(93,198,255,0.28); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .cm-hub-avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue)); color: #fff; font-weight: 800; font-size: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 9px; }
+    .cm-hub-name { font-size: 13px; font-weight: 700; color: #fff; }
+    .cm-hub-meta { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--grad-blue); margin-top: 4px; }
+    .cm-node { width: 212px; background: rgba(13,40,68,0.86); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 13px 16px; box-shadow: 0 12px 32px rgba(0,0,0,0.32); }
+    .cm-node-head { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 700; color: #fff; margin-bottom: 5px; }
+    .cm-dot { width: 7px; height: 7px; border-radius: 50%; background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue)); flex-shrink: 0; box-shadow: 0 0 8px rgba(93,198,255,0.75); }
+    .cm-node-detail { font-size: 12px; color: var(--text-muted-dark); line-height: 1.5; }
+    .cm-stack { display: none; }
+    @media (max-width: 900px) {
+      .cm-stage { display: none; }
+      .cm-stack { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 640px; margin: 0 auto; }
+    }
+    @media (max-width: 520px) { .cm-stack { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -358,9 +380,9 @@
       <div class="container hero-inner">
 
         <div class="hero-copy">
-          <h1>Private <em>client intelligence</em> for<br>high-trust work.</h1>
+          <h1>Secure <em>client intelligence</em> for<br>high-trust work.</h1>
           <p class="hero-sub">
-            Keepance is a secure AI workspace that turns your files, emails, notes, and interviews into <strong>a living Client Map</strong>. Ask cited questions, draft documents and replies, keep your team aligned, and serve clients with the context they expect you to remember.
+            Keepance is a private AI workspace that turns your files, emails, notes, and interviews into <strong>a living Client Map</strong>. Ask cited questions, draft documents and replies, keep your team aligned, and serve clients with the context they expect you to remember.
           </p>
           <div class="hero-ctas">
             <a href="/download/" class="btn btn-primary">Start your free trial</a>
@@ -434,33 +456,58 @@
           <h2 style="color:var(--white);">The Client Map</h2>
           <p style="color:var(--text-muted-dark);">A Client Map is a living profile built from the materials you already have: files, emails, notes, intake forms, meeting summaries, and guided interviews. It captures what matters, what changed, what is missing, and where each detail came from.</p>
         </div>
-        <div class="client-map-grid">
-          <div class="client-map-card">
-            <div class="client-map-num">01</div>
-            <h3>People &amp; relationships</h3>
-            <p>Know the family members, companies, decision-makers, beneficiaries, opposing parties, advisors, and other people who shape the work.</p>
+        <div class="cm-stage" id="cmStage" aria-hidden="true">
+          <svg class="cm-links" viewBox="0 0 1000 600" preserveAspectRatio="none">
+            <defs><linearGradient id="cmLineG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF3CE8"/><stop offset="1" stop-color="#5DC6FF"/></linearGradient></defs>
+            <path class="cm-link" d="M500 300 L500 66"/>
+            <path class="cm-link" d="M500 300 L845 228"/>
+            <path class="cm-link" d="M500 300 L710 516"/>
+            <path class="cm-link" d="M500 300 L290 516"/>
+            <path class="cm-link" d="M500 300 L155 228"/>
+          </svg>
+          <div class="cm-hub-pos" style="left:50%;top:50%">
+            <div class="cm-hub">
+              <span class="cm-ring"></span><span class="cm-ring"></span>
+              <div class="cm-hub-core">
+                <div class="cm-hub-avatar">AS</div>
+                <div class="cm-hub-name">Smith household</div>
+                <div class="cm-hub-meta">living map</div>
+              </div>
+            </div>
           </div>
-          <div class="client-map-card">
-            <div class="client-map-num">02</div>
-            <h3>History &amp; timeline</h3>
-            <p>See what happened, when it happened, who said it, and which document or email proves it.</p>
-          </div>
-          <div class="client-map-card">
-            <div class="client-map-num">03</div>
-            <h3>Goals &amp; preferences</h3>
-            <p>Remember what the client cares about, how they like to communicate, what they worry about, and what good service means to them.</p>
-          </div>
-          <div class="client-map-card">
-            <div class="client-map-num">04</div>
-            <h3>Risks &amp; open questions</h3>
-            <p>See contradictions, missing details, incomplete intake, unsigned documents, stale information, and issues worth reviewing.</p>
-          </div>
-          <div class="client-map-card">
-            <div class="client-map-num">05</div>
-            <h3>Firm context</h3>
-            <p>Apply your firm's philosophy, preferred language, templates, tone, and review standards across client work.</p>
-          </div>
+          <div class="cm-node-pos" style="left:50%;top:11%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>People &amp; relationships</div><div class="cm-node-detail">Allison &amp; David &middot; 2 children &middot; family trustee</div></div></div>
+          <div class="cm-node-pos" style="left:84.5%;top:38%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>History &amp; timeline</div><div class="cm-node-detail">Client since 2019 &middot; estate amended Mar 2026</div></div></div>
+          <div class="cm-node-pos" style="left:71%;top:86%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Goals &amp; preferences</div><div class="cm-node-detail">Prefers email &middot; risk-averse &middot; college funding</div></div></div>
+          <div class="cm-node-pos" style="left:29%;top:86%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Risks &amp; open questions</div><div class="cm-node-detail">Beneficiary form unsigned &middot; address out of date</div></div></div>
+          <div class="cm-node-pos" style="left:15.5%;top:38%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Firm context</div><div class="cm-node-detail">House style &middot; plain-language memos &middot; two-reviewer rule</div></div></div>
         </div>
+        <div class="cm-stack">
+          <div class="client-map-card"><div class="client-map-num">01</div><h3>People &amp; relationships</h3><p>The people who shape the work: family, decision-makers, beneficiaries, opposing parties, and advisors.</p></div>
+          <div class="client-map-card"><div class="client-map-num">02</div><h3>History &amp; timeline</h3><p>What happened, when, who said it, and which document or email proves it.</p></div>
+          <div class="client-map-card"><div class="client-map-num">03</div><h3>Goals &amp; preferences</h3><p>What the client cares about, how they like to communicate, and what good service means to them.</p></div>
+          <div class="client-map-card"><div class="client-map-num">04</div><h3>Risks &amp; open questions</h3><p>Contradictions, missing details, unsigned documents, stale information, and issues worth reviewing.</p></div>
+          <div class="client-map-card"><div class="client-map-num">05</div><h3>Firm context</h3><p>Your firm's preferred language, templates, tone, and review standards, applied across client work.</p></div>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+        <script>
+          (function(){
+            function runCM(){
+              if(!window.gsap||!document.getElementById('cmStage')) return;
+              gsap.set('.cm-hub',{autoAlpha:0,scale:0.78});
+              gsap.set('.cm-node',{autoAlpha:0,scale:0.9,y:10});
+              gsap.set('.cm-link',{opacity:0});
+              var tl=gsap.timeline();
+              tl.to('.cm-hub',{autoAlpha:1,scale:1,duration:0.7,ease:'back.out(1.7)'},0.15)
+                .to('.cm-link',{opacity:0.9,duration:0.6,stagger:0.07,ease:'power2.out'},0.55)
+                .to('.cm-node',{autoAlpha:1,scale:1,y:0,duration:0.55,stagger:0.1,ease:'back.out(1.5)'},0.78);
+              gsap.to('.cm-link',{strokeDashoffset:'-=13',duration:0.9,ease:'none',repeat:-1});
+              gsap.to('.cm-node',{y:'-=7',duration:3.2,ease:'sine.inOut',repeat:-1,yoyo:true,stagger:{each:0.5,from:'random'}});
+              gsap.fromTo('.cm-ring',{scale:1,opacity:0.55},{scale:1.65,opacity:0,duration:2.6,ease:'sine.out',repeat:-1,stagger:1.3});
+              setTimeout(function(){try{tl.progress(1);gsap.set('.cm-hub,.cm-node',{autoAlpha:1,scale:1,y:0});gsap.set('.cm-link',{opacity:0.9});}catch(e){}},3600);
+            }
+            if(document.fonts&&document.fonts.ready){document.fonts.ready.then(runCM);}else{window.addEventListener('load',runCM);}
+          })();
+        </script>
         <p style="text-align:center;margin-top:40px;font-size:1rem;color:var(--text-on-dark);font-weight:400;max-width:620px;margin-left:auto;margin-right:auto;">The result is shared client memory your team can actually use.</p>
       </div>
     </section>
@@ -472,7 +519,7 @@
         <!-- Ask cited questions -->
         <div class="feature-row">
           <div class="feature-text">
-            <h2>Ask questions across the full client file.</h2>
+            <h2>Ask about anything.</h2>
             <p>Search makes you remember the file name. Keepance lets you ask the question you actually have: what did the client agree to, when did they first mention the issue, what are the open questions before the next meeting. Every answer includes citations, so you can open the exact email, document, page, or note and verify it yourself.</p>
             <ul class="feature-list">
               <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Search across imported files, emails, notes, and interviews</li>
@@ -603,7 +650,7 @@
     <section style="background:var(--white);border-top:1px solid var(--border);padding:96px 0;" id="your-data">
       <div class="container">
         <div class="section-header">
-          <h2>Privacy explained simply</h2>
+          <h2>Best-in-class security</h2>
           <p>Keepance shows where your data lives, where each AI request goes, and which mode you are using before you run it. Your files live in folders you control, and every AI action shows where the request is going before it runs.</p>
         </div>
         <div style="max-width:960px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:20px;">
