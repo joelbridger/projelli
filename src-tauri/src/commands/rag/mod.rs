@@ -482,13 +482,15 @@ async fn purge_stale_rows_on_skip(
 /// set and on disk) so retrieval and verification exclude its stale rows even
 /// after an app restart. Best-effort disk write: a failed persist is logged but
 /// never aborts indexing (the in-memory exclusion still applies this session).
+///
+/// CONCURRENCY: the disk write happens WHILE the set lock is held, so a
+/// concurrent tombstone/clear cannot interleave and persist a stale snapshot
+/// (the durable file always reflects the latest serialized mutation). The lock
+/// is the workspace-walk mutex's finer-grained sibling; the write is small.
 async fn tombstone_path(state: &RagState, workspace: &Path, path: &str) {
-    let snapshot = {
-        let mut guard = state.unsafe_paths.lock().await;
-        guard.insert(path.to_string());
-        guard.clone()
-    };
-    if let Err(e) = store::write_unsafe_paths(workspace, &snapshot) {
+    let mut guard = state.unsafe_paths.lock().await;
+    guard.insert(path.to_string());
+    if let Err(e) = store::write_unsafe_paths(workspace, &guard) {
         log::error!("rag: failed to persist unsafe-paths tombstone for {path}: {e:#}");
     }
 }
@@ -496,15 +498,16 @@ async fn tombstone_path(state: &RagState, workspace: &Path, path: &str) {
 /// BUG-099 durable tombstone — clear `path` from the unsafe set (in memory and
 /// on disk) after a clean re-index. No-op (and no disk write) when the path was
 /// not tombstoned, so the happy path never touches the file.
+///
+/// CONCURRENCY: as with `tombstone_path`, the disk write is performed under the
+/// set lock so memory and disk are updated atomically with respect to other
+/// tombstone/clear calls — no out-of-order persistence across a restart.
 async fn clear_tombstone(state: &RagState, workspace: &Path, path: &str) {
-    let snapshot = {
-        let mut guard = state.unsafe_paths.lock().await;
-        if !guard.remove(path) {
-            return; // not tombstoned — nothing to persist.
-        }
-        guard.clone()
-    };
-    if let Err(e) = store::write_unsafe_paths(workspace, &snapshot) {
+    let mut guard = state.unsafe_paths.lock().await;
+    if !guard.remove(path) {
+        return; // not tombstoned — nothing to persist.
+    }
+    if let Err(e) = store::write_unsafe_paths(workspace, &guard) {
         log::error!("rag: failed to persist cleared tombstone for {path}: {e:#}");
     }
 }

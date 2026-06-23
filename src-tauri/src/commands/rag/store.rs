@@ -1452,15 +1452,21 @@ fn unsafe_paths_path(workspace_root: &Path) -> PathBuf {
 }
 
 /// BUG-099: load the durable tombstone set (plaintext paths) for a workspace.
-/// Returns an empty set when the file is absent (the healthy default). Blank
-/// lines are ignored. Used to re-hydrate `RagState::unsafe_paths` on workspace
-/// open so the fail-closed exclusion survives a restart.
+/// Returns an empty set when the file is absent (the healthy default). Used to
+/// re-hydrate `RagState::unsafe_paths` on workspace open so the fail-closed
+/// exclusion survives a restart.
+///
+/// We strip ONLY the line terminator (`\n` / trailing `\r`), never interior or
+/// edge spaces, because a real path may legitimately contain leading/trailing
+/// spaces (macOS/Linux allow them); trimming them would change the recomputed
+/// HMAC token so it no longer matches the stored rows, silently un-hiding the
+/// stale rows after a restart. Empty lines are still skipped.
 pub fn read_unsafe_paths(workspace_root: &Path) -> HashSet<String> {
     std::fs::read_to_string(unsafe_paths_path(workspace_root))
         .ok()
         .map(|s| {
-            s.lines()
-                .map(|l| l.trim())
+            s.split('\n')
+                .map(|l| l.strip_suffix('\r').unwrap_or(l))
                 .filter(|l| !l.is_empty())
                 .map(|l| l.to_string())
                 .collect()
@@ -1613,6 +1619,32 @@ mod tests {
             read_unsafe_paths(root).is_empty(),
             "an emptied tombstone file must read back as empty"
         );
+    }
+
+    /// BUG-099 durable tombstone: a path with leading/trailing spaces (legal on
+    /// macOS/Linux) must round-trip EXACTLY. Trimming it would change the
+    /// recomputed HMAC token so it no longer matches the stored rows, silently
+    /// un-hiding the stale rows after a restart — a fail-OPEN regression.
+    #[test]
+    fn unsafe_paths_preserve_edge_whitespace_in_paths() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+
+        let mut set = HashSet::new();
+        set.insert("/w/ leading-space.txt".to_string());
+        set.insert("/w/trailing-space .txt".to_string());
+        write_unsafe_paths(root, &set).expect("write");
+
+        let loaded = read_unsafe_paths(root);
+        assert!(
+            loaded.contains("/w/ leading-space.txt"),
+            "leading space must survive the round-trip; got {loaded:?}"
+        );
+        assert!(
+            loaded.contains("/w/trailing-space .txt"),
+            "trailing space must survive the round-trip; got {loaded:?}"
+        );
+        assert_eq!(loaded.len(), 2);
     }
 
     #[test]

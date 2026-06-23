@@ -540,20 +540,37 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
     // `include_privileged = false` here, and there is intentionally NO way for an
     // MCP client to flip it — the "include privileged" capability is an in-app,
     // user-initiated decision only.
+    // BUG-099 tombstone: the MCP sidecar is a SEPARATE process from the GUI, so
+    // it cannot see the GUI's in-memory `RagState::unsafe_paths`. But the
+    // tombstone is also persisted DURABLY to `.unsafe_paths` under the workspace
+    // vectors dir, so the sidecar reads it from disk and applies the SAME
+    // fail-closed exclusion: a path whose cleanup delete failed has its stale
+    // rows hidden from external MCP clients too, not just GUI retrieval. The set
+    // holds plaintext paths; we convert each to its at-rest HMAC token (the value
+    // stored in the `path` column) so the exclusion can run as a SQL prefilter.
+    let vec_key = crypto::get_or_create_master_key().ok();
+    let tombstoned_tokens: Vec<String> = match &vec_key {
+        Some(k) => store::read_unsafe_paths(&ctx.workspace_root)
+            .iter()
+            .map(|p| crypto::path_token(k, p))
+            .collect(),
+        None => Vec::new(),
+    };
+
     let mut raw = Vec::new();
     for matter_id in &allowed_ids {
-        // BUG-099 tombstone: the MCP sidecar is a separate process from the GUI
-        // and does not have access to the GUI's in-memory `RagState::unsafe_paths`.
-        // We pass an empty tombstone slice here (no exclusion in the MCP path).
-        // This is an acceptable narrow gap: PurgeFailed in the GUI tombstones
-        // for all GUI retrieval; MCP retrieval operates as a separate process
-        // and re-indexes on restart, which clears any lingering stale rows.
-        // A process-level tombstone store is deferred to a future hardening pass.
-        let mut hits = store::nearest(&table, &qvec, top_k, Some(matter_id), false, &[])
-            .await
-            .map_err(|e| {
-                audited_internal_error(ctx, "mcp_search", None, matter_id, format!("nearest: {e}"))
-            })?;
+        let mut hits = store::nearest(
+            &table,
+            &qvec,
+            top_k,
+            Some(matter_id),
+            false,
+            &tombstoned_tokens,
+        )
+        .await
+        .map_err(|e| {
+            audited_internal_error(ctx, "mcp_search", None, matter_id, format!("nearest: {e}"))
+        })?;
         raw.append(&mut hits);
     }
     raw.sort_by(|a, b| a.distance.total_cmp(&b.distance));
@@ -564,7 +581,9 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
     // MCP client, recover its real source path and run the same live path
     // decision used by read/list. Mail and any source without a verifiable file
     // path are dropped until they have a separate matter-safe verifier.
-    let enc_key = crypto::get_or_create_master_key().ok();
+    // Reuse the vector master key fetched above (same key) to avoid a second
+    // keychain round-trip.
+    let enc_key = vec_key;
     let mut verified = Vec::with_capacity(top_k);
     let mut dropped_count = 0usize;
     for hit in raw {
