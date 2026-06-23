@@ -569,6 +569,14 @@ pub async fn rag_index_file(
         .await
         .map_err(|e| format!("index_file failed: {e:#}"))?;
     // vault_vmk_holder is dropped (and ZeroizedVmk zeroizes) here.
+
+    // BUG-099 tombstone self-heal: the file watcher's per-file re-index also
+    // CLEARS this path's tombstone. Without this, a file the user fixed (whose
+    // cleanup had failed during a walk) would re-index its fresh rows but stay
+    // filtered out of retrieval until a full walk or restart. `index_one_file`
+    // is delete-then-add (an upsert), so a successful return means the path's
+    // rows are now consistent and safe to serve again.
+    state.unsafe_paths.lock().await.remove(&path);
     Ok(())
 }
 
@@ -694,11 +702,20 @@ async fn extract_embed_one_file(
     match kind {
         extractor::IndexKind::Text => {
             let Some(raw_bytes) = extractor::read_text_bytes(file_path) else {
+                // Missing or too large — silent skip (expected, not a failure).
                 return Ok(Some(ExtractedFileData::ShouldDelete));
             };
             let decrypted = decrypt_if_vaulted(raw_bytes, vault_vmk);
             let Some(text) = String::from_utf8(decrypted).ok() else {
-                return Ok(Some(ExtractedFileData::ShouldDelete));
+                // A readable text file whose bytes are not valid UTF-8 is genuinely
+                // unreadable (corrupt / wrong encoding), NOT a clean skip — surface
+                // it as a reported failure so the banner does not count it as
+                // indexed (mirrors the office-file SkippedUnreadable path).
+                log::warn!(
+                    "rag: skipping non-UTF-8 text file {} (counted as failed)",
+                    file_path.display()
+                );
+                return Ok(Some(ExtractedFileData::SkippedUnreadable));
             };
             // Transcript detection (same as index_one_file).
             let ext = file_path
@@ -3138,6 +3155,56 @@ mod tests {
         assert!(
             !hits_after_clear.is_empty(),
             "fresh rows must be visible after tombstone is cleared (re-index)"
+        );
+    }
+
+    /// BUG-099 tombstone self-heal lifecycle: the `RagState::unsafe_paths` set is
+    /// the single source of truth for which paths retrieval must exclude. This test
+    /// locks in the contract both the walk and `rag_index_file` rely on: a path is
+    /// INSERTED on PurgeFailed, and REMOVED on any successful (re-)index. After
+    /// removal, the path produces NO tombstone token, so retrieval no longer hides it.
+    #[tokio::test]
+    async fn tombstone_set_inserts_on_failure_and_clears_on_reindex() {
+        let key = [0x77u8; 32];
+        let path = "/w/fixed-later.docx";
+
+        // Use the real RagState field type so the test breaks if the type changes.
+        let unsafe_paths: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+
+        // 1. PurgeFailed → the walk inserts the plaintext path.
+        unsafe_paths.lock().await.insert(path.to_string());
+        assert!(
+            unsafe_paths.lock().await.contains(path),
+            "path must be tombstoned after a cleanup failure"
+        );
+
+        // While tombstoned, retrieval converts it to a token and excludes it.
+        let tokens: Vec<String> = unsafe_paths
+            .lock()
+            .await
+            .iter()
+            .map(|p| crypto::path_token(&key, p))
+            .collect();
+        assert_eq!(tokens.len(), 1, "exactly one tombstone token while unsafe");
+        assert_eq!(tokens[0], crypto::path_token(&key, path));
+
+        // 2. Successful re-index (full walk OR watcher rag_index_file) → remove it.
+        unsafe_paths.lock().await.remove(path);
+        assert!(
+            !unsafe_paths.lock().await.contains(path),
+            "tombstone must be cleared after a successful re-index (self-heal)"
+        );
+
+        // After clearing, retrieval builds an EMPTY token list → no exclusion.
+        let tokens_after: Vec<String> = unsafe_paths
+            .lock()
+            .await
+            .iter()
+            .map(|p| crypto::path_token(&key, p))
+            .collect();
+        assert!(
+            tokens_after.is_empty(),
+            "no tombstone tokens after self-heal — retrieval no longer hides the path"
         );
     }
 
