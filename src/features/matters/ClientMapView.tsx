@@ -1,7 +1,8 @@
 // src/features/matters/ClientMapView.tsx
-import { Card, Eyebrow, Chip } from '@/ui/kp';
+import { Card, Eyebrow, Chip, Button } from '@/ui/kp';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
 import type { ClientMap, ClientMapItem, SourceRef, CompletenessLevel } from '@/platform/clientMap/types';
+import { answerQuestion, flagForClient } from '@/platform/clientMap/guidedInterview';
 
 const LEVEL_LABEL: Record<CompletenessLevel, string> = {
   thin: 'Thin',
@@ -46,14 +47,21 @@ function Item({
   );
 }
 
+const LABEL_I_KNOW = 'I know this';
+const LABEL_ASK_CLIENT = 'Ask the client';
+
 export function ClientMapView({
   map,
   onOpenSource,
   onEditItem,
+  onAnswerQuestion,
+  onFlagForClient,
 }: {
   map: ClientMap;
   onOpenSource: (r: SourceRef) => void;
   onEditItem: (sectionKey: string, itemId: string) => void;
+  onAnswerQuestion?: (question: string) => void;
+  onFlagForClient?: (question: string) => void;
 }) {
   const c = map.completeness;
   return (
@@ -157,7 +165,35 @@ export function ClientMapView({
         <ul>
           {c.ask.map((q, i) => (
             <li key={i} data-testid="clientmap-ask">
-              {q}
+              <span>{q}</span>
+              <Button
+                data-testid="clientmap-ask-know"
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  if (onAnswerQuestion) {
+                    onAnswerQuestion(q);
+                  } else {
+                    answerQuestion(map.matterId, 'standing', q);
+                  }
+                }}
+              >
+                {LABEL_I_KNOW}
+              </Button>
+              <Button
+                data-testid="clientmap-ask-flag"
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  if (onFlagForClient) {
+                    onFlagForClient(q);
+                  } else {
+                    flagForClient(map.matterId, q);
+                  }
+                }}
+              >
+                {LABEL_ASK_CLIENT}
+              </Button>
             </li>
           ))}
         </ul>
