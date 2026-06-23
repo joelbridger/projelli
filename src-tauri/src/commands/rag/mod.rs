@@ -1717,19 +1717,28 @@ pub async fn rag_index_workspace(
         // the current in-memory set so it is known-good and READABLE, then clear
         // any prior integrity-unknown flag — retrieval can serve again. If even
         // this rewrite fails, leave the flag set and skip the completion marker.
-        let snapshot = state.unsafe_tokens.lock().await.clone();
-        match store::write_unsafe_tokens(&workspace, &snapshot) {
+        //
+        // CONCURRENCY (critical): hold the unsafe-tokens lock ACROSS the durable
+        // write so a watcher-triggered `rag_index_file` cannot tombstone a new
+        // path between a snapshot and this write — which would let this stale
+        // snapshot overwrite the watcher's fresh token and then wrongly clear the
+        // sentinel + stamp completion (re-exposing stale rows after restart/MCP).
+        // Same lock `tombstone_path`/`clear_tombstone` use, so they serialize.
+        let guard = state.unsafe_tokens.lock().await;
+        match store::write_unsafe_tokens(&workspace, &guard) {
             Ok(()) => {
-                // Known-good durable tombstone written → safe to clear BOTH the
-                // in-process flag and the durable cross-process sentinel, so the
-                // GUI and the MCP sidecar can serve again.
+                // Known-good durable tombstone written (under the lock, so it
+                // reflects every concurrent mutation up to now) → safe to clear
+                // BOTH the in-process flag and the durable cross-process sentinel.
                 store::clear_integrity_unknown(&workspace);
                 state.index_integrity_unknown.store(false, Ordering::SeqCst);
+                drop(guard);
                 if let Err(e) = store::write_index_version(&workspace) {
                     log::warn!("rag: failed to write index version marker: {}", e);
                 }
             }
             Err(e) => {
+                drop(guard);
                 log::error!(
                     "rag_index_workspace: could not rewrite the durable tombstone \
                      file after a clean walk ({e:#}); leaving integrity flag set and \
