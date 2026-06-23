@@ -1319,6 +1319,18 @@
       "privileged-confirm-body": "Das Teilen aktiviert die verschluesselte Internetsynchronisierung fuer dieses privilegierte Mandat, damit Kollegen zusammenarbeiten koennen. Der Relay speichert nur verschluesselte Daten, die er nicht lesen kann. Fortfahren?",
       "privileged-confirm-cancel": "Privat behalten",
       "privileged-confirm-accept": "Teilen"
+    },
+    "bridge": {
+      "heading": "Keepance mit Ihrer Kanzlei nutzen",
+      "intro": "Waehlen Sie, wie Sie in eine Kanzlei einsteigen moechten. Danach koennen Sie Ihre vorhandenen Mandate uebertragen und fuer jedes entscheiden, ob es privat bleibt oder mit Kollegen geteilt wird.",
+      "door-create-title": "Kanzlei gruenden",
+      "door-create-body": "Sie werden Administrator und der erste Platz. Laden Sie Kollegen ein, teilen Sie Mandate, richten Sie Single Sign-on und die Kanzleisicherheit ein.",
+      "door-join-title": "Kanzlei beitreten",
+      "door-join-body": "Melden Sie sich bei einer bestehenden Kanzlei an und beanspruchen Sie Ihren Platz. Ein Administrator richtet Sie zuerst ein.",
+      "back": "Zurueck",
+      "create-paid-note": "Der Kanzleiplan ist ein kostenpflichtiger Plan, getrennt von Ihrer Einzellizenz. Holen Sie ihn hier und beanspruchen Sie dann unten Ihre Kanzlei:",
+      "create-paid-link": "Den Kanzleiplan holen",
+      "cancel": "Jetzt nicht"
     }
   },
   "media": {

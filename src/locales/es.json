@@ -1319,6 +1319,18 @@
       "privileged-confirm-body": "Compartir activa la sincronizacion cifrada por internet para este asunto privilegiado para que los colegas colaboren. El relevo solo almacena datos cifrados que no puede leer. Continuar?",
       "privileged-confirm-cancel": "Mantenerlo privado",
       "privileged-confirm-accept": "Compartirlo"
+    },
+    "bridge": {
+      "heading": "Usa Keepance con tu bufete",
+      "intro": "Elige como quieres entrar a un bufete. Luego puedes traer tus asuntos existentes y decidir para cada uno si lo mantienes privado o lo compartes con colegas.",
+      "door-create-title": "Crear un bufete",
+      "door-create-body": "Te conviertes en el administrador y el primer puesto. Invita colegas, comparte asuntos, configura el inicio de sesion unico y la seguridad del bufete.",
+      "door-join-title": "Unirse a un bufete",
+      "door-join-body": "Inicia sesion en un bufete que ya existe y reclama tu puesto. Un administrador te configura primero.",
+      "back": "Atras",
+      "create-paid-note": "El plan de bufete es un plan de pago, separado de tu licencia individual. Obtenlo aqui y luego reclama tu bufete abajo:",
+      "create-paid-link": "Obtener el plan de bufete",
+      "cancel": "Ahora no"
     }
   },
   "media": {
