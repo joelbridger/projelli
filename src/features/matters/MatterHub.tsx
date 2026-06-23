@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Briefcase, Lock, ChevronRight, Sparkles, FileText, Mail, GitBranch, Clock, ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
+import { Briefcase, Lock, ChevronRight, Sparkles, FileText, Mail, GitBranch, Clock, ArrowLeft, RefreshCw, Loader2, Map } from 'lucide-react';
 import { useMatters, useActiveMatterPrivileged, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
@@ -23,6 +23,11 @@ import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
 import { Button, IconButton, SearchField, Chip, Badge, Eyebrow, Card } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
+import { useClientMap } from '@/features/matters/useClientMap';
+import { ClientMapView } from '@/features/matters/ClientMapView';
+import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
+import type { SourceRef } from '@/platform/clientMap/types';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -52,6 +57,9 @@ function basename(p: string): string {
 // ── MatterHub ──────────────────────────────────────────────────────────────
 
 export function MatterHub({ matterId, onBack }: MatterHubProps) {
+  // ── Client Map wiring ────────────────────────────────────────────────────
+  // Declare client map hook at component top — must not be inside a condition.
+  const clientMap = useClientMap(matterId);
   const matters = useMatters();
   const matter = matters.find((m) => m.id === matterId) ?? null;
   const isPrivileged = useActiveMatterPrivileged();
@@ -160,6 +168,23 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
       }),
     );
   };
+
+  // ── Client Map handlers ──────────────────────────────────────────────────
+  const [showClientMap, setShowClientMap] = useState(false);
+
+  const handleOpenSource = useCallback((ref: SourceRef) => {
+    const surface = ref.kind === 'email' ? 'email' : 'files';
+    window.dispatchEvent(
+      new CustomEvent('keepance:matter-launch', { detail: { matterId, surface } }),
+    );
+  }, [matterId]);
+
+  const handleEditItem = useCallback((sectionKey: string, itemId: string) => {
+    const text = window.prompt('Edit item:');
+    if (text !== null && text.trim() !== '') {
+      useClientMapStore.getState().editItem(matterId, sectionKey, itemId, text.trim());
+    }
+  }, [matterId]);
 
   const handleAskSubmit = () => {
     const q = askQ.trim();
@@ -748,6 +773,121 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               <span>Matter created {formatDate(matter.createdAt)}</span>
             )}
           </div>
+        </Card>
+      </div>
+
+      {/* ── E. Client Map ──────────────────────────────────────────────── */}
+      <div
+        data-testid="hub-panel-clientmap"
+        style={{
+          padding: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-section-gap)',
+        }}
+      >
+        <Card variant="raised" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-stack-gap)' }}>
+          {/* Header row */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+            }}
+          >
+            <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Map style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
+              Client Map
+            </Eyebrow>
+            <IconButton
+              icon={ChevronRight}
+              label="Open Client Map"
+              variant="ghost"
+              size="sm"
+              data-testid="hub-panel-clientmap-open"
+              onClick={() => {
+                if (!showClientMap && clientMap.status === 'idle') {
+                  void clientMap.generate();
+                }
+                setShowClientMap((v) => !v);
+              }}
+            />
+          </div>
+
+          {/* Body — only shown when expanded */}
+          {showClientMap && (
+            <div data-testid="hub-panel-clientmap-body">
+              {/* Local-only notice */}
+              {isLocalOnlyMode() && (
+                <div
+                  data-testid="hub-clientmap-local-notice"
+                  style={{
+                    fontSize: 'var(--kp-font-xs)',
+                    color: 'var(--color-muted-foreground)',
+                    marginBottom: 6,
+                  }}
+                >
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  Running on-device only. Generation uses your local model.
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </div>
+              )}
+
+              {/* States */}
+              {(clientMap.status === 'idle' || clientMap.status === 'generating') && (
+                <div
+                  data-testid="hub-clientmap-loading"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    color: 'var(--color-muted-foreground)',
+                    fontSize: 'var(--kp-font-xs)',
+                  }}
+                >
+                  <Loader2
+                    className="animate-spin"
+                    style={{
+                      width: 'var(--kp-icon-sm)',
+                      height: 'var(--kp-icon-sm)',
+                      strokeWidth: 2,
+                    }}
+                  />
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  Building client map...
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </div>
+              )}
+
+              {clientMap.status === 'empty' && (
+                <div
+                  data-testid="hub-clientmap-empty"
+                  style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
+                >
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  No information found yet. Add documents or email to this matter first.
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </div>
+              )}
+
+              {clientMap.status === 'error' && (
+                <div
+                  data-testid="hub-clientmap-error"
+                  style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
+                >
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  Could not build client map. Check your AI connection and try again.
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </div>
+              )}
+
+              {clientMap.status === 'ready' && clientMap.map !== undefined && (
+                <ClientMapView
+                  map={clientMap.map}
+                  onOpenSource={handleOpenSource}
+                  onEditItem={handleEditItem}
+                />
+              )}
+            </div>
+          )}
         </Card>
       </div>
     </div>
