@@ -25,8 +25,11 @@ import { Button, IconButton, SearchField, Chip, Badge, Eyebrow, Card } from '@/u
 import SurfaceHeader from '@/ui/SurfaceHeader';
 import { useClientMap } from '@/features/matters/useClientMap';
 import { ClientMapView } from '@/features/matters/ClientMapView';
+import { GuidedInterview } from '@/features/matters/GuidedInterview';
+import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
 import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
+import { answerQuestion, flagForClient } from '@/platform/clientMap/guidedInterview';
 import type { SourceRef } from '@/platform/clientMap/types';
 
 // ── Props ──────────────────────────────────────────────────────────────────
@@ -53,6 +56,11 @@ function formatDate(iso: string): string {
 function basename(p: string): string {
   return p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p;
 }
+
+// ── Labels ─────────────────────────────────────────────────────────────────
+
+const LABEL_START_INTERVIEW = 'Start the guided interview';
+const LABEL_YOUR_ANSWER_PROMPT = 'Your answer to:';
 
 // ── MatterHub ──────────────────────────────────────────────────────────────
 
@@ -171,6 +179,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
 
   // ── Client Map handlers ──────────────────────────────────────────────────
   const [showClientMap, setShowClientMap] = useState(false);
+  const [showInterview, setShowInterview] = useState(false);
 
   const handleOpenSource = useCallback((ref: SourceRef) => {
     const surface = ref.kind === 'email' ? 'email' : 'files';
@@ -880,11 +889,42 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               )}
 
               {clientMap.status === 'ready' && clientMap.map !== undefined && (
-                <ClientMapView
-                  map={clientMap.map}
-                  onOpenSource={handleOpenSource}
-                  onEditItem={handleEditItem}
-                />
+                <>
+                  <div style={{ marginBottom: 8 }}>
+                    <Button
+                      type="button"
+                      data-testid="clientmap-start-interview"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => { setShowInterview((v) => !v); }}
+                    >
+                      {LABEL_START_INTERVIEW}
+                    </Button>
+                  </div>
+                  {showInterview && (
+                    <div style={{ marginBottom: 12 }}>
+                      <GuidedInterview
+                        matterId={matterId}
+                        onClose={() => { setShowInterview(false); }}
+                      />
+                    </div>
+                  )}
+                  <ClientMapView
+                    map={clientMap.map}
+                    onOpenSource={handleOpenSource}
+                    onEditItem={handleEditItem}
+                    onAnswerQuestion={(q) => {
+                      const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${q}`);
+                      if (a != null && a.trim() !== '') {
+                        answerQuestion(matterId, 'standing', a.trim());
+                      }
+                    }}
+                    onFlagForClient={(q) => { flagForClient(matterId, q); }}
+                  />
+                  <div style={{ marginTop: 12 }}>
+                    <ClientQuestionsList matterId={matterId} />
+                  </div>
+                </>
               )}
             </div>
           )}

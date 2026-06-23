@@ -2,7 +2,7 @@
 import { Card, Eyebrow, Chip, Button } from '@/ui/kp';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
 import type { ClientMap, ClientMapItem, SourceRef, CompletenessLevel } from '@/platform/clientMap/types';
-import { answerQuestion, flagForClient } from '@/platform/clientMap/guidedInterview';
+import { flagForClient } from '@/platform/clientMap/guidedInterview';
 
 const LEVEL_LABEL: Record<CompletenessLevel, string> = {
   thin: 'Thin',
@@ -171,11 +171,7 @@ export function ClientMapView({
                 size="sm"
                 variant="secondary"
                 onClick={() => {
-                  if (onAnswerQuestion) {
-                    onAnswerQuestion(q);
-                  } else {
-                    answerQuestion(map.matterId, 'standing', q);
-                  }
+                  onAnswerQuestion?.(q);
                 }}
               >
                 {LABEL_I_KNOW}
