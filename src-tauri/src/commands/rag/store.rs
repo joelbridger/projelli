@@ -1435,24 +1435,32 @@ fn index_version_path(workspace_root: &Path) -> PathBuf {
     dataset_path(workspace_root).join(INDEX_VERSION_FILE)
 }
 
-/// BUG-099: filename (under the vectors dir) holding the DURABLE tombstone set —
-/// the HMAC PATH TOKENS (not plaintext paths) of files whose stale-row cleanup
-/// DELETE failed. One token per line. This makes the fail-closed guarantee
-/// survive an app restart: without it, the in-memory `RagState::unsafe_paths` is
-/// empty on relaunch while the stale rows are still on disk, so retrieval could
-/// cite the old version.
+/// BUG-099: filename holding the DURABLE tombstone set — the HMAC PATH TOKENS
+/// (not plaintext paths) of files whose stale-row cleanup DELETE failed. One
+/// token per line. This makes the fail-closed guarantee survive an app restart:
+/// without it, the in-memory `RagState::unsafe_tokens` is empty on relaunch while
+/// the stale rows are still on disk, so retrieval could cite the old version.
+///
+/// LOCATION (decorrelated from the failing dir): this file lives in the
+/// `.keepance/` PARENT dir, NOT inside `.keepance/vectors/`. The tombstone is
+/// written precisely WHEN a LanceDB delete in the vectors dataset dir failed
+/// (lock contention / a locked or unwritable dataset). Writing the tombstone
+/// into that SAME dataset dir would likely fail for the same reason, defeating
+/// the durable guarantee. The sibling `.keepance/` dir is a separate directory,
+/// so a dataset-scoped failure does not block persisting the tombstone.
 ///
 /// PRIVACY (VG-6e parity): we persist the OPAQUE keyed token — the exact value
-/// stored in the `path` column — NOT the plaintext path. A raw-disk reader of
-/// the vector dir therefore learns nothing about client/matter file names from
-/// this file, consistent with the tokenized `path`/`source_id` columns and the
-/// encrypted `path_enc`. The token is what retrieval excludes anyway, so this is
-/// both safer and simpler (no plaintext→token conversion on read).
-const UNSAFE_PATHS_FILE: &str = ".unsafe_paths";
+/// stored in the `path` column — NOT the plaintext path. A raw-disk reader
+/// therefore learns nothing about client/matter file names from this file,
+/// consistent with the tokenized `path`/`source_id` columns and the encrypted
+/// `path_enc`. The token is what retrieval excludes anyway, so this is both
+/// safer and simpler (no plaintext→token conversion on read).
+const UNSAFE_PATHS_FILE: &str = ".unsafe_tokens";
 
-/// Path of the durable tombstone file for a workspace's vector dir.
+/// Path of the durable tombstone file. Lives in the `.keepance/` dir (the parent
+/// of `vectors/`) so a locked/unwritable LanceDB dataset dir cannot block it.
 fn unsafe_paths_path(workspace_root: &Path) -> PathBuf {
-    dataset_path(workspace_root).join(UNSAFE_PATHS_FILE)
+    workspace_root.join(".keepance").join(UNSAFE_PATHS_FILE)
 }
 
 /// BUG-099: load the durable tombstone token set for a workspace. Returns an
@@ -1649,6 +1657,42 @@ mod tests {
         );
         // But the token round-trips so the exclusion still works after restart.
         assert!(read_unsafe_tokens(root).contains(&super::super::crypto::path_token(&key, secret_path)));
+    }
+
+    /// BUG-099 fail-closed DECORRELATION: the durable tombstone is written when a
+    /// LanceDB DELETE in the `vectors/` dataset dir failed — often because that
+    /// dir is locked/unwritable. The tombstone must persist anyway, so it lives in
+    /// the SIBLING `.keepance/` dir, not inside `vectors/`. This test makes the
+    /// `vectors/` dataset dir read-only and asserts the tombstone STILL persists.
+    #[test]
+    #[cfg(unix)]
+    fn unsafe_tokens_persist_even_when_vectors_dir_is_readonly() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        let key = [0x5Au8; 32];
+
+        // Create the dataset dir, then lock it read-only (the failing-cleanup case).
+        let vectors_dir = dataset_path(root);
+        std::fs::create_dir_all(&vectors_dir).unwrap();
+        let orig = std::fs::metadata(&vectors_dir).unwrap().permissions();
+        std::fs::set_permissions(&vectors_dir, std::fs::Permissions::from_mode(0o444))
+            .expect("lock vectors dir");
+
+        let mut set = HashSet::new();
+        set.insert(super::super::crypto::path_token(&key, "/w/stuck.docx"));
+        let result = write_unsafe_tokens(root, &set);
+
+        // Restore before asserting so the tempdir cleans up.
+        std::fs::set_permissions(&vectors_dir, orig).expect("restore");
+
+        assert!(
+            result.is_ok(),
+            "tombstone must persist even when the vectors dataset dir is read-only \
+             (it lives in the sibling .keepance/ dir): {result:?}"
+        );
+        assert_eq!(read_unsafe_tokens(root).len(), 1, "the persisted token must read back");
     }
 
     #[test]
