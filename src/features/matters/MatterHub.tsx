@@ -27,6 +27,9 @@ import { useClientMap } from '@/features/matters/useClientMap';
 import { ClientMapView } from '@/features/matters/ClientMapView';
 import { GuidedInterview } from '@/features/matters/GuidedInterview';
 import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
+import { ClientMapUpdatesTray } from '@/features/matters/ClientMapUpdatesTray';
+import { AddCustomSectionForm } from '@/features/matters/AddCustomSectionForm';
+import { ClientMapTemplates } from '@/features/matters/ClientMapTemplates';
 import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { answerQuestion, flagForClient } from '@/platform/clientMap/guidedInterview';
@@ -68,6 +71,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
   // ── Client Map wiring ────────────────────────────────────────────────────
   // Declare client map hook at component top — must not be inside a condition.
   const clientMap = useClientMap(matterId);
+  const { checkForUpdates } = clientMap;
   const matters = useMatters();
   const matter = matters.find((m) => m.id === matterId) ?? null;
   const isPrivileged = useActiveMatterPrivileged();
@@ -155,6 +159,13 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
       abort.abort();
     };
   }, [matterId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When the Client Map becomes ready, check for updates from new source material.
+  useEffect(() => {
+    if (clientMap.status === 'ready') {
+      void checkForUpdates();
+    }
+  }, [clientMap.status, checkForUpdates]);
 
   const handleGlanceRefresh = useCallback(() => {
     glanceAbortRef.current?.abort();
@@ -890,6 +901,9 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
 
               {clientMap.status === 'ready' && clientMap.map !== undefined && (
                 <>
+                  {/* Approve-first updates tray — shown at the top so the marker is visible */}
+                  <ClientMapUpdatesTray matterId={matterId} />
+
                   <div style={{ marginBottom: 8 }}>
                     <Button
                       type="button"
@@ -923,6 +937,16 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                   />
                   <div style={{ marginTop: 12 }}>
                     <ClientQuestionsList matterId={matterId} />
+                  </div>
+
+                  {/* Add a custom section */}
+                  <div style={{ marginTop: 16, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                    <AddCustomSectionForm matterId={matterId} />
+                  </div>
+
+                  {/* Save / apply templates */}
+                  <div style={{ marginTop: 16, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                    <ClientMapTemplates matterId={matterId} />
                   </div>
                 </>
               )}
