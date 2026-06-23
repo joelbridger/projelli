@@ -1435,15 +1435,19 @@ fn index_version_path(workspace_root: &Path) -> PathBuf {
     dataset_path(workspace_root).join(INDEX_VERSION_FILE)
 }
 
-/// BUG-099: filename (under the vectors dir) holding the DURABLE per-path
-/// tombstone set — the plaintext paths whose stale-row cleanup DELETE failed.
-/// One path per line. This makes the fail-closed guarantee survive an app
-/// restart: without it, the in-memory `RagState::unsafe_paths` is empty on
-/// relaunch while the stale rows are still on disk, so retrieval could cite the
-/// old version. We never write plaintext source CONTENT here (that stays
-/// encrypted in the table); a path string is the same kind of metadata the
-/// workspace tree already exposes, and the file lives inside the user's own
-/// workspace under `.keepance/`.
+/// BUG-099: filename (under the vectors dir) holding the DURABLE tombstone set —
+/// the HMAC PATH TOKENS (not plaintext paths) of files whose stale-row cleanup
+/// DELETE failed. One token per line. This makes the fail-closed guarantee
+/// survive an app restart: without it, the in-memory `RagState::unsafe_paths` is
+/// empty on relaunch while the stale rows are still on disk, so retrieval could
+/// cite the old version.
+///
+/// PRIVACY (VG-6e parity): we persist the OPAQUE keyed token — the exact value
+/// stored in the `path` column — NOT the plaintext path. A raw-disk reader of
+/// the vector dir therefore learns nothing about client/matter file names from
+/// this file, consistent with the tokenized `path`/`source_id` columns and the
+/// encrypted `path_enc`. The token is what retrieval excludes anyway, so this is
+/// both safer and simpler (no plaintext→token conversion on read).
 const UNSAFE_PATHS_FILE: &str = ".unsafe_paths";
 
 /// Path of the durable tombstone file for a workspace's vector dir.
@@ -1451,17 +1455,13 @@ fn unsafe_paths_path(workspace_root: &Path) -> PathBuf {
     dataset_path(workspace_root).join(UNSAFE_PATHS_FILE)
 }
 
-/// BUG-099: load the durable tombstone set (plaintext paths) for a workspace.
-/// Returns an empty set when the file is absent (the healthy default). Used to
-/// re-hydrate `RagState::unsafe_paths` on workspace open so the fail-closed
-/// exclusion survives a restart.
-///
-/// We strip ONLY the line terminator (`\n` / trailing `\r`), never interior or
-/// edge spaces, because a real path may legitimately contain leading/trailing
-/// spaces (macOS/Linux allow them); trimming them would change the recomputed
-/// HMAC token so it no longer matches the stored rows, silently un-hiding the
-/// stale rows after a restart. Empty lines are still skipped.
-pub fn read_unsafe_paths(workspace_root: &Path) -> HashSet<String> {
+/// BUG-099: load the durable tombstone token set for a workspace. Returns an
+/// empty set when the file is absent (the healthy default). Used to re-hydrate
+/// `RagState::unsafe_paths` (which holds TOKENS) on workspace open so the
+/// fail-closed exclusion survives a restart. Tokens are hex strings, so each
+/// line is taken verbatim after stripping only the line terminator; empty lines
+/// are skipped.
+pub fn read_unsafe_tokens(workspace_root: &Path) -> HashSet<String> {
     std::fs::read_to_string(unsafe_paths_path(workspace_root))
         .ok()
         .map(|s| {
@@ -1474,17 +1474,18 @@ pub fn read_unsafe_paths(workspace_root: &Path) -> HashSet<String> {
         .unwrap_or_default()
 }
 
-/// BUG-099: persist the durable tombstone set for a workspace. Called after any
-/// change to the unsafe-paths set (a path tombstoned on a cleanup failure, or a
-/// path cleared on a clean re-index) so the on-disk set always matches memory.
-/// An empty set writes an empty file (rather than deleting it) so a later read
-/// is unambiguous. Best-effort write errors are surfaced to the caller.
-pub fn write_unsafe_paths(workspace_root: &Path, paths: &HashSet<String>) -> Result<()> {
+/// BUG-099: persist the durable tombstone TOKEN set for a workspace. Called
+/// after any change (a token tombstoned on a cleanup failure, or cleared on a
+/// clean re-index) so the on-disk set always matches memory. An empty set writes
+/// an empty file (rather than deleting it) so a later read is unambiguous. Write
+/// errors are surfaced to the caller, which treats a failed persist as part of
+/// the unsafe state (does not stamp the index complete).
+pub fn write_unsafe_tokens(workspace_root: &Path, tokens: &HashSet<String>) -> Result<()> {
     let path = unsafe_paths_path(workspace_root);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).ok();
     }
-    let mut sorted: Vec<&String> = paths.iter().collect();
+    let mut sorted: Vec<&String> = tokens.iter().collect();
     sorted.sort();
     let body = sorted
         .iter()
@@ -1492,7 +1493,7 @@ pub fn write_unsafe_paths(workspace_root: &Path, paths: &HashSet<String>) -> Res
         .collect::<Vec<_>>()
         .join("\n");
     std::fs::write(&path, body)
-        .with_context(|| format!("write unsafe-paths tombstone at {:?}", path))?;
+        .with_context(|| format!("write unsafe-tokens tombstone at {:?}", path))?;
     Ok(())
 }
 
@@ -1594,57 +1595,60 @@ mod tests {
         assert_eq!(p, PathBuf::from("/tmp/work/.keepance/vectors"));
     }
 
-    /// BUG-099 durable tombstone: the unsafe-paths set round-trips through disk,
+    /// BUG-099 durable tombstone: the unsafe-TOKEN set round-trips through disk,
     /// so the fail-closed exclusion survives an app restart. Absent file = empty.
     #[test]
-    fn unsafe_paths_round_trip_through_disk() {
+    fn unsafe_tokens_round_trip_through_disk() {
         let dir = tempfile::TempDir::new().unwrap();
         let root = dir.path();
+        let key = [0x5Au8; 32];
 
         // No file yet → empty set (the healthy default).
-        assert!(read_unsafe_paths(root).is_empty());
+        assert!(read_unsafe_tokens(root).is_empty());
 
-        // Persist two tombstoned paths, then read them back identically.
+        // Persist two tombstoned tokens (the at-rest path-column values), then
+        // read them back identically. We use real tokens so the test exercises
+        // the same opaque hex strings the production path computes.
         let mut set = HashSet::new();
-        set.insert("/w/stuck.docx".to_string());
-        set.insert("/w/broken.rtf".to_string());
-        write_unsafe_paths(root, &set).expect("write tombstone set");
+        set.insert(super::super::crypto::path_token(&key, "/w/stuck.docx"));
+        set.insert(super::super::crypto::path_token(&key, "/w/broken.rtf"));
+        write_unsafe_tokens(root, &set).expect("write tombstone set");
 
-        let loaded = read_unsafe_paths(root);
-        assert_eq!(loaded, set, "tombstone set must survive a write/read cycle (restart)");
+        let loaded = read_unsafe_tokens(root);
+        assert_eq!(loaded, set, "tombstone tokens must survive a write/read cycle (restart)");
 
         // Clearing to empty writes an empty file that reads back as empty (not stale).
-        write_unsafe_paths(root, &HashSet::new()).expect("clear tombstone set");
+        write_unsafe_tokens(root, &HashSet::new()).expect("clear tombstone set");
         assert!(
-            read_unsafe_paths(root).is_empty(),
+            read_unsafe_tokens(root).is_empty(),
             "an emptied tombstone file must read back as empty"
         );
     }
 
-    /// BUG-099 durable tombstone: a path with leading/trailing spaces (legal on
-    /// macOS/Linux) must round-trip EXACTLY. Trimming it would change the
-    /// recomputed HMAC token so it no longer matches the stored rows, silently
-    /// un-hiding the stale rows after a restart — a fail-OPEN regression.
+    /// BUG-099 durable tombstone PRIVACY: the on-disk file holds opaque HMAC
+    /// tokens, NEVER the plaintext path — consistent with the tokenized
+    /// `path`/`source_id` columns (VG-6e). A raw-disk reader learns nothing about
+    /// client/matter file names from this file.
     #[test]
-    fn unsafe_paths_preserve_edge_whitespace_in_paths() {
+    fn unsafe_tokens_file_holds_no_plaintext_path() {
         let dir = tempfile::TempDir::new().unwrap();
         let root = dir.path();
+        let key = [0x5Au8; 32];
 
+        let secret_path = "/clients/Acme Corp/privileged-memo.docx";
         let mut set = HashSet::new();
-        set.insert("/w/ leading-space.txt".to_string());
-        set.insert("/w/trailing-space .txt".to_string());
-        write_unsafe_paths(root, &set).expect("write");
+        set.insert(super::super::crypto::path_token(&key, secret_path));
+        write_unsafe_tokens(root, &set).expect("write");
 
-        let loaded = read_unsafe_paths(root);
+        let on_disk = std::fs::read_to_string(unsafe_paths_path(root)).expect("read raw file");
         assert!(
-            loaded.contains("/w/ leading-space.txt"),
-            "leading space must survive the round-trip; got {loaded:?}"
+            !on_disk.contains("Acme")
+                && !on_disk.contains("privileged-memo")
+                && !on_disk.contains("/clients/"),
+            "the durable tombstone file must NOT contain any plaintext path bytes; got {on_disk:?}"
         );
-        assert!(
-            loaded.contains("/w/trailing-space .txt"),
-            "trailing space must survive the round-trip; got {loaded:?}"
-        );
-        assert_eq!(loaded.len(), 2);
+        // But the token round-trips so the exclusion still works after restart.
+        assert!(read_unsafe_tokens(root).contains(&super::super::crypto::path_token(&key, secret_path)));
     }
 
     #[test]

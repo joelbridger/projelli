@@ -541,21 +541,15 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
     // MCP client to flip it — the "include privileged" capability is an in-app,
     // user-initiated decision only.
     // BUG-099 tombstone: the MCP sidecar is a SEPARATE process from the GUI, so
-    // it cannot see the GUI's in-memory `RagState::unsafe_paths`. But the
-    // tombstone is also persisted DURABLY to `.unsafe_paths` under the workspace
-    // vectors dir, so the sidecar reads it from disk and applies the SAME
-    // fail-closed exclusion: a path whose cleanup delete failed has its stale
-    // rows hidden from external MCP clients too, not just GUI retrieval. The set
-    // holds plaintext paths; we convert each to its at-rest HMAC token (the value
-    // stored in the `path` column) so the exclusion can run as a SQL prefilter.
-    let vec_key = crypto::get_or_create_master_key().ok();
-    let tombstoned_tokens: Vec<String> = match &vec_key {
-        Some(k) => store::read_unsafe_paths(&ctx.workspace_root)
-            .iter()
-            .map(|p| crypto::path_token(k, p))
-            .collect(),
-        None => Vec::new(),
-    };
+    // it cannot see the GUI's in-memory tombstone set. But the tombstone is also
+    // persisted DURABLY to `.unsafe_paths` under the workspace vectors dir as
+    // at-rest HMAC TOKENS (the `path` column value, never plaintext), so the
+    // sidecar reads them from disk and applies the SAME fail-closed exclusion:
+    // a file whose cleanup delete failed has its stale rows hidden from external
+    // MCP clients too, not just GUI retrieval. No key needed — the tokens ARE the
+    // at-rest values the SQL prefilter matches on.
+    let tombstoned_tokens: Vec<String> =
+        store::read_unsafe_tokens(&ctx.workspace_root).into_iter().collect();
 
     let mut raw = Vec::new();
     for matter_id in &allowed_ids {
@@ -581,9 +575,7 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
     // MCP client, recover its real source path and run the same live path
     // decision used by read/list. Mail and any source without a verifiable file
     // path are dropped until they have a separate matter-safe verifier.
-    // Reuse the vector master key fetched above (same key) to avoid a second
-    // keychain round-trip.
-    let enc_key = vec_key;
+    let enc_key = crypto::get_or_create_master_key().ok();
     let mut verified = Vec::with_capacity(top_k);
     let mut dropped_count = 0usize;
     for hit in raw {

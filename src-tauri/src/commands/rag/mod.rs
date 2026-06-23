@@ -272,14 +272,15 @@ pub struct RagState {
     /// reload re-arms the latch via `rag_set_workspace` while a slow walk on a
     /// large workspace is still running). Reset by `IndexingGuard` on every exit.
     pub indexing: Arc<AtomicBool>,
-    /// BUG-099 durable tombstone: the set of PLAINTEXT paths whose stale-row
-    /// cleanup DELETE failed. Retrieval excludes every path in this set by
-    /// converting each to its HMAC token (the stored `path` column value) and
-    /// adding `path NOT IN (...)` to the prefilter. A path is removed when
-    /// `write_extracted_file` successfully re-indexes it — self-healing, surgical
-    /// (only the one bad file's rows are suppressed), and process-lifetime durable
-    /// (persists across multiple walk calls within the same session).
-    pub unsafe_paths: Arc<Mutex<HashSet<String>>>,
+    /// BUG-099 durable tombstone: the set of HMAC PATH TOKENS (the at-rest
+    /// `path` column value) whose stale-row cleanup DELETE failed. Retrieval and
+    /// citation verification exclude every token in this set via `path NOT IN
+    /// (...)` on the prefilter. A token is removed when its file re-indexes
+    /// cleanly — self-healing, surgical (only the one bad file's rows are
+    /// suppressed). Mirrored DURABLY to `.unsafe_paths` on disk (as tokens, never
+    /// plaintext paths), and re-hydrated on workspace open, so the exclusion
+    /// survives an app restart.
+    pub unsafe_tokens: Arc<Mutex<HashSet<String>>>,
 }
 
 /// RAII guard that clears `RagState::indexing` on every exit path (normal
@@ -478,36 +479,50 @@ async fn purge_stale_rows_on_skip(
     }
 }
 
-/// BUG-099 durable tombstone — record `path` as unsafe (both in the in-memory
-/// set and on disk) so retrieval and verification exclude its stale rows even
-/// after an app restart. Best-effort disk write: a failed persist is logged but
-/// never aborts indexing (the in-memory exclusion still applies this session).
+/// BUG-099 durable tombstone — record `path`'s HMAC token as unsafe (in the
+/// in-memory set AND on disk) so retrieval and verification exclude its stale
+/// rows even after an app restart. The token is computed from the plaintext
+/// `path` + the vector master `key` (the exact value stored in the `path`
+/// column), so the durable file holds NO plaintext path (VG-6e parity).
+///
+/// Returns `Ok(())` only when the durable write SUCCEEDED. On a disk-write
+/// failure it returns `Err`: the in-memory exclusion still applies this session,
+/// but the caller must treat the durable fail-closed guarantee as NOT met and
+/// avoid stamping the index complete (so the next launch re-runs the walk).
 ///
 /// CONCURRENCY: the disk write happens WHILE the set lock is held, so a
-/// concurrent tombstone/clear cannot interleave and persist a stale snapshot
-/// (the durable file always reflects the latest serialized mutation). The lock
-/// is the workspace-walk mutex's finer-grained sibling; the write is small.
-async fn tombstone_path(state: &RagState, workspace: &Path, path: &str) {
-    let mut guard = state.unsafe_paths.lock().await;
-    guard.insert(path.to_string());
-    if let Err(e) = store::write_unsafe_paths(workspace, &guard) {
-        log::error!("rag: failed to persist unsafe-paths tombstone for {path}: {e:#}");
-    }
+/// concurrent tombstone/clear cannot interleave and persist a stale snapshot.
+async fn tombstone_path(
+    state: &RagState,
+    workspace: &Path,
+    path: &str,
+    key: &[u8; 32],
+) -> anyhow::Result<()> {
+    use anyhow::Context;
+    let token = crypto::path_token(key, path);
+    let mut guard = state.unsafe_tokens.lock().await;
+    guard.insert(token);
+    store::write_unsafe_tokens(workspace, &guard)
+        .with_context(|| format!("persist unsafe-tokens tombstone for {path}"))
 }
 
-/// BUG-099 durable tombstone — clear `path` from the unsafe set (in memory and
-/// on disk) after a clean re-index. No-op (and no disk write) when the path was
-/// not tombstoned, so the happy path never touches the file.
+/// BUG-099 durable tombstone — clear `path`'s token from the unsafe set (in
+/// memory and on disk) after a clean re-index. No-op (and no disk write) when
+/// the token was not tombstoned, so the happy path never touches the file.
+///
+/// A failed clear-persist is logged but not fatal: leaving a stale tombstone
+/// only OVER-suppresses one already-safe file (fail-closed, never fail-open),
+/// and the next clean re-index retries the clear.
 ///
 /// CONCURRENCY: as with `tombstone_path`, the disk write is performed under the
-/// set lock so memory and disk are updated atomically with respect to other
-/// tombstone/clear calls — no out-of-order persistence across a restart.
-async fn clear_tombstone(state: &RagState, workspace: &Path, path: &str) {
-    let mut guard = state.unsafe_paths.lock().await;
-    if !guard.remove(path) {
+/// set lock so memory and disk update atomically w.r.t. other tombstone/clear.
+async fn clear_tombstone(state: &RagState, workspace: &Path, path: &str, key: &[u8; 32]) {
+    let token = crypto::path_token(key, path);
+    let mut guard = state.unsafe_tokens.lock().await;
+    if !guard.remove(&token) {
         return; // not tombstoned — nothing to persist.
     }
-    if let Err(e) = store::write_unsafe_paths(workspace, &guard) {
+    if let Err(e) = store::write_unsafe_tokens(workspace, &guard) {
         log::error!("rag: failed to persist cleared tombstone for {path}: {e:#}");
     }
 }
@@ -544,15 +559,15 @@ pub async fn rag_set_workspace(
     // SAME already-active workspace is a no-op for indexing (the watcher keeps the
     // index live incrementally); a real switch to a DIFFERENT workspace re-arms.
     let changed = guard.as_deref() != Some(target.as_path());
-    // BUG-099 durable tombstone: re-hydrate the in-memory unsafe-paths set from
+    // BUG-099 durable tombstone: re-hydrate the in-memory unsafe-TOKEN set from
     // disk whenever the active workspace is (re)set — including on app start and
     // a workspace switch. Without this, a restart after a PurgeFailed would leave
     // the in-memory set empty while the stale rows are still durable on disk, so
     // retrieval could cite the old version. Reading the durable set here keeps the
     // fail-closed exclusion alive across restarts.
     {
-        let durable = store::read_unsafe_paths(&target);
-        *state.unsafe_paths.lock().await = durable;
+        let durable = store::read_unsafe_tokens(&target);
+        *state.unsafe_tokens.lock().await = durable;
     }
     *guard = Some(target);
     state.cancel_flag.store(false, Ordering::SeqCst);
@@ -618,7 +633,7 @@ pub async fn rag_index_file(
             // re-index its fresh rows but stay filtered out of retrieval until a
             // full walk or restart. `index_one_file` is delete-then-add (an
             // upsert), so a successful return means the path's rows are consistent.
-            clear_tombstone(&state, &workspace, &path).await;
+            clear_tombstone(&state, &workspace, &path, &key).await;
             Ok(())
         }
         Err(e) => {
@@ -629,8 +644,15 @@ pub async fn rag_index_file(
             // path so GUI retrieval cannot serve those stale rows until a later
             // successful re-index clears it — including after an app restart. A
             // stale citation must be impossible after a cleanup failure on EITHER
-            // indexing path.
-            tombstone_path(&state, &workspace, &path).await;
+            // indexing path. (The in-memory exclusion applies even if the durable
+            // write also fails; we log that and still return the index error.)
+            if let Err(persist_err) = tombstone_path(&state, &workspace, &path, &key).await {
+                log::error!(
+                    "rag_index_file: DURABLE tombstone persist FAILED for {} — \
+                     in-memory exclusion holds this session but NOT across restart: {persist_err:#}",
+                    file_path.display()
+                );
+            }
             log::error!(
                 "rag_index_file: path tombstoned for {} — incremental re-index \
                  failed; its stale rows are excluded from retrieval until a \
@@ -1391,6 +1413,12 @@ pub async fn rag_index_workspace(
     // without double-counting so the banner's `indexed = total - skipped` stays
     // correct.
     let mut cleanup_failed_files: u32 = 0;
+    // BUG-099 fail-closed durability: set true if ANY durable tombstone write
+    // failed during this walk. When true we do NOT stamp the index-version
+    // completion marker, so the next launch re-runs the full walk (re-tombstones
+    // or re-cleans) instead of trusting an index whose on-disk tombstone is
+    // incomplete — a stale citation must not become possible after a restart.
+    let mut durable_tombstone_failed = false;
     // BUG-099: the paths we skipped, surfaced (bounded) on the terminal event so
     // the UI can list them. The counts above stay exact regardless of the cap.
     let mut skipped_paths: Vec<String> = Vec::new();
@@ -1473,7 +1501,7 @@ pub async fn rag_index_workspace(
                         // rows WERE deleted (write_extracted_file returns Ok(true)
                         // only after a successful delete), so the path is now safe —
                         // CLEAR any prior tombstone (no stale rows remain to hide).
-                        clear_tombstone(&state, &workspace, &path_str).await;
+                        clear_tombstone(&state, &workspace, &path_str, &key).await;
                         skipped_files += 1;
                         failed_files += 1;
                         skipped_paths.push(file.to_string_lossy().to_string());
@@ -1502,7 +1530,7 @@ pub async fn rag_index_workspace(
                         // tombstone (self-healing — the stale rows are now replaced
                         // with fresh ones, so retrieval is safe again). Durable: the
                         // on-disk tombstone is cleared too so the heal survives restart.
-                        clear_tombstone(&state, &workspace, &path_str).await;
+                        clear_tombstone(&state, &workspace, &path_str, &key).await;
                     }
                     Err(e) => {
                         log::warn!(
@@ -1514,8 +1542,12 @@ pub async fn rag_index_workspace(
                         // DB (if the write was an insert that partially failed, or if
                         // the new delete-then-add cycle failed mid-way). Durably
                         // tombstone the path so retrieval cannot serve any stale rows
-                        // for it — including after an app restart.
-                        tombstone_path(&state, &workspace, &path_str).await;
+                        // for it — including after an app restart. If the durable
+                        // persist ALSO fails, mark the walk so it does not stamp
+                        // completion (next launch re-runs).
+                        if tombstone_path(&state, &workspace, &path_str, &key).await.is_err() {
+                            durable_tombstone_failed = true;
+                        }
                         cleanup_failed_files += 1;
                         skipped_files += 1;
                         failed_files += 1;
@@ -1567,7 +1599,7 @@ pub async fn rag_index_workspace(
                 let path_str = file.to_string_lossy().to_string();
                 // The stale rows were dropped cleanly — the path is safe now, so
                 // CLEAR any prior tombstone (self-heal on a clean purge too).
-                clear_tombstone(&state, &workspace, &path_str).await;
+                clear_tombstone(&state, &workspace, &path_str, &key).await;
                 skipped_paths.push(path_str);
             }
             PurgeOutcome::PurgeFailed => {
@@ -1580,8 +1612,11 @@ pub async fn rag_index_workspace(
                 // BUG-099 durable tombstone: stale rows remain in the DB for this
                 // path. Mark it unsafe (in memory AND on disk) so `rag_retrieve`
                 // excludes it until a successful re-index clears the tombstone —
-                // the fail-closed exclusion survives an app restart.
-                tombstone_path(&state, &workspace, &path_str).await;
+                // the fail-closed exclusion survives an app restart. If the durable
+                // persist ALSO fails, mark the walk so it does not stamp completion.
+                if tombstone_path(&state, &workspace, &path_str, &key).await.is_err() {
+                    durable_tombstone_failed = true;
+                }
                 log::error!(
                     "rag_index_workspace: path tombstoned for {} — skipped file \
                      AND cleanup failed; its stale rows are excluded from retrieval \
@@ -1608,7 +1643,20 @@ pub async fn rag_index_workspace(
 
     // WS-B/C: stamp the index version so the one-time migration does not re-run.
     // Best-effort (a failed write just means we re-check next open).
-    if let Err(e) = store::write_index_version(&workspace) {
+    //
+    // BUG-099 fail-closed durability: but ONLY when every durable tombstone was
+    // persisted. If a durable tombstone write failed, we DO NOT stamp completion
+    // — leaving the marker unwritten forces the next launch to re-run the full
+    // walk, which re-tombstones or re-cleans the unsafe paths. Stamping "done"
+    // with an incomplete on-disk tombstone is exactly the restart hole that would
+    // let a stale citation resurface, so we refuse to claim a durable success.
+    if durable_tombstone_failed {
+        log::error!(
+            "rag_index_workspace: a durable tombstone write FAILED this walk — \
+             NOT stamping the index-version completion marker so the next launch \
+             re-runs the full walk (prevents a stale citation resurfacing on restart)"
+        );
+    } else if let Err(e) = store::write_index_version(&workspace) {
         log::warn!("rag: failed to write index version marker: {}", e);
     }
 
@@ -1768,27 +1816,15 @@ pub async fn rag_retrieve(
         .await
         .map_err(|e| format!("embed query: {e:#}"))?;
 
-    // WS-VEC / BUG-099: get the vector-store master key once. Used for:
-    //   (a) decrypting chunk text and path_enc at read time (enc_key below),
-    //   (b) computing HMAC path tokens for the tombstone exclusion filter.
-    // If the keychain is unavailable we proceed with enc_key=None (encrypted
-    // chunks become "[content unavailable]" placeholders) but with no tombstone
-    // exclusion (no key => no token match => safe fallthrough).
-    let master_key = crypto::get_or_create_master_key().ok();
-
-    // BUG-099 tombstone: convert unsafe plaintext paths to HMAC tokens so the
-    // prefilter can exclude them as SQL `path NOT IN (...)`. The `path` column
-    // stores keyed tokens (VG-6e), so we must convert here using the same key.
-    // This is the single enforcer: a stale citation is IMPOSSIBLE after a
-    // cleanup failure because the row's token is excluded at the prefilter level.
-    let tombstoned_tokens: Vec<String> = if let Some(ref k) = master_key {
-        let guard = state.unsafe_paths.lock().await;
-        guard
-            .iter()
-            .map(|p| crypto::path_token(k, p))
-            .collect()
-    } else {
-        Vec::new()
+    // BUG-099 tombstone: the in-memory unsafe set already holds the at-rest HMAC
+    // path TOKENS (the `path` column value), so we exclude them directly as SQL
+    // `path NOT IN (...)` — no key needed, no plaintext→token conversion. This is
+    // the single enforcer: a stale citation is IMPOSSIBLE after a cleanup failure
+    // because the row's token is excluded at the prefilter level. The set is kept
+    // durable on disk and re-hydrated on workspace open, so it holds across restart.
+    let tombstoned_tokens: Vec<String> = {
+        let guard = state.unsafe_tokens.lock().await;
+        guard.iter().cloned().collect()
     };
 
     let raw = store::nearest(
@@ -1802,8 +1838,10 @@ pub async fn rag_retrieve(
     .await
     .map_err(|e| format!("nearest: {e}"))?;
 
-    // enc_key alias for the decryption path below (same key, clearer name).
-    let enc_key = master_key;
+    // WS-VEC: get the vector-store master key for the per-hit text/path decrypt
+    // below. If the keychain is unavailable, encrypted chunks fall through to the
+    // "[content unavailable]" placeholder — retrieval still works for plaintext rows.
+    let enc_key = crypto::get_or_create_master_key().ok();
 
     let mut hits: Vec<Hit> = raw
         .into_iter()
@@ -1943,18 +1981,14 @@ pub async fn rag_verify_citation(
         .await
         .map_err(|e| format!("open table: {e}"))?;
 
-    // BUG-099 tombstone: build the exclusion set for citation verification.
-    // A row from a tombstoned path (cleanup failed → stale rows remain) must
-    // return NotFound, not Verified — consistent with what retrieval hides.
-    // The `source_id` column holds the same HMAC token as `path`, so we compare
-    // the found record's source_id against the tombstoned token set.
-    let verify_master_key = crypto::get_or_create_master_key().ok();
-    let tombstoned_tokens: std::collections::HashSet<String> = if let Some(ref k) = verify_master_key {
-        let guard = state.unsafe_paths.lock().await;
-        guard.iter().map(|p| crypto::path_token(k, p)).collect()
-    } else {
-        std::collections::HashSet::new()
-    };
+    // BUG-099 tombstone: the exclusion set for citation verification is the
+    // in-memory unsafe-token set (already at-rest HMAC tokens). A row from a
+    // tombstoned path (cleanup failed → stale rows remain) must return NotFound,
+    // not Verified — consistent with what retrieval hides. The `source_id`/`path`
+    // columns hold that same token, so we compare the found record's source_id
+    // against the set directly (no key, no conversion).
+    let tombstoned_tokens: std::collections::HashSet<String> =
+        state.unsafe_tokens.lock().await.clone();
 
     // 1. Scoped point lookup: id AND claimed matter.
     let scoped = store::lookup_by_id(&table, &id, Some(&claimed))
@@ -3197,8 +3231,8 @@ mod tests {
         // (d) Self-heal: a successful re-index clears the tombstone. After a fresh
         // upsert, the path is no longer in the unsafe set — retrieval is restored.
         // We simulate this by showing that a subsequent successful write would remove
-        // the path from the unsafe_paths set. Here we test the prefilter directly:
-        // after "clearing" the tombstone (empty slice), the fresh row IS returned.
+        // the path's token from the unsafe-token set. Here we test the prefilter
+        // directly: after "clearing" the tombstone (empty slice), the fresh row IS returned.
         store::upsert_chunks_for_path(
             &table,
             path,
@@ -3231,58 +3265,48 @@ mod tests {
         );
     }
 
-    /// BUG-099 tombstone self-heal lifecycle: the `RagState::unsafe_paths` set is
-    /// the single source of truth for which paths retrieval must exclude. This test
-    /// locks in the contract both the walk and `rag_index_file` rely on: a path is
-    /// INSERTED on PurgeFailed, and REMOVED on any successful (re-)index. After
-    /// removal, the path produces NO tombstone token, so retrieval no longer hides it.
+    /// BUG-099 tombstone self-heal lifecycle: the `RagState::unsafe_tokens` set
+    /// (HMAC path tokens) is the single source of truth for what retrieval must
+    /// exclude. This locks in the contract both the walk and `rag_index_file`
+    /// rely on: a path's TOKEN is INSERTED on PurgeFailed and REMOVED on any
+    /// successful (re-)index. After removal, the set is empty, so retrieval no
+    /// longer hides it. The set is fed straight to the prefilter (no conversion).
     #[tokio::test]
     async fn tombstone_set_inserts_on_failure_and_clears_on_reindex() {
         let key = [0x77u8; 32];
         let path = "/w/fixed-later.docx";
+        let token = crypto::path_token(&key, path);
 
         // Use the real RagState field type so the test breaks if the type changes.
-        let unsafe_paths: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+        let unsafe_tokens: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
 
-        // 1. PurgeFailed → the walk inserts the plaintext path.
-        unsafe_paths.lock().await.insert(path.to_string());
+        // 1. PurgeFailed → the walk inserts the path's at-rest token.
+        unsafe_tokens.lock().await.insert(token.clone());
         assert!(
-            unsafe_paths.lock().await.contains(path),
-            "path must be tombstoned after a cleanup failure"
+            unsafe_tokens.lock().await.contains(&token),
+            "token must be tombstoned after a cleanup failure"
         );
 
-        // While tombstoned, retrieval converts it to a token and excludes it.
-        let tokens: Vec<String> = unsafe_paths
-            .lock()
-            .await
-            .iter()
-            .map(|p| crypto::path_token(&key, p))
-            .collect();
-        assert_eq!(tokens.len(), 1, "exactly one tombstone token while unsafe");
-        assert_eq!(tokens[0], crypto::path_token(&key, path));
+        // While tombstoned, retrieval feeds the token set straight to the prefilter.
+        let tokens: Vec<String> = unsafe_tokens.lock().await.iter().cloned().collect();
+        assert_eq!(tokens, vec![token.clone()], "exactly the one tombstone token while unsafe");
 
         // 2. Successful re-index (full walk OR watcher rag_index_file) → remove it.
-        unsafe_paths.lock().await.remove(path);
+        unsafe_tokens.lock().await.remove(&token);
         assert!(
-            !unsafe_paths.lock().await.contains(path),
+            !unsafe_tokens.lock().await.contains(&token),
             "tombstone must be cleared after a successful re-index (self-heal)"
         );
 
-        // After clearing, retrieval builds an EMPTY token list → no exclusion.
-        let tokens_after: Vec<String> = unsafe_paths
-            .lock()
-            .await
-            .iter()
-            .map(|p| crypto::path_token(&key, p))
-            .collect();
+        // After clearing, the set is empty → no exclusion.
         assert!(
-            tokens_after.is_empty(),
+            unsafe_tokens.lock().await.is_empty(),
             "no tombstone tokens after self-heal — retrieval no longer hides the path"
         );
     }
 
     /// BUG-099 tombstone integration test: when PurgeFailed is stored in
-    /// `RagState::unsafe_paths`, the walk does NOT double-count the file in
+    /// `RagState::unsafe_tokens`, the walk does NOT double-count the file in
     /// `skipped_files` (i.e. each file is counted only once as skipped even if
     /// cleanup also fails). The cleanup_failed counter tracks the additional failure.
     #[test]
