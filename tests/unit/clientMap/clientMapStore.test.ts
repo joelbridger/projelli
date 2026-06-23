@@ -1,6 +1,6 @@
 // tests/unit/clientMap/clientMapStore.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useClientMapStore, getClientMap } from '@/platform/clientMap/clientMapStore';
+import { useClientMapStore, getClientMap, migratePersistedClientMaps } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
 import type { ProposedUpdate, ClientMapItem } from '@/platform/clientMap/types';
 
@@ -13,6 +13,54 @@ const userItem = (id: string, text: string): ClientMapItem => ({
 });
 
 beforeEach(() => { useClientMapStore.setState({ maps: {} }); });
+
+describe('migratePersistedClientMaps (v1 -> v2)', () => {
+  it('converts a legacy string[] ask into section-tagged GapQuestions', () => {
+    const legacy = {
+      maps: {
+        m1: { ...emptyClientMap('m1'), completeness: { level: 'thin', know: [], assuming: [], ask: ['What is the deadline?', 'Who is opposing counsel?'] } },
+      },
+    };
+    const out = migratePersistedClientMaps(legacy, 1);
+    expect(out.maps!.m1!.completeness.ask).toEqual([
+      { text: 'What is the deadline?', sectionKey: 'standing' },
+      { text: 'Who is opposing counsel?', sectionKey: 'standing' },
+    ]);
+  });
+
+  it('leaves already-tagged GapQuestions untouched', () => {
+    const current = {
+      maps: {
+        m1: { ...emptyClientMap('m1'), completeness: { level: 'thin', know: [], assuming: [], ask: [{ text: 'q', sectionKey: 'people' }] } },
+      },
+    };
+    const out = migratePersistedClientMaps(current, 2);
+    expect(out.maps!.m1!.completeness.ask).toEqual([{ text: 'q', sectionKey: 'people' }]);
+  });
+
+  it('tolerates empty / missing persisted state', () => {
+    expect(migratePersistedClientMaps(undefined, 1)).toEqual({});
+    expect(migratePersistedClientMaps({}, 1)).toEqual({});
+  });
+
+  it('fails soft on malformed persisted maps and gap entries', () => {
+    const malformed = {
+      maps: {
+        nullMap: null,
+        noCompleteness: { matterId: 'x' },
+        m1: { ...emptyClientMap('m1'), completeness: { level: 'thin', know: [], assuming: [], ask: [null, 123, '', '  ', 'Real question', { text: 'Tagged', sectionKey: 'people' }, { sectionKey: 'people' }] } },
+      },
+    };
+    const out = migratePersistedClientMaps(malformed, 1);
+    // The null map and the one without completeness must not throw or be corrupted.
+    expect(out.maps!.nullMap).toBeNull();
+    // Only well-formed gap questions survive, each with a valid text + sectionKey.
+    expect(out.maps!.m1!.completeness.ask).toEqual([
+      { text: 'Real question', sectionKey: 'standing' },
+      { text: 'Tagged', sectionKey: 'people' },
+    ]);
+  });
+});
 
 describe('clientMapStore', () => {
   it('sets and gets a map by matter id', () => {

@@ -1,7 +1,7 @@
 // src/platform/clientMap/clientMapStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { ClientMap, ClientMapSection, ClientQuestion, ProposedUpdate } from './types';
+import type { ClientMap, ClientMapSection, ClientQuestion, ProposedUpdate, GapQuestion } from './types';
 
 interface ClientMapState {
   maps: Record<string, ClientMap>;
@@ -25,6 +25,53 @@ interface ClientMapState {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** Persisted (partialized) shape of this store. */
+interface PersistedClientMapState {
+  maps?: Record<string, ClientMap>;
+  clientQuestions?: Record<string, ClientQuestion[]>;
+}
+
+/**
+ * v1 -> v2 migration: `completeness.ask` was a plain string[]; tag each gap
+ * question with a target section so the Guided Interview can file answers
+ * correctly. Maps saved before this change would otherwise render blank gap text
+ * and silently drop answers (no sectionKey). Pure + exported so it is unit-tested.
+ */
+/** Coerce one untrusted persisted gap-question entry into a GapQuestion, or null
+ *  if it carries no usable text. A plain string keeps its text; an object keeps a
+ *  string text and a string sectionKey, defaulting the section to 'standing'. */
+function coerceGapQuestion(q: unknown): GapQuestion | null {
+  if (typeof q === 'string') {
+    const text = q.trim();
+    return text ? { text, sectionKey: 'standing' } : null;
+  }
+  if (q && typeof q === 'object') {
+    const rawText = (q as { text?: unknown }).text;
+    const text = typeof rawText === 'string' ? rawText.trim() : '';
+    if (!text) return null;
+    const rawKey = (q as { sectionKey?: unknown }).sectionKey;
+    const sectionKey = typeof rawKey === 'string' && rawKey ? rawKey : 'standing';
+    return { text, sectionKey };
+  }
+  return null;
+}
+
+export function migratePersistedClientMaps(persisted: unknown, version: number): PersistedClientMapState {
+  const state = (persisted ?? {}) as PersistedClientMapState;
+  if (version < 2 && state.maps) {
+    // Persisted JSON is untrusted: guard each map and each question shape, and
+    // fail soft (drop) anything malformed rather than throw or pass it through.
+    for (const map of Object.values(state.maps) as Array<{ completeness?: { ask?: unknown } } | null | undefined>) {
+      const completeness = map?.completeness;
+      if (!completeness || !Array.isArray(completeness.ask)) continue;
+      completeness.ask = (completeness.ask as unknown[])
+        .map(coerceGapQuestion)
+        .filter((q): q is GapQuestion => q !== null);
+    }
+  }
+  return state;
 }
 
 export const useClientMapStore = create<ClientMapState>()(
@@ -185,9 +232,11 @@ export const useClientMapStore = create<ClientMapState>()(
     }),
     {
       name: 'keepance:client-maps',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ maps: state.maps, clientQuestions: state.clientQuestions }),
+      migrate: (persisted, version) =>
+        migratePersistedClientMaps(persisted, version) as unknown as ClientMapState,
     },
   ),
 );
