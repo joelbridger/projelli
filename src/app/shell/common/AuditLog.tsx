@@ -135,7 +135,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   matter_unshared: 'Matter Unshared',
   member_invited: 'Member Invited',
   member_removed: 'Member Removed',
-  wall_set_from_manager: 'Ethical Wall Set',
+  wall_set_from_manager: 'Information Barrier Set',
   key_published: 'Key Published',
   seat_revoked: 'Seat Revoked',
 };
