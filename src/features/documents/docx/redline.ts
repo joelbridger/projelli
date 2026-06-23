@@ -116,7 +116,7 @@ export const REDLINE_SCHEMA: OutputSchema = {
           reason: {
             type: 'string',
             description:
-              'A brief (one short sentence) explanation of why this edit was made, for the reviewing lawyer.',
+              'A brief (one short sentence) explanation of why this edit was made, for the user reviewing it.',
           },
         },
       },
@@ -135,10 +135,10 @@ interface RawRedlineResponse {
   }>;
 }
 
-/** System prompt: frames the model as a careful legal-redline associate. */
+/** System prompt: frames the model as a careful editing associate. */
 export const REDLINE_SYSTEM_PROMPT =
-  'You are a meticulous legal editing associate working inside a Word document. ' +
-  'You propose precise edits as tracked changes for a lawyer to accept or reject. ' +
+  'You are a meticulous editing associate working inside a Word document. ' +
+  'You propose precise edits as tracked changes for the user to accept or reject. ' +
   'You never invent facts, never change defined terms unless asked, and you keep ' +
   'edits minimal and faithful to the instruction. You respond ONLY with valid JSON ' +
   'matching the requested schema.';

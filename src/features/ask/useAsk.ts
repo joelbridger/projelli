@@ -407,8 +407,8 @@ export function useAsk({
       const workspaceBlock = hits.length > 0 ? buildWorkspaceContextBlock(hits) : '';
 
       const matterHint = activeMatter
-        ? `You are answering a question scoped to the legal matter "${matterLabel(activeMatter)}".`
-        : "You are answering a question across all matters in the attorney's practice.";
+        ? `You are answering a question scoped to this client or matter: "${matterLabel(activeMatter)}".`
+        : 'You are answering a question across all of your clients and matters.';
 
       // Build history from completed turns (last 6)
       const historyBlock = buildHistoryBlock(turns, 6);
@@ -422,9 +422,9 @@ export function useAsk({
       // doesn't resolve to a retrieved chunk.
       const systemPrompt = [
         matterHint,
-        "You are a legal research assistant. Answer the attorney's question using ONLY the information in the context block below — the attorney's own files. Do not use outside knowledge.",
+        "You are a private research assistant. Answer the user's question using ONLY the information in the context block below. Do not use outside knowledge.",
         `If the context block does not contain the answer, reply with exactly this sentence and nothing else: "${NO_EVIDENCE_DECLINE}" Do not guess, and never state a dollar amount, figure, date, deadline, or name that does not appear in the context block.`,
-        "After every factual claim, cite the source in square brackets, copying the filename and its location EXACTLY as they appear in the matching source header in the context block — e.g. [contract.docx paragraph 3] or [filing.pdf page 2]. Only cite filenames that appear in the context block, and only the paragraph/page actually shown there. Never invent a citation or a source.",
+        "After every factual claim, cite the source in square brackets, copying the filename and its location EXACTLY as they appear in the matching source header in the context block — e.g. [agreement.docx paragraph 3] or [statement.pdf page 2]. Only cite filenames that appear in the context block, and only the paragraph/page actually shown there. Never invent a citation or a source.",
         'Respond in 3-6 sentences maximum.',
         workspaceBlock,
         historyBlock,

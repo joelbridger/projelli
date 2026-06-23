@@ -150,7 +150,7 @@ export async function generateMatterAtAGlance(
 
   const contextBlock = buildWorkspaceContextBlock(hits);
 
-  const systemPrompt = `You are a private legal assistant. The attorney has asked for a brief at-a-glance summary of this matter based on its indexed documents and email.
+  const systemPrompt = `You are a private assistant. The advisor has asked for a brief at-a-glance summary of this client/household based on its indexed documents and email.
 
 ${contextBlock}
 
@@ -179,7 +179,7 @@ Rules:
     sendOpts.signal = options.signal;
   }
   const response = await provider.sendMessage(
-    'Summarize this matter for the attorney.',
+    'Summarize this client for the advisor.',
     sendOpts,
   );
 
