@@ -26,6 +26,9 @@ import engagementSummary from './Sample - Engagement Summary.md?raw';
 import householdOverview from './Sample - Household Overview.md?raw';
 import meetingNotes from './Sample - Meeting Notes.md?raw';
 import planSummary from './Sample - Plan Summary.md?raw';
+import emailThread from './Sample - Email Thread.md?raw';
+import beneficiaryEstateNotes from './Sample - Beneficiary & Estate Notes.md?raw';
+import accountSummary from './Sample - Account Summary.md?raw';
 
 export type OnboardingProfession = 'legal' | 'tax' | 'consulting' | 'advisor' | 'other';
 
@@ -80,6 +83,21 @@ const ADVISOR_PLAN: SampleFile = {
   content: planSummary,
 };
 
+const ADVISOR_EMAIL_THREAD: SampleFile = {
+  filename: 'Sample - Email Thread.md',
+  content: emailThread,
+};
+
+const ADVISOR_BENEFICIARY_ESTATE: SampleFile = {
+  filename: 'Sample - Beneficiary & Estate Notes.md',
+  content: beneficiaryEstateNotes,
+};
+
+const ADVISOR_ACCOUNT_SUMMARY: SampleFile = {
+  filename: 'Sample - Account Summary.md',
+  content: accountSummary,
+};
+
 const WEEKLY_REVIEW_SAMPLE: SampleFile = {
   filename: 'Sample - Weekly Review.md',
   content: weeklyReview,
@@ -88,7 +106,7 @@ const WEEKLY_REVIEW_SAMPLE: SampleFile = {
 /**
  * Return the ordered list of sample files to seed for the given profession.
  *
- * - advisor: Household Overview + Meeting Notes + Plan Summary
+ * - advisor: Household Overview + Account Summary + Meeting Notes + Plan Summary + Email Thread + Beneficiary & Estate Notes
  * - legal: Matter Overview (primary) + Weekly Review
  * - tax: Client Research Note (primary) + Weekly Review
  * - consulting: Engagement Summary (primary) + Weekly Review
@@ -97,7 +115,14 @@ const WEEKLY_REVIEW_SAMPLE: SampleFile = {
 export function getSamplesForProfession(profession: OnboardingProfession): SampleFile[] {
   switch (profession) {
     case 'advisor':
-      return [ADVISOR_OVERVIEW, ADVISOR_MEETING, ADVISOR_PLAN];
+      return [
+        ADVISOR_OVERVIEW,
+        ADVISOR_ACCOUNT_SUMMARY,
+        ADVISOR_MEETING,
+        ADVISOR_PLAN,
+        ADVISOR_EMAIL_THREAD,
+        ADVISOR_BENEFICIARY_ESTATE,
+      ];
     case 'legal':
       return [LEGAL_PRIMARY, WEEKLY_REVIEW_SAMPLE];
     case 'tax':
