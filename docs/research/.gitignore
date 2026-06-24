@@ -1,0 +1,4 @@
+# Large / licensed raw research sources — keep local, do not commit
+*.pdf
+kitces-report-2025-vol1.txt
+advisor-fintech-landscape-2026-06.txt
