@@ -100,6 +100,7 @@ vi.mock('@/platform/state/aiChatStore', () => {
   const hook = (selector: (s: unknown) => unknown) =>
     selector({
       initSession: mockInitSession,
+      setSessionWorkspaceRoot: () => undefined,
       addMessage: mockAddMessage,
       updateLastMessage: mockUpdateLastMessage,
       sessions: mockSessions,

@@ -112,8 +112,8 @@ import { getDemoAnswerForWorkspace } from '@/platform/matter/samples/sampleMatte
 // because Vitest processes the hoisted factory lazily on first import).
 vi.mock('@/platform/state/aiChatStore', () => {
   const hook = (selector: (s: unknown) => unknown) =>
-    selector({ initSession: mockInitSession, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, sessions: mockSessions });
-  hook.getState = () => ({ initSession: mockInitSession, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, sessions: mockSessions });
+    selector({ initSession: mockInitSession, setSessionWorkspaceRoot: () => undefined, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, sessions: mockSessions });
+  hook.getState = () => ({ initSession: mockInitSession, setSessionWorkspaceRoot: () => undefined, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, sessions: mockSessions });
   return { useAIChatStore: hook };
 });
 

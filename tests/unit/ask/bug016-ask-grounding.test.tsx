@@ -122,8 +122,8 @@ vi.mock('@/platform/providers/KeychainService', () => ({
 
 vi.mock('@/platform/state/aiChatStore', () => {
   const hook = (selector: (s: unknown) => unknown) =>
-    selector({ initSession: h.initSession, addMessage: h.addMessage, sessions: h.sessions });
-  hook.getState = () => ({ initSession: h.initSession, addMessage: h.addMessage, sessions: h.sessions });
+    selector({ initSession: h.initSession, setSessionWorkspaceRoot: () => undefined, addMessage: h.addMessage, sessions: h.sessions });
+  hook.getState = () => ({ initSession: h.initSession, setSessionWorkspaceRoot: () => undefined, addMessage: h.addMessage, sessions: h.sessions });
   return { useAIChatStore: hook };
 });
 
