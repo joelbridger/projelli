@@ -1,6 +1,6 @@
 # DRAFT — Website "Where does Keepance fit?" section
 
-**Status:** Draft for Jameson's review. NOT deployed. Live keepance.com change waits for his explicit go.
+**Status:** ✅ LIVE on the homepage (deployed 2026-06-24, with Jameson's go). The homepage `#fits` section now carries this copy + a "stack-layer" graphic (8 tool logos → Keepance layer → cited answer). Source: `~/keepance-wt-website/website/index.html` (`.kpfit-` block), branch `marketing/website-repositioning`. Deploy: `bash ~/keepance-wt-website/infra/deploy.sh --skip-demo`. NOTE: the standalone `/fits-your-stack/` page is still STALE (multi-vertical attorneys/CPAs + old import/export positioning) and should be rebuilt advisor-first as a follow-up.
 **Voice:** Jameson, first-person singular, no em dashes, no AI-tells (per `feedback_jameson_voice_profile` + `feedback_marketing_copy_voice`).
 **Positioning:** lead = "the private layer over your existing stack" (decided 2026-06-24); sub-line = "a private AI that actually knows your clients."
 
