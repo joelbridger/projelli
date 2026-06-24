@@ -13,7 +13,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Briefcase, Lock, Plus, FolderOpen, Scale, CheckCircle2, Circle, MessageSquare, FileText, Mail, ChevronUp, ChevronDown, Archive, ArchiveRestore } from 'lucide-react';
+import { Briefcase, Lock, Plus, FolderOpen, CheckCircle2, Circle, MessageSquare, FileText, Mail, ChevronUp, ChevronDown, Archive, ArchiveRestore } from 'lucide-react';
 import { useMatters, useActiveMatters, useArchivedMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { MatterHub } from '@/features/matters/MatterHub';
@@ -451,7 +451,7 @@ function MattersEmptyState({ entityOne, entityOther }: MattersEmptyStateProps) {
         <GetStartedCard />
       </div>
       <EmptyState
-        icon={Scale}
+        icon={Briefcase}
         title={`No ${entityOther} yet`}
         body={`Create your first ${entityOne} to keep one client's documents and emails together.`}
         actions={
