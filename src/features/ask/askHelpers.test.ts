@@ -18,6 +18,60 @@ function hit(overrides: Partial<RagHit> = {}): RagHit {
 }
 
 describe('bindAnswerCitations', () => {
+  it('attaches a verified citation when the model emits no marker but a retrieved hit supports the answer', () => {
+    const result = bindAnswerCitations(
+      'The total portfolio value is $50,200,000, and the revocable trust holds $18,750,000.',
+      [
+        hit({
+          path: 'Clients/Hollings Family/client-map.md',
+          chunkText:
+            'The total portfolio value is $50,200,000. The Hollings Revocable Trust holds $18,750,000.',
+          paragraphIndex: 12,
+          id: 'chunk-client-map-12',
+          matterId: 'hollings',
+        }),
+      ],
+      'hollings',
+    );
+
+    expect(result.answer).toBe(
+      'The total portfolio value is $50,200,000, and the revocable trust holds $18,750,000. {1}',
+    );
+    expect(result.citations).toHaveLength(1);
+    expect(result.citations[0]).toMatchObject({
+      n: 1,
+      label: 'client-map.md',
+      path: 'Clients/Hollings Family/client-map.md',
+      excerpt: 'The total portfolio value is $50,200,000. The Hollings Revocable Trust holds $18,750,000.',
+      verified: true,
+      paragraphIndex: 12,
+      id: 'chunk-client-map-12',
+      matterId: 'hollings',
+    });
+  });
+
+  it('keeps an unsupported no-marker answer uncited', () => {
+    const result = bindAnswerCitations(
+      'The total portfolio value is $51,000,000, and the revocable trust holds $18,750,000.',
+      [
+        hit({
+          path: 'Clients/Hollings Family/client-map.md',
+          chunkText:
+            'The total portfolio value is $50,200,000. The Hollings Revocable Trust holds $18,750,000.',
+          paragraphIndex: 12,
+          id: 'chunk-client-map-12',
+          matterId: 'hollings',
+        }),
+      ],
+      'hollings',
+    );
+
+    expect(result.answer).toBe(
+      'The total portfolio value is $51,000,000, and the revocable trust holds $18,750,000.',
+    );
+    expect(result.citations).toEqual([]);
+  });
+
   it('attaches a citation when the answer cites a retrieved source without newer verification metadata', () => {
     const result = bindAnswerCitations(
       'The central issue is estate tax exposure and the ILIT. [estate-tax-ilit.docx paragraph 4]',

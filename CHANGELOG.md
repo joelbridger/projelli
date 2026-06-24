@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Ask/Search citations now survive models that skip inline citation markers.** Ask now does a conservative post-hoc grounding pass over the same retrieved chunks used as context: if an answer sentence's numbers and distinctive words are supported by a retrieved chunk, Keepance adds a verified citation chip even when the model emitted no `[filename paragraph N]` marker. Unsupported answers remain uncited, and model-emitted markers still resolve through the existing strict path.
+  - Files modified: `src/features/ask/{askHelpers,askHelpers.test}.ts`
+  - Tests: `npm run typecheck`; `npx vitest run src/features/ask/askHelpers.test.ts`
 - **Ask/Search UX now keeps citations and recent questions honest per workspace.** Ask answers that cite a real retrieved source now attach the citation even when the source row lacks newer verification metadata, so grounded answers do not show the uncited warning. Search recent questions are now scoped to the open workspace, so old questions from another demo/test workspace no longer appear.
   - Files modified: `src/features/ask/{askHelpers,useAsk}.ts`, `src/platform/state/aiChatStore.ts`
   - Tests: `src/features/ask/askHelpers.test.ts`; `npm run typecheck`; `npx vitest run src/features/ask`

@@ -305,13 +305,269 @@ export function buildWorkspaceSources(hits: RagHit[]): WorkspaceSource[] {
   }));
 }
 
+const POST_HOC_STOP_WORDS = new Set([
+  'a',
+  'about',
+  'above',
+  'after',
+  'again',
+  'all',
+  'also',
+  'am',
+  'an',
+  'and',
+  'any',
+  'are',
+  'as',
+  'at',
+  'be',
+  'because',
+  'been',
+  'before',
+  'being',
+  'below',
+  'between',
+  'but',
+  'by',
+  'can',
+  'could',
+  'did',
+  'do',
+  'does',
+  'doing',
+  'down',
+  'during',
+  'each',
+  'few',
+  'for',
+  'from',
+  'had',
+  'has',
+  'have',
+  'having',
+  'he',
+  'her',
+  'here',
+  'hers',
+  'him',
+  'his',
+  'how',
+  'i',
+  'if',
+  'in',
+  'into',
+  'is',
+  'it',
+  'its',
+  'itself',
+  'just',
+  'me',
+  'more',
+  'most',
+  'my',
+  'no',
+  'not',
+  'of',
+  'on',
+  'once',
+  'only',
+  'or',
+  'other',
+  'our',
+  'out',
+  'over',
+  'own',
+  'same',
+  'she',
+  'should',
+  'so',
+  'some',
+  'such',
+  'than',
+  'that',
+  'the',
+  'their',
+  'them',
+  'then',
+  'there',
+  'these',
+  'they',
+  'this',
+  'those',
+  'through',
+  'to',
+  'too',
+  'under',
+  'until',
+  'up',
+  'very',
+  'was',
+  'we',
+  'were',
+  'what',
+  'when',
+  'where',
+  'which',
+  'while',
+  'who',
+  'will',
+  'with',
+  'would',
+  'you',
+  'your',
+]);
+
+interface ClaimSpan {
+  start: number;
+  end: number;
+  text: string;
+}
+
+interface GroundingScore {
+  hit: RagHit;
+  score: number;
+}
+
+function normalizeForGrounding(text: string): string {
+  return text.toLowerCase().replace(/[^\p{L}\p{N}.%$]+/gu, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function tokenSet(text: string): Set<string> {
+  const tokens = normalizeForGrounding(text).match(/[\p{L}\p{N}][\p{L}\p{N}'-]*/gu) ?? [];
+  return new Set(
+    tokens
+      .map((t) => t.replace(/^'+|'+$/g, ''))
+      .filter((t) => t.length >= 3 && !POST_HOC_STOP_WORDS.has(t)),
+  );
+}
+
+function numericTokens(text: string): Set<string> {
+  const matches = text.match(/(?:\$|€|£)?\d[\d,]*(?:\.\d+)?%?/g) ?? [];
+  return new Set(matches.map((m) => m.replace(/[$€£,]/g, '').toLowerCase()));
+}
+
+function splitClaimSpans(answerText: string): ClaimSpan[] {
+  const spans: ClaimSpan[] = [];
+  const sentenceRe = /[^.!?\n]+(?:[.!?]+|$)/g;
+  let match: RegExpExecArray | null;
+  while ((match = sentenceRe.exec(answerText)) !== null) {
+    const raw = match[0];
+    const leading = raw.length - raw.trimStart().length;
+    const trailing = raw.length - raw.trimEnd().length;
+    const start = match.index + leading;
+    const end = match.index + raw.length - trailing;
+    const text = answerText.slice(start, end).trim();
+    if (text.length > 0) spans.push({ start, end, text });
+  }
+  return spans;
+}
+
+function isGroundableClaim(text: string): boolean {
+  const normalized = normalizeForGrounding(text);
+  if (!normalized) return false;
+  if (normalized.includes("couldn't find") || normalized.includes('could not find')) return false;
+  if (normalized.includes('not contain the answer')) return false;
+  if (normalized.includes('outside this sample')) return false;
+  const words = tokenSet(text);
+  const numbers = numericTokens(text);
+  return numbers.size > 0 || words.size >= 4;
+}
+
+function scoreClaimAgainstHit(claim: string, hit: RagHit): GroundingScore | null {
+  const claimNorm = normalizeForGrounding(claim);
+  const hitNorm = normalizeForGrounding(hit.chunkText);
+  if (!claimNorm || !hitNorm) return null;
+
+  const claimNumbers = numericTokens(claim);
+  const hitNumbers = numericTokens(hit.chunkText);
+  const allNumbersSupported = [...claimNumbers].every((n) => hitNumbers.has(n));
+  if (!allNumbersSupported) return null;
+
+  const claimWords = tokenSet(claim);
+  const hitWords = tokenSet(hit.chunkText);
+  const overlap = [...claimWords].filter((w) => hitWords.has(w)).length;
+  const ratio = claimWords.size === 0 ? 0 : overlap / claimWords.size;
+
+  if (hitNorm.includes(claimNorm) && claimWords.size >= 3) {
+    return { hit, score: 1 + ratio };
+  }
+
+  if (claimNumbers.size > 0) {
+    if (overlap >= 2 || ratio >= 0.35) {
+      return { hit, score: 0.8 + ratio + claimNumbers.size * 0.1 };
+    }
+    return null;
+  }
+
+  if (overlap >= 5 && ratio >= 0.55) {
+    return { hit, score: ratio };
+  }
+
+  return null;
+}
+
+function bestPostHocGrounding(claim: string, hits: RagHit[]): RagHit | null {
+  let best: GroundingScore | null = null;
+  for (const h of hits) {
+    const scored = scoreClaimAgainstHit(claim, h);
+    if (!scored) continue;
+    if (!best || scored.score > best.score || (scored.score === best.score && h.score > best.hit.score)) {
+      best = scored;
+    }
+  }
+  return best?.hit ?? null;
+}
+
+function citationKey(hit: RagHit): string {
+  return hit.id ?? `${hit.path}:${String(hit.paragraphIndex)}:${String(hit.pageNumber ?? '')}`;
+}
+
+function findSourceForHit(sources: WorkspaceSource[], hit: RagHit): WorkspaceSource | undefined {
+  return (
+    sources.find((s) =>
+      s.path === hit.path &&
+      (s.paragraphIndex === hit.paragraphIndex || s.pageNumber === hit.pageNumber),
+    ) ??
+    sources.find((s) => s.path === hit.path && s.paragraphIndex === hit.paragraphIndex)
+  );
+}
+
+function citationFromHit(
+  hit: RagHit,
+  n: number,
+  sources: WorkspaceSource[],
+  expectedMatterId: string | null,
+): AnswerCitation {
+  const matchedSource = findSourceForHit(sources, hit);
+  const inExpectedMatter =
+    expectedMatterId === null ||
+    hit.matterId === undefined ||
+    hit.matterId === expectedMatterId;
+
+  return {
+    n,
+    label: citationBasename(hit.path),
+    excerpt: hit.chunkText,
+    path: hit.path,
+    locator: matchedSource ? sourceLocator(matchedSource) : citationBasename(hit.path),
+    verified: inExpectedMatter,
+    paragraphIndex: hit.paragraphIndex,
+    ...(hit.id !== undefined ? { id: hit.id } : {}),
+    ...(hit.matterId !== undefined ? { matterId: hit.matterId } : {}),
+  };
+}
+
 /**
  * Attach answer citations only when the model's marker points at a real
  * retrieved source. A newer RAG row can also carry id + matterId for backend
  * verification, but older rows are still grounded when the cited file and
- * locator were actually retrieved. That is the false-negative this helper
- * avoids: "source exists" should not show the uncited warning just because
- * the row lacks the newer verification metadata.
+ * locator were actually retrieved.
+ *
+ * If the model emits no usable markers, do a conservative post-hoc pass: compare
+ * each answer sentence against the retrieved chunks and add chips only for
+ * claims whose numbers and distinctive words are supported by a chunk. This
+ * keeps the Ask promise truthful without depending on a model following the
+ * citation-marker instruction exactly.
  */
 export function bindAnswerCitations(
   answerText: string,
@@ -348,35 +604,7 @@ export function bindAnswerCitations(
       chipCounter += 1;
       n = chipCounter;
       citationMap.set(key, n);
-
-      const matchedSource =
-        sources.find((s) =>
-          s.path === matchedHit.path &&
-          (s.paragraphIndex === matchedHit.paragraphIndex || s.pageNumber === matchedHit.pageNumber),
-        ) ??
-        sources.find((s) =>
-          s.path === matchedHit.path &&
-          (s.paragraphIndex === cite.paragraphIndex || s.pageNumber === cite.paragraphIndex),
-        );
-      const inExpectedMatter =
-        expectedMatterId === null ||
-        matchedHit.matterId === undefined ||
-        matchedHit.matterId === expectedMatterId;
-
-      citations.push({
-        n,
-        // B4 is fixed upstream by correct PDF path storage (the basename is now
-        // the real filename, not a placeholder like "6.pdf"); the page/section
-        // lives in `locator`.
-        label: citationBasename(matchedHit.path),
-        excerpt: matchedHit.chunkText,
-        path: matchedHit.path,
-        locator: matchedSource ? sourceLocator(matchedSource) : citationBasename(matchedHit.path),
-        verified: inExpectedMatter,
-        paragraphIndex: matchedHit.paragraphIndex,
-        ...(matchedHit.id !== undefined ? { id: matchedHit.id } : {}),
-        ...(matchedHit.matterId !== undefined ? { matterId: matchedHit.matterId } : {}),
-      });
+      citations.push(citationFromHit(matchedHit, n, sources, expectedMatterId));
     }
     decisions.push({ start: cite.start, end: cite.end, n });
   }
@@ -389,6 +617,31 @@ export function bindAnswerCitations(
       rewritten = rewritten.slice(0, start) + rewritten.slice(d.end);
     } else {
       rewritten = rewritten.slice(0, d.start) + `{${String(d.n)}}` + rewritten.slice(d.end);
+    }
+  }
+
+  if (citations.length === 0 && hits.length > 0) {
+    const insertions: { at: number; n: number }[] = [];
+    for (const span of splitClaimSpans(rewritten)) {
+      if (!isGroundableClaim(span.text)) continue;
+      const matchedHit = bestPostHocGrounding(span.text, hits);
+      if (!matchedHit) continue;
+
+      const key = citationKey(matchedHit);
+      let n: number;
+      if (citationMap.has(key)) {
+        n = citationMap.get(key) ?? chipCounter;
+      } else {
+        chipCounter += 1;
+        n = chipCounter;
+        citationMap.set(key, n);
+        citations.push(citationFromHit(matchedHit, n, sources, expectedMatterId));
+      }
+      insertions.push({ at: span.end, n });
+    }
+
+    for (const insertion of [...insertions].sort((a, b) => b.at - a.at)) {
+      rewritten = `${rewritten.slice(0, insertion.at)} {${String(insertion.n)}}${rewritten.slice(insertion.at)}`;
     }
   }
 
