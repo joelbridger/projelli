@@ -481,6 +481,22 @@
     .fitrow p{font-size:14.5px;color:var(--text-body);line-height:1.72;margin:0;}
     .fitrow p+p{margin-top:10px;}
     .fitrow .kp{color:var(--text-heading);font-weight:600;}
+    /* moved competitive matrix */
+    .compare-section { background: var(--bone); padding: 88px 0; border-top: 1px solid var(--border); }
+    .compare-section .section-header { margin-bottom: 36px; }
+    .compare-section .section-header p { font-size: 1rem; color: var(--text-body); line-height: 1.7; }
+    .compare-table-wrap { overflow-x: auto; margin: 0 0 32px; }
+    .compare-table { border-collapse: collapse; width: 100%; font-size: 0.9375rem; min-width: 580px; }
+    .compare-table th, .compare-table td { border: 1px solid var(--border); padding: 12px 14px; text-align: left; vertical-align: top; line-height: 1.55; }
+    .compare-table th { background: #F8FAFC; color: var(--text-heading); font-weight: 700; font-size: 0.875rem; }
+    .compare-table td:first-child { color: var(--text-heading); font-weight: 500; }
+    .compare-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .compare-pill.yes { background: rgba(16,185,129,0.14); color: #046148; }
+    .compare-pill.no { background: rgba(239,68,68,0.12); color: #a1201c; }
+    .compare-why { background: rgba(93,198,255,0.06); border: 1px solid rgba(93,198,255,0.2); border-radius: 10px; padding: 20px 24px; font-size: 0.9375rem; color: var(--text-body); line-height: 1.65; }
+    .compare-why strong { color: var(--text-heading); display: block; margin-bottom: 8px; font-size: 0.9375rem; }
+    .compare-footnote { font-size: 12.5px; color: var(--text-muted); margin-top: 10px; line-height: 1.5; }
+    .cmp .toollogo { max-height: 24px; max-width: 120px; width: auto; height: auto; display: block; margin-bottom: 9px; }
   </style>
 </head>
 <body>
@@ -519,43 +535,43 @@
             </thead>
             <tbody>
               <tr>
-                <td class="tool">Wealthbox, Redtail, Salesforce<span>CRM</span></td>
+                <td class="tool"><img class="toollogo" src="/images/stack-logos/wealthbox.svg" alt="Wealthbox">Wealthbox, Redtail, Salesforce<span>CRM</span></td>
                 <td>Contacts, notes, tasks, and the activity log. The hub your team works from.</td>
                 <td>Notetakers and assistants that query CRM data and draft messages (Wealthbox AI, Salesforce Agentforce).</td>
                 <td class="fit">Keepance reads from your CRM and answers across what it cannot see: the documents, the email history, the plan and the tax files. It hands CRM-ready drafts back without trying to be your system of record.</td>
               </tr>
               <tr>
-                <td class="tool">RightCapital, eMoney, MoneyGuidePro<span>Planning</span></td>
+                <td class="tool"><img class="toollogo" src="/images/stack-logos/rightcapital.svg" alt="RightCapital">RightCapital, eMoney, MoneyGuidePro<span>Planning</span></td>
                 <td>Builds the financial plan and the projections.</td>
                 <td>AI that turns documents into plan inputs and flags plan gaps (RightCapital Smart Import and Iris, eMoney CoPlanner).</td>
                 <td class="fit">Keepance does not build plans or give advice. It preps you before you open the planner, telling you what changed and what is missing, and drafts the follow-up after, grounded in the real file.</td>
               </tr>
               <tr>
-                <td class="tool">Holistiplan, FP Alpha<span>Tax</span></td>
+                <td class="tool"><img class="toollogo" src="/images/stack-logos/holistiplan.png" alt="Holistiplan">Holistiplan, FP Alpha<span>Tax</span></td>
                 <td>Reads the tax return, finds planning moves, and builds client tax reports.</td>
                 <td>AI and OCR that read returns and estate documents and match tax strategies.</td>
                 <td class="fit">Keepance pulls those tax findings into the whole-client picture and answers questions that span the return, the emails about it, and the plan. It does not replace your tax tool.</td>
               </tr>
               <tr>
-                <td class="tool">Orion, Envestnet Tamarac, Black Diamond<span>Portfolio &amp; reporting</span></td>
+                <td class="tool"><img class="toollogo" src="/images/stack-logos/tamarac.svg" alt="Envestnet Tamarac">Orion, Envestnet Tamarac, Black Diamond<span>Portfolio &amp; reporting</span></td>
                 <td>Trading, rebalancing, performance reports, and the client portal.</td>
                 <td>Platform AI assistants, next-best-action, and natural-language data queries.</td>
                 <td class="fit">Keepance reads the statements and reports you export and answers across them with the rest of the file. It is not a portfolio or reporting system.</td>
               </tr>
               <tr>
-                <td class="tool">Charles Schwab, Fidelity, Pershing<span>Custodian</span></td>
+                <td class="tool"><img class="toollogo" src="/images/stack-logos/schwab.svg" alt="Charles Schwab">Charles Schwab, Fidelity, Pershing<span>Custodian</span></td>
                 <td>Holds the accounts, moves the money, and issues the official statements.</td>
                 <td>Custodian dashboards and servicing tools.</td>
                 <td class="fit">Keepance never holds accounts or moves money. It reads the statements you keep in the client folder and answers questions about them.</td>
               </tr>
               <tr>
-                <td class="tool">Microsoft 365: Outlook, OneDrive, SharePoint<span>Email, files &amp; office AI</span></td>
+                <td class="tool"><img class="toollogo" src="/images/stack-logos/outlook.svg" alt="Microsoft 365">Microsoft 365: Outlook, OneDrive, SharePoint<span>Email, files &amp; office AI</span></td>
                 <td>Where documents are written and stored, and where email lives.</td>
                 <td>Microsoft 365 Copilot drafts and searches across Microsoft apps through the Graph; Purview governs it.</td>
                 <td class="fit">Keepance reads your client folders and your Outlook history and answers with citations, including the non-Microsoft sources Copilot cannot see. The working copy stays on your machine, with no Keepance server in the path.</td>
               </tr>
               <tr>
-                <td class="tool">Jump, Zocks<span>Meeting notes</span></td>
+                <td class="tool"><img class="toollogo" src="/images/stack-logos/jump.svg" alt="Jump">Jump, Zocks<span>Meeting notes</span></td>
                 <td>Record the meeting, write the notes and follow-ups, and push them to the CRM.</td>
                 <td>Notetaking, plus expanding assistants that act across the stack.</td>
                 <td class="fit">Keepance is not a recorder. It owns the client knowledge outside the meeting: years of documents and email, answered with citations. It works even if you do not run a meeting bot.</td>
@@ -643,6 +659,86 @@
       </div>
     </section>
 
+<section class="compare-section" id="compare">
+      <div class="container">
+        <div class="section-header">
+          <h2>How Keepance compares to the alternatives</h2>
+          <p>Most advisors are looking at the AI meeting-notes tools (Jump, Zocks), the AI now bundled into eMoney or MoneyGuidePro, or ad-hoc ChatGPT. Here's the honest comparison.</p>
+        </div>
+
+        <div class="compare-table-wrap">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>Keepance</th>
+                <th><a href="https://www.meetjump.com/" target="_blank" rel="noopener">Jump</a></th>
+                <th><a href="https://www.emoneyadvisor.com/" target="_blank" rel="noopener">eMoney AI (bundled)</a></th>
+                <th><a href="https://openai.com/chatgpt/overview/" target="_blank" rel="noopener">ChatGPT (free/Plus)</a></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Runs fully on your machine, nothing leaves, with a local model</td>
+                <td><span class="compare-pill yes">Yes, with a local model</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Client data stays on your own computer</td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td>No (vendor cloud)</td>
+                <td>No (Envestnet cloud)</td>
+                <td>No (vendor cloud)</td>
+              </tr>
+              <tr>
+                <td>Your email, imported and searchable on your machine</td>
+                <td>Yes, local import and search across M365, IMAP, Gmail</td>
+                <td>No direct email import</td>
+                <td>No direct email import</td>
+                <td>No (any email sent to ChatGPT goes to OpenAI's cloud)</td>
+              </tr>
+              <tr>
+                <td>An AI vendor to vet under Reg S-P</td>
+                <td>None, with a local model</td>
+                <td>Yes</td>
+                <td>Yes</td>
+                <td>Yes</td>
+              </tr>
+              <tr>
+                <td>Records meetings and syncs notes to your CRM</td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Built for confidential drafting and analysis</td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td>Partly</td>
+                <td>Planning only</td>
+                <td>Generic</td>
+              </tr>
+              <tr>
+                <td>Typical cost</td>
+                <td>$948/yr + your own AI usage</td>
+                <td>Approx. $75-175/advisor/mo <a href="https://www.meetjump.com/pricing" target="_blank" rel="noopener">(check current pricing)</a></td>
+                <td>Bundled <a href="https://www.emoneyadvisor.com/" target="_blank" rel="noopener">(check current details)</a></td>
+                <td>$0-20/mo <a href="https://openai.com/chatgpt/pricing/" target="_blank" rel="noopener">(check current pricing)</a></td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="compare-footnote">Competitor pricing and features are approximate, as of 2026; check each vendor for current details.</p>
+        </div>
+
+        <div class="compare-why">
+          <strong>Why the timing matters</strong>
+          <p>The <a href="https://www.sec.gov/rules/final/2023/34-97990.pdf" target="_blank" rel="noopener">SEC's Reg S-P amendments</a> now require you to vet and monitor every vendor that touches client data, and the smaller-firm deadline passed in June 2026. With Keepance on a local model, there's no AI vendor in the data path to vet, because nothing leaves your machine. Informational, not compliance advice; verify with your compliance counsel.</p>
+        </div>
+      </div>
+    </section>
+
     <!-- CTA STRIP -->
     <section class="cta-strip">
       <div class="container">
@@ -678,7 +774,7 @@
     </div>
   </footer>
 
-  <script src="/scripts/keepance-nav.v5.js" defer></script>
+  <script src="/scripts/keepance-nav.v6.js" defer></script>
 
   <script>
     // Scroll-triggered animations
