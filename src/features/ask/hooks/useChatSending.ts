@@ -80,6 +80,7 @@ import type { ChatSession, ChatCostEntry } from '@/platform/state/aiChatStore';
 import { buildOpenFilesPromptBlock, refusalKeyForReason } from '../AIChatViewer';
 import type { APIKey } from '../AIChatViewer';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
+import { getEntityLabel } from '@/platform/hooks/useEntityLabel';
 
 export interface UseChatSendingDeps {
   // Props forwarded from AIChatViewer.
@@ -705,8 +706,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
             throw new Error(`Access denied: path "${relativePath}" must not contain "..".`);
           }
           throw new Error(
-            `Access denied: "${relativePath}" is outside the active matter (${activeMatterName ?? 'none'}). ` +
-              `Switch the chat scope to "All matters" to work across matters.`,
+            `Access denied: "${relativePath}" is outside the active ${getEntityLabel().one} (${activeMatterName ?? 'none'}). ` +
+              `Switch the chat scope to "All ${getEntityLabel().other}" to work across ${getEntityLabel().other}.`,
           );
         };
         // BUG-047: refuse to write/move/delete a file the user has OPEN with

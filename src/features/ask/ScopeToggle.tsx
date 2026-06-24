@@ -2,6 +2,7 @@ import { FileText, FolderOpen, Mail } from 'lucide-react';
 import { Chip } from '@/ui/kp';
 import type { IconType } from '@/ui/kp';
 import type { AskScope } from './askHelpers';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
 /* -------------------------------------------------------------------------- */
 /* ScopeToggle — compact segmented pill control                                */
@@ -24,11 +25,12 @@ export function ScopeToggle({
   hasMatter: boolean;
   isSample: boolean;
 }) {
+  const entityLabel = useEntityLabel();
   // Build the available options based on context.
   // Email/Documents hidden on the sample matter so demo chips stay prominent.
   const options: ScopeOptionDef[] = [
-    ...(hasMatter ? [{ value: 'this-matter' as AskScope, label: 'This matter', Icon: FileText }] : []),
-    { value: 'all-matters' as AskScope, label: 'All matters', Icon: FolderOpen },
+    ...(hasMatter ? [{ value: 'this-matter' as AskScope, label: `This ${entityLabel.one}`, Icon: FileText }] : []),
+    { value: 'all-matters' as AskScope, label: `All ${entityLabel.other}`, Icon: FolderOpen },
     ...(!isSample ? [
       { value: 'email' as AskScope, label: 'Email', Icon: Mail },
       { value: 'documents' as AskScope, label: 'Documents', Icon: FileText },

@@ -32,6 +32,7 @@ import { useActiveMatters, useActiveMatterId, useMatterStore } from '@/platform/
 import { useMatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import type { MatterSyncStatus } from '@/platform/matter/matterSyncStore';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
 export interface MatterScopeSelectorProps {
   /** Opens the matter manager dialog so the user can create/map matters. */
@@ -115,6 +116,7 @@ export function MatterScopeSelector({
   className,
 }: MatterScopeSelectorProps) {
   const { t } = useTranslation();
+  const entityLabel = useEntityLabel();
   const matters = useActiveMatters();
   const activeMatterId = useActiveMatterId();
   const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
@@ -122,9 +124,10 @@ export function MatterScopeSelector({
   const active = matters.find((m) => m.id === activeMatterId) ?? null;
   const isAllMatters = active === null;
 
+  const allLabel = `All ${entityLabel.other}`;
   const triggerLabel = active
     ? matterLabel(active)
-    : t('matter.scope.all-matters');
+    : allLabel;
 
   return (
     <DropdownMenu>
@@ -136,8 +139,8 @@ export function MatterScopeSelector({
           data-matter-id={active?.id ?? ''}
           title={
             isAllMatters
-              ? t('matter.scope.all-matters-title')
-              : t('matter.scope.active-title', { name: triggerLabel })
+              ? `Searching across all ${entityLabel.other}. Answers may include data from any ${entityLabel.one}.`
+              : `Active ${entityLabel.one}: ${triggerLabel}. Questions are scoped to this ${entityLabel.one} only.`
           }
           className={cn(
             'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium max-w-[260px]',
@@ -168,7 +171,7 @@ export function MatterScopeSelector({
             data-testid="matter-scope-empty"
             className="px-2 py-3 text-xs text-muted-foreground"
           >
-            {t('matter.scope.no-matters')}
+            {`No ${entityLabel.other} yet. Create one to scope your work to a single ${entityLabel.one}.`}
           </div>
         ) : (
           matters.map((m) => {
@@ -206,7 +209,7 @@ export function MatterScopeSelector({
           className="flex items-center gap-2 text-xs"
         >
           <Globe className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-          <span className="flex-1">{t('matter.scope.all-matters')}</span>
+          <span className="flex-1">{allLabel}</span>
           {isAllMatters && <Check className="h-3.5 w-3.5 shrink-0 text-amber-600" />}
         </DropdownMenuItem>
         {onManageMatters && (
@@ -218,7 +221,7 @@ export function MatterScopeSelector({
               className="flex items-center gap-2 text-xs"
             >
               <Settings2 className="h-3.5 w-3.5 shrink-0" />
-              <span>{t('matter.scope.manage')}</span>
+              <span>{`Manage ${entityLabel.other}...`}</span>
             </DropdownMenuItem>
           </>
         )}

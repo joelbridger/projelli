@@ -36,6 +36,7 @@ import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useAsk, type UseAskProps } from './useAsk';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
 /* -------------------------------------------------------------------------- */
 /* Main component                                                               */
@@ -43,6 +44,7 @@ import { useAsk, type UseAskProps } from './useAsk';
 
 export function Ask(props: UseAskProps) {
   const { onSaveToDocument } = props;
+  const entityLabel = useEntityLabel();
   const {
     activeMatter,
     isSampleMatterActive,
@@ -104,7 +106,6 @@ export function Ask(props: UseAskProps) {
       </div>
 
       {/* Toolbar: New search (button) -> scope (filters) -> search field + submit */}
-      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
       <SurfaceToolbar>
         {turns.length > 0 && (
           <Button variant="secondary" size="md" iconLeft={Plus} onClick={handleNewAsk}>
@@ -130,7 +131,7 @@ export function Ask(props: UseAskProps) {
                 ? 'Search across your documents…'
                 : activeMatter
                   ? `Search ${matterLabel(activeMatter)}…`
-                  : 'Search across all matters…'
+                  : `Search across all ${entityLabel.other}…`
           }
           disabled={isBusy}
           aria-label="Search this matter"
@@ -152,7 +153,6 @@ export function Ask(props: UseAskProps) {
           </span>
         </Button>
       </SurfaceToolbar>
-      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
 
       {/* Egress indicator — where this search's AI request goes. */}
       <div style={{ padding: 'var(--kp-space-xs) var(--kp-gutter)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
@@ -233,14 +233,13 @@ export function Ask(props: UseAskProps) {
                 padding: 'var(--kp-space-4xl) 0',
               }}
             >
-              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
               <EmptyState
                 icon={Sparkles}
                 iconSize={36}
                 title="What do you want to find?"
                 body={
                   activeMatter?.id === SAMPLE_MATTER_ID
-                    ? 'This is a sample matter. Click a question below and see a cited answer. Click any citation to read the exact passage.'
+                    ? `This is a sample ${entityLabel.one}. Click a question below and see a cited answer. Click any citation to read the exact passage.`
                     : 'Every answer cites the document and locator. Click any chip to read the exact passage.'
                 }
                 actions={
@@ -248,9 +247,9 @@ export function Ask(props: UseAskProps) {
                     {(activeMatter?.id === SAMPLE_MATTER_ID
                       ? (demoQuestions as unknown as string[])
                       : [
-                          'Summarize the latest deposition',
-                          'Find every email from opposing counsel',
-                          'What deadlines are coming up?',
+                          `Summarize this ${entityLabel.one}`,
+                          'Find all related emails',
+                          'What are the upcoming deadlines?',
                         ]
                     ).map((example) => (
                       <Chip
@@ -282,7 +281,7 @@ export function Ask(props: UseAskProps) {
                   }}
                 >
                   <Eyebrow style={{ marginBottom: 'var(--kp-space-xs)' }}>
-                    Recent in this matter
+                    {`Recent in this ${entityLabel.one}`}
                   </Eyebrow>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-2xs)' }}>
                     {/* Fix #6: each item shows the date/time sub-label so similar-start sessions are distinguishable. */}
@@ -331,7 +330,6 @@ export function Ask(props: UseAskProps) {
               {activeMatter?.id === SAMPLE_MATTER_ID && (
                 <SampleBridgeCallout />
               )}
-              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
             </div>
           )}
 
@@ -436,7 +434,6 @@ export function Ask(props: UseAskProps) {
             Cited answers need your documents indexed on your machine. Enable it in Settings.
             {/* eslint-enable keepance-i18n/no-hardcoded-string */}
           </span>
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
           <Button
             variant="secondary"
             size="sm"
@@ -447,7 +444,6 @@ export function Ask(props: UseAskProps) {
           >
             Enable indexing
           </Button>
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         </div>
       )}
 

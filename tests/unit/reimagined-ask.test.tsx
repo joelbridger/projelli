@@ -184,17 +184,18 @@ describe('Ask', () => {
 
   it('shows example chips in empty state', () => {
     render(<Ask />);
-    expect(screen.getByText(/summarize the latest deposition/i)).toBeDefined();
-    expect(screen.getByText(/find every email from opposing counsel/i)).toBeDefined();
-    expect(screen.getByText(/what deadlines are coming up/i)).toBeDefined();
+    // Default profession is legal in this test file, so entityLabel.one = 'matter'
+    expect(screen.getByText(/summarize this matter/i)).toBeDefined();
+    expect(screen.getByText(/find all related emails/i)).toBeDefined();
+    expect(screen.getByText(/what are the upcoming deadlines/i)).toBeDefined();
   });
 
   it('clicking an example chip fills the input without submitting', () => {
     render(<Ask />);
-    const chip = screen.getByText(/summarize the latest deposition/i);
+    const chip = screen.getByText(/summarize this matter/i);
     fireEvent.click(chip);
     const input = screen.getByRole('textbox') as HTMLInputElement;
-    expect(input.value).toBe('Summarize the latest deposition');
+    expect(input.value).toBe('Summarize this matter');
     // initSession should only have been called once (on mount), not again for a submit
     expect(mockInitSession).toHaveBeenCalledTimes(1);
   });
@@ -331,7 +332,8 @@ describe('Ask', () => {
   it('shows default chips (not demo questions) when active matter is not the sample matter', () => {
     mockActiveMatter = { id: 'matter_other', name: 'Other Matter' };
     render(<Ask />);
-    expect(screen.getByText(/summarize the latest deposition/i)).toBeDefined();
+    // Default profession is legal in this test file, so entityLabel.one = 'matter'
+    expect(screen.getByText(/summarize this matter/i)).toBeDefined();
     expect(screen.queryByText(/what are the open issues in this matter/i)).toBeNull();
   });
 

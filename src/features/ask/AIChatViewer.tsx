@@ -82,6 +82,7 @@ import {
   type ProposedFact,
 } from '@/platform/rag/factsExtraction';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
 /**
  * Pick the refusal i18n key for a failed workspace retrieval. The
@@ -178,6 +179,7 @@ import { ProposedFactsPanel } from './ProposedFactsPanel';
 
 export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, onOpenFileAtPath, className }: AIChatViewerProps) {
   const { t } = useTranslation();
+  const entityLabel = useEntityLabel();
   // Firm "Assured" availability for THIS chat's provider — does the firm have a
   // managed key for it? Drives the egress indicator's assured-proxy story.
   const assuredAvailableForChat = useFirmStore((s) => {
@@ -1142,8 +1144,8 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                 )}
                 title={
                   msg.scope.kind === 'allMatters'
-                    ? t('matter.scope.answer-all-matters-title')
-                    : t('matter.scope.answer-matter-title')
+                    ? `This answer searched across every ${entityLabel.one}.`
+                    : `This answer was confined to the active ${entityLabel.one}. Other clients' data was not searched.`
                 }
               >
                 {msg.scope.kind === 'allMatters' ? (
@@ -1152,10 +1154,8 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                   <Briefcase className="h-3 w-3" />
                 )}
                 {msg.scope.kind === 'allMatters'
-                  ? t('matter.scope.answer-all-matters')
-                  : t('matter.scope.answer-scoped', {
-                      name: msg.scope.matterName ?? t('matter.scope.this-matter'),
-                    })}
+                  ? `All ${entityLabel.other}`
+                  : (msg.scope.matterName ?? `this ${entityLabel.one}`)}
               </div>
             )}
             {/* WS-B/C + BUG-065 — flag when ANY citation in this answer isn't

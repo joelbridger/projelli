@@ -33,6 +33,7 @@ import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/platform/types/workspace';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -154,6 +155,7 @@ export function WorkflowExecutionTab({
   className,
 }: WorkflowExecutionTabProps) {
   const { t } = useTranslation();
+  const entityLabel = useEntityLabel();
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   // Firm name persisted in localStorage — used to brand exported .docx files
@@ -174,31 +176,22 @@ export function WorkflowExecutionTab({
     }
   }, []);
 
-  // Completed step answers for display
-  const [completedAnswers, setCompletedAnswers] = useState<
-    { stepName: string; answers: Record<string, string> }[]
-  >([]);
-
-  // Track completed steps to accumulate answers
-  const prevStepIndex = useRef(-1);
-  useEffect(() => {
-    if (!execution) return;
-    if (execution.currentStepIndex > prevStepIndex.current && execution.currentStepIndex > 0) {
-      // A step just finished — collect its output if it was an interview.
-      const finishedIndex = execution.currentStepIndex - 1;
-      const finishedStep = template.steps[finishedIndex];
-      if (finishedStep?.type === 'interview') {
-        const answersKey = `${finishedStep.id}_answers`;
+  // Derive completed step answers directly from execution state.
+  // This is a pure computation from existing state — no separate useState/useEffect needed.
+  const completedAnswers = useMemo(() => {
+    if (!execution) return [];
+    const result: { stepName: string; answers: Record<string, string> }[] = [];
+    for (let i = 0; i < execution.currentStepIndex; i++) {
+      const step = template.steps[i];
+      if (step?.type === 'interview') {
+        const answersKey = `${step.id}_answers`;
         const answers = execution.inputs[answersKey] as Record<string, string> | undefined;
         if (answers) {
-          setCompletedAnswers((prev) => [
-            ...prev,
-            { stepName: finishedStep.name, answers },
-          ]);
+          result.push({ stepName: step.name, answers });
         }
       }
     }
-    prevStepIndex.current = execution.currentStepIndex;
+    return result;
   }, [execution, template.steps]);
 
   // Auto-scroll to bottom when content changes
@@ -503,7 +496,7 @@ export function WorkflowExecutionTab({
             className="rounded-md border border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-900"
           >
             <span className="font-semibold">Verify before relying.</span>{' '}
-            {template.verificationNote ?? 'This output was produced by AI. Check citations, math, and regulatory positions against primary sources before use in client matters.'}
+            {template.verificationNote ?? `This output was produced by AI. Check citations, math, and regulatory positions against primary sources before use in your clients' ${entityLabel.other}.`}
           </div>
         )}
 
@@ -522,7 +515,7 @@ export function WorkflowExecutionTab({
                 {analyzeSummary.summary.total === 1 ? 'candidate finding' : 'candidate findings'} for your
                 review.{' '}
                 <span className="font-semibold text-green-700">{analyzeSummary.summary.verified} verified</span>{' '}
-                against the matter record;{' '}
+                against the {entityLabel.one} record;{' '}
                 <span className="font-semibold text-amber-700">
                   {analyzeSummary.summary.unverified} flagged unverified
                 </span>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/ui/kp';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
 /* -------------------------------------------------------------------------- */
 /* Constants                                                                    */
@@ -13,6 +14,7 @@ export const SAMPLE_BRIDGE_DISMISSED_KEY = 'keepance:sample-bridge-dismissed';
 /* -------------------------------------------------------------------------- */
 
 export function SampleBridgeCallout() {
+  const entityLabel = useEntityLabel();
   const [dismissed, setDismissed] = useState(
     () => localStorage.getItem(SAMPLE_BRIDGE_DISMISSED_KEY) === '1',
   );
@@ -51,9 +53,7 @@ export function SampleBridgeCallout() {
             margin: 0,
           }}
         >
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-          This is sample data. When you are ready, add your first real matter to search your own files.
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {`This is sample data. When you are ready, add your first real ${entityLabel.one} to search your own files.`}
         </p>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -63,9 +63,7 @@ export function SampleBridgeCallout() {
           data-testid="sample-bridge-add-matter"
           onClick={handleAddMatter}
         >
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-          Add a matter
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {`Add a ${entityLabel.one}`}
         </Button>
         <button
           type="button"
