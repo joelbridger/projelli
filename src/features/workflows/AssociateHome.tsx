@@ -51,6 +51,7 @@ import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout, SearchField, S
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/platform/types/workflow';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
+import type { Profession } from '@/features/workflows/engine/prioritizeByProfession';
 import { useProfessionStore, isLawExperience } from '@/platform/profile/professionStore';
 import { useTrialGate } from '@/platform/hooks/useTrial';
 import { useActiveMatter } from '@/platform/matter/matterStore';
@@ -90,6 +91,20 @@ const CATEGORY_ORDER: CategoryConfig[] = [
   { key: 'kickoff', label: 'Kickoff', description: 'New project and client onboarding' },
   { key: 'custom', label: 'Custom', description: 'Your own saved templates' },
 ];
+
+/**
+ * Maps each onboarding profession key to the template category that should
+ * render FIRST in the "All" view.  Mirrors the category→profession mapping
+ * used in prioritizeByProfession.ts (note: advisor = singular key, advisors =
+ * plural category key on templates).
+ * 'other' is omitted intentionally — no profession preference, natural order.
+ */
+const PROFESSION_PRIMARY_CATEGORY: Partial<Record<Profession, TemplateCategory>> = {
+  legal: 'legal',
+  tax: 'tax',
+  consulting: 'consulting',
+  advisor: 'advisors',
+};
 
 /** The primary "start here" template id for the legal profession. */
 const LAW_FEATURED_ID = 'deposition-contradiction-finder';
@@ -539,10 +554,22 @@ export function AssociateHome({
   }, [profession]);
 
   // Derive the ordered set of categories that are actually present.
+  // The active profession's category is floated to the top so the filter chips
+  // mirror the same ordering as the section list below.
   const presentCategories = useMemo((): CategoryConfig[] => {
     const present = new Set(templates.map((t) => t.category));
-    return CATEGORY_ORDER.filter((cfg) => present.has(cfg.key));
-  }, [templates]);
+    const ordered = CATEGORY_ORDER.filter((cfg) => present.has(cfg.key));
+    const primaryCategory = PROFESSION_PRIMARY_CATEGORY[profession as Profession];
+    if (primaryCategory) {
+      const idx = ordered.findIndex((cfg) => cfg.key === primaryCategory);
+      const primary = ordered[idx];
+      if (idx > 0 && primary !== undefined) {
+        ordered.splice(idx, 1);
+        ordered.unshift(primary);
+      }
+    }
+    return ordered;
+  }, [templates, profession]);
 
   // Apply practice-area filter chip first to get the pre-search scope.
   const categoryFiltered = useMemo(() => {
@@ -573,6 +600,8 @@ export function AssociateHome({
   }, [categoryFiltered, query]);
 
   // Group filtered templates by category in the defined order, including pre-search totals.
+  // The active profession's category is floated to the top so the advisor (or tax, etc.)
+  // user always sees their own pack first in the "All" view.
   const groups = useMemo(() => {
     const byCategory = new Map<TemplateCategory, WorkflowTemplate[]>();
     for (const t of filtered) {
@@ -589,12 +618,22 @@ export function AssociateHome({
       // Show if has filtered results, OR has pre-search templates and search is active (for hint).
       return filtered_count > 0 || (searchActive && total > 0);
     });
+    // Float the active profession's category to the front so the user's own pack leads.
+    const primaryCategory = PROFESSION_PRIMARY_CATEGORY[profession as Profession];
+    if (primaryCategory) {
+      const idx = configsToShow.findIndex((cfg) => cfg.key === primaryCategory);
+      const primary = configsToShow[idx];
+      if (idx > 0 && primary !== undefined) {
+        configsToShow.splice(idx, 1);
+        configsToShow.unshift(primary);
+      }
+    }
     return configsToShow.map((cfg) => ({
       config: cfg,
       templates: byCategory.get(cfg.key) ?? [],
       totalCount: preSearchTotals.get(cfg.key) ?? 0,
     }));
-  }, [filtered, preSearchTotals, searchActive]);
+  }, [filtered, preSearchTotals, searchActive, profession]);
 
   // Featured template: first task in the legal profession (starts-here hint).
   const featuredId = isLawExperience(profession) ? LAW_FEATURED_ID : null;
