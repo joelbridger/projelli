@@ -167,3 +167,129 @@ states** (no API key, mid-index, provider error), and the **20 light + other dee
 households** (do sparse clients build awkward/empty maps?). Finally judge **feel**:
 Client Map build time, Ask latency, indexing snappiness, OCR'd scanned-PDF provenance
 labels, and light-theme consistency everywhere — "impressive" lives in those details.
+
+---
+
+# Round 2 sweep (2026-06-24, clean-slate verified)
+
+**Method.** Driven on the real Windows bench (Legion, `Microsoft Windows 10.0.26200`,
+host Desklink129887) over CDP — every finding observed in the running app, not from
+code reading. **Clean-slate rule now enforced** (see
+[[feedback_keepance_clean_slate_testing]] / `scripts/demo/legion-clean-reset.sh` +
+`legion-purge-residue.mjs`): the first pass was on ACCUMULATED state and exaggerated
+some issues, so every Client-Map / Ask / Audit finding below was **re-verified after a
+clean wipe** (localStorage residue cleared, `.keepance` index rebuilt from scratch via
+the real auto-import). Where a finding was residue-only it is marked RESOLVED-BY-CLEAN.
+
+## ✅ Verified WORKING on a true clean first-run (keep / lean into)
+- **Auto-import "just works" (A1/A2/A4 hold).** Opening the workspace auto-tagged every
+  client's files and auto-indexed all PDFs with real progress: "Indexing workspace:
+  N/73" then "Indexing PDFs: N/301. Nothing leaves your machine." then "OCR: page N of
+  M…". 73 office + 301 PDF + OCR, fully automatic, 0 manual scripts. Auto-tag confirmed:
+  Hollings scoped retrieval = 20 hits (14 PDF); `_Firm` correctly stays unassigned.
+- **Isolation solid** (retrieval-level): Hollings/Webb/Voss each return ONLY their files
+  (leak=0 every query).
+- **Client Map single build is CLEAN** (see R2-CM1): 35 well-distributed items, no dupes.
+- Welcome screen, Settings, Privacy Center, Workflows (advisor packs), Documents tree,
+  Trash empty-state, hub at-a-glance next-actions, egress indicator ("Sending to your AI
+  provider"), light theme — all polished and professional.
+
+## 🔴 Blockers / near-blockers
+- **R2-ASK1 — Ask/Search answers NEVER cite their source (0 citation chips; every answer
+  shows "Not cited from your files. Verify this before relying on it.").** Re-verified on
+  a fully clean state: fresh single question "total portfolio value / revocable trust" →
+  correct answer ($50,200,000 / $18,750,000) but 0 chips, 0 green attestation, the
+  uncited warning. The Search page subtitle literally promises "Every answer cites its
+  source," so on the headline demo surface every answer contradicts the core promise.
+  ROOT CAUSE: Ask relies on the model emitting inline `[filename paragraph N]` markers
+  (`workspaceCommand.ts` buildWorkspaceAnswerPrompt + CITATION_RE parseCitations);
+  the bench's OpenAI model emits none → `bindAnswerCitations` returns [] → TurnBlock
+  `hasGroundedCitation=false` → uncited warning. (Client Map cites fine because it uses
+  STRUCTURED JSON sourceNumbers, not free-text markers.) ROBUST FIX (no shortcut, this is
+  THE promise): make Ask citations reliable regardless of model marker compliance —
+  post-hoc ground the answer's claims back to the retrieved chunks (lexical + embedding)
+  and attach verified citations even when the model emitted no markers; and/or move Ask
+  to a structured answer+sourceIndices contract like Client Map. End state: grounded
+  answers show clickable chips + the green "Answered over your own files" attestation.
+  Files: `src/features/ask/askHelpers.ts` (bindAnswerCitations, prompt path),
+  `src/platform/rag/workspaceCommand.ts` (buildWorkspaceAnswerPrompt, parseCitations,
+  normalizeNumericCitations), `src/features/ask/TurnBlock.tsx`, `CitationText.tsx`.
+  (B1 was marked fixed last round — it is NOT fixed in the real Ask path on Windows.)
+
+## 🟠 Major
+- **R2-CM2 — Client Map citations say "source p. 0" (page 0 is meaningless).** On a CLEAN
+  single Hollings build, 20 of 35 items (57%) cite "p. 0". REAL bug, not residue.
+  `locator = "p. " + hit.pageNumber` (`types.ts` sourceRefFromRagHit), so 20 chunks carry
+  `pageNumber === 0`. Find where pageNumber 0 is stored (PDF/OCR indexer or office-walk
+  default) — store the real page, or omit the locator when page is unknown (render bare
+  "source"). Files: PDF/RAG index path + `src/platform/clientMap/types.ts`.
+- **R2-AUDIT1 — Activity Log empty after real AI usage.** Re-verified clean: after a fresh
+  UI Ask (a real OpenAI request) the Activity Log still shows "No activity logged yet,"
+  though it promises "Every AI request, file operation, workflow run … logged." Undercuts
+  the "auditable" trust pillar on the demo. Either Ask/read AI requests aren't logged, or
+  the audit wiring is broken for the BYOK-direct path. Files: audit-log wiring for Ask +
+  Client Map + at-a-glance.
+- **R2-LABEL1 — Clients list shows a "PRIVILEGE" column (legal jargon, empty for all
+  rows).** Wrong for financial advisors — this is the advisor-pivot A7 "privilege →
+  sensitive" relabel, not yet done, and it sits on the FIRST screen an advisor sees.
+  Relabel to "Sensitive"/"Confidential" (via the entity-label facade, do NOT rename any
+  internal `matter`/`privilege` key) or drop the column. File:
+  `src/features/matters/MattersHome.tsx` (+ `useEntityLabel.ts` facade).
+- **R2-CM1 — Client Map near-duplicate growth on re-index (LATENT; single build is
+  clean).** RESOLVED-BY-CLEAN for the demo: a fresh single build = 35 items, 0 dupes,
+  reads well. The 128-item bloat seen first was ACCUMULATED test residue (the prior
+  ~1 MB `keepance:client-maps`), not what a first-run advisor sees. BUT the underlying
+  flaw is real and will bite over time: dedupe is EXACT normalized-text only
+  (`updater.ts` normalizeText / proposeUpdates `existingText.has(...)`), so a fact reworded
+  by one word is treated as new and auto-applied (B3 autoApplySafeAddUpdates) — repeated
+  re-indexes pile up near-dupes unbounded. ROBUST FIX: near-duplicate detection at
+  propose+build time (token-overlap/Jaccard or embedding-cosine threshold) + a sensible
+  per-section cap. Files: `src/platform/clientMap/updater.ts`, `generator.ts`.
+
+## 🟡 Minor / polish
+- **R2-HUB1 — Hub "No upcoming deadlines yet" is inconsistent.** Hollings shows none even
+  though its Client Map "What's coming" has items; a light client (Diaz Sandra) DID
+  surface an upcoming review. Either surface real future dates consistently or word it so
+  an empty result doesn't look broken. File: hub at-a-glance upcoming-dates logic.
+- **R2-HUB2 — Raw citation markers leak as literal text into the hub.** Diaz Sandra's
+  at-a-glance activity read "Annual account review … is planned … **[2 page 6]**" — the
+  raw marker shows instead of a chip or clean text. Strip/render markers in at-a-glance.
+  File: at-a-glance rendering (MatterHub / generateMatterAtAGlance output handling).
+- **R2-EMAIL1 — Email surface is contradictory.** Banner "Your email is connected" + a
+  perpetual "Syncing…" spinner, but body "No email has been synced yet." No mailbox is
+  actually connected for the demo. Reflect the true unconnected state (connect CTA) and
+  stop the spinner. File: email connector status/sync state.
+- **R2-EMAIL2 — Copy bug** in the Email AI banner: "Try a search **your inbox search**
+  never could." (duplicated "search"). Should be "Try a search your inbox never could."
+- **R2-RECENT1 — Recent-workspaces shows stale + duplicate entries.** Even after a full
+  localStorage wipe, "Recent (5)" listed Northcrest TWICE (mixed `\` vs `/` separator =
+  the A3 path issue) + 3 dead test folders. The recent list persists in the Tauri BACKEND
+  (beyond localStorage). Normalize the path separator so a workspace appears once; age out
+  dead folders. (First screen an advisor sees.)
+- **R2-CM3 — Orphan Client Maps for deleted matters** linger in `keepance:client-maps`
+  (2 non-Northcrest maps from old sessions). Mostly a residue/cleanup nit; a map for a
+  matter that no longer exists should be pruned. (Cleared by the clean reset.)
+
+## Test-harness notes (not app bugs)
+- `scripts/legion-drive.sh type <id> "multi word"` word-splits over SSH (passes `$*`
+  unquoted) → only the first word reaches the input. Use `page.fill` via a `.mjs`
+  (`legion-ask.mjs` / `legion-askcheck.mjs`) for multi-word text.
+- A localStorage `clear()` issued while the app runs does NOT survive a `Stop-Process
+  -Force` (WebView2 flushes async). Durable wipe = delete the WebView2 Local Storage at
+  `C:\Users\james\AppData\Local\com.keepance.app\EBWebView\Default\Local Storage` while
+  the app is stopped, OR purge keys in-page then `location.reload()` (no kill) — see
+  `legion-purge-residue.mjs`. NOTE: the OpenAI key lives in localStorage (`apiKey_openai`),
+  so a full wipe must re-seed it.
+
+## Fix-pass clustering (non-overlapping file groups → parallel Codex agents)
+1. **ask-citations** (🔴 R2-ASK1): askHelpers.ts, workspaceCommand.ts, TurnBlock.tsx,
+   CitationText.tsx. TS-only.
+2. **clientmap-quality** (🟠 R2-CM2 page-0 label + 🟠 R2-CM1 near-dup dedupe/cap):
+   clientMap/types.ts, updater.ts, generator.ts. TS-only. (page-0 root cause may also
+   touch the PDF index path — coordinate with #5 if it's Rust-side.)
+3. **labels-hub** (🟠 R2-LABEL1 privilege column + 🟡 R2-HUB1 upcoming + 🟡 R2-HUB2 raw
+   markers): MattersHome.tsx, MatterHub.tsx, useEntityLabel.ts, at-a-glance helper. TS-only.
+4. **email-recent-polish** (🟡 R2-EMAIL1/2 + 🟡 R2-RECENT1): email connector status + copy,
+   recent-workspaces path normalization. TS-only.
+5. **audit-logging** (🟠 R2-AUDIT1): audit-log wiring for Ask/Client Map. May touch Rust
+   (the one cargo-compiling agent runs the full gate). Investigate first.
