@@ -16,6 +16,13 @@ Engineering · UX · UI · Finance & Metrics.
 Each area has: **Where we are now** (the current position), **Recent key decisions**,
 and **Insights & open ideas**.
 
+## Other tabs
+Beyond the strategy areas, the board has a **Demo** walkthrough, **Roadmap**, **Testing**,
+**Questions**, and a **Personal Development** tab — an interactive checklist of Jameson's
+founder-development plan (section `type:"persondev"`; checkmarks persist in browser
+localStorage under `keepance-board-persondev-v1`). The full source plan for that tab lives
+in [`../personal-development/`](../personal-development/).
+
 ## When a Claude session should update it (HIGH BAR)
 Do **not** update this on routine work. Only add to it for one of these:
 - a **major decision** (strategy, pricing, positioning, a real go/no-go),

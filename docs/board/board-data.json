@@ -372,6 +372,86 @@
         "Point at the egress indicator in the top bar: it shows exactly where each AI request went, or that nothing left the machine.",
         "End on the cited answer in beat 4. It is the strongest moment: trustworthy AI that knows this specific client."
       ]
+    },
+    {
+      "id": "persondev",
+      "type": "persondev",
+      "icon": "🌱",
+      "title": "Personal Development",
+      "status": "active",
+      "now": "Jameson's founder-development plan as a checklist. Spend free time on what actually moves Keepance — getting customers and understanding advisors first, then founder craft, then focus and energy.",
+      "intro": "Vetted books, courses, and hands-on moves, prioritized for Keepance. Tick things off as you go — your progress saves automatically in this browser. The deeper 'browse more' libraries are linked at the bottom. The reading is the warm-up; the hands-on moves are the game.",
+      "groups": [
+        {
+          "label": "Do these first — the 3 hands-on moves",
+          "note": "These beat any amount of reading. You have a real advisory firm to learn from — use it.",
+          "items": [
+            { "id": "pd-move-shadow", "text": "Shadow your wife's firm: map how their documents & compliance actually work", "note": "Exercises 1–2 · your product spec + first customer chat in one" },
+            { "id": "pd-move-interviews", "text": "Run a 10-advisor discovery sprint (workflow-research calls, not demos)", "note": "Exercise 3 · read The Mom Test first" },
+            { "id": "pd-move-paidask", "text": "Make the paid design-partner ask to your 3 warmest advisors", "note": "Exercise 6 · $500–$1,500 for 90 days — a real 'yes' is the only honest proof" }
+          ]
+        },
+        {
+          "label": "More hands-on exercises",
+          "items": [
+            { "id": "pd-ex-position", "text": "Position Keepance and write its one-page story", "note": "Exercise 4" },
+            { "id": "pd-ex-reversedemo", "text": "Run the reverse-demo test on a sample client household", "note": "Exercise 5" }
+          ]
+        },
+        {
+          "label": "Getting customers — essentials",
+          "note": "Tied #1 priority.",
+          "items": [
+            { "id": "pd-cust-momtest", "text": "Read The Mom Test — Rob Fitzpatrick", "note": "~$15 · how to get honest answers from advisors", "link": "https://www.momtestbook.com/" },
+            { "id": "pd-cust-obviously", "text": "Read Obviously Awesome (+ Sales Pitch) — April Dunford", "note": "~$20 · make advisors instantly 'get' Keepance", "link": "https://www.aprildunford.com/books" },
+            { "id": "pd-cust-foundingsales", "text": "Work through Founding Sales — Pete Kazanjy", "note": "free online · selling for non-salespeople", "link": "https://www.foundingsales.com/" },
+            { "id": "pd-cust-xypnlive", "text": "Apply to the XYPN LIVE FinTech competition", "note": "pitch to a room of small RIAs", "link": "https://info.xyplanningnetwork.com/xypn-live-fintech" }
+          ]
+        },
+        {
+          "label": "The advisor world — essentials",
+          "note": "Tied #1 priority.",
+          "items": [
+            { "id": "pd-adv-kitces", "text": "Live inside Kitces — the blog + AdvisorTech map", "note": "free · how advisors think and shop for software", "link": "https://www.kitces.com/" },
+            { "id": "pd-adv-rules", "text": "Read the 2 rules Keepance exists for (Books-and-Records + Reg S-P)", "note": "free · start with the Reg S-P Small Entity guide", "link": "https://www.sec.gov/files/rules/final/2024/regulation-s-p-small-entity-compliance-guide.pdf" },
+            { "id": "pd-adv-veres", "text": "Read Bob Veres — A History of the Financial Planning Profession", "note": "~$25 · why advisors think the way they do", "link": "https://bobveres.com/a-behind-the-scenes-history-of-the-financial-planning-profession/" },
+            { "id": "pd-adv-conference", "text": "Attend one advisor conference this year", "note": "Wealth Management EDGE or Future Proof" }
+          ]
+        },
+        {
+          "label": "Founder & startup craft",
+          "items": [
+            { "id": "pd-found-yc", "text": "Work through Y Combinator Startup School", "note": "free course · your business-school-in-a-weekend", "link": "https://www.startupschool.org/" },
+            { "id": "pd-found-lean", "text": "Read The Lean Startup — Eric Ries", "note": "~$15 · build to learn first, not to polish", "link": "https://theleanstartup.com/" },
+            { "id": "pd-found-zerotoone", "text": "Read Zero to One — Peter Thiel", "note": "~$15 · own a small market completely first", "link": "https://www.penguinrandomhouse.com/books/234730/zero-to-one-by-peter-thiel-with-blake-masters/" },
+            { "id": "pd-found-pg", "text": "Read Paul Graham's essays", "note": "free · start with 'Do Things that Don't Scale'", "link": "https://paulgraham.com/articles.html" }
+          ]
+        },
+        {
+          "label": "Focus, energy & mindset",
+          "items": [
+            { "id": "pd-focus-deepwork", "text": "Read Deep Work — Cal Newport", "note": "~$15 · turn weekend blocks into real focus", "link": "https://calnewport.com/deep-work-rules-for-focused-success-in-a-distracted-world/" },
+            { "id": "pd-focus-indistractable", "text": "Read Indistractable — Nir Eyal", "note": "~$15 · the direct fix for the YouTube pull", "link": "https://www.nirandfar.com/indistractable/" },
+            { "id": "pd-focus-atomic", "text": "Read Atomic Habits — James Clear", "note": "~$15 · keep showing up between the big blocks", "link": "https://jamesclear.com/atomic-habits" },
+            { "id": "pd-focus-rhythm", "text": "Set your weekly weekend operating rhythm", "note": "Exercise 7 · so the time actually gets used" }
+          ]
+        },
+        {
+          "label": "The 6-weekend plan",
+          "note": "A concrete sequence, front-loaded on your two top priorities. One weekend per line.",
+          "items": [
+            { "id": "pd-wk-1", "text": "Weekend 1 — Read The Mom Test; skim Kitces 'Start Here' + the AdvisorTech map; set your weekly rhythm" },
+            { "id": "pd-wk-2", "text": "Weekend 2 — Shadow your wife's firm; do the document/compliance map + software inventory" },
+            { "id": "pd-wk-3", "text": "Weekend 3 — Read Obviously Awesome; draft Keepance's positioning + one-page story" },
+            { "id": "pd-wk-4", "text": "Weekend 4 — Read the Reg S-P guide; skim Books-and-Records; build your advisor interview list" },
+            { "id": "pd-wk-5", "text": "Weekend 5 — Run the first 5 discovery interviews; read Founding Sales alongside" },
+            { "id": "pd-wk-6", "text": "Weekend 6 — Finish interviews; do the reverse-demo test; make the paid design-partner ask" }
+          ]
+        }
+      ],
+      "links": [
+        { "label": "Open the full plan (all libraries + exercises)", "doc": "https://jameworld.com/claudereports/r/2026-06-24-keepance-personal-development-plan.html" }
+      ]
     }
   ]
 }

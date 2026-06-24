@@ -127,6 +127,37 @@
   .demo-tag.pr{color:var(--warn);background:var(--warn-bg)}
   .demo-say{font-style:italic;color:var(--ink)}
 
+  /* Personal Development checklist */
+  .pd-bar{margin:2px 0 6px}
+  .pd-bar-track{height:10px;border-radius:999px;background:var(--bg-soft);overflow:hidden;border:1px solid var(--line)}
+  .pd-bar-fill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#5bd08a);border-radius:999px;transition:width .35s ease}
+  .pd-bar-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:9px 0 0}
+  .pd-bar-label{font-size:13px;font-weight:700;color:var(--ink-soft)}
+  .pd-reset{font-family:inherit;font-size:12px;font-weight:600;color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:8px;padding:5px 11px;cursor:pointer}
+  .pd-reset:hover{color:var(--gap);border-color:var(--gap)}
+  .pd-group{padding:18px 0;border-top:1px solid var(--line)}
+  .pd-group:first-of-type{border-top:0;padding-top:8px}
+  .pd-ghead{display:flex;align-items:center;gap:10px;margin:0 0 4px}
+  .pd-glabel{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:17px;margin:0;letter-spacing:-.01em}
+  .pd-gcount{margin-left:auto;font-size:12px;font-weight:700;color:var(--muted);background:var(--bg-soft);border:1px solid var(--line);border-radius:999px;padding:3px 10px;flex:none}
+  .pd-gnote{font-size:13px;color:var(--muted);margin:0 0 9px}
+  .pd-items{display:flex;flex-direction:column;gap:2px}
+  .pd-item{display:flex;align-items:flex-start;gap:11px;padding:9px 8px;border-radius:10px;cursor:pointer;position:relative}
+  .pd-item:hover{background:var(--bg-soft)}
+  .pd-item input.pd-check{position:absolute;opacity:0;width:0;height:0}
+  .pd-box{flex:none;width:20px;height:20px;margin-top:1px;border:2px solid #c5cee0;border-radius:6px;background:#fff;display:grid;place-items:center;transition:background .12s ease,border-color .12s ease}
+  .pd-item:hover .pd-box{border-color:var(--accent)}
+  .pd-item input.pd-check:checked + .pd-box{background:var(--accent);border-color:var(--accent)}
+  .pd-item input.pd-check:checked + .pd-box::after{content:"";width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);margin-top:-2px}
+  .pd-item input.pd-check:focus-visible + .pd-box{box-shadow:0 0 0 3px rgba(47,109,240,.28)}
+  .pd-main{min-width:0}
+  .pd-text{font-size:14px;color:var(--ink);line-height:1.45}
+  .pd-item.done .pd-text{color:var(--muted);text-decoration:line-through;text-decoration-color:#c5cee0}
+  .pd-note{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+  .pd-item.done .pd-note{color:#b9c2d0}
+  .pd-link{margin-left:6px;color:var(--accent);font-weight:700;text-decoration:none;font-size:13px}
+  .pd-link:hover{text-decoration:underline}
+
   footer{border-top:1px solid var(--line); padding:22px 0 40px; color:var(--muted); font-size:13px}
   footer b{color:var(--ink-soft)}
   .loading,.error{padding:60px 0; text-align:center; color:var(--muted)}
@@ -163,11 +194,12 @@
   var TONE = {
     strategy:"good", roadmap:"good", marketing:"warn", sales:"gap", growth:"gap",
     competitive:"good", engineering:"gap", ux:"warn", ui:"good",
-    testing:"warn", finance:"warn", questions:"info", demo:"good"
+    testing:"warn", finance:"warn", questions:"info", demo:"good", persondev:"good"
   };
   // Tab grouping (Overview is special; others list their section ids)
   var TABS = [
     { id:"overview",  label:"Overview" },
+    { id:"persondev", label:"Personal Development", sections:["persondev"] },
     { id:"demo",      label:"Demo",          sections:["demo"] },
     { id:"strategy",  label:"Strategy",      sections:["strategy","competitive"] },
     { id:"roadmap",   label:"Roadmap",       sections:["roadmap"] },
@@ -232,8 +264,30 @@
     var intro = s.intro ? '<p class="demo-intro">'+esc(s.intro)+'</p>' : '';
     return '<p class="now">'+esc(s.now)+'</p>'+intro+'<div class="demo-steps">'+steps+'</div>'+tipBlock;
   }
+  function renderPersonalDev(s){
+    var groups=(s.groups||[]).map(function(g){
+      var items=(g.items||[]).map(function(it){
+        var note = it.note ? '<span class="pd-note">'+esc(it.note)+'</span>' : '';
+        var link = it.link ? ' <a class="pd-link" href="'+esc(it.link)+'" target="_blank" rel="noopener" title="Open link">↗</a>' : '';
+        return '<label class="pd-item">'
+          +'<input type="checkbox" class="pd-check" data-id="'+esc(it.id)+'">'
+          +'<span class="pd-box" aria-hidden="true"></span>'
+          +'<span class="pd-main"><span class="pd-text">'+esc(it.text)+link+'</span>'+note+'</span>'
+          +'</label>';
+      }).join('');
+      var gnote = g.note ? '<p class="pd-gnote">'+esc(g.note)+'</p>' : '';
+      return '<div class="pd-group"><div class="pd-ghead"><h3 class="pd-glabel">'+esc(g.label)+'</h3><span class="pd-gcount" aria-hidden="true">0/0</span></div>'+gnote+'<div class="pd-items">'+items+'</div></div>';
+    }).join('');
+    var links=(s.links||[]).map(function(l){return '<a class="reslink" href="'+esc(l.doc)+'" target="_blank" rel="noopener">'+esc(l.label)+' →</a>';}).join('');
+    var linkBlock = links ? '<div class="reslinks"><h3><span class="mark res"></span>Go deeper</h3><div class="reslist">'+links+'</div></div>' : '';
+    var intro = s.intro ? '<p class="demo-intro">'+esc(s.intro)+'</p>' : '';
+    var bar = '<div class="pd-bar"><div class="pd-bar-track"><div class="pd-bar-fill" id="pd-bar-fill"></div></div>'
+      +'<div class="pd-bar-row"><span class="pd-bar-label" id="pd-bar-label">0 of 0 done</span>'
+      +'<button type="button" class="pd-reset" id="pd-reset">Reset progress</button></div></div>';
+    return '<p class="now">'+esc(s.now)+'</p>'+intro+bar+groups+linkBlock;
+  }
   function renderSection(s, collapsed){
-    var body = s.type==='testing' ? renderTesting(s) : s.type==='questions' ? renderQuestions(s) : s.type==='roadmap' ? renderRoadmap(s) : s.type==='demo' ? renderDemo(s) : renderStandard(s);
+    var body = s.type==='testing' ? renderTesting(s) : s.type==='questions' ? renderQuestions(s) : s.type==='roadmap' ? renderRoadmap(s) : s.type==='demo' ? renderDemo(s) : s.type==='persondev' ? renderPersonalDev(s) : renderStandard(s);
     return '<section class="area'+(collapsed?' collapsed':'')+'" id="sec-'+s.id+'">'
       +'<button class="area-head" type="button" aria-expanded="'+(collapsed?'false':'true')+'">'
       +'<span class="area-emoji">'+(s.icon||'•')+'</span>'
@@ -294,6 +348,44 @@
         activateTab(tab?tab.id:'overview');
       });
     });
+
+    // Personal Development checklist — progress saved in this browser
+    (function(){
+      var PD_KEY='keepance-board-persondev-v1';
+      var boxes=Array.prototype.slice.call(document.querySelectorAll('input.pd-check'));
+      if(!boxes.length) return;
+      var state={};
+      try{ state=JSON.parse(localStorage.getItem(PD_KEY)||'{}')||{}; }catch(e){ state={}; }
+      function save(){ try{ localStorage.setItem(PD_KEY, JSON.stringify(state)); }catch(e){} }
+      function refresh(){
+        var done=0; boxes.forEach(function(b){ if(b.checked) done++; });
+        var pct = boxes.length ? Math.round(done/boxes.length*100) : 0;
+        var fill=document.getElementById('pd-bar-fill'); if(fill) fill.style.width=pct+'%';
+        var lbl=document.getElementById('pd-bar-label'); if(lbl) lbl.textContent=done+' of '+boxes.length+' done';
+        document.querySelectorAll('.pd-group').forEach(function(g){
+          var gb=g.querySelectorAll('input.pd-check'), gd=0;
+          gb.forEach(function(b){ if(b.checked) gd++; });
+          var c=g.querySelector('.pd-gcount'); if(c) c.textContent=gd+'/'+gb.length;
+        });
+      }
+      boxes.forEach(function(b){
+        b.checked=!!state[b.dataset.id];
+        var row=b.closest('.pd-item'); if(row) row.classList.toggle('done', b.checked);
+        b.addEventListener('change',function(){
+          state[b.dataset.id]=b.checked; save();
+          var r=b.closest('.pd-item'); if(r) r.classList.toggle('done', b.checked);
+          refresh();
+        });
+      });
+      refresh();
+      var reset=document.getElementById('pd-reset');
+      if(reset) reset.addEventListener('click',function(){
+        if(!window.confirm('Reset all Personal Development checkmarks?')) return;
+        state={}; save();
+        boxes.forEach(function(b){ b.checked=false; var r=b.closest('.pd-item'); if(r) r.classList.remove('done'); });
+        refresh();
+      });
+    })();
 
     // initial tab from hash
     var start = (location.hash||'').replace('#','');
