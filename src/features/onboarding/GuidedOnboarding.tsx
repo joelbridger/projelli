@@ -589,6 +589,7 @@ function WorkspaceStep({ onBack, onNext }: { onBack: () => void; onNext: () => v
 
 function TrustStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   const [dataMapOpen, setDataMapOpen] = useState(false);
+  const entityLabel = useEntityLabel();
 
   return (
     <div data-testid="onboarding-step-trust">
@@ -606,7 +607,7 @@ function TrustStep({ onBack, onNext }: { onBack: () => void; onNext: () => void 
           border: '1.5px solid hsl(214.3 31.8% 85%)', borderRadius: 10,
         }}
       >
-        Keepance runs on your computer. In Local-only mode, nothing about your matters leaves this device, not to me and not to any AI provider. Using any tool on client work can still be governed by your firm&apos;s policies, so here&apos;s exactly what Keepance does with your data. Read it, and hand it to your firm if you need to.
+        {`Keepance runs on your computer. In Local-only mode, nothing about your ${entityLabel.other} leaves this device, not to me and not to any AI provider. Using any tool on client work can still be governed by your firm's policies, so here's exactly what Keepance does with your data. Read it, and hand it to your firm if you need to.`}
       </p>
 
       <ul style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28, listStyle: 'none', padding: 0 }}>
@@ -762,6 +763,7 @@ function ConfidentialityChoiceStep({
   onDecideLater,
   onBack,
 }: ConfidentialityChoiceStepProps) {
+  const entityLabel = useEntityLabel();
   return (
     <div data-testid="onboarding-confidentiality-choice">
       <Heading
@@ -827,7 +829,7 @@ function ConfidentialityChoiceStep({
             <p style={{ fontSize: 14, fontWeight: 700, color: 'hsl(222.2 84% 4.9%)', margin: 0 }}>Cloud (bring your own key)</p>
           </div>
           <p style={{ fontSize: 13, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.55, margin: 0 }}>
-            Faster and stronger answers from your own OpenAI, Anthropic, or Google account. Your prompt and the matter text it needs go to that provider. Check your firm&apos;s policy before you use this on client work.
+            {`Faster and stronger answers from your own OpenAI, Anthropic, or Google account. Your prompt and the ${entityLabel.one} context it needs go to that provider. Check your firm's policy before you use this on client work.`}
           </p>
         </button>
       </div>
@@ -1022,6 +1024,7 @@ type FirmOption = 'create' | 'join';
 function FirmStep({ onBack, onAdvance }: FirmStepProps) {
   const firm = useFirm();
   const professionCopy = useProfessionCopy();
+  const entityLabel = useEntityLabel();
   const [selectedOption, setSelectedOption] = useState<FirmOption | null>(null);
 
   let content: ReactNode;
@@ -1031,7 +1034,7 @@ function FirmStep({ onBack, onAdvance }: FirmStepProps) {
     content = (
       <div data-testid="firm-admin-content">
         <p style={{ fontSize: 13, color: 'hsl(215.4 16.3% 44%)', marginBottom: 16, lineHeight: 1.5 }}>
-          You are signed in as a firm admin. Set your firm name and logo, then invite members and manage matters below.
+          {`You are signed in as a firm admin. Set your firm name and logo, then invite members and manage ${entityLabel.other} below.`}
         </p>
         <FirmBranding orgName={firm.org?.name ?? null} />
         <FirmAdminConsole />

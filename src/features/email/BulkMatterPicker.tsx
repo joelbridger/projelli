@@ -4,6 +4,7 @@ import { SearchField, Dropdown } from '@/ui/kp';
 import { useMatters } from '@/platform/matter/matterStore';
 import { mailRetagMessageMatter } from '@/platform/utils/mail-commands';
 import { matterLabel } from '@/platform/rag/matterResolver';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
 // ── BulkMatterPicker ───────────────────────────────────────────────────────
 
@@ -15,6 +16,7 @@ export interface BulkMatterPickerProps {
 }
 
 export function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatterPickerProps) {
+  const entityLabel = useEntityLabel();
   const matters = useMatters();
   const [filing, setFiling] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -56,8 +58,8 @@ export function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: Bu
           size="sm"
           value={matterSearch}
           onChange={(v) => { setMatterSearch(v); }}
-          placeholder="Search matters..."
-          aria-label="Search matters"
+          placeholder={`Search ${entityLabel.other}...`}
+          aria-label={`Search ${entityLabel.other}`}
           data-testid="bulk-matter-picker-search"
           onClick={(e: React.MouseEvent<HTMLInputElement>) => { e.stopPropagation(); }}
         />
@@ -71,7 +73,7 @@ export function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: Bu
         )}
         {filteredMatters.length === 0 ? (
           <div style={{ padding: `var(--kp-space-sm) var(--kp-space-sm)`, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-            {matters.length === 0 ? 'No matters yet' : 'No matching matters'}
+            {matters.length === 0 ? `No ${entityLabel.other} yet` : `No matching ${entityLabel.other}`}
           </div>
         ) : (
           filteredMatters.map((m) => (

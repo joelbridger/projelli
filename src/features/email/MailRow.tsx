@@ -16,6 +16,7 @@ import { isPrivileged } from '@/platform/types/privilege';
 import { formatRelativeDate, slugify } from './emailWorkspaceHelpers';
 import { MatterPickerPopover } from './MatterPickerPopover';
 import { MailRowPrivilege } from './MailRowPrivilege';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
 export interface MailRowProps {
   item: MailListItem;
@@ -26,6 +27,7 @@ export interface MailRowProps {
 }
 
 export function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspace }: MailRowProps) {
+  const entityLabel = useEntityLabel();
   const [hovered, setHovered] = useState(false);
   const [focusWithin, setFocusWithin] = useState(false);
   const [privilegeOpen, setPrivilegeOpen] = useState(false);
@@ -234,7 +236,7 @@ export function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToW
                 iconLeft={FolderInput}
                 data-testid={`file-to-matter-${item.id}`}
                 onClick={() => { setMatterOpen((o) => !o); }}
-                title="File this email to a matter"
+                title={`File this email to a ${entityLabel.one}`}
               >
                 File
               </Button>

@@ -8,6 +8,7 @@ import {
   type MailListItem,
 } from '@/platform/utils/mail-commands';
 import { matterLabel } from '@/platform/rag/matterResolver';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
 // ── MatterPickerPopover ────────────────────────────────────────────────────
 
@@ -21,6 +22,7 @@ export interface MatterPickerProps {
 }
 
 export function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message' }: MatterPickerProps) {
+  const entityLabel = useEntityLabel();
   const matters = useMatters();
   const [filing, setFiling] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -63,8 +65,8 @@ export function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = '
           size="sm"
           value={matterSearch}
           onChange={(v) => { setMatterSearch(v); }}
-          placeholder="Search matters..."
-          aria-label="Search matters"
+          placeholder={`Search ${entityLabel.other}...`}
+          aria-label={`Search ${entityLabel.other}`}
           data-testid="matter-picker-search"
           onClick={(e: React.MouseEvent<HTMLInputElement>) => { e.stopPropagation(); }}
         />
@@ -94,7 +96,7 @@ export function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = '
               color: 'var(--color-muted-foreground)',
             }}
           >
-            {matters.length === 0 ? 'No matters yet' : 'No matching matters'}
+            {matters.length === 0 ? `No ${entityLabel.other} yet` : `No matching ${entityLabel.other}`}
           </div>
         ) : (
           filteredMatters.map((m) => (

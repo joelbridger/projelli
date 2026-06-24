@@ -261,11 +261,11 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
       setFileSuccess(true);
       setTimeout(() => { setFileSuccess(false); }, 2500);
     } catch (e: unknown) {
-      setFileError(e instanceof Error ? e.message : 'Failed to file email to matter.');
+      setFileError(e instanceof Error ? e.message : `Failed to file email to ${entityLabel.one}.`);
     } finally {
       setFilingMatter(null);
     }
-  }, [message]);
+  }, [message, entityLabel.one]);
 
   const handleDraftWithAI = useCallback(async () => {
     if (!message) return;
