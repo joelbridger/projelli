@@ -40,6 +40,11 @@ export interface ChatSession {
   isLoading: boolean;
   error?: string;
   lastUpdated: string;
+  /**
+   * Ask/Search sessions are local to a workspace. This keeps old questions
+   * from one client demo or test workspace from appearing in another one.
+   */
+  workspaceRoot?: string;
   draftInput?: string; // Unsent message draft
   /** Q3 — rolling total for this chat session. */
   cost?: number;
@@ -70,6 +75,7 @@ interface AIChatStore {
 
   // Actions
   initSession: (chatId: string, initialMessages: ChatMessage[]) => void;
+  setSessionWorkspaceRoot: (chatId: string, workspaceRoot: string | null) => void;
   addMessage: (chatId: string, message: ChatMessage) => void;
   updateMessages: (chatId: string, messages: ChatMessage[]) => void;
   setLoading: (chatId: string, isLoading: boolean) => void;
@@ -155,6 +161,35 @@ export const useAIChatStore = create<AIChatStore>()(
             };
           }
           return state;
+        });
+      },
+
+      setSessionWorkspaceRoot: (chatId, workspaceRoot) => {
+        set((state) => {
+          const session = state.sessions[chatId];
+          if (!session) return state;
+          if ((session.workspaceRoot ?? null) === workspaceRoot) return state;
+
+          const nextSession: ChatSession = workspaceRoot !== null
+            ? {
+                ...session,
+                workspaceRoot,
+                lastUpdated: new Date().toISOString(),
+              }
+            : (() => {
+                const { workspaceRoot: _workspaceRoot, ...rest } = session;
+                return {
+                  ...rest,
+                  lastUpdated: new Date().toISOString(),
+                };
+              })();
+
+          return {
+            sessions: {
+              ...state.sessions,
+              [chatId]: nextSession,
+            },
+          };
         });
       },
 
