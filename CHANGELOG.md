@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **AI provider resolution now respects the user's chosen cloud default instead of blindly picking Anthropic first.** Ask, Matter At-a-glance, Client Map, and workflow global defaults now use a shared resolver that skips providers already known invalid, prefers verified/default providers when possible, and always pairs the chosen provider with a model from that provider.
 - **Firm backend provisioning now supports the advisor profession pack.** Backend and frontend firm contracts now accept `advisor`, pack validation preserves it, dev/test seeded firm orgs include it, and LemonSqueezy Firm purchases now provision unclaimed advisor firms by default because advisor is the lead vertical.
 - **Client Map hardening — BUG-100 through BUG-108 (adversarial QA, KEEPANCE 5).** Nine confirmed Client Map defects fixed at the root with TDD; every bug-documenting `it.fails` test was flipped to a passing regression test.
   - **BUG-101 (data-loss): an AI rebuild can no longer wipe the professional's own work.** `useClientMap.generate()` previously stored a fresh AI-only map unconditionally, which would delete user-origin items, accepted updates, and custom sections. It now full-stores only when no map exists (or the existing one is empty); when a map already holds content it routes the fresh AI content through `proposeUpdates` into the approve-first tray, so user-origin items are sovereign (spec §6 rule 3).

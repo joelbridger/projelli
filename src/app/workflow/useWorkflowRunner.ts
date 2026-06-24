@@ -30,6 +30,18 @@ import { OllamaProvider, detectOllama, OLLAMA_DEFAULT_MODEL } from '@/platform/p
 import { modeRestrictsToLocal } from '@/platform/privacy/egress';
 import { assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import {
+  cloudKeyPresenceFromValues,
+  resolveCloudSettingsDefaults,
+  resolvePreferredCloudProvider,
+  toTemplateProviderId,
+  type CloudProviderKeyValues,
+} from '@/platform/providers/resolvePreferredCloudProvider';
+import { getInvalidProviders, getVerifiedProviders } from '@/platform/providers/keyVerification';
+import {
+  PROFESSION_MODEL_STORAGE_KEY,
+  PROFESSION_PROVIDER_STORAGE_KEY,
+} from '@/platform/profile/professionModel';
 import { MemoryService } from '@/platform/rag/MemoryService';
 import { getActiveScope } from '@/platform/matter/matterStore';
 import { ragVerifyCitation, type RetrievalScope } from '@/platform/utils/tauri-commands';
@@ -42,7 +54,6 @@ import type {
   WorkflowExecution,
   InterviewQuestion,
   WorkflowFileData,
-  TemplateProviderId,
 } from '@/platform/types/workflow';
 import type { APIKey } from '@/platform/types/ai';
 import type { RunRecord } from '@/platform/types/workflow';
@@ -147,9 +158,19 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       //   - ollama-pinned + unreachable  → 'ollama-unreachable' (NEVER 'cloud')
       //   - no key + !testMode           → 'needs-provider'     (NEVER 'mock')
       //   - no key + testMode            → 'mock'
-      const anthropicKey = apiKeys.find((k) => k.provider === 'anthropic')?.key;
-      const openaiKey = apiKeys.find((k) => k.provider === 'openai')?.key;
-      const googleKey = apiKeys.find((k) => k.provider === 'google')?.key;
+      const invalidProviders = getInvalidProviders();
+      const verifiedProviders = getVerifiedProviders();
+      const rawAnthropicKey = apiKeys.find((k) => k.provider === 'anthropic')?.key;
+      const rawOpenaiKey = apiKeys.find((k) => k.provider === 'openai')?.key;
+      const rawGoogleKey = apiKeys.find((k) => k.provider === 'google')?.key;
+      const anthropicKey = invalidProviders.has('anthropic') ? undefined : rawAnthropicKey;
+      const openaiKey = invalidProviders.has('openai') ? undefined : rawOpenaiKey;
+      const googleKey = invalidProviders.has('google') ? undefined : rawGoogleKey;
+      const cloudKeys: CloudProviderKeyValues = {
+        anthropic: anthropicKey,
+        openai: openaiKey,
+        google: googleKey,
+      };
 
       // Q8 — honor the template's own default provider/model plus any
       // per-template override the user pinned in Settings.
@@ -157,17 +178,32 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         (useSettingsStore.getState().getSetting<
           Record<string, TemplateModelOverride> | undefined
         >(TEMPLATE_MODEL_OVERRIDES_KEY) ?? {});
-      const globalProvider: TemplateProviderId = anthropicKey
-        ? 'claude'
-        : openaiKey
-          ? 'openai'
-          : googleKey
-            ? 'gemini'
-            : 'claude';
+      const settings = useSettingsStore.getState();
+      const globalCloudDefault = resolvePreferredCloudProvider({
+        availableKeys: cloudKeyPresenceFromValues(cloudKeys),
+        settings: resolveCloudSettingsDefaults(
+          settings.getSetting('defaultProvider'),
+          settings.getSetting('defaultModel'),
+          typeof localStorage !== 'undefined'
+            ? localStorage.getItem(PROFESSION_PROVIDER_STORAGE_KEY)
+            : null,
+          typeof localStorage !== 'undefined'
+            ? localStorage.getItem(PROFESSION_MODEL_STORAGE_KEY)
+            : null,
+        ),
+        verifiedProviders,
+        invalidProviders,
+      });
+      const globalDefault: TemplateModelOverride = globalCloudDefault
+        ? {
+            provider: toTemplateProviderId(globalCloudDefault.provider),
+            model: globalCloudDefault.model,
+          }
+        : { provider: 'claude', model: '' };
       const resolution = resolveTemplateModel({
         template,
         overrides,
-        globalDefault: { provider: globalProvider, model: '' },
+        globalDefault,
       });
 
       const pickedProvider = resolution.provider;

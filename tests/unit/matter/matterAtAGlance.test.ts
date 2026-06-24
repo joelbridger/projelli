@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Hoist mock send function so ClaudeProvider factory can reference it
-const { mockSendMessage } = vi.hoisted(() => ({
+const { mockSendMessage, keychainKeys } = vi.hoisted(() => ({
   mockSendMessage: vi.fn(async () => ({
     content: JSON.stringify({
       openIssues: ['Lease dispute unresolved'],
@@ -19,6 +19,11 @@ const { mockSendMessage } = vi.hoisted(() => ({
     cost: 0,
     model: 'claude-3-haiku-20240307',
   })),
+  keychainKeys: {
+    anthropic: 'test-api-key' as string | null,
+    openai: null as string | null,
+    google: null as string | null,
+  },
 }));
 
 // ── MemoryService mock ───────────────────────────────────────────────────────
@@ -40,8 +45,7 @@ vi.mock('@/platform/rag/workspaceCommand', () => ({
 vi.mock('@/platform/providers/KeychainService', () => ({
   KeychainService: class {
     async getKey(provider: string) {
-      if (provider === 'anthropic') return 'test-api-key';
-      return null;
+      return keychainKeys[provider as keyof typeof keychainKeys] ?? null;
     }
   },
 }));
@@ -51,9 +55,11 @@ vi.mock('@/platform/providers/ClaudeProvider', () => {
   const send = mockSendMessage;
   return {
     ClaudeProvider: class {
+      private readonly model: string | undefined;
+      constructor(config: { model?: string }) { this.model = config.model; }
       sendMessage(...args: Parameters<typeof send>) { return send(...args); }
       structuredOutput() { return Promise.resolve({}); }
-      getMetadata() { return { model: 'claude-3-haiku-20240307' }; }
+      getMetadata() { return { model: this.model ?? 'claude-default' }; }
       formatAttachmentForRequest() { return {}; }
       supportsAttachment() { return true; }
     },
@@ -62,9 +68,11 @@ vi.mock('@/platform/providers/ClaudeProvider', () => {
 
 vi.mock('@/platform/providers/OpenAIProvider', () => ({
   OpenAIProvider: class {
+    private readonly model: string | undefined;
+    constructor(config: { model?: string }) { this.model = config.model; }
     sendMessage() { return Promise.resolve({ content: '', usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: 0, model: 'gpt-4o-mini' }); }
     structuredOutput() { return Promise.resolve({}); }
-    getMetadata() { return { model: 'gpt-4o-mini' }; }
+    getMetadata() { return { model: this.model ?? 'openai-default' }; }
     formatAttachmentForRequest() { return {}; }
     supportsAttachment() { return true; }
   },
@@ -72,9 +80,11 @@ vi.mock('@/platform/providers/OpenAIProvider', () => ({
 
 vi.mock('@/platform/providers/GeminiProvider', () => ({
   GeminiProvider: class {
+    private readonly model: string | undefined;
+    constructor(config: { model?: string }) { this.model = config.model; }
     sendMessage() { return Promise.resolve({ content: '', usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: 0, model: 'gemini-pro' }); }
     structuredOutput() { return Promise.resolve({}); }
-    getMetadata() { return { model: 'gemini-pro' }; }
+    getMetadata() { return { model: this.model ?? 'gemini-default' }; }
     formatAttachmentForRequest() { return {}; }
     supportsAttachment() { return true; }
   },
@@ -142,6 +152,10 @@ describe('generateMatterAtAGlance', () => {
       cost: 0,
       model: 'claude-3-haiku-20240307',
     });
+    keychainKeys.anthropic = 'test-api-key';
+    keychainKeys.openai = null;
+    keychainKeys.google = null;
+    localStorage.clear();
   });
 
   afterEach(() => {
@@ -260,7 +274,13 @@ describe('hasCloudKeyForGlance', () => {
 });
 
 describe('buildProviderForGlance', () => {
-  beforeEach(() => { cmode.mode = 'direct'; });
+  beforeEach(() => {
+    cmode.mode = 'direct';
+    keychainKeys.anthropic = 'test-api-key';
+    keychainKeys.openai = null;
+    keychainKeys.google = null;
+    localStorage.clear();
+  });
   afterEach(() => { cmode.mode = 'direct'; });
 
   it('returns a provider instance', async () => {
@@ -272,7 +292,19 @@ describe('buildProviderForGlance', () => {
   it('uses the cloud provider when a key exists and NOT in local-only mode', async () => {
     cmode.mode = 'direct';
     const provider = await buildProviderForGlance();
-    expect(provider.getMetadata().model).toBe('claude-3-haiku-20240307');
+    expect(provider.getMetadata().model).toBe('claude-sonnet-4-6');
+  });
+
+  it('honors the OpenAI default provider and model instead of Anthropic key order', async () => {
+    cmode.mode = 'direct';
+    keychainKeys.anthropic = 'stale-anthropic';
+    keychainKeys.openai = 'valid-openai';
+    localStorage.setItem('keepance_default_provider', 'openai');
+    localStorage.setItem('keepance_default_model', 'gpt-4o');
+
+    const provider = await buildProviderForGlance();
+
+    expect(provider.getMetadata().model).toBe('gpt-4o');
   });
 
   it('forces the LOCAL model in local-only mode even with a cloud key (A1, privacy)', async () => {

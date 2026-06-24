@@ -7,7 +7,16 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const h = vi.hoisted(() => ({ mode: 'direct' as string }));
+const h = vi.hoisted(() => ({
+  mode: 'direct' as string,
+  defaultProvider: '',
+  defaultModel: '',
+  keys: {
+    anthropic: 'sk-ant-test' as string | null,
+    openai: null as string | null,
+    google: null as string | null,
+  },
+}));
 
 vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
   getConfidentialityMode: () => h.mode,
@@ -22,20 +31,45 @@ vi.mock('@/platform/firm/firmStore', () => ({
 vi.mock('@/platform/settings/settingsStore', () => ({
   useSettingsStore: {
     getState: () => ({
-      getSetting: (_key: string) => true,
+      getSetting: (key: string) => {
+        if (key === 'defaultProvider') return h.defaultProvider;
+        if (key === 'defaultModel') return h.defaultModel;
+        return true;
+      },
     }),
   },
 }));
 
 // Stub providers so buildProviderAsync constructs identifiable instances.
-vi.mock('@/platform/providers/ClaudeProvider', () => ({ ClaudeProvider: class { kind = 'anthropic'; } }));
-vi.mock('@/platform/providers/OpenAIProvider', () => ({ OpenAIProvider: class { kind = 'openai'; } }));
-vi.mock('@/platform/providers/GeminiProvider', () => ({ GeminiProvider: class { kind = 'google'; } }));
+vi.mock('@/platform/providers/ClaudeProvider', () => ({
+  ClaudeProvider: class {
+    kind = 'anthropic';
+    model: string | undefined;
+    constructor(config: { model?: string }) { this.model = config.model; }
+  },
+}));
+vi.mock('@/platform/providers/OpenAIProvider', () => ({
+  OpenAIProvider: class {
+    kind = 'openai';
+    model: string | undefined;
+    constructor(config: { model?: string }) { this.model = config.model; }
+  },
+}));
+vi.mock('@/platform/providers/GeminiProvider', () => ({
+  GeminiProvider: class {
+    kind = 'google';
+    model: string | undefined;
+    constructor(config: { model?: string }) { this.model = config.model; }
+  },
+}));
 vi.mock('@/platform/providers/OllamaProvider', () => ({ OllamaProvider: class { kind = 'ollama'; } }));
 vi.mock('@/platform/providers/KeychainService', () => ({
   // Always has an Anthropic cloud key available.
   KeychainService: vi.fn().mockImplementation(function () {
-    return { getKey: (p: string) => Promise.resolve(p === 'anthropic' ? 'sk-ant-test' : null) };
+    return {
+      getKey: (p: string) =>
+        Promise.resolve(h.keys[p as keyof typeof h.keys] ?? null),
+    };
   }),
 }));
 
@@ -49,6 +83,10 @@ import { buildProviderAsync } from '@/features/ask/askHelpers';
 describe('localOnlyGuard (A1)', () => {
   beforeEach(() => {
     h.mode = 'direct';
+    h.defaultProvider = '';
+    h.defaultModel = '';
+    h.keys = { anthropic: 'sk-ant-test', openai: null, google: null };
+    localStorage.clear();
   });
 
   it('isLocalOnlyMode reflects the confidentiality mode', () => {
@@ -93,5 +131,20 @@ describe('Ask buildProviderAsync honours local-only (A1)', () => {
     h.mode = 'direct';
     const provider = (await buildProviderAsync()) as unknown as { kind: string };
     expect(provider.kind).toBe('anthropic');
+  });
+
+  it('honors the OpenAI default provider and model instead of Anthropic key order', async () => {
+    h.mode = 'direct';
+    h.defaultProvider = 'openai';
+    h.defaultModel = 'gpt-4o';
+    h.keys = { anthropic: 'stale-anthropic', openai: 'valid-openai', google: null };
+
+    const provider = (await buildProviderAsync()) as unknown as {
+      kind: string;
+      model: string | undefined;
+    };
+
+    expect(provider.kind).toBe('openai');
+    expect(provider.model).toBe('gpt-4o');
   });
 });
