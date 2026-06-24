@@ -16,6 +16,12 @@ on:
       - master
       - keepance-3.0
 
+# Cancel superseded in-progress runs on the same ref (e.g. rapid PR pushes); never
+# cancel a push to the long-lived branches mid-run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -102,3 +108,37 @@ jobs:
         env:
           CI: '1'
         run: cargo test --workspace --locked
+
+  e2e:
+    # Browser E2E gatekeeper (2026-06-24 testing strategy): build the production-like
+    # preview bundle and run the Playwright suite (chromium project) against it, so a
+    # change that breaks a screen is caught HERE, before the slow real-Windows bench.
+    # AI is offline — the one live-network test is skipped via E2E_NO_LIVE.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright (chromium + OS deps)
+        run: npx playwright install --with-deps chromium
+      - name: Build E2E preview bundle
+        run: npx vite build --config vite.config.e2e.ts
+      - name: Run browser E2E gate (chromium, no live AI)
+        env:
+          E2E_NO_LIVE: '1'
+        run: |
+          npx vite preview --config vite.config.e2e.ts --port 4173 --strictPort >/tmp/e2e-preview.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:4173 >/dev/null 2>&1 && break; sleep 1; done
+          E2E_BASE_URL=http://localhost:4173 npx playwright test --project=chromium --reporter=line
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14

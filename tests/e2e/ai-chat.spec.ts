@@ -111,6 +111,9 @@ test.describe('AI Chat', () => {
 
   test.describe('Fix #1: Claude API CORS handling', () => {
     test('Vite proxy returns 401 without API key (not CORS error)', async ({ page }) => {
+      // Makes a REAL outbound call to Anthropic via the preview proxy. Skipped in the
+      // CI gate (E2E_NO_LIVE=1) so the gate never hangs/flakes on an external service.
+      test.skip(!!process.env.E2E_NO_LIVE, 'live outbound call to Anthropic; skipped in the CI gate');
       await page.goto('/?testMode=true');
       await waitForTestModeLoad(page);
 

@@ -31,6 +31,12 @@ export default defineConfig({
   workers: process.env.CI ? 1 : 2,
   reporter: 'html',
 
+  // Visual snapshots are environment-sensitive (font hinting / anti-aliasing differ
+  // between machines). A small tolerance keeps the CI gate from flaking on sub-pixel
+  // rendering noise while still catching real layout regressions (which move far more
+  // than 2% of pixels).
+  expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.02 } },
+
   timeout: 60_000, // Per-test timeout (cold start can be slow)
 
   use: {
