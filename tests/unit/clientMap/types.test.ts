@@ -40,6 +40,22 @@ describe('clientMap/types', () => {
     expect(ref.ref).toBe('mail:msg-123');
   });
 
+  it('omits unknown or invalid page locators instead of rendering p. 0', () => {
+    const base: RagHit = {
+      path: '/Clients/Acme/notes.txt',
+      chunkText: 'The source has no real page number.',
+      score: 0.8,
+      paragraphIndex: 0,
+      sourceId: '/Clients/Acme/notes.txt',
+      sourceType: 'txt',
+    };
+
+    expect(sourceRefFromRagHit({ ...base, pageNumber: 0 }).locator).toBeUndefined();
+    expect(sourceRefFromRagHit({ ...base, pageNumber: -1 }).locator).toBeUndefined();
+    expect(sourceRefFromRagHit({ ...base, locator: 'p. 0', pageNumber: 0 }).locator).toBeUndefined();
+    expect(sourceRefFromRagHit({ ...base, pageNumber: 3 }).locator).toBe('p. 3');
+  });
+
   it('builds an empty-but-valid ClientMap with the six section order', () => {
     const map = emptyClientMap('m1');
     expect(map.matterId).toBe('m1');

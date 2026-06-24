@@ -8,6 +8,7 @@ import {
 } from './types';
 import type { ClientMap, ClientMapSection, CoreSectionKey, GapQuestion } from './types';
 import { parseItems, itemsFromRaw } from './aiSection';
+import { capGeneratedSectionItems } from './updater';
 
 // Gap questions are tagged with the section their answer belongs to so the
 // Guided Interview can file the answer in the right section. Unknown / missing
@@ -85,7 +86,13 @@ export async function buildClientMap(
     if (hits.length === 0) { sections.push({ id: key, kind: 'core', key, title: CORE_SECTION_TITLE[key], items: [] }); continue; }
     const ctx = buildWorkspaceContextBlock(hits);
     const res = await provider.sendMessage('Build this section.', { systemPrompt: sectionPrompt(CORE_SECTION_TITLE[key], ctx), maxTokens: 500 });
-    sections.push({ id: key, kind: 'core', key, title: CORE_SECTION_TITLE[key], items: itemsFromRaw(parseItems(res.content), hits) });
+    sections.push({
+      id: key,
+      kind: 'core',
+      key,
+      title: CORE_SECTION_TITLE[key],
+      items: capGeneratedSectionItems(itemsFromRaw(parseItems(res.content), hits)),
+    });
   }
 
   // Gap questions for Context Completeness. Each gap carries the section its

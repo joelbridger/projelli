@@ -3,6 +3,39 @@ import { MemoryService } from '@/platform/rag/MemoryService';
 import type { ClientMap, ClientMapItem, ClientMapSection, DismissedSignature, ProposedUpdate, SourceRef } from './types';
 
 const BROAD_QUERY = 'client matter overview documents people dates issues';
+export const CLIENT_MAP_SECTION_ITEM_CAP = 12;
+const NEAR_DUPLICATE_JACCARD_THRESHOLD = 0.8;
+const NEAR_DUPLICATE_OVERLAP_THRESHOLD = 0.8;
+const MIN_NEAR_DUPLICATE_TOKENS = 3;
+
+const LOW_SIGNAL_WORDS = new Set([
+  'a', 'about', 'after', 'again', 'all', 'also', 'an', 'and', 'any', 'are', 'as', 'at',
+  'be', 'been', 'being', 'but', 'by', 'client', 'clients', 'did', 'do', 'does', 'for',
+  'from', 'had', 'has', 'have', 'he', 'her', 'his', 'household', 'households', 'in',
+  'into', 'is', 'it', 'its', 'matter', 'matters', 'of', 'on', 'or', 'our', 'she',
+  'so', 'that', 'the', 'their', 'them', 'these', 'they', 'this', 'those', 'to', 'was',
+  'were', 'will', 'with',
+]);
+
+const TOKEN_ALIASES: Record<string, string> = {
+  expectations: 'expect',
+  expected: 'expect',
+  expects: 'expect',
+  holding: 'hold',
+  holds: 'hold',
+  held: 'hold',
+  intended: 'intend',
+  intends: 'intend',
+  planning: 'plan',
+  planned: 'plan',
+  plans: 'plan',
+  preserving: 'preserve',
+  preservation: 'preserve',
+  preserves: 'preserve',
+  retirement: 'retire',
+  retired: 'retire',
+  retiring: 'retire',
+};
 
 /**
  * Cheap staleness fingerprint of a matter's indexed content.
@@ -28,6 +61,89 @@ export async function computeSourceFingerprint(matterId: string): Promise<string
 /** Normalize an item's text for stable comparison/signature. */
 function normalizeText(text: string): string {
   return text.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normalizeToken(token: string): string {
+  const alias = TOKEN_ALIASES[token];
+  if (alias) return alias;
+  if (token.length > 5 && token.endsWith('ies')) return `${token.slice(0, -3)}y`;
+  if (token.length > 5 && token.endsWith('ing')) return token.slice(0, -3);
+  if (token.length > 4 && token.endsWith('ed')) return token.slice(0, -2);
+  if (token.length > 4 && token.endsWith('es')) return token.slice(0, -2);
+  if (token.length > 3 && token.endsWith('s')) return token.slice(0, -1);
+  return token;
+}
+
+function contentWordSet(text: string): Set<string> {
+  const tokens = normalizeText(text)
+    .replace(/['’]s\b/g, '')
+    .match(/[a-z0-9]+(?:\.[0-9]+)?/g) ?? [];
+  return new Set(
+    tokens
+      .map(normalizeToken)
+      .filter((token) => token.length > 1 && !LOW_SIGNAL_WORDS.has(token)),
+  );
+}
+
+export function areNearDuplicateFacts(left: string, right: string): boolean {
+  if (normalizeText(left) === normalizeText(right)) return true;
+
+  const leftTokens = contentWordSet(left);
+  const rightTokens = contentWordSet(right);
+  const smallerSize = Math.min(leftTokens.size, rightTokens.size);
+  if (smallerSize < MIN_NEAR_DUPLICATE_TOKENS) return false;
+
+  let shared = 0;
+  for (const token of leftTokens) {
+    if (rightTokens.has(token)) shared += 1;
+  }
+  const unionSize = leftTokens.size + rightTokens.size - shared;
+  const jaccard = unionSize === 0 ? 0 : shared / unionSize;
+  const overlap = shared / smallerSize;
+  return jaccard >= NEAR_DUPLICATE_JACCARD_THRESHOLD || overlap >= NEAR_DUPLICATE_OVERLAP_THRESHOLD;
+}
+
+function sourceStrength(item: ClientMapItem): number {
+  const strongSources = item.sources.filter((source) => source.ref.trim() !== '' && source.snippet.trim() !== '');
+  const citationCount = strongSources.filter((source) => source.citationId !== undefined).length;
+  const locatorCount = strongSources.filter((source) => source.locator !== undefined).length;
+  return (item.isAssumption ? -100 : 0) + strongSources.length * 10 + citationCount * 3 + locatorCount;
+}
+
+function strongerItem(left: ClientMapItem, right: ClientMapItem): ClientMapItem {
+  const leftStrength = sourceStrength(left);
+  const rightStrength = sourceStrength(right);
+  if (leftStrength !== rightStrength) return leftStrength > rightStrength ? left : right;
+  return left.sources.length >= right.sources.length ? left : right;
+}
+
+export function capGeneratedSectionItems(
+  items: ClientMapItem[],
+  cap: number = CLIENT_MAP_SECTION_ITEM_CAP,
+): ClientMapItem[] {
+  const deduped: Array<{ item: ClientMapItem; index: number }> = [];
+
+  items.forEach((item, index) => {
+    const existingIndex = deduped.findIndex((candidate) => areNearDuplicateFacts(candidate.item.text, item.text));
+    if (existingIndex === -1) {
+      deduped.push({ item, index });
+      return;
+    }
+
+    const current = deduped[existingIndex]!;
+    const stronger = strongerItem(current.item, item);
+    if (stronger === item) deduped[existingIndex] = { item, index };
+  });
+
+  if (deduped.length <= cap) return deduped.map((entry) => entry.item);
+
+  const selected = deduped
+    .map((entry) => ({ ...entry, strength: sourceStrength(entry.item) }))
+    .sort((a, b) => b.strength - a.strength || a.index - b.index)
+    .slice(0, cap)
+    .sort((a, b) => a.index - b.index);
+
+  return selected.map((entry) => entry.item);
 }
 
 /** Stable content identity of a proposal: section + op + normalized text.
@@ -57,8 +173,7 @@ function hasStrongSource(item: ClientMapItem): boolean {
 }
 
 function sectionHasText(section: ClientMapSection | undefined, text: string): boolean {
-  const normalized = normalizeText(text);
-  return (section?.items ?? []).some((item) => normalizeText(item.text) === normalized);
+  return (section?.items ?? []).some((item) => areNearDuplicateFacts(item.text, text));
 }
 
 function isAutoApplicableAdd(map: ClientMap, update: ProposedUpdate): update is ProposedUpdate & { draft: ClientMapItem } {
@@ -68,6 +183,7 @@ function isAutoApplicableAdd(map: ClientMap, update: ProposedUpdate): update is 
 
   const section = map.sections.find((sec) => sec.key === update.sectionKey);
   if (!section) return false;
+  if (section.items.length >= CLIENT_MAP_SECTION_ITEM_CAP) return false;
   return !sectionHasText(section, update.draft.text);
 }
 
@@ -81,6 +197,28 @@ function dismissalKey(signature: string, sourceSignature: string): string {
 /** The set of dismissed (signature, sourceSignature) composite keys. */
 function dismissedKeySet(dismissed: DismissedSignature[]): Set<string> {
   return new Set(dismissed.map((d) => dismissalKey(d.signature, d.sourceSignature)));
+}
+
+function dismissedDraftText(signature: string, sectionKey: string, op: ProposedUpdate['op']): string | undefined {
+  const prefix = `${sectionKey} | ${op} | `;
+  return signature.startsWith(prefix) ? signature.slice(prefix.length) : undefined;
+}
+
+function wasDismissed(
+  dismissed: DismissedSignature[],
+  dismissedKeys: Set<string>,
+  sectionKey: string,
+  op: ProposedUpdate['op'],
+  item: ClientMapItem,
+  sourceSignature: string,
+): boolean {
+  const signature = proposalSignature(sectionKey, op, item.text);
+  if (dismissedKeys.has(dismissalKey(signature, sourceSignature))) return true;
+  return dismissed.some((dismissal) => {
+    if (dismissal.sourceSignature !== sourceSignature) return false;
+    const dismissedText = dismissedDraftText(dismissal.signature, sectionKey, op);
+    return dismissedText !== undefined && areNearDuplicateFacts(dismissedText, item.text);
+  });
 }
 
 /** The sourceSignature recorded for a proposal. For a sourced item it is the set
@@ -113,17 +251,24 @@ export function proposeUpdates(
 
   for (const builtSec of built.sections) {
     const curSec = current.sections.find((s) => s.key === builtSec.key);
-    const existingText = new Set((curSec?.items ?? []).map((i) => normalizeText(i.text)));
-    for (const item of builtSec.items) {
-      if (existingText.has(normalizeText(item.text))) continue; // already present (incl. user-origin copies)
+    const openSlots = Math.max(0, CLIENT_MAP_SECTION_ITEM_CAP - (curSec?.items.length ?? 0));
+    if (openSlots === 0) continue;
 
-      const signature = draftSignature(builtSec.key, 'add', item);
+    const candidates: ClientMapItem[] = [];
+    for (const item of builtSec.items) {
       const sourceSignature = proposalSourceSignature(item.sources, matterFingerprint);
+      if (sectionHasText(curSec, item.text)) continue; // already present or nearly present (incl. user-origin copies)
       // BUG-100: if the user dismissed this exact proposal AND its source has not
       // changed since, do not re-propose it. (Composite key so the same text from
       // a different source is judged independently.)
-      if (dismissedKeys.has(dismissalKey(signature, sourceSignature))) continue;
+      if (wasDismissed(dismissed, dismissedKeys, builtSec.key, 'add', item, sourceSignature)) continue;
+      candidates.push(item);
+    }
 
+    const selected = capGeneratedSectionItems(candidates, openSlots);
+    for (const item of selected) {
+      const signature = draftSignature(builtSec.key, 'add', item);
+      const sourceSignature = proposalSourceSignature(item.sources, matterFingerprint);
       updates.push({
         id: `${builtSec.key}-${String(updates.length)}-${now}`,
         sectionKey: builtSec.key,
@@ -169,6 +314,19 @@ export function mergePendingUpdates(
     const sig = sigOf(u);
     if (seen.has(sig)) continue; // already pending — keep the existing one
     if (dismissedKeys.has(dismissalKey(sig, u.sourceSignature ?? ''))) continue;
+    const draft = u.draft;
+    if (
+      u.op === 'add' &&
+      draft !== undefined &&
+      merged.some((existingUpdate) =>
+        existingUpdate.op === 'add' &&
+        existingUpdate.sectionKey === u.sectionKey &&
+        existingUpdate.draft !== undefined &&
+        areNearDuplicateFacts(existingUpdate.draft.text, draft.text),
+      )
+    ) {
+      continue;
+    }
     merged.push(u);
     seen.add(sig);
   }

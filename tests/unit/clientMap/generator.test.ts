@@ -19,8 +19,31 @@ vi.mock('@/platform/clientMap/provider', () => ({
 }));
 
 import { buildClientMap } from '@/platform/clientMap/generator';
+import { CLIENT_MAP_SECTION_ITEM_CAP } from '@/platform/clientMap/updater';
 
 const hit = (path: string, text: string): RagHit => ({ path, chunkText: text, score: 0.9, paragraphIndex: 0, id: `${path}#0`, sourceId: path, matterId: 'm1' });
+const distinctFacts = [
+  'Roth conversion window opens in November.',
+  'Susan has a 403b through the school district.',
+  'Robert receives consulting income quarterly.',
+  'College funding is complete for both children.',
+  'The household keeps cash reserves at Ally.',
+  'Estate documents were last signed in 2018.',
+  'The taxable brokerage account holds concentrated stock.',
+  'Umbrella insurance renews every September.',
+  'The mortgage rate is fixed at 3.1 percent.',
+  'Charitable giving runs through a donor advised fund.',
+  'The investment policy statement uses moderate risk.',
+  'The next review meeting is scheduled for April.',
+  'Beneficiary forms need confirmation after the rollover.',
+  'The emergency fund target is nine months.',
+  'Long term care coverage was declined in 2021.',
+  'The family cabin is owned through an LLC.',
+  'The custodial account belongs to Maya.',
+  'Tax estimates are paid from the operating account.',
+  'The trust names Susan as successor trustee.',
+  'The pension election is single life with survivor option.',
+];
 
 beforeEach(() => {
   retrieveMock.mockReset();
@@ -53,6 +76,27 @@ describe('buildClientMap', () => {
     expect(sourced.isAssumption).toBe(false);
     const guessed = items.find((i) => i.text === 'Guessed fact')!;
     expect(guessed.isAssumption).toBe(true); // no source numbers => assumption
+  });
+
+  it('caps generated section items on the first build', async () => {
+    retrieveMock.mockResolvedValue([hit('/a.docx', 'fact one')]);
+    sendMock.mockImplementation((msg: string, opts?: { systemPrompt?: string }) => {
+      const isGapCall = msg.toLowerCase().includes('gap') || (opts?.systemPrompt ?? '').toLowerCase().includes('question');
+      if (isGapCall) return Promise.resolve({ content: JSON.stringify({ questions: [] }) });
+      return Promise.resolve({
+        content: JSON.stringify({
+          items: distinctFacts.map((fact) => ({
+            text: fact,
+            sourceNumbers: [1],
+            assumption: false,
+          })),
+        }),
+      });
+    });
+
+    const map = await buildClientMap('m1');
+
+    expect(map.sections[0].items).toHaveLength(CLIENT_MAP_SECTION_ITEM_CAP);
   });
 
   it('returns an empty-but-valid map when nothing is indexed', async () => {

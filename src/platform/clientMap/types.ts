@@ -132,12 +132,20 @@ export interface ClientQuestion {
   askedSection?: string;
 }
 
+function locatorFromRagHit(hit: RagHit): string | undefined {
+  const explicit = hit.locator?.trim();
+  if (explicit && !/^p(?:age)?\.?\s*0$/i.test(explicit)) return explicit;
+  const pageNumber = hit.pageNumber;
+  if (pageNumber !== undefined && Number.isFinite(pageNumber) && pageNumber >= 1) {
+    return `p. ${String(pageNumber)}`;
+  }
+  return undefined;
+}
+
 export function sourceRefFromRagHit(hit: RagHit): SourceRef {
   const ref = hit.sourceId ?? hit.path;
   const kind: SourceRef['kind'] = hit.sourceType === 'mail' ? 'email' : 'document';
-  const locator =
-    hit.locator ??
-    (hit.pageNumber !== undefined ? `p. ${String(hit.pageNumber)}` : undefined);
+  const locator = locatorFromRagHit(hit);
   const out: SourceRef = { kind, ref, snippet: hit.chunkText };
   if (hit.id !== undefined) out.citationId = hit.id;
   if (locator !== undefined) out.locator = locator;
