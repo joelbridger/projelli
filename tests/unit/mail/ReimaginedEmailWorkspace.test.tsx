@@ -31,12 +31,16 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   mailRetagFolderMatter: vi.fn(),
   mailRetagMessageMatter: vi.fn(),
   mailSend: vi.fn(),
+  mailSyncAll: vi.fn().mockResolvedValue(undefined),
+  MAIL_SYNC_EVENT: 'mail-sync-progress',
+  MAIL_INDEX_CHUNK_EVENT: 'mail-index-chunk',
 }));
 
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: vi.fn(),
   useMatters: vi.fn(),
   useMatterStore: vi.fn(),
+  getMatters: vi.fn().mockReturnValue([]),
 }));
 
 vi.mock('@/platform/firm/privilegeStore', () => ({
@@ -50,6 +54,7 @@ vi.mock('@/platform/rag/MemoryService', () => ({
 }));
 
 vi.mock('@/platform/rag/matterResolver', () => ({
+  buildMailMatterMap: vi.fn().mockReturnValue([]),
   matterLabel: vi.fn((m: { name: string }) => m.name),
 }));
 
@@ -378,6 +383,9 @@ describe('EmailWorkspace', () => {
 
     expect(screen.getByTestId('no-accounts-state')).toBeInTheDocument();
     expect(screen.getByText('Connect your email')).toBeInTheDocument();
+    expect(screen.queryByText('Your email is connected.')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('email-sync-now')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('email-search-input')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Connect your email'));
     expect(onOpenSettings).toHaveBeenCalledOnce();
