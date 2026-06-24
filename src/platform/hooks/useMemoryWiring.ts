@@ -88,6 +88,13 @@ export type MemoryWiringWorkspaceService = {
   delete?: (path: string) => Promise<void>;
   /** A3: binary read for PDF extraction. */
   readFileBinary?: (path: string) => Promise<ArrayBuffer>;
+  /**
+   * WS-B/C: live disk scan returning the full workspace file tree. When
+   * present (Tauri desktop), the folder-mapping change subscriber uses this
+   * instead of the cached in-memory tree so externally-added files are
+   * discovered and re-indexed immediately after a matter is assigned.
+   */
+  getFileTree?: () => Promise<FileNode[]>;
 };
 
 /** Collect all .pdf paths from a FileNode tree recursively. */
@@ -186,6 +193,52 @@ export function changedPrivilegeSources(
     if (!(key in next)) changed.add(key); // privilege cleared back to "none"
   }
   return Array.from(changed);
+}
+
+/**
+ * WS-B/C — re-index all files under the changed folders using the current
+ * source of truth. When the workspace service exposes `getFileTree`, a fresh
+ * disk scan is performed so externally-added files (not yet reflected in the
+ * cached in-memory tree) are included. Falls back to the cached tree in
+ * browser / test mode or when the disk scan fails. Exported for unit testing.
+ *
+ * Groups the affected paths by their resolved matter id and submits each
+ * group to `MemoryService.reindexPaths`, which handles per-file privilege
+ * preservation internally.
+ */
+export async function reindexFolderPaths(
+  folders: string[],
+  workspaceService: MemoryWiringWorkspaceService | null | undefined,
+): Promise<void> {
+  let allPaths: string[];
+  if (workspaceService?.getFileTree) {
+    try {
+      const freshTree = await workspaceService.getFileTree();
+      allPaths = collectAllFilePaths(freshTree);
+    } catch {
+      // Disk scan failed — fall back to the cached in-memory tree.
+      const { fileTree } = useWorkspaceStore.getState();
+      allPaths = collectAllFilePaths(fileTree);
+    }
+  } else {
+    const { fileTree } = useWorkspaceStore.getState();
+    allPaths = collectAllFilePaths(fileTree);
+  }
+
+  const affected = allPaths.filter((p) =>
+    folders.some((folder) => isPathInFolder(p, folder)),
+  );
+  // Group by resolved matter id so we re-index in matter batches.
+  const byMatter = new Map<string, string[]>();
+  for (const p of affected) {
+    const id = resolveMatterIdForPath(p);
+    const list = byMatter.get(id) ?? [];
+    list.push(p);
+    byMatter.set(id, list);
+  }
+  for (const [matterId, paths] of byMatter) {
+    await MemoryService.reindexPaths(paths, matterId);
+  }
 }
 
 /** Walk all .pdf files in the workspace and index them via MemoryService. */
@@ -423,27 +476,15 @@ export function useMemoryWiring(
       prevMatters = nextMatters;
       if (folders.length === 0) return;
 
-      // For each changed folder, re-index its files under their (now current)
-      // resolved matter id. resolveMatterIdForPath reflects the latest store.
-      const { fileTree } = useWorkspaceStore.getState();
-      const allPaths = collectAllFilePaths(fileTree);
-      const affected = allPaths.filter((p) =>
-        folders.some((folder) => isPathInFolder(p, folder)),
-      );
-      // Group by resolved matter id so we re-index in matter batches.
-      const byMatter = new Map<string, string[]>();
-      for (const p of affected) {
-        const id = resolveMatterIdForPath(p);
-        const list = byMatter.get(id) ?? [];
-        list.push(p);
-        byMatter.set(id, list);
-      }
-      for (const [matterId, paths] of byMatter) {
-        void MemoryService.reindexPaths(paths, matterId).catch(() => {});
-      }
+      // Re-index the affected files from the current source of truth. Uses a
+      // live disk scan (via workspaceService.getFileTree) when available so
+      // externally-added files — not yet reflected in the cached in-memory
+      // tree — are picked up immediately. Falls back to the cached tree in
+      // browser mode or when the scan fails. Best-effort: errors are swallowed.
+      void reindexFolderPaths(folders, workspaceService).catch(() => {});
     });
     return unsubscribe;
-  }, [rootPath]);
+  }, [rootPath, workspaceService]);
 
   // WS-B/C — re-tag synced mail when a matter's mail-folder mapping changes.
   // Mapping a mail folder to a matter (or remapping/unmapping it) must re-scope
