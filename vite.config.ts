@@ -44,6 +44,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Pre-bundle the heavy, lazily-imported deps so the FIRST runtime import
+  // (workspace PDF text extraction; scanned-PDF OCR) does not trigger a
+  // mid-session Vite dependency re-optimization + full page reload. That reload
+  // interrupts in-progress work (and on some WebView2 dev benches tears down the
+  // dev server entirely, silently aborting PDF indexing). Dev-only: optimizeDeps
+  // is ignored by production builds.
+  optimizeDeps: {
+    include: ['pdfjs-dist', 'tesseract-wasm'],
+  },
   // Vite dev server configuration
   server: {
     port: 5173,

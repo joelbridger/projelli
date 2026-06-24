@@ -4,6 +4,7 @@
 // Light theme only (no dark-mode styling).
 
 import { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { BookTemplate, Trash2 } from 'lucide-react';
 import { Button, EmptyState } from '@/ui/kp';
 import { useTemplatesStore, applyTemplateToMatter } from '@/platform/clientMap/templatesStore';
@@ -23,7 +24,12 @@ const LABEL_SAVE = 'Save as template';
 // ── ClientMapTemplates ─────────────────────────────────────────────────────
 
 export function ClientMapTemplates({ matterId, onApplied }: ClientMapTemplatesProps) {
-  const templates = useTemplatesStore((s) => Object.values(s.templates));
+  // useShallow: this selector derives a fresh array (Object.values) on every
+  // call. Without a shallow equality check React's useSyncExternalStore sees a
+  // new reference each render -> "getSnapshot should be cached" -> infinite
+  // re-render loop -> "Maximum update depth exceeded" crash that white-screens
+  // the whole app when the Client Map panel opens. (Matches aiChatStore.)
+  const templates = useTemplatesStore(useShallow((s) => Object.values(s.templates)));
   const deleteTemplate = useTemplatesStore((s) => s.deleteTemplate);
   const saveTemplate = useTemplatesStore((s) => s.saveTemplate);
 
