@@ -172,6 +172,43 @@ labels, and light-theme consistency everywhere — "impressive" lives in those d
 
 # Round 2 sweep (2026-06-24, clean-slate verified)
 
+## ✅ RESOLUTION (2026-06-24) — ALL Round 2 bugs FIXED, merged to keepance-3.0, GATE GREEN, WINDOWS-VERIFIED
+Fixed by 5 parallel Codex agents (one per cluster), reviewed + merged + reconciled by
+the lead. Full `npm run gate` GREEN (typecheck + i18n + 4021 vitest + ESLint + all Rust
+tests). Pushed to origin/keepance-3.0 (HEAD `e346ce42`). Backup tag
+`backup/pre-r2-merge-2026-06-24`. Re-verified on the Legion (Windows, clean slate, new
+preview build):
+- **R2-ASK1 (Ask never cited)** → FIXED. Post-hoc grounding in `askHelpers.ts`: when the
+  model emits no `[file paragraph N]` markers, each answer sentence is matched against the
+  retrieved chunks (numeric tokens must ALL be supported + content-word overlap) and a
+  VERIFIED citation is attached. Live re-verify: "portfolio value / revocable trust" →
+  2 citation chips + the green "Answered over your own files" attestation, 0 uncited
+  warnings (was 0 chips + warning on every answer).
+- **R2-CM2 ("source p. 0")** → FIXED. `types.ts` only renders a page label for page >= 1;
+  unknown pages render bare "source". Clean Hollings build: 0 "p. 0" (was 20/35).
+- **R2-CM1 (near-dup bloat)** → FIXED. `updater.ts` adds Jaccard/overlap near-dup
+  detection in propose + auto-apply, plus a per-section cap (12 strongest-sourced).
+- **R2-AUDIT1 (empty Activity Log)** → FIXED. Root cause: Ask/Client Map/at-a-glance AI
+  calls were never wired to the audit logger. Now they log (scope, egress, model, tokens,
+  cost). Re-verify: Activity Log shows a row per AI request (Model Call / AI Request Sent).
+- **R2-LABEL1 (PRIVILEGE column)** → FIXED. Advisor mode hides the empty sensitivity
+  column / labels it "Sensitive" via the entity facade. Re-verify: no PRIVILEGE header.
+- **R2-HUB1/HUB2** → FIXED. At-a-glance strips raw `[N page M]` markers; upcoming panel
+  pulls real dates from the Client Map + deadlines.
+- **R2-EMAIL1/EMAIL2** → FIXED. Honest connected-vs-unconnected state; banner copy
+  corrected to "Try a search your inbox never could." (Re-verify confirmed copy.)
+- **R2-RECENT1** → FIXED. Recent-workspaces normalize path separator + dedupe (unit-tested).
+Lead reconciled merge conflicts (generator.ts, matterAtAGlance.ts) + post-merge gate
+fixups (5 ESLint findings: non-null assertions, unsafe-any from Array.isArray widening,
+setState-in-effect -> derived sort, redundant guard; + a stale at-a-glance test mock).
+Clean-slate testing is now a standing rule (memory: feedback_keepance_clean_slate_testing).
+
+⚠️ Demo-setup note (not a code bug): a REAL mailbox is connected on the bench, so the
+Email surface shows the developer's actual inbox (480 msgs). For a pristine advisor demo,
+disconnect that mailbox (or connect the advisor's) before showing Email.
+
+---
+
 **Method.** Driven on the real Windows bench (Legion, `Microsoft Windows 10.0.26200`,
 host Desklink129887) over CDP — every finding observed in the running app, not from
 code reading. **Clean-slate rule now enforced** (see
