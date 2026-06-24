@@ -31,11 +31,9 @@
 
   // CANONICAL NAV ITEMS — change here once, every page picks it up.
   var ITEMS = [
-    { href: '/legal/', label: 'Attorneys' },
-    { href: '/tax/', label: 'Tax pros' },
-    { href: '/consulting/', label: 'Consultants' },
-    { href: '/blog/', label: 'Blog' },
-    { href: '/#pricing', label: 'Pricing' }
+    { href: '/security/', label: 'Security' },
+    { href: '/#pricing', label: 'Pricing' },
+    { href: '/blog/', label: 'Blog' }
   ];
 
   function buildLink(href, label, cls) {
@@ -81,7 +79,7 @@
     ITEMS.forEach(function (item) { links.appendChild(buildLink(item.href, item.label)); });
     inner.appendChild(links);
 
-    var cta = buildLink('/#pricing', 'Download free trial', 'keepance-nav-cta');
+    var cta = buildLink('/download/', 'Start free trial', 'keepance-nav-cta');
     inner.appendChild(cta);
 
     // Mobile: burger button toggles a slide-down panel with the same items + CTA.
@@ -91,7 +89,7 @@
     var mobile = document.createElement('div');
     mobile.className = 'keepance-nav-mobile';
     ITEMS.forEach(function (item) { mobile.appendChild(buildLink(item.href, item.label)); });
-    mobile.appendChild(buildLink('/#pricing', 'Download free trial', 'keepance-nav-cta'));
+    mobile.appendChild(buildLink('/download/', 'Start free trial', 'keepance-nav-cta'));
     nav.appendChild(inner);
     nav.appendChild(mobile);
 

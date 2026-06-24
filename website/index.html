@@ -136,7 +136,7 @@
       background: radial-gradient(ellipse 60% 50% at 70% 40%, rgba(255,60,232,0.07) 0%, transparent 70%),
                   radial-gradient(ellipse 40% 60% at 10% 80%, rgba(93,198,255,0.05) 0%, transparent 60%);
     }
-    .hero-inner { display: grid; grid-template-columns: 1fr 1.55fr; gap: 64px; align-items: center; max-width: 1440px; }
+    .hero-inner { display: grid; grid-template-columns: 1fr 1.55fr; gap: 64px; align-items: center; }
     @media (max-width: 900px) { .hero-inner { grid-template-columns: 1fr; gap: 56px; } .hero-mockup { display: none; } }
     .hero-eyebrow { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--grad-pink); margin-bottom: 20px; }
     .hero h1 { font-family: 'Satoshi', system-ui, sans-serif; font-size: clamp(2.2rem, 3.8vw, 3rem); font-weight: 700; color: var(--white); line-height: 1.2; margin-bottom: 24px; letter-spacing: -0.02em; }
@@ -341,6 +341,40 @@
       .cm-stack { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 640px; margin: 0 auto; }
     }
     @media (max-width: 520px) { .cm-stack { grid-template-columns: 1fr; } }
+
+    /* COMPLIANCE COLUMNS */
+    .compliance-bar { background: var(--bone); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 64px 0; }
+    .compliance-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+    @media (max-width: 768px) { .compliance-grid { grid-template-columns: 1fr; gap: 32px; } }
+    .compliance-item { padding-left: 20px; border-left: 3px solid transparent; border-image: linear-gradient(180deg, var(--grad-pink), var(--grad-blue)) 1; }
+    .compliance-hook { font-size: 0.9375rem; font-weight: 700; color: var(--text-heading); margin-bottom: 8px; line-height: 1.35; }
+    .compliance-desc { font-size: 13.5px; color: var(--text-body); line-height: 1.65; }
+
+    /* ADVISOR PRACTICE PACK */
+    .pack-section { background: var(--white); border-top: 1px solid var(--border); }
+    .pack-template-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; max-width: 680px; margin: 0 auto; }
+    @media (max-width: 600px) { .pack-template-list { grid-template-columns: 1fr; } }
+    .pack-template-item { display: flex; align-items: center; gap: 10px; padding: 13px 18px; font-size: 14px; font-weight: 500; color: var(--text-heading); background: var(--bone); border: 1px solid var(--border); border-radius: 8px; }
+    .pack-template-dot { width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue)); flex-shrink: 0; }
+
+    /* HOW KEEPANCE COMPARES */
+    .compare-section { background: var(--bone); padding: 88px 0; border-top: 1px solid var(--border); }
+    .compare-section .section-header { margin-bottom: 36px; }
+    .compare-section .section-header p { font-size: 1rem; color: var(--text-body); line-height: 1.7; }
+    .compare-table-wrap { overflow-x: auto; margin: 0 0 32px; }
+    .compare-table { border-collapse: collapse; width: 100%; font-size: 0.9375rem; min-width: 580px; }
+    .compare-table th, .compare-table td { border: 1px solid var(--border); padding: 12px 14px; text-align: left; vertical-align: top; line-height: 1.55; }
+    .compare-table th { background: #F8FAFC; color: var(--text-heading); font-weight: 700; font-size: 0.875rem; }
+    .compare-table td:first-child { color: var(--text-heading); font-weight: 500; }
+    .compare-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .compare-pill.yes { background: rgba(16,185,129,0.14); color: #046148; }
+    .compare-pill.no { background: rgba(239,68,68,0.12); color: #a1201c; }
+    .compare-honest { background: #F8FAFC; border-left: 4px solid #E2E8F0; padding: 18px 22px; border-radius: 0 8px 8px 0; margin: 0 0 24px; font-size: 0.9375rem; }
+    .compare-honest strong { color: var(--text-heading); display: block; margin-bottom: 8px; font-size: 0.9375rem; }
+    .compare-honest p { margin: 0; color: var(--text-body); line-height: 1.65; }
+    .compare-why { background: rgba(93,198,255,0.06); border: 1px solid rgba(93,198,255,0.2); border-radius: 10px; padding: 20px 24px; font-size: 0.9375rem; color: var(--text-body); line-height: 1.65; }
+    .compare-why strong { color: var(--text-heading); display: block; margin-bottom: 8px; font-size: 0.9375rem; }
+    .compare-footnote { font-size: 12.5px; color: var(--text-muted); margin-top: 10px; line-height: 1.5; }
   </style>
 </head>
 <body>
@@ -352,7 +386,6 @@
         <img src="/keepance-logo-white.svg" alt="Keepance" style="height:28px;width:auto;display:block;">
       </a>
       <div class="nav-links">
-        <a href="/financial-advisors/">Advisors</a>
         <a href="/security/">Security</a>
         <a href="#pricing">Pricing</a>
         <a href="/blog/">Blog</a>
@@ -363,7 +396,6 @@
       </button>
     </div>
     <div class="nav-mobile">
-      <a href="/financial-advisors/">Advisors</a>
       <a href="/security/">Security</a>
       <a href="#pricing">Pricing</a>
       <a href="/blog/">Blog</a>
@@ -454,64 +486,24 @@
           <h2 style="color:var(--white);">The Client Map</h2>
           <p style="color:var(--text-muted-dark);">A Client Map is a living profile built from the materials you already have: files, emails, notes, intake forms, meeting summaries, and guided interviews. It captures what matters, what changed, what is missing, and where each detail came from.</p>
         </div>
-        <div class="cm-stage" id="cmStage" aria-hidden="true">
-          <svg class="cm-links" viewBox="0 0 1000 600" preserveAspectRatio="none">
-            <defs><linearGradient id="cmLineG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1000" y2="600"><stop offset="0" stop-color="#FF3CE8"/><stop offset="1" stop-color="#5DC6FF"/></linearGradient></defs>
-            <path class="cm-link" d="M500 280 L500 56"/>
-            <path class="cm-link" d="M500 280 L830 207"/>
-            <path class="cm-link" d="M500 280 L700 476"/>
-            <path class="cm-link" d="M500 280 L300 476"/>
-            <path class="cm-link" d="M500 280 L170 207"/>
-          </svg>
-          <div class="cm-hub-pos" style="left:50%;top:50%">
-            <div class="cm-hub">
-              <span class="cm-ring"></span><span class="cm-ring"></span>
-              <div class="cm-hub-core">
-                <div class="cm-hub-avatar">AS</div>
-                <div class="cm-hub-name">Smith household</div>
-                <div class="cm-hub-meta">living map</div>
-              </div>
-            </div>
-          </div>
-          <div class="cm-node-pos" style="left:50%;top:10%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>People &amp; relationships</div><div class="cm-node-detail">Allison &amp; David &middot; 2 children &middot; family trustee</div></div></div>
-          <div class="cm-node-pos" style="left:83%;top:37%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>History &amp; timeline</div><div class="cm-node-detail">Client since 2019 &middot; estate amended Mar 2026</div></div></div>
-          <div class="cm-node-pos" style="left:70%;top:85%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Goals &amp; preferences</div><div class="cm-node-detail">Prefers email &middot; risk-averse &middot; college funding</div></div></div>
-          <div class="cm-node-pos" style="left:30%;top:85%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Risks &amp; open questions</div><div class="cm-node-detail">Beneficiary form unsigned &middot; address out of date</div></div></div>
-          <div class="cm-node-pos" style="left:17%;top:37%"><div class="cm-node"><div class="cm-node-head"><span class="cm-dot"></span>Firm context</div><div class="cm-node-detail">House style &middot; plain-language memos &middot; two-reviewer rule</div></div></div>
+        <!-- Client Map: final approved advisor animation, scroll-loaded from its self-contained folder -->
+        <style>
+          .cm-embed-wrap{max-width:1060px;margin:14px auto 0;}
+          .cm-embed{display:block;width:100%;height:840px;border:0;border-radius:18px;overflow:hidden;background:transparent;}
+          @media (max-width:1100px){.cm-embed{height:720px;}}
+          @media (max-width:700px){.cm-embed{height:560px;}}
+        </style>
+        <div class="cm-embed-wrap">
+          <iframe class="cm-embed" data-src="/client-map-animation/" title="How Keepance turns your files into a living Client Map" loading="lazy" scrolling="no"></iframe>
         </div>
-        <div class="cm-stack">
-          <div class="client-map-card"><div class="client-map-num">01</div><h3>People &amp; relationships</h3><p>The people who shape the work: family, decision-makers, beneficiaries, opposing parties, and advisors.</p></div>
-          <div class="client-map-card"><div class="client-map-num">02</div><h3>History &amp; timeline</h3><p>What happened, when, who said it, and which document or email proves it.</p></div>
-          <div class="client-map-card"><div class="client-map-num">03</div><h3>Goals &amp; preferences</h3><p>What the client cares about, how they like to communicate, and what good service means to them.</p></div>
-          <div class="client-map-card"><div class="client-map-num">04</div><h3>Risks &amp; open questions</h3><p>Contradictions, missing details, unsigned documents, stale information, and issues worth reviewing.</p></div>
-          <div class="client-map-card"><div class="client-map-num">05</div><h3>Firm context</h3><p>Your firm's preferred language, templates, tone, and review standards, applied across client work.</p></div>
-        </div>
-        <script src="/scripts/gsap.min.js"></script>
         <script>
           (function(){
-            function setupCM(){
-              if(!window.gsap||!document.getElementById('cmStage')) return;
-              gsap.set('.cm-hub',{autoAlpha:0,scale:0.78});
-              gsap.set('.cm-node',{autoAlpha:0,scale:0.9,y:12});
-              gsap.set('.cm-link',{opacity:0});
-              var played=false, stage=document.getElementById('cmStage');
-              function play(){
-                if(played) return; played=true;
-                var tl=gsap.timeline();
-                tl.to('.cm-hub',{autoAlpha:1,scale:1,duration:0.7,ease:'back.out(1.7)'},0.1)
-                  .to('.cm-link',{opacity:0.95,duration:0.6,stagger:0.07,ease:'power2.out'},0.5)
-                  .to('.cm-node',{autoAlpha:1,scale:1,y:0,duration:0.55,stagger:0.1,ease:'back.out(1.5)'},0.72);
-                gsap.to('.cm-link',{strokeDashoffset:'-=19',duration:1.0,ease:'none',repeat:-1});
-                gsap.to('.cm-node',{y:'-=8',duration:3.4,ease:'sine.inOut',repeat:-1,yoyo:true,stagger:{each:0.5,from:'random'}});
-                gsap.fromTo('.cm-ring',{scale:1,opacity:0.55},{scale:1.6,opacity:0,duration:2.6,ease:'sine.out',repeat:-1,stagger:1.3});
-                setTimeout(function(){try{tl.progress(1);gsap.set('.cm-hub,.cm-node',{autoAlpha:1,scale:1,y:0});gsap.set('.cm-link',{opacity:0.95});}catch(e){}},4000);
-              }
-              if('IntersectionObserver' in window){
-                var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){play();io.disconnect();}});},{threshold:0.2});
-                io.observe(stage);
-              } else { play(); }
-            }
-            if(document.fonts&&document.fonts.ready){document.fonts.ready.then(setupCM);}else{window.addEventListener('load',setupCM);}
+            var f=document.querySelector('.cm-embed'); if(!f) return;
+            function load(){ if(f.getAttribute('src')) return; f.setAttribute('src', f.getAttribute('data-src')); }
+            if('IntersectionObserver' in window){
+              var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){load();io.disconnect();}});},{threshold:0.15});
+              io.observe(f);
+            } else { load(); }
           })();
         </script>
         <p style="text-align:center;margin-top:40px;font-size:1rem;color:var(--text-on-dark);font-weight:400;max-width:620px;margin-left:auto;margin-right:auto;">The result is shared client memory your team can actually use.</p>
@@ -693,14 +685,144 @@
           </div>
         </div>
         <div class="for-grid" style="grid-template-columns:1fr;max-width:540px;margin:0 auto;">
-          <a href="/financial-advisors/" class="for-card">
+          <div class="for-card" style="cursor:default;">
             <div class="for-card-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
             <h3>Financial advisors &amp; RIAs</h3>
             <p>Household notes, financial plans, meeting prep, estate context, client preferences, annual reviews, and sensitive client data in one living map.</p>
-            <span class="for-card-cta">See Keepance for advisors →</span>
-          </a>
+          </div>
         </div>
         <p style="font-size:13.5px;color:var(--text-muted);margin-top:32px;text-align:center;">Keepance is designed to reduce unnecessary data exposure, but it does not replace your professional, legal, ethical, or regulatory obligations. <a href="/security/" style="color:var(--navy);font-weight:600;">Read security and compliance notes →</a></p>
+      </div>
+    </section>
+
+    <!-- COMPLIANCE COLUMNS -->
+    <div class="compliance-bar">
+      <div class="container">
+        <div class="compliance-grid">
+
+          <div class="compliance-item">
+            <div class="compliance-hook">Your client data stays out of a vendor's hands</div>
+            <div class="compliance-desc">Cloud AI tools that receive client information introduce a third party into your data path. With Keepance, there is no Keepance server in the middle: files stay local, Keepance never sees your work, and AI requests go straight to the provider you chose. Want fully offline? Point Keepance at a local model like Ollama and nothing leaves your machine at all.</div>
+          </div>
+
+          <div class="compliance-item">
+            <div class="compliance-hook">Regulation S-P: verify with your compliance counsel</div>
+            <div class="compliance-desc">The SEC amended Regulation S-P in 2024, adding new safeguards and a breach-notification requirement that took effect in 2025. This is informational, not compliance advice. Verify with your compliance counsel how Keepance fits your specific obligations. What Keepance does do: keep your files on your machine and Keepance out of your data path, which is one fewer place client data can travel.</div>
+          </div>
+
+          <div class="compliance-item">
+            <div class="compliance-hook">Work product that is yours to keep</div>
+            <div class="compliance-desc">Every AI session produces a real file in a folder you control. Your work product stays on your machine, searchable and portable, ready to produce whenever you need it. It does not replace your retention policies, your compliance obligations, or your judgment.</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ADVISOR PRACTICE PACK -->
+    <section class="pack-section" id="templates">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-label">Advisor Practice Pack</span>
+          <h2>Seven templates built for advisor work.</h2>
+          <p>The Advisor Practice Pack ships with seven workflows built with input from practicing advisors. Each walks you through a structured interview and drafts a document you edit and approve. Each produces drafts you review, not advice you rely on without verification.</p>
+        </div>
+        <div class="pack-template-list">
+          <div class="pack-template-item"><span class="pack-template-dot"></span>Client Financial-Plan Summary</div>
+          <div class="pack-template-item"><span class="pack-template-dot"></span>Meeting-Prep &amp; Suitability Notes</div>
+          <div class="pack-template-item"><span class="pack-template-dot"></span>Annual-Review Packet</div>
+          <div class="pack-template-item"><span class="pack-template-dot"></span>Confidential Client-Data Inventory</div>
+          <div class="pack-template-item"><span class="pack-template-dot"></span>Books &amp; Records Retention Note</div>
+          <div class="pack-template-item"><span class="pack-template-dot"></span>Reg BI Documentation</div>
+          <div class="pack-template-item"><span class="pack-template-dot"></span>Reg S-P Safeguards Outline</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW KEEPANCE COMPARES -->
+    <section class="compare-section" id="compare">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-label">How Keepance compares</span>
+          <h2>How Keepance compares to the AI you already have</h2>
+          <p>Most advisors are looking at the AI meeting-notes tools (Jump, Zocks), the AI now bundled into eMoney or MoneyGuidePro, or ad-hoc ChatGPT. Here's the honest comparison.</p>
+        </div>
+
+        <div class="compare-table-wrap">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>Keepance</th>
+                <th><a href="https://www.meetjump.com/" target="_blank" rel="noopener">Jump</a></th>
+                <th><a href="https://www.emoneyadvisor.com/" target="_blank" rel="noopener">eMoney AI (bundled)</a></th>
+                <th><a href="https://openai.com/chatgpt/overview/" target="_blank" rel="noopener">ChatGPT (free/Plus)</a></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Runs fully on your machine, nothing leaves, with a local model</td>
+                <td><span class="compare-pill yes">Yes, with a local model</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Client data stays on your own computer</td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td>No (vendor cloud)</td>
+                <td>No (Envestnet cloud)</td>
+                <td>No (vendor cloud)</td>
+              </tr>
+              <tr>
+                <td>Your email, imported and searchable on your machine</td>
+                <td>Yes, local import and search across M365, IMAP, Gmail</td>
+                <td>No direct email import</td>
+                <td>No direct email import</td>
+                <td>No (any email sent to ChatGPT goes to OpenAI's cloud)</td>
+              </tr>
+              <tr>
+                <td>An AI vendor to vet under Reg S-P</td>
+                <td>None, with a local model</td>
+                <td>Yes</td>
+                <td>Yes</td>
+                <td>Yes</td>
+              </tr>
+              <tr>
+                <td>Records meetings and syncs notes to your CRM</td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Built for confidential drafting and analysis</td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td>Partly</td>
+                <td>Planning only</td>
+                <td>Generic</td>
+              </tr>
+              <tr>
+                <td>Typical cost</td>
+                <td>$948/yr + your own AI usage</td>
+                <td>Approx. $75-175/advisor/mo <a href="https://www.meetjump.com/pricing" target="_blank" rel="noopener">(check current pricing)</a></td>
+                <td>Bundled <a href="https://www.emoneyadvisor.com/" target="_blank" rel="noopener">(check current details)</a></td>
+                <td>$0-20/mo <a href="https://openai.com/chatgpt/pricing/" target="_blank" rel="noopener">(check current pricing)</a></td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="compare-footnote">Competitor pricing and features are approximate, as of 2026; check each vendor for current details.</p>
+        </div>
+
+        <div class="compare-honest">
+          <strong>Where the others are the better choice (honest)</strong>
+          <p>Jump and Zocks are purpose-built for meeting notes and CRM sync, and that's not what Keepance does. If automating post-meeting admin is your main need, buy one of them. Keepance is for the private drafting and analysis of your most sensitive client work, and for the firm whose compliance officer doesn't want any AI vendor receiving client data at all.</p>
+        </div>
+
+        <div class="compare-why">
+          <strong>Why the timing matters</strong>
+          <p>The <a href="https://www.sec.gov/rules/final/2023/34-97990.pdf" target="_blank" rel="noopener">SEC's Reg S-P amendments</a> now require you to vet and monitor every vendor that touches client data, and the smaller-firm deadline passed in June 2026. With Keepance on a local model, there's no AI vendor in the data path to vet, because nothing leaves your machine. Informational, not compliance advice; verify with your compliance counsel.</p>
+        </div>
       </div>
     </section>
 
