@@ -1,0 +1,314 @@
+[
+  {
+    "id": "matter_nc_caldwell_jennifer",
+    "name": "Caldwell, Jennifer",
+    "client": "Caldwell, Jennifer",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Caldwell, Jennifer"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_diaz_michelle",
+    "name": "Diaz, Michelle",
+    "client": "Diaz, Michelle",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Diaz, Michelle"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_diaz_sandra",
+    "name": "Diaz, Sandra",
+    "client": "Diaz, Sandra",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Diaz, Sandra"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_ellison_robert_margaret",
+    "name": "Ellison, Robert & Margaret",
+    "client": "Ellison, Robert & Margaret",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Ellison, Robert & Margaret"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_foster_ronald_linda",
+    "name": "Foster, Ronald & Linda",
+    "client": "Foster, Ronald & Linda",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Foster, Ronald & Linda"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_greer_carol_anthony",
+    "name": "Greer, Carol & Anthony",
+    "client": "Greer, Carol & Anthony",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Greer, Carol & Anthony"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_hollings_family",
+    "name": "Hollings Family",
+    "client": "Hollings Family",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Hollings Family"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_jennings_carol",
+    "name": "Jennings, Carol",
+    "client": "Jennings, Carol",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Jennings, Carol"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_jennings_robert",
+    "name": "Jennings, Robert",
+    "client": "Jennings, Robert",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Jennings, Robert"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_koch_linda_paul",
+    "name": "Koch, Linda & Paul",
+    "client": "Koch, Linda & Paul",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Koch, Linda & Paul"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_koch_nancy_nancy",
+    "name": "Koch, Nancy & Nancy",
+    "client": "Koch, Nancy & Nancy",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Koch, Nancy & Nancy"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_lambert_angela",
+    "name": "Lambert, Angela",
+    "client": "Lambert, Angela",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Lambert, Angela"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_lambert_emily_kevin",
+    "name": "Lambert, Emily & Kevin",
+    "client": "Lambert, Emily & Kevin",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Lambert, Emily & Kevin"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_mercer_deborah_ruth",
+    "name": "Mercer, Deborah & Ruth",
+    "client": "Mercer, Deborah & Ruth",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Mercer, Deborah & Ruth"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_nakamura_david_susan",
+    "name": "Nakamura, David & Susan",
+    "client": "Nakamura, David & Susan",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Nakamura, David & Susan"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_patel_priya",
+    "name": "Patel, Priya",
+    "client": "Patel, Priya",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Patel, Priya"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_pruitt_jeffrey_kimberly",
+    "name": "Pruitt, Jeffrey & Kimberly",
+    "client": "Pruitt, Jeffrey & Kimberly",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Pruitt, Jeffrey & Kimberly"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_quinn_george_carol",
+    "name": "Quinn, George & Carol",
+    "client": "Quinn, George & Carol",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Quinn, George & Carol"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_quinn_patricia_kevin",
+    "name": "Quinn, Patricia & Kevin",
+    "client": "Quinn, Patricia & Kevin",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Quinn, Patricia & Kevin"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_sutton_mark_george",
+    "name": "Sutton, Mark & George",
+    "client": "Sutton, Mark & George",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Sutton, Mark & George"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_underwood_daniel_emily",
+    "name": "Underwood, Daniel & Emily",
+    "client": "Underwood, Daniel & Emily",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Underwood, Daniel & Emily"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_underwood_donna_karen",
+    "name": "Underwood, Donna & Karen",
+    "client": "Underwood, Donna & Karen",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Underwood, Donna & Karen"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_underwood_laura_emily",
+    "name": "Underwood, Laura & Emily",
+    "client": "Underwood, Laura & Emily",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Underwood, Laura & Emily"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_voss_eleanor",
+    "name": "Voss, Eleanor",
+    "client": "Voss, Eleanor",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Voss, Eleanor"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_webb_marcus_tanya",
+    "name": "Webb, Marcus & Tanya",
+    "client": "Webb, Marcus & Tanya",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/Webb, Marcus & Tanya"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  },
+  {
+    "id": "matter_nc_york_gary_deborah",
+    "name": "York, Gary & Deborah",
+    "client": "York, Gary & Deborah",
+    "folderPaths": [
+      "C:/keepance-demo-northcrest/Northcrest Wealth Partners/Clients/York, Gary & Deborah"
+    ],
+    "mailFolderPaths": [],
+    "privileged": false,
+    "mcpAccessGranted": false,
+    "createdAt": "2026-06-24T00:00:00.000Z"
+  }
+]
