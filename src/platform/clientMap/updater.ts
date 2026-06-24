@@ -1,6 +1,6 @@
 // src/platform/clientMap/updater.ts
 import { MemoryService } from '@/platform/rag/MemoryService';
-import type { ClientMap, ClientMapItem, DismissedSignature, ProposedUpdate, SourceRef } from './types';
+import type { ClientMap, ClientMapItem, ClientMapSection, DismissedSignature, ProposedUpdate, SourceRef } from './types';
 
 const BROAD_QUERY = 'client matter overview documents people dates issues';
 
@@ -50,6 +50,25 @@ export function sourceSignatureFor(sources: SourceRef[]): string {
 
 function draftSignature(sectionKey: string, op: ProposedUpdate['op'], draft: ClientMapItem | undefined): string {
   return proposalSignature(sectionKey, op, draft?.text ?? '');
+}
+
+function hasStrongSource(item: ClientMapItem): boolean {
+  return item.sources.some((source) => source.ref.trim() !== '' && source.snippet.trim() !== '');
+}
+
+function sectionHasText(section: ClientMapSection | undefined, text: string): boolean {
+  const normalized = normalizeText(text);
+  return (section?.items ?? []).some((item) => normalizeText(item.text) === normalized);
+}
+
+function isAutoApplicableAdd(map: ClientMap, update: ProposedUpdate): update is ProposedUpdate & { draft: ClientMapItem } {
+  if (update.op !== 'add' || update.draft === undefined) return false;
+  if (update.draft.origin !== 'ai' || update.draft.isAssumption) return false;
+  if (!hasStrongSource(update.draft)) return false;
+
+  const section = map.sections.find((sec) => sec.key === update.sectionKey);
+  if (!section) return false;
+  return !sectionHasText(section, update.draft.text);
 }
 
 /** Composite dismissal key: a dismissal only suppresses the SAME proposal text
@@ -154,4 +173,33 @@ export function mergePendingUpdates(
     seen.add(sig);
   }
   return merged;
+}
+
+/**
+ * Quietly accept only the safest class of AI update: a brand-new, source-backed
+ * ADD that does not duplicate text already in its target section. It never
+ * accepts removals, changes, assumptions, unsourced items, or anything aimed at
+ * a missing section.
+ */
+export function autoApplySafeAddUpdates(map: ClientMap): ClientMap {
+  if (map.pendingUpdates.length === 0) return map;
+
+  let sections = map.sections;
+  const remaining: ProposedUpdate[] = [];
+
+  for (const update of map.pendingUpdates) {
+    if (!isAutoApplicableAdd({ ...map, sections }, update)) {
+      remaining.push(update);
+      continue;
+    }
+
+    sections = sections.map((section) =>
+      section.key === update.sectionKey
+        ? { ...section, items: [...section.items, update.draft] }
+        : section,
+    );
+  }
+
+  if (remaining.length === map.pendingUpdates.length) return map;
+  return { ...map, sections, pendingUpdates: remaining };
 }

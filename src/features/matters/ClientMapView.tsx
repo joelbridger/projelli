@@ -1,4 +1,5 @@
 // src/features/matters/ClientMapView.tsx
+import type { CSSProperties } from 'react';
 import { Card, Eyebrow, Chip, Button } from '@/ui/kp';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
 import type { ClientMap, ClientMapItem, SourceRef, CompletenessLevel, GapQuestion } from '@/platform/clientMap/types';
@@ -10,6 +11,67 @@ const LEVEL_LABEL: Record<CompletenessLevel, string> = {
   solid: 'Solid',
 };
 
+const itemRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  columnGap: 8,
+  rowGap: 6,
+  margin: '6px 0',
+  lineHeight: 1.5,
+};
+
+const itemTextStyle: CSSProperties = {
+  color: 'var(--kp-navy)',
+};
+
+const sourceChipStyle: CSSProperties = {
+  height: 22,
+  minHeight: 22,
+  padding: '0 8px',
+  borderColor: 'var(--color-border)',
+  background: 'var(--color-muted)',
+  color: 'var(--color-muted-foreground)',
+  fontSize: 'var(--kp-font-xs)',
+  fontWeight: 'var(--kp-weight-semibold)',
+};
+
+const editButtonStyle: CSSProperties = {
+  height: 22,
+  minHeight: 22,
+  padding: '0 8px',
+  color: 'var(--kp-navy)',
+  fontSize: 'var(--kp-font-xs)',
+};
+
+const assumptionStyle: CSSProperties = {
+  color: 'var(--color-muted-foreground)',
+  fontSize: 'var(--kp-font-xs)',
+};
+
+function SourceChip({
+  source,
+  onOpenSource,
+}: {
+  source: SourceRef;
+  onOpenSource: (r: SourceRef) => void;
+}) {
+  const label = `${source.kind === 'email' ? 'email' : 'source'}${source.locator != null ? ` ${source.locator}` : ''}`;
+  return (
+    <Chip
+      data-testid="clientmap-source-link"
+      size="sm"
+      style={sourceChipStyle}
+      aria-label={`Open ${label}`}
+      onClick={() => {
+        onOpenSource(source);
+      }}
+    >
+      {label}
+    </Chip>
+  );
+}
+
 function Item({
   item,
   onOpenSource,
@@ -20,28 +82,31 @@ function Item({
   onEdit?: () => void;
 }) {
   return (
-    <li data-testid="clientmap-item">
-      <span>{item.text}</span>
+    <li data-testid="clientmap-item" style={itemRowStyle}>
+      <span style={itemTextStyle}>{item.text}</span>
       {item.isAssumption && (
-        <span data-testid="clientmap-item-assumption"> (assuming)</span>
+        <span data-testid="clientmap-item-assumption" style={assumptionStyle}>
+          assuming
+        </span>
       )}
       {item.sources.map((s, i) => (
-        <button
+        <SourceChip
           key={i}
-          type="button"
-          data-testid="clientmap-source-link"
-          onClick={() => {
-            onOpenSource(s);
-          }}
-        >
-          {s.kind === 'email' ? 'email' : 'source'}
-          {s.locator != null ? ` ${s.locator}` : ''}
-        </button>
+          source={s}
+          onOpenSource={onOpenSource}
+        />
       ))}
       {onEdit != null && (
-        <button type="button" data-testid="clientmap-item-edit" onClick={onEdit}>
-          edit
-        </button>
+        <Button
+          type="button"
+          data-testid="clientmap-item-edit"
+          variant="ghost"
+          size="sm"
+          style={editButtonStyle}
+          onClick={onEdit}
+        >
+          Edit
+        </Button>
       )}
     </li>
   );
@@ -119,22 +184,7 @@ export function ClientMapView({
         {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         <ul>
           {c.know.map((it) => (
-            <li key={it.id} data-testid="clientmap-item">
-              <span>{it.text}</span>
-              {it.sources.map((s, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  data-testid="clientmap-source-link"
-                  onClick={() => {
-                    onOpenSource(s);
-                  }}
-                >
-                  {s.kind === 'email' ? 'email' : 'source'}
-                  {s.locator != null ? ` ${s.locator}` : ''}
-                </button>
-              ))}
-            </li>
+            <Item key={it.id} item={it} onOpenSource={onOpenSource} />
           ))}
         </ul>
         {/* eslint-disable keepance-i18n/no-hardcoded-string */}
@@ -142,30 +192,15 @@ export function ClientMapView({
         {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         <ul>
           {c.assuming.map((it) => (
-            <li key={it.id} data-testid="clientmap-item">
-              <span>{it.text}</span>
-              {it.sources.map((s, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  data-testid="clientmap-source-link"
-                  onClick={() => {
-                    onOpenSource(s);
-                  }}
-                >
-                  {s.kind === 'email' ? 'email' : 'source'}
-                  {s.locator != null ? ` ${s.locator}` : ''}
-                </button>
-              ))}
-            </li>
+            <Item key={it.id} item={it} onOpenSource={onOpenSource} />
           ))}
         </ul>
         {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
         <Eyebrow>What to ask</Eyebrow>
         <ul>
           {c.ask.map((q, i) => (
-            <li key={i} data-testid="clientmap-ask">
-              <span>{q.text}</span>
+            <li key={i} data-testid="clientmap-ask" style={itemRowStyle}>
+              <span style={itemTextStyle}>{q.text}</span>
               <Button
                 data-testid="clientmap-ask-know"
                 size="sm"

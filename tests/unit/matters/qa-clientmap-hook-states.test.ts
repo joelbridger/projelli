@@ -61,8 +61,8 @@ describe('useClientMap — regression tests for fixed bugs (KEEPANCE 5)', () => 
     ];
     buildMock.mockResolvedValue(aiOnly);
     computeFingerprintMock.mockResolvedValue('fp');
-    // The fresh AI content is routed through the approve-first tray; no items are
-    // overwritten. (The merge of proposals is the real mergePendingUpdates.)
+    // The fresh AI content is a clean source-backed add, so the store can apply
+    // it automatically. No existing user-written item is overwritten.
     proposeUpdatesMock.mockReturnValue([
       { id: 'p1', sectionKey: 'story', op: 'add', reason: 'r', createdAt: 't2',
         draft: { id: 'ai1', text: 'Matter is a contract dispute', origin: 'ai', isAssumption: false, sources: [{ kind: 'document', ref: '/a', snippet: 's' }], updatedAt: 't2' } },
@@ -75,9 +75,9 @@ describe('useClientMap — regression tests for fixed bugs (KEEPANCE 5)', () => 
     const allTexts = stored?.sections.flatMap((s) => s.items.map((i) => i.text)) ?? [];
     // The user's note survives a regenerate.
     expect(allTexts).toContain('Client insists on settling by year end');
-    // The fresh AI content lands in the approve-first tray, not the map body.
-    expect(stored?.pendingUpdates.map((u) => u.draft?.text)).toContain('Matter is a contract dispute');
-    expect(allTexts).not.toContain('Matter is a contract dispute');
+    // The fresh AI content lands in the map body because it is a safe add.
+    expect(allTexts).toContain('Matter is a contract dispute');
+    expect(stored?.pendingUpdates.map((u) => u.draft?.text)).not.toContain('Matter is a contract dispute');
   });
 
   // BUG-103 — a matter with no indexed content shows a blank map, not the honest
