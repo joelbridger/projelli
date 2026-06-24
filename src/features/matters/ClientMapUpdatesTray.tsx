@@ -22,7 +22,9 @@ export interface ClientMapUpdatesTrayProps {
 const INITIAL_VISIBLE_UPDATES = 8;
 
 function sectionLabel(sectionKey: string): string {
-  return CORE_SECTION_TITLE[sectionKey as keyof typeof CORE_SECTION_TITLE] ?? sectionKey;
+  return sectionKey in CORE_SECTION_TITLE
+    ? CORE_SECTION_TITLE[sectionKey as keyof typeof CORE_SECTION_TITLE]
+    : sectionKey;
 }
 
 function groupUpdates(updates: ProposedUpdate[]): Array<{ sectionKey: string; updates: ProposedUpdate[] }> {

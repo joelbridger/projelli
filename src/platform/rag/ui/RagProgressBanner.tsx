@@ -27,7 +27,12 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
   const { t } = useTranslation();
   const live = useRagStatus();
   const snap = status ?? live;
-  const [doneVisible, setDoneVisible] = useState(false);
+  // doneVisible is DERIVED (not stored) so we never call setState synchronously
+  // inside the auto-dismiss effect (which would cause cascading renders). A
+  // "done" banner shows until its key is dismissed — either by the 4s timeout
+  // or the dismiss button, both of which set state outside the effect body.
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+  const doneKey = `${snap.status}:${String(snap.total)}`;
   // VG-2 — live OCR progress. OCR is honest work (~0.5 s per scanned page),
   // so the banner says exactly which page the local engine is reading.
   const ocr = useOcrProgressStore((s) => s.current);
@@ -42,14 +47,15 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
   // Auto-dismiss the "done" banner after a few seconds so it doesn't stick
   // around forever after an initial workspace index.
   useEffect(() => {
-    if (snap.status !== 'done') {
-      setDoneVisible(false);
-      return;
-    }
-    setDoneVisible(true);
-    const handle = window.setTimeout(() => setDoneVisible(false), 4000);
-    return () => window.clearTimeout(handle);
-  }, [snap.status, snap.total]);
+    if (snap.status !== 'done') return;
+    const handle = window.setTimeout(() => {
+      setDismissedKey(doneKey);
+    }, 4000);
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [snap.status, snap.total, doneKey]);
+  const doneVisible = snap.status === 'done' && dismissedKey !== doneKey;
 
   if (snap.status === 'indexing' && snap.total > 0) {
     const pct = Math.min(100, Math.round((snap.processed / snap.total) * 100));
@@ -170,7 +176,7 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
         <button
           type="button"
           data-testid="rag-progress-banner-dismiss"
-          onClick={() => setDoneVisible(false)}
+          onClick={() => { setDismissedKey(doneKey); }}
           className="ml-auto text-xs underline"
         >
           Dismiss

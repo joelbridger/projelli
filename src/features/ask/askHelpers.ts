@@ -365,9 +365,10 @@ export function bindAnswerCitations(
 
       citations.push({
         n,
-        // B4: prefer the real source filename (+ page/section) over a bare
-        // basename so a citation never shows a meaningless name like "6.pdf".
-        label: matchedSource ? sourceLocator(matchedSource) : citationBasename(matchedHit.path),
+        // B4 is fixed upstream by correct PDF path storage (the basename is now
+        // the real filename, not a placeholder like "6.pdf"); the page/section
+        // lives in `locator`.
+        label: citationBasename(matchedHit.path),
         excerpt: matchedHit.chunkText,
         path: matchedHit.path,
         locator: matchedSource ? sourceLocator(matchedSource) : citationBasename(matchedHit.path),
