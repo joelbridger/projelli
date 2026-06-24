@@ -531,15 +531,16 @@ export function useAsk({
           const matchedSource = sources.find(
             (s) => s.path === matchedHit.path && s.paragraphIndex === matchedHit.paragraphIndex,
           );
+          const locator = matchedSource ? sourceLocator(matchedSource) : citationBasename(matchedHit.path);
           citations.push({
             n,
-            label: citationBasename(matchedHit.path),
+            label: locator,
             // Excerpt + locator come from the matched RETRIEVED chunk, never
             // from the model's text, so the source panel always shows real
             // retrieved content.
             excerpt: matchedHit.chunkText,
             path: matchedHit.path,
-            locator: matchedSource ? sourceLocator(matchedSource) : citationBasename(matchedHit.path),
+            locator,
             // BUG-065: fail closed. Only "source found" when the retrieved chunk
             // is identifiable (id + matterId) and in the active matter scope; a
             // chunk missing those, or from another matter, is NOT shown green.

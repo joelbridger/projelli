@@ -1484,7 +1484,9 @@
       "ready_other__sourceHash": "1b1eb7b9a151180c039d3ff711db127563701f4536795b705925988f6721a943"
     },
     "ocr-progress": "Gescannte Seiten werden mit lokaler OCR gelesen: Seite {{page}} von {{total}}. Nichts verlässt deinen Rechner.",
-    "ocr-progress__locked": true
+    "ocr-progress__locked": true,
+    "pdf-progress": "Indexing PDFs: {{processed}} / {{total}}. Nothing leaves your machine.",
+    "pdf-progress__locked": true
   },
   "citation": {
     "scanned": "gescannt",
