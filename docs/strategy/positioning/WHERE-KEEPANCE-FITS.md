@@ -1,7 +1,7 @@
 # Where Keepance Fits — Strategic Positioning (honest re-assessment)
 
 **Date:** 2026-06-24
-**Status:** RECOMMENDATION for Jameson's decision (not yet finalized). The lead-positioning choice in §7 is his call.
+**Status:** ✅ DECIDED 2026-06-24 by Jameson. **Lead positioning = "the private layer over your existing stack"** (warm sub-line: "a private AI that actually knows your clients"). Secondary questions defaulted per recommendation (see §8).
 **Audience:** Jameson (board) + future sessions. Written plainly.
 **Built from:** the Kitces 2025 AdvisorTech study, the June 2026 AdvisorTech map, ~50 Kitces #AdvisorTech monthly roundups (2022-2026), Kitces's AI analysis essays, and an independent Codex web-research pass. All sources digested in `./research/`.
 **The question this answers:** Has Keepance clearly defined its role inside an advisor's already-crowded software stack, so advisors can overcome the very real hesitancy to add "yet another tool"? (The exact feedback from Jameson's wife's firm.)
@@ -114,7 +114,7 @@ The same research that defines the positioning also dictates distribution: advis
 
 ## 7. Recommended lead positioning + draft "Where does Keepance fit?" copy
 
-**Recommendation (Jameson's call):** Lead with **"the private layer over your existing stack,"** with the **prep-and-drafting** workflow as the hero demo inside it. Explicitly avoid the "AI assistant" framing (low-importance, distrusted shelf) and avoid "a private ChatGPT for your clients" as the *lead* (it files Keepance under the crowded assistant category, though it can stay as a friendly sub-line).
+**✅ DECIDED (2026-06-24, Jameson):** Lead with **"the private layer over your existing stack,"** with the **prep-and-drafting** workflow as the hero demo inside it, and "a private AI that actually knows your clients" kept as the warm sub-line. Explicitly avoid the "AI assistant" framing (low-importance, distrusted shelf) and avoid "a private ChatGPT for your clients" as the *lead* (it files Keepance under the crowded assistant category, though it can stay as a friendly sub-line).
 
 Draft for the website "Where does Keepance fit?" section (plain, no em dashes — for review, not final):
 
@@ -132,9 +132,9 @@ Draft for the website "Where does Keepance fit?" section (plain, no em dashes �
 
 ## 8. The decision for Jameson + open questions
 
-**The one decision to confirm (the parked question, now grounded):** the lead positioning in §7 — "the private layer over your existing stack" (recommended) vs. keeping "a private AI assistant / private ChatGPT for your clients" as the lead. Recommendation: the former.
+**✅ The lead-positioning decision is made (2026-06-24):** "the private layer over your existing stack," with "a private AI that actually knows your clients" as the sub-line.
 
-**Secondary open questions (lower stakes, can default):**
+**Secondary open questions (lower stakes — defaulting per recommendation unless Jameson changes them):**
 1. Should the website "Where does Keepance fit?" section use the draft in §7 now, or hold until the lead positioning is locked? (Recommend: lock positioning first, then I'll polish the copy in Jameson's voice.)
 2. How hard to lean on local-first as *the* differentiator vs. cross-source-citations as the lead differentiator? (Recommend: lead with cross-source + citations, close with local-first — because "private" alone is now contested.)
 3. Is the solo / small-RIA-who-won't-consolidate the explicit target, or do we keep a broader "all advisors" frame? (Recommend: explicit narrow target — it is the only defensible beachhead vs. the funded incumbents.)
