@@ -196,10 +196,12 @@ Run order (all scripts in `keepance/scripts/demo/`, run from `C:\keepance` with
 
 ## 6. Dev-bench landmines (why PDFs are the hard part)
 
-### 6.1 PDF indexing is OFF by default
-`includePdfsInWorkspaceIndex` defaults **false**. An advisor's folder is ~80% PDF,
-so out of the box most of their files are silently ignored. The seed turns it ON.
-**Product issue worth fixing** (see §7, BUG-C).
+### 6.1 PDF indexing is ON by default (corrected)
+`includePdfsInWorkspaceIndex` defaults **true** (since commit `84c91c05`,
+2026-06-20 — "default PDF indexing ON so scanned-filing search works out of the
+box"); no override in `PRIVACY_CRITICAL_SAFE_DEFAULTS`. So PDFs index out of the
+box. The seed sets it true redundantly. (An earlier version of this playbook
+wrongly said off-by-default.)
 
 ### 6.2 The Vite dev server dies → PDF.js fails to load
 `pdfjs-dist` and `tesseract-wasm` (OCR) are **lazy-loaded**. On `tauri:dev`, the
@@ -253,9 +255,8 @@ and may think the rest were ignored. **Product/UX issue** (see §7, BUG-D).
 - **BUG-B (reliability, dev-only but severe): PDF indexing breaks on `tauri:dev`**
   because Vite dies on dep-optimize/reload (§6.2). Fixed for dev via `optimizeDeps`
   + restart discipline; the real fix is to demo on a production build.
-- **BUG-C (UX/product): PDF indexing default-OFF** silently ignores ~80% of a real
-  advisor's files. Consider defaulting ON for the advisor profession, or a loud
-  one-time prompt on first import that contains PDFs.
+- **BUG-C — RESOLVED:** PDF indexing already defaults **ON** (commit `84c91c05`,
+  2026-06-20). No action needed. (The earlier "default off" note was wrong.)
 - **BUG-D (UX): the indexing banner counts office/text only**; PDFs index silently
   with no progress, so the count looks wrong and there's no signal PDFs are being
   read (or OCR'd). Add PDF/OCR progress to the banner.
