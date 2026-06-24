@@ -146,7 +146,7 @@
 <script>
   // Status-chip colour per section id
   var TONE = {
-    strategy:"good", marketing:"warn", sales:"gap", growth:"gap",
+    strategy:"good", roadmap:"good", marketing:"warn", sales:"gap", growth:"gap",
     competitive:"good", engineering:"gap", ux:"warn", ui:"good",
     testing:"warn", finance:"warn", questions:"info"
   };
@@ -154,6 +154,7 @@
   var TABS = [
     { id:"overview",  label:"Overview" },
     { id:"strategy",  label:"Strategy",      sections:["strategy","competitive"] },
+    { id:"roadmap",   label:"Roadmap",       sections:["roadmap"] },
     { id:"gtm",       label:"Go-to-Market",  sections:["marketing","sales","growth"] },
     { id:"product",   label:"Product",       sections:["engineering","ux","ui"] },
     { id:"testing",   label:"Testing",       sections:["testing"] },
@@ -191,8 +192,18 @@
     }).join('');
     return '<p class="now">'+esc(s.now)+'</p>'+rows;
   }
+  function renderRoadmap(s){
+    var lanes=(s.lanes||[]).map(function(l,i){
+      var dot = i===0?'dec':i===1?'ins':'res';
+      var items=(l.items||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('');
+      return '<div class="col" style="margin-top:14px"><h3><span class="mark '+dot+'"></span>'+esc(l.label)+'</h3><ul class="list">'+items+'</ul></div>';
+    }).join('');
+    var links=(s.links||[]).map(function(l){return '<a class="reslink" href="'+esc(l.doc)+'" target="_blank" rel="noopener">'+esc(l.label)+' →</a>';}).join('');
+    var linkBlock = links ? '<div class="reslinks"><h3><span class="mark res"></span>Resources</h3><div class="reslist">'+links+'</div></div>' : '';
+    return '<p class="now">'+esc(s.now)+'</p>'+lanes+linkBlock;
+  }
   function renderSection(s, collapsed){
-    var body = s.type==='testing' ? renderTesting(s) : s.type==='questions' ? renderQuestions(s) : renderStandard(s);
+    var body = s.type==='testing' ? renderTesting(s) : s.type==='questions' ? renderQuestions(s) : s.type==='roadmap' ? renderRoadmap(s) : renderStandard(s);
     return '<section class="area'+(collapsed?' collapsed':'')+'" id="sec-'+s.id+'">'
       +'<button class="area-head" type="button" aria-expanded="'+(collapsed?'false':'true')+'">'
       +'<span class="area-emoji">'+(s.icon||'•')+'</span>'

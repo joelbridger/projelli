@@ -1,10 +1,10 @@
 {
   "meta": {
     "title": "Keepance — Board Dashboard",
-    "subtitle": "The private intelligence layer for a law practice",
+    "subtitle": "The private client-intelligence layer for a financial-advisory practice",
     "framing": "Jameson = Board of Directors  ·  Claude = CEO reporting in",
-    "lastUpdated": "2026-06-20",
-    "headline": "Reality check (2026-06-20): an earlier conclusion said Keepance was 'finished and just needs marketing.' Recent hands-on Windows testing proved that wrong — there are many unfinished and broken areas. The honest picture: a lot is built, but the product is NOT finished. Getting it genuinely reliable (especially on real Windows and Mac) is active, necessary work — alongside, not instead of, solving distribution.",
+    "lastUpdated": "2026-06-24",
+    "headline": "STRATEGY SHIFT (2026-06-24): Keepance is re-aiming from law firms to FINANCIAL ADVISORS. The core unit becomes a client / household, not a legal matter. This is a continuation, not a rebuild: the advisor product was largely designed-in already (an advisor mode, a 7-template Advisor Practice Pack, a financial-advisors website page, and a Client Map built to treat 'household' as the advisor unit). The only real demand signal Keepance ever got came from the advisor side (a CFP), while the law ICP was never validated. We reuse the engine and re-skin the experience. The binding constraint is unchanged and is NOT features: it is distribution + trust. #1 job right now is an impressive, reliable advisor demo, then hand-selling the first advisors through the design partner (Journey Beyond Wealth).",
     "updateRule": "High bar: a Claude session only updates this for a MAJOR decision, a validated insight, a strategy shift, or a real milestone. Routine work never touches it. Jameson maintains it freely."
   },
   "sections": [
@@ -12,58 +12,108 @@
       "id": "strategy",
       "title": "Strategy & Vision",
       "icon": "🧭",
-      "status": "Positioning clear",
-      "now": "Keepance is sharpened from a general 'private AI workspace' into one clear identity: the private intelligence layer for a law practice — a desktop app where a lawyer's documents, email, and matters live on their own machine, stay private by design, and answer questions back with citations they can click and verify. The lead audience is deliberately narrow: solo and small-firm litigation lawyers first. The positioning is set and a lot is built — but recent Windows testing shows the software itself is not actually finished.",
+      "status": "Re-aimed to advisors",
+      "now": "Keepance is the private client-intelligence layer for a financial-advisory practice: the place an advisor's client context (files, email, notes, plans) lives on their own machine, stays private by design, and answers them back with citations they can verify. Vision: every independent advisor walks into every meeting already knowing the whole household, without putting that family's data in someone else's cloud. The beachhead is deliberately narrow: solo and small independent / fee-only RIAs first. We reuse the whole engine and re-skin the experience for advisors. Full detail in the linked Product Strategy report.",
       "decisions": [
-        "Repositioned to law-first (2026-06-09): one audience, one job — 'find anything across a matter with a citation you can click.'",
-        "Lead niche locked as litigation solo/small-firm (tax and consulting kept as backup angles).",
-        "Earlier sequencing (2026-06-17): 'finish the vision, then go sell.' This is now in question — see the correction below."
+        "RE-AIM (2026-06-24): pivot from law firms to financial advisors; the unit becomes a client / household, not a legal matter.",
+        "Beachhead locked: solo and small fee-only RIAs (own their stack, privacy-minded, buyer = user = compliance owner = short sales cycle).",
+        "Positioning: the private client-intelligence layer (a different category from cloud notetakers). Pitch 70% outcome, 30% privacy architecture.",
+        "Engineering decision: reuse the engine; do NOT rename internal matter/matter_id (the security isolation key); add a client/household label facade.",
+        "Sequencing: demo-first, then onboard real advisors, then build only what paying users ask for."
       ],
       "insights": [
-        "CORRECTION (2026-06-20): the 2026-06-17 conclusion that the product is 'mature/finished, so the only job is distribution, not building' was overturned by real Windows testing. Substantial unfinished work remains, so finishing and hardening the product is back on the critical path — alongside distribution, not after it.",
-        "Open board question: is the priority now (a) finish the product to genuinely reliable, (b) hand-sell to lawyers, or (c) both in parallel? This is a real decision to make, not a settled one.",
-        "Honest tension to protect: 'nothing leaves your machine' is fully true only in the slower local-AI mode; the recommended higher-quality mode sends data to the lawyer's own AI provider. The product frames this honestly as a privacy spectrum.",
-        "Open question: set a 'kill-criterion' — a fixed window of effort with an honest agreement on what 'it's working' vs 'pivot' looks like."
+        "The advisor re-aim is aiming at the demand that was actually observed: the strongest pain signal in the whole record came from a financial advisor, not a litigator. The law ICP was never validated.",
+        "This is ~70% designed-in already: an advisor mode, a shipped 7-template Advisor Practice Pack (Reg S-P / Reg BI), a financial-advisors site page, and a Client Map architected with 'household' as the advisor unit.",
+        "North Star metric set: weekly active advisors who ran a real client workflow. We steer by that, not signups.",
+        "The binding constraint is distribution + trust, NOT product features. The demo is the entry ticket; selling is the real work."
+      ],
+      "links": [
+        { "label": "🧭 Product Strategy — vision, personas, metrics, prioritization, roadmap", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-product-strategy.html" },
+        { "label": "🛠️ Re-Aim Build Brief — the technical legal→advisor plan", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-reaim-legal-to-advisors.html" },
+        { "label": "📣 CEO Brief — getting & keeping paying advisors", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-ceo-brief-get-keep-customers.html" }
+      ]
+    },
+    {
+      "id": "roadmap",
+      "title": "Roadmap",
+      "icon": "🗺️",
+      "type": "roadmap",
+      "status": "Demo-first",
+      "now": "Themed, not dated, and reshaped by what real advisors ask for as we sell. The rule: build only what makes the CURRENT phase succeed. Right now that is the impressive demo; next is onboarding real advisors onto real data; later is whatever paying users actually demand. Nothing speculative. Full themes, metrics, and the prioritization gates are in the Product Strategy report.",
+      "lanes": [
+        {
+          "label": "NOW — the impressive, reliable demo",
+          "tone": "good",
+          "items": [
+            "Advisor re-aim Phase 1: advisor language (client / household), a killer advisor sample household, advisor-neutral AI prompts, the Advisor Practice Pack featured, legal templates hidden.",
+            "The aha loop rock-solid end-to-end: open a client → it already knows the household → cited answer → drafted follow-up + a Reg BI / suitability note.",
+            "Verified on real Windows (a demo that crashes on stage is worse than no demo).",
+            "Done = you would proudly show it to any advisor and it will not break."
+          ]
+        },
+        {
+          "label": "NEXT — onboard real advisors (first 5 paying)",
+          "tone": "warn",
+          "items": [
+            "Thin, read-only Wealthbox connector (seed Client Maps from the CRM's existing notes), then a OneDrive path (likely just point at the synced folder). Time-boxed; preserve local-first.",
+            "Trust artifacts: form the LLC, the CCO-forwardable security one-pager, the design-partner case study.",
+            "Founder-led onboarding that gets a new advisor to the aha fast.",
+            "Done = the design partner plus ~5 advisors paying and using it weekly."
+          ]
+        },
+        {
+          "label": "LATER — shaped by paying users",
+          "tone": "info",
+          "items": [
+            "More connectors (Redtail, custodians, planning tools like eMoney) — built per real demand only.",
+            "The firm / team tier for advisors (shared client context + information barriers) once trust artifacts justify it.",
+            "The deeper sensitivity model (replacing legal 'privilege') and richer household fields.",
+            "Meeting-notes capture only IF advisors repeatedly demand it (today: deliberately out; we complement Jump / Zocks, not compete)."
+          ]
+        }
+      ],
+      "links": [
+        { "label": "🗺️ Product Strategy — the full roadmap + the feedback engine that reshapes it", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-product-strategy.html" }
       ]
     },
     {
       "id": "marketing",
       "title": "Marketing",
       "icon": "📣",
-      "status": "Built, not distributing",
-      "now": "There is a large, well-organized marketing library — channel playbooks, email sequences, press kit, comparison pages, battlecards — but almost none of it is currently driving traffic. The website drew ~225 visitors over a recent ten-week stretch, nearly all typing the address in directly, meaning search, social, and referrals send almost nobody. Channels were re-pointed (2026-05-27) toward where lawyers actually look.",
+      "status": "Advisor-first, not distributing",
+      "now": "The marketing library is large and well-organized, but almost none of it drives traffic yet (~225 visitors over a recent ten-week stretch, nearly all direct). The re-aim points it at advisors: the website already has a strong /financial-advisors page and an advisor Reg S-P one-pager — those move to the front, the deeply-legal pages move off the main path, and the press-kit one-liner stops saying 'law practice.' Still a distribution problem at heart, not a copy problem.",
       "decisions": [
-        "Channel pivot (2026-05-27): primary channels are now legal-industry outlets (ABA TECHSHOW, Lawyerist, Above the Law, IPWatchdog), not Product Hunt / Hacker News.",
-        "'Marketing-led only' model (2026-06-06): assumes no personal network and no warm intros — every tactic must work cold.",
-        "All public copy bound to a strict voice guide (first-person, plain, no AI-cliché words, no em dashes, every claim linked)."
+        "Make the website advisor-first: lead with the financial-advisors page; demote legal pages; fix the press-kit 'private intelligence layer for a law practice' line.",
+        "Promote the assets that are already advisor-correct: the Reg S-P blog post, the advisor CCO one-pager, and the vs-Jump comparison.",
+        "All public copy stays bound to the voice guide (first-person, plain, no AI-cliché words, no em dashes, every claim linked)."
       ],
       "insights": [
-        "The website's convert-the-visitor page is strong, so the failure is upstream — almost nobody arrives. A distribution problem.",
-        "Credibility play: own an empty lane — 'private by architecture, not by promise.' No analyst currently champions local-first legal AI.",
-        "Near-term move: pitch the leading legal-tech journalist (Bob Ambrogi / LawSites) and apply to a conference startup showcase (ABA TECHSHOW Startup Alley).",
-        "Caveat (2026-06-20): don't market hard until the product is genuinely reliable on the platforms users run — shipping traffic to an unfinished app burns the first impression."
+        "The Reg S-P angle is genuinely timely: the small-firm advisor compliance deadline just passed (June 2026), and local-first is a clean answer to vendor oversight.",
+        "The distribution kingmakers for advisor software are Kitces (Nerd's Eye View / the AdvisorTech map) and XYPN — getting on their radar is worth more than any ad.",
+        "Do not market hard until the advisor demo is genuinely reliable: shipping traffic to a shaky demo burns the first impression."
       ]
     },
     {
       "id": "sales",
       "title": "Sales",
       "icon": "🤝",
-      "status": "No motion yet",
-      "now": "There is no sales motion yet and no paying customers. The agreed plan is founder-led hand-selling, not self-serve signups or ads: pick one type of lawyer, run live 10–20 minute demos on the prospect's own real case file, and sell the outcome. Pricing, demo content, and objection scripts are prepared; what's missing is the selling activity itself, which is Jameson's to drive.",
+      "status": "Founder-led · design-partner first",
+      "now": "No paying customers yet. The plan is founder-led hand-selling, not self-serve signups or ads: win the design partner (Journey Beyond Wealth) first as the first real user, first customer, and source of warm referrals, then hand-sell the next 10-20 advisors with live demos on a controllable sample (not a prospect's live data on stage). A parallel go-to-market track (LLC, target list, pitch, outreach, CRM pipeline) runs now, while the demo is built.",
       "decisions": [
-        "Sell by hand, not by funnel (2026-06-17): hand-sell the first ~10 customers one at a time.",
-        "Recruit 3–5 'design-partner' lawyers on free pilots, to convert into named testimonials.",
-        "Win solo lawyers first, not firms: the firm tier needs trust credentials Keepance doesn't have yet.",
-        "Demo weighting: ~70% on the outcome (does the work, won't waive privilege or leak client data), ~30% on the privacy architecture."
+        "Sell by hand, not by funnel: hand-sell the first ~10-20 advisors one at a time.",
+        "Journey Beyond Wealth = design partner → weekly real use → named testimonial + case study + referrals.",
+        "Win solo advisors first, not firms (the firm tier needs trust credentials Keepance lacks today).",
+        "Demo weighting ~70% outcome (knows the household, drafts the work, stays private), ~30% privacy architecture."
       ],
       "insights": [
-        "Four objections mapped for every demo: AI quality, IT setup burden, 'a DIY box is less secure,' and 'no security certification yet.'",
-        "The strongest real pain signal in the whole record came from a financial advisor (Jameson's wife), NOT a litigator — so the chosen audience has technically never been validated. A genuine risk.",
-        "Checkout snag for real sales: buy buttons still route through a shared store branded 'projelli,' so a lawyer sees an unrelated brand at checkout. Needs its own branded store before any real sale.",
-        "Caveat (2026-06-20): a live demo on real Windows will expose the unfinished areas — finish the demo path before showing it to a lawyer."
+        "The trust gate is the make-or-break: advisors' compliance officers will ask for a SOC 2 we don't have. Answer with the local-first / no-vendor-server story (client data never reaches a Keepance server, so most vendor-oversight burden does not apply) plus a CCO-forwardable one-pager.",
+        "Don't depend on one channel: beyond the design partner, build referrals + XYPN + NAPFA / FPA + advisor Facebook groups + a Kitces push.",
+        "Build and sell in parallel: do the LLC, target list, pitch, and outreach now so a warm pipeline is ready the moment the demo lands.",
+        "The demo path must be reliable before it's shown to an advisor."
       ],
       "links": [
-        { "label": "📞 Cold-Calling Guide — scripts, discovery questions & objection answers", "doc": "cold-call-guide.html" }
+        { "label": "📞 Cold-Calling Guide — scripts, discovery questions & objection answers", "doc": "cold-call-guide.html" },
+        { "label": "📣 CEO Brief — channels, the trust gate, onboarding, the 90-day plan", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-ceo-brief-get-keep-customers.html" }
       ]
     },
     {
@@ -71,88 +121,89 @@
       "title": "Growth & Traction",
       "icon": "📈",
       "status": "Pre-traction",
-      "now": "The honest weak point. By every measurable signal, Keepance is at idea-validation stage commercially. Verified directly from the systems (not estimated): zero real paying customers, zero genuine license activations (only Jameson's own tests), an empty firm-accounts database, ~225 website visitors in ten weeks (almost all direct), ~17 downloads of the latest version, a handful of 'buy' clicks ever, and empty email signup lists. And the product underneath is feature-rich but not yet finished.",
+      "now": "Still the honest weak point: zero paying customers, near-zero inbound. The re-aim removes the single biggest blocker the law plan had: there is now a warm, real design partner and a validated pain signal in financial advice. But selling is still the work, and the product needs a genuine finishing pass alongside it. Idea-validation stage commercially, with a far better wedge than before.",
       "decisions": [
-        "Name the reality plainly: a feature-rich but unfinished product meeting an untested market — both finishing it and reaching buyers are real work.",
-        "Define an explicit success/failure test (the kill-criterion) so effort has an honest checkpoint.",
-        "UPDATED (2026-06-20): the earlier 'stop treating a sales problem as a build problem' framing is corrected — real Windows testing shows there genuinely IS unfinished build work; it's not avoidance to finish it."
+        "Name reality plainly: a capable, mostly-built product meeting a market we are only now reaching warmly. Both finishing the demo and reaching buyers are real work.",
+        "Set an honest kill / scale signal: if hand-selling can't get ~3-5 advisors to pay AND use it weekly, the pain isn't acute enough; if it can, pour fuel on referrals + Kitces / XYPN.",
+        "Run building (the demo) and selling (the parallel GTM track) at the same time, every week."
       ],
       "insights": [
-        "The math is encouraging IF reach is solved: customers bring their own AI key, so cost per customer is near zero — even a modest number becomes real income.",
-        "Binding constraints, in order: (1) a genuinely finished/reliable product, (2) reach/distribution, (3) demo-to-close, (4) retention. Price is NOT the constraint.",
-        "A 'lifestyle business' income is reachable at a fairly small customer count; a 'real company' would need the firm tier or a repeatable channel.",
-        "Structural risk: one non-developer operator, no sales experience yet, and a product that still needs a real finishing pass."
+        "The math is encouraging: customers bring their own AI key (~95% gross margin), so a few hundred K needs only ~150-350 paying customers, well under 0.1% of the market.",
+        "Binding constraints, in order: (1) a reliable, impressive demo, (2) distribution / reach, (3) demo-to-close, (4) retention. Price is NOT the constraint.",
+        "Likely underpriced for advisors: they already spend $6-12K/yr on software vs. Keepance at ~$1K. Room to raise.",
+        "Structural risk to guard against: a product designer retreating into the codebase instead of selling (the 'build trap')."
       ]
     },
     {
       "id": "competitive",
       "title": "Competitive & Market",
       "icon": "♟️",
-      "status": "Unique lane",
-      "now": "Keepance occupies a genuinely unique spot: the only tool across legal, tax, consulting, and advisor AI offering a true local / nothing-leaves-your-machine option (competitor sweep, 2026-06-08). Incumbents (Clio Duo, Thomson Reuters CoCounsel, Microsoft Copilot, LexisNexis) are all cloud-based; the closest local rival (Elephas) is Mac-only with no legal features. But the market's default answer is 'cloud with strong assurances,' and lawyers are mostly moving toward the cloud, not away.",
+      "status": "Different category",
+      "now": "The advisor-AI space is hot and well-funded, but the leaders are a different category from Keepance. Jump (~$80M raised, claims ~1 in 10 US advisors), Zocks (~$45M), and Zeplyn are cloud, meeting-capture 'agentic operating systems' that sit above the CRM. Keepance is the private client-context + drafting layer that lives on the advisor's machine and complements those tools. We win the advisors who feel the cloud-privacy tension.",
       "decisions": [
-        "Keep a running competitor-watch log — the one event that most threatens Keepance is an incumbent adding a local or zero-egress option.",
-        "Frame the pitch as 'the most provably-private way to get AI's benefits,' NOT 'the cloud is unsafe' — the absolutist framing alienates the ~75% of lawyers already cloud-comfortable.",
-        "Keep competitor-comparison pages reconciled to current facts."
+        "Do not fight the notetakers head-on. Position as the complementary private context + drafting layer; lead outcome + local-first (70/30).",
+        "Keep a competitor-watch log: the event that most threatens us is a funded notetaker shipping a genuinely local / no-vendor-server option.",
+        "Keep the advisor comparison pages (vs Jump / eMoney / ChatGPT) reconciled to current facts and honest about where rivals are the better choice."
       ],
       "insights": [
-        "Encroachment to watch: LexisNexis 'Protégé' (Feb–May 2026) added customer-held encryption keys for big firms. Honest counter: it still routes data through their cloud; only a local model removes the trip entirely.",
-        "Well-funded rivals are mostly in adjacent categories (Jump $80M, Zocks $45M for advisors; Blue J $300M+ for tax) — they prove the space is hot but don't attack the local-first wedge.",
-        "Two citable legal angles: a Florida Bar opinion (local AI removes client-consent paperwork) and a 2026 federal ruling, U.S. v. Heppner (consumer-AI chats aren't privileged). Heppner is real — never delete it.",
-        "Counter-pressure: 'bring your own key' is no longer unique, and a self-hosted box with no certification can be harder to defend than hardened cloud — a real objection."
+        "Privacy is contested now (Zocks and Zeplyn both claim 'privacy-first'), so the defensible wedge is TRUE local-first (data physically never leaves the machine) + the depth of the Client Map + the clean Reg S-P vendor-oversight story.",
+        "Well-funded rivals prove the space is hot but don't attack the local-first wedge; they're meeting-notes-centric.",
+        "Advisors increasingly discover tools via search / ChatGPT and, above all, peer referrals; word-of-mouth is the highest-quality channel in wealth management."
       ]
     },
     {
       "id": "engineering",
       "title": "Engineering",
       "icon": "⚙️",
-      "status": "Feature-rich, NOT finished",
-      "now": "Keepance has a lot built — version 3.x, signed installers for Windows/Mac/Linux, and a deep feature set (Word editing with AI tracked-changes, ask-across-your-files-with-citations, email import/search, single sign-on, an encrypted vault, live co-editing). But recent hands-on testing on real Windows hardware (2026-06-20) revealed many unfinished and broken areas. The honest status: feature-rich but NOT finished or production-solid. Earlier notes calling it 'mature and shipped' were too optimistic — see the Testing tab for where it actually stands per platform.",
+      "status": "Re-aim in flight",
+      "now": "The engine is domain-generic and reused as-is: local-first file storage, the cited-recall RAG, the encrypted vault, the in-house Word (.docx) engine, live co-editing, SSO, and email import. The re-aim is a re-skin (advisor language, an advisor sample, advisor-neutral AI prompts, advisor templates), being built now by a parallel instance, demo-first. The product still needs finishing and hardening on real Windows. An independent Codex audit set the safe approach.",
       "decisions": [
-        "Redirect effort toward making the product genuinely reliable (not net-new features) — and now, explicitly, toward finishing the broken/unfinished areas Windows testing exposed.",
-        "Fixed several self-contradictions and customer-safety issues (2026-06-17): a removed feature still shown to paying customers; a paid tier advertising credentials that don't exist; silent file-save/audit-log failure paths.",
-        "Latest fixes are written and tested but NOT yet released — cutting a new signed build is a slow, costly step that waits for Jameson's explicit go-ahead."
+        "Reuse the engine; do NOT rename internal matter / matter_id or storage keys (the security isolation key) — use a user-facing client / household label facade.",
+        "Sequence: impressive demo first, THEN a thin Wealthbox connector, THEN OneDrive, THEN demand-driven connectors. Connectors are time-boxed and must preserve local-first.",
+        "Core-app rule unchanged: no shortcuts; build it robust and verified (TDD + Codex review). No autonomous build-cut or deploy without Jameson's explicit go."
       ],
       "insights": [
-        "CORRECTION (2026-06-20): 'the product is mature, more features won't move the needle, stop building' is wrong. Real Windows testing found many unfinished items beyond the logged bugs — the product needs a genuine finishing pass.",
-        "New capability: Claude can now drive the real desktop app on a Windows test machine like a user — far faster/cheaper bug-finding than the old hour-plus build-and-check loop.",
-        "Known logged bugs (a partial list): privacy indicators disagreeing on the active AI provider; email connecting but never syncing; a stuck sync that shows no error (BUG-008). Jameson found more during recent testing — to be detailed in the Testing tab.",
-        "Connectors to outside legal systems (Clio, iManage, Office add-ins) are blocked on vendor access — outside Keepance's control, deliberately deferred."
+        "Codex independent audit (2026-06-24): the safe re-aim is a label facade, not a deep rename; renaming the isolation key would risk client-data-leak bugs across RAG / firm sync / saved data.",
+        "Real-Windows / Mac testing is the AI's job (Legion laptop), not Jameson's; the aha path reliability is part of 'demo done.'",
+        "The advisor product is ~70% there: advisor profession value, a 7-template advisor pack, and a Client Map designed for the household unit already exist.",
+        "Connectors to outside systems still carry vendor-access and scope risk — keep them thin, read-only, and behind the demo."
+      ],
+      "links": [
+        { "label": "🛠️ Re-Aim Build Brief — domain mapping, reuse/relabel/drop, workstreams", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-reaim-legal-to-advisors.html" }
       ]
     },
     {
       "id": "ux",
       "title": "UX",
       "icon": "🧩",
-      "status": "Shaped, needs finishing",
-      "now": "The app is reshaped around the law-practice identity with a clean, navy-railed layout organized by what a lawyer does (Matters, Search, Documents, Email, Workflows, Activity Log, Settings). A long polish pass (2026-06-16) tightened onboarding and settings. A standout theme is making privacy visible: an always-on indicator of where data is going, a 'Where your data is' map, and a printable Confidentiality Report. Real Windows use shows there are still rough and unfinished flows to fix.",
+      "status": "Re-skinning to advisors",
+      "now": "The clean, navy-railed layout re-skins from the law identity (Matters / Search / Documents / Email / Workflows) to the advisor identity (Clients / Households). The centerpiece is the Client Map: the auto-built, cited 'everything I know about this household' profile that delivers the aha ('it already knows my client') in the first session. Trust stays a visible surface (where-your-data-is map, egress indicator, a forwardable confidentiality report). Onboarding to the aha fast is the retention make-or-break.",
       "decisions": [
-        "Trust as a visible product surface (2026-06-17): turned the privacy story into things a prospect can see and screenshot.",
-        "Hallucination guardrails in the experience: uncited answers carry a 'verify before relying on this' warning, and a one-click 'verify against source' flags fabricated citations.",
-        "Honest onboarding: recommends the higher-quality bring-your-own-key mode as default, and presents max-privacy local mode honestly as 'more private, less capable for legal work.'"
+        "Client / household is the everyday unit label (via the facade), not 'matter.'",
+        "Keep trust visible and inspectable; keep the honest privacy-spectrum framing (local-only vs bring-your-own-key).",
+        "Optimize first-run hard for the first-session aha; founder-led onboarding for the first ~50 customers."
       ],
       "insights": [
-        "Defensibility hinges on never quietly being wrong — a confidently-wrong answer is a malpractice/sanctions risk, so citation + verification is core.",
-        "The email feature is the daily-use beachhead ('find anything in your mail, with a citation, even when Outlook search fails') — but it's one of the areas recent testing showed is not finished.",
-        "Real-world UX papercuts logged (a failed search clears your typed question; a stuck email sync gives no feedback) — and likely more from recent Windows testing.",
-        "Open idea: an opt-in, off-by-default 'design-partner' mode that learns from real usage without breaking the no-spying promise (structure only, never content)."
+        "Onboarding is do-or-die: ~75% of users churn in week one with poor onboarding, and the aha is 'the Client Map already knows my client' — remove every step before it.",
+        "The key UX change is the Client Map advisor rewrite (its prompts currently say 'legal assistant' and search for court terms).",
+        "Cited recall across files + email is the daily-use beachhead (meeting prep, annual-review prep, finding anything in the client's history)."
       ]
     },
     {
       "id": "ui",
       "title": "UI",
       "icon": "🎨",
-      "status": "Design system in place",
-      "now": "There's a real two-layer design system (built 2026-06-15): shared style tokens (color, spacing, type, shadows) plus a library of reusable building blocks (buttons, toggles, search fields, cards, badges). It covers the whole app, so the same control looks and behaves identically everywhere. The theme is a polished light look (light background, dark text, navy accent). Some real-hardware visual checks remain.",
+      "status": "Design system reused",
+      "now": "The two-layer design system (shared tokens + reusable components) and the polished light look (light background, dark text, navy accent, pink-to-blue gradient, Satoshi type) carry over unchanged. The only visual swaps for the re-aim are the photographic imagery (the hero currently shows an attorney with clients) and the example microcopy/screenshots that depict legal matters. Because Keepance sells trust, visual consistency is itself a trust signal.",
       "decisions": [
-        "Adopt the shared design system everywhere; stop using one-off hand-styled elements so the UI can't drift.",
-        "A fixed layout law for every screen: header, then one tools row (buttons → toggles → filters → search), then content.",
-        "Rebrand cleanup: replaced leftover 'projelli' branding with the correct Keepance shield identity — confirmed on real Windows."
+        "Reuse the design system as-is; only swap attorney imagery and legal example microcopy for advisor equivalents.",
+        "Keep the light theme and the fixed per-screen layout law (header, one tools row, content).",
+        "Keep the Keepance shield identity; the logo and OG cards are vertical-neutral and need no change."
       ],
       "insights": [
-        "Because Keepance sells trust, visual consistency is itself a trust signal — a sloppy interface reads to a lawyer as an unreliable product.",
-        "The design-system push was triggered by concrete inconsistencies (two differently-sized 'New' buttons; clashing filters).",
-        "Genuinely Windows/Mac-only visual checks (real Word interop, native folder picker, the auto-updater) still want real-hardware spot-checks — tracked in the Testing tab."
+        "The brand palette, type, logo, and social cards are vertical-neutral, so the UI re-aim is mostly imagery, not a restyle.",
+        "Real-hardware visual spot-checks (Word interop, native pickers, the auto-updater) still belong in the Testing pass.",
+        "A sloppy interface reads to a fiduciary as an unreliable vendor, so finishing the visual rough edges is part of earning trust."
       ]
     },
     {
@@ -160,29 +211,29 @@
       "title": "Testing",
       "icon": "🧪",
       "type": "testing",
-      "status": "Active · real gaps",
-      "now": "Tracks how thoroughly Keepance actually works on each operating system its customers use. Headline: automated checks are strong on Linux (our build machine), but recent hands-on Windows testing exposed many unfinished and broken areas, and Mac is largely untested on real hardware. This is a primary focus, not a solved problem. (Jameson is filling in the specific findings.)",
+      "status": "Demo reliability is the bar",
+      "now": "Tracks how well Keepance actually works on each OS customers use. For the re-aim, the priority narrows: the advisor DEMO path (open client → Client Map → cited answer → draft) must be rock-solid on real Windows, because that is what every sales conversation rides on. Automated checks are strong on Linux (the build machine); real Windows is the priority to finish; Mac is largely untested. Real-OS testing is the AI's job, not Jameson's.",
       "platforms": [
         {
           "os": "Linux",
           "icon": "🐧",
           "status": "Strong (automated)",
           "tone": "good",
-          "detail": "The build/dev machine. Thousands of automated checks run here — unit, integration, browser, and a real-desktop harness — giving good coverage. But Linux is not a typical customer platform, so green here does NOT mean green for real users."
+          "detail": "The build/dev machine. Thousands of automated checks run here (unit, integration, browser, and a real-desktop harness). But Linux is not a customer platform, so green here does NOT mean green for real advisors."
         },
         {
           "os": "Windows",
           "icon": "🪟",
-          "status": "Many gaps found — priority",
+          "status": "Demo path is the priority",
           "tone": "gap",
-          "detail": "Recent hands-on testing on real Windows hardware (2026-06-20) exposed numerous unfinished and broken areas — this is the platform most customers use and the priority to finish. Some specific bugs are logged and fixed-in-source (email connectors, AI chat reachability, a stuck sync with no error message); Jameson found many more during testing, to be listed here as he goes."
+          "detail": "The platform most advisors use, driven and tested by the AI on the always-on Legion laptop. For the re-aim, the bar is the advisor demo aha-loop running flawlessly on real Windows before it is shown to anyone. Hardening continues alongside."
         },
         {
           "os": "Mac",
           "icon": "🍎",
           "status": "Largely untested",
           "tone": "gap",
-          "detail": "Not yet validated on real Mac hardware. A borrowed Apple machine is planned as a test bench. Treat Mac as unverified until a real-hardware pass happens."
+          "detail": "Not yet validated on real Mac hardware (an M1 bench is available). Treat Mac as unverified until a real-hardware pass happens. Many advisors are on Windows, so Windows leads."
         }
       ]
     },
@@ -191,29 +242,34 @@
       "title": "Jameson's Questions",
       "icon": "❓",
       "type": "questions",
-      "status": "2 answered",
-      "now": "Big questions where I (Jameson) use AI to help me think them through and understand them. Each has a short overview here and links to a full research write-up.",
+      "status": "Open decisions for the board",
+      "now": "Decisions and questions where Jameson (Board) makes the call. The five open ones below are the decisions the product strategy needs from him; the two at the bottom are earlier researched answers that still hold.",
       "questions": [
-        { "q": "Do our target users use Mac or Windows more?", "status": "answered", "answer": "Windows, by a wide margin. The ABA's solo/small-firm survey puts ~81% of these lawyers on Windows vs ~11% on Mac — and among solos specifically (our core user) Mac is highest at ~16%, about 1 in 6. Mac rose into 2021 but has been flat/volatile since, so there's no rising-Mac trend to bet on. Takeaway: polish Windows first (~4 of 5 users), support Mac well as a strong second (small but vocal, influential community), keep Linux a low-priority long tail — which matches our Testing priorities. Caveat: we have no first-party data yet (our traffic is too low and mostly us); worth turning on OS tracking.", "doc": "q-platform-windows-vs-mac.html" },
-        { "q": "What else could I be doing with AI to push this project forward?", "status": "answered", "answer": "A lot — and the highest-leverage moves aren't 'write more code.' Top 3: (1) have AI test the real Windows app like a lawyer every day and report breakages in plain English with screenshots; (2) build one fake litigation case file to use as both the testing yardstick and the sales demo; (3) run an AI 'lead-finding engine' that surfaces 25–50 specific litigation lawyers a week with tailored outreach you just approve. Also: an AI sales copilot (call briefs, follow-ups, objection cards), a weekly legal-tech radar, and in-product features aimed at litigation pain (contradiction finder, privilege-log draft, citation verify). Skip the low-value stuff: daily social spam, generic SEO blogs, big autonomous agents.", "doc": "q-ai-opportunities.html" }
+        { "q": "Time split: will you commit at least half your week to customers (selling, design partner) vs. building?", "status": "open", "answer": "Recommendation: yes, at least half, starting now. The build trap (a designer hiding in code) is the #1 risk; Claude/Codex build, your unique job is customers.", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-ceo-brief-get-keep-customers.html" },
+        { "q": "Beachhead: are solo / small fee-only RIAs the right first target?", "status": "open", "answer": "Recommendation: yes — they own their stack and the local-first story lands hardest. Override only if your warmest access is a different niche.", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-product-strategy.html" },
+        { "q": "Pricing: test a higher advisor price (or a new advisor tier) rather than inherit the lawyer pricing?", "status": "open", "answer": "Recommendation: yes, test higher. Advisors spend $6-12K/yr on software; ~$1K is cheap, and too-low can read as not-serious.", "doc": "" },
+        { "q": "SOC 2 timing: defer it until a real deal demands it, leading with the local-first answer until then?", "status": "open", "answer": "Recommendation: yes, defer. Form the LLC now; lead with no-vendor-server; pay for SOC 2 only when a customer says 'I'll sign once you have it.'", "doc": "" },
+        { "q": "North Star: steer by 'weekly active advisors who ran a real client workflow'?", "status": "open", "answer": "Recommendation: yes. It captures real value delivered, not vanity signups. The full metric tree is in the Product Strategy report.", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-product-strategy.html" },
+        { "q": "Do our target users use Mac or Windows more?", "status": "answered", "answer": "Windows, by a wide margin, for the original (law) analysis (~81% Windows). Advisors are also predominantly Windows, though we lack advisor-specific first-party data yet. Takeaway unchanged: polish Windows first, support Mac as a strong second, keep Linux a low-priority long tail. Worth turning on OS tracking once traffic is real.", "doc": "q-platform-windows-vs-mac.html" },
+        { "q": "What else could I be doing with AI to push this project forward?", "status": "answered", "answer": "The highest-leverage moves aren't 'write more code': (1) have AI drive/test the real Windows app like a user daily; (2) build one realistic advisor sample household as both the test yardstick and the demo; (3) run an AI lead-finding engine surfacing target advisors weekly with tailored outreach you approve. Plus an AI sales copilot. Skip social spam and big autonomous agents.", "doc": "q-ai-opportunities.html" }
       ]
     },
     {
       "id": "finance",
       "title": "Finance & Metrics",
       "icon": "💰",
-      "status": "No revenue yet · ~95% margin",
-      "now": "There is no real revenue and no live customer metrics — the honest state. The old financial plan (one-time price, a target with no customer-cost math) was retired; a new model was built (2026-06-17) around the real pricing. Pricing is per-seat ANNUAL: Solo $468 / Professional $948 / Firm $1,548 per seat (min 3 seats). A founding cohort gets 30% off for life; pre-3.0 one-time buyers are grandfathered forever.",
+      "status": "No revenue · ~95% margin",
+      "now": "No real revenue yet. Pricing carries over from 3.0 (per-seat annual: Solo $468 / Professional $948 / Firm $1,548 per seat, min 3) but is likely UNDERPRICED for advisors, who spend far more on software than the solo lawyers it was set for. The metric tree below is how we'll steer once customers exist. The one durable bright spot: customers bring their own AI key, so cost per customer is near zero (~95% gross margin).",
       "decisions": [
-        "Move to per-seat annual subscriptions in three tiers (2026-06-09) — well below specialized legal AI, at-or-above generic productivity AI.",
-        "Protect the local-first soul with a 'your files are always yours' guarantee — cancelling turns off AI features and updates, never your data.",
-        "Treat acquisition cost as time-bound, not cash-bound: spend is ~$0; the real cost is founder hours."
+        "Keep per-seat annual tiers, but TEST a higher advisor price (or a dedicated advisor tier) with the first cohort rather than inheriting lawyer pricing.",
+        "Keep the 'your files are always yours' guarantee: cancelling turns off AI features and updates, never your data.",
+        "Treat acquisition cost as founder-hours, not cash (spend is ~$0)."
       ],
       "insights": [
-        "The one durable bright spot: customers bring and pay for their own AI key, so cost per customer is near zero — roughly 95% gross margin. The only number in the model that isn't an assumption.",
-        "Rough scenario framing (assumptions, not forecasts): first ~10 customers ≈ $5–9K/yr; a comfortable lifestyle level ≈ $60–90K/yr; a 'real company' ($250K+) needs the firm tier or a repeatable channel.",
-        "The firm tier can't scale on 'trust me' — company-scale revenue depends on a trust moat (formed entity, a data-processing agreement, a SOC 2 certification, named references) that doesn't exist yet.",
-        "Re-run the whole model with real numbers only after the first ~10 customers; until then, don't steer by it."
+        "North Star metric: weekly active advisors who ran a real client workflow. Metric tree underneath: conversations → demos → trials → activation (Client Map built on real data, target >60%) → weekly engagement → trial-to-paid → annual renewal → referrals.",
+        "The income math: at ~$948/yr that's ~315 customers for $300K; at the firm price, fewer. Roughly 150-350 paying customers / seats for the goal, well under 0.1% of the market.",
+        "SOC 2 / DPA / a formed entity are the firm-tier trust moat; defer SOC 2 until a deal needs it, but form the LLC now.",
+        "Re-run the model with real numbers only after the first ~10 advisors; until then, don't steer by it."
       ]
     }
   ]
