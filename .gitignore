@@ -80,3 +80,6 @@ scripts/marketing-capture/node_modules/
 scripts/marketing-capture/output/
 scripts/marketing-capture/dist/
 .worktrees/
+
+# Test robot evidence bundles (screenshots/logs) — outputs, not source
+scripts/robot/_artifacts/
