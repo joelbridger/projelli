@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, act, waitFor, fireEvent, within } from '@testing-library/react';
 import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useMatterAtAGlanceStore } from '@/platform/matter/matterAtAGlanceStore';
 
@@ -115,6 +115,7 @@ import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
 const sampleGlanceResult: MatterAtAGlanceResult = {
   openIssues: ['Lease dispute unresolved'],
   deadlines: ['Response due July 1'],
+  upcomingDates: ['July 1 response deadline [Lease_Agreement.docx paragraph 2]'],
   nextActions: ['Request title search'],
   generatedAt: '2026-06-15T10:00:00.000Z',
 };
@@ -191,6 +192,7 @@ describe('MatterHub — At a Glance state machine', () => {
     // Content from result
     expect(screen.getByText('Lease dispute unresolved')).toBeInTheDocument();
     expect(screen.getByText('Response due July 1')).toBeInTheDocument();
+    expect(screen.getByText('July 1 response deadline [Lease_Agreement.docx paragraph 2]')).toBeInTheDocument();
     expect(screen.getByText('Request title search')).toBeInTheDocument();
   });
 
@@ -232,6 +234,7 @@ describe('MatterHub — At a Glance state machine', () => {
     const refreshedResult: MatterAtAGlanceResult = {
       openIssues: ['New open issue after refresh'],
       deadlines: [],
+      upcomingDates: [],
       nextActions: [],
       generatedAt: new Date().toISOString(),
     };
@@ -295,6 +298,7 @@ describe('MatterHub — At a Glance state machine', () => {
     const emptyResult: MatterAtAGlanceResult = {
       openIssues: [],
       deadlines: [],
+      upcomingDates: [],
       nextActions: [],
       generatedAt: new Date().toISOString(),
     };
@@ -312,5 +316,31 @@ describe('MatterHub — At a Glance state machine', () => {
     expect(screen.getByTestId('hub-ai-glance-tag')).toBeInTheDocument();
     // Refresh button is available
     expect(screen.getByTestId('hub-ai-glance-refresh')).toBeInTheDocument();
+  });
+
+  it('dedupes equivalent folder paths in the documents panel', async () => {
+    mockHasCloudKey.mockResolvedValue(false);
+    useMatterStore.setState({
+      matters: [
+        {
+          id: 'matter_dupe_folders',
+          name: 'Hollings Family',
+          client: 'Hollings',
+          folderPaths: ['/workspace/Clients/Hollings Family', 'Clients/Hollings Family'],
+          createdAt: '2026-06-01T00:00:00.000Z',
+        },
+      ],
+      activeMatterId: null,
+    });
+
+    render(<MatterHub matterId="matter_dupe_folders" onBack={() => undefined} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('hub-real-glance')).toBeInTheDocument();
+    });
+
+    const documentsPanel = screen.getByTestId('hub-panel-documents');
+    expect(within(documentsPanel).getByText('(1)')).toBeInTheDocument();
+    expect(within(documentsPanel).getAllByText('Hollings Family')).toHaveLength(1);
   });
 });

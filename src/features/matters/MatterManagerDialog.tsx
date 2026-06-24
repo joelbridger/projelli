@@ -63,7 +63,7 @@ import { openMatterNotes } from '@/features/matters/logic/openMatterNotes';
 import { stopMatterSync } from '@/features/matters/logic/matterNotesSync';
 import { promoteMatterToShared } from '@/features/matters/logic/promoteMatterToShared';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { collectFolderPaths, relLabel, audit } from './matterManagerDialogHelpers';
+import { collectFolderPaths, relLabel, audit, folderPathsMatch } from './matterManagerDialogHelpers';
 import { MemberRoster } from './MemberRoster';
 
 export interface MatterManagerDialogProps {
@@ -791,7 +791,10 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                   ) : (
                     <div className="max-h-40 overflow-y-auto rounded border divide-y">
                       {folderPaths.map((fp) => {
-                        const checked = m.folderPaths.includes(fp);
+                        const matchingFolderPaths = m.folderPaths.filter((mapped) =>
+                          folderPathsMatch(fp, mapped, rootPath),
+                        );
+                        const checked = matchingFolderPaths.length > 0;
                         return (
                           <button
                             key={fp}
@@ -799,8 +802,13 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                             data-testid={`matter-folder-${m.id}-${fp}`}
                             data-checked={checked ? 'true' : 'false'}
                             onClick={() => {
-                              if (checked) removeFolderPath(m.id, fp);
-                              else addFolderPath(m.id, fp);
+                              if (checked) {
+                                matchingFolderPaths.forEach((mapped) => {
+                                  removeFolderPath(m.id, mapped);
+                                });
+                              } else {
+                                addFolderPath(m.id, fp);
+                              }
                             }}
                             className={cn(
                               'flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-accent',

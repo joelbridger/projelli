@@ -46,6 +46,12 @@ export type { RagHit, RetrievalScope };
 export interface MatterAtAGlanceResult {
   openIssues: string[];
   deadlines: string[];
+  /**
+   * Upcoming dates/deadlines pulled directly from retrieved matter content.
+   * Older cached entries may not have this field, so callers should tolerate
+   * undefined.
+   */
+  upcomingDates?: string[];
   nextActions: string[];
   /** ISO 8601 timestamp of when the summary was generated. */
   generatedAt: string;
@@ -136,6 +142,7 @@ function emptyResult(): MatterAtAGlanceResult {
   return {
     openIssues: [],
     deadlines: [],
+    upcomingDates: [],
     nextActions: [],
     generatedAt: new Date().toISOString(),
   };
@@ -166,7 +173,7 @@ export async function generateMatterAtAGlance(
 
   const scope: RetrievalScope = { kind: 'matter', matterId };
   const hits = await MemoryService.retrieve(
-    'open issues deadlines next actions',
+    'open issues deadlines upcoming dates scheduled reviews meetings next actions',
     6,
     scope,
     false,
@@ -190,6 +197,7 @@ Return ONLY valid JSON (no markdown fences, no preamble) matching this schema:
 {
   "openIssues": ["..."],
   "deadlines": ["..."],
+  "upcomingDates": ["..."],
   "nextActions": ["..."]
 }
 
@@ -200,6 +208,7 @@ Rules:
 - Do NOT use em-dashes in any output.
 - "openIssues": up to 3 short open issues found in the content; empty array if none found.
 - "deadlines": up to 3 key dates or deadlines; empty array if none found.
+- "upcomingDates": 1 to 3 upcoming dates, reviews, meetings, or deadlines found in the content; include an inline citation like "[filename paragraph N]" in each item; empty array if none found.
 - "nextActions": up to 3 recommended next actions; empty array if none found.`;
 
   const provider = await buildProviderForGlance();
@@ -252,6 +261,7 @@ Rules:
   return {
     openIssues: toStringArray(obj['openIssues']),
     deadlines: toStringArray(obj['deadlines']),
+    upcomingDates: toStringArray(obj['upcomingDates']),
     nextActions: toStringArray(obj['nextActions']),
     generatedAt: new Date().toISOString(),
   };

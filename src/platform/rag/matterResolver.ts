@@ -22,7 +22,7 @@
 import { UNASSIGNED_MATTER_ID, type Matter } from '@/platform/types/matter';
 
 /** Normalise a path for comparison: backslashes to slashes, strip trailing slashes. */
-function normalize(p: string): string {
+export function normalize(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+$/, '');
 }
 

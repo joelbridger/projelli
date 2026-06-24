@@ -15,6 +15,7 @@ import {
   findMatter,
   isPathInFolder,
   matterLabel,
+  normalize as normalizeMatterPath,
 } from '@/platform/rag/matterResolver';
 import { UNASSIGNED_MATTER_ID, type Matter } from '@/platform/types/matter';
 import {
@@ -136,6 +137,12 @@ describe('isPathInFolder', () => {
   });
 });
 
+describe('normalize', () => {
+  it('normalises backslashes and trailing slashes for shared matter comparisons', () => {
+    expect(normalizeMatterPath('C:\\ws\\A\\\\')).toBe('C:/ws/A');
+  });
+});
+
 describe('matterLabel', () => {
   it('combines client and name', () => {
     expect(
@@ -213,13 +220,19 @@ describe('useMatterStore CRUD', () => {
     expect(useMatterStore.getState().matters[0]!.client).toBe('C');
   });
 
-  it('adds and removes folder mappings without duplicates', () => {
+  it('adds and removes folder mappings without normalized duplicates', () => {
     const m = useMatterStore.getState().createMatter({ name: 'A', client: 'C' });
-    useMatterStore.getState().addFolderPath(m.id, `${ROOT}/A`);
-    useMatterStore.getState().addFolderPath(m.id, `${ROOT}/A`); // dup
+    useMatterStore.getState().addFolderPath(m.id, `${ROOT}\\A\\`);
+    useMatterStore.getState().addFolderPath(m.id, `${ROOT}/A/`); // same folder, different spelling
     expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual([`${ROOT}/A`]);
-    useMatterStore.getState().removeFolderPath(m.id, `${ROOT}/A`);
+    useMatterStore.getState().removeFolderPath(m.id, `${ROOT}\\A\\`);
     expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual([]);
+  });
+
+  it('setFolderPaths collapses normalized duplicate folder mappings', () => {
+    const m = useMatterStore.getState().createMatter({ name: 'A', client: 'C' });
+    useMatterStore.getState().setFolderPaths(m.id, [`${ROOT}/A/`, `${ROOT}\\A`, '']);
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual([`${ROOT}/A`]);
   });
 
   it('deleteMatter clears active matter when it was active', () => {

@@ -13,6 +13,7 @@ const { mockSendMessage, keychainKeys } = vi.hoisted(() => ({
     content: JSON.stringify({
       openIssues: ['Lease dispute unresolved'],
       deadlines: ['Response due July 1'],
+      upcomingDates: ['July 1 response deadline [Lease_Agreement.docx paragraph 2]'],
       nextActions: ['Request title search'],
     }),
     usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
@@ -146,6 +147,7 @@ describe('generateMatterAtAGlance', () => {
       content: JSON.stringify({
         openIssues: ['Lease dispute unresolved'],
         deadlines: ['Response due July 1'],
+        upcomingDates: ['July 1 response deadline [Lease_Agreement.docx paragraph 2]'],
         nextActions: ['Request title search'],
       }),
       usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
@@ -171,7 +173,7 @@ describe('generateMatterAtAGlance', () => {
     mockRetrieve.mockResolvedValue(fakeHits);
     await generateMatterAtAGlance('matter_abc');
     expect(mockRetrieve).toHaveBeenCalledWith(
-      'open issues deadlines next actions',
+      'open issues deadlines upcoming dates scheduled reviews meetings next actions',
       6,
       { kind: 'matter', matterId: 'matter_abc' },
       false,
@@ -183,6 +185,7 @@ describe('generateMatterAtAGlance', () => {
     const result = await generateMatterAtAGlance('matter_test_123');
     expect(result.openIssues).toEqual([]);
     expect(result.deadlines).toEqual([]);
+    expect(result.upcomingDates).toEqual([]);
     expect(result.nextActions).toEqual([]);
     expect(result.generatedAt).toBeTruthy();
   });
@@ -198,19 +201,21 @@ describe('generateMatterAtAGlance', () => {
     const result = await generateMatterAtAGlance('matter_test_123');
     expect(result.openIssues).toEqual(['Lease dispute unresolved']);
     expect(result.deadlines).toEqual(['Response due July 1']);
+    expect(result.upcomingDates).toEqual(['July 1 response deadline [Lease_Agreement.docx paragraph 2]']);
     expect(result.nextActions).toEqual(['Request title search']);
   });
 
   it('strips markdown fences before parsing', async () => {
     mockRetrieve.mockResolvedValue(fakeHits);
     mockSendMessage.mockResolvedValue({
-      content: '```json\n{"openIssues":["issue"],"deadlines":[],"nextActions":[]}\n```',
+      content: '```json\n{"openIssues":["issue"],"deadlines":[],"upcomingDates":["May board meeting [notes.docx paragraph 4]"],"nextActions":[]}\n```',
       usage: { inputTokens: 5, outputTokens: 10, totalTokens: 15 },
       cost: 0,
       model: 'claude-3-haiku-20240307',
     });
     const result = await generateMatterAtAGlance('matter_test_123');
     expect(result.openIssues).toEqual(['issue']);
+    expect(result.upcomingDates).toEqual(['May board meeting [notes.docx paragraph 4]']);
   });
 
   it('returns empty arrays on malformed JSON response', async () => {
@@ -224,6 +229,7 @@ describe('generateMatterAtAGlance', () => {
     const result = await generateMatterAtAGlance('matter_test_123');
     expect(result.openIssues).toEqual([]);
     expect(result.deadlines).toEqual([]);
+    expect(result.upcomingDates).toEqual([]);
     expect(result.nextActions).toEqual([]);
   });
 
@@ -233,6 +239,7 @@ describe('generateMatterAtAGlance', () => {
       content: JSON.stringify({
         openIssues: ['a', 'b', 'c', 'd'],
         deadlines: ['e', 'f', 'g', 'h'],
+        upcomingDates: ['u1', 'u2', 'u3', 'u4'],
         nextActions: ['i', 'j', 'k', 'l'],
       }),
       usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
@@ -242,6 +249,7 @@ describe('generateMatterAtAGlance', () => {
     const result = await generateMatterAtAGlance('matter_test_123');
     expect(result.openIssues).toHaveLength(3);
     expect(result.deadlines).toHaveLength(3);
+    expect(result.upcomingDates).toHaveLength(3);
     expect(result.nextActions).toHaveLength(3);
   });
 
@@ -255,6 +263,7 @@ describe('generateMatterAtAGlance', () => {
     const result = await generateMatterAtAGlance('matter_test_123', { signal: abort.signal });
     expect(result.openIssues).toEqual([]);
     expect(result.deadlines).toEqual([]);
+    expect(result.upcomingDates).toEqual([]);
     expect(result.nextActions).toEqual([]);
   });
 
