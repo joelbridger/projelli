@@ -244,6 +244,18 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       let pendingFileData: WorkflowFileData | null = null;
       let writeTimer: ReturnType<typeof setTimeout> | null = null;
       const writeFileNow = async (data: WorkflowFileData) => {
+        // A definitive write supersedes any pending debounced snapshot. Cancel the
+        // pending timer + payload so a stale in-flight "running" snapshot can't land
+        // AFTER a terminal "completed"/"failed" write and revert it. Without this, the
+        // last step's debounced write (scheduled ~1.5s earlier in onProgress) fired
+        // after the awaited terminal write and reverted the .workflow file to
+        // "running" — leaving the workflow tab stuck on "Generating" forever even
+        // though the run had finished and the deliverable was on disk.
+        if (writeTimer) {
+          clearTimeout(writeTimer);
+          writeTimer = null;
+        }
+        pendingFileData = null;
         try {
           const json = JSON.stringify(data, null, 2);
           await workspaceServiceRef.current!.writeFile(workflowFilePath, json);
