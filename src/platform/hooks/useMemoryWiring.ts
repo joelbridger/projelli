@@ -123,6 +123,36 @@ function collectAllFilePaths(nodes: FileNode[]): string[] {
   return out;
 }
 
+function isAbsoluteWorkspacePath(path: string): boolean {
+  return (
+    path.startsWith('/') ||
+    /^[A-Za-z]:[\\/]/.test(path) ||
+    path.startsWith('\\\\')
+  );
+}
+
+/** Convert a workspace-relative path into the same native absolute path shape the Rust walk stores. */
+export function buildWorkspaceAbsolutePath(rootPath: string | null | undefined, path: string): string {
+  if (!rootPath || isAbsoluteWorkspacePath(path)) return path;
+  const separator = rootPath.includes('\\') ? '\\' : '/';
+  const relative = path.replace(/^[\\/]+/, '').replace(/[\\/]+/g, separator);
+  const joiner = /[\\/]$/.test(rootPath) ? '' : separator;
+  return `${rootPath}${joiner}${relative}`;
+}
+
+function isPdfPath(path: string): boolean {
+  return path.toLowerCase().endsWith('.pdf');
+}
+
+function buildBinaryWorkspace(workspaceService: MemoryWiringWorkspaceService): {
+  readBinary: (path: string) => Promise<ArrayBuffer>;
+} | null {
+  if (!workspaceService.readFileBinary) return null;
+  return {
+    readBinary: (path: string) => workspaceService.readFileBinary!(path),
+  };
+}
+
 /**
  * WS-B/C — diff two matter lists and return the set of folder paths whose
  * matter assignment changed (added, removed, or moved between matters). When a
@@ -228,30 +258,28 @@ export async function reindexFolderPaths(
   const affected = allPaths.filter((p) =>
     folders.some((folder) => isPathInFolder(p, folder)),
   );
-  // Group by resolved matter id so we re-index in matter batches.
+  const { rootPath } = useWorkspaceStore.getState();
+
+  const pdfPaths = affected.filter(isPdfPath);
+  const officeAndTextPaths = affected.filter((p) => !isPdfPath(p));
+
+  // Group by resolved matter id so we re-index in matter batches. Matter
+  // resolution uses the workspace-relative path, then the backend receives the
+  // absolute path shape the Rust full-workspace walk stores.
   const byMatter = new Map<string, string[]>();
-  for (const p of affected) {
+  for (const p of officeAndTextPaths) {
     const id = resolveMatterIdForPath(p);
     const list = byMatter.get(id) ?? [];
-    list.push(p);
+    list.push(buildWorkspaceAbsolutePath(rootPath, p));
     byMatter.set(id, list);
   }
   for (const [matterId, paths] of byMatter) {
     await MemoryService.reindexPaths(paths, matterId);
   }
-}
 
-/** Walk all .pdf files in the workspace and index them via MemoryService. */
-async function indexWorkspacePdfs(
-  workspaceService: MemoryWiringWorkspaceService,
-): Promise<void> {
-  if (!workspaceService.readFileBinary) return;
-  const { fileTree } = useWorkspaceStore.getState();
-  const pdfPaths = collectPdfPaths(fileTree);
-  const binaryWs = {
-    readBinary: (path: string) =>
-      workspaceService.readFileBinary!(path),
-  };
+  if (!isPdfIndexingEnabled() || !workspaceService) return;
+  const binaryWs = buildBinaryWorkspace(workspaceService);
+  if (!binaryWs) return;
   for (const path of pdfPaths) {
     try {
       await MemoryService.indexPdfFile(path, binaryWs);
@@ -259,6 +287,64 @@ async function indexWorkspacePdfs(
       // Best-effort: skip individual failures, continue with the rest.
     }
   }
+}
+
+/** Walk all .pdf files in the workspace and index them via MemoryService. */
+async function indexWorkspacePdfs(
+  workspaceService: MemoryWiringWorkspaceService,
+): Promise<void> {
+  const binaryWs = buildBinaryWorkspace(workspaceService);
+  if (!binaryWs) return;
+  const { fileTree } = useWorkspaceStore.getState();
+  const pdfPaths = collectPdfPaths(fileTree);
+  for (const path of pdfPaths) {
+    try {
+      await MemoryService.indexPdfFile(path, binaryWs);
+    } catch {
+      // Best-effort: skip individual failures, continue with the rest.
+    }
+  }
+}
+
+export async function retagExistingMatterFolderPaths(
+  workspaceService: MemoryWiringWorkspaceService | null | undefined,
+): Promise<void> {
+  const folders = Array.from(
+    new Set(
+      getMatters()
+        .flatMap((matter) => matter.folderPaths)
+        .filter((folder): folder is string => Boolean(folder)),
+    ),
+  );
+  if (folders.length === 0) return;
+  try {
+    await reindexFolderPaths(folders, workspaceService);
+  } catch {
+    // Best-effort: the initial index already completed; do not block startup.
+  }
+}
+
+export async function startFullIndex(
+  workspaceService: MemoryWiringWorkspaceService | null | undefined,
+): Promise<void> {
+  const indexAndRetag = MemoryService.indexWorkspace()
+    .then(() => retagExistingMatterFolderPaths(workspaceService))
+    .catch(() => {
+      /* errors are surfaced via the progress event with status: error */
+    });
+
+  // A3: if PDF indexing is enabled, also index PDF files in the workspace.
+  if (isPdfIndexingEnabled() && workspaceService) {
+    void indexWorkspacePdfs(workspaceService).catch(() => {});
+  }
+  // Option B healing: re-index any mail imported while the model was
+  // still downloading, from the local encrypted bodies. The Rust side
+  // no-ops fast when the backfill marker is absent (the common case),
+  // so this is safe to fire on every activation. The matter map scopes
+  // each backfilled message exactly as a sync would have.
+  void mailBackfillRag(buildMailMatterMap(getMatters())).catch(() => {});
+
+  await indexAndRetag;
 }
 
 export function useMemoryWiring(
@@ -369,21 +455,6 @@ export function useMemoryWiring(
         // downloading (first run), wait for the model-download ready event
         // and start then — the Rust side also refuses without consuming
         // the once-per-activation latch, so this re-call gets a full walk.
-        const startFullIndex = () => {
-          void MemoryService.indexWorkspace().catch(() => {
-            /* errors are surfaced via the progress event with status: error */
-          });
-          // A3: if PDF indexing is enabled, also index PDF files in the workspace.
-          if (isPdfIndexingEnabled() && workspaceService) {
-            void indexWorkspacePdfs(workspaceService).catch(() => {});
-          }
-          // Option B healing: re-index any mail imported while the model was
-          // still downloading, from the local encrypted bodies. The Rust side
-          // no-ops fast when the backfill marker is absent (the common case),
-          // so this is safe to fire on every activation. The matter map scopes
-          // each backfilled message exactly as a sync would have.
-          void mailBackfillRag(buildMailMatterMap(getMatters())).catch(() => {});
-        };
         // Listen-first-then-check: register the ready listener BEFORE probing
         // modelStatus(), so a ready event landing between the probe and the
         // listen can't be missed (the session would otherwise never index
@@ -393,7 +464,7 @@ export function useMemoryWiring(
         const startFullIndexOnce = () => {
           if (fullIndexStarted) return;
           fullIndexStarted = true;
-          startFullIndex();
+          void startFullIndex(workspaceService);
         };
         const stopModelListen = await listen<ModelDownloadProgress>(
           MODEL_DOWNLOAD_EVENT,

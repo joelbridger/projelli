@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Folder-to-client tagging now retags all mapped client files in the right path space.** When a matter/client folder mapping changes, office/text files are re-indexed with the absolute native path the Rust workspace walk stores, while PDFs are re-indexed through the TypeScript PDF path using their workspace-relative path. The initial full workspace index now also performs a best-effort one-time retag for matters that already had folder mappings, so pre-existing client folders do not stay `unassigned`.
+  - Files modified: `src/platform/hooks/useMemoryWiring.ts`
+  - Tests: `src/platform/hooks/useMemoryWiring.externalFiles.test.ts`; `npm run gate`
 - **AI provider resolution now respects the user's chosen cloud default instead of blindly picking Anthropic first.** Ask, Matter At-a-glance, Client Map, and workflow global defaults now use a shared resolver that skips providers already known invalid, prefers verified/default providers when possible, and always pairs the chosen provider with a model from that provider.
 - **Firm backend provisioning now supports the advisor profession pack.** Backend and frontend firm contracts now accept `advisor`, pack validation preserves it, dev/test seeded firm orgs include it, and LemonSqueezy Firm purchases now provision unclaimed advisor firms by default because advisor is the lead vertical.
 - **Client Map hardening — BUG-100 through BUG-108 (adversarial QA, KEEPANCE 5).** Nine confirmed Client Map defects fixed at the root with TDD; every bug-documenting `it.fails` test was flipped to a passing regression test.
