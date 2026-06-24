@@ -34,6 +34,12 @@ describe('getEntityLabel — advisor', () => {
     expect(label.Household).toBe('Household');
     expect(label.Households).toBe('Households');
   });
+
+  it('uses advisor language for the internal privileged flag', () => {
+    const label = getEntityLabel();
+    expect(label.confidentialityColumn).toBe('Sensitive');
+    expect(label.confidentialityBadge).toBe('Sensitive');
+  });
 });
 
 describe('getEntityLabel — legal', () => {
@@ -52,6 +58,12 @@ describe('getEntityLabel — legal', () => {
     expect(label.Household).toBe('Matter');
     expect(label.Households).toBe('Matters');
   });
+
+  it('keeps legal privilege language for the internal privileged flag', () => {
+    const label = getEntityLabel();
+    expect(label.confidentialityColumn).toBe('Privilege');
+    expect(label.confidentialityBadge).toBe('Privileged');
+  });
 });
 
 describe('getEntityLabel — tax', () => {
@@ -69,6 +81,7 @@ describe('getEntityLabel — tax', () => {
     const label = getEntityLabel();
     expect(label.household).toBe('client');
     expect(label.households).toBe('clients');
+    expect(label.confidentialityColumn).toBe('Confidential');
   });
 });
 
@@ -89,6 +102,7 @@ describe('getEntityLabel — consulting', () => {
     expect(label.households).toBe('engagements');
     expect(label.Household).toBe('Engagement');
     expect(label.Households).toBe('Engagements');
+    expect(label.confidentialityColumn).toBe('Confidential');
   });
 });
 

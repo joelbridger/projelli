@@ -119,7 +119,13 @@ vi.mock('@/platform/privacy/localOnlyGuard', async (orig) => {
 });
 
 // Import after mocks
-import { generateMatterAtAGlance, hasCloudKeyForGlance, buildProviderForGlance } from '@/platform/matter/matterAtAGlance';
+import {
+  deriveMatterHubUpcomingItems,
+  generateMatterAtAGlance,
+  hasCloudKeyForGlance,
+  buildProviderForGlance,
+  stripAtAGlanceCitationMarkers,
+} from '@/platform/matter/matterAtAGlance';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
 
@@ -201,7 +207,7 @@ describe('generateMatterAtAGlance', () => {
     const result = await generateMatterAtAGlance('matter_test_123');
     expect(result.openIssues).toEqual(['Lease dispute unresolved']);
     expect(result.deadlines).toEqual(['Response due July 1']);
-    expect(result.upcomingDates).toEqual(['July 1 response deadline [Lease_Agreement.docx paragraph 2]']);
+    expect(result.upcomingDates).toEqual(['July 1 response deadline']);
     expect(result.nextActions).toEqual(['Request title search']);
   });
 
@@ -215,7 +221,29 @@ describe('generateMatterAtAGlance', () => {
     });
     const result = await generateMatterAtAGlance('matter_test_123');
     expect(result.openIssues).toEqual(['issue']);
-    expect(result.upcomingDates).toEqual(['May board meeting [notes.docx paragraph 4]']);
+    expect(result.upcomingDates).toEqual(['May board meeting']);
+  });
+
+  it('strips raw citation markers from every display category', async () => {
+    mockRetrieve.mockResolvedValue(fakeHits);
+    mockSendMessage.mockResolvedValue({
+      content: JSON.stringify({
+        openIssues: ['Cash-flow question remains open [2 page 6]'],
+        deadlines: ['Review meeting on July 12 [3 p. 12]'],
+        upcomingDates: ['RMD review due August 1 [plan.pdf paragraph 8]'],
+        nextActions: ['Ask for updated beneficiary form [4]'],
+      }),
+      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+      cost: 0,
+      model: 'claude-3-haiku-20240307',
+    });
+
+    const result = await generateMatterAtAGlance('matter_test_123');
+
+    expect(result.openIssues).toEqual(['Cash-flow question remains open']);
+    expect(result.deadlines).toEqual(['Review meeting on July 12']);
+    expect(result.upcomingDates).toEqual(['RMD review due August 1']);
+    expect(result.nextActions).toEqual(['Ask for updated beneficiary form']);
   });
 
   it('returns empty arrays on malformed JSON response', async () => {
@@ -272,6 +300,65 @@ describe('generateMatterAtAGlance', () => {
     const result = await generateMatterAtAGlance('matter_test_123');
     expect(() => new Date(result.generatedAt)).not.toThrow();
     expect(result.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+describe('matter hub at-a-glance display helpers', () => {
+  it('strips page-style citation markers without removing normal bracketed words', () => {
+    expect(stripAtAGlanceCitationMarkers('Follow up by Friday [2 page 6]')).toBe('Follow up by Friday');
+    expect(stripAtAGlanceCitationMarkers('Review IPS [notes.docx paragraph 4]')).toBe('Review IPS');
+    expect(stripAtAGlanceCitationMarkers('Keep [draft] label')).toBe('Keep [draft] label');
+  });
+
+  it('uses Client Map upcoming items before falling back to at-a-glance dates', () => {
+    const result = {
+      openIssues: [],
+      deadlines: ['Fallback deadline on July 15 [2 page 6]'],
+      upcomingDates: [],
+      nextActions: [],
+      generatedAt: '2026-06-24T00:00:00Z',
+    };
+    const map = {
+      matterId: 'matter_test_123',
+      sections: [
+        {
+          id: 'upcoming',
+          kind: 'core' as const,
+          key: 'upcoming',
+          title: "What's coming",
+          items: [
+            {
+              id: 'u1',
+              text: 'Annual review scheduled for July 8 [3 page 2]',
+              origin: 'ai' as const,
+              isAssumption: false,
+              sources: [],
+              updatedAt: '2026-06-24T00:00:00Z',
+            },
+          ],
+        },
+      ],
+      completeness: { level: 'thin' as const, know: [], assuming: [], ask: [] },
+      pendingUpdates: [],
+      lastBuiltAt: '2026-06-24T00:00:00Z',
+      lastSourceFingerprint: 'fp',
+    };
+
+    expect(deriveMatterHubUpcomingItems(result, map)).toEqual([
+      'Annual review scheduled for July 8',
+      'Fallback deadline on July 15',
+    ]);
+  });
+
+  it('falls back to deadlines when the dedicated upcoming list is missing', () => {
+    const result = {
+      openIssues: [],
+      deadlines: ['Tax estimate due September 15 [5 page 1]'],
+      nextActions: [],
+      generatedAt: '2026-06-24T00:00:00Z',
+    };
+
+    expect(deriveMatterHubUpcomingItems(result)).toEqual(['Tax estimate due September 15']);
   });
 });
 

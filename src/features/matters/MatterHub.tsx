@@ -17,8 +17,10 @@ import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useMatterAtAGlanceStore } from '@/platform/matter/matterAtAGlanceStore';
 import {
+  deriveMatterHubUpcomingItems,
   generateMatterAtAGlance,
   hasCloudKeyForGlance,
+  normalizeMatterAtAGlanceResult,
 } from '@/platform/matter/matterAtAGlance';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
@@ -63,8 +65,8 @@ function basename(p: string): string {
   return p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p;
 }
 
-function upcomingDates(result: MatterAtAGlanceResult | null): string[] {
-  return Array.isArray(result?.upcomingDates) ? result.upcomingDates : [];
+function hasUpcomingDates(result: MatterAtAGlanceResult | null): boolean {
+  return deriveMatterHubUpcomingItems(result).length > 0;
 }
 
 // ── Labels ─────────────────────────────────────────────────────────────────
@@ -115,13 +117,14 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
     try {
       const result = await generateMatterAtAGlance(mid, { signal });
       if (signal.aborted) return;
-      glanceStore.setEntry(mid, result);
+      const cleanResult = normalizeMatterAtAGlanceResult(result);
+      glanceStore.setEntry(mid, cleanResult);
       const isEmpty =
-        result.openIssues.length === 0 &&
-        result.deadlines.length === 0 &&
-        upcomingDates(result).length === 0 &&
-        result.nextActions.length === 0;
-      setGlanceResult(result);
+        cleanResult.openIssues.length === 0 &&
+        cleanResult.deadlines.length === 0 &&
+        !hasUpcomingDates(cleanResult) &&
+        cleanResult.nextActions.length === 0;
+      setGlanceResult(cleanResult);
       setGlanceStatus(isEmpty ? 'empty' : 'done');
     } catch {
       if (signal.aborted) return;
@@ -150,12 +153,13 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
       // Try cache first.
       const cached = glanceStore.getEntry(matterId);
       if (cached) {
-        setGlanceResult(cached.result);
+        const cleanResult = normalizeMatterAtAGlanceResult(cached.result);
+        setGlanceResult(cleanResult);
         const isEmpty =
-          cached.result.openIssues.length === 0 &&
-          cached.result.deadlines.length === 0 &&
-          upcomingDates(cached.result).length === 0 &&
-          cached.result.nextActions.length === 0;
+          cleanResult.openIssues.length === 0 &&
+          cleanResult.deadlines.length === 0 &&
+          !hasUpcomingDates(cleanResult) &&
+          cleanResult.nextActions.length === 0;
         setGlanceStatus(isEmpty ? 'empty' : 'done');
         return;
       }
@@ -275,6 +279,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
   const label = matterLabel(matter);
   const isSample = matterId === SAMPLE_MATTER_ID;
   const displayFolderPaths = dedupeFolderPathsForDisplay(matter.folderPaths, rootPath);
+  const hubUpcomingItems = deriveMatterHubUpcomingItems(glanceResult, clientMap.map);
 
   // ── Styles ────────────────────────────────────────────────────────────
 
@@ -670,14 +675,20 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                 <span style={{ color: 'var(--color-foreground)', fontSize: 'var(--kp-font-xs)' }}>
                   {entityLabel.One} created {formatDate(matter.createdAt)}
                 </span>
-                {glanceStatus === 'done' && upcomingDates(glanceResult).length > 0 ? (
+                {hubUpcomingItems.length > 0 ? (
                   <div data-testid="hub-upcoming-dates" style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    {upcomingDates(glanceResult).map((item, i) => (
+                    {hubUpcomingItems.map((item, i) => (
                       <span key={i} style={{ color: 'var(--color-foreground)', fontSize: 'var(--kp-font-xs)' }}>
                         {item}
                       </span>
                     ))}
                   </div>
+                ) : glanceStatus === 'idle' || glanceStatus === 'generating' ? (
+                  <span style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
+                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                    Looking for upcoming dates...
+                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                  </span>
                 ) : (
                   <span style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
                     {/* eslint-disable keepance-i18n/no-hardcoded-string */}

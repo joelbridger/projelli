@@ -15,6 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
+import { useProfessionStore } from '@/platform/profile/professionStore';
 
 // ── Mail commands (async probes used by GetStartedCard) ───────────────────────
 vi.mock('@/platform/utils/mail-commands', () => ({
@@ -96,6 +97,7 @@ import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 
 function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null });
+  useProfessionStore.setState({ profession: 'advisor' });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -205,6 +207,36 @@ describe('MattersHome — B4 quick-actions visible at rest', () => {
     expect(events[0]!.detail.matterId).toBe(matter.id);
 
     window.removeEventListener('keepance:matter-launch', handler);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Advisor re-aim — sensitivity column wording
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('MattersHome — advisor sensitivity column', () => {
+  beforeEach(resetStore);
+
+  it('hides the empty sensitivity column when no clients are flagged', () => {
+    useMatterStore.getState().createMatter({ name: 'Hollings Household', client: 'Hollings Household' });
+
+    render(<MattersHome />);
+
+    expect(screen.queryByText('Privilege')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sensitive')).not.toBeInTheDocument();
+  });
+
+  it('uses advisor language when a client is flagged sensitive', () => {
+    useMatterStore.getState().createMatter({
+      name: 'Hollings Household',
+      client: 'Hollings Household',
+      privileged: true,
+    });
+
+    render(<MattersHome />);
+
+    expect(screen.queryByText('Privilege')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Sensitive').length).toBeGreaterThan(0);
   });
 });
 
@@ -547,14 +579,17 @@ describe('MattersHome — search filtering', () => {
 describe('MattersHome — sortable columns', () => {
   beforeEach(resetStore);
 
-  it('renders sort buttons for each column header', () => {
+  it('renders sort buttons for each visible column header', () => {
     useMatterStore.getState().createMatter({ name: 'Alpha', client: 'Alpha' });
 
     render(<MattersHome />);
 
     // Column header buttons should be present (aria-label contains "Sort by")
     const sortBtns = screen.getAllByRole('button', { name: /Sort by/i });
-    expect(sortBtns.length).toBeGreaterThanOrEqual(4);
+    expect(sortBtns).toHaveLength(3);
+    expect(screen.getByRole('button', { name: /Sort by Client/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Sort by Documents/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Sort by Created/i })).toBeInTheDocument();
   });
 
   it('sorts matters alphabetically by name (default, ascending)', () => {

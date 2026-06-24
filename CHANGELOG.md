@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Advisor client hubs no longer leak legal wording or raw citation tokens.** The Clients table hides the empty sensitivity column, labels the internal `privileged` flag through the profession label facade when it is shown, strips raw at-a-glance markers like `[2 page 6]`, and lets the hub's Upcoming panel pull dated items from the Client Map, upcoming dates, and deadlines instead of showing an empty message while dates exist.
+  - Files modified: `src/features/matters/{MattersHome,MatterHub}.tsx`, `src/platform/hooks/useEntityLabel.ts`, `src/platform/matter/matterAtAGlance.ts`
+  - Tests: `src/platform/hooks/useEntityLabel.test.ts`, `tests/unit/matter/matterAtAGlance.test.ts`, `tests/unit/matter/reimaginedMattersHome.test.tsx`
 - **Ask/Search UX now keeps citations and recent questions honest per workspace.** Ask answers that cite a real retrieved source now attach the citation even when the source row lacks newer verification metadata, so grounded answers do not show the uncited warning. Search recent questions are now scoped to the open workspace, so old questions from another demo/test workspace no longer appear.
   - Files modified: `src/features/ask/{askHelpers,useAsk}.ts`, `src/platform/state/aiChatStore.ts`
   - Tests: `src/features/ask/askHelpers.test.ts`; `npm run typecheck`; `npx vitest run src/features/ask`
