@@ -149,7 +149,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
   const [lockedWorkspacePath, setLockedWorkspacePath] = useState<string | null>(null);
   const [showEscapeHatch, setShowEscapeHatch] = useState(false);
 
-  const { recentWorkspaces, addRecentWorkspace, setRootPath, setFileTree, expandAllFolders } = useWorkspaceStore();
+  const { recentWorkspaces, addRecentWorkspace, removeRecentWorkspace, setRootPath, setFileTree, expandAllFolders } = useWorkspaceStore();
 
   /**
    * Shared workspace-open logic used by all three entry points (browse, recent,
@@ -345,6 +345,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
       await openWorkspacePath(workspacePath);
     } catch (err) {
       console.error('[WorkspaceSelector] Failed to open recent workspace:', err);
+      removeRecentWorkspace(workspacePath);
       setError(err instanceof Error ? err.message : 'Failed to open workspace');
     } finally {
       setIsLoading(false);

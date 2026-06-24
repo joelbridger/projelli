@@ -1,5 +1,83 @@
 import { create } from 'zustand';
 import type { FileNode, RecentWorkspace } from '@/platform/types/workspace';
+import { isTauriEnvironment } from './BackendFactory';
+
+const RECENT_WORKSPACES_KEY = 'keepance_recent_workspaces';
+const MAX_RECENT_WORKSPACES = 10;
+
+export function normalizeRecentWorkspacePath(path: string): string {
+  let normalized = path.trim().replace(/\\/g, '/');
+  const isUncPath = normalized.startsWith('//');
+  const isWindowsDrivePath = /^[A-Za-z]:(?:\/|$)/.test(normalized);
+
+  if (isUncPath) {
+    normalized = `//${normalized.slice(2).replace(/\/+/g, '/')}`;
+  } else {
+    normalized = normalized.replace(/\/+/g, '/');
+  }
+
+  const rootLength = isUncPath ? 2 : isWindowsDrivePath ? 3 : 1;
+  while (normalized.length > rootLength && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1);
+  }
+
+  if (isWindowsDrivePath) {
+    normalized = `${normalized[0]!.toUpperCase()}${normalized.slice(1)}`;
+  }
+
+  return normalized;
+}
+
+function recentWorkspacePathKey(path: string): string {
+  const normalized = normalizeRecentWorkspacePath(path);
+  return /^[A-Za-z]:(?:\/|$)/.test(normalized) || normalized.startsWith('//')
+    ? normalized.toLowerCase()
+    : normalized;
+}
+
+export function dedupeRecentWorkspaces(workspaces: RecentWorkspace[]): RecentWorkspace[] {
+  const normalized = workspaces
+    .map((workspace) => ({
+      ...workspace,
+      path: normalizeRecentWorkspacePath(workspace.path),
+      lastOpened: new Date(workspace.lastOpened),
+    }))
+    .filter((workspace) => workspace.path.length > 0);
+
+  normalized.sort((a, b) => b.lastOpened.getTime() - a.lastOpened.getTime());
+
+  const byPath = new Map<string, RecentWorkspace>();
+  for (const workspace of normalized) {
+    const key = recentWorkspacePathKey(workspace.path);
+    if (!byPath.has(key)) {
+      byPath.set(key, workspace);
+    }
+  }
+
+  return Array.from(byPath.values()).slice(0, MAX_RECENT_WORKSPACES);
+}
+
+async function pruneMissingRecentWorkspaces(workspaces: RecentWorkspace[]): Promise<RecentWorkspace[]> {
+  if (!isTauriEnvironment()) return workspaces;
+
+  try {
+    const fs = await import('@tauri-apps/plugin-fs');
+    const checks = await Promise.all(workspaces.map(async (workspace) => {
+      try {
+        return (await fs.exists(workspace.path)) ? workspace : null;
+      } catch {
+        return workspace;
+      }
+    }));
+    return checks.filter((workspace): workspace is RecentWorkspace => workspace !== null);
+  } catch {
+    return workspaces;
+  }
+}
+
+function persistRecentWorkspaces(workspaces: RecentWorkspace[]): void {
+  localStorage.setItem(RECENT_WORKSPACES_KEY, JSON.stringify(workspaces));
+}
 
 interface WorkspaceState {
   // Current workspace
@@ -25,6 +103,7 @@ interface WorkspaceState {
   loadExpandedPaths: (rootPath: string) => boolean;
   saveExpandedPaths: (rootPath: string) => void;
   addRecentWorkspace: (workspace: RecentWorkspace) => void;
+  removeRecentWorkspace: (path: string) => void;
   saveRecentWorkspaces: () => void;
   loadRecentWorkspaces: () => void;
   clearWorkspace: () => void;
@@ -134,14 +213,29 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   addRecentWorkspace: (workspace) => {
     set((state) => {
-      const updated = [
+      const updated = dedupeRecentWorkspaces([
         workspace,
-        ...state.recentWorkspaces.filter((w) => w.path !== workspace.path),
-      ].slice(0, 10);
+        ...state.recentWorkspaces,
+      ]);
       // Persist to localStorage
       try {
-        localStorage.setItem('keepance_recent_workspaces', JSON.stringify(updated));
+        persistRecentWorkspaces(updated);
         console.log(`[RecentWorkspaces] Saved ${updated.length} recent workspaces, latest: ${workspace.name}`);
+      } catch (error) {
+        console.error('Failed to save recent workspaces:', error);
+      }
+      return { recentWorkspaces: updated };
+    });
+  },
+
+  removeRecentWorkspace: (path) => {
+    set((state) => {
+      const keyToRemove = recentWorkspacePathKey(path);
+      const updated = state.recentWorkspaces.filter(
+        (workspace) => recentWorkspacePathKey(workspace.path) !== keyToRemove,
+      );
+      try {
+        persistRecentWorkspaces(updated);
       } catch (error) {
         console.error('Failed to save recent workspaces:', error);
       }
@@ -152,24 +246,37 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   saveRecentWorkspaces: () => {
     const state = get();
     try {
-      localStorage.setItem('keepance_recent_workspaces', JSON.stringify(state.recentWorkspaces));
+      persistRecentWorkspaces(dedupeRecentWorkspaces(state.recentWorkspaces));
     } catch (error) {
       console.error('Failed to save recent workspaces:', error);
     }
   },
 
   loadRecentWorkspaces: () => {
-    const stored = localStorage.getItem('keepance_recent_workspaces');
+    const stored = localStorage.getItem(RECENT_WORKSPACES_KEY);
     console.log(`[RecentWorkspaces] Loading from localStorage, found: ${!!stored}`);
     if (stored) {
       try {
         const workspaces = JSON.parse(stored) as Array<{ path: string; name: string; lastOpened: string }>;
-        // Restore Date objects from serialized strings
-        const restored = workspaces.map((w) => ({
+        const restored = dedupeRecentWorkspaces(workspaces.map((w) => ({
           ...w,
           lastOpened: new Date(w.lastOpened),
-        }));
+        })));
         set({ recentWorkspaces: restored });
+        try {
+          persistRecentWorkspaces(restored);
+        } catch (error) {
+          console.error('Failed to save recent workspaces:', error);
+        }
+        void pruneMissingRecentWorkspaces(restored).then((pruned) => {
+          if (pruned.length === restored.length) return;
+          set({ recentWorkspaces: pruned });
+          try {
+            persistRecentWorkspaces(pruned);
+          } catch (error) {
+            console.error('Failed to save recent workspaces:', error);
+          }
+        });
       } catch (error) {
         console.error('Failed to load recent workspaces:', error);
       }

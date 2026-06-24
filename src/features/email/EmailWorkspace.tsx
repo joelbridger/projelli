@@ -77,6 +77,20 @@ export interface EmailWorkspaceProps {
 // ── Helpers ────────────────────────────────────────────────────────────────
 // (pure helpers moved to ./emailWorkspaceHelpers)
 
+function sanitizeConnectedAccounts(accounts: ConnectedAccount[]): ConnectedAccount[] {
+  const byKey = new Map<string, ConnectedAccount>();
+  for (const account of accounts) {
+    const provider = account.provider.trim();
+    const accountId = account.account.trim();
+    if (!provider || !accountId) continue;
+    const key = `${provider}:${accountId}`;
+    if (!byKey.has(key)) {
+      byKey.set(key, { ...account, provider, account: accountId });
+    }
+  }
+  return Array.from(byKey.values());
+}
+
 // ── No-accounts empty state ────────────────────────────────────────────────
 
 // ── Main export ────────────────────────────────────────────────────────────
@@ -112,6 +126,7 @@ export function EmailWorkspace({
   // Connected accounts (loaded once on mount)
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
+  const hasConnectedMail = accountsLoaded && accounts.length > 0;
 
   // Keyword results
   const [items, setItems] = useState<MailListItem[]>([]);
@@ -179,7 +194,18 @@ export function EmailWorkspace({
       mailConnectedAccounts()
         .then((accs) => {
           if (!cancelled) {
-            setAccounts(accs);
+            const nextAccounts = sanitizeConnectedAccounts(accs);
+            setAccounts(nextAccounts);
+            if (nextAccounts.length === 0) {
+              setSyncing(false);
+              setItems([]);
+              setTotal(0);
+              setOffset(0);
+              setError(null);
+              setAskHits([]);
+              setAskLoading(false);
+              setAskError(null);
+            }
             setAccountsLoaded(true);
           }
         })
@@ -261,6 +287,17 @@ export function EmailWorkspace({
   useEffect(() => {
     if (mode !== 'keyword') return;
     if (!accountsLoaded) return;
+    if (accounts.length === 0) {
+      if (debounceRef.current !== null) {
+        clearTimeout(debounceRef.current);
+      }
+      setItems([]);
+      setTotal(0);
+      setLoading(false);
+      setLoadingMore(false);
+      setError(null);
+      return;
+    }
 
     // Update fingerprint for current filter params
     const fingerprint = JSON.stringify({ query, providerFilter, dateFrom, dateTo, hasAttachments, mode });
@@ -319,7 +356,7 @@ export function EmailWorkspace({
         clearTimeout(debounceRef.current);
       }
     };
-  }, [mode, accountsLoaded, query, providerFilter, dateFrom, dateTo, hasAttachments, retryCount]);
+  }, [mode, accountsLoaded, accounts.length, query, providerFilter, dateFrom, dateTo, hasAttachments, retryCount]);
 
   // Effect B: fires immediately when offset > 0 (load-more), but only if the
   // fingerprint hasn't changed (i.e., purely a pagination action, not a filter change).
@@ -327,6 +364,7 @@ export function EmailWorkspace({
     if (offset === 0) return; // first page is handled by Effect A
     if (mode !== 'keyword') return;
     if (!accountsLoaded) return;
+    if (accounts.length === 0) return;
 
     // Check that fingerprint matches current filter state — if not, Effect A handles it
     const currentFingerprint = JSON.stringify({ query, providerFilter, dateFrom, dateTo, hasAttachments, mode });
@@ -373,6 +411,12 @@ export function EmailWorkspace({
   // Ask mode search
   useEffect(() => {
     if (mode !== 'ask') return;
+    if (!hasConnectedMail) {
+      setAskHits([]);
+      setAskLoading(false);
+      setAskError(null);
+      return;
+    }
     if (!query.trim()) {
       setAskHits([]);
       return;
@@ -424,7 +468,7 @@ export function EmailWorkspace({
       });
 
     return () => { cancelled = true; };
-  }, [mode, query, activeMatter, scopeAllEmail]);
+  }, [mode, query, activeMatter, scopeAllEmail, hasConnectedMail]);
 
   // Reset offset + selection when filters change
 
@@ -545,6 +589,7 @@ export function EmailWorkspace({
       </div>
 
       {/* Toolbar — compose, mode toggle, scope toggle (conditional), search, filters toggle */}
+      {hasConnectedMail && (
       <SurfaceToolbar>
         {/* 1. Compose button */}
         <Button
@@ -607,7 +652,7 @@ export function EmailWorkspace({
         )}
 
         {/* 4. Filters toggle — keyword mode only, when accounts are loaded */}
-        {accountsLoaded && accounts.length > 0 && mode === 'keyword' && (
+        {mode === 'keyword' && (
           <FilterToggle
             open={filtersVisible}
             onToggle={() => { setFiltersVisible((v) => !v); }}
@@ -618,7 +663,7 @@ export function EmailWorkspace({
         )}
 
         {/* 4b. Sync now button — desktop only, when accounts are connected */}
-        {accountsLoaded && accounts.length > 0 && (
+        {hasConnectedMail && (
           <Button
             variant="ghost"
             size="md"
@@ -657,9 +702,10 @@ export function EmailWorkspace({
           style={{ flex: 1, minWidth: 240 }}
         />
       </SurfaceToolbar>
+      )}
 
       {/* Filter panel — full-width below toolbar, keyword mode only */}
-      {accountsLoaded && accounts.length > 0 && mode === 'keyword' && filtersVisible && (
+      {hasConnectedMail && mode === 'keyword' && filtersVisible && (
         <FilterPanel data-testid="filter-row">
           <div
             style={{
@@ -738,7 +784,7 @@ export function EmailWorkspace({
       )}
 
       {/* First-connect TTV callout — shown exactly once after the first account connects */}
-      {accountsLoaded && accounts.length > 0 && !firstConnectCalloutSeen && (
+      {hasConnectedMail && !firstConnectCalloutSeen && (
         /* eslint-disable keepance-i18n/no-hardcoded-string */
         <div style={{ padding: `var(--kp-space-sm) var(--kp-gutter) 0`, flexShrink: 0 }}>
           <div data-testid="first-connect-callout">
@@ -748,7 +794,7 @@ export function EmailWorkspace({
             onDismiss={dismissFirstConnectCallout}
           >
             <span style={{ fontWeight: 'var(--kp-weight-semibold)' }}>Your email is connected.</span>
-            {' '}Try a search your inbox search never could.{' '}
+            {' '}Try a search your inbox never could.{' '}
             <button
               type="button"
               data-testid="first-connect-callout-cta"
@@ -784,7 +830,7 @@ export function EmailWorkspace({
         )}
 
         {/* Keyword mode */}
-        {accountsLoaded && accounts.length > 0 && mode === 'keyword' && (
+        {hasConnectedMail && mode === 'keyword' && (
           <>
             {/* Bulk action bar */}
             {selectedIds.size > 0 && (
@@ -1642,4 +1688,3 @@ export function EmailWorkspace({
     </div>
   );
 }
-

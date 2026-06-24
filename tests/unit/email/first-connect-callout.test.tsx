@@ -24,12 +24,16 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   mailGetMessage: vi.fn(),
   mailRetagFolderMatter: vi.fn(),
   mailRetagMessageMatter: vi.fn(),
+  mailSyncAll: vi.fn().mockResolvedValue(undefined),
+  MAIL_SYNC_EVENT: 'mail-sync-progress',
+  MAIL_INDEX_CHUNK_EVENT: 'mail-index-chunk',
 }));
 
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: vi.fn().mockReturnValue(null),
   useMatters: vi.fn().mockReturnValue([]),
   useMatterStore: vi.fn(),
+  getMatters: vi.fn().mockReturnValue([]),
 }));
 
 vi.mock('@/platform/firm/privilegeStore', () => ({
@@ -43,6 +47,7 @@ vi.mock('@/platform/rag/MemoryService', () => ({
 }));
 
 vi.mock('@/platform/rag/matterResolver', () => ({
+  buildMailMatterMap: vi.fn().mockReturnValue([]),
   matterLabel: vi.fn((m: { name: string }) => m.name),
 }));
 
@@ -81,6 +86,8 @@ describe('first-connect TTV callout', () => {
     render(<EmailWorkspace />);
     await act(async () => { await vi.runAllTimersAsync(); });
     expect(screen.getByTestId('first-connect-callout')).toBeInTheDocument();
+    expect(screen.getByText(/Try a search your inbox never could/i)).toBeInTheDocument();
+    expect(screen.queryByText(/inbox search never could/i)).not.toBeInTheDocument();
   });
 
   it('is dismissed when the X button is clicked', async () => {
