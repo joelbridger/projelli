@@ -34,6 +34,10 @@ import {
   PROFESSION_MODEL_STORAGE_KEY,
   PROFESSION_PROVIDER_STORAGE_KEY,
 } from '@/platform/profile/professionModel';
+import { auditEventToEntry } from '@/platform/audit/AuditService';
+import { resolveEgress } from '@/platform/privacy/egress';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import type { AuditEntry } from '@/platform/types/audit';
 
 // Re-export types consumed by callers so they don't need to reach into
 // @/utils/tauri-commands directly.
@@ -76,6 +80,12 @@ export async function hasCloudKeyForGlance(): Promise<boolean> {
   return false;
 }
 
+export interface ResolvedGlanceProvider {
+  provider: Provider;
+  providerId: 'anthropic' | 'openai' | 'google' | 'ollama';
+  model: string;
+}
+
 /**
  * Build a Provider using the same cloud-provider resolution as Ask.
  *
@@ -84,9 +94,10 @@ export async function hasCloudKeyForGlance(): Promise<boolean> {
  * cloud whenever a cloud key exists, contradicting the "nothing leaves"
  * indicator. In Local-only, force the local model.
  */
-export async function buildProviderForGlance(): Promise<Provider> {
+export async function buildResolvedProviderForGlance(): Promise<ResolvedGlanceProvider> {
   if (isLocalOnlyMode()) {
-    return new OllamaProvider({});
+    const provider = new OllamaProvider({});
+    return { provider, providerId: 'ollama', model: provider.getMetadata().model };
   }
   // Personal-install choice gate (Task 1.3): at-a-glance auto-runs and sends matter
   // context to a cloud AI, so block it until the user has made an explicit
@@ -122,16 +133,27 @@ export async function buildProviderForGlance(): Promise<Provider> {
     if (apiKey) {
       assertCloudGenerationAllowed();
       switch (resolved.provider) {
-        case 'anthropic':
-          return new ClaudeProvider({ apiKey, model: resolved.model });
-        case 'openai':
-          return new OpenAIProvider({ apiKey, model: resolved.model });
-        case 'google':
-          return new GeminiProvider({ apiKey, model: resolved.model });
+        case 'anthropic': {
+          const provider = new ClaudeProvider({ apiKey, model: resolved.model });
+          return { provider, providerId: 'anthropic', model: provider.getMetadata().model };
+        }
+        case 'openai': {
+          const provider = new OpenAIProvider({ apiKey, model: resolved.model });
+          return { provider, providerId: 'openai', model: provider.getMetadata().model };
+        }
+        case 'google': {
+          const provider = new GeminiProvider({ apiKey, model: resolved.model });
+          return { provider, providerId: 'google', model: provider.getMetadata().model };
+        }
       }
     }
   }
-  return new OllamaProvider({});
+  const provider = new OllamaProvider({});
+  return { provider, providerId: 'ollama', model: provider.getMetadata().model };
+}
+
+export async function buildProviderForGlance(): Promise<Provider> {
+  return (await buildResolvedProviderForGlance()).provider;
 }
 
 // ---------------------------------------------------------------------------
@@ -165,7 +187,10 @@ function emptyResult(): MatterAtAGlanceResult {
  */
 export async function generateMatterAtAGlance(
   matterId: string,
-  options?: { signal?: AbortSignal },
+  options?: {
+    signal?: AbortSignal;
+    onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+  },
 ): Promise<MatterAtAGlanceResult> {
   if (!isMemoryEnabled()) {
     throw new Error('Memory is disabled');
@@ -178,6 +203,20 @@ export async function generateMatterAtAGlance(
     scope,
     false,
   );
+  const topScore = hits.reduce<number | null>(
+    (max, hit) => (max === null ? hit.score : Math.max(max, hit.score)),
+    null,
+  );
+  options?.onAuditLog?.(auditEventToEntry({
+    type: 'retrieval_executed',
+    timestamp: new Date().toISOString(),
+    payload: {
+      query: 'At-a-glance summary',
+      scope,
+      hitCount: hits.length,
+      topScore,
+    },
+  }));
 
   if (hits.length === 0) {
     return emptyResult();
@@ -211,7 +250,8 @@ Rules:
 - "upcomingDates": 1 to 3 upcoming dates, reviews, meetings, or deadlines found in the content; include an inline citation like "[filename paragraph N]" in each item; empty array if none found.
 - "nextActions": up to 3 recommended next actions; empty array if none found.`;
 
-  const provider = await buildProviderForGlance();
+  const resolvedProvider = await buildResolvedProviderForGlance();
+  const provider = resolvedProvider.provider;
   const sendOpts: Parameters<Provider['sendMessage']>[1] = {
     systemPrompt,
     maxTokens: 300,
@@ -223,6 +263,37 @@ Rules:
     'Summarize this client for the advisor.',
     sendOpts,
   );
+  const egress = resolveEgress({
+    provider: resolvedProvider.providerId,
+    mode: getConfidentialityMode(),
+    isDemo: false,
+    assuredAvailable: false,
+  });
+  options?.onAuditLog?.(auditEventToEntry({
+    type: 'egress',
+    timestamp: new Date().toISOString(),
+    payload: {
+      provider: egress.provider,
+      model: resolvedProvider.model,
+      mode: getConfidentialityMode(),
+      destination: egress.destination,
+      dataLeaves: egress.dataLeaves,
+      scope,
+    },
+  }));
+  options?.onAuditLog?.({
+    action: 'model_call',
+    description: `At-a-glance summary to ${resolvedProvider.model}`,
+    model: resolvedProvider.model,
+    inputs: { matterId },
+    outputs: { contentLength: response.content.length },
+    userDecision: 'auto',
+    metadata: { feature: 'at_a_glance' },
+    tokensIn: response.usage.inputTokens,
+    tokensOut: response.usage.outputTokens,
+    costUsd: response.cost,
+    provider: resolvedProvider.providerId,
+  });
 
   if (options?.signal?.aborted) {
     return emptyResult();

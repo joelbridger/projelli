@@ -122,6 +122,7 @@ vi.mock('@/platform/privacy/localOnlyGuard', async (orig) => {
 import { generateMatterAtAGlance, hasCloudKeyForGlance, buildProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
+import type { AuditEntry } from '@/platform/types/audit';
 
 const mockRetrieve = vi.mocked(MemoryService.retrieve);
 const mockIsMemoryEnabled = vi.mocked(isMemoryEnabled);
@@ -203,6 +204,25 @@ describe('generateMatterAtAGlance', () => {
     expect(result.deadlines).toEqual(['Response due July 1']);
     expect(result.upcomingDates).toEqual(['July 1 response deadline [Lease_Agreement.docx paragraph 2]']);
     expect(result.nextActions).toEqual(['Request title search']);
+  });
+
+  it('logs retrieval, egress, and model_call when an audit sink is provided', async () => {
+    mockRetrieve.mockResolvedValue(fakeHits);
+    const logged: Array<Omit<AuditEntry, 'id' | 'timestamp'>> = [];
+
+    await generateMatterAtAGlance('matter_test_123', {
+      onAuditLog: (entry) => logged.push(entry),
+    });
+
+    expect(logged.filter((entry) => entry.metadata['auditEventType'] === 'retrieval_executed')).toHaveLength(1);
+    expect(logged.filter((entry) => entry.metadata['auditEventType'] === 'egress')).toHaveLength(1);
+    expect(logged.filter((entry) => entry.action === 'model_call')).toHaveLength(1);
+    expect(logged.find((entry) => entry.action === 'model_call')).toMatchObject({
+      model: 'claude-sonnet-4-6',
+      provider: 'anthropic',
+      tokensIn: 10,
+      tokensOut: 20,
+    });
   });
 
   it('strips markdown fences before parsing', async () => {

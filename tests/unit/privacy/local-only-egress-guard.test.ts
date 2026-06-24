@@ -46,6 +46,7 @@ vi.mock('@/platform/providers/ClaudeProvider', () => ({
     kind = 'anthropic';
     model: string | undefined;
     constructor(config: { model?: string }) { this.model = config.model; }
+    getMetadata() { return { model: this.model ?? 'claude-test' }; }
   },
 }));
 vi.mock('@/platform/providers/OpenAIProvider', () => ({
@@ -53,6 +54,7 @@ vi.mock('@/platform/providers/OpenAIProvider', () => ({
     kind = 'openai';
     model: string | undefined;
     constructor(config: { model?: string }) { this.model = config.model; }
+    getMetadata() { return { model: this.model ?? 'openai-test' }; }
   },
 }));
 vi.mock('@/platform/providers/GeminiProvider', () => ({
@@ -60,9 +62,15 @@ vi.mock('@/platform/providers/GeminiProvider', () => ({
     kind = 'google';
     model: string | undefined;
     constructor(config: { model?: string }) { this.model = config.model; }
+    getMetadata() { return { model: this.model ?? 'gemini-test' }; }
   },
 }));
-vi.mock('@/platform/providers/OllamaProvider', () => ({ OllamaProvider: class { kind = 'ollama'; } }));
+vi.mock('@/platform/providers/OllamaProvider', () => ({
+  OllamaProvider: class {
+    kind = 'ollama';
+    getMetadata() { return { model: 'ollama-test' }; }
+  },
+}));
 vi.mock('@/platform/providers/KeychainService', () => ({
   // Always has an Anthropic cloud key available.
   KeychainService: vi.fn().mockImplementation(function () {

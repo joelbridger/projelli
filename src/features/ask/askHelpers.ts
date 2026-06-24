@@ -102,6 +102,12 @@ export interface BoundAnswerCitations {
   sources: WorkspaceSource[];
 }
 
+export interface ResolvedAskProvider {
+  provider: Provider;
+  providerId: 'anthropic' | 'openai' | 'google' | 'ollama';
+  model: string;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -135,13 +141,18 @@ export async function hasCloudKey(): Promise<boolean> {
   return false;
 }
 
-export async function buildProviderAsync(): Promise<Provider> {
+export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
   // Local-only ENFORCEMENT (privacy): Ask has no per-chat provider — it picks by
   // key presence below — so in Local-only mode it would otherwise build a cloud
   // provider whenever a cloud key exists, contradicting the "nothing leaves"
   // indicator. Force the local model instead, so Ask honours Local-only.
   if (isLocalOnlyMode()) {
-    return new OllamaProvider({});
+    const provider = new OllamaProvider({});
+    return {
+      provider,
+      providerId: 'ollama',
+      model: provider.getMetadata().model,
+    };
   }
   // Personal-install choice gate (Task 1.3): a personal install must never reach a
   // cloud provider for generation before the user has made an explicit confidentiality
@@ -177,16 +188,43 @@ export async function buildProviderAsync(): Promise<Provider> {
     if (apiKey) {
       assertCloudGenerationAllowed();
       switch (resolved.provider) {
-        case 'anthropic':
-          return new ClaudeProvider({ apiKey, model: resolved.model });
-        case 'openai':
-          return new OpenAIProvider({ apiKey, model: resolved.model });
-        case 'google':
-          return new GeminiProvider({ apiKey, model: resolved.model });
+        case 'anthropic': {
+          const provider = new ClaudeProvider({ apiKey, model: resolved.model });
+          return {
+            provider,
+            providerId: 'anthropic',
+            model: provider.getMetadata().model,
+          };
+        }
+        case 'openai': {
+          const provider = new OpenAIProvider({ apiKey, model: resolved.model });
+          return {
+            provider,
+            providerId: 'openai',
+            model: provider.getMetadata().model,
+          };
+        }
+        case 'google': {
+          const provider = new GeminiProvider({ apiKey, model: resolved.model });
+          return {
+            provider,
+            providerId: 'google',
+            model: provider.getMetadata().model,
+          };
+        }
       }
     }
   }
-  return new OllamaProvider({});
+  const provider = new OllamaProvider({});
+  return {
+    provider,
+    providerId: 'ollama',
+    model: provider.getMetadata().model,
+  };
+}
+
+export async function buildProviderAsync(): Promise<Provider> {
+  return (await buildResolvedAskProvider()).provider;
 }
 
 /**

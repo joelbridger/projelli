@@ -21,10 +21,14 @@ import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 import { KeychainService } from '@/platform/providers/KeychainService';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import type { ChatMessage } from '@/platform/types/ai';
+import type { AuditEntry, AuditScope } from '@/platform/types/audit';
+import { auditEventToEntry } from '@/platform/audit/AuditService';
+import { resolveEgress } from '@/platform/privacy/egress';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import type { AskScope, AskTurn } from './askHelpers';
 import {
   hasCloudKey,
-  buildProviderAsync,
+  buildResolvedAskProvider,
   friendlyErrorMessage,
   buildHistoryBlock,
   reconstructTurns,
@@ -55,6 +59,8 @@ export interface UseAskProps {
    * surface. Signature mirrors AIChatViewer.onOpenFileAtPath.
    */
   onOpenFileAtPath?: (path: string, paragraphIndex?: number, snippet?: string) => void | Promise<void>;
+  /** App-level audit sink. When omitted, Ask still works but does not log. */
+  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 }
 
 export function useAsk({
@@ -62,6 +68,7 @@ export function useAsk({
   prefillRequest,
   onPrefillConsumed,
   onOpenFileAtPath,
+  onAuditLog,
 }: UseAskProps) {
   const activeMatter = useActiveMatter();
   const rootPath = useWorkspaceStore((s) => s.rootPath);
@@ -243,6 +250,17 @@ export function useAsk({
     setChatId(sid);
   }, []);
 
+  const buildAuditScope = useCallback((retrievalScope: RetrievalScope): AuditScope => {
+    if (retrievalScope.kind === 'matter') {
+      return {
+        kind: 'matter',
+        matterId: retrievalScope.matterId,
+        ...(activeMatter ? { matterName: matterLabel(activeMatter) } : {}),
+      };
+    }
+    return { kind: 'allMatters' };
+  }, [activeMatter]);
+
   /**
    * Submit a question. An optional `overrideQuestion` bypasses the text input
    * so chips on the sample matter can auto-submit without typing into the box.
@@ -268,6 +286,11 @@ export function useAsk({
     };
     setStreamingTurn(newStreamingTurn);
     setQuestion('');
+
+    let providerAudit:
+      | { providerId: 'anthropic' | 'openai' | 'google' | 'ollama'; model: string }
+      | null = null;
+    let providerCallStarted = false;
 
     try {
       /* Demo branch: sample matter + no cloud key + matching question */
@@ -338,6 +361,31 @@ export function useAsk({
         const rawHits = await MemoryService.retrieve(q, DEFAULT_WORKSPACE_TOP_K, retrievalScope, false);
         // Apply client-side type filter for Email/Documents scopes.
         hits = filterHitsByScope(rawHits, askScope);
+        const auditScope = buildAuditScope(retrievalScope);
+        const topScore = hits.reduce<number | null>(
+          (max, hit) => (max === null ? hit.score : Math.max(max, hit.score)),
+          null,
+        );
+        onAuditLog?.(auditEventToEntry({
+          type: 'scope_active',
+          timestamp: new Date().toISOString(),
+          payload: { scope: auditScope },
+        }));
+        onAuditLog?.(auditEventToEntry({
+          type: 'privilege_evaluated',
+          timestamp: new Date().toISOString(),
+          payload: { excluded: true },
+        }));
+        onAuditLog?.(auditEventToEntry({
+          type: 'retrieval_executed',
+          timestamp: new Date().toISOString(),
+          payload: {
+            query: q,
+            scope: auditScope,
+            hitCount: hits.length,
+            topScore,
+          },
+        }));
       }
 
       if (abort.signal.aborted) return;
@@ -399,9 +447,54 @@ export function useAsk({
         .join('\n\n');
 
       let answerText = '';
-      const provider = await buildProviderAsync();
+      const resolvedProvider = await buildResolvedAskProvider();
+      const provider = resolvedProvider.provider;
+      providerAudit = {
+        providerId: resolvedProvider.providerId,
+        model: resolvedProvider.model,
+      };
+
+      const emitSuccessfulEgress = () => {
+        if (!providerAudit) return;
+        const egress = resolveEgress({
+          provider: providerAudit.providerId,
+          mode: getConfidentialityMode(),
+          isDemo: false,
+          assuredAvailable: false,
+        });
+        onAuditLog?.(auditEventToEntry({
+          type: 'egress',
+          timestamp: new Date().toISOString(),
+          payload: {
+            provider: egress.provider,
+            model: providerAudit.model,
+            mode: getConfidentialityMode(),
+            destination: egress.destination,
+            dataLeaves: egress.dataLeaves,
+            scope: buildAuditScope(retrievalScope),
+          },
+        }));
+      };
+
+      const emitModelCall = (contentLength: number, usage?: { inputTokens?: number; outputTokens?: number }, cost?: number) => {
+        if (!providerAudit) return;
+        onAuditLog?.({
+          action: 'model_call',
+          description: `Search question to ${providerAudit.model}`,
+          model: providerAudit.model,
+          inputs: { promptLength: q.length },
+          outputs: { contentLength },
+          userDecision: 'auto',
+          metadata: { chatId, askScope },
+          tokensIn: usage?.inputTokens ?? 0,
+          tokensOut: usage?.outputTokens ?? 0,
+          costUsd: cost ?? 0,
+          provider: providerAudit.providerId,
+        });
+      };
 
       if (typeof provider.sendMessageStreaming === 'function') {
+        providerCallStarted = true;
         const streamResp = await provider.sendMessageStreaming(q, {
           systemPrompt,
           onChunk: (chunk) => {
@@ -412,9 +505,14 @@ export function useAsk({
           signal: abort.signal,
         });
         answerText = streamResp.content;
+        emitSuccessfulEgress();
+        emitModelCall(answerText.length, streamResp.usage, streamResp.cost);
       } else {
+        providerCallStarted = true;
         const resp = await provider.sendMessage(q, { systemPrompt });
         answerText = resp.content;
+        emitSuccessfulEgress();
+        emitModelCall(answerText.length, resp.usage, resp.cost);
       }
 
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -459,6 +557,42 @@ export function useAsk({
       setStatus('done');
     } catch (err) {
       if (abort.signal.aborted) return;
+      if (providerCallStarted && providerAudit) {
+        const egress = resolveEgress({
+          provider: providerAudit.providerId,
+          mode: getConfidentialityMode(),
+          isDemo: false,
+          assuredAvailable: false,
+        });
+        onAuditLog?.({
+          action: 'user_action',
+          description: `Search request failed before a response from ${providerAudit.providerId}`,
+          model: providerAudit.model,
+          inputs: {
+            provider: egress.provider,
+            model: providerAudit.model,
+            mode: getConfidentialityMode(),
+            destination: egress.destination,
+            dataLeaves: egress.dataLeaves,
+            scope: activeMatter && askScope !== 'all-matters'
+              ? { kind: 'matter', matterId: activeMatter.id, matterName: matterLabel(activeMatter) }
+              : { kind: 'allMatters' },
+          },
+          outputs: {
+            success: false,
+            reason: err instanceof Error ? err.message : String(err),
+          },
+          userDecision: 'auto',
+          metadata: {
+            auditEventType: 'egress_failed',
+            provider: egress.provider,
+            model: providerAudit.model,
+            mode: getConfidentialityMode(),
+            destination: egress.destination,
+            dataLeaves: egress.dataLeaves,
+          },
+        });
+      }
       const raw = err instanceof Error ? err.message : '';
       // Fix #4: map raw provider error strings to plain-language user copy.
       setErrorMsg(friendlyErrorMessage(raw));
@@ -469,7 +603,7 @@ export function useAsk({
       // on error we put it back.
       setQuestion(q);
     }
-  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope, profession]);
+  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope, profession, onAuditLog, buildAuditScope]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {

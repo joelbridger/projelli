@@ -154,7 +154,7 @@ export function AppSurfaceRouter({
   return (
     <>
       {sidebarActiveTab ==='matters' ? (
-        <MattersHome />
+        <MattersHome onAuditLog={addAuditEntry} />
       ) : sidebarActiveTab ==='search' ? (
         <Ask
           onSaveToDocument={async (content) => {
@@ -176,6 +176,7 @@ export function AppSurfaceRouter({
           }}
           prefillRequest={askPrefill}
           onPrefillConsumed={() => setAskPrefill(null)}
+          onAuditLog={addAuditEntry}
         />
       ) : sidebarActiveTab ==='email' ? (
         <EmailWorkspace
