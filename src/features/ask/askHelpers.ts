@@ -14,6 +14,18 @@ import { KeychainService } from '@/platform/providers/KeychainService';
 import { assertCloudGenerationAllowed, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import type { Provider } from '@/platform/providers/Provider';
 import type { ChatMessage } from '@/platform/types/ai';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import {
+  cloudKeyPresenceFromValues,
+  resolveCloudSettingsDefaults,
+  resolvePreferredCloudProvider,
+  type CloudProviderKeyValues,
+} from '@/platform/providers/resolvePreferredCloudProvider';
+import { getInvalidProviders, getVerifiedProviders } from '@/platform/providers/keyVerification';
+import {
+  PROFESSION_MODEL_STORAGE_KEY,
+  PROFESSION_PROVIDER_STORAGE_KEY,
+} from '@/platform/profile/professionModel';
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                       */
@@ -117,20 +129,41 @@ export async function buildProviderAsync(): Promise<Provider> {
   // Retrieval (MemoryService) runs BEFORE this function and is unaffected. Firm installs
   // are a no-op (the gate checks isFirm first and passes through).
   const kc = new KeychainService();
-  const anthropicKey = await kc.getKey('anthropic');
-  if (anthropicKey?.trim()) {
-    assertCloudGenerationAllowed();
-    return new ClaudeProvider({ apiKey: anthropicKey.trim() });
-  }
-  const openaiKey = await kc.getKey('openai');
-  if (openaiKey?.trim()) {
-    assertCloudGenerationAllowed();
-    return new OpenAIProvider({ apiKey: openaiKey.trim() });
-  }
-  const googleKey = await kc.getKey('google');
-  if (googleKey?.trim()) {
-    assertCloudGenerationAllowed();
-    return new GeminiProvider({ apiKey: googleKey.trim() });
+  const cloudKeys: CloudProviderKeyValues = {
+    anthropic: (await kc.getKey('anthropic'))?.trim(),
+    openai: (await kc.getKey('openai'))?.trim(),
+    google: (await kc.getKey('google'))?.trim(),
+  };
+  const settings = useSettingsStore.getState();
+  const resolved = resolvePreferredCloudProvider({
+    availableKeys: cloudKeyPresenceFromValues(cloudKeys),
+    settings: resolveCloudSettingsDefaults(
+      settings.getSetting('defaultProvider'),
+      settings.getSetting('defaultModel'),
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem(PROFESSION_PROVIDER_STORAGE_KEY)
+        : null,
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem(PROFESSION_MODEL_STORAGE_KEY)
+        : null,
+    ),
+    verifiedProviders: getVerifiedProviders(),
+    invalidProviders: getInvalidProviders(),
+  });
+
+  if (resolved) {
+    const apiKey = cloudKeys[resolved.provider];
+    if (apiKey) {
+      assertCloudGenerationAllowed();
+      switch (resolved.provider) {
+        case 'anthropic':
+          return new ClaudeProvider({ apiKey, model: resolved.model });
+        case 'openai':
+          return new OpenAIProvider({ apiKey, model: resolved.model });
+        case 'google':
+          return new GeminiProvider({ apiKey, model: resolved.model });
+      }
+    }
   }
   return new OllamaProvider({});
 }

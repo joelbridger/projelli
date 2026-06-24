@@ -7,9 +7,9 @@
  * of open issues, deadlines, and next actions. Returns an empty result (no
  * error) when the matter has no indexed content yet.
  *
- * Provider priority mirrors Ask: Anthropic -> OpenAI -> Google ->
- * Ollama fallback. The functions here are local copies -- do not import from
- * Ask.tsx.
+ * Provider choice mirrors Ask: prefer the user's configured default when that
+ * provider has a usable key, skip providers already known invalid, then fall
+ * back to stable key order. Local-only still forces Ollama.
  */
 
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
@@ -22,6 +22,18 @@ import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import type { Provider } from '@/platform/providers/Provider';
 import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import {
+  cloudKeyPresenceFromValues,
+  resolveCloudSettingsDefaults,
+  resolvePreferredCloudProvider,
+  type CloudProviderKeyValues,
+} from '@/platform/providers/resolvePreferredCloudProvider';
+import { getInvalidProviders, getVerifiedProviders } from '@/platform/providers/keyVerification';
+import {
+  PROFESSION_MODEL_STORAGE_KEY,
+  PROFESSION_PROVIDER_STORAGE_KEY,
+} from '@/platform/profile/professionModel';
 
 // Re-export types consumed by callers so they don't need to reach into
 // @/utils/tauri-commands directly.
@@ -59,8 +71,7 @@ export async function hasCloudKeyForGlance(): Promise<boolean> {
 }
 
 /**
- * Build a Provider using the same priority order as Ask:
- * Anthropic -> OpenAI -> Google -> OllamaProvider fallback.
+ * Build a Provider using the same cloud-provider resolution as Ask.
  *
  * BUG-021 (privacy): the at-a-glance summary auto-runs and sends matter context
  * to the AI, so it MUST honour Local-only mode — otherwise it would send to the
@@ -78,20 +89,41 @@ export async function buildProviderForGlance(): Promise<Provider> {
   // Ollama (no egress, nothing to gate). Local-only mode already returned above; firm
   // installs are a no-op inside assertCloudGenerationAllowed (checks isFirm first).
   const kc = new KeychainService();
-  const anthropicKey = await kc.getKey('anthropic');
-  if (anthropicKey?.trim()) {
-    assertCloudGenerationAllowed();
-    return new ClaudeProvider({ apiKey: anthropicKey.trim() });
-  }
-  const openaiKey = await kc.getKey('openai');
-  if (openaiKey?.trim()) {
-    assertCloudGenerationAllowed();
-    return new OpenAIProvider({ apiKey: openaiKey.trim() });
-  }
-  const googleKey = await kc.getKey('google');
-  if (googleKey?.trim()) {
-    assertCloudGenerationAllowed();
-    return new GeminiProvider({ apiKey: googleKey.trim() });
+  const cloudKeys: CloudProviderKeyValues = {
+    anthropic: (await kc.getKey('anthropic'))?.trim(),
+    openai: (await kc.getKey('openai'))?.trim(),
+    google: (await kc.getKey('google'))?.trim(),
+  };
+  const settings = useSettingsStore.getState();
+  const resolved = resolvePreferredCloudProvider({
+    availableKeys: cloudKeyPresenceFromValues(cloudKeys),
+    settings: resolveCloudSettingsDefaults(
+      settings.getSetting('defaultProvider'),
+      settings.getSetting('defaultModel'),
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem(PROFESSION_PROVIDER_STORAGE_KEY)
+        : null,
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem(PROFESSION_MODEL_STORAGE_KEY)
+        : null,
+    ),
+    verifiedProviders: getVerifiedProviders(),
+    invalidProviders: getInvalidProviders(),
+  });
+
+  if (resolved) {
+    const apiKey = cloudKeys[resolved.provider];
+    if (apiKey) {
+      assertCloudGenerationAllowed();
+      switch (resolved.provider) {
+        case 'anthropic':
+          return new ClaudeProvider({ apiKey, model: resolved.model });
+        case 'openai':
+          return new OpenAIProvider({ apiKey, model: resolved.model });
+        case 'google':
+          return new GeminiProvider({ apiKey, model: resolved.model });
+      }
+    }
   }
   return new OllamaProvider({});
 }
