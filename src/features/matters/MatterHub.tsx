@@ -14,6 +14,7 @@ import { useMatters, useActiveMatterPrivileged, SAMPLE_MATTER_ID } from '@/platf
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useMatterAtAGlanceStore } from '@/platform/matter/matterAtAGlanceStore';
 import {
   generateMatterAtAGlance,
@@ -35,6 +36,7 @@ import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { answerQuestion, flagForClient } from '@/platform/clientMap/guidedInterview';
 import { dispatchOpenSource } from '@/platform/clientMap/openSource';
 import type { SourceRef } from '@/platform/clientMap/types';
+import { dedupeFolderPathsForDisplay } from './matterManagerDialogHelpers';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -61,6 +63,10 @@ function basename(p: string): string {
   return p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p;
 }
 
+function upcomingDates(result: MatterAtAGlanceResult | null): string[] {
+  return Array.isArray(result?.upcomingDates) ? result.upcomingDates : [];
+}
+
 // ── Labels ─────────────────────────────────────────────────────────────────
 
 const LABEL_START_INTERVIEW = 'Start the guided interview';
@@ -77,6 +83,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
   const matter = matters.find((m) => m.id === matterId) ?? null;
   const isPrivileged = useActiveMatterPrivileged();
   const entityLabel = useEntityLabel();
+  const rootPath = useWorkspaceStore((s) => s.rootPath);
 
   // ai chat sessions for recent questions
   const sessions = useAIChatStore((s: { sessions: Record<string, unknown> }) => s.sessions) as Record<string, { messages?: Array<{ role: string; content: string }> }>;
@@ -112,6 +119,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
       const isEmpty =
         result.openIssues.length === 0 &&
         result.deadlines.length === 0 &&
+        upcomingDates(result).length === 0 &&
         result.nextActions.length === 0;
       setGlanceResult(result);
       setGlanceStatus(isEmpty ? 'empty' : 'done');
@@ -146,6 +154,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         const isEmpty =
           cached.result.openIssues.length === 0 &&
           cached.result.deadlines.length === 0 &&
+          upcomingDates(cached.result).length === 0 &&
           cached.result.nextActions.length === 0;
         setGlanceStatus(isEmpty ? 'empty' : 'done');
         return;
@@ -265,6 +274,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
 
   const label = matterLabel(matter);
   const isSample = matterId === SAMPLE_MATTER_ID;
+  const displayFolderPaths = dedupeFolderPathsForDisplay(matter.folderPaths, rootPath);
 
   // ── Styles ────────────────────────────────────────────────────────────
 
@@ -470,7 +480,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
             /* No cloud key: honest counts / recent-activity fallback */
             <div data-testid="hub-real-glance" style={{ fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-relaxed)', color: 'var(--color-foreground)' }}>
               {(() => {
-                const folderCount = matter.folderPaths.length;
+                const folderCount = displayFolderPaths.length;
                 const questionCount = Object.keys(sessions)
                   .filter((k) => k.startsWith(matterSessionPrefix))
                   .filter((k) => {
@@ -660,11 +670,21 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                 <span style={{ color: 'var(--color-foreground)', fontSize: 'var(--kp-font-xs)' }}>
                   {entityLabel.One} created {formatDate(matter.createdAt)}
                 </span>
-                <span style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
-                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                  No upcoming deadlines yet. Ask the AI to find any in your documents.
-                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                </span>
+                {glanceStatus === 'done' && upcomingDates(glanceResult).length > 0 ? (
+                  <div data-testid="hub-upcoming-dates" style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {upcomingDates(glanceResult).map((item, i) => (
+                      <span key={i} style={{ color: 'var(--color-foreground)', fontSize: 'var(--kp-font-xs)' }}>
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
+                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                    No upcoming deadlines yet. Ask the AI to find any in your documents.
+                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -688,7 +708,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               Documents
             </Eyebrow>
             <span style={panelCount}>
-              ({String(matter.folderPaths.length)})
+              ({String(displayFolderPaths.length)})
             </span>
             <IconButton
               icon={ChevronRight}
@@ -700,12 +720,12 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
             />
           </div>
           <div style={panelPreview}>
-            {matter.folderPaths.length === 0 ? (
+            {displayFolderPaths.length === 0 ? (
               /* eslint-disable keepance-i18n/no-hardcoded-string */
               <span>No folders added yet</span>
               /* eslint-enable keepance-i18n/no-hardcoded-string */
             ) : (
-              matter.folderPaths.slice(0, 2).map((p, i) => (
+              displayFolderPaths.slice(0, 2).map((p, i) => (
                 <div key={i}>{basename(p)}</div>
               ))
             )}

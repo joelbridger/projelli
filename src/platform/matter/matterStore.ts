@@ -43,7 +43,7 @@ import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import type { Matter, MatterScope } from '@/platform/types/matter';
 import type { AuditEntry } from '@/platform/types/audit';
-import { resolveMatterId, findMatter } from '@/platform/rag/matterResolver';
+import { resolveMatterId, findMatter, normalize as normalizeMatterPath } from '@/platform/rag/matterResolver';
 import { ragDeleteMatter } from '@/platform/utils/tauri-commands';
 import { mailClearMatterFilings } from '@/platform/utils/mail-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
@@ -73,9 +73,17 @@ function newMatterId(): string {
   return `matter_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** Normalise an absolute folder path: backslashes -> slashes, strip trailing slash. */
-function normalizeFolder(p: string): string {
-  return p.replace(/\\/g, '/').replace(/\/+$/, '');
+/** Normalise and dedupe folder paths with the same rules the resolver uses. */
+function dedupeFolderPaths(paths: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const path of paths) {
+    const normalized = normalizeMatterPath(path);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
 }
 
 export interface CreateMatterInput {
@@ -290,7 +298,7 @@ export const useMatterStore = create<MatterState>()(
           id: input.id ?? newMatterId(),
           name: input.name.trim(),
           client: input.client.trim(),
-          folderPaths: (input.folderPaths ?? []).map(normalizeFolder).filter(Boolean),
+          folderPaths: dedupeFolderPaths(input.folderPaths ?? []),
           mailFolderPaths: Array.from(new Set((input.mailFolderPaths ?? []).filter(Boolean))),
           privileged: input.privileged ?? false,
           mcpAccessGranted: input.mcpAccessGranted ?? false,
@@ -372,9 +380,7 @@ export const useMatterStore = create<MatterState>()(
       },
 
       setFolderPaths: (id, folderPaths) => {
-        const normalized = Array.from(
-          new Set(folderPaths.map(normalizeFolder).filter(Boolean)),
-        );
+        const normalized = dedupeFolderPaths(folderPaths);
         set((state) => ({
           matters: state.matters.map((m) =>
             m.id === id ? { ...m, folderPaths: normalized } : m,
@@ -383,23 +389,22 @@ export const useMatterStore = create<MatterState>()(
       },
 
       addFolderPath: (id, folderPath) => {
-        const norm = normalizeFolder(folderPath);
+        const norm = normalizeMatterPath(folderPath);
         if (!norm) return;
         set((state) => ({
-          matters: state.matters.map((m) =>
-            m.id === id && !m.folderPaths.includes(norm)
-              ? { ...m, folderPaths: [...m.folderPaths, norm] }
-              : m,
-          ),
+          matters: state.matters.map((m) => {
+            if (m.id !== id) return m;
+            return { ...m, folderPaths: dedupeFolderPaths([...m.folderPaths, norm]) };
+          }),
         }));
       },
 
       removeFolderPath: (id, folderPath) => {
-        const norm = normalizeFolder(folderPath);
+        const norm = normalizeMatterPath(folderPath);
         set((state) => ({
           matters: state.matters.map((m) =>
             m.id === id
-              ? { ...m, folderPaths: m.folderPaths.filter((f) => f !== norm) }
+              ? { ...m, folderPaths: m.folderPaths.filter((f) => normalizeMatterPath(f) !== norm) }
               : m,
           ),
         }));
