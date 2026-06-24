@@ -145,3 +145,25 @@ for UX issues in this pass.)
   fixed + merged (commit 553ba78d's sibling; the useShallow fix).
 - Folder→client tagging for the **UI folder-toggle** flow — fixed + merged + verified
   (0→18). The AUTO-import path still has A1/A2/A3 above.
+
+---
+
+## 🔎 Next-session: where to look hardest (from the integrator)
+Scrutinize most the things FIXED this round but never deeply re-verified in the UI,
+and the surfaces never swept. Specifically: (1) the **Client Map "updates to review"
+tray** — Agent 2 added auto-apply of clean ADDs; confirm the count is accurate, the
+accept/dismiss flow works, and auto-apply is neither too aggressive (never touches
+user-confirmed items) nor too timid; (2) the hub **"upcoming dates"** (C2) — does it
+surface real deadlines (the DAF "May board meeting", scheduled reviews) or stay empty/
+hallucinate; (3) **Ask citation trust state** — do chips show the right green
+"source found" vs unverified, does clicking a citation open the correct file+page,
+and re-check the "not cited" warning on grounded answers + multi-turn follow-ups;
+(4) the hub **"Documents (N)" dedupe + matter-manager folder checkboxes** (C1/C3) on
+clean relative data. Then sweep the surfaces I barely touched, where polish gaps
+hide: the **true first-run/onboarding** (welcome → native folder pick → first index →
+first Client Map, driven start-to-finish, never skipped), **Settings / Privacy Center
+/ Activity Log / Workflows / Email-connect / Trash**, all **empty/loading/error
+states** (no API key, mid-index, provider error), and the **20 light + other deep
+households** (do sparse clients build awkward/empty maps?). Finally judge **feel**:
+Client Map build time, Ask latency, indexing snappiness, OCR'd scanned-PDF provenance
+labels, and light-theme consistency everywhere — "impressive" lives in those details.
