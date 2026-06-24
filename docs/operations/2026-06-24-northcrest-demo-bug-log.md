@@ -1,7 +1,34 @@
 # Northcrest demo — bug & UX log (collection pass, 2026-06-24)
 
-Collected by driving the **production/preview build** on the Legion. NOTHING fixed
-yet (per Jameson: collect first). Severity: 🔴 blocker · 🟠 major · 🟡 minor/UX.
+Collected by driving the **production/preview build** on the Legion. Severity:
+🔴 blocker · 🟠 major · 🟡 minor/UX.
+
+## ✅ RESOLUTION (2026-06-24) — ALL fixed, merged to keepance-3.0, GATE GREEN
+Fixed by 4 parallel Codex agents (one per cluster), reviewed + merged + gate-green
+(typecheck + i18n + 4001 vitest + ESLint + all cargo tests). Commits on
+keepance-3.0 (HEAD after merges + 3 follow-up gate fixups):
+- **import-engine** → A1 (clients tagged on import: retag/PDF pass now read a FRESH
+  file tree, not the empty cached one), A2 (PDFs index on import), A3 (Rust
+  `normalize_source_path` → forward-slash tokens everywhere → no duplicate),
+  A4 (PDF/OCR progress in the banner), B4 (real citation filenames via correct PDF
+  path storage). Resolver now tries direct+relative+absolute path forms.
+- **clientmap-ui** → B2 (citation/edit spacing polished), B3 (safe auto-apply of
+  clean ADD proposals only; accurate count).
+- **ask-search-ux** → B1 (grounded answers attach citations), C4 (recent questions
+  workspace-scoped).
+- **matter-hub-ux** → C1 (folderPath dedupe), C2 (upcoming dates surfaced),
+  C3 (mapped folder shows checked).
+Follow-up gate fixups by the integrator: added `setSessionWorkspaceRoot` to 3
+aiChatStore test mocks; `in`-guard instead of unnecessary `??`; derived
+`doneVisible` so the banner never setStates synchronously in its effect; kept the
+citation label as the (now-correct) basename. **Windows-verified (clean auto-import, no scripts):** opening the workspace now
+auto-tags every client's office files (A1) and auto-indexes their PDFs with a live
+"Indexing PDFs: N/301" banner (A2/A4); Hollings = 8 docx + 7 pdf scoped, isolation
+holds (Hollings query scoped to Webb = 0 leak), and the Client Map renders with
+clean citation pills + spacing (B2).
+
+---
+
 
 ## A. Auto-import / indexing (the clean "open a workspace" flow)
 
