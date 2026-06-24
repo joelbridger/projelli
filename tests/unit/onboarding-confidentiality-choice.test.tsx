@@ -354,7 +354,7 @@ describe('TrustStep — trust sentence', () => {
     expect(screen.getByTestId('onboarding-trust-sentence').textContent)
       .toMatch(/In Local-only mode/i);
     expect(screen.getByTestId('onboarding-trust-sentence').textContent)
-      .toMatch(/nothing about your matters leaves this device/i);
+      .toMatch(/nothing about your clients leaves this device/i);
   });
 
   it('trust sentence contains no em dashes', () => {
