@@ -3,7 +3,7 @@
     "title": "Keepance — Board Dashboard",
     "subtitle": "The private client-intelligence layer for a financial-advisory practice",
     "framing": "Jameson = Board of Directors  ·  Claude = CEO reporting in",
-    "lastUpdated": "2026-06-24",
+    "lastUpdated": "June 24, 2026",
     "headline": "STRATEGY SHIFT (2026-06-24): Keepance is re-aiming from law firms to FINANCIAL ADVISORS. The core unit becomes a client / household, not a legal matter. This is a continuation, not a rebuild: the advisor product was largely designed-in already (an advisor mode, a 7-template Advisor Practice Pack, a financial-advisors website page, and a Client Map built to treat 'household' as the advisor unit). The only real demand signal Keepance ever got came from the advisor side (a CFP), while the law ICP was never validated. We reuse the engine and re-skin the experience. The binding constraint is unchanged and is NOT features: it is distribution + trust. #1 job right now is an impressive, reliable advisor demo, then hand-selling the first advisors through the design partner (Journey Beyond Wealth).",
     "updateRule": "High bar: a Claude session only updates this for a MAJOR decision, a validated insight, a strategy shift, or a real milestone. Routine work never touches it. Jameson maintains it freely."
   },
@@ -28,9 +28,18 @@
         "The binding constraint is distribution + trust, NOT product features. The demo is the entry ticket; selling is the real work."
       ],
       "links": [
-        { "label": "🧭 Product Strategy — vision, personas, metrics, prioritization, roadmap", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-product-strategy.html" },
-        { "label": "🛠️ Re-Aim Build Brief — the technical legal→advisor plan", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-reaim-legal-to-advisors.html" },
-        { "label": "📣 CEO Brief — getting & keeping paying advisors", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-ceo-brief-get-keep-customers.html" }
+        {
+          "label": "🧭 Product Strategy — vision, personas, metrics, prioritization, roadmap",
+          "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-product-strategy.html"
+        },
+        {
+          "label": "🛠️ Re-Aim Build Brief — the technical legal→advisor plan",
+          "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-reaim-legal-to-advisors.html"
+        },
+        {
+          "label": "📣 CEO Brief — getting & keeping paying advisors",
+          "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-ceo-brief-get-keep-customers.html"
+        }
       ]
     },
     {
@@ -73,7 +82,10 @@
         }
       ],
       "links": [
-        { "label": "🗺️ Product Strategy — the full roadmap + the feedback engine that reshapes it", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-product-strategy.html" }
+        {
+          "label": "🗺️ Product Strategy — the full roadmap + the feedback engine that reshapes it",
+          "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-product-strategy.html"
+        }
       ]
     },
     {
@@ -112,8 +124,14 @@
         "The demo path must be reliable before it's shown to an advisor."
       ],
       "links": [
-        { "label": "📞 Cold-Calling Guide — scripts, discovery questions & objection answers", "doc": "cold-call-guide.html" },
-        { "label": "📣 CEO Brief — channels, the trust gate, onboarding, the 90-day plan", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-ceo-brief-get-keep-customers.html" }
+        {
+          "label": "📞 Cold-Calling Guide — scripts, discovery questions & objection answers",
+          "doc": "cold-call-guide.html"
+        },
+        {
+          "label": "📣 CEO Brief — channels, the trust gate, onboarding, the 90-day plan",
+          "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-ceo-brief-get-keep-customers.html"
+        }
       ]
     },
     {
@@ -169,7 +187,10 @@
         "Connectors to outside systems still carry vendor-access and scope risk — keep them thin, read-only, and behind the demo."
       ],
       "links": [
-        { "label": "🛠️ Re-Aim Build Brief — domain mapping, reuse/relabel/drop, workstreams", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-reaim-legal-to-advisors.html" }
+        {
+          "label": "🛠️ Re-Aim Build Brief — domain mapping, reuse/relabel/drop, workstreams",
+          "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-reaim-legal-to-advisors.html"
+        }
       ]
     },
     {
@@ -245,13 +266,48 @@
       "status": "Open decisions for the board",
       "now": "Decisions and questions where Jameson (Board) makes the call. The five open ones below are the decisions the product strategy needs from him; the two at the bottom are earlier researched answers that still hold.",
       "questions": [
-        { "q": "Time split: will you commit at least half your week to customers (selling, design partner) vs. building?", "status": "open", "answer": "Recommendation: yes, at least half, starting now. The build trap (a designer hiding in code) is the #1 risk; Claude/Codex build, your unique job is customers.", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-ceo-brief-get-keep-customers.html" },
-        { "q": "Beachhead: are solo / small fee-only RIAs the right first target?", "status": "open", "answer": "Recommendation: yes — they own their stack and the local-first story lands hardest. Override only if your warmest access is a different niche.", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-product-strategy.html" },
-        { "q": "Pricing: test a higher advisor price (or a new advisor tier) rather than inherit the lawyer pricing?", "status": "open", "answer": "Recommendation: yes, test higher. Advisors spend $6-12K/yr on software; ~$1K is cheap, and too-low can read as not-serious.", "doc": "" },
-        { "q": "SOC 2 timing: defer it until a real deal demands it, leading with the local-first answer until then?", "status": "open", "answer": "Recommendation: yes, defer. Form the LLC now; lead with no-vendor-server; pay for SOC 2 only when a customer says 'I'll sign once you have it.'", "doc": "" },
-        { "q": "North Star: steer by 'weekly active advisors who ran a real client workflow'?", "status": "open", "answer": "Recommendation: yes. It captures real value delivered, not vanity signups. The full metric tree is in the Product Strategy report.", "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-product-strategy.html" },
-        { "q": "Do our target users use Mac or Windows more?", "status": "answered", "answer": "Windows, by a wide margin, for the original (law) analysis (~81% Windows). Advisors are also predominantly Windows, though we lack advisor-specific first-party data yet. Takeaway unchanged: polish Windows first, support Mac as a strong second, keep Linux a low-priority long tail. Worth turning on OS tracking once traffic is real.", "doc": "q-platform-windows-vs-mac.html" },
-        { "q": "What else could I be doing with AI to push this project forward?", "status": "answered", "answer": "The highest-leverage moves aren't 'write more code': (1) have AI drive/test the real Windows app like a user daily; (2) build one realistic advisor sample household as both the test yardstick and the demo; (3) run an AI lead-finding engine surfacing target advisors weekly with tailored outreach you approve. Plus an AI sales copilot. Skip social spam and big autonomous agents.", "doc": "q-ai-opportunities.html" }
+        {
+          "q": "Time split: will you commit at least half your week to customers (selling, design partner) vs. building?",
+          "status": "open",
+          "answer": "Recommendation: yes, at least half, starting now. The build trap (a designer hiding in code) is the #1 risk; Claude/Codex build, your unique job is customers.",
+          "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-ceo-brief-get-keep-customers.html"
+        },
+        {
+          "q": "Beachhead: are solo / small fee-only RIAs the right first target?",
+          "status": "open",
+          "answer": "Recommendation: yes — they own their stack and the local-first story lands hardest. Override only if your warmest access is a different niche.",
+          "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-product-strategy.html"
+        },
+        {
+          "q": "Pricing: test a higher advisor price (or a new advisor tier) rather than inherit the lawyer pricing?",
+          "status": "open",
+          "answer": "Recommendation: yes, test higher. Advisors spend $6-12K/yr on software; ~$1K is cheap, and too-low can read as not-serious.",
+          "doc": ""
+        },
+        {
+          "q": "SOC 2 timing: defer it until a real deal demands it, leading with the local-first answer until then?",
+          "status": "open",
+          "answer": "Recommendation: yes, defer. Form the LLC now; lead with no-vendor-server; pay for SOC 2 only when a customer says 'I'll sign once you have it.'",
+          "doc": ""
+        },
+        {
+          "q": "North Star: steer by 'weekly active advisors who ran a real client workflow'?",
+          "status": "open",
+          "answer": "Recommendation: yes. It captures real value delivered, not vanity signups. The full metric tree is in the Product Strategy report.",
+          "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-product-strategy.html"
+        },
+        {
+          "q": "Do our target users use Mac or Windows more?",
+          "status": "answered",
+          "answer": "Windows, by a wide margin, for the original (law) analysis (~81% Windows). Advisors are also predominantly Windows, though we lack advisor-specific first-party data yet. Takeaway unchanged: polish Windows first, support Mac as a strong second, keep Linux a low-priority long tail. Worth turning on OS tracking once traffic is real.",
+          "doc": "q-platform-windows-vs-mac.html"
+        },
+        {
+          "q": "What else could I be doing with AI to push this project forward?",
+          "status": "answered",
+          "answer": "The highest-leverage moves aren't 'write more code': (1) have AI drive/test the real Windows app like a user daily; (2) build one realistic advisor sample household as both the test yardstick and the demo; (3) run an AI lead-finding engine surfacing target advisors weekly with tailored outreach you approve. Plus an AI sales copilot. Skip social spam and big autonomous agents.",
+          "doc": "q-ai-opportunities.html"
+        }
       ]
     },
     {
@@ -270,6 +326,51 @@
         "The income math: at ~$948/yr that's ~315 customers for $300K; at the firm price, fewer. Roughly 150-350 paying customers / seats for the goal, well under 0.1% of the market.",
         "SOC 2 / DPA / a formed entity are the firm-tier trust moat; defer SOC 2 until a deal needs it, but form the LLC now.",
         "Re-run the model with real numbers only after the first ~10 advisors; until then, don't steer by it."
+      ]
+    },
+    {
+      "id": "demo",
+      "type": "demo",
+      "icon": "🎬",
+      "title": "Demo",
+      "status": "ready to run",
+      "now": "The advisor demo in four beats: onboard as an advisor, import a client's real files, watch the Client Map build itself, then ask the file anything and get cited answers. Runs in about 8 to 10 minutes, and everything stays on the machine.",
+      "intro": "What it proves: Keepance turns a pile of a client's files into a living, cited Client Map you can ask anything, all on your own computer, with no client data sent to an AI vendor.",
+      "steps": [
+        {
+          "n": "1",
+          "title": "Onboard as an advisor",
+          "do": "Open Keepance for the first time. Choose Financial advisor when it asks what you do. Pick a local folder for your work, and add your AI key or choose a local model.",
+          "say": "This is your private workspace. It runs on your machine. You bring your own AI, or run it fully offline. Keepance itself never sees your clients' data.",
+          "proves": "It is advisor-native and private from the very first screen. There is no vendor in the middle."
+        },
+        {
+          "n": "2",
+          "title": "Import a client's files",
+          "do": "Create the household (use the Hendricks sample). Point Keepance at their folder: the financial plan, account statements, meeting notes, an email thread, and the beneficiary and estate notes. It imports and indexes them locally.",
+          "say": "Drop in everything you already have on this household. It stays in your own folders, on your own computer. Nothing is uploaded anywhere.",
+          "proves": "Real, scattered client material goes in, and none of it leaves the machine."
+        },
+        {
+          "n": "3",
+          "title": "The Client Map builds itself",
+          "do": "Open the Client Map. Watch it assemble from those files: household and key people, goals and priorities, accounts and holdings, risk and suitability, and a timeline of next actions. It flags gaps, like a risk profile that is over a year old, and cites where each fact came from.",
+          "say": "You did not fill any of this in. Keepance read the files and built the picture, and it tells you what is missing.",
+          "proves": "The map is generated from the client's real materials, with citations and gaps surfaced. This is the heart of the product."
+        },
+        {
+          "n": "4",
+          "title": "Ask the file anything",
+          "do": "In search, ask a real pre-meeting question: what did we decide about the Roth conversion, and where is that in writing? Read the short answer, then click the citation to open the exact file. Then ask: what is still open before their review?",
+          "say": "Now you can walk into any meeting and ask the file anything. Every answer points back to the source, so you can trust it and show your work.",
+          "proves": "Private, cited AI across the whole client. This is the private ChatGPT that actually knows your clients."
+        }
+      ],
+      "tips": [
+        "Have the Hendricks sample household loaded and an AI key set before you start, so beat 2 onward is instant.",
+        "Building the Client Map live takes a moment. Narrate the privacy story (files stay local, you chose the AI) while it works.",
+        "Point at the egress indicator in the top bar: it shows exactly where each AI request went, or that nothing left the machine.",
+        "End on the cited answer in beat 4. It is the strongest moment: trustworthy AI that knows this specific client."
       ]
     }
   ]
