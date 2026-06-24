@@ -13,8 +13,23 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { reindexFolderPaths } from './useMemoryWiring';
-import { MemoryService } from '@/platform/rag/MemoryService';
+
+vi.mock('@/platform/utils/mail-commands', () => ({
+  mailBackfillRag: vi.fn().mockResolvedValue(undefined),
+  mailRetagFolderMatter: vi.fn().mockResolvedValue(undefined),
+  mailSetWorkspace: vi.fn().mockResolvedValue(undefined),
+}));
+
+import {
+  buildWorkspaceAbsolutePath,
+  reindexFolderPaths,
+  startFullIndex,
+} from './useMemoryWiring';
+import {
+  MemoryService,
+  resetPdfIndexingEnabledReader,
+  setPdfIndexingEnabledReader,
+} from '@/platform/rag/MemoryService';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { FileNode } from '@/platform/types/workspace';
@@ -28,6 +43,8 @@ vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
     ...original,
     MemoryService: {
       ...original.MemoryService,
+      indexPdfFile: vi.fn().mockResolvedValue({ indexed: true, pageCount: 1 }),
+      indexWorkspace: vi.fn().mockResolvedValue(undefined),
       reindexPaths: vi.fn().mockResolvedValue(undefined),
     },
   };
@@ -68,15 +85,31 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
   // Typed reference to the mock so assertions use a local variable (avoids
   // the @typescript-eslint/unbound-method rule when passing methods to expect).
   let reindexPaths: ReturnType<typeof vi.fn>;
+  let indexPdfFile: ReturnType<typeof vi.fn>;
+  let indexWorkspace: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     // eslint-disable-next-line @typescript-eslint/unbound-method
     reindexPaths = vi.mocked(MemoryService.reindexPaths);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    indexPdfFile = vi.mocked(MemoryService.indexPdfFile);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    indexWorkspace = vi.mocked(MemoryService.indexWorkspace);
+    resetPdfIndexingEnabledReader();
     // Start with a stale/empty in-memory file tree to simulate the bug scenario.
-    useWorkspaceStore.setState({ fileTree: [] });
+    useWorkspaceStore.setState({ rootPath: null, fileTree: [] });
     // Clear matters so each test sets its own state.
     useMatterStore.setState({ matters: [], activeMatterId: null });
+  });
+
+  it('builds native absolute paths from workspace-relative paths', () => {
+    expect(
+      buildWorkspaceAbsolutePath('C:\\ws\\Northcrest', 'Clients/Acme/x.docx'),
+    ).toBe('C:\\ws\\Northcrest\\Clients\\Acme\\x.docx');
+    expect(
+      buildWorkspaceAbsolutePath('/ws/Northcrest', 'Clients/Acme/x.docx'),
+    ).toBe('/ws/Northcrest/Clients/Acme/x.docx');
   });
 
   it('indexes files found on disk even when the cached fileTree is empty', async () => {
@@ -227,5 +260,119 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
     await reindexFolderPaths(['/workspace/Acme'], ws);
 
     expect(reindexPaths).not.toHaveBeenCalled();
+  });
+
+  it('reindexes office/text files with absolute paths and reindexes PDFs with relative paths', async () => {
+    const matterId = 'matter-acme';
+    const folder = 'Clients/Acme';
+
+    setPdfIndexingEnabledReader(() => true);
+    useWorkspaceStore.setState({
+      rootPath: 'C:\\ws\\Northcrest',
+      fileTree: [],
+    });
+    useMatterStore.setState({
+      matters: [makeMatter(matterId, [folder])],
+      activeMatterId: null,
+    });
+
+    const diskTree = [
+      makeFolder(folder, [
+        makeFile('Clients/Acme/plan.docx'),
+        makeFile('Clients/Acme/notes.txt'),
+        makeFile('Clients/Acme/statement.pdf'),
+      ]),
+    ];
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      readFileBinary: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+      getFileTree: vi.fn().mockResolvedValue(diskTree),
+    };
+
+    await reindexFolderPaths([folder], ws);
+
+    expect(reindexPaths).toHaveBeenCalledTimes(1);
+    const [calledPaths, calledMatterId] = reindexPaths.mock.calls[0] as [string[], string];
+    expect(calledMatterId).toBe(matterId);
+    expect(calledPaths).toEqual([
+      'C:\\ws\\Northcrest\\Clients\\Acme\\plan.docx',
+      'C:\\ws\\Northcrest\\Clients\\Acme\\notes.txt',
+    ]);
+    expect(calledPaths).not.toContain('Clients/Acme/statement.pdf');
+
+    expect(indexPdfFile).toHaveBeenCalledTimes(1);
+    const [pdfPath, pdfWorkspace] = indexPdfFile.mock.calls[0] as [
+      string,
+      { readBinary: (path: string) => Promise<ArrayBuffer> },
+    ];
+    expect(pdfPath).toBe('Clients/Acme/statement.pdf');
+    expect(typeof pdfWorkspace.readBinary).toBe('function');
+  });
+
+  it('skips PDFs during folder reindex when PDF indexing is disabled', async () => {
+    const matterId = 'matter-acme';
+    const folder = 'Clients/Acme';
+
+    useWorkspaceStore.setState({
+      rootPath: '/ws/Northcrest',
+      fileTree: [],
+    });
+    useMatterStore.setState({
+      matters: [makeMatter(matterId, [folder])],
+      activeMatterId: null,
+    });
+
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      readFileBinary: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+      getFileTree: vi.fn().mockResolvedValue([
+        makeFolder(folder, [makeFile('Clients/Acme/statement.pdf')]),
+      ]),
+    };
+
+    await reindexFolderPaths([folder], ws);
+
+    expect(reindexPaths).not.toHaveBeenCalled();
+    expect(indexPdfFile).not.toHaveBeenCalled();
+  });
+
+  it('retags existing matter folders after the initial full workspace index', async () => {
+    const matterId = 'matter-acme';
+    const folder = 'Clients/Acme';
+
+    useWorkspaceStore.setState({
+      rootPath: '/ws/Northcrest',
+      fileTree: [],
+    });
+    useMatterStore.setState({
+      matters: [makeMatter(matterId, [folder])],
+      activeMatterId: null,
+    });
+
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      getFileTree: vi.fn().mockResolvedValue([
+        makeFolder(folder, [makeFile('Clients/Acme/plan.docx')]),
+      ]),
+    };
+    const indexPromise = Promise.resolve().then(() => {
+      expect(reindexPaths).not.toHaveBeenCalled();
+    });
+    indexWorkspace.mockReturnValue(indexPromise);
+
+    await startFullIndex(ws);
+
+    expect(indexWorkspace).toHaveBeenCalledTimes(1);
+    expect(reindexPaths).toHaveBeenCalledTimes(1);
+    expect(reindexPaths).toHaveBeenCalledWith(
+      ['/ws/Northcrest/Clients/Acme/plan.docx'],
+      matterId,
+    );
   });
 });
