@@ -242,7 +242,17 @@ and may think the rest were ignored. **Product/UX issue** (see §7, BUG-D).
   no error). This was found ONLY by driving the real app — it has no unit test.
   **Add a regression test** that renders `ClientMapTemplates` and asserts no loop.
 
-- **BUG-A (correctness, real): per-client tagging doesn't "just work" on import.**
+- **BUG-A — FIXED + Windows-verified (merged to keepance-3.0, commit `553ba78d`).**
+  Mapping a client folder now tags ALL its file types: `reindexFolderPaths`
+  re-indexes office/text with the **absolute** disk path (so `rag_index_file` can
+  read it + upsert the walk's chunk in place) and routes **PDFs** through
+  `indexPdfFile` (which it used to skip), plus a one-time retag after the initial
+  index for matters mapped at import. Verified in the real UI on Windows: created
+  a client, toggled the `_Firm` folder → client-scoped results went 0 → 18
+  (Word + Excel + PowerPoint + **PDF**). Edge case: if a workspace is opened with
+  a non-native path separator, an old `unassigned` office duplicate can linger
+  until a clean re-index (PDFs unaffected). Original (now-fixed) description:
+  per-client tagging didn't "just work" on import —
   The office/text bulk walk tags every chunk `unassigned`; per-client tagging only
   fires on a *folder-mapping change*, and that retag path (`reindexPaths` →
   `rag_index_file`) is fed **workspace-relative** paths while `rag_index_file`
