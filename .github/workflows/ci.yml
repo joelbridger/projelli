@@ -115,11 +115,6 @@ jobs:
     # change that breaks a screen is caught HERE, before the slow real-Windows bench.
     # AI is offline — the one live-network test is skipped via E2E_NO_LIVE.
     runs-on: ubuntu-latest
-    # TEMP — informational, NOT blocking. ~25 specs are CI-environment-sensitive
-    # (state/onboarding/demo-mode/visual-snapshot differences from local) and are being
-    # stabilized. The suite still runs and reports here; once green on a clean runner,
-    # REMOVE continue-on-error to make this a hard pre-merge gate.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Install Node.js
@@ -133,23 +128,16 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Build E2E preview bundle
         run: npx vite build --config vite.config.e2e.ts
-      - name: Run browser E2E gate (chromium, sharded, no live AI)
+      - name: Run browser E2E gate (chromium, offline AI, CI-stable subset)
         env:
           E2E_NO_LIVE: '1'
+          # Quarantine the 12 CI-environment-sensitive specs (see playwright.config.ts)
+          # so the gate is a trustworthy green hard-gate. They run locally + nightly.
+          E2E_CI_QUARANTINE: '1'
         run: |
           npx vite preview --config vite.config.e2e.ts --port 4173 --strictPort >/tmp/e2e-preview.log 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:4173 >/dev/null 2>&1 && break; sleep 1; done
-          # Run in SEQUENTIAL fresh-process shards. A single Playwright process running
-          # all ~254 tests accumulates memory and starves later tests of their
-          # toBeVisible timeouts on a small CI runner (see docs/quality/e2e-suite-batching.md);
-          # a fresh process per shard reclaims memory between batches.
-          fail=0
-          for k in 1 2 3 4; do
-            echo "::group::E2E shard ${k}/4"
-            E2E_BASE_URL=http://localhost:4173 npx playwright test --project=chromium --shard="${k}/4" --reporter=line || fail=1
-            echo "::endgroup::"
-          done
-          exit $fail
+          E2E_BASE_URL=http://localhost:4173 npx playwright test --project=chromium --reporter=line
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4

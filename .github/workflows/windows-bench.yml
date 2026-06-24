@@ -10,6 +10,10 @@ name: Windows Bench (robot smoke)
 
 on:
   workflow_dispatch:
+  schedule:
+    # Nightly hands-free real-app Windows smoke (~02:00 Mountain). The bench app
+    # (KeepanceDev) and the self-hosted runner are always-on. Manual: gh workflow run.
+    - cron: '0 9 * * *'
 
 concurrency:
   group: windows-bench
