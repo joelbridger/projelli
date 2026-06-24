@@ -665,8 +665,7 @@
      .kpfit-core-inner img{width:60px;height:60px;}
      .kpfit-core-name{font-size:1.05rem;font-weight:800;color:var(--ink);letter-spacing:-.01em;}
      .kpfit-core-tag{font-size:11.5px;font-weight:600;color:#64748B;line-height:1.5;margin-top:-6px;}
-     .kpfit-node{background:#fff;border:1px solid var(--border);border-radius:13px;padding:14px 14px 11px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:74px;box-shadow:0 2px 8px rgba(16,31,53,.05);transition:transform .18s,box-shadow .18s;}
-     .kpfit-node:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(16,31,53,.12);}
+     .kpfit-node{background:#fff;border:1px solid var(--border);border-radius:13px;padding:14px 14px 11px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:74px;box-shadow:0 2px 8px rgba(16,31,53,.05);}
      .kpfit-node img{max-width:118px;max-height:24px;width:auto;height:auto;object-fit:contain;display:block;}
      .kpfit-node .cat{font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#94A3B8;}
 
@@ -680,7 +679,7 @@
        .kpfit-n1{left:380px;top:80px}.kpfit-n2{left:592px;top:136px}.kpfit-n3{left:680px;top:270px}.kpfit-n4{left:592px;top:404px}
        .kpfit-n5{left:380px;top:460px}.kpfit-n6{left:168px;top:404px}.kpfit-n7{left:80px;top:270px}.kpfit-n8{left:168px;top:136px}
      }
-     .kpfit-spokes line{stroke:url(#kg);stroke-width:1.5;opacity:.5;}
+     .kpfit-spokes line{stroke:url(#kg);stroke-width:1.6;opacity:.85;}
      .kpfit-spokes ellipse{fill:none;stroke:#CBD8E6;stroke-dasharray:3 7;stroke-width:1.4;opacity:.7;}
      .kpfit-spokes circle.pulse{fill:#5DC6FF;}
 
@@ -697,21 +696,16 @@
      .kpfit-foot{text-align:center;font-size:13.5px;color:var(--body);margin:26px auto 0;max-width:600px;line-height:1.7;}
      .kpfit-foot b{color:var(--ink);font-weight:600;}
     </style>
-    <section class="kpfit">
+    <section class="kpfit" id="fits">
      <svg width="0" height="0" style="position:absolute"><defs><linearGradient id="kg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF3CE8"/><stop offset="1" stop-color="#5DC6FF"/></linearGradient></defs></svg>
      <div class="kpfit-wrap">
       <div class="kpfit-head">
-       <span class="kpfit-eyebrow">Where Keepance fits</span>
-       <h2>You already pay for a dozen tools. Keepance isn&rsquo;t a thirteenth.</h2>
-       <p>It sits in the middle of the ones you use, reads across all of it, and answers any question about a household <b>with a citation you can click</b>. Your client data stays on your own machine.</p>
+       <h2>Where Keepance fits</h2>
+       <p>You already pay for a dozen tools. Keepance isn&rsquo;t a thirteenth. It sits in the middle of the ones you use, reads across all of it, and answers any question about a household <b>with a citation you can click</b>. Your client data stays on your own machine.</p>
       </div>
 
       <div class="kpfit-orbit">
-       <svg class="kpfit-spokes" viewBox="0 0 760 560" preserveAspectRatio="none" aria-hidden="true">
-        <ellipse cx="380" cy="270" rx="300" ry="190"/>
-        <line x1="380" y1="270" x2="380" y2="80"/><line x1="380" y1="270" x2="592" y2="136"/><line x1="380" y1="270" x2="680" y2="270"/><line x1="380" y1="270" x2="592" y2="404"/>
-        <line x1="380" y1="270" x2="380" y2="460"/><line x1="380" y1="270" x2="168" y2="404"/><line x1="380" y1="270" x2="80" y2="270"/><line x1="380" y1="270" x2="168" y2="136"/>
-       </svg>
+       <svg class="kpfit-spokes" viewBox="0 0 760 560" preserveAspectRatio="none" aria-hidden="true"><defs><marker id="kparrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#5DC6FF"/></marker></defs><ellipse cx="380" cy="270" rx="300" ry="190"/><line x1="380" y1="80" x2="380" y2="192" marker-end="url(#kparrow)"/><line x1="592" y1="136" x2="446" y2="228" marker-end="url(#kparrow)"/><line x1="680" y1="270" x2="458" y2="270" marker-end="url(#kparrow)"/><line x1="592" y1="404" x2="446" y2="312" marker-end="url(#kparrow)"/><line x1="380" y1="460" x2="380" y2="348" marker-end="url(#kparrow)"/><line x1="168" y1="404" x2="314" y2="312" marker-end="url(#kparrow)"/><line x1="80" y1="270" x2="302" y2="270" marker-end="url(#kparrow)"/><line x1="168" y1="136" x2="314" y2="228" marker-end="url(#kparrow)"/></svg>
 
        <div class="kpfit-core">
         <div class="kpfit-core-ring"><div class="kpfit-core-inner"><img src="/images/stack-logos/keepance-mark-white.svg" alt="Keepance"></div></div>
