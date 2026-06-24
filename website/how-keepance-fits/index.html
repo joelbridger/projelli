@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How Keepance fits with your advisor tech stack</title>
+  <meta name="description" content="Keepance is the private layer over the tools financial advisors already use. See exactly how it works alongside Wealthbox, RightCapital, Holistiplan, Schwab, Microsoft 365, Jump and more, with a detailed comparison.">
+  <link rel="canonical" href="https://keepance.com/how-keepance-fits/">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="Jameson Daines">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://keepance.com/how-keepance-fits/">
+  <meta property="og:title" content="How Keepance fits with your advisor tech stack">
+  <meta property="og:description" content="Keepance sits in the middle of the tools you already use, reads across all of it, and answers with citations. Your client data stays on your machine.">
+  <meta property="og:site_name" content="Keepance">
+  <meta property="og:image" content="https://keepance.com/press-kit/assets/og-linkedin-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="627">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="How Keepance fits with your advisor tech stack">
+  <meta name="twitter:description" content="Not a replacement for your CRM, planner, or custodian. The private layer that reads across the tools you already use.">
+  <meta name="twitter:image" content="https://keepance.com/press-kit/assets/og-twitter-card.png">
+
+  <!-- Plausible Analytics (self-hosted) -->
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+
+  <style>
+    :root {
+      --navy: #0A2540;
+      --navy-mid: #12345A;
+      --grad-pink: #FF3CE8;
+      --grad-blue: #5DC6FF;
+      --bone: #F5F5F0;
+      --bone-dark: #EEEEE8;
+      --white: #FFFFFF;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #475569;
+      --border: #E2E8F0;
+      --text-on-dark: rgba(255,255,255,0.85);
+      --text-muted-dark: #B6C4D6;
+      --container: 1100px;
+      --section: 88px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 16px; }
+    body {
+      font-family: 'Satoshi', system-ui, sans-serif;
+      background: var(--bone);
+      color: var(--text-body);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .container {
+      width: 100%;
+      max-width: var(--container);
+      margin: 0 auto;
+      padding: 0 28px;
+    }
+
+    /* ============================================================
+       BUTTONS
+    ============================================================ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Satoshi', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      border-radius: 6px;
+      padding: 12px 28px;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--grad-pink) 0%, var(--grad-blue) 100%);
+      color: var(--white);
+    }
+    .btn-primary:hover { filter: brightness(1.08); }
+    .btn-outline {
+      background: transparent;
+      color: var(--text-heading);
+      border: 1.5px solid var(--border);
+    }
+    .btn-outline:hover { border-color: var(--navy); }
+
+    /* ============================================================
+       PAGE HEADER (light, no dark hero)
+    ============================================================ */
+    .page-header {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 96px 0 72px;
+    }
+    .page-header-inner {
+      max-width: 700px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .page-eyebrow {
+      display: inline-block;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--grad-pink);
+      margin-bottom: 18px;
+    }
+    .page-header h1 {
+      font-size: clamp(1.9rem, 3.5vw, 2.6rem);
+      font-weight: 800;
+      color: var(--text-heading);
+      line-height: 1.15;
+      letter-spacing: -0.025em;
+      margin-bottom: 20px;
+    }
+    .page-header-sub {
+      font-size: 1.0625rem;
+      color: var(--text-body);
+      line-height: 1.75;
+      max-width: 600px;
+      margin: 0 auto 32px;
+    }
+    .page-header-ctas {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* ============================================================
+       SECTION PRIMITIVES
+    ============================================================ */
+    section { padding: var(--section) 0; }
+    .section-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--grad-pink);
+      margin-bottom: 12px;
+    }
+    h2 {
+      font-size: clamp(1.65rem, 2.6vw, 2.1rem);
+      font-weight: 700;
+      color: var(--text-heading);
+      line-height: 1.22;
+      letter-spacing: -0.02em;
+    }
+    .section-header {
+      text-align: center;
+      max-width: 620px;
+      margin: 0 auto 56px;
+    }
+    .section-header h2 { margin-bottom: 14px; }
+    .section-header p {
+      font-size: 1.0625rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    /* ============================================================
+       VERTICAL STACK CARDS
+    ============================================================ */
+    .verticals-section { background: var(--bone); }
+    .vertical-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+    @media (max-width: 768px) {
+      .vertical-grid { grid-template-columns: 1fr; }
+    }
+    .vertical-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .vertical-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(135deg, var(--grad-pink) 0%, var(--grad-blue) 100%);
+    }
+    .vertical-card-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      background: var(--navy);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+    }
+    .vertical-card-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: var(--grad-blue);
+      fill: none;
+      stroke-width: 1.75;
+    }
+    .vertical-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 6px;
+      line-height: 1.3;
+    }
+    .vertical-card .their-stack {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      margin-bottom: 14px;
+    }
+    .vertical-card p {
+      font-size: 14px;
+      color: var(--text-body);
+      line-height: 1.7;
+    }
+    .vertical-card .round-trip {
+      margin-top: 18px;
+      padding: 14px 16px;
+      background: var(--bone);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text-body);
+      line-height: 1.65;
+    }
+    .vertical-card .round-trip strong {
+      color: var(--text-heading);
+      font-weight: 600;
+    }
+
+    /* ============================================================
+       ROUND TRIP SECTION
+    ============================================================ */
+    .roundtrip-section { background: var(--white); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .roundtrip-steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+      margin-top: 48px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    @media (max-width: 700px) {
+      .roundtrip-steps { grid-template-columns: 1fr; }
+    }
+    .roundtrip-step {
+      padding: 32px 28px;
+      border-right: 1px solid var(--border);
+      position: relative;
+    }
+    .roundtrip-step:last-child { border-right: none; }
+    @media (max-width: 700px) {
+      .roundtrip-step { border-right: none; border-bottom: 1px solid var(--border); }
+      .roundtrip-step:last-child { border-bottom: none; }
+    }
+    .roundtrip-step-num {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--grad-pink);
+      margin-bottom: 14px;
+    }
+    .roundtrip-step h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 10px;
+      line-height: 1.3;
+    }
+    .roundtrip-step p {
+      font-size: 14px;
+      color: var(--text-body);
+      line-height: 1.7;
+    }
+    .roundtrip-step .formats {
+      margin-top: 12px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .format-tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 4px;
+      background: rgba(93,198,255,0.08);
+      border: 1px solid rgba(93,198,255,0.2);
+      color: var(--navy);
+      letter-spacing: 0.04em;
+    }
+
+    /* ============================================================
+       WHAT IT IS NOT SECTION
+    ============================================================ */
+    .notsection { background: var(--bone); }
+    .not-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      max-width: 820px;
+      margin: 0 auto;
+    }
+    @media (max-width: 640px) {
+      .not-grid { grid-template-columns: 1fr; }
+    }
+    .not-item {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px 22px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .not-x {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: rgba(148,163,184,0.15);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .not-x svg {
+      width: 12px;
+      height: 12px;
+      stroke: var(--text-muted);
+      stroke-width: 2.5;
+      fill: none;
+    }
+    .not-item-text h4 {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 6px;
+      line-height: 1.3;
+    }
+    .not-item-text p {
+      font-size: 13.5px;
+      color: var(--text-body);
+      line-height: 1.65;
+    }
+
+    /* ============================================================
+       CTA STRIP
+    ============================================================ */
+    .cta-strip {
+      background: var(--navy);
+      padding: 64px 0;
+    }
+    .cta-strip-inner {
+      text-align: center;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .cta-strip h2 {
+      color: var(--white);
+      font-size: clamp(1.5rem, 2.4vw, 1.9rem);
+      margin-bottom: 14px;
+    }
+    .cta-strip p {
+      font-size: 1rem;
+      color: rgba(255,255,255,0.74);
+      line-height: 1.7;
+      margin-bottom: 28px;
+    }
+    .cta-strip-btns {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn-outline-light {
+      background: transparent;
+      color: var(--text-on-dark);
+      border: 1.5px solid rgba(255,255,255,0.22);
+    }
+    .btn-outline-light:hover {
+      border-color: rgba(255,255,255,0.68);
+      color: var(--white);
+    }
+
+    /* ============================================================
+       FOOTER
+    ============================================================ */
+    .footer {
+      background: var(--navy);
+      padding: 48px 0;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .footer-links a {
+      color: rgba(255,255,255,0.62);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: rgba(255,255,255,0.65); }
+    .footer-copy {
+      color: rgba(255,255,255,0.52);
+      font-size: 12px;
+    }
+
+    /* ============================================================
+       SCROLL ANIMATION
+    ============================================================ */
+    .anim {
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 0.42s ease, transform 0.42s ease;
+    }
+    .anim.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .anim { opacity: 1; transform: none; transition: none; }
+    }
+
+    /* ===== comparison table + per-tool write-ups ===== */
+    .cmp-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--white);}
+    .cmp{width:100%;border-collapse:collapse;min-width:820px;font-size:13.5px;}
+    .cmp th{text-align:left;background:var(--bone);color:var(--text-heading);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;padding:13px 16px;border-bottom:1px solid var(--border);font-weight:700;}
+    .cmp td{padding:15px 16px;border-bottom:1px solid var(--border);color:var(--text-body);vertical-align:top;line-height:1.55;}
+    .cmp tr:last-child td{border-bottom:none;}
+    .cmp .tool{font-weight:700;color:var(--text-heading);white-space:nowrap;}
+    .cmp .tool span{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--grad-pink);margin-top:4px;white-space:normal;}
+    .cmp td.fit{color:var(--text-heading);background:rgba(93,198,255,0.06);font-weight:500;}
+    .cmp th.fit{background:rgba(93,198,255,0.12);}
+    .fitlist{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--white);}
+    .fitrow{padding:28px;border-bottom:1px solid var(--border);}
+    .fitrow:last-child{border-bottom:none;}
+    .fitrow h3{font-size:1.0625rem;font-weight:700;color:var(--text-heading);margin-bottom:3px;}
+    .fitrow .names{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--grad-pink);margin-bottom:13px;}
+    .fitrow p{font-size:14.5px;color:var(--text-body);line-height:1.72;margin:0;}
+    .fitrow p+p{margin-top:10px;}
+    .fitrow .kp{color:var(--text-heading);font-weight:600;}
+  </style>
+</head>
+<body>
+
+  <main>
+
+    <!-- PAGE HEADER -->
+    <div class="page-header">
+      <div class="container">
+        <div class="page-header-inner">
+          <span class="page-eyebrow">How Keepance fits</span>
+          <h1>How Keepance fits with the tools you already use.</h1>
+          <p class="page-header-sub">
+            Keepance is not a CRM, a planner, a custodian, or a note-taker. It is the private layer that sits in the middle of your stack, reads across all of it, and answers any question about a household with citations you can click. Here is exactly how it works alongside each tool, and where it picks up the job none of them do.
+          </p>
+          <div class="page-header-ctas">
+            <a href="/download/" class="btn btn-primary">Download free for 30 days</a>
+            <a href="/try/" class="btn btn-outline">Try it in your browser</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPARISON TABLE -->
+    <section style="background:var(--bone);">
+      <div class="container">
+        <div class="section-header anim">
+          <span class="section-label">The quick version</span>
+          <h2>Your stack, and where Keepance fits</h2>
+          <p>Every tool below does its own job well. Keepance does not replace any of them. It reads across all of them and answers you, with proof.</p>
+        </div>
+        <div class="cmp-wrap anim">
+          <table class="cmp">
+            <thead>
+              <tr><th>Tool</th><th>What it does</th><th>What its AI does today</th><th class="fit">Where Keepance fits</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="tool">Wealthbox, Redtail, Salesforce<span>CRM</span></td>
+                <td>Contacts, notes, tasks, and the activity log. The hub your team works from.</td>
+                <td>Notetakers and assistants that query CRM data and draft messages (Wealthbox AI, Salesforce Agentforce).</td>
+                <td class="fit">Keepance reads from your CRM and answers across what it cannot see: the documents, the email history, the plan and the tax files. It hands CRM-ready drafts back without trying to be your system of record.</td>
+              </tr>
+              <tr>
+                <td class="tool">RightCapital, eMoney, MoneyGuidePro<span>Planning</span></td>
+                <td>Builds the financial plan and the projections.</td>
+                <td>AI that turns documents into plan inputs and flags plan gaps (RightCapital Smart Import and Iris, eMoney CoPlanner).</td>
+                <td class="fit">Keepance does not build plans or give advice. It preps you before you open the planner, telling you what changed and what is missing, and drafts the follow-up after, grounded in the real file.</td>
+              </tr>
+              <tr>
+                <td class="tool">Holistiplan, FP Alpha<span>Tax</span></td>
+                <td>Reads the tax return, finds planning moves, and builds client tax reports.</td>
+                <td>AI and OCR that read returns and estate documents and match tax strategies.</td>
+                <td class="fit">Keepance pulls those tax findings into the whole-client picture and answers questions that span the return, the emails about it, and the plan. It does not replace your tax tool.</td>
+              </tr>
+              <tr>
+                <td class="tool">Orion, Envestnet Tamarac, Black Diamond<span>Portfolio &amp; reporting</span></td>
+                <td>Trading, rebalancing, performance reports, and the client portal.</td>
+                <td>Platform AI assistants, next-best-action, and natural-language data queries.</td>
+                <td class="fit">Keepance reads the statements and reports you export and answers across them with the rest of the file. It is not a portfolio or reporting system.</td>
+              </tr>
+              <tr>
+                <td class="tool">Charles Schwab, Fidelity, Pershing<span>Custodian</span></td>
+                <td>Holds the accounts, moves the money, and issues the official statements.</td>
+                <td>Custodian dashboards and servicing tools.</td>
+                <td class="fit">Keepance never holds accounts or moves money. It reads the statements you keep in the client folder and answers questions about them.</td>
+              </tr>
+              <tr>
+                <td class="tool">Microsoft 365: Outlook, OneDrive, SharePoint<span>Email, files &amp; office AI</span></td>
+                <td>Where documents are written and stored, and where email lives.</td>
+                <td>Microsoft 365 Copilot drafts and searches across Microsoft apps through the Graph; Purview governs it.</td>
+                <td class="fit">Keepance reads your client folders and your Outlook history and answers with citations, including the non-Microsoft sources Copilot cannot see. The working copy stays on your machine, with no Keepance server in the path.</td>
+              </tr>
+              <tr>
+                <td class="tool">Jump, Zocks<span>Meeting notes</span></td>
+                <td>Record the meeting, write the notes and follow-ups, and push them to the CRM.</td>
+                <td>Notetaking, plus expanding assistants that act across the stack.</td>
+                <td class="fit">Keepance is not a recorder. It owns the client knowledge outside the meeting: years of documents and email, answered with citations. It works even if you do not run a meeting bot.</td>
+              </tr>
+              <tr>
+                <td class="tool">ChatGPT and consumer AI<span>General AI</span></td>
+                <td>Broad drafting and question answering.</td>
+                <td>General-purpose generation, trained on the public web.</td>
+                <td class="fit">Keepance gives you AI on your real client files without putting that client's private data into a consumer chat. Every answer is cited, and the data stays under your control.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="anim" style="text-align:center;margin-top:18px;font-size:13px;color:var(--text-muted);">Tool capabilities change quickly. This reflects what each vendor has shipped or announced as of mid-2026.</p>
+      </div>
+    </section>
+
+    <!-- PER-TOOL WRITE-UPS -->
+    <section style="background:var(--white);border-top:1px solid var(--border);">
+      <div class="container">
+        <div class="section-header anim">
+          <span class="section-label">The detailed version</span>
+          <h2>How Keepance works with each tool</h2>
+          <p>The same idea, tool by tool: your system keeps doing its job, and Keepance reads from it and answers across everything around it.</p>
+        </div>
+        <div class="fitlist anim">
+
+          <div class="fitrow">
+            <h3>Your CRM</h3>
+            <div class="names">Wealthbox &middot; Redtail &middot; Salesforce</div>
+            <p>Your CRM is the hub for contacts, notes, and tasks, and it is starting to add its own AI: Wealthbox now has an assistant and agents that answer questions about CRM records and draft messages. That AI is powerful, but it only knows what lives inside the CRM. The substance of a client, the signed documents, the tax return, the plan export, years of email, mostly lives outside it.</p>
+            <p><span class="kp">Keepance reads across all of that and answers with a citation back to the source.</span> You can ask "what has changed for the Smiths since our last meeting" and get an answer drawn from the files and email, then drop a clean summary back into the CRM. Keepance never tries to be your CRM.</p>
+          </div>
+
+          <div class="fitrow">
+            <h3>Your planning software</h3>
+            <div class="names">RightCapital &middot; eMoney &middot; MoneyGuidePro</div>
+            <p>Your planner builds the plan, and its AI is getting good at the data-entry around it: RightCapital can read a statement or transcript into plan inputs, and tools are adding agents that flag inconsistencies. Keepance does not build plans and does not give advice. That is your planner's job, and yours.</p>
+            <p><span class="kp">Keepance is the prep before and the drafting after.</span> Before a review it tells you what is new, what is missing, and what the client actually said they wanted. After, it drafts the review letter and the follow-up, grounded in the real file, so you are not starting from a blank page.</p>
+          </div>
+
+          <div class="fitrow">
+            <h3>Your tax tools</h3>
+            <div class="names">Holistiplan &middot; FP Alpha</div>
+            <p>These read a tax return or an estate document and surface planning moves, and they do it well. But a tax finding only matters in context: what the client emailed you about cash flow, what the plan assumes, what you discussed last year.</p>
+            <p><span class="kp">Keepance pulls the tax picture into the whole-client picture.</span> Ask a question that spans the return, the emails, and the plan, and get one cited answer instead of three open tabs.</p>
+          </div>
+
+          <div class="fitrow">
+            <h3>Your portfolio and reporting tools</h3>
+            <div class="names">Orion &middot; Envestnet Tamarac &middot; Black Diamond</div>
+            <p>These handle trading, rebalancing, performance, and the client portal, and the big platforms are adding their own AI assistants. Those work best when everything lives inside that one platform.</p>
+            <p><span class="kp">Keepance is the independent layer for advisors who are not all-in on one platform.</span> It reads the statements and reports you export, alongside everything else, and answers across them. It is not a portfolio or reporting system, and it never moves a trade.</p>
+          </div>
+
+          <div class="fitrow">
+            <h3>Your custodian</h3>
+            <div class="names">Charles Schwab &middot; Fidelity &middot; Pershing</div>
+            <p>Your custodian holds the accounts and issues the official statements. Keepance never touches the money and never holds an account.</p>
+            <p><span class="kp">It simply reads the statements you keep in the client folder</span> and answers questions about them in plain language, with the source one click away.</p>
+          </div>
+
+          <div class="fitrow">
+            <h3>Microsoft 365 and Copilot</h3>
+            <div class="names">Outlook &middot; OneDrive &middot; SharePoint &middot; Copilot</div>
+            <p>You already live in Outlook, Word, and OneDrive, and Microsoft 365 Copilot can search and draft across them. Copilot is strong, but it only sees the Microsoft world and whatever your firm has connected, it is not built around households, and it runs in the cloud.</p>
+            <p><span class="kp">Keepance is household-aware, reads your non-Microsoft sources too, and keeps the working copy on your machine.</span> You can run a local model so nothing leaves your computer, or use your own AI key so requests go straight to the provider you chose. There is no Keepance server in the path.</p>
+          </div>
+
+          <div class="fitrow">
+            <h3>Your meeting note-taker</h3>
+            <div class="names">Jump &middot; Zocks</div>
+            <p>AI note-takers are the breakout tool in advice for good reason: they remove painful admin from every meeting, and they are expanding into broader assistants. Keepance is deliberately not a recorder and does not sit in your meetings.</p>
+            <p><span class="kp">Keepance owns the client knowledge outside the meeting:</span> the years of documents and email that no note-taker captures. The two fit together cleanly, and Keepance works just as well for advisors who would rather not have a bot on the call.</p>
+          </div>
+
+          <div class="fitrow">
+            <h3>ChatGPT and consumer AI</h3>
+            <div class="names">General-purpose AI</div>
+            <p>Consumer AI is great for a generic first draft, but it does not know your clients, and putting a client's private financial details into a consumer chat is exactly what most firms are nervous about.</p>
+            <p><span class="kp">Keepance gives you real AI on your actual client files without that exposure.</span> Every answer is grounded in your own sources and cited, and you control where the data goes.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA STRIP -->
+    <section class="cta-strip">
+      <div class="container">
+        <div class="cta-strip-inner">
+          <h2>See it on one of your own clients</h2>
+          <p>Point Keepance at a single client folder and ask it a real question. 30-day free trial, no credit card. Works on Mac, Windows, and Linux.</p>
+          <div class="cta-strip-btns">
+            <a href="/download/" class="btn btn-primary">Download free for 30 days</a>
+            <a href="/try/" class="btn btn-outline-light">Try it in your browser</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <nav class="footer-links" aria-label="Footer navigation">
+        <a href="/tour/">Tour</a>
+        <a href="/blog/">Blog</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/roadmap/">Roadmap</a>
+        <a href="/vs/">Compare</a>
+        <a href="/docs/getting-started.html">Docs</a>
+        <a href="/press-kit/">Press kit</a>
+        <a href="/legal/privacy/">Privacy</a>
+        <a href="/legal/terms/">Terms</a>
+        <a href="/legal/eula/">EULA</a>
+      </nav>
+      <span class="footer-copy">Built by Jameson Daines.</span>
+    </div>
+  </footer>
+
+  <script src="/scripts/keepance-nav.v5.js" defer></script>
+
+  <script>
+    // Scroll-triggered animations
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+    document.querySelectorAll('.anim').forEach((el) => observer.observe(el));
+  </script>
+
+</body>
+</html>
