@@ -611,7 +611,7 @@ export function MattersHome({ onAuditLog }: MattersHomeProps = {}) {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Sort state — default alphabetical by name
-  const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
+  const [sortState, setSort] = useState<SortState>(DEFAULT_SORT);
 
   const toggleSort = (key: SortKey) => {
     setSort((prev) =>
@@ -625,11 +625,11 @@ export function MattersHome({ onAuditLog }: MattersHomeProps = {}) {
   const totalFolders = activeMatters.reduce((sum, m) => sum + m.folderPaths.length, 0);
   const showConfidentialityColumn = activeMatters.some((m) => m.privileged);
 
-  useEffect(() => {
-    if (!showConfidentialityColumn && sort.key === 'privilege') {
-      setSort(DEFAULT_SORT);
-    }
-  }, [showConfidentialityColumn, sort.key]);
+  // If the confidentiality column is hidden, never sort by it. Derive the
+  // effective sort instead of resetting it in an effect (which would trigger
+  // cascading renders).
+  const sort =
+    !showConfidentialityColumn && sortState.key === 'privilege' ? DEFAULT_SORT : sortState;
 
   // Filter by search query (active matters only)
   const filteredMatters = useMemo(() => {

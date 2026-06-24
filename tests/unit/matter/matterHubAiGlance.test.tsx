@@ -106,6 +106,13 @@ vi.mock('@/platform/rag/MemoryService', () => ({
 vi.mock('@/platform/matter/matterAtAGlance', () => ({
   generateMatterAtAGlance: mockGenerate,
   hasCloudKeyForGlance: mockHasCloudKey,
+  normalizeMatterAtAGlanceResult: (r: unknown) => r,
+  // State-machine test: the pure upcoming-derivation/marker-stripping/dedupe logic
+  // has its own coverage in matterAtAGlance.test.ts. Here we surface the upcoming
+  // items deterministically with citation markers stripped (the user-visible result).
+  deriveMatterHubUpcomingItems: (
+    result: { upcomingDates?: string[] } | null,
+  ) => (result?.upcomingDates ?? []).map((s) => s.replace(/\s*\[[^\]]*\]/g, '').trim()),
 }));
 
 // Import after mocks
@@ -192,7 +199,7 @@ describe('MatterHub — At a Glance state machine', () => {
     // Content from result
     expect(screen.getByText('Lease dispute unresolved')).toBeInTheDocument();
     expect(screen.getByText('Response due July 1')).toBeInTheDocument();
-    expect(screen.getByText('July 1 response deadline [Lease_Agreement.docx paragraph 2]')).toBeInTheDocument();
+    expect(screen.getByText('July 1 response deadline')).toBeInTheDocument();
     expect(screen.getByText('Request title search')).toBeInTheDocument();
   });
 

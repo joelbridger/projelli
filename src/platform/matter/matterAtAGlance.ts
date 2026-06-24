@@ -81,7 +81,7 @@ export function stripAtAGlanceCitationMarkers(text: string): string {
 function cleanAtAGlanceItems(items: readonly string[] | undefined): string[] {
   if (!Array.isArray(items)) return [];
   const clean: string[] = [];
-  for (const item of items) {
+  for (const item of items as readonly string[]) {
     const text = stripAtAGlanceCitationMarkers(item);
     if (text !== '') clean.push(text);
     if (clean.length >= 3) break;

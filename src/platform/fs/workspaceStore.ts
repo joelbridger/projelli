@@ -22,7 +22,7 @@ export function normalizeRecentWorkspacePath(path: string): string {
   }
 
   if (isWindowsDrivePath) {
-    normalized = `${normalized[0]!.toUpperCase()}${normalized.slice(1)}`;
+    normalized = `${normalized.charAt(0).toUpperCase()}${normalized.slice(1)}`;
   }
 
   return normalized;

@@ -130,7 +130,8 @@ export function capGeneratedSectionItems(
       return;
     }
 
-    const current = deduped[existingIndex]!;
+    const current = deduped[existingIndex];
+    if (current === undefined) return;
     const stronger = strongerItem(current.item, item);
     if (stronger === item) deduped[existingIndex] = { item, index };
   });

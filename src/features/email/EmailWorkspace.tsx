@@ -662,23 +662,21 @@ export function EmailWorkspace({
           />
         )}
 
-        {/* 4b. Sync now button — desktop only, when accounts are connected */}
-        {hasConnectedMail && (
-          <Button
-            variant="ghost"
-            size="md"
-            iconLeft={syncing ? Loader2 : RefreshCw}
-            data-testid="email-sync-now"
-            disabled={syncing}
-            onClick={handleSyncNow}
-            aria-label="Sync email now"
-            style={syncing ? { opacity: 0.6 } : undefined}
-          >
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            {syncing ? 'Syncing…' : 'Sync now'}
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-          </Button>
-        )}
+        {/* 4b. Sync now button — the toolbar only renders when mail is connected */}
+        <Button
+          variant="ghost"
+          size="md"
+          iconLeft={syncing ? Loader2 : RefreshCw}
+          data-testid="email-sync-now"
+          disabled={syncing}
+          onClick={handleSyncNow}
+          aria-label="Sync email now"
+          style={syncing ? { opacity: 0.6 } : undefined}
+        >
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {syncing ? 'Syncing…' : 'Sync now'}
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        </Button>
 
         {/* 5. Search field — grows to fill remaining space, always last */}
         <SearchField
