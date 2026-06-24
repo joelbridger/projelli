@@ -1,37 +1,44 @@
 import { installAIReplay } from '../fixtures/aiReplay.mjs';
 
-const STATUS_SELECTOR = '[data-testid="ask-uncited-warning"],[data-testid="ask-cited-attestation"]';
-const CITATION_CHIP_SELECTOR = '[data-testid^="ask-citation-chip-"]';
+const ATT = '[data-testid="ask-cited-attestation"]';
+const WARN = '[data-testid="ask-uncited-warning"]';
+const STATUS_SELECTOR = `${WARN},${ATT}`;
+const CHIP = '[data-testid^="ask-citation-chip-"]';
 
 /**
- * Ask one grounded question and wait for the newest answer to settle.
+ * Ask one grounded question and prove the NEWEST answer came back cited.
+ *
+ * Guards against false greens (Codex review): instead of comparing TOTAL
+ * attestation vs warning counts — which can pass on a stale attestation left by a
+ * previous turn — this snapshots before-counts and requires the new turn to add a
+ * cited attestation AND at least one new citation chip.
  *
  * @param {import('playwright').Page} page
- * @param {{ question: string, deterministic?: boolean, replay?: string }} args
- * @returns {Promise<{ ok: boolean, settled: boolean, citationChips: number, attestations: number, uncitedWarnings: number, lastAnswer: string | null, err?: string }>}
+ * @param {{ question?: string, deterministic?: boolean, replay?: string, matterId?: string }} args
  */
 export async function askQuestion(page, args = {}) {
   const question = args.question || 'What is the total portfolio value for this household?';
   const deterministic = args.deterministic ?? false;
   const replay = args.replay ?? 'ask-portfolio';
+  const matterId = args.matterId || 'matter_nc_hollings_family';
 
   const out = {
     ok: false,
     settled: false,
-    citationChips: 0,
-    attestations: 0,
-    uncitedWarnings: 0,
+    newCitedAttestation: false,
+    newCitationChips: 0,
+    attestationsBefore: 0, attestationsAfter: 0,
+    uncitedBefore: 0, uncitedAfter: 0,
+    chipsBefore: 0, chipsAfter: 0,
     lastAnswer: null,
   };
 
+  const count = (sel) => page.$$eval(sel, (els) => els.length).catch(() => 0);
+
   try {
-    if (deterministic) {
-      await installAIReplay(page, replay);
-    }
+    if (deterministic) await installAIReplay(page, replay);
 
     // Self-navigate to a client's Ask if no ask input is on the current screen.
-    // (Each client row exposes matter-launch-ask-<matterId>.)
-    const matterId = args.matterId || 'matter_nc_hollings_family';
     if (!(await page.$('[data-testid="ask-composer-input"]')) && !(await page.$('[data-testid="hub-ask-input"]'))) {
       await page.click('[data-testid="spine-nav-matters"]', { timeout: 8000 }).catch(() => {});
       await page.waitForTimeout(800);
@@ -43,45 +50,42 @@ export async function askQuestion(page, args = {}) {
         .catch(() => {});
     }
 
-    const before = await page.$$eval(STATUS_SELECTOR, (els) => els.length).catch(() => 0);
+    // Snapshot BEFORE so we can require a NEW cited turn, not rely on totals.
+    out.attestationsBefore = await count(ATT);
+    out.uncitedBefore = await count(WARN);
+    out.chipsBefore = await count(CHIP);
+    const statusBefore = out.attestationsBefore + out.uncitedBefore;
 
-    // Prefer the composer; fall back to hub input.
     let sel = '[data-testid="ask-composer-input"]';
     if (!(await page.$(sel))) sel = '[data-testid="hub-ask-input"]';
-
     await page.fill(sel, question);
     await page.press(sel, 'Enter').catch(async () => {
       await page.click('[data-testid="hub-ask-submit"]').catch(() => {});
     });
 
-    // Wait until a new turn settles: attestation/warning total grows and no "Answering".
+    // Wait until a NEW turn settles: status count grows and no "Answering".
     for (let i = 0; i < 40; i++) {
       await page.waitForTimeout(1000);
-      const cur = await page.$$eval(STATUS_SELECTOR, (els) => els.length).catch(() => 0);
+      const cur = await count(STATUS_SELECTOR);
       const answering = await page
         .evaluate(() => /Answering…|Answering\.\.\./.test(document.body.innerText))
         .catch(() => false);
-      if (cur > before && !answering) {
+      if (cur > statusBefore && !answering) {
         out.settled = true;
         break;
       }
     }
 
-    out.attestations = await page
-      .$$eval('[data-testid="ask-cited-attestation"]', (e) => e.length)
-      .catch(() => 0);
-    out.uncitedWarnings = await page
-      .$$eval('[data-testid="ask-uncited-warning"]', (e) => e.length)
-      .catch(() => 0);
-    out.citationChips = await page.$$eval(CITATION_CHIP_SELECTOR, (e) => e.length).catch(() => 0);
+    out.attestationsAfter = await count(ATT);
+    out.uncitedAfter = await count(WARN);
+    out.chipsAfter = await count(CHIP);
+    out.newCitedAttestation = out.attestationsAfter > out.attestationsBefore;
+    out.newCitationChips = out.chipsAfter - out.chipsBefore;
 
-    // Last turn answer text: grab the same parent block used by legion-askcheck.mjs.
     out.lastAnswer = await page
       .evaluate(() => {
         const warns = [
-          ...document.querySelectorAll(
-            '[data-testid="ask-uncited-warning"],[data-testid="ask-cited-attestation"]',
-          ),
+          ...document.querySelectorAll('[data-testid="ask-uncited-warning"],[data-testid="ask-cited-attestation"]'),
         ];
         const last = warns[warns.length - 1];
         if (!last) return null;
@@ -96,7 +100,8 @@ export async function askQuestion(page, args = {}) {
       })
       .catch(() => null);
 
-    out.ok = out.settled && out.attestations > out.uncitedWarnings;
+    // The NEW turn must be cited: a new attestation AND at least one new chip.
+    out.ok = out.settled && out.newCitedAttestation && out.newCitationChips >= 1;
   } catch (e) {
     out.err = String(e.message || e);
   }

@@ -13,7 +13,7 @@ import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureTunnel } from './bench.mjs';
-import { getPage } from './connection.mjs';
+import { getPage, reconnect } from './connection.mjs';
 import { attachConsoleAndNetwork, captureBundle } from './artifacts.mjs';
 import { runVerb } from './proof.mjs';
 import { resetToSeed } from './verbs/reset.mjs';
@@ -23,6 +23,7 @@ import { askQuestion } from './verbs/ask.mjs';
 import { verifyIsolation } from './verbs/isolation.mjs';
 
 const ROBOT_PORT = Number(process.env.ROBOT_PORT || 7331);
+const VERB_TIMEOUT_MS = Number(process.env.ROBOT_VERB_TIMEOUT_MS || 180000);
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const ARTIFACTS_ROOT = path.join(ROOT, '_artifacts');
 
@@ -33,6 +34,17 @@ const VERBS = {
   ask: askQuestion,
   isolation: verifyIsolation,
 };
+
+// Hard per-verb timeout so a hung page.evaluate / CDP call cannot wedge the
+// serialized queue forever. The race rejects, freeing the queue; the caller then
+// forces a reconnect before the next attempt.
+function withTimeout(promise, ms, label) {
+  let t;
+  const timeout = new Promise((_, reject) => {
+    t = setTimeout(() => reject(new Error(`verb timeout: ${label} exceeded ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
+}
 
 // Track the current page + its console/network buffers. After a full reset the
 // app restarts and connection.mjs reconnects to a NEW page; re-attach listeners
@@ -70,12 +82,16 @@ async function handleVerb(verb, args) {
   const packet = await runVerb(verb, async () => {
     let page = await currentPage();
     try {
-      return await fn(page, args);
+      return await withTimeout(fn(page, args), VERB_TIMEOUT_MS, verb);
     } catch (e) {
-      // One reconnect-and-retry on a closed/detached page.
-      if (/closed|disconnected|Target page|Target closed|context was destroyed/i.test(String(e && e.message))) {
+      // On a closed/detached page OR a verb timeout: FORCE a fresh reconnect
+      // (currentPage alone can hand back the same broken page if Playwright has
+      // not yet marked it closed), then retry once.
+      if (/closed|disconnected|Target page|Target closed|context was destroyed|verb timeout/i.test(String(e && e.message))) {
+        await reconnect().catch(() => {});
+        _lastPage = null; // force currentPage() to re-attach listeners to the fresh page
         page = await currentPage();
-        return await fn(page, args);
+        return await withTimeout(fn(page, args), VERB_TIMEOUT_MS, verb);
       }
       throw e;
     }
