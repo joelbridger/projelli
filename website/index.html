@@ -644,99 +644,109 @@
       </div>
     </section>
 
-    <!-- WHERE KEEPANCE FITS (graphic added 2026-06-24) -->
+    <!-- WHERE KEEPANCE FITS (radial graphic, real logos) -->
     <style>
-      .kpfit{--kpnavy:#0A2540;--kpnavy2:#12345A;--kpink:#111F35;--kpbody:#475569;--kpborder:#E2E8F0;--kppink:#FF3CE8;--kpblue:#5DC6FF;
-        padding:96px 0;background:radial-gradient(1200px 480px at 50% -10%,rgba(93,198,255,0.10),transparent 60%),var(--white);border-top:1px solid var(--border);}
-      .kpfit-wrap{max-width:1040px;margin:0 auto;padding:0 28px;}
-      .kpfit-head{text-align:center;max-width:680px;margin:0 auto 44px;}
-      .kpfit-eyebrow{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--kppink);margin-bottom:14px;}
-      .kpfit-head h2{font-size:clamp(1.7rem,3vw,2.3rem);font-weight:800;color:var(--kpink);line-height:1.16;letter-spacing:-0.025em;margin:0 0 14px;}
-      .kpfit-head p{font-size:1.0625rem;line-height:1.7;color:var(--kpbody);margin:0;}
-      .kpfit-head p b{color:var(--kpink);font-weight:600;}
-      .kpfit-tier-label{text-align:center;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#94A3B8;margin:0 0 18px;}
-      .kpfit-tools{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
-      .kpfit-tool{background:var(--white);border:1px solid var(--kpborder);border-radius:14px;padding:16px 12px 13px;text-align:center;box-shadow:0 1px 2px rgba(16,31,53,0.04);transition:transform .18s ease,box-shadow .18s ease;}
-      .kpfit-tool:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(16,31,53,0.10);}
-      .kpfit-ic{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto 9px;}
-      .kpfit-ic svg{width:20px;height:20px;stroke:#fff;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
-      .kpfit-name{font-size:13.5px;font-weight:700;color:var(--kpink);line-height:1.2;}
-      .kpfit-cat{font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94A3B8;margin-top:3px;}
-      .kpfit-flow{display:block;width:100%;height:54px;}
-      .kpfit-flow path{stroke:url(#kpgrad);stroke-width:1.4;fill:none;opacity:.55;}
-      .kpfit-flow circle{fill:#5DC6FF;}
-      .kpfit-layer{position:relative;background:linear-gradient(135deg,#0A2540 0%,#12345A 100%);border-radius:18px;padding:26px 28px;color:#fff;box-shadow:0 20px 50px rgba(10,37,64,0.28);overflow:hidden;}
-      .kpfit-layer::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,60,232,0.16),rgba(93,198,255,0.16));opacity:.5;mix-blend-mode:screen;}
-      .kpfit-layer-top{position:relative;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
-      .kpfit-mark{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.15rem;letter-spacing:-0.02em;color:#fff;}
-      .kpfit-mark .dot{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#FF3CE8,#5DC6FF);display:flex;align-items:center;justify-content:center;}
-      .kpfit-mark .dot svg{width:17px;height:17px;stroke:#fff;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
-      .kpfit-layer-line{position:relative;flex:1;min-width:240px;font-size:14px;line-height:1.55;color:rgba(255,255,255,0.86);}
-      .kpfit-layer-line b{color:#fff;font-weight:600;}
-      .kpfit-pills{position:relative;display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;}
-      .kpfit-pill{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:#EAF4FF;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.16);border-radius:999px;padding:7px 13px;}
-      .kpfit-pill svg{width:14px;height:14px;stroke:#7FE0C2;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
-      .kpfit-down{display:block;margin:0 auto;width:2px;height:30px;background:linear-gradient(#9fc7e6,transparent);}
-      .kpfit-out{background:var(--white);border:1px solid var(--kpborder);border-left:3px solid #5DC6FF;border-radius:12px;padding:16px 18px;max-width:680px;margin:0 auto;box-shadow:0 8px 24px rgba(16,31,53,0.07);}
-      .kpfit-q{font-size:13px;font-weight:700;color:var(--kpink);margin:0 0 6px;}
-      .kpfit-a{font-size:13.5px;line-height:1.6;color:var(--kpbody);margin:0 0 10px;}
-      .kpfit-cite{display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
-      .kpfit-cite span{font-size:10.5px;font-weight:700;letter-spacing:0.03em;color:var(--kpnavy);background:rgba(93,198,255,0.10);border:1px solid rgba(93,198,255,0.28);border-radius:5px;padding:3px 8px;}
-      .kpfit-cite .lbl{background:none;border:none;color:#94A3B8;letter-spacing:0.08em;text-transform:uppercase;padding:3px 0;}
-      .kpfit-foot{text-align:center;font-size:13.5px;color:var(--kpbody);margin:28px auto 0;max-width:620px;line-height:1.7;}
-      .kpfit-foot b{color:var(--kpink);font-weight:600;}
-      @media(max-width:720px){.kpfit-tools{grid-template-columns:repeat(2,1fr);}.kpfit-flow{height:40px;}}
+    .kpfit{--ink:#111F35;--body:#475569;--border:#E2E8F0;--pink:#FF3CE8;--blue:#5DC6FF;--navy:#0A2540;
+       padding:92px 0;background:radial-gradient(900px 520px at 50% 42%,rgba(93,198,255,0.10),transparent 62%),#fff;}
+     .kpfit-wrap{max-width:1000px;margin:0 auto;padding:0 28px;}
+     .kpfit-head{text-align:center;max-width:660px;margin:0 auto 26px;}
+     .kpfit-eyebrow{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--pink);margin-bottom:14px;}
+     .kpfit-head h2{font-size:clamp(1.7rem,3vw,2.3rem);font-weight:800;color:var(--ink);line-height:1.16;letter-spacing:-.025em;margin:0 0 14px;}
+     .kpfit-head p{font-size:1.0625rem;line-height:1.7;color:var(--body);margin:0;}
+     .kpfit-head p b{color:var(--ink);font-weight:600;}
+
+     /* ---- orbit (mobile-first: grid) ---- */
+     .kpfit-orbit{position:relative;margin:14px auto 0;max-width:760px;}
+     .kpfit-spokes{display:none;}
+     .kpfit-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:24px;}
+     .kpfit-core{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;margin:0 auto;max-width:300px;}
+     .kpfit-core-ring{width:128px;height:128px;border-radius:50%;background:linear-gradient(135deg,#FF3CE8,#5DC6FF);padding:5px;box-shadow:0 18px 44px rgba(10,37,64,.30);}
+     .kpfit-core-inner{width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 50% 35%,#16365c,#0A2540);display:flex;align-items:center;justify-content:center;}
+     .kpfit-core-inner img{width:60px;height:60px;}
+     .kpfit-core-name{font-size:1.05rem;font-weight:800;color:var(--ink);letter-spacing:-.01em;}
+     .kpfit-core-tag{font-size:11.5px;font-weight:600;color:#64748B;line-height:1.5;margin-top:-6px;}
+     .kpfit-node{background:#fff;border:1px solid var(--border);border-radius:13px;padding:14px 14px 11px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:74px;box-shadow:0 2px 8px rgba(16,31,53,.05);transition:transform .18s,box-shadow .18s;}
+     .kpfit-node:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(16,31,53,.12);}
+     .kpfit-node img{max-width:118px;max-height:24px;width:auto;height:auto;object-fit:contain;display:block;}
+     .kpfit-node .cat{font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#94A3B8;}
+
+     /* ---- desktop: real orbit ---- */
+     @media(min-width:820px){
+       .kpfit-orbit{height:560px;}
+       .kpfit-grid{display:contents;}
+       .kpfit-spokes{display:block;position:absolute;inset:0;width:100%;height:100%;z-index:0;}
+       .kpfit-core{position:absolute;left:380px;top:270px;transform:translate(-50%,-50%);z-index:3;}
+       .kpfit-node{position:absolute;z-index:2;width:154px;transform:translate(-50%,-50%);}
+       .kpfit-n1{left:380px;top:80px}.kpfit-n2{left:592px;top:136px}.kpfit-n3{left:680px;top:270px}.kpfit-n4{left:592px;top:404px}
+       .kpfit-n5{left:380px;top:460px}.kpfit-n6{left:168px;top:404px}.kpfit-n7{left:80px;top:270px}.kpfit-n8{left:168px;top:136px}
+     }
+     .kpfit-spokes line{stroke:url(#kg);stroke-width:1.5;opacity:.5;}
+     .kpfit-spokes ellipse{fill:none;stroke:#CBD8E6;stroke-dasharray:3 7;stroke-width:1.4;opacity:.7;}
+     .kpfit-spokes circle.pulse{fill:#5DC6FF;}
+
+     /* ---- supporting ---- */
+     .kpfit-pills{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:34px auto 0;}
+     .kpfit-pill{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--navy);background:#fff;border:1px solid var(--border);border-radius:999px;padding:8px 15px;box-shadow:0 1px 3px rgba(16,31,53,.05);}
+     .kpfit-pill svg{width:15px;height:15px;stroke:#1FA37A;stroke-width:2.1;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+     .kpfit-out{background:#fff;border:1px solid var(--border);border-left:3px solid #5DC6FF;border-radius:12px;padding:16px 18px;max-width:660px;margin:28px auto 0;box-shadow:0 10px 30px rgba(16,31,53,.08);}
+     .kpfit-q{font-size:13px;font-weight:700;color:var(--ink);margin:0 0 6px;}
+     .kpfit-a{font-size:13.5px;line-height:1.6;color:var(--body);margin:0 0 10px;}
+     .kpfit-cite{display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
+     .kpfit-cite span{font-size:10.5px;font-weight:700;color:var(--navy);background:rgba(93,198,255,.10);border:1px solid rgba(93,198,255,.28);border-radius:5px;padding:3px 8px;}
+     .kpfit-cite .lbl{background:none;border:none;color:#94A3B8;letter-spacing:.08em;text-transform:uppercase;}
+     .kpfit-foot{text-align:center;font-size:13.5px;color:var(--body);margin:26px auto 0;max-width:600px;line-height:1.7;}
+     .kpfit-foot b{color:var(--ink);font-weight:600;}
     </style>
-    <section class="kpfit" id="fits">
-      <svg width="0" height="0" style="position:absolute"><defs>
-        <linearGradient id="kpgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF3CE8"/><stop offset="1" stop-color="#5DC6FF"/></linearGradient>
-      </defs></svg>
-      <div class="kpfit-wrap">
-        <div class="kpfit-head">
-          <span class="kpfit-eyebrow">Where Keepance fits</span>
-          <h2>You already pay for a dozen tools. Keepance isn&rsquo;t a thirteenth.</h2>
-          <p>It sits quietly over the ones you use, reads across all of it, and answers any question about a household <b>with a citation you can click</b>. Your client data stays on your own machine.</p>
-        </div>
-
-        <p class="kpfit-tier-label">The tools you already use</p>
-        <div class="kpfit-tools">
-          <div class="kpfit-tool"><div class="kpfit-ic" style="background:#3B82C4"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18"/></svg></div><div class="kpfit-name">Wealthbox</div><div class="kpfit-cat">CRM</div></div>
-          <div class="kpfit-tool"><div class="kpfit-ic" style="background:#1FA37A"><svg viewBox="0 0 24 24"><path d="M4 18 L10 12 L14 15 L20 7"/><path d="M15 7h5v5"/></svg></div><div class="kpfit-name">RightCapital</div><div class="kpfit-cat">Planning</div></div>
-          <div class="kpfit-tool"><div class="kpfit-ic" style="background:#2BB673"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg></div><div class="kpfit-name">Holistiplan</div><div class="kpfit-cat">Tax</div></div>
-          <div class="kpfit-tool"><div class="kpfit-ic" style="background:#14375A"><svg viewBox="0 0 24 24"><circle cx="6" cy="7" r="2"/><circle cx="18" cy="7" r="2"/><circle cx="12" cy="17" r="2"/><path d="M7.5 8.5 10.5 15.5M16.5 8.5 13.5 15.5M8 7h8"/></svg></div><div class="kpfit-name">Envestnet</div><div class="kpfit-cat">Portfolio</div></div>
-          <div class="kpfit-tool"><div class="kpfit-ic" style="background:#003A5D"><svg viewBox="0 0 24 24"><path d="M4 13c0 4 3.5 7 8 7s8-3 8-7-3.5-7-8-7"/><path d="M4 13c2-1 5-1.5 8-1.5s6 .5 8 1.5"/></svg></div><div class="kpfit-name">Charles Schwab</div><div class="kpfit-cat">Custodian</div></div>
-          <div class="kpfit-tool"><div class="kpfit-ic" style="background:#0F6CBD"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M4 7l8 6 8-6"/></svg></div><div class="kpfit-name">Outlook</div><div class="kpfit-cat">Email</div></div>
-          <div class="kpfit-tool"><div class="kpfit-ic" style="background:#0364B8"><svg viewBox="0 0 24 24"><path d="M7 18h11a3 3 0 0 0 .4-5.97A5 5 0 0 0 9 10.2 4 4 0 0 0 7 18z"/></svg></div><div class="kpfit-name">OneDrive</div><div class="kpfit-cat">Files</div></div>
-          <div class="kpfit-tool"><div class="kpfit-ic" style="background:#4F46E5"><svg viewBox="0 0 24 24"><path d="M12 19V6"/><path d="M6 11l6-6 6 6"/></svg></div><div class="kpfit-name">Jump</div><div class="kpfit-cat">Meeting notes</div></div>
-        </div>
-
-        <svg class="kpfit-flow" viewBox="0 0 1000 54" preserveAspectRatio="none" aria-hidden="true">
-          <path d="M62 0 C62 30 500 24 500 54"/><path d="M312 0 C312 30 500 24 500 54"/><path d="M562 0 C562 30 500 24 500 54"/><path d="M812 0 C812 30 500 24 500 54"/>
-          <path d="M187 0 C187 30 500 24 500 54"/><path d="M437 0 C437 30 500 24 500 54"/><path d="M687 0 C687 30 500 24 500 54"/><path d="M937 0 C937 30 500 24 500 54"/>
-          <circle cx="500" cy="52" r="3"/>
-        </svg>
-
-        <div class="kpfit-layer">
-          <div class="kpfit-layer-top">
-            <div class="kpfit-mark"><span class="dot"><svg viewBox="0 0 24 24"><path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7z"/><path d="M9 12l2 2 4-4"/></svg></span>Keepance</div>
-            <div class="kpfit-layer-line">The private layer over your stack. It reads across all of it and answers you, <b>with proof</b>, without you switching away from anything.</div>
-          </div>
-          <div class="kpfit-pills">
-            <span class="kpfit-pill"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>Citations you can click</span>
-            <span class="kpfit-pill"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Runs on your machine</span>
-            <span class="kpfit-pill"><svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>Switches you away from nothing</span>
-          </div>
-        </div>
-
-        <span class="kpfit-down"></span>
-        <div class="kpfit-out">
-          <p class="kpfit-q">&ldquo;What did we decide about the Smiths&rsquo; 529 plans, and where is that in writing?&rdquo;</p>
-          <p class="kpfit-a">In the March review you agreed to fund $5,000 a year per child and revisit at age 14. Here it is in the notes and the follow-up email.</p>
-          <div class="kpfit-cite"><span class="lbl">Sources</span><span>Outlook &middot; Mar 14 email</span><span>OneDrive &middot; review-notes.docx</span><span>RightCapital &middot; plan export</span></div>
-        </div>
-
-        <p class="kpfit-foot">Keepance doesn&rsquo;t replace your CRM, your planner, your custodian, or your note-taker. <b>It&rsquo;s the one place everything about a client comes together and answers back.</b></p>
+    <section class="kpfit">
+     <svg width="0" height="0" style="position:absolute"><defs><linearGradient id="kg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF3CE8"/><stop offset="1" stop-color="#5DC6FF"/></linearGradient></defs></svg>
+     <div class="kpfit-wrap">
+      <div class="kpfit-head">
+       <span class="kpfit-eyebrow">Where Keepance fits</span>
+       <h2>You already pay for a dozen tools. Keepance isn&rsquo;t a thirteenth.</h2>
+       <p>It sits in the middle of the ones you use, reads across all of it, and answers any question about a household <b>with a citation you can click</b>. Your client data stays on your own machine.</p>
       </div>
+
+      <div class="kpfit-orbit">
+       <svg class="kpfit-spokes" viewBox="0 0 760 560" preserveAspectRatio="none" aria-hidden="true">
+        <ellipse cx="380" cy="270" rx="300" ry="190"/>
+        <line x1="380" y1="270" x2="380" y2="80"/><line x1="380" y1="270" x2="592" y2="136"/><line x1="380" y1="270" x2="680" y2="270"/><line x1="380" y1="270" x2="592" y2="404"/>
+        <line x1="380" y1="270" x2="380" y2="460"/><line x1="380" y1="270" x2="168" y2="404"/><line x1="380" y1="270" x2="80" y2="270"/><line x1="380" y1="270" x2="168" y2="136"/>
+       </svg>
+
+       <div class="kpfit-core">
+        <div class="kpfit-core-ring"><div class="kpfit-core-inner"><img src="/images/stack-logos/keepance-mark-white.svg" alt="Keepance"></div></div>
+        <div>
+          <div class="kpfit-core-name">Keepance</div>
+          <div class="kpfit-core-tag">reads across all of it &middot; privately &middot; cited</div>
+        </div>
+       </div>
+
+       <div class="kpfit-grid">
+        <div class="kpfit-node kpfit-n1"><img src="/images/stack-logos/wealthbox.svg" alt="Wealthbox"><span class="cat">CRM</span></div>
+        <div class="kpfit-node kpfit-n2"><img src="/images/stack-logos/rightcapital.svg" alt="RightCapital"><span class="cat">Planning</span></div>
+        <div class="kpfit-node kpfit-n3"><img src="/images/stack-logos/holistiplan.png" alt="Holistiplan"><span class="cat">Tax</span></div>
+        <div class="kpfit-node kpfit-n4"><img src="/images/stack-logos/tamarac.svg" alt="Envestnet Tamarac"><span class="cat">Portfolio</span></div>
+        <div class="kpfit-node kpfit-n5"><img src="/images/stack-logos/schwab.svg" alt="Charles Schwab"><span class="cat">Custodian</span></div>
+        <div class="kpfit-node kpfit-n6"><img src="/images/stack-logos/outlook.svg" alt="Outlook"><span class="cat">Email</span></div>
+        <div class="kpfit-node kpfit-n7"><img src="/images/stack-logos/onedrive.svg" alt="OneDrive"><span class="cat">Files</span></div>
+        <div class="kpfit-node kpfit-n8"><img src="/images/stack-logos/jump.svg" alt="Jump"><span class="cat">Meeting notes</span></div>
+       </div>
+      </div>
+
+      <div class="kpfit-pills">
+       <span class="kpfit-pill"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>Citations you can click</span>
+       <span class="kpfit-pill"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Runs on your machine</span>
+       <span class="kpfit-pill"><svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>Switches you away from nothing</span>
+      </div>
+
+      <div class="kpfit-out">
+       <p class="kpfit-q">&ldquo;What did we decide about the Smiths&rsquo; 529 plans, and where is that in writing?&rdquo;</p>
+       <p class="kpfit-a">In the March review you agreed to fund $5,000 a year per child and revisit at age 14. Here it is in the notes and the follow-up email.</p>
+       <div class="kpfit-cite"><span class="lbl">Sources</span><span>Outlook &middot; Mar 14 email</span><span>OneDrive &middot; review-notes.docx</span><span>RightCapital &middot; plan export</span></div>
+      </div>
+
+      <p class="kpfit-foot">Keepance doesn&rsquo;t replace your CRM, your planner, your custodian, or your note-taker. <b>It&rsquo;s the one place everything about a client comes together and answers back.</b></p>
+     </div>
     </section>
 
     <!-- PRIVACY YOU CAN EXPLAIN -->

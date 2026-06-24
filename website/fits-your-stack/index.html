@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Keepance fits alongside the tools you already use</title>
-  <meta name="description" content="Keepance is not a replacement for Clio, Drake, Lacerte, or Salesforce. It is the private place AI work happens, sitting alongside your system of record. Round trip: import a file, work privately, export the result.">
+  <meta name="description" content="Keepance is not a replacement for your CRM, planning, or custodian tools. It sits in the middle of the stack you already use, reads across all of it, and answers any question about a household with citations you can click.">
   <link rel="canonical" href="https://keepance.com/fits-your-stack/">
   <meta name="robots" content="index, follow">
   <meta name="author" content="Jameson Daines">
@@ -13,7 +13,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://keepance.com/fits-your-stack/">
   <meta property="og:title" content="Keepance fits alongside the tools you already use">
-  <meta property="og:description" content="Keepance is not a replacement for Clio, Drake, or your CRM. It is the private place AI work happens, sitting alongside your system of record.">
+  <meta property="og:description" content="Keepance sits in the middle of the tools you already use, reads across all of it, and answers with citations. Your client data stays on your machine.">
   <meta property="og:site_name" content="Keepance">
   <meta property="og:image" content="https://keepance.com/press-kit/assets/og-linkedin-card.png">
   <meta property="og:image:width" content="1200">
@@ -22,7 +22,7 @@
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Keepance fits alongside the tools you already use">
-  <meta name="twitter:description" content="Not a replacement for your practice management system. The private place AI work happens, sitting alongside your system of record.">
+  <meta name="twitter:description" content="Not a replacement for your CRM, planner, or custodian. The private layer that reads across the tools you already use.">
   <meta name="twitter:image" content="https://keepance.com/press-kit/assets/og-twitter-card.png">
 
   <!-- Plausible Analytics (self-hosted) -->
@@ -468,14 +468,14 @@
 
   <main>
 
-    <!-- PAGE HEADER (light, no dark hero) -->
+    <!-- PAGE HEADER (advisor-first) -->
     <div class="page-header">
       <div class="container">
         <div class="page-header-inner">
           <span class="page-eyebrow">How Keepance fits</span>
-          <h1>Keepance fits alongside the tools you already use.</h1>
+          <h1>Keepance works with the tools you already use.</h1>
           <p class="page-header-sub">
-            Keepance is not a replacement for your practice management system, your CRM, or your billing platform. It is the private place AI work happens, sitting alongside your system of record. You import a file, work with it privately, and export the result back into your existing workflow.
+            You run your practice on a dozen tools, and I am not asking you to drop any of them. Keepance sits in the middle of your stack, reads across all of it, and answers any question about a household with citations you can click. Your client data stays on your own machine.
           </p>
           <div class="page-header-ctas">
             <a href="/download/" class="btn btn-primary">Download free for 30 days</a>
@@ -485,112 +485,109 @@
       </div>
     </div>
 
-    <!-- VERTICAL-BY-VERTICAL BREAKDOWN -->
-    <section class="verticals-section">
-      <div class="container">
-        <div class="section-header anim">
-          <span class="section-label">By profession</span>
-          <h2>Where Keepance fits in your existing stack</h2>
-          <p>Each vertical has a system of record it already runs on. Keepance is not that system. It is the workspace where the AI work happens, and it hands results back to the tools you already use.</p>
-        </div>
+    <!-- WHERE KEEPANCE FITS (radial graphic, real logos) -->
+    <style>
+    .kpfit{--ink:#111F35;--body:#475569;--border:#E2E8F0;--pink:#FF3CE8;--blue:#5DC6FF;--navy:#0A2540;
+       padding:92px 0;background:radial-gradient(900px 520px at 50% 42%,rgba(93,198,255,0.10),transparent 62%),#fff;}
+     .kpfit-wrap{max-width:1000px;margin:0 auto;padding:0 28px;}
+     .kpfit-head{text-align:center;max-width:660px;margin:0 auto 26px;}
+     .kpfit-eyebrow{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--pink);margin-bottom:14px;}
+     .kpfit-head h2{font-size:clamp(1.7rem,3vw,2.3rem);font-weight:800;color:var(--ink);line-height:1.16;letter-spacing:-.025em;margin:0 0 14px;}
+     .kpfit-head p{font-size:1.0625rem;line-height:1.7;color:var(--body);margin:0;}
+     .kpfit-head p b{color:var(--ink);font-weight:600;}
 
-        <div class="vertical-grid">
+     /* ---- orbit (mobile-first: grid) ---- */
+     .kpfit-orbit{position:relative;margin:14px auto 0;max-width:760px;}
+     .kpfit-spokes{display:none;}
+     .kpfit-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:24px;}
+     .kpfit-core{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;margin:0 auto;max-width:300px;}
+     .kpfit-core-ring{width:128px;height:128px;border-radius:50%;background:linear-gradient(135deg,#FF3CE8,#5DC6FF);padding:5px;box-shadow:0 18px 44px rgba(10,37,64,.30);}
+     .kpfit-core-inner{width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 50% 35%,#16365c,#0A2540);display:flex;align-items:center;justify-content:center;}
+     .kpfit-core-inner img{width:60px;height:60px;}
+     .kpfit-core-name{font-size:1.05rem;font-weight:800;color:var(--ink);letter-spacing:-.01em;}
+     .kpfit-core-tag{font-size:11.5px;font-weight:600;color:#64748B;line-height:1.5;margin-top:-6px;}
+     .kpfit-node{background:#fff;border:1px solid var(--border);border-radius:13px;padding:14px 14px 11px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:74px;box-shadow:0 2px 8px rgba(16,31,53,.05);transition:transform .18s,box-shadow .18s;}
+     .kpfit-node:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(16,31,53,.12);}
+     .kpfit-node img{max-width:118px;max-height:24px;width:auto;height:auto;object-fit:contain;display:block;}
+     .kpfit-node .cat{font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#94A3B8;}
 
-          <div class="vertical-card anim">
-            <div class="vertical-card-icon">
-              <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            </div>
-            <h3>Attorneys</h3>
-            <p class="their-stack">You already have: Clio, Filevine, or similar</p>
-            <p>You run your matter management, billing, and docketing in Clio, Filevine, or whatever system your firm uses. That stays exactly where it is. Keepance handles the AI work: the research memo, the deposition summary, the privilege log draft, the contradictions analysis. You bring a PDF or document in from the matter folder, work with it privately, and export the result as Word or PDF to file from there.</p>
-            <div class="round-trip">
-              <strong>Round trip:</strong> import a deposition PDF from your matter folder, ask Keepance to find contradictions and flag the page cites, export the analysis as Word or PDF, attach it to the matter in Clio. Nothing you worked on ever left your machine.
-            </div>
-          </div>
+     /* ---- desktop: real orbit ---- */
+     @media(min-width:820px){
+       .kpfit-orbit{height:560px;}
+       .kpfit-grid{display:contents;}
+       .kpfit-spokes{display:block;position:absolute;inset:0;width:100%;height:100%;z-index:0;}
+       .kpfit-core{position:absolute;left:380px;top:270px;transform:translate(-50%,-50%);z-index:3;}
+       .kpfit-node{position:absolute;z-index:2;width:154px;transform:translate(-50%,-50%);}
+       .kpfit-n1{left:380px;top:80px}.kpfit-n2{left:592px;top:136px}.kpfit-n3{left:680px;top:270px}.kpfit-n4{left:592px;top:404px}
+       .kpfit-n5{left:380px;top:460px}.kpfit-n6{left:168px;top:404px}.kpfit-n7{left:80px;top:270px}.kpfit-n8{left:168px;top:136px}
+     }
+     .kpfit-spokes line{stroke:url(#kg);stroke-width:1.5;opacity:.5;}
+     .kpfit-spokes ellipse{fill:none;stroke:#CBD8E6;stroke-dasharray:3 7;stroke-width:1.4;opacity:.7;}
+     .kpfit-spokes circle.pulse{fill:#5DC6FF;}
 
-          <div class="vertical-card anim">
-            <div class="vertical-card-icon">
-              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            </div>
-            <h3>CPAs and EAs</h3>
-            <p class="their-stack">You already have: Drake, ProSeries, Lacerte, or Canopy</p>
-            <p>Drake, ProSeries, Lacerte, or Canopy handle the return. That does not change. Keepance handles the AI research, the client memo explaining a complex position, the audit-defense narrative, the home-office analysis your client is asking about. Client files come in from your existing folder structure, you work with them privately, and you export to Word or PDF to upload to SafeSend or your client portal as usual.</p>
-            <div class="round-trip">
-              <strong>Round trip:</strong> import a client-provided document or your own notes, ask Keepance to research the IRC position and draft a client-ready memo, export as Word or PDF, upload to your client portal. The client's SSN never touched a cloud server.
-            </div>
-          </div>
-
-          <div class="vertical-card anim">
-            <div class="vertical-card-icon">
-              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-            </div>
-            <h3>Consultants</h3>
-            <p class="their-stack">You already have: PowerPoint, Word, and your engagement tooling</p>
-            <p>Your deliverables live in PowerPoint and Word, and your client expects them there. Keepance is where you do the AI-assisted discovery synthesis, the confidential client research, the first draft of the engagement narrative. You finish in your usual tools. The sensitive interview notes and internal thinking never have to leave your machine to get the AI help you need.</p>
-            <div class="round-trip">
-              <strong>Round trip:</strong> import interview notes and background research, ask Keepance to synthesize the discovery themes and draft an engagement brief, export to Word or PowerPoint, finish the deck in your usual tool. The client's name and strategy never uploaded anywhere.
-            </div>
-          </div>
-
-          <div class="vertical-card anim">
-            <div class="vertical-card-icon">
-              <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            </div>
-            <h3>Financial advisors</h3>
-            <p class="their-stack">You already have: eMoney, MoneyGuidePro, Redtail, or Salesforce</p>
-            <p>eMoney, MoneyGuidePro, Redtail, Salesforce: your CRM and planning tools stay put. Keepance handles the AI-assisted meeting prep, the client summary before the annual review, the confidential analysis you want to think through without sending client financials to a cloud service. Export as PDF or Word into your existing client workflow when you are ready.</p>
-            <div class="round-trip">
-              <strong>Round trip:</strong> pull the client's planning notes from your folder, ask Keepance to draft the meeting prep summary and flag open planning questions, export as PDF, attach it to the client record in your CRM. The client's financial details never went through a server you do not control.
-            </div>
-          </div>
-
-        </div>
+     /* ---- supporting ---- */
+     .kpfit-pills{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:34px auto 0;}
+     .kpfit-pill{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--navy);background:#fff;border:1px solid var(--border);border-radius:999px;padding:8px 15px;box-shadow:0 1px 3px rgba(16,31,53,.05);}
+     .kpfit-pill svg{width:15px;height:15px;stroke:#1FA37A;stroke-width:2.1;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+     .kpfit-out{background:#fff;border:1px solid var(--border);border-left:3px solid #5DC6FF;border-radius:12px;padding:16px 18px;max-width:660px;margin:28px auto 0;box-shadow:0 10px 30px rgba(16,31,53,.08);}
+     .kpfit-q{font-size:13px;font-weight:700;color:var(--ink);margin:0 0 6px;}
+     .kpfit-a{font-size:13.5px;line-height:1.6;color:var(--body);margin:0 0 10px;}
+     .kpfit-cite{display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
+     .kpfit-cite span{font-size:10.5px;font-weight:700;color:var(--navy);background:rgba(93,198,255,.10);border:1px solid rgba(93,198,255,.28);border-radius:5px;padding:3px 8px;}
+     .kpfit-cite .lbl{background:none;border:none;color:#94A3B8;letter-spacing:.08em;text-transform:uppercase;}
+     .kpfit-foot{text-align:center;font-size:13.5px;color:var(--body);margin:26px auto 0;max-width:600px;line-height:1.7;}
+     .kpfit-foot b{color:var(--ink);font-weight:600;}
+    </style>
+    <section class="kpfit">
+     <svg width="0" height="0" style="position:absolute"><defs><linearGradient id="kg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF3CE8"/><stop offset="1" stop-color="#5DC6FF"/></linearGradient></defs></svg>
+     <div class="kpfit-wrap">
+      <div class="kpfit-head">
+       <span class="kpfit-eyebrow">Where Keepance fits</span>
+       <h2>You already pay for a dozen tools. Keepance isn&rsquo;t a thirteenth.</h2>
+       <p>It sits in the middle of the ones you use, reads across all of it, and answers any question about a household <b>with a citation you can click</b>. Your client data stays on your own machine.</p>
       </div>
-    </section>
 
-    <!-- THE ROUND TRIP -->
-    <section class="roundtrip-section">
-      <div class="container">
-        <div class="section-header anim">
-          <span class="section-label">The round trip</span>
-          <h2>Drag a file in. Work privately. Export the result.</h2>
-          <p>Three steps. No cloud in the middle. The original file stays where it is; the AI output goes wherever you put it.</p>
+      <div class="kpfit-orbit">
+       <svg class="kpfit-spokes" viewBox="0 0 760 560" preserveAspectRatio="none" aria-hidden="true">
+        <ellipse cx="380" cy="270" rx="300" ry="190"/>
+        <line x1="380" y1="270" x2="380" y2="80"/><line x1="380" y1="270" x2="592" y2="136"/><line x1="380" y1="270" x2="680" y2="270"/><line x1="380" y1="270" x2="592" y2="404"/>
+        <line x1="380" y1="270" x2="380" y2="460"/><line x1="380" y1="270" x2="168" y2="404"/><line x1="380" y1="270" x2="80" y2="270"/><line x1="380" y1="270" x2="168" y2="136"/>
+       </svg>
+
+       <div class="kpfit-core">
+        <div class="kpfit-core-ring"><div class="kpfit-core-inner"><img src="/images/stack-logos/keepance-mark-white.svg" alt="Keepance"></div></div>
+        <div>
+          <div class="kpfit-core-name">Keepance</div>
+          <div class="kpfit-core-tag">reads across all of it &middot; privately &middot; cited</div>
         </div>
+       </div>
 
-        <div class="roundtrip-steps anim">
-
-          <div class="roundtrip-step">
-            <div class="roundtrip-step-num">Step 01</div>
-            <h3>Import</h3>
-            <p>Drag a file from any folder on your machine into your Keepance workspace. Keepance works from a copy it holds locally: the original stays in place.</p>
-            <div class="formats">
-              <span class="format-tag">Word</span>
-              <span class="format-tag">PDF</span>
-              <span class="format-tag">PowerPoint</span>
-              <span class="format-tag">TXT</span>
-              <span class="format-tag">Markdown</span>
-            </div>
-          </div>
-
-          <div class="roundtrip-step">
-            <div class="roundtrip-step-num">Step 02</div>
-            <h3>Work privately</h3>
-            <p>Use the AI to draft, analyze, research, or summarize. Your prompts go from your machine straight to the AI provider you chose, and the results save as plain files in your workspace folder. Keepance never sees any of it.</p>
-          </div>
-
-          <div class="roundtrip-step">
-            <div class="roundtrip-step-num">Step 03</div>
-            <h3>Export</h3>
-            <p>Export the finished document in the format your workflow expects: Word for the client portal, PDF for the matter file, PowerPoint to finish in your usual deck tool. From there, file it wherever you normally file things.</p>
-            <div class="formats">
-              <span class="format-tag">Word</span>
-              <span class="format-tag">PDF</span>
-              <span class="format-tag">PowerPoint</span>
-            </div>
-          </div>
-
-        </div>
+       <div class="kpfit-grid">
+        <div class="kpfit-node kpfit-n1"><img src="/images/stack-logos/wealthbox.svg" alt="Wealthbox"><span class="cat">CRM</span></div>
+        <div class="kpfit-node kpfit-n2"><img src="/images/stack-logos/rightcapital.svg" alt="RightCapital"><span class="cat">Planning</span></div>
+        <div class="kpfit-node kpfit-n3"><img src="/images/stack-logos/holistiplan.png" alt="Holistiplan"><span class="cat">Tax</span></div>
+        <div class="kpfit-node kpfit-n4"><img src="/images/stack-logos/tamarac.svg" alt="Envestnet Tamarac"><span class="cat">Portfolio</span></div>
+        <div class="kpfit-node kpfit-n5"><img src="/images/stack-logos/schwab.svg" alt="Charles Schwab"><span class="cat">Custodian</span></div>
+        <div class="kpfit-node kpfit-n6"><img src="/images/stack-logos/outlook.svg" alt="Outlook"><span class="cat">Email</span></div>
+        <div class="kpfit-node kpfit-n7"><img src="/images/stack-logos/onedrive.svg" alt="OneDrive"><span class="cat">Files</span></div>
+        <div class="kpfit-node kpfit-n8"><img src="/images/stack-logos/jump.svg" alt="Jump"><span class="cat">Meeting notes</span></div>
+       </div>
       </div>
+
+      <div class="kpfit-pills">
+       <span class="kpfit-pill"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>Citations you can click</span>
+       <span class="kpfit-pill"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Runs on your machine</span>
+       <span class="kpfit-pill"><svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>Switches you away from nothing</span>
+      </div>
+
+      <div class="kpfit-out">
+       <p class="kpfit-q">&ldquo;What did we decide about the Smiths&rsquo; 529 plans, and where is that in writing?&rdquo;</p>
+       <p class="kpfit-a">In the March review you agreed to fund $5,000 a year per child and revisit at age 14. Here it is in the notes and the follow-up email.</p>
+       <div class="kpfit-cite"><span class="lbl">Sources</span><span>Outlook &middot; Mar 14 email</span><span>OneDrive &middot; review-notes.docx</span><span>RightCapital &middot; plan export</span></div>
+      </div>
+
+      <p class="kpfit-foot">Keepance doesn&rsquo;t replace your CRM, your planner, your custodian, or your note-taker. <b>It&rsquo;s the one place everything about a client comes together and answers back.</b></p>
+     </div>
     </section>
 
     <!-- WHAT KEEPANCE IS NOT -->
@@ -599,54 +596,27 @@
         <div class="section-header anim">
           <span class="section-label">Honest about scope</span>
           <h2>What Keepance is not</h2>
-          <p>Being clear about what Keepance does not do is as important as what it does. If you need one of these things, use the tool built for it.</p>
+          <p>Being clear about what Keepance does not do is as important as what it does. If you need one of these, use the tool built for it. Keepance reads from them and answers across them.</p>
         </div>
-
         <div class="not-grid anim">
-
           <div class="not-item">
-            <div class="not-x">
-              <svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg>
-            </div>
-            <div class="not-item-text">
-              <h4>Not a practice management system</h4>
-              <p>Keepance does not track matters, dockets, deadlines, or billing. It does not replace Clio, Filevine, or MyCase. Use those for case management.</p>
-            </div>
+            <div class="not-x"><svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg></div>
+            <div class="not-item-text"><h4>Not a CRM</h4><p>It does not manage contacts, tasks, or your pipeline, and it does not replace Wealthbox, Redtail, or Salesforce. Keepance reads from your CRM and answers across everything around it.</p></div>
           </div>
-
           <div class="not-item">
-            <div class="not-x">
-              <svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg>
-            </div>
-            <div class="not-item-text">
-              <h4>Not a CRM</h4>
-              <p>Keepance does not manage contacts, pipelines, or client relationships. It does not replace Salesforce, Redtail, or HubSpot. Use your CRM for those.</p>
-            </div>
+            <div class="not-x"><svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg></div>
+            <div class="not-item-text"><h4>Not a financial planner</h4><p>It does not build the plan or give advice, and it does not replace RightCapital, eMoney, or MoneyGuidePro. It preps you before the review and drafts the follow-up from the real file.</p></div>
           </div>
-
           <div class="not-item">
-            <div class="not-x">
-              <svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg>
-            </div>
-            <div class="not-item-text">
-              <h4>Not a document storage system</h4>
-              <p>Keepance is a workspace for active AI work, not a permanent archive or a DMS. Store your finalized files wherever you store everything else: NetDocuments, SharePoint, iManage, your own folder system.</p>
-            </div>
+            <div class="not-x"><svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg></div>
+            <div class="not-item-text"><h4>Not a custodian</h4><p>It never holds accounts or moves money. Schwab, Fidelity, and Pershing keep doing that. Keepance just reads the statements and answers questions about them.</p></div>
           </div>
-
           <div class="not-item">
-            <div class="not-x">
-              <svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg>
-            </div>
-            <div class="not-item-text">
-              <h4>Not a billing platform</h4>
-              <p>Keepance does not track time, generate invoices, or process payments. It does not replace Clio Payments, QuickBooks, or your firm billing system.</p>
-            </div>
+            <div class="not-x"><svg viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/></svg></div>
+            <div class="not-item-text"><h4>Not a meeting note-taker</h4><p>It does not record or transcribe your meetings, and it does not replace Jump or Zocks. Keepance owns the client file outside the meeting: years of documents and email, answered with citations.</p></div>
           </div>
-
         </div>
-
-        <p class="anim" style="text-align:center;margin-top:32px;font-size:14px;color:var(--text-muted);max-width:580px;margin-left:auto;margin-right:auto;">Keepance does one thing: gives you a private, local-first workspace where AI work can happen on your most sensitive files, without routing them through a server you do not control. That is a narrow job, and it is the right job for what it is.</p>
+        <p class="anim" style="text-align:center;margin-top:32px;font-size:14px;color:var(--text-muted);max-width:600px;margin-left:auto;margin-right:auto;">Keepance does one thing: it is the private place all of a client's context comes together and answers you back, with proof, without routing your client data through a server you do not control.</p>
       </div>
     </section>
 
