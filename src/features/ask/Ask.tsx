@@ -407,7 +407,10 @@ export function Ask(props: UseAskProps) {
               background: 'var(--color-background)',
             }}
           >
-            <SourcePanel cite={selectedCite} />
+            <SourcePanel
+              cite={selectedCite}
+              {...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {})}
+            />
           </div>
         )}
       </div>

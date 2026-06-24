@@ -44,6 +44,12 @@ export async function hasCloudKeyForClientMap(): Promise<boolean> {
   return false;
 }
 
+export interface ResolvedClientMapProvider {
+  provider: Provider;
+  providerId: 'anthropic' | 'openai' | 'google' | 'ollama';
+  model: string;
+}
+
 /**
  * Build a Provider using the same cloud-provider resolution as Ask.
  *
@@ -52,9 +58,10 @@ export async function hasCloudKeyForClientMap(): Promise<boolean> {
  * Ollama (no egress, nothing to gate). Local-only mode returns early before
  * any key check.
  */
-export async function buildProviderForClientMap(): Promise<Provider> {
+export async function buildResolvedProviderForClientMap(): Promise<ResolvedClientMapProvider> {
   if (isLocalOnlyMode()) {
-    return new OllamaProvider({});
+    const provider = new OllamaProvider({});
+    return { provider, providerId: 'ollama', model: provider.getMetadata().model };
   }
   const kc = new KeychainService();
   const cloudKeys: CloudProviderKeyValues = {
@@ -84,14 +91,25 @@ export async function buildProviderForClientMap(): Promise<Provider> {
     if (apiKey) {
       assertCloudGenerationAllowed();
       switch (resolved.provider) {
-        case 'anthropic':
-          return new ClaudeProvider({ apiKey, model: resolved.model });
-        case 'openai':
-          return new OpenAIProvider({ apiKey, model: resolved.model });
-        case 'google':
-          return new GeminiProvider({ apiKey, model: resolved.model });
+        case 'anthropic': {
+          const provider = new ClaudeProvider({ apiKey, model: resolved.model });
+          return { provider, providerId: 'anthropic', model: provider.getMetadata().model };
+        }
+        case 'openai': {
+          const provider = new OpenAIProvider({ apiKey, model: resolved.model });
+          return { provider, providerId: 'openai', model: provider.getMetadata().model };
+        }
+        case 'google': {
+          const provider = new GeminiProvider({ apiKey, model: resolved.model });
+          return { provider, providerId: 'google', model: provider.getMetadata().model };
+        }
       }
     }
   }
-  return new OllamaProvider({});
+  const provider = new OllamaProvider({});
+  return { provider, providerId: 'ollama', model: provider.getMetadata().model };
+}
+
+export async function buildProviderForClientMap(): Promise<Provider> {
+  return (await buildResolvedProviderForClientMap()).provider;
 }

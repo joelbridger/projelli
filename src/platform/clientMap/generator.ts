@@ -1,14 +1,18 @@
 // src/platform/clientMap/generator.ts
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
-import { buildProviderForClientMap } from './provider';
+import { buildResolvedProviderForClientMap } from './provider';
 import { deriveCompleteness } from './completeness';
+import { auditEventToEntry } from '@/platform/audit/AuditService';
+import { resolveEgress } from '@/platform/privacy/egress';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import {
   CORE_SECTION_ORDER, CORE_SECTION_TITLE, emptyClientMap,
 } from './types';
 import type { ClientMap, ClientMapSection, CoreSectionKey, GapQuestion } from './types';
 import { parseItems, itemsFromRaw } from './aiSection';
 import { capGeneratedSectionItems } from './updater';
+import type { AuditEntry } from '@/platform/types/audit';
 
 // Gap questions are tagged with the section their answer belongs to so the
 // Guided Interview can file the answer in the right section. Unknown / missing
@@ -65,7 +69,10 @@ Rules: base every item ONLY on the context; cite the [N] numbers that support it
 
 export async function buildClientMap(
   matterId: string,
-  options?: { signal?: AbortSignal },
+  options?: {
+    signal?: AbortSignal;
+    onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+  },
 ): Promise<ClientMap> {
   if (!isMemoryEnabled()) return { ...emptyClientMap(matterId), lastBuiltAt: new Date().toISOString() };
   const scope = { kind: 'matter' as const, matterId };
@@ -76,16 +83,69 @@ export async function buildClientMap(
   );
   const askHits = await MemoryService.retrieve(ASK_QUERY, TOP_K, scope, false);
   const anyContent = perSection.some((p) => p.hits.length > 0) || askHits.length > 0;
+  const totalHits = perSection.reduce((sum, p) => sum + p.hits.length, 0) + askHits.length;
+  const topScore = [...perSection.flatMap((p) => p.hits), ...askHits].reduce<number | null>(
+    (max, hit) => (max === null ? hit.score : Math.max(max, hit.score)),
+    null,
+  );
+  options?.onAuditLog?.(auditEventToEntry({
+    type: 'retrieval_executed',
+    timestamp: new Date().toISOString(),
+    payload: {
+      query: 'Client Map build',
+      scope,
+      hitCount: totalHits,
+      topScore,
+    },
+  }));
   if (!anyContent || options?.signal?.aborted) {
     return { ...emptyClientMap(matterId), lastBuiltAt: new Date().toISOString() };
   }
 
-  const provider = await buildProviderForClientMap();
+  const resolvedProvider = await buildResolvedProviderForClientMap();
+  const provider = resolvedProvider.provider;
+  const emitAiAudit = (
+    label: string,
+    response: { content: string; usage?: { inputTokens?: number; outputTokens?: number }; cost?: number },
+  ) => {
+    const egress = resolveEgress({
+      provider: resolvedProvider.providerId,
+      mode: getConfidentialityMode(),
+      isDemo: false,
+      assuredAvailable: false,
+    });
+    options?.onAuditLog?.(auditEventToEntry({
+      type: 'egress',
+      timestamp: new Date().toISOString(),
+      payload: {
+        provider: egress.provider,
+        model: resolvedProvider.model,
+        mode: getConfidentialityMode(),
+        destination: egress.destination,
+        dataLeaves: egress.dataLeaves,
+        scope,
+      },
+    }));
+    options?.onAuditLog?.({
+      action: 'model_call',
+      description: `Client Map ${label} to ${resolvedProvider.model}`,
+      model: resolvedProvider.model,
+      inputs: { matterId, step: label },
+      outputs: { contentLength: response.content.length },
+      userDecision: 'auto',
+      metadata: { feature: 'client_map', step: label },
+      tokensIn: response.usage?.inputTokens ?? 0,
+      tokensOut: response.usage?.outputTokens ?? 0,
+      costUsd: response.cost ?? 0,
+      provider: resolvedProvider.providerId,
+    });
+  };
   const sections: ClientMapSection[] = [];
   for (const { key, hits } of perSection) {
     if (hits.length === 0) { sections.push({ id: key, kind: 'core', key, title: CORE_SECTION_TITLE[key], items: [] }); continue; }
     const ctx = buildWorkspaceContextBlock(hits);
     const res = await provider.sendMessage('Build this section.', { systemPrompt: sectionPrompt(CORE_SECTION_TITLE[key], ctx), maxTokens: 500 });
+    emitAiAudit(key, res);
     sections.push({
       id: key,
       kind: 'core',
@@ -104,6 +164,7 @@ export async function buildClientMap(
       systemPrompt: `Given this client context, list up to 5 short questions whose answers are missing and that you would need to ask the client. For each question name the section its answer belongs to: one of ${SECTION_NAME_LIST}. ${ctx} Return ONLY JSON (no fences): {"questions":[{"text":"...","section":"standing"}]}. No em dashes.`,
       maxTokens: 400,
     });
+    emitAiAudit('gap_questions', res);
     ask = parseGapQuestions(res.content);
   }
 

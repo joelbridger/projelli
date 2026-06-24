@@ -16,6 +16,14 @@ vi.mock('@/platform/clientMap/provider', () => ({
     sendMessage: sendMock,
     getMetadata: () => ({ model: 'test' }),
   }),
+  buildResolvedProviderForClientMap: async () => ({
+    provider: {
+      sendMessage: sendMock,
+      getMetadata: () => ({ model: 'test' }),
+    },
+    providerId: 'anthropic',
+    model: 'test',
+  }),
 }));
 
 import { buildClientMap } from '@/platform/clientMap/generator';

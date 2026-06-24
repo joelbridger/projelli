@@ -20,6 +20,7 @@ import { MatterHub } from '@/features/matters/MatterHub';
 import { useApiKeys } from '@/platform/hooks/useApiKeys';
 import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/platform/utils/mail-commands';
 import type { Matter } from '@/platform/types/matter';
+import type { AuditEntry } from '@/platform/types/audit';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar } from '@/ui/kp';
@@ -29,6 +30,10 @@ const SETUP_CARD_DISMISSED_KEY = 'keepance:setup-card-dismissed';
 
 /** Number of matters above which the search box is shown. */
 const SEARCH_THRESHOLD = 5;
+
+export interface MattersHomeProps {
+  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+}
 
 // ── Sort state ─────────────────────────────────────────────────────────────
 
@@ -591,7 +596,7 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
 
 // ── Main export ────────────────────────────────────────────────────────────
 
-export function MattersHome() {
+export function MattersHome({ onAuditLog }: MattersHomeProps = {}) {
   const { t } = useTranslation();
   const activeMatters = useActiveMatters();
   const archivedMatters = useArchivedMatters();
@@ -662,7 +667,13 @@ export function MattersHome() {
 
   // If a hub is open, render MatterHub instead of the table
   if (selectedMatterId !== null) {
-    return <MatterHub matterId={selectedMatterId} onBack={() => { setSelectedMatterId(null); }} />;
+    return (
+      <MatterHub
+        matterId={selectedMatterId}
+        onBack={() => { setSelectedMatterId(null); }}
+        {...(onAuditLog ? { onAuditLog } : {})}
+      />
+    );
   }
 
   return (

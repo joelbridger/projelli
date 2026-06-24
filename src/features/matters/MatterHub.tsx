@@ -39,12 +39,14 @@ import { answerQuestion, flagForClient } from '@/platform/clientMap/guidedInterv
 import { dispatchOpenSource } from '@/platform/clientMap/openSource';
 import type { SourceRef } from '@/platform/clientMap/types';
 import { dedupeFolderPathsForDisplay } from './matterManagerDialogHelpers';
+import type { AuditEntry } from '@/platform/types/audit';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
 export interface MatterHubProps {
   matterId: string;
   onBack: () => void;
+  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -76,10 +78,13 @@ const LABEL_YOUR_ANSWER_PROMPT = 'Your answer to:';
 
 // ── MatterHub ──────────────────────────────────────────────────────────────
 
-export function MatterHub({ matterId, onBack }: MatterHubProps) {
+export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
   // ── Client Map wiring ────────────────────────────────────────────────────
   // Declare client map hook at component top — must not be inside a condition.
-  const clientMap = useClientMap(matterId);
+  const clientMap = useClientMap(
+    matterId,
+    onAuditLog ? { onAuditLog } : undefined,
+  );
   const { checkForUpdates } = clientMap;
   const matters = useMatters();
   const matter = matters.find((m) => m.id === matterId) ?? null;
@@ -115,7 +120,10 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
   const runGlanceGeneration = useCallback(async (mid: string, signal: AbortSignal) => {
     setGlanceStatus('generating');
     try {
-      const result = await generateMatterAtAGlance(mid, { signal });
+      const result = await generateMatterAtAGlance(
+        mid,
+        onAuditLog ? { signal, onAuditLog } : { signal },
+      );
       if (signal.aborted) return;
       const cleanResult = normalizeMatterAtAGlanceResult(result);
       glanceStore.setEntry(mid, cleanResult);
@@ -130,7 +138,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
       if (signal.aborted) return;
       setGlanceStatus('error');
     }
-  }, [glanceStore]);
+  }, [glanceStore, onAuditLog]);
 
   // On mount / matterId change: load from cache or trigger generation.
   // Guards: sample matter is always skipped; no cloud key = 'no-key'; memory

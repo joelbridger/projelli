@@ -4,6 +4,7 @@ import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { buildClientMap } from '@/platform/clientMap/generator';
 import { computeSourceFingerprint, proposeUpdates, mergePendingUpdates } from '@/platform/clientMap/updater';
 import type { ClientMap } from '@/platform/clientMap/types';
+import type { AuditEntry } from '@/platform/types/audit';
 
 export type ClientMapStatus = 'idle' | 'generating' | 'ready' | 'empty' | 'error';
 
@@ -35,16 +36,23 @@ function mapHasPreservableState(map: ClientMap | undefined): boolean {
   );
 }
 
-export function useClientMap(matterId: string): {
+export function useClientMap(
+  matterId: string,
+  options?: { onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void },
+): {
   status: ClientMapStatus; map: ClientMap | undefined; generate: () => Promise<void>; checkForUpdates: () => Promise<void>;
 } {
   const map = useClientMapStore((s) => s.maps[matterId]);
   const setMap = useClientMapStore((s) => s.setMap);
+  const onAuditLog = options?.onAuditLog;
   const [status, setStatus] = useState<ClientMapStatus>(mapHasContent(map) ? 'ready' : map ? 'empty' : 'idle');
   const generate = useCallback(async () => {
     setStatus('generating');
     try {
-      const built = await buildClientMap(matterId);
+      const built = await buildClientMap(
+        matterId,
+        onAuditLog ? { onAuditLog } : undefined,
+      );
       const fp = await computeSourceFingerprint(matterId);
 
       const existing = useClientMapStore.getState().getMap(matterId);
@@ -75,14 +83,17 @@ export function useClientMap(matterId: string): {
     } catch {
       setStatus('error');
     }
-  }, [matterId, setMap]);
+  }, [matterId, setMap, onAuditLog]);
 
   const checkForUpdates = useCallback(async () => {
     const current = useClientMapStore.getState().getMap(matterId);
     if (!current || current.lastBuiltAt === '') return;
     const fp = await computeSourceFingerprint(matterId);
     if (fp === current.lastSourceFingerprint) return;
-    const fresh = await buildClientMap(matterId);
+    const fresh = await buildClientMap(
+      matterId,
+      onAuditLog ? { onAuditLog } : undefined,
+    );
     const dismissed = current.dismissedSignatures ?? [];
     const proposals = proposeUpdates(matterId, current, fresh, dismissed);
     // NEVER replace items, and NEVER silently drop a still-pending proposal the
@@ -93,7 +104,7 @@ export function useClientMap(matterId: string): {
       pendingUpdates: mergePendingUpdates(current.pendingUpdates, proposals, dismissed),
       lastSourceFingerprint: fp,
     });
-  }, [matterId]);
+  }, [matterId, onAuditLog]);
 
   // Transient/terminal states from an in-flight or failed generate win; otherwise
   // derive from the stored map's actual content so an empty matter shows the
