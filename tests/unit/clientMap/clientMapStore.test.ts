@@ -125,4 +125,37 @@ describe('clientMapStore', () => {
     expect(targetItem?.text).toBe('My own text');
     expect(targetItem?.origin).toBe('user');
   });
+
+  it('setMap auto-applies clean sourced add updates but leaves risky updates pending', () => {
+    const m = emptyClientMap('m1');
+    const sourcedAdd: ProposedUpdate = {
+      id: 'safe-add',
+      sectionKey: 'standing',
+      op: 'add',
+      draft: {
+        ...item('safe', 'Client wants capital preservation'),
+        sources: [{ kind: 'document', ref: '/plan.pdf', snippet: 'capital preservation' }],
+      },
+      reason: 'Found in source',
+      createdAt: '2026-06-22T00:00:00Z',
+    };
+    const unsourcedAdd: ProposedUpdate = {
+      id: 'needs-review',
+      sectionKey: 'next',
+      op: 'add',
+      draft: item('review', 'Likely needs a follow-up'),
+      reason: 'No source',
+      createdAt: '2026-06-22T00:00:00Z',
+    };
+
+    useClientMapStore.getState().setMap('m1', {
+      ...m,
+      pendingUpdates: [sourcedAdd, unsourcedAdd],
+    });
+
+    const map = useClientMapStore.getState().getMap('m1')!;
+    expect(map.sections.find((s) => s.key === 'standing')!.items.map((i) => i.text))
+      .toContain('Client wants capital preservation');
+    expect(map.pendingUpdates.map((u) => u.id)).toEqual(['needs-review']);
+  });
 });

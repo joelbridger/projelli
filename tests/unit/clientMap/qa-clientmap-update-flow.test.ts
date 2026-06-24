@@ -102,7 +102,9 @@ describe('Client Map — regression tests for fixed bugs (KEEPANCE 5)', () => {
     // Seed a built map and propose the AI fact into the (empty) current map.
     const current: ClientMap = { ...emptyClientMap('m1'), lastBuiltAt: 't' };
     const built: ClientMap = { ...emptyClientMap('m1') };
-    built.sections[2]!.items = [aiItem('Carrier denied coverage')]; // same source, still retrieved
+    const reviewRequired = aiItem('Carrier denied coverage');
+    reviewRequired.sources = [{ kind: 'document', ref: '/f', snippet: '' }];
+    built.sections[2]!.items = [reviewRequired]; // same source, still retrieved
 
     // First pass proposes it (correct).
     const first = proposeUpdates('m1', current, built);
@@ -155,7 +157,7 @@ describe('Client Map — regression tests for fixed bugs (KEEPANCE 5)', () => {
     const current: ClientMap = { ...emptyClientMap('m1'), lastBuiltAt: 't' };
 
     const fromA = aiItem('Carrier denied coverage');
-    fromA.sources = [{ kind: 'document', ref: '/a.pdf', snippet: 's', citationId: 'A' }];
+    fromA.sources = [{ kind: 'document', ref: '/a.pdf', snippet: '', citationId: 'A' }];
     const builtA: ClientMap = { ...emptyClientMap('m1') };
     builtA.sections[2]!.items = [fromA];
     const p1 = proposeUpdates('m1', current, builtA);
@@ -164,7 +166,7 @@ describe('Client Map — regression tests for fixed bugs (KEEPANCE 5)', () => {
 
     // Same text, different source B — also proposed, also dismissed.
     const fromB = aiItem('Carrier denied coverage');
-    fromB.sources = [{ kind: 'document', ref: '/b.pdf', snippet: 's', citationId: 'B' }];
+    fromB.sources = [{ kind: 'document', ref: '/b.pdf', snippet: '', citationId: 'B' }];
     const builtB: ClientMap = { ...emptyClientMap('m1') };
     builtB.sections[2]!.items = [fromB];
     let dismissed = useClientMapStore.getState().getMap('m1')!.dismissedSignatures ?? [];

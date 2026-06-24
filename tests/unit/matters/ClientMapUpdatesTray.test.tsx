@@ -17,6 +17,7 @@ describe('ClientMapUpdatesTray', () => {
   it('shows the marker and accepting applies the update', () => {
     render(<ClientMapUpdatesTray matterId="m1" />);
     expect(screen.getByTestId('clientmap-updates-marker')).toHaveTextContent('1');
+    expect(screen.getByText('1 update to review')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('clientmap-update-accept'));
     const map = useClientMapStore.getState().getMap('m1')!;
     expect(map.sections.find((s) => s.key === 'standing')!.items.map((i) => i.text)).toContain('New filing due');
@@ -29,5 +30,23 @@ describe('ClientMapUpdatesTray', () => {
     const map = useClientMapStore.getState().getMap('m1')!;
     expect(map.pendingUpdates).toHaveLength(0);
     expect(map.sections.find((s) => s.key === 'standing')!.items).toHaveLength(0);
+  });
+
+  it('uses the exact pending count instead of saying a few', () => {
+    useClientMapStore.getState().setPendingUpdates('m1', Array.from({ length: 12 }, (_, i) => ({
+      id: `u-${String(i)}`,
+      sectionKey: i % 2 === 0 ? 'standing' : 'people',
+      op: 'add' as const,
+      draft: { id: `d-${String(i)}`, text: `Manual review item ${String(i)}`, origin: 'ai' as const, isAssumption: false, sources: [], updatedAt: 't' },
+      reason: 'r',
+      createdAt: 't',
+    })));
+
+    render(<ClientMapUpdatesTray matterId="m1" />);
+
+    expect(screen.getByTestId('clientmap-updates-marker')).toHaveTextContent('12');
+    expect(screen.getByText('12 updates to review')).toBeInTheDocument();
+    expect(screen.queryByText('a few updates to review')).not.toBeInTheDocument();
+    expect(screen.getByText('Show 4 more')).toBeInTheDocument();
   });
 });

@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { ClientMap, ClientMapSection, ClientQuestion, DismissedSignature, ProposedUpdate, GapQuestion } from './types';
-import { proposalSignature } from './updater';
+import { autoApplySafeAddUpdates, proposalSignature } from './updater';
 
 interface ClientMapState {
   maps: Record<string, ClientMap>;
@@ -88,7 +88,7 @@ export const useClientMapStore = create<ClientMapState>()(
       clientQuestions: {},
       getMap: (matterId) => get().maps[matterId],
       setMap: (matterId, map) =>
-        set((s) => ({ maps: { ...s.maps, [matterId]: map } })),
+        set((s) => ({ maps: { ...s.maps, [matterId]: autoApplySafeAddUpdates(map) } })),
       editItem: (matterId, sectionKey, itemId, text) =>
         set((s) => {
           const map = s.maps[matterId];
@@ -149,7 +149,7 @@ export const useClientMapStore = create<ClientMapState>()(
         set((s) => {
           const map = s.maps[matterId];
           if (!map) return {};
-          return { maps: { ...s.maps, [matterId]: { ...map, pendingUpdates: updates } } };
+          return { maps: { ...s.maps, [matterId]: autoApplySafeAddUpdates({ ...map, pendingUpdates: updates }) } };
         }),
       acceptUpdate: (matterId, updateId, override) =>
         set((s) => {

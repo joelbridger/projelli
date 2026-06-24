@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const retrieveMock = vi.hoisted(() => vi.fn());
 vi.mock('@/platform/rag/MemoryService', () => ({ MemoryService: { retrieve: retrieveMock }, isMemoryEnabled: () => true }));
-import { computeSourceFingerprint, proposeUpdates } from '@/platform/clientMap/updater';
+import { autoApplySafeAddUpdates, computeSourceFingerprint, proposeUpdates } from '@/platform/clientMap/updater';
 import { emptyClientMap } from '@/platform/clientMap/types';
 import type { ClientMap, ClientMapItem } from '@/platform/clientMap/types';
 
@@ -31,5 +31,43 @@ describe('updater', () => {
     expect(updates.map((u) => u.draft?.text)).toContain('A brand new issue');
     expect(updates.map((u) => u.draft?.text)).not.toContain('Existing issue'); // already present
     expect(updates.map((u) => u.draft?.text)).not.toContain('My own note'); // user-origin, untouched
+  });
+
+  it('auto-applies only clean source-backed add proposals', () => {
+    const current: ClientMap = { ...emptyClientMap('m1') };
+    const safeAdd = {
+      id: 'safe',
+      sectionKey: 'standing',
+      op: 'add' as const,
+      draft: it1('A sourced new fact'),
+      reason: 'new source',
+      createdAt: 't',
+    };
+    const unsourcedAdd = {
+      id: 'unsourced',
+      sectionKey: 'next',
+      op: 'add' as const,
+      draft: { ...it1('Needs review'), sources: [] },
+      reason: 'no source',
+      createdAt: 't',
+    };
+    const change = {
+      id: 'change',
+      sectionKey: 'standing',
+      op: 'change' as const,
+      itemId: 'existing',
+      draft: it1('Changed fact'),
+      reason: 'changed',
+      createdAt: 't',
+    };
+
+    const applied = autoApplySafeAddUpdates({
+      ...current,
+      pendingUpdates: [safeAdd, unsourcedAdd, change],
+    });
+
+    expect(applied.sections.find((s) => s.key === 'standing')!.items.map((i) => i.text))
+      .toContain('A sourced new fact');
+    expect(applied.pendingUpdates.map((u) => u.id)).toEqual(['unsourced', 'change']);
   });
 });
