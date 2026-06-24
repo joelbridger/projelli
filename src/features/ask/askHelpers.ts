@@ -365,7 +365,9 @@ export function bindAnswerCitations(
 
       citations.push({
         n,
-        label: citationBasename(matchedHit.path),
+        // B4: prefer the real source filename (+ page/section) over a bare
+        // basename so a citation never shows a meaningless name like "6.pdf".
+        label: matchedSource ? sourceLocator(matchedSource) : citationBasename(matchedHit.path),
         excerpt: matchedHit.chunkText,
         path: matchedHit.path,
         locator: matchedSource ? sourceLocator(matchedSource) : citationBasename(matchedHit.path),
