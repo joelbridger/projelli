@@ -3,7 +3,11 @@
  * Ask.tsx. No React, no side-effects; safe to import anywhere.
  */
 
-import { citationBasename } from '@/platform/rag/workspaceCommand';
+import {
+  citationBasename,
+  parseCitations,
+  resolveCitationPath,
+} from '@/platform/rag/workspaceCommand';
 import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
@@ -79,6 +83,23 @@ export interface AskTurn {
   sources: WorkspaceSource[];
   isStreaming?: boolean;
   error?: string;
+}
+
+export interface RecentAskSession {
+  chatId: string;
+  label: string;
+  dateLabel: string;
+}
+
+interface AskSessionLike {
+  messages: ChatMessage[];
+  workspaceRoot?: string;
+}
+
+export interface BoundAnswerCitations {
+  answer: string;
+  citations: AnswerCitation[];
+  sources: WorkspaceSource[];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -213,6 +234,163 @@ export function buildHistoryBlock(turns: AskTurn[], maxTurns = 6): string {
   }
   lines.push('\nNow answer the new question below, citing sources with [filename paragraph N] as before.');
   return lines.join('\n');
+}
+
+function dateLabelFromTimestamp(ts: string | undefined): string {
+  if (!ts) return '';
+  try {
+    const d = new Date(ts);
+    return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+  } catch {
+    return '';
+  }
+}
+
+export function sessionBelongsToWorkspace(
+  session: { workspaceRoot?: string; messages?: unknown[] },
+  workspaceRoot: string | null | undefined,
+): boolean {
+  if (!workspaceRoot) return true;
+  return session.workspaceRoot === workspaceRoot;
+}
+
+export function buildRecentAskSessions(
+  sessions: Record<string, AskSessionLike>,
+  workspaceRoot: string | null | undefined,
+  options: {
+    prefix?: string;
+    excludeChatId?: string;
+    limit?: number;
+  } = {},
+): RecentAskSession[] {
+  const prefix = options.prefix ?? 'ask-';
+  const limit = options.limit ?? 5;
+
+  return Object.entries(sessions)
+    .filter(([key, session]) =>
+      key.startsWith(prefix) &&
+      key !== options.excludeChatId &&
+      sessionBelongsToWorkspace(session, workspaceRoot) &&
+      session.messages.some((m) => m.role === 'user'),
+    )
+    .sort(([, a], [, b]) => {
+      const aTs = a.messages.find((m) => m.role === 'user')?.timestamp ?? '';
+      const bTs = b.messages.find((m) => m.role === 'user')?.timestamp ?? '';
+      return bTs.localeCompare(aTs);
+    })
+    .map(([key, session]) => {
+      const firstUserMsg = session.messages.find((m) => m.role === 'user');
+      return {
+        chatId: key,
+        label: firstUserMsg?.content ?? key,
+        dateLabel: dateLabelFromTimestamp(firstUserMsg?.timestamp),
+      };
+    })
+    .slice(0, limit);
+}
+
+export function buildWorkspaceSources(hits: RagHit[]): WorkspaceSource[] {
+  return hits.map((h) => ({
+    path: h.path,
+    chunkText: h.chunkText,
+    score: h.score,
+    paragraphIndex: h.paragraphIndex,
+    ...(h.sourceType !== undefined ? { sourceType: h.sourceType } : {}),
+    ...(h.pageNumber !== undefined ? { pageNumber: h.pageNumber } : {}),
+    ...(h.extraction !== undefined ? { extraction: h.extraction } : {}),
+    ...(h.extractionConfidence !== undefined ? { extractionConfidence: h.extractionConfidence } : {}),
+    ...(h.locator !== undefined ? { locator: h.locator } : {}),
+    ...(h.id !== undefined ? { id: h.id } : {}),
+    ...(h.matterId !== undefined ? { matterId: h.matterId } : {}),
+  }));
+}
+
+/**
+ * Attach answer citations only when the model's marker points at a real
+ * retrieved source. A newer RAG row can also carry id + matterId for backend
+ * verification, but older rows are still grounded when the cited file and
+ * locator were actually retrieved. That is the false-negative this helper
+ * avoids: "source exists" should not show the uncited warning just because
+ * the row lacks the newer verification metadata.
+ */
+export function bindAnswerCitations(
+  answerText: string,
+  hits: RagHit[],
+  expectedMatterId: string | null = null,
+): BoundAnswerCitations {
+  const parsed = parseCitations(answerText);
+  const sources = buildWorkspaceSources(hits);
+  const citationMap = new Map<string, number>();
+  const citations: AnswerCitation[] = [];
+  let chipCounter = 0;
+  const decisions: { start: number; end: number; n: number | null }[] = [];
+
+  for (const cite of [...parsed].sort((a, b) => a.start - b.start)) {
+    const resolvedPath = resolveCitationPath(cite, hits);
+    const matchedHit = resolvedPath === null
+      ? undefined
+      : hits.find(
+          (h) =>
+            h.path === resolvedPath &&
+            (h.paragraphIndex === cite.paragraphIndex || h.pageNumber === cite.paragraphIndex),
+        );
+
+    if (!matchedHit) {
+      decisions.push({ start: cite.start, end: cite.end, n: null });
+      continue;
+    }
+
+    const key = matchedHit.id ?? `${matchedHit.path}:${String(matchedHit.paragraphIndex)}:${String(matchedHit.pageNumber ?? '')}`;
+    let n: number;
+    if (citationMap.has(key)) {
+      n = citationMap.get(key) ?? chipCounter;
+    } else {
+      chipCounter += 1;
+      n = chipCounter;
+      citationMap.set(key, n);
+
+      const matchedSource =
+        sources.find((s) =>
+          s.path === matchedHit.path &&
+          (s.paragraphIndex === matchedHit.paragraphIndex || s.pageNumber === matchedHit.pageNumber),
+        ) ??
+        sources.find((s) =>
+          s.path === matchedHit.path &&
+          (s.paragraphIndex === cite.paragraphIndex || s.pageNumber === cite.paragraphIndex),
+        );
+      const inExpectedMatter =
+        expectedMatterId === null ||
+        matchedHit.matterId === undefined ||
+        matchedHit.matterId === expectedMatterId;
+
+      citations.push({
+        n,
+        label: citationBasename(matchedHit.path),
+        excerpt: matchedHit.chunkText,
+        path: matchedHit.path,
+        locator: matchedSource ? sourceLocator(matchedSource) : citationBasename(matchedHit.path),
+        verified: inExpectedMatter,
+        paragraphIndex: matchedHit.paragraphIndex,
+        ...(matchedHit.id !== undefined ? { id: matchedHit.id } : {}),
+        ...(matchedHit.matterId !== undefined ? { matterId: matchedHit.matterId } : {}),
+      });
+    }
+    decisions.push({ start: cite.start, end: cite.end, n });
+  }
+
+  let rewritten = answerText;
+  for (const d of [...decisions].sort((a, b) => b.start - a.start)) {
+    if (d.n === null) {
+      let start = d.start;
+      if (start > 0 && rewritten[start - 1] === ' ') start -= 1;
+      rewritten = rewritten.slice(0, start) + rewritten.slice(d.end);
+    } else {
+      rewritten = rewritten.slice(0, d.start) + `{${String(d.n)}}` + rewritten.slice(d.end);
+    }
+  }
+
+  citations.sort((a, b) => a.n - b.n);
+  return { answer: rewritten, citations, sources };
 }
 
 /** Reconstruct AskTurn[] from persisted ChatMessage pairs (user+assistant). */

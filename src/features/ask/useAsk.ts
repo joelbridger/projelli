@@ -16,24 +16,21 @@ import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import {
   DEFAULT_WORKSPACE_TOP_K,
   buildWorkspaceContextBlock,
-  citationBasename,
-  parseCitations,
-  resolveCitationPath,
 } from '@/platform/rag/workspaceCommand';
-import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 import { KeychainService } from '@/platform/providers/KeychainService';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import type { ChatMessage } from '@/platform/types/ai';
-import type { AskScope, AnswerCitation, AskTurn } from './askHelpers';
+import type { AskScope, AskTurn } from './askHelpers';
 import {
-  sourceLocator,
   hasCloudKey,
   buildProviderAsync,
   friendlyErrorMessage,
   buildHistoryBlock,
   reconstructTurns,
   filterHitsByScope,
+  bindAnswerCitations,
+  buildRecentAskSessions,
 } from './askHelpers';
 
 /**
@@ -91,6 +88,7 @@ export function useAsk({
 
   // Store selectors
   const initSession = useAIChatStore((s) => s.initSession);
+  const setSessionWorkspaceRoot = useAIChatStore((s) => s.setSessionWorkspaceRoot);
   const addMessage = useAIChatStore((s) => s.addMessage);
   const sessions = useAIChatStore((s) => s.sessions);
 
@@ -110,55 +108,22 @@ export function useAsk({
   // Fix #8: track the active provider name for EgressIndicator
   const [activeProvider, setActiveProvider] = useState<string>('anthropic');
 
-  // Recent sessions: sessions keyed "ask-*"
-  const recentSessions = Object.entries(sessions)
-    .filter(([key, session]) => key.startsWith('ask-') && session.messages.some((m) => m.role === 'user'))
-    .map(([key, session]) => {
-      const firstUserMsg = session.messages.find((m) => m.role === 'user');
-      // Fix #6: include a readable timestamp for the sub-label so chips are distinguishable.
-      const ts = firstUserMsg?.timestamp;
-      const dateLabel = ts
-        ? (() => {
-            try {
-              const d = new Date(ts);
-              return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
-            } catch {
-              return '';
-            }
-          })()
-        : '';
-      return { chatId: key, label: firstUserMsg?.content ?? key, dateLabel };
-    })
-    .slice(0, 5);
+  // Recent sessions: sessions keyed "ask-*", scoped to the current workspace.
+  const recentSessions = buildRecentAskSessions(sessions, rootPath, {
+    excludeChatId: chatId,
+    limit: 5,
+  });
 
   // Matter-scoped prior sessions: sessions whose key starts with "ask-<matterId>"
   // (covers both the base id and timestamped variants like ask-<matterId>-<ts>).
   // Only shown for non-sample real matters on the empty/landing state.
   const matterSessionPrefix = activeMatter ? `ask-${activeMatter.id}` : null;
   const matterRecentSessions = matterSessionPrefix !== null
-    ? Object.entries(sessions)
-        .filter(([key, session]) =>
-          key.startsWith(matterSessionPrefix) &&
-          session.messages.some((m) => m.role === 'user') &&
-          key !== chatId,
-        )
-        .map(([key, session]) => {
-          const firstUserMsg = session.messages.find((m) => m.role === 'user');
-          // Fix #6: include timestamp so chips with similar starts are distinguishable.
-          const ts = firstUserMsg?.timestamp;
-          const dateLabel = ts
-            ? (() => {
-                try {
-                  const d = new Date(ts);
-                  return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
-                } catch {
-                  return '';
-                }
-              })()
-            : '';
-          return { chatId: key, label: firstUserMsg?.content ?? key, dateLabel };
-        })
-        .slice(0, 5)
+    ? buildRecentAskSessions(sessions, rootPath, {
+        prefix: matterSessionPrefix,
+        excludeChatId: chatId,
+        limit: 5,
+      })
     : [];
 
   // On mount / chatId change: init session and reconstruct turns from persisted messages.
@@ -168,6 +133,7 @@ export function useAsk({
   // prior demo answer) so the "click a question" aha moment shows on every fresh visit.
   useEffect(() => {
     initSession(chatId, []);
+    setSessionWorkspaceRoot(chatId, rootPath ?? null);
     const isSampleChat = activeMatter?.id === SAMPLE_MATTER_ID;
     const freshSession = useAIChatStore.getState().sessions[chatId];
     if (!isSampleChat && freshSession && freshSession.messages.length > 0) {
@@ -181,7 +147,7 @@ export function useAsk({
     setStreamingTurn(null);
     setErrorMsg(null);
     setStatus('idle');
-  }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chatId, rootPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to bottom when turns change or streaming turn updates
   useEffect(() => {
@@ -454,125 +420,14 @@ export function useAsk({
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (abort.signal.aborted) return;
 
-      /* Step 3: parse citations */
-      const parsed = parseCitations(answerText);
-
-      const sources: WorkspaceSource[] = hits.map((h) => ({
-        path: h.path,
-        chunkText: h.chunkText,
-        score: h.score,
-        paragraphIndex: h.paragraphIndex,
-        ...(h.sourceType !== undefined ? { sourceType: h.sourceType } : {}),
-        ...(h.pageNumber !== undefined ? { pageNumber: h.pageNumber } : {}),
-        ...(h.extraction !== undefined ? { extraction: h.extraction } : {}),
-        ...(h.extractionConfidence !== undefined ? { extractionConfidence: h.extractionConfidence } : {}),
-        ...(h.locator !== undefined ? { locator: h.locator } : {}),
-        ...(h.id !== undefined ? { id: h.id } : {}),
-        ...(h.matterId !== undefined ? { matterId: h.matterId } : {}),
-      }));
-
-      /* BUG-016 — citation grounding.
-       * A citation is only kept (and shown as a chip / counted toward the
-       * "Answered over your own files" banner) when it resolves to an ACTUAL
-       * retrieved chunk — matched by the file AND the exact locator the chunk
-       * was retrieved at (paragraph for text, page for PDF). This closes two
-       * fabrication paths:
-       *   - the model cites a file that wasn't retrieved at all (fake source);
-       *   - the model cites a REAL retrieved file but attaches the claim to a
-       *     paragraph/page that was never in the context (a real filename can't
-       *     launder a fabricated claim).
-       * Anything else is dropped and its marker stripped from the prose, so it
-       * can never render a chip, populate the source panel with a (real or fake)
-       * title, or trip the green attestation. We do this in two passes so chip
-       * numbers run in reading order while text edits run back-to-front (edits
-       * never shift an earlier, not-yet-processed match).
+      /* Step 3: parse and attach citations.
+       * A citation is kept only when it points at a real retrieved chunk. Newer
+       * rows can also be verified by id + matterId, but older indexed rows are
+       * still grounded when the cited file + locator were actually retrieved.
        */
-      // BUG-065: the active matter scope for this Ask turn (null = All matters).
-      // A citation only counts as grounded ("source found", green) when its
-      // retrieved chunk has an id + matterId AND, in a matter-scoped turn,
-      // belongs to that matter — fail closed, matching the chat verifier.
       const expectedMatterId: string | null =
         activeMatter && askScope !== 'all-matters' ? activeMatter.id : null;
-      const citationMap = new Map<string, number>();
-      const citations: AnswerCitation[] = [];
-      let chipCounter = 0;
-      // Pass 1 (reading order): decide keep/drop + assign chip numbers.
-      const decisions: { start: number; end: number; n: number | null }[] = [];
-      const inOrder = [...parsed].sort((a, b) => a.start - b.start);
-
-      for (const cite of inOrder) {
-        const resolvedPath = resolveCitationPath(cite, hits);
-        // The cited LOCATOR must be a real retrieved chunk. The parsed number is
-        // matched against a chunk's paragraphIndex (text) OR pageNumber (PDF),
-        // so a model that writes "paragraph 3" or "page 3" for a page-3 source
-        // both ground correctly, while a fabricated "paragraph 99" does not.
-        const matchedHit = resolvedPath === null
-          ? undefined
-          : hits.find(
-              (h) =>
-                h.path === resolvedPath &&
-                (h.paragraphIndex === cite.paragraphIndex || h.pageNumber === cite.paragraphIndex),
-            );
-
-        if (!matchedHit) {
-          decisions.push({ start: cite.start, end: cite.end, n: null });
-          continue;
-        }
-
-        const key = matchedHit.id ?? `${matchedHit.path}:${String(matchedHit.paragraphIndex)}`;
-        let n: number;
-        if (citationMap.has(key)) {
-          n = citationMap.get(key) ?? chipCounter;
-        } else {
-          chipCounter += 1;
-          n = chipCounter;
-          citationMap.set(key, n);
-
-          const matchedSource = sources.find(
-            (s) => s.path === matchedHit.path && s.paragraphIndex === matchedHit.paragraphIndex,
-          );
-          const locator = matchedSource ? sourceLocator(matchedSource) : citationBasename(matchedHit.path);
-          citations.push({
-            n,
-            label: locator,
-            // Excerpt + locator come from the matched RETRIEVED chunk, never
-            // from the model's text, so the source panel always shows real
-            // retrieved content.
-            excerpt: matchedHit.chunkText,
-            path: matchedHit.path,
-            locator,
-            // BUG-065: fail closed. Only "source found" when the retrieved chunk
-            // is identifiable (id + matterId) and in the active matter scope; a
-            // chunk missing those, or from another matter, is NOT shown green.
-            verified:
-              matchedHit.id !== undefined &&
-              matchedHit.matterId !== undefined &&
-              (expectedMatterId === null || matchedHit.matterId === expectedMatterId),
-            paragraphIndex: matchedHit.paragraphIndex,
-            // WS3: forward id + matterId so the SourcePanel can call
-            // ragVerifyCitation for on-demand source verification.
-            ...(matchedHit.id !== undefined ? { id: matchedHit.id } : {}),
-            ...(matchedHit.matterId !== undefined ? { matterId: matchedHit.matterId } : {}),
-          });
-        }
-        decisions.push({ start: cite.start, end: cite.end, n });
-      }
-
-      // Pass 2 (back-to-front): rewrite kept markers to {n}, strip dropped ones.
-      let rewritten = answerText;
-      for (const d of [...decisions].sort((a, b) => b.start - a.start)) {
-        if (d.n === null) {
-          let start = d.start;
-          // Swallow a single leading space so a dropped citation doesn't leave a
-          // double space or a " ." gap behind it.
-          if (start > 0 && rewritten[start - 1] === ' ') start -= 1;
-          rewritten = rewritten.slice(0, start) + rewritten.slice(d.end);
-        } else {
-          rewritten = rewritten.slice(0, d.start) + `{${String(d.n)}}` + rewritten.slice(d.end);
-        }
-      }
-
-      citations.sort((a, b) => a.n - b.n);
+      const { answer: rewritten, citations, sources } = bindAnswerCitations(answerText, hits, expectedMatterId);
 
       const completedTurn: AskTurn = {
         question: q,

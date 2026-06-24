@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Ask/Search UX now keeps citations and recent questions honest per workspace.** Ask answers that cite a real retrieved source now attach the citation even when the source row lacks newer verification metadata, so grounded answers do not show the uncited warning. Search recent questions are now scoped to the open workspace, so old questions from another demo/test workspace no longer appear.
+  - Files modified: `src/features/ask/{askHelpers,useAsk}.ts`, `src/platform/state/aiChatStore.ts`
+  - Tests: `src/features/ask/askHelpers.test.ts`; `npm run typecheck`; `npx vitest run src/features/ask`
 - **Folder-to-client tagging now retags all mapped client files in the right path space.** When a matter/client folder mapping changes, office/text files are re-indexed with the absolute native path the Rust workspace walk stores, while PDFs are re-indexed through the TypeScript PDF path using their workspace-relative path. The initial full workspace index now also performs a best-effort one-time retag for matters that already had folder mappings, so pre-existing client folders do not stay `unassigned`.
   - Files modified: `src/platform/hooks/useMemoryWiring.ts`
   - Tests: `src/platform/hooks/useMemoryWiring.externalFiles.test.ts`; `npm run gate`
