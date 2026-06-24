@@ -35,6 +35,9 @@ export function scpTo(localPath, remotePath) {
 }
 
 export async function ensureTunnel(localPort = 9444, benchPort = 9223) {
+  // ROBOT_LOCAL: the robot is running ON the Windows machine itself (e.g. a CI
+  // runner) and drives the local app directly over 127.0.0.1:9223 — no SSH tunnel.
+  if (process.env.ROBOT_LOCAL) return;
   if (await isPortOpen(localPort)) return;
 
   // 127.0.0.1 on BOTH ends, NOT localhost: on Windows localhost resolves to ::1

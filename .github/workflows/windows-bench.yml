@@ -1,0 +1,40 @@
+name: Windows Bench (robot smoke)
+
+# Runs the test robot's end-to-end smoke against the REAL Keepance desktop app on a
+# self-hosted Windows runner (the Legion). The robot drives the already-running app
+# over the WebView2 CDP port (localhost:9223), so the job only needs local network
+# access to that port — no GUI rendering in the job itself.
+#
+# Manual trigger for now (the cloud-Windows spike): gh workflow run windows-bench.yml
+# Prereq: the Keepance app is running on the bench (KeepanceDev) and CDP 9223 is up.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: windows-bench
+  cancel-in-progress: false
+
+jobs:
+  robot-smoke:
+    runs-on: [self-hosted, windows-bench]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Playwright package (no browser download — robot connects over CDP)
+        run: npm install --no-audit --no-fund --no-save playwright
+
+      - name: Confirm the app is listening on CDP 9223
+        shell: pwsh
+        run: |
+          $c = (Get-NetTCPConnection -LocalPort 9223 -State Listen -ErrorAction SilentlyContinue | Measure-Object).Count
+          if ($c -lt 1) { Write-Error "Keepance app is not listening on CDP 9223 (start KeepanceDev)"; exit 1 }
+          Write-Output "app up on CDP 9223"
+
+      - name: Run the robot smoke (Windows-native, drives the live app over CDP)
+        shell: pwsh
+        env:
+          ROBOT_LOCAL: '1'
+          DESKTOP_CDP_PORT: '9223'
+        run: node scripts/robot/smoke.mjs
