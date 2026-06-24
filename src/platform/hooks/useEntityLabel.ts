@@ -11,7 +11,12 @@
  *               household / households / Household / Households (advisor only)
  *   other     → matter / matters / Matter / Matters  (safe default)
  *
- * Shape: { one, other, One, Other, household, households, Household, Households }
+ * Shape:
+ *   {
+ *     one, other, One, Other,
+ *     household, households, Household, Households,
+ *     confidentialityColumn, confidentialityBadge
+ *   }
  *   one        – lowercase singular  e.g. "matter"
  *   other      – lowercase plural    e.g. "matters"
  *   One        – capitalized singular e.g. "Matter"
@@ -20,6 +25,8 @@
  *   households – lowercase plural group noun    (advisor: "households"; others mirror `other`)
  *   Household  – capitalized singular group noun (advisor: "Household"; others mirror `One`)
  *   Households – capitalized plural group noun   (advisor: "Households"; others mirror `Other`)
+ *   confidentialityColumn – visible label for the internal `privileged` flag
+ *   confidentialityBadge  – visible badge text for a flagged record
  *
  * Internal Matter type, ids, store names, and SAMPLE_MATTER_ID are NEVER
  * changed by this hook; only the visible words adapt.
@@ -44,6 +51,10 @@ export interface EntityLabel {
   Household: string;
   /** capitalized plural group noun – "Households" for advisor, mirrors `Other` for others */
   Households: string;
+  /** Column label for the internal privileged/sensitive flag */
+  confidentialityColumn: string;
+  /** Badge label for an item with the internal privileged/sensitive flag */
+  confidentialityBadge: string;
 }
 
 const LABELS: Record<Profession, EntityLabel> = {
@@ -56,6 +67,8 @@ const LABELS: Record<Profession, EntityLabel> = {
     households: 'matters',
     Household: 'Matter',
     Households: 'Matters',
+    confidentialityColumn: 'Privilege',
+    confidentialityBadge: 'Privileged',
   },
   tax: {
     one: 'client',
@@ -66,6 +79,8 @@ const LABELS: Record<Profession, EntityLabel> = {
     households: 'clients',
     Household: 'Client',
     Households: 'Clients',
+    confidentialityColumn: 'Confidential',
+    confidentialityBadge: 'Confidential',
   },
   consulting: {
     one: 'engagement',
@@ -76,6 +91,8 @@ const LABELS: Record<Profession, EntityLabel> = {
     households: 'engagements',
     Household: 'Engagement',
     Households: 'Engagements',
+    confidentialityColumn: 'Confidential',
+    confidentialityBadge: 'Confidential',
   },
   advisor: {
     one: 'client',
@@ -86,6 +103,8 @@ const LABELS: Record<Profession, EntityLabel> = {
     households: 'households',
     Household: 'Household',
     Households: 'Households',
+    confidentialityColumn: 'Sensitive',
+    confidentialityBadge: 'Sensitive',
   },
   other: {
     one: 'matter',
@@ -96,6 +115,8 @@ const LABELS: Record<Profession, EntityLabel> = {
     households: 'matters',
     Household: 'Matter',
     Households: 'Matters',
+    confidentialityColumn: 'Sensitive',
+    confidentialityBadge: 'Sensitive',
   },
 };
 

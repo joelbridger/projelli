@@ -42,6 +42,12 @@ interface SortState {
 
 const DEFAULT_SORT: SortState = { key: 'name', dir: 'asc' };
 
+function matterRowGridColumns(showConfidentialityColumn: boolean): string {
+  return showConfidentialityColumn
+    ? 'minmax(0, 1fr) 100px 140px 120px'
+    : 'minmax(0, 1fr) 140px 120px';
+}
+
 // ── Get Started card ───────────────────────────────────────────────────────
 
 /**
@@ -209,10 +215,11 @@ function formatDate(iso: string): string {
 // ── Sub-components ─────────────────────────────────────────────────────────
 
 function PrivilegePill() {
-  // Non-color cue: the Lock icon + text label "Privileged" provide a redundant
+  const entityLabel = useEntityLabel();
+  // Non-color cue: the Lock icon + text label provide a redundant
   // indicator beyond color alone, satisfying the a11y requirement.
   return (
-    <Badge variant="privilege" size="sm" icon={Lock}>Privileged</Badge>
+    <Badge variant="privilege" size="sm" icon={Lock}>{entityLabel.confidentialityBadge}</Badge>
   );
 }
 
@@ -227,6 +234,7 @@ function SamplePill() {
 interface MatterRowProps {
   matter: Matter;
   isActive: boolean;
+  showConfidentialityColumn: boolean;
   onSelect: (id: string) => void;
   onArchive: (id: string) => void;
 }
@@ -234,7 +242,7 @@ interface MatterRowProps {
 /** Allowed surfaces for matter-launch quick-actions. */
 type MatterSurface = 'search' | 'files' | 'email';
 
-function MatterRow({ matter, isActive, onSelect, onArchive }: MatterRowProps) {
+function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onArchive }: MatterRowProps) {
   const { t } = useTranslation();
   const label = matterLabel(matter);
   const folderCount = matter.folderPaths.length;
@@ -265,7 +273,7 @@ function MatterRow({ matter, isActive, onSelect, onArchive }: MatterRowProps) {
         onClick={() => { onSelect(matter.id); }}
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) 100px 140px 120px',
+          gridTemplateColumns: matterRowGridColumns(showConfidentialityColumn),
           alignItems: 'center',
           gap: 0,
           width: '100%',
@@ -323,10 +331,11 @@ function MatterRow({ matter, isActive, onSelect, onArchive }: MatterRowProps) {
           )}
         </div>
 
-        {/* Privilege */}
-        <div style={{ paddingRight: 12 }}>
-          {matter.privileged && <PrivilegePill />}
-        </div>
+        {showConfidentialityColumn && (
+          <div style={{ paddingRight: 12 }}>
+            {matter.privileged && <PrivilegePill />}
+          </div>
+        )}
 
         {/* Documents / scope */}
         <div
@@ -501,11 +510,13 @@ function SortIndicator({ col, sort }: SortIndicatorProps) {
 
 interface TableHeaderProps {
   entityOneLabel: string;
+  confidentialityColumnLabel: string;
+  showConfidentialityColumn: boolean;
   sort: SortState;
   onSort: (key: SortKey) => void;
 }
 
-function TableHeader({ entityOneLabel, sort, onSort }: TableHeaderProps) {
+function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfidentialityColumn, sort, onSort }: TableHeaderProps) {
   const baseColStyle: React.CSSProperties = {
     padding: '10px 20px 10px 0',
   };
@@ -523,7 +534,7 @@ function TableHeader({ entityOneLabel, sort, onSort }: TableHeaderProps) {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) 100px 140px 120px',
+        gridTemplateColumns: matterRowGridColumns(showConfidentialityColumn),
         padding: '0 20px',
         borderBottom: '1px solid var(--color-border)',
       }}
@@ -539,17 +550,19 @@ function TableHeader({ entityOneLabel, sort, onSort }: TableHeaderProps) {
           <SortIndicator col="name" sort={sort} />
         </button>
       </div>
-      <div style={baseColStyle}>
-        <button
-          type="button"
-          style={colBtnStyle}
-          onClick={() => { onSort('privilege'); }}
-          aria-label={`Sort by Privilege${sort.key === 'privilege' ? (sort.dir === 'asc' ? ', currently ascending' : ', currently descending') : ''}`}
-        >
-          <span className={`kp-eyebrow${sort.key === 'privilege' ? ' kp-eyebrow--primary' : ''}`}>Privilege</span>
-          <SortIndicator col="privilege" sort={sort} />
-        </button>
-      </div>
+      {showConfidentialityColumn && (
+        <div style={baseColStyle}>
+          <button
+            type="button"
+            style={colBtnStyle}
+            onClick={() => { onSort('privilege'); }}
+            aria-label={`Sort by ${confidentialityColumnLabel}${sort.key === 'privilege' ? (sort.dir === 'asc' ? ', currently ascending' : ', currently descending') : ''}`}
+          >
+            <span className={`kp-eyebrow${sort.key === 'privilege' ? ' kp-eyebrow--primary' : ''}`}>{confidentialityColumnLabel}</span>
+            <SortIndicator col="privilege" sort={sort} />
+          </button>
+        </div>
+      )}
       <div style={baseColStyle}>
         <button
           type="button"
@@ -605,6 +618,13 @@ export function MattersHome() {
 
   const openCount = activeMatters.length;
   const totalFolders = activeMatters.reduce((sum, m) => sum + m.folderPaths.length, 0);
+  const showConfidentialityColumn = activeMatters.some((m) => m.privileged);
+
+  useEffect(() => {
+    if (!showConfidentialityColumn && sort.key === 'privilege') {
+      setSort(DEFAULT_SORT);
+    }
+  }, [showConfidentialityColumn, sort.key]);
 
   // Filter by search query (active matters only)
   const filteredMatters = useMemo(() => {
@@ -713,7 +733,13 @@ export function MattersHome() {
           <>
             {activeMatters.length > 0 && (
               <>
-                <TableHeader entityOneLabel={entityLabel.One} sort={sort} onSort={toggleSort} />
+                <TableHeader
+                  entityOneLabel={entityLabel.One}
+                  confidentialityColumnLabel={entityLabel.confidentialityColumn}
+                  showConfidentialityColumn={showConfidentialityColumn}
+                  sort={sort}
+                  onSort={toggleSort}
+                />
                 <div>
                   {sortedMatters.length === 0 ? (
                     <div
@@ -734,6 +760,7 @@ export function MattersHome() {
                         key={m.id}
                         matter={m}
                         isActive={m.id === activeMatterId}
+                        showConfidentialityColumn={showConfidentialityColumn}
                         onSelect={(id) => {
                           setActiveMatter(id);
                           setSelectedMatterId(id);

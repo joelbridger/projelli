@@ -34,6 +34,7 @@ import {
   PROFESSION_MODEL_STORAGE_KEY,
   PROFESSION_PROVIDER_STORAGE_KEY,
 } from '@/platform/profile/professionModel';
+import type { ClientMap } from '@/platform/clientMap/types';
 
 // Re-export types consumed by callers so they don't need to reach into
 // @/utils/tauri-commands directly.
@@ -55,6 +56,63 @@ export interface MatterAtAGlanceResult {
   nextActions: string[];
   /** ISO 8601 timestamp of when the summary was generated. */
   generatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Display normalization helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Removes raw inline citation tokens that an AI may include in JSON strings.
+ * Examples: "[2 page 6]", "[notes.docx paragraph 4]", "[3 p. 12]".
+ */
+export function stripAtAGlanceCitationMarkers(text: string): string {
+  return text
+    .replace(/\s*\[[^\]]*\b(?:p(?:age)?\.?|pages|paragraph|para\.?|pp\.?)\s*\d+[^\]]*\]/gi, '')
+    .replace(/\s*\[\d+(?:\s*,\s*\d+)*(?:\s*-\s*\d+)?\]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function cleanAtAGlanceItems(items: readonly string[] | undefined): string[] {
+  if (!Array.isArray(items)) return [];
+  const clean: string[] = [];
+  for (const item of items) {
+    const text = stripAtAGlanceCitationMarkers(item);
+    if (text !== '') clean.push(text);
+    if (clean.length >= 3) break;
+  }
+  return clean;
+}
+
+export function normalizeMatterAtAGlanceResult(result: MatterAtAGlanceResult): MatterAtAGlanceResult {
+  return {
+    ...result,
+    openIssues: cleanAtAGlanceItems(result.openIssues),
+    deadlines: cleanAtAGlanceItems(result.deadlines),
+    upcomingDates: cleanAtAGlanceItems(result.upcomingDates),
+    nextActions: cleanAtAGlanceItems(result.nextActions),
+  };
+}
+
+export function deriveMatterHubUpcomingItems(
+  result: MatterAtAGlanceResult | null,
+  clientMap?: ClientMap,
+): string[] {
+  const fromClientMap =
+    clientMap?.sections
+      .find((section) => section.key === 'upcoming')
+      ?.items.map((item) => item.text) ?? [];
+  const fromUpcomingDates = cleanAtAGlanceItems(result?.upcomingDates);
+  const fromDeadlines = cleanAtAGlanceItems(result?.deadlines);
+  const unique: string[] = [];
+  for (const item of [...fromClientMap, ...fromUpcomingDates, ...fromDeadlines]) {
+    const text = stripAtAGlanceCitationMarkers(item);
+    if (text === '' || unique.includes(text)) continue;
+    unique.push(text);
+    if (unique.length >= 3) break;
+  }
+  return unique;
 }
 
 // ---------------------------------------------------------------------------
@@ -255,6 +313,8 @@ Rules:
     if (!Array.isArray(val)) return [];
     return val
       .filter((item): item is string => typeof item === 'string')
+      .map(stripAtAGlanceCitationMarkers)
+      .filter((item) => item !== '')
       .slice(0, 3);
   };
 
