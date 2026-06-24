@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { useRagStatus } from '@/platform/hooks/useRagStatus';
 import { MemoryService } from '@/platform/rag/MemoryService';
 import { useOcrProgressStore } from '@/platform/rag/ocrProgressStore';
+import { usePdfIndexProgressStore } from '@/platform/rag/pdfIndexProgressStore';
 
 export interface RagProgressBannerProps {
   /** Override the live hook for tests. */
@@ -32,6 +33,10 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
   const ocr = useOcrProgressStore((s) => s.current);
   const ocrLine = ocr
     ? t('memory.ocr-progress', { page: ocr.page, total: ocr.totalPages })
+    : null;
+  const pdf = usePdfIndexProgressStore((s) => s.current);
+  const pdfLine = pdf
+    ? t('memory.pdf-progress', { processed: pdf.processed, total: pdf.total })
     : null;
 
   // Auto-dismiss the "done" banner after a few seconds so it doesn't stick
@@ -74,6 +79,15 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
               {ocrLine}
             </div>
           )}
+          {pdfLine && (
+            <div
+              data-testid="rag-pdf-progress"
+              className="truncate text-muted-foreground"
+              title={pdf?.currentPath ?? ''}
+            >
+              {pdfLine}
+            </div>
+          )}
         </div>
         <div className="w-32 h-1.5 bg-background rounded-full overflow-hidden border" aria-hidden="true">
           <div
@@ -107,6 +121,25 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
       >
         <span data-testid="rag-ocr-progress" className="truncate text-foreground">
           {ocrLine}
+        </span>
+      </div>
+    );
+  }
+
+  if (pdfLine) {
+    return (
+      <div
+        data-testid="rag-progress-banner"
+        role="status"
+        aria-live="polite"
+        className="flex items-center gap-3 px-4 py-2 border-b bg-muted/40 text-xs"
+      >
+        <span
+          data-testid="rag-pdf-progress"
+          className="truncate text-foreground"
+          title={pdf?.currentPath ?? ''}
+        >
+          {pdfLine}
         </span>
       </div>
     );

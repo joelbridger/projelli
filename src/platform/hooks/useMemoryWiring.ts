@@ -57,6 +57,7 @@ import {
 import { mailSetWorkspace } from '@/platform/utils/mail-commands';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/platform/types/workspace';
+import { usePdfIndexProgressStore } from '@/platform/rag/pdfIndexProgressStore';
 
 /** Build a FactsStorage adapter from a WorkspaceService-shaped object. */
 export function buildFactsStorage(
@@ -131,13 +132,16 @@ function isAbsoluteWorkspacePath(path: string): boolean {
   );
 }
 
-/** Convert a workspace-relative path into the same native absolute path shape the Rust walk stores. */
+function toForwardSlashPath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/\/+$/, '');
+}
+
+/** Convert a workspace-relative path into the same absolute forward-slash path shape the RAG store uses. */
 export function buildWorkspaceAbsolutePath(rootPath: string | null | undefined, path: string): string {
-  if (!rootPath || isAbsoluteWorkspacePath(path)) return path;
-  const separator = rootPath.includes('\\') ? '\\' : '/';
-  const relative = path.replace(/^[\\/]+/, '').replace(/[\\/]+/g, separator);
-  const joiner = /[\\/]$/.test(rootPath) ? '' : separator;
-  return `${rootPath}${joiner}${relative}`;
+  if (!rootPath || isAbsoluteWorkspacePath(path)) return toForwardSlashPath(path);
+  const root = toForwardSlashPath(rootPath);
+  const relative = path.replace(/^[\\/]+/, '').replace(/[\\/]+/g, '/');
+  return `${root}/${relative}`;
 }
 
 function isPdfPath(path: string): boolean {
@@ -151,6 +155,75 @@ function buildBinaryWorkspace(workspaceService: MemoryWiringWorkspaceService): {
   return {
     readBinary: (path: string) => workspaceService.readFileBinary!(path),
   };
+}
+
+async function getFreshOrCachedFileTree(
+  workspaceService: MemoryWiringWorkspaceService | null | undefined,
+): Promise<FileNode[]> {
+  if (workspaceService?.getFileTree) {
+    try {
+      return await workspaceService.getFileTree();
+    } catch {
+      // Disk scan failed. Fall back to the cached in-memory tree.
+    }
+  }
+  return useWorkspaceStore.getState().fileTree;
+}
+
+function pathForms(path: string, rootPath: string | null | undefined): string[] {
+  const forms = new Set<string>();
+  forms.add(toForwardSlashPath(path));
+  if (rootPath) {
+    forms.add(buildWorkspaceAbsolutePath(rootPath, path));
+  }
+  return Array.from(forms);
+}
+
+function pathInAnyFolder(path: string, folders: string[], rootPath: string | null | undefined): boolean {
+  const forms = pathForms(path, rootPath);
+  return folders.some((folder) => {
+    const folderForms = pathForms(folder, rootPath);
+    return forms.some((form) =>
+      folderForms.some((folderForm) => isPathInFolder(form, folderForm)),
+    );
+  });
+}
+
+function resolveMatterIdForWorkspacePath(path: string, rootPath: string | null | undefined): string {
+  const direct = resolveMatterIdForPath(path);
+  if (direct !== UNASSIGNED_MATTER_ID || !rootPath || isAbsoluteWorkspacePath(path)) {
+    return direct;
+  }
+  return resolveMatterIdForPath(buildWorkspaceAbsolutePath(rootPath, path));
+}
+
+function workspaceRelativePath(path: string, rootPath: string | null | undefined): string | null {
+  if (!rootPath) return null;
+  const normalizedPath = toForwardSlashPath(path);
+  const normalizedRoot = toForwardSlashPath(rootPath);
+  if (normalizedPath === normalizedRoot) return '';
+  const prefix = `${normalizedRoot}/`;
+  if (!normalizedPath.startsWith(prefix)) return null;
+  return normalizedPath.slice(prefix.length);
+}
+
+function resolveMatterIdWithWorkspaceForms(path: string): string {
+  const direct = resolveMatterIdForPath(path);
+  if (direct !== UNASSIGNED_MATTER_ID) return direct;
+
+  const { rootPath } = useWorkspaceStore.getState();
+  const relative = workspaceRelativePath(path, rootPath);
+  if (relative) {
+    const relativeMatch = resolveMatterIdForPath(relative);
+    if (relativeMatch !== UNASSIGNED_MATTER_ID) return relativeMatch;
+  }
+
+  if (rootPath && !isAbsoluteWorkspacePath(path)) {
+    const absoluteMatch = resolveMatterIdForPath(buildWorkspaceAbsolutePath(rootPath, path));
+    if (absoluteMatch !== UNASSIGNED_MATTER_ID) return absoluteMatch;
+  }
+
+  return UNASSIGNED_MATTER_ID;
 }
 
 /**
@@ -240,25 +313,10 @@ export async function reindexFolderPaths(
   folders: string[],
   workspaceService: MemoryWiringWorkspaceService | null | undefined,
 ): Promise<void> {
-  let allPaths: string[];
-  if (workspaceService?.getFileTree) {
-    try {
-      const freshTree = await workspaceService.getFileTree();
-      allPaths = collectAllFilePaths(freshTree);
-    } catch {
-      // Disk scan failed — fall back to the cached in-memory tree.
-      const { fileTree } = useWorkspaceStore.getState();
-      allPaths = collectAllFilePaths(fileTree);
-    }
-  } else {
-    const { fileTree } = useWorkspaceStore.getState();
-    allPaths = collectAllFilePaths(fileTree);
-  }
+  const allPaths = collectAllFilePaths(await getFreshOrCachedFileTree(workspaceService));
 
-  const affected = allPaths.filter((p) =>
-    folders.some((folder) => isPathInFolder(p, folder)),
-  );
   const { rootPath } = useWorkspaceStore.getState();
+  const affected = allPaths.filter((p) => pathInAnyFolder(p, folders, rootPath));
 
   const pdfPaths = affected.filter(isPdfPath);
   const officeAndTextPaths = affected.filter((p) => !isPdfPath(p));
@@ -268,7 +326,7 @@ export async function reindexFolderPaths(
   // absolute path shape the Rust full-workspace walk stores.
   const byMatter = new Map<string, string[]>();
   for (const p of officeAndTextPaths) {
-    const id = resolveMatterIdForPath(p);
+    const id = resolveMatterIdForWorkspacePath(p, rootPath);
     const list = byMatter.get(id) ?? [];
     list.push(buildWorkspaceAbsolutePath(rootPath, p));
     byMatter.set(id, list);
@@ -282,7 +340,7 @@ export async function reindexFolderPaths(
   if (!binaryWs) return;
   for (const path of pdfPaths) {
     try {
-      await MemoryService.indexPdfFile(path, binaryWs);
+      await MemoryService.indexPdfFile(buildWorkspaceAbsolutePath(rootPath, path), binaryWs);
     } catch {
       // Best-effort: skip individual failures, continue with the rest.
     }
@@ -290,20 +348,28 @@ export async function reindexFolderPaths(
 }
 
 /** Walk all .pdf files in the workspace and index them via MemoryService. */
-async function indexWorkspacePdfs(
+export async function indexWorkspacePdfs(
   workspaceService: MemoryWiringWorkspaceService,
 ): Promise<void> {
   const binaryWs = buildBinaryWorkspace(workspaceService);
   if (!binaryWs) return;
-  const { fileTree } = useWorkspaceStore.getState();
-  const pdfPaths = collectPdfPaths(fileTree);
-  for (const path of pdfPaths) {
+  const { rootPath } = useWorkspaceStore.getState();
+  const pdfPaths = collectPdfPaths(await getFreshOrCachedFileTree(workspaceService));
+  if (pdfPaths.length === 0) return;
+  const progress = usePdfIndexProgressStore.getState();
+  progress.set({ processed: 0, total: pdfPaths.length, currentPath: null });
+  for (const [index, path] of pdfPaths.entries()) {
+    const ragPath = buildWorkspaceAbsolutePath(rootPath, path);
+    progress.set({ processed: index, total: pdfPaths.length, currentPath: ragPath });
     try {
-      await MemoryService.indexPdfFile(path, binaryWs);
+      await MemoryService.indexPdfFile(ragPath, binaryWs);
     } catch {
       // Best-effort: skip individual failures, continue with the rest.
+    } finally {
+      progress.set({ processed: index + 1, total: pdfPaths.length, currentPath: ragPath });
     }
   }
+  progress.clearSoon();
 }
 
 export async function retagExistingMatterFolderPaths(
@@ -380,7 +446,7 @@ export function useMemoryWiring(
     );
     // WS-B/C — install the matter resolver so every indexed chunk is tagged
     // with the matter the file belongs to (or "unassigned").
-    setMatterResolver((path) => resolveMatterIdForPath(path));
+    setMatterResolver((path) => resolveMatterIdWithWorkspaceForms(path));
     // WS-PRIV — install the privilege resolver so every indexed chunk is tagged
     // with its source's privilege (or "none"), keeping privileged content
     // excluded from default retrieval even after a re-index.

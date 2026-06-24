@@ -278,12 +278,28 @@ pub fn dataset_path(workspace_root: &Path) -> PathBuf {
 
 /// Stable id for `(path, paragraph_index)`. Hex-encoded SHA-256.
 pub fn chunk_id(path: &str, paragraph_index: u32) -> String {
+    let path = normalize_source_path(path);
     let mut hasher = Sha256::new();
     hasher.update(path.as_bytes());
     hasher.update(b":");
     hasher.update(paragraph_index.to_le_bytes());
     let digest = hasher.finalize();
     hex_encode(&digest)
+}
+
+/// Canonical source path used by the RAG store.
+///
+/// Windows accepts `/` in normal filesystem paths and the TypeScript side also
+/// uses forward slashes for absolute workspace paths. Normalize before deriving
+/// chunk ids, path tokens, encrypted `path_enc`, delete predicates, and retag
+/// predicates so `C:/root\Clients\a.docx` and `C:/root/Clients/a.docx` are one
+/// stored source. `mail:<id>` keys are opaque provider ids, not filesystem paths.
+pub fn normalize_source_path(path: &str) -> String {
+    if path.starts_with("mail:") {
+        path.to_string()
+    } else {
+        path.replace('\\', "/")
+    }
 }
 
 fn hex_encode(bytes: &[u8]) -> String {

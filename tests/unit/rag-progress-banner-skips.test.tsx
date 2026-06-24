@@ -5,7 +5,7 @@
  */
 
 import { render, screen, act } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RagStatusSnapshot } from '@/platform/hooks/useRagStatus';
 
 // Stub i18next so the component can render without a real provider.
@@ -18,6 +18,9 @@ vi.mock('react-i18next', () => ({
       }
       if (key === 'memory.rag-banner.ready-with-skips') {
         return `Memory ready, indexed ${(opts?.count as number) ?? 0} files (${(opts?.skipped as number) ?? 0} skipped).`;
+      }
+      if (key === 'memory.pdf-progress') {
+        return `Indexing PDFs: ${(opts?.processed as number) ?? 0} / ${(opts?.total as number) ?? 0}. Nothing leaves your machine.`;
       }
       return key;
     },
@@ -39,6 +42,13 @@ vi.mock('@/platform/rag/ocrProgressStore', () => ({
   useOcrProgressStore: () => null,
 }));
 
+const pdfState = vi.hoisted(() => ({
+  progress: null as { processed: number; total: number; currentPath: string | null } | null,
+}));
+vi.mock('@/platform/rag/pdfIndexProgressStore', () => ({
+  usePdfIndexProgressStore: () => pdfState.progress,
+}));
+
 import { RagProgressBanner } from '@/platform/rag/ui/RagProgressBanner';
 
 const makeSnap = (overrides: Partial<RagStatusSnapshot>): RagStatusSnapshot => ({
@@ -55,6 +65,10 @@ const makeSnap = (overrides: Partial<RagStatusSnapshot>): RagStatusSnapshot => (
 });
 
 describe('RagProgressBanner — BUG-099 skip count rendering', () => {
+  beforeEach(() => {
+    pdfState.progress = null;
+  });
+
   it('shows a plain "Memory ready" label when no files were skipped', () => {
     const snap = makeSnap({ status: 'done', processed: 10, total: 10 });
     const { getByTestId } = render(<RagProgressBanner status={snap} />);
@@ -87,5 +101,16 @@ describe('RagProgressBanner — BUG-099 skip count rendering', () => {
     const { container } = render(<RagProgressBanner status={snap} />);
     act(() => {});
     expect(container.firstChild).toBeNull();
+  });
+
+  it('shows PDF indexing progress in the same banner', () => {
+    pdfState.progress = {
+      processed: 2,
+      total: 40,
+      currentPath: '/ws/Clients/Acme/Email - DAF grant request spring board meeting.pdf',
+    };
+    const snap = makeSnap({ status: 'idle' });
+    render(<RagProgressBanner status={snap} />);
+    expect(screen.getByTestId('rag-pdf-progress').textContent).toContain('2 / 40');
   });
 });

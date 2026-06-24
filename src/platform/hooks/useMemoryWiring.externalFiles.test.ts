@@ -22,6 +22,7 @@ vi.mock('@/platform/utils/mail-commands', () => ({
 
 import {
   buildWorkspaceAbsolutePath,
+  indexWorkspacePdfs,
   reindexFolderPaths,
   startFullIndex,
 } from './useMemoryWiring';
@@ -32,6 +33,7 @@ import {
 } from '@/platform/rag/MemoryService';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import { usePdfIndexProgressStore } from '@/platform/rag/pdfIndexProgressStore';
 import type { FileNode } from '@/platform/types/workspace';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -101,14 +103,18 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
     useWorkspaceStore.setState({ rootPath: null, fileTree: [] });
     // Clear matters so each test sets its own state.
     useMatterStore.setState({ matters: [], activeMatterId: null });
+    usePdfIndexProgressStore.getState().clear();
   });
 
-  it('builds native absolute paths from workspace-relative paths', () => {
+  it('builds forward-slash absolute paths from workspace-relative paths', () => {
     expect(
       buildWorkspaceAbsolutePath('C:\\ws\\Northcrest', 'Clients/Acme/x.docx'),
-    ).toBe('C:\\ws\\Northcrest\\Clients\\Acme\\x.docx');
+    ).toBe('C:/ws/Northcrest/Clients/Acme/x.docx');
     expect(
       buildWorkspaceAbsolutePath('/ws/Northcrest', 'Clients/Acme/x.docx'),
+    ).toBe('/ws/Northcrest/Clients/Acme/x.docx');
+    expect(
+      buildWorkspaceAbsolutePath('/ws/Northcrest', 'Clients\\Acme\\x.docx'),
     ).toBe('/ws/Northcrest/Clients/Acme/x.docx');
   });
 
@@ -262,7 +268,7 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
     expect(reindexPaths).not.toHaveBeenCalled();
   });
 
-  it('reindexes office/text files with absolute paths and reindexes PDFs with relative paths', async () => {
+  it('reindexes office/text and PDF files with absolute forward-slash paths', async () => {
     const matterId = 'matter-acme';
     const folder = 'Clients/Acme';
 
@@ -297,8 +303,8 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
     const [calledPaths, calledMatterId] = reindexPaths.mock.calls[0] as [string[], string];
     expect(calledMatterId).toBe(matterId);
     expect(calledPaths).toEqual([
-      'C:\\ws\\Northcrest\\Clients\\Acme\\plan.docx',
-      'C:\\ws\\Northcrest\\Clients\\Acme\\notes.txt',
+      'C:/ws/Northcrest/Clients/Acme/plan.docx',
+      'C:/ws/Northcrest/Clients/Acme/notes.txt',
     ]);
     expect(calledPaths).not.toContain('Clients/Acme/statement.pdf');
 
@@ -307,8 +313,37 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
       string,
       { readBinary: (path: string) => Promise<ArrayBuffer> },
     ];
-    expect(pdfPath).toBe('Clients/Acme/statement.pdf');
+    expect(pdfPath).toBe('C:/ws/Northcrest/Clients/Acme/statement.pdf');
     expect(typeof pdfWorkspace.readBinary).toBe('function');
+  });
+
+  it('indexes PDFs from a fresh disk scan when the cached tree is empty on workspace open', async () => {
+    setPdfIndexingEnabledReader(() => true);
+    useWorkspaceStore.setState({
+      rootPath: 'C:\\ws\\Northcrest',
+      fileTree: [],
+    });
+
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      readFileBinary: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+      getFileTree: vi.fn().mockResolvedValue([
+        makeFolder('Clients/Acme', [
+          makeFile('Clients/Acme/Email - DAF grant request spring board meeting.pdf'),
+        ]),
+      ]),
+    };
+
+    await indexWorkspacePdfs(ws);
+
+    expect(ws.getFileTree).toHaveBeenCalledTimes(1);
+    expect(indexPdfFile).toHaveBeenCalledTimes(1);
+    const [pdfPath] = indexPdfFile.mock.calls[0] as [string];
+    expect(pdfPath).toBe(
+      'C:/ws/Northcrest/Clients/Acme/Email - DAF grant request spring board meeting.pdf',
+    );
   });
 
   it('skips PDFs during folder reindex when PDF indexing is disabled', async () => {
@@ -372,6 +407,36 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
     expect(reindexPaths).toHaveBeenCalledTimes(1);
     expect(reindexPaths).toHaveBeenCalledWith(
       ['/ws/Northcrest/Clients/Acme/plan.docx'],
+      matterId,
+    );
+  });
+
+  it('retags an initial import when matter folders are absolute but the fresh tree is relative', async () => {
+    const matterId = 'matter-acme';
+    const absoluteFolder = 'C:/ws/Northcrest/Clients/Acme';
+
+    useWorkspaceStore.setState({
+      rootPath: 'C:\\ws\\Northcrest',
+      fileTree: [],
+    });
+    useMatterStore.setState({
+      matters: [makeMatter(matterId, [absoluteFolder])],
+      activeMatterId: null,
+    });
+
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      getFileTree: vi.fn().mockResolvedValue([
+        makeFolder('Clients/Acme', [makeFile('Clients/Acme/plan.docx')]),
+      ]),
+    };
+
+    await startFullIndex(ws);
+
+    expect(reindexPaths).toHaveBeenCalledWith(
+      ['C:/ws/Northcrest/Clients/Acme/plan.docx'],
       matterId,
     );
   });
