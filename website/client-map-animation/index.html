@@ -1,0 +1,225 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>6 &middot; Constellation to Client Map</title>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,600,500,400&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#0A2540;--pink:#FF3CE8;--blue:#5DC6FF;
+ --ink:#0A2540;--ink2:#51627A;--ink3:#8694A8;--line:#E7ECF3;--soft:#F4F7FB;--card:#FFFFFF;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:radial-gradient(120% 90% at 50% 0,#0d2c4a,#0A2540 62%);font-family:'Satoshi',system-ui,sans-serif;color:#fff;overflow:hidden}
+.wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:26px}
+.stage{position:relative;width:100%;max-width:1060px;aspect-ratio:1000/780}
+svg.web{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:2}
+.cw{stroke:url(#cwg)}
+.rad{stroke-width:2.8;opacity:0;stroke-linecap:round}
+.ring{stroke-width:1.8;opacity:0;stroke-dasharray:2 9;stroke-linecap:round}
+.star{fill:#bfe0ff;opacity:0}
+.ig{display:flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--blue))}
+.ig svg{stroke:#fff;fill:none;stroke-width:2}
+/* ---- source constellation ---- */
+.src{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:10px;visibility:hidden;z-index:3}
+.sdot{width:66px;height:66px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(13,40,68,.95);border:2px solid rgba(93,198,255,.55);box-shadow:0 0 28px rgba(93,198,255,.3)}
+.sdot svg{width:31px;height:31px;stroke:var(--blue);fill:none;stroke-width:2}
+.slbl{font-size:15px;font-weight:600;color:#cfe0f2;white-space:nowrap}
+/* ---- forming seam of light ---- */
+.seam{position:absolute;left:50%;top:50%;width:min(660px,94%);height:5px;transform:translate(-50%,-50%);border-radius:5px;
+ background:linear-gradient(90deg,rgba(255,60,232,0),#FF3CE8,#5DC6FF,rgba(93,198,255,0));
+ box-shadow:0 0 50px 8px rgba(93,198,255,.6);opacity:0}
+/* ---- light dossier (the app) ---- */
+.card{position:absolute;left:50%;top:50%;width:min(680px,95%);height:658px;z-index:1;
+ background:var(--card);border-radius:18px;border:1px solid var(--line);
+ box-shadow:0 40px 90px rgba(3,18,38,.55);display:flex;flex-direction:column;overflow:hidden;visibility:hidden}
+.cardInner{display:flex;flex-direction:column;height:100%;color:var(--ink)}
+.dhead{display:flex;align-items:center;gap:14px;padding:18px 22px;border-bottom:1px solid var(--line);flex-shrink:0}
+.av{width:50px;height:50px;border-radius:50%;background:#0A2540;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;color:#fff;flex-shrink:0;letter-spacing:.02em}
+.dh{flex:1;min-width:0}
+.dname{font-size:19px;font-weight:700;color:var(--ink)}
+.dmeta{font-size:12.5px;color:var(--ink3);font-weight:500;margin-top:2px}
+.dmeta b{color:var(--blue);font-weight:700;letter-spacing:.04em}
+.dpct{text-align:right;flex-shrink:0}
+.dpct b{font-size:24px;font-weight:800;background:linear-gradient(135deg,var(--pink),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.dpct small{display:block;font-size:10px;color:var(--ink3);letter-spacing:.06em;text-transform:uppercase;margin-top:1px}
+.secwrap{flex:1;overflow:hidden;padding:6px 14px;position:relative}
+.assembly{position:absolute;inset:0;padding:12px 16px;display:flex;flex-direction:column;justify-content:center;gap:1px}
+.acap{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);padding:0 12px 10px}
+.arow{display:flex;align-items:center;gap:13px;padding:9px 12px;border-bottom:1px solid var(--line)}
+.arow:last-child{border-bottom:none}
+.aic{width:30px;height:30px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.aic svg{width:21px;height:21px;stroke:#0A2540;fill:none;stroke-width:2}
+.albl{flex:1;font-size:15px;font-weight:600;color:var(--ink)}
+.adot{width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.adot svg{width:16px;height:16px;stroke:#0E9F6E;fill:none;stroke-width:2.4}
+.sec{border-radius:11px;border-bottom:1px solid var(--line)}
+.sec:last-child{border-bottom:none}
+.sechead{display:flex;align-items:center;gap:12px;padding:11px 10px}
+.sci{width:26px;height:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center}.sci svg{width:22px;height:22px;stroke:#0A2540;fill:none;stroke-width:2}
+.stitle{flex:1;font-size:15.5px;font-weight:700;color:var(--ink)}
+.fcount{font-size:11.5px;color:var(--ink3);font-weight:600;background:var(--soft);padding:2px 9px;border-radius:20px}
+.flag{font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;letter-spacing:.01em}
+.flag.review{color:#B5179E;background:#FDECF7;border:1px solid #F4C6E6}
+.flag.done{color:#0E9F6E;background:#E9FAF2;border:1px solid #C4ECDB}
+.chev{color:var(--ink3);font-size:11px;width:13px;text-align:center}
+.subs{height:0;overflow:hidden}
+.fld{display:flex;align-items:center;gap:10px;padding:7px 10px 7px 52px;border-radius:8px;position:relative}
+.fld:hover{background:var(--soft)}
+.fld::before{content:"";position:absolute;left:38px;top:15px;width:5px;height:5px;border-radius:50%;background:var(--blue);opacity:.7}
+.flbl{font-size:13.5px;color:var(--ink3);font-weight:600;min-width:108px}
+.fval{font-size:14px;color:var(--ink);font-weight:600;flex:1}
+.fsrc{font-size:11px;color:var(--ink2);background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-weight:600}
+.facts{display:flex;gap:6px;opacity:.55}
+.fa{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:var(--soft)}
+.fa svg{width:13px;height:13px;stroke:var(--ink3);fill:none;stroke-width:2}
+.more{font-size:12.5px;color:var(--blue);font-weight:600;padding:6px 0 6px 52px;cursor:pointer}
+.addf{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink3);font-weight:600;padding:7px 0 9px 46px}
+.addf .fa{background:transparent;border:1px dashed var(--line);width:22px;height:22px}
+.gap,.ok{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin:6px 0 6px 46px;padding:8px 12px;border-radius:9px}
+.gap{color:#B5179E;background:#FDECF7;border:1px solid #F4C6E6}
+.ok{color:#0E9F6E;background:#E9FAF2;border:1px solid #C4ECDB}
+.gico{width:17px;height:17px;flex-shrink:0}.gico svg{width:17px;height:17px;fill:none;stroke-width:2.2}
+.gap .gico svg{stroke:#E255B5}.ok .gico svg{stroke:#13B981}
+/* ---- search bar ---- */
+.searchbar{flex-shrink:0;margin:12px 16px 16px;display:flex;align-items:center;gap:11px;background:var(--soft);border:1.5px solid var(--line);border-radius:12px;padding:13px 16px;visibility:hidden}
+.sb-ic{width:19px;height:19px;flex-shrink:0}.sb-ic svg{width:19px;height:19px;stroke:var(--blue);fill:none;stroke-width:2.2}
+.sb-q{font-size:14.5px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden}
+.sb-cursor{display:inline-block;width:2px;height:17px;background:var(--blue);margin-left:1px;vertical-align:-3px}
+.sb-ph{color:var(--ink3);font-weight:500}
+.thinking{display:flex;gap:4px;margin-left:auto;visibility:hidden}
+.thinking i{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+/* ---- answer popover ---- */
+.answer{position:absolute;left:16px;right:16px;bottom:14px;background:#fff;border:1px solid var(--line);border-radius:13px;
+ box-shadow:0 20px 50px rgba(3,18,38,.22);padding:16px 18px 16px 20px;visibility:hidden}
+.answer::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:4px;background:linear-gradient(var(--pink),var(--blue))}
+.ans-h{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);margin-bottom:6px}
+.ans-t{font-size:14.5px;line-height:1.5;color:var(--ink);font-weight:500}
+.ans-chips{display:flex;gap:7px;margin-top:11px}
+.ans-chip{font-size:11.5px;font-weight:700;color:var(--ink2);background:var(--soft);border:1px solid var(--line);border-radius:7px;padding:3px 9px;display:flex;align-items:center;gap:5px}
+.ans-chip b{width:6px;height:6px;border-radius:50%;background:linear-gradient(135deg,var(--pink),var(--blue))}
+</style></head><body>
+<div class="wrap"><div class="stage" id="stage">
+<svg class="web" viewBox="0 0 1000 780" preserveAspectRatio="none">
+<defs><linearGradient id="cwg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1000" y2="780"><stop offset="0" stop-color="#FF3CE8"/><stop offset="1" stop-color="#5DC6FF"/></linearGradient></defs>
+<circle class="star" cx="120" cy="80" r="2.6"/><circle class="star" cx="300" cy="55" r="2.6"/><circle class="star" cx="470" cy="110" r="2.6"/><circle class="star" cx="640" cy="60" r="2.6"/><circle class="star" cx="820" cy="100" r="2.6"/><circle class="star" cx="910" cy="240" r="2.6"/><circle class="star" cx="70" cy="300" r="2.6"/><circle class="star" cx="250" cy="360" r="2.6"/><circle class="star" cx="520" cy="330" r="2.6"/><circle class="star" cx="760" cy="380" r="2.6"/><circle class="star" cx="880" cy="520" r="2.6"/><circle class="star" cx="160" cy="560" r="2.6"/><circle class="star" cx="360" cy="640" r="2.6"/><circle class="star" cx="560" cy="610" r="2.6"/><circle class="star" cx="700" cy="560" r="2.6"/><circle class="star" cx="440" cy="470" r="2.6"/><circle class="star" cx="130" cy="180" r="2.6"/><circle class="star" cx="680" cy="180" r="2.6"/><circle class="star" cx="940" cy="420" r="2.6"/><circle class="star" cx="40" cy="470" r="2.6"/><circle class="star" cx="300" cy="720" r="2.6"/><circle class="star" cx="620" cy="720" r="2.6"/><line class="cw rad" id="rad0" x1="150" y1="140" x2="500" y2="328"/><line class="cw rad" id="rad1" x1="360" y1="78" x2="500" y2="328"/><line class="cw rad" id="rad2" x1="600" y1="94" x2="500" y2="328"/><line class="cw rad" id="rad3" x1="830" y1="156" x2="500" y2="328"/><line class="cw rad" id="rad4" x1="900" y1="343" x2="500" y2="328"/><line class="cw rad" id="rad5" x1="780" y1="546" x2="500" y2="328"/><line class="cw rad" id="rad6" x1="550" y1="624" x2="500" y2="328"/><line class="cw rad" id="rad7" x1="300" y1="593" x2="500" y2="328"/><line class="cw rad" id="rad8" x1="110" y1="359" x2="500" y2="328"/><line class="cw ring" x1="150" y1="140" x2="360" y2="78"/><line class="cw ring" x1="360" y1="78" x2="600" y2="94"/><line class="cw ring" x1="600" y1="94" x2="830" y2="156"/><line class="cw ring" x1="830" y1="156" x2="900" y2="343"/><line class="cw ring" x1="900" y1="343" x2="780" y2="546"/><line class="cw ring" x1="780" y1="546" x2="550" y2="624"/><line class="cw ring" x1="550" y1="624" x2="300" y2="593"/><line class="cw ring" x1="300" y1="593" x2="110" y2="359"/><line class="cw ring" x1="110" y1="359" x2="150" y2="140"/></svg>
+<div class="src" id="src0" style="left:15%;top:18%"><div class="sdot"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg></div><span class="slbl">Email</span></div><div class="src" id="src1" style="left:36%;top:10%"><div class="sdot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><span class="slbl">Statements</span></div><div class="src" id="src2" style="left:60%;top:12%"><div class="sdot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></div><span class="slbl">Meeting notes</span></div><div class="src" id="src3" style="left:83%;top:20%"><div class="sdot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div><span class="slbl">Financial plan</span></div><div class="src" id="src4" style="left:90%;top:44%"><div class="sdot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></div><span class="slbl">KYC form</span></div><div class="src" id="src5" style="left:78%;top:70%"><div class="sdot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><span class="slbl">Risk profile</span></div><div class="src" id="src6" style="left:55%;top:80%"><div class="sdot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div><span class="slbl">Calls</span></div><div class="src" id="src7" style="left:30%;top:76%"><div class="sdot"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><span class="slbl">Calendar</span></div><div class="src" id="src8" style="left:11%;top:46%"><div class="sdot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><span class="slbl">Beneficiary forms</span></div>
+<div class="seam" data-seam></div>
+<div class="card" data-card><div class="cardInner">
+ <div class="dhead"><div class="av">AS</div>
+  <div class="dh"><div class="dname">Smith household</div><div class="dmeta"><b>CLIENT MAP</b> &middot; 5 sections &middot; 32 fields</div></div>
+  <div class="dpct"><b><span id="dpct">0</span>%</b><small>context</small></div></div>
+ <div class="secwrap"><div class="sec" data-sec><div class="sechead"><span class="sci"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><div class="stitle">Household &amp; key people</div><span class="fcount">8 fields</span><span class="flag review">1 gap</span><span class="chev">&#9662;</span></div><div class="subs"><div class="fld"><span class="flbl">Primary</span><span class="fval">Allison Smith</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="fld"><span class="flbl">Spouse</span><span class="fval">David Smith</span><span class="fsrc">KYC form</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="fld"><span class="flbl">Children</span><span class="fval">Emma (14), Noah (11)</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="more">+5 more fields</div><div class="gap"><span class="gico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>Missing: trusted contact form not on file</div><div class="addf"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></i>Add detail</div></div></div><div class="sec" data-sec><div class="sechead"><span class="sci"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span><div class="stitle">Goals &amp; priorities</div><span class="fcount">6 fields</span><span class="flag done">complete</span><span class="chev">&#9662;</span></div><div class="subs"><div class="fld"><span class="flbl">Retirement</span><span class="fval">Target around 2038</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="fld"><span class="flbl">College</span><span class="fval">Fund Emma and Noah</span><span class="fsrc">Meeting notes</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="fld"><span class="flbl">Legacy</span><span class="fval">Keep home in family</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="more">+3 more fields</div><div class="ok"><span class="gico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>All key fields captured</div><div class="addf"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></i>Add detail</div></div></div><div class="sec" data-sec><div class="sechead"><span class="sci"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/></svg></span><div class="stitle">Accounts &amp; holdings</div><span class="fcount">7 fields</span><span class="flag review">1 gap</span><span class="chev">&#9662;</span></div><div class="subs"><div class="fld"><span class="flbl">401(k)</span><span class="fval">David, held away</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="fld"><span class="flbl">Roth IRAs</span><span class="fval">Both spouses</span><span class="fsrc">Statements</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="fld"><span class="flbl">529 plans</span><span class="fval">Two children</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="more">+4 more fields</div><div class="gap"><span class="gico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>Gap: held-away 401(k) not linked yet</div><div class="addf"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></i>Add detail</div></div></div><div class="sec" data-sec><div class="sechead"><span class="sci"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><div class="stitle">Risk &amp; suitability</div><span class="fcount">5 fields</span><span class="flag review">1 gap</span><span class="chev">&#9662;</span></div><div class="subs"><div class="fld"><span class="flbl">Risk tolerance</span><span class="fval">Moderate</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="fld"><span class="flbl">Time horizon</span><span class="fval">12+ years</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="fld"><span class="flbl">KYC</span><span class="fval">On file</span><span class="fsrc">KYC form</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="more">+2 more fields</div><div class="gap"><span class="gico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>Missing: risk profile is over a year old</div><div class="addf"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></i>Add detail</div></div></div><div class="sec" data-sec><div class="sechead"><span class="sci"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><div class="stitle">Timeline &amp; next actions</div><span class="fcount">6 fields</span><span class="flag done">complete</span><span class="chev">&#9662;</span></div><div class="subs"><div class="fld"><span class="flbl">Client since</span><span class="fval">2019</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="fld"><span class="flbl">Last review</span><span class="fval">January 2026</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="fld"><span class="flbl">Next review</span><span class="fval">Due Q3</span><span class="fsrc">Calendar</span><span class="facts"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></i><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></i></span></div><div class="more">+3 more fields</div><div class="ok"><span class="gico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>All key fields captured</div><div class="addf"><i class="fa"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></i>Add detail</div></div></div>
+  <div class="assembly" data-asm><div class="acap">From your sources</div><div class="arow"><span class="aic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg></span><span class="albl">Email</span><span class="adot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span></div><div class="arow"><span class="aic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span><span class="albl">Statements</span><span class="adot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span></div><div class="arow"><span class="aic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg></span><span class="albl">Meeting notes</span><span class="adot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span></div><div class="arow"><span class="aic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span><span class="albl">Financial plan</span><span class="adot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span></div><div class="arow"><span class="aic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></span><span class="albl">KYC form</span><span class="adot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span></div><div class="arow"><span class="aic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><span class="albl">Risk profile</span><span class="adot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span></div><div class="arow"><span class="aic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span><span class="albl">Calls</span><span class="adot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span></div><div class="arow"><span class="aic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span><span class="albl">Calendar</span><span class="adot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span></div><div class="arow"><span class="aic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span><span class="albl">Beneficiary forms</span><span class="adot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span></div></div>
+  <div class="answer" data-answer>
+   <div class="ans-h">Answer</div>
+   <div class="ans-t">Three things to handle before the review: the risk profile is over a year old, the held-away 401(k) is not linked yet, and the trusted contact form is missing.</div>
+   <div class="ans-chips"><span class="ans-chip"><b></b>Risk</span><span class="ans-chip"><b></b>Accounts</span><span class="ans-chip"><b></b>Household</span></div>
+  </div>
+ </div>
+ <div class="searchbar"><span class="sb-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span class="sb-q" id="qel"></span><span class="sb-cursor" id="cur"></span><span class="thinking" data-think><i></i><i></i><i></i></span></div>
+</div></div>
+</div></div>
+<script src="gsap.min.js"></script>
+<script>
+var CX="50.0%",CY="42.0%",NSRC=9,QUESTION="What's still open before the Smith review?";
+function run(){ if(!window.gsap){return} var g=window.gsap;
+ var pct=document.getElementById('dpct'),qel=document.getElementById('qel'),cur=document.getElementById('cur');
+ g.set('.star',{opacity:0}); g.set('.cw',{opacity:0});
+ g.set('.src',{autoAlpha:0,scale:.4});
+ g.set('.seam',{scaleX:0,opacity:0,transformOrigin:'50% 50%'});
+ g.set('.card',{autoAlpha:0,xPercent:-50,yPercent:-50,transformOrigin:'50% 50%'});
+ g.set('.cardInner',{autoAlpha:0});
+ g.set('.sec',{autoAlpha:0,y:8});
+ g.set('.subs',{height:0});
+ g.set('.searchbar',{autoAlpha:0,y:10});
+ g.set('.answer',{autoAlpha:0,y:14});
+ g.set('#cur',{opacity:1});
+ g.set('.assembly',{autoAlpha:0});
+ g.set('.arow',{autoAlpha:0,x:-14});
+
+ var tl=g.timeline();
+ tl.to('.star',{opacity:.6,duration:1,stagger:{each:.04,from:'random'}},0);
+ // sources appear ONE AT A TIME, slower; each radial line draws in with it
+ var step=0.42, t0=0.5;
+ for(var i=0;i<NSRC;i++){
+   var t=t0+i*step;
+   tl.to('#src'+i,{autoAlpha:1,scale:1,duration:.55,ease:'back.out(1.5)'},t);
+   tl.to('#rad'+i,{opacity:.55,duration:.5},t+.05);
+ }
+ var tRing=t0+NSRC*step;
+ tl.to('.ring',{opacity:.32,duration:.7,stagger:.04},tRing);
+ // ---- TRANSFORM ----
+ // 1) the dossier fades in BEHIND the still-visible web of sources (card sits behind via z-index)
+ var tReveal=tRing+0.9;
+ tl.to('.card',{autoAlpha:1,duration:.8,ease:'power2.out'},tReveal)
+   .to('.cardInner',{autoAlpha:1,duration:.6,ease:'power2.out'},tReveal+.15);
+ // 2) the web clears and the source icons fly into the file, lining up as a list
+ var tGather=tReveal+1.05;
+ tl.to('.slbl',{autoAlpha:0,duration:.3},tGather)
+   .to('.cw',{opacity:0,duration:.55,ease:'power2.in'},tGather)
+   .to('.star',{opacity:.16,duration:.8},tGather)
+   .to('.assembly',{autoAlpha:1,duration:.3},tGather+.1)
+   .to('.src',{left:CX,top:CY,scale:.18,autoAlpha:0,duration:.85,ease:'power2.inOut',stagger:{each:.06,from:'start'}},tGather+.15)
+   .to('.arow',{autoAlpha:1,x:0,duration:.42,stagger:.09,ease:'power2.out'},tGather+.45);
+ // 3) the list dissolves and reorganizes into the structured dossier
+ var tForm=tGather+2.4;
+ tl.to('.arow',{autoAlpha:0,y:-12,duration:.45,stagger:.05,ease:'power2.in'},tForm)
+   .to('.assembly',{autoAlpha:0,duration:.3},tForm+.6)
+   .to('.sec',{autoAlpha:1,y:0,duration:.45,stagger:.09,ease:'power2.out'},tForm+.4)
+   .to('.searchbar',{autoAlpha:1,y:0,duration:.5,ease:'power2.out'},tForm+.8);
+ var o={v:0};
+ tl.to(o,{v:85,duration:1.3,ease:'power2.out',onUpdate:function(){pct.textContent=Math.round(o.v)}},tForm+.5);
+
+ // ambient star twinkle
+ g.to('.star',{opacity:.12,duration:2.4,ease:'sine.inOut',repeat:-1,yoyo:true,stagger:{each:.25,from:'random'}});
+
+ tl.add(buildBody(),'+=0.5');
+
+ function expandClose(idx){
+   var secEls=g.utils.toArray('.sec');
+   var sec=secEls[idx],subs=sec.querySelector('.subs'),chev=sec.querySelector('.chev');
+   var t=g.timeline();
+   t.to(sec,{backgroundColor:'#F4F7FB',duration:.3})
+    .to(chev,{rotate:180,duration:.4,transformOrigin:'50% 50%'},'<')
+    .to(subs,{height:'auto',duration:.55,ease:'power2.out'},'<')
+    .to({},{duration:1.9})
+    .to(sec,{backgroundColor:'rgba(255,255,255,0)',duration:.4})
+    .to(chev,{rotate:0,duration:.4},'<')
+    .to(subs,{height:0,duration:.45,ease:'power2.in'},'<');
+   return t;
+ }
+ function searchDemo(){
+   var t=g.timeline();
+   var p={i:0};
+   t.add(function(){qel.textContent='';g.set('#cur',{opacity:1});})
+    .to({},{duration:.4})
+    .to(p,{i:QUESTION.length,duration:.05*QUESTION.length,ease:'none',
+        onUpdate:function(){qel.textContent=QUESTION.slice(0,Math.round(p.i));}})
+    .to('#cur',{opacity:0,duration:.2})
+    .set('.thinking',{visibility:'visible'})
+    .to('.thinking i',{y:-5,duration:.32,repeat:5,yoyo:true,stagger:.12,ease:'sine.inOut'})
+    .set('.thinking',{visibility:'hidden'})
+    .to('.answer',{autoAlpha:1,y:0,duration:.5,ease:'power3.out'},'+=0.05')
+    .from('.ans-chip',{autoAlpha:0,y:6,scale:.9,stagger:.1,duration:.3},'<0.15')
+    .to({},{duration:3.0})
+    .to('.answer',{autoAlpha:0,y:14,duration:.45})
+    .add(function(){qel.textContent='';});
+   return t;
+ }
+ function buildBody(){
+   var b=g.timeline({repeat:-1});
+   b.add(expandClose(0));   // People (gap)
+   b.add(expandClose(3));   // Risks (gap)
+   b.add(expandClose(2));   // Goals (gap)
+   b.add(searchDemo());     // ask + answer finale
+   b.to({},{duration:1.0});
+   return b;
+ }
+ // headless safety net -> settle on the dossier (only fires after the intro would finish;
+ // in a live browser the animation completes first, so this is a no-op there)
+ setTimeout(function(){try{
+   g.set('.src',{autoAlpha:0});g.set('.seam',{opacity:0});g.set('.cw',{opacity:0});
+   g.set('.assembly',{autoAlpha:0});g.set('.arow',{autoAlpha:0});
+   g.set('.card',{autoAlpha:1,scaleX:1,scaleY:1});g.set('.cardInner',{autoAlpha:1});
+   g.set('.sec',{autoAlpha:1,y:0});g.set('.searchbar',{autoAlpha:1,y:0});pct.textContent='85';
+ }catch(e){}},13000);
+}
+if(document.fonts&&document.fonts.ready){document.fonts.ready.then(run)}else{addEventListener('load',run)}
+</script></body></html>
