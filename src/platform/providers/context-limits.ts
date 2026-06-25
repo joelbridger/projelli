@@ -28,6 +28,9 @@ const PROVIDER_FALLBACKS: Record<string, number> = {
   openai: 128000,
   gemini: 1000000,
   ollama: 8192,
+  // Embedded Keepance Local AI engine. The Rust side pins the actual context
+  // window via llama.cpp's --ctx-size; this fallback is for UI/metadata only.
+  'keepance-local': 16384,
 };
 
 // Exact-match overrides. Match is attempted first; if no exact match, the
@@ -80,6 +83,29 @@ const MODEL_OVERRIDES: Record<string, ContextLimitInfo> = {
   'codellama': { maxTokens: 16384 },
   'phi3': { maxTokens: 131072 },
   'gemma2': { maxTokens: 8192 },
+  // Newer small models on the local-model shortlist (2026 research). Values are
+  // each model's trained maximum; the OllamaProvider clamps the *requested*
+  // window down to a memory-safe working size, so the exact ceiling here only
+  // needs to be large enough not to under-cap the RAG context window.
+  'llama3.2': { maxTokens: 131072 },
+  'llama3.2:1b': { maxTokens: 131072 },
+  'llama3.2:3b': { maxTokens: 131072 },
+  'qwen2.5': { maxTokens: 131072 },
+  'qwen2.5:7b': { maxTokens: 131072 },
+  'qwen2.5:3b': { maxTokens: 32768 },
+  'qwen3': { maxTokens: 262144 },
+  'qwen3:4b': { maxTokens: 262144 },
+  'qwen3:8b': { maxTokens: 131072 },
+  'granite3.2': { maxTokens: 131072 },
+  'granite3.2:8b': { maxTokens: 131072 },
+  'granite3.3': { maxTokens: 131072 },
+  'granite3.3:8b': { maxTokens: 131072 },
+  'gemma3': { maxTokens: 131072 },
+  'gemma3:4b': { maxTokens: 131072 },
+  'gemma3:1b': { maxTokens: 32768 },
+  'phi4-mini': { maxTokens: 131072 },
+  // Embedded Keepance Local AI default model (Qwen3-4B-Instruct-2507).
+  'qwen3-4b-instruct-2507': { maxTokens: 262144 },
 };
 
 /**

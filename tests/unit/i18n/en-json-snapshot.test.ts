@@ -54,6 +54,8 @@ describe('en.json structure snapshot', () => {
         "editor": 14,
         "firm": 143,
         "layout": 40,
+        "local-ai-download": 9,
+        "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
         "matter": 105,
@@ -62,7 +64,7 @@ describe('en.json structure snapshot', () => {
         "model-download": 9,
         "onboarding": 65,
         "plugins": 4,
-        "privacy": 11,
+        "privacy": 13,
         "quick-open": 1,
         "research": 11,
         "search": 6,
@@ -84,7 +86,9 @@ describe('en.json structure snapshot', () => {
     const flat = flatten(en as Record<string, JsonValue>);
     // 903 = 900 (Phase 4 solo-to-firm bridge keys) + 2 BUG-099 ready-with-skips
     // plural keys (memory.ready-with-skips_one + _other) + 1 PDF progress key.
-    expect(flat.length).toBe(903);
+    // +17 = Keepance Local AI: local-ai-download (9) + local-ai-settings (8).
+    // +2 = privacy.egress.checking.{label,note} (local-status "Checking" badge).
+    expect(flat.length).toBe(922);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

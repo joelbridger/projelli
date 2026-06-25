@@ -1516,6 +1516,27 @@
     "error-body__locked": true,
     "retry__locked": true
   },
+  "local-ai-download": {
+    "title": "Keepance Local AI wird heruntergeladen",
+    "body": "Keepance lädt seine private KI für dieses Gerät (etwa 2,4 GB) einmalig herunter. Sie können weiterarbeiten. Sie läuft vollständig offline, sobald sie bereit ist.",
+    "verifying": "Das heruntergeladene Modell wird geprüft",
+    "progress": "{{done}} MB von {{total}} MB",
+    "progress-unknown": "{{done}} MB bisher",
+    "stalled": "Der Download scheint zu hängen. Ein Neustart von Keepance setzt ihn dort fort, wo er gestoppt wurde.",
+    "error-title": "Der Download von Keepance Local AI wurde unterbrochen",
+    "error-body": "Es ist nichts verloren. Der Download wird dort fortgesetzt, wo er gestoppt wurde.",
+    "retry": "Download fortsetzen"
+  },
+  "local-ai-settings": {
+    "title": "Keepance Local AI",
+    "description": "Eine private KI, die vollständig auf diesem Computer läuft. Ihre Dateien und Fragen verlassen das Gerät nie. Sie ist etwas weniger präzise als die Cloud-Modelle, aber nichts, was Sie fragen, geht ins Internet. Einmaliger Download, etwa 2,4 GB.",
+    "download": "Keepance Local AI herunterladen",
+    "downloading": "Wird heruntergeladen… {{pct}} %",
+    "verifying": "Download wird geprüft…",
+    "ready": "Installiert und bereit. Wählen Sie „Keepance Local AI“ als Modell in einem beliebigen Chat.",
+    "error": "Der Download wurde unterbrochen. Es ist nichts verloren.",
+    "retry": "Download fortsetzen"
+  },
   "version": {
     "history": {
       "title": "Versionsverlauf",
@@ -1601,7 +1622,7 @@
     "egress": {
       "local": {
         "label": "On your machine. Nothing leaves",
-        "note": "This runs on a local model (Ollama). No prompt or file is sent over the network."
+        "note": "This runs on a local model ({{provider}}). No prompt or file is sent over the network."
       },
       "direct": {
         "label": "Direct to {{provider}} (your account)",

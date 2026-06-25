@@ -1,0 +1,84 @@
+/**
+ * providerModelResolution — Keepance Local AI ('keepance-local') additions.
+ *
+ * The embedded engine serves whichever GGUF is loaded, so its model id is
+ * cosmetic. Like ollama it carries no fallback model: the picker offers it as a
+ * selectable provider with a "Default model" entry and the provider then uses
+ * its own KEEPANCE_LOCAL_DEFAULT_MODEL. These tests lock that contract.
+ */
+
+import { describe, expect, it } from 'vitest';
+import {
+  FALLBACK_MODEL,
+  resolveModelsForProvider,
+  resolveModelForProvider,
+  effectiveChatProvider,
+  localModelAvailability,
+  type ChatProvider,
+} from '@/features/ask/chat/providerModelResolution';
+
+describe('localModelAvailability — the tri-state behind the privacy fix', () => {
+  it("is 'ready' whenever the model state is ready (regardless of probe)", () => {
+    expect(localModelAvailability(true, true)).toBe('ready');
+    expect(localModelAvailability(true, false)).toBe('ready');
+  });
+
+  it("is 'unknown' while the initial probe has NOT resolved (not-ready + unprobed)", () => {
+    // This is the initial-load race window: we don't KNOW yet, so we must not
+    // guess. It must never collapse to 'absent' (which would default to cloud).
+    expect(localModelAvailability(false, false)).toBe('unknown');
+  });
+
+  it("is 'absent' only once the probe resolves to not-ready", () => {
+    expect(localModelAvailability(false, true)).toBe('absent');
+  });
+});
+
+describe('effectiveChatProvider — the privacy-badge fallback fix + its initial-load race', () => {
+  it('returns the saved provider verbatim when one is set (never null)', () => {
+    expect(effectiveChatProvider('openai', 'ready')).toBe('openai');
+    expect(effectiveChatProvider('openai', 'absent')).toBe('openai');
+    expect(effectiveChatProvider('openai', 'unknown')).toBe('openai');
+    expect(effectiveChatProvider('keepance-local', 'absent')).toBe('keepance-local');
+  });
+
+  it("an UNSET chat resolves to 'keepance-local' when the embedded model is ready (NEVER a cloud fallback)", () => {
+    // BLOCKER regression: this is the unset-provider state that made the egress
+    // badge falsely claim "data leaves" for an on-device chat.
+    expect(effectiveChatProvider(undefined, 'ready')).toBe('keepance-local');
+    expect(effectiveChatProvider(undefined, 'ready')).not.toBe('anthropic');
+  });
+
+  it("an UNSET chat is UNRESOLVED (null), NOT 'anthropic', while the probe is pending", () => {
+    // BLOCKER 2 regression (the initial-load race): before the probe resolves we
+    // must not silently default to the cloud. null tells the UI to show
+    // "Checking local AI" and DISABLE send until the status settles.
+    expect(effectiveChatProvider(undefined, 'unknown')).toBeNull();
+    expect(effectiveChatProvider(undefined, 'unknown')).not.toBe('anthropic');
+  });
+
+  it("an UNSET chat falls back to 'anthropic' only once we KNOW the local model is absent", () => {
+    expect(effectiveChatProvider(undefined, 'absent')).toBe('anthropic');
+  });
+});
+
+describe("providerModelResolution — 'keepance-local'", () => {
+  it('is part of the ChatProvider union (assignable)', () => {
+    const p: ChatProvider = 'keepance-local';
+    expect(p).toBe('keepance-local');
+  });
+
+  it('has an empty fallback model (model id is cosmetic, like ollama)', () => {
+    expect(FALLBACK_MODEL['keepance-local']).toBe('');
+  });
+
+  it('offers no concrete model list (so the picker shows a Default model)', () => {
+    expect(resolveModelsForProvider('keepance-local')).toEqual([]);
+  });
+
+  it('resolves to an empty model, letting the provider use its own default', () => {
+    expect(resolveModelForProvider('keepance-local')).toBe('');
+    // A preferred model that does not exist for this provider is ignored.
+    expect(resolveModelForProvider('keepance-local', 'qwen3-4b-instruct-2507')).toBe('');
+  });
+});

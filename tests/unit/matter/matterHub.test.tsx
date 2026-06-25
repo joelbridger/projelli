@@ -10,6 +10,7 @@ import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore'
 
 // ── Mail commands (async probes used by GetStartedCard) ───────────────────────
 vi.mock('@/platform/utils/mail-commands', () => ({
+  mailListMessages: async () => ({ items: [], total: 0 }),
   mailIsConnected: async () => false,
   gmailIsConnected: async () => false,
   mailImapIsConnected: async () => false,

@@ -116,6 +116,11 @@ describe('localOnlyGuard (A1)', () => {
     expect(() => assertLocalOnlyAllowsSend('ollama')).not.toThrow();
   });
 
+  it('allows the embedded Keepance Local AI send in local-only mode', () => {
+    h.mode = 'local-only';
+    expect(() => assertLocalOnlyAllowsSend('keepance-local')).not.toThrow();
+  });
+
   it('allows cloud sends when NOT in local-only mode', () => {
     h.mode = 'direct';
     expect(() => assertLocalOnlyAllowsSend('openai')).not.toThrow();

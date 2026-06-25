@@ -7,7 +7,8 @@ from email.message import EmailMessage
 from email.utils import formatdate
 from datetime import datetime, timedelta, timezone
 
-TOK = json.load(open('/tmp/claude-1000/-home-jameson/64b8e7c1-e698-4a93-93ab-e6f1f981eba0/scratchpad/token.json'))
+import os
+TOK = json.load(open(os.environ.get('IMAP_TOKEN_JSON', '/tmp/claude-1000/-home-jameson/dadc9abc-0cc3-4e6a-9a49-136a3006e1b0/scratchpad/token.json')))
 ACCESS = TOK['access_token']
 USER = 'sarah.morgan.cfp@outlook.com'
 

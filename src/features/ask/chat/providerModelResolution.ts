@@ -18,7 +18,70 @@ import { getDefaultModels, type ModelInfo } from '@/platform/providers/ModelList
 import type { ProviderType } from '@/platform/providers/fetchUtils';
 
 /** The provider ids the chat can target. Mirrors AIChatFile['provider']. */
-export type ChatProvider = 'anthropic' | 'openai' | 'google' | 'ollama';
+export type ChatProvider = 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local';
+
+/**
+ * Tri-state availability of the embedded Keepance Local AI model, as the chat's
+ * provider resolver sees it:
+ *   - 'ready'   : the on-device model is downloaded and usable right now.
+ *   - 'absent'  : we KNOW there is no usable local model — the status probe
+ *                 resolved to not-ready, or we are off-desktop entirely — so the
+ *                 legacy cloud default is the honest fallback.
+ *   - 'unknown' : on desktop, the initial status probe has NOT resolved yet, so
+ *                 we genuinely do not know. The caller must NOT guess a provider
+ *                 (effectiveChatProvider returns null for this case).
+ */
+export type LocalModelAvailability = 'ready' | 'absent' | 'unknown';
+
+/**
+ * Map the local-model hook's raw facts into the tri-state above.
+ *   - `isReady` = the hook's state is 'ready'.
+ *   - `probed`  = the hook's INITIAL status probe has resolved (it resolves
+ *                 immediately off-desktop too, where there is nothing to probe).
+ * Until the probe resolves we report 'unknown', never 'absent', so an
+ * unset-provider chat is never silently defaulted to the cloud during the brief
+ * probe window (the privacy initial-load race).
+ */
+export function localModelAvailability(
+  isReady: boolean,
+  probed: boolean,
+): LocalModelAvailability {
+  if (isReady) return 'ready';
+  if (!probed) return 'unknown';
+  return 'absent';
+}
+
+/**
+ * The provider a chat will ACTUALLY use right now, given its (optional) saved
+ * provider and the tri-state availability of the embedded Keepance Local AI.
+ *
+ * Why this exists (privacy BLOCKER + its initial-load race): a chat with no
+ * saved provider must NEVER silently fall back to a cloud provider ('anthropic')
+ * while an on-device model is — or might still be — available. The old boolean
+ * `localModelReady` defaulted to 'anthropic' the instant the model was not YET
+ * known ready, so during the async status probe the egress badge briefly claimed
+ * "data leaves" and a send could route to the cloud. The fix maps the four cases
+ * honestly:
+ *   - saved provider set      -> honour it (an explicit choice is never unknown);
+ *   - unset + local 'ready'    -> 'keepance-local' (the honest on-device default);
+ *   - unset + local 'absent'   -> 'anthropic' (legacy cloud default drives the
+ *                                 add-a-key flow, only once we KNOW local is out);
+ *   - unset + local 'unknown'  -> null. The probe is still pending, so the caller
+ *                                 shows a neutral "Checking local AI" badge and
+ *                                 DISABLES send until the status resolves — we
+ *                                 never guess "cloud" and never leak.
+ * The egress badge, the input toolbar, and the send path all read THIS one value
+ * (or its null), so they can never disagree about where the next message goes.
+ */
+export function effectiveChatProvider(
+  saved: ChatProvider | undefined,
+  local: LocalModelAvailability,
+): ChatProvider | null {
+  if (saved) return saved;
+  if (local === 'ready') return 'keepance-local';
+  if (local === 'absent') return 'anthropic';
+  return null; // 'unknown' — probe pending; caller shows "Checking" + disables send
+}
 
 /** Cloud providers that have a hardcoded model list + a models cache. */
 const CLOUD_PROVIDERS: ProviderType[] = ['anthropic', 'openai', 'google'];
@@ -36,6 +99,11 @@ export const FALLBACK_MODEL: Record<ChatProvider, string> = {
   openai: 'gpt-4o-mini',
   google: 'gemini-1.5-flash',
   ollama: '',
+  // Keepance Local AI (embedded llama.cpp) serves whichever GGUF is loaded; the
+  // model id is cosmetic, so — like ollama — there's no fallback model and the
+  // picker offers it as a selectable "Default model" that lets the provider use
+  // its own default (KEEPANCE_LOCAL_DEFAULT_MODEL).
+  'keepance-local': '',
 };
 
 /** Type guard: is this id one of the three cloud providers? */

@@ -19,6 +19,7 @@ import { useProfessionStore } from '@/platform/profile/professionStore';
 
 // ── Mail commands (async probes used by GetStartedCard) ───────────────────────
 vi.mock('@/platform/utils/mail-commands', () => ({
+  mailListMessages: async () => ({ items: [], total: 0 }),
   mailIsConnected: async () => false,
   gmailIsConnected: async () => false,
   mailImapIsConnected: async () => false,
