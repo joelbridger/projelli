@@ -226,19 +226,30 @@ functional first, THEN a dedicated UI pass** (hold all UI changes until the end)
 - ✅ **`_README_FAKE_DATA.txt` visible to prospects** in the Documents view. Moved it OUT of the
   workspace root (to `C:\keepance-demo-northcrest\_README_FAKE_DATA.txt`) — notice preserved, off-screen.
 
-**FLAG for the UI/core instance (not demo-data; left untouched to avoid edit conflicts):**
-- ⚠️ **`matterLabel` should not double when `name===client`** — robust fix for the broader advisor
-  product: `if (name && client && name !== client) return \`${client} - ${name}\`; return name || client`.
-- ⚠️ **Client hub EMAIL panel says "No email folders connected"** even though email is connected and
-  messages are matter-tagged. The hub looks for FOLDER-level mappings; our tagging is message-level
-  (`mail_retag_message_matter`). The Ask finds the emails; the hub panel doesn't show them. To make the
-  hub show a client's emails, add folder-level mapping (`mail_retag_folder_matter`) or teach the hub to
-  read message-level tags.
-- ⚠️ **Egress label inconsistency**: top-bar TrustBar shows "Sent to your Anthropic account" but the Ask
-  shows "Sent to your OpenAI account". `keepance_default_provider=openai`, `keepance_default_model=gpt-4o-mini`.
-  Unify the indicator; consider a stronger demo model than gpt-4o-mini.
-- ⚠️ **Terminology mix** in the New-client dialog: title/body say "client" but the network-lockdown copy
-  still says "matter" ("When this matter is active…").
+**FIXED (frontend code — committed `b819e737`, built + deployed to the bench dist, verified live):**
+- ✅ **Client hub EMAIL panel** now previews THIS client's connected emails (matched by household name)
+  instead of "No email folders connected" — e.g. Brennan's hub shows "(1) Roth conversion before
+  year-end?". `src/features/matters/MatterHub.tsx`. (There's still no "list mail by matterId" command;
+  this matches on sender. The robust backend follow-up is a `matterId` filter on `mail_list_messages`.)
+- ✅ **Egress indicator** now reads `keepance_default_provider` first (the same value the Ask uses), so
+  the top bar shows "OpenAI" to match the Ask instead of hard-falling-back to "Anthropic".
+  `src/platform/hooks/useActiveEgressProvider.ts`. (Model is still gpt-4o-mini — fine, but a stronger
+  model would impress more; that's a settings change, not code.)
+- ✅ **New-client dialog terminology** — the raw (non-facade) `matter.manager` strings (lockdown,
+  folders, email, MCP) now say "client" not "matter". `src/locales/en.json`. NOTE: the facade strings
+  (scope chips, dialog title) already adapt via `profession=advisor`; only these raw strings leaked
+  "matter". Law-mode would now show "client" for these few strings — the robust fix is to route them
+  through the `useEntityLabel` facade (advisor-reaim's terminology sweep). de/es locale copies unchanged.
+
+**STILL-FLAGGED (data-fixed for the demo, code follow-up optional):**
+- ⚠️ **`matterLabel` doubling** was fixed in DEMO DATA (seed `client=""`). The robust code fix for the
+  broader product: `if (name && client && name !== client) return \`${client} - ${name}\`; return name || client`.
+
+**Bench dist note:** these UX fixes live in the DEPLOYED `C:\keepance\dist` (server-built, scp'd over).
+They survive app restarts (`vite preview` only SERVES dist, never rebuilds). They are ALSO committed to
+`keepance-3.0`. The only way to lose them on the bench is a manual `npm run build` there from stale src —
+so pull `keepance-3.0` before any bench rebuild. To redeploy after a code change: `npm run build` on the
+server → zip `dist/` → scp → expand to `C:\keepance\dist` → restart the app.
 
 **DEMO-OPERATION tips:**
 - **Reset a few minutes before showing.** After any reset the app re-indexes PDFs (banner "Indexing PDFs:
