@@ -166,7 +166,7 @@ export function Ask(props: UseAskProps) {
         <div
           style={{
             display: 'flex',
-            gap: 6,
+            gap: 'var(--kp-space-xs)',
             padding: 'var(--kp-space-xs) var(--kp-gutter)',
             overflowX: 'auto',
             flexShrink: 0,
@@ -294,8 +294,8 @@ export function Ask(props: UseAskProps) {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 8,
-                          padding: '7px 11px',
+                          gap: 'var(--kp-space-xs)',
+                          padding: 'var(--kp-space-xs) var(--kp-space-sm)',
                           borderRadius: 'var(--radius-md)',
                           border: '1px solid var(--color-border)',
                           background: 'var(--color-background)',
@@ -384,7 +384,7 @@ export function Ask(props: UseAskProps) {
                 padding: '9px 12px',
                 borderRadius: 'var(--radius-md)',
                 background: 'var(--kp-danger-bg)',
-                border: '1px solid #e5b5b0',
+                border: '1px solid rgba(176, 42, 31, 0.3)',
                 fontSize: 'var(--kp-font-xs)',
                 color: 'var(--kp-danger)',
               }}

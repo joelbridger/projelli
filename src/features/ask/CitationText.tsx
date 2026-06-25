@@ -76,7 +76,7 @@ export function CitationText({
             }
             style={isSel ? { outline: '2px solid var(--kp-navy)', outlineOffset: 1 } : undefined}
             className={cn(
-              'inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded border text-xs font-mono font-medium align-baseline cursor-pointer transition-colors',
+              'inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded border text-xs font-mono font-medium align-baseline cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
               proven
                 ? 'border-green-400/60 bg-green-50 text-green-800 hover:bg-green-100'
                 : 'border-red-400/60 bg-red-50 text-red-700 hover:bg-red-100',
