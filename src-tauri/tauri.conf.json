@@ -79,7 +79,8 @@
       "binaries/**/*"
     ],
     "externalBin": [
-      "binaries/piper"
+      "binaries/piper",
+      "binaries/llama-server"
     ],
     "createUpdaterArtifacts": true
   },
