@@ -93,4 +93,39 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         assert!(read_manifest(tmp.path()).unwrap().is_none());
     }
+
+    /// Locks the cross-platform contract that the download path relies on: the
+    /// real flow writes a `Downloading` manifest, then later overwrites it with
+    /// a `Ready` one. `std::fs::rename` is documented to replace an existing
+    /// destination on every platform (Windows uses MoveFileExW with
+    /// MOVEFILE_REPLACE_EXISTING) and does so ATOMICALLY — so the second write
+    /// must succeed over the existing file and leave the latest content. This
+    /// test would fail on Windows if rename did NOT replace; it passes there
+    /// (empirically verified on the Legion bench). Keeping it guards against a
+    /// regression to a non-atomic remove-then-rename.
+    #[test]
+    fn write_manifest_replaces_an_existing_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let downloading = LocalModelManifest::new(
+            "m",
+            "model.gguf",
+            "rev",
+            100,
+            "aa",
+            LocalModelStatus::Downloading,
+        );
+        write_manifest(tmp.path(), &downloading).unwrap();
+        assert_eq!(
+            read_manifest(tmp.path()).unwrap().unwrap().status,
+            LocalModelStatus::Downloading
+        );
+
+        // Overwrite the existing manifest with the Ready one (the rename-over-
+        // existing the download path performs on Windows after the GGUF lands).
+        let ready = LocalModelManifest::new("m", "model.gguf", "rev", 100, "aa", LocalModelStatus::Ready);
+        write_manifest(tmp.path(), &ready).unwrap();
+        assert_eq!(read_manifest(tmp.path()).unwrap(), Some(ready));
+        // The temp file must not linger after an atomic rename.
+        assert!(!manifest_path(tmp.path()).with_extension("json.tmp").exists());
+    }
 }

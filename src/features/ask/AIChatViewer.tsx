@@ -40,8 +40,10 @@ import { ChatModelPicker } from '@/features/ask/chat/ChatModelPicker';
 import {
   resolveNewChatDefault,
   resolveSettingsDefaults,
+  effectiveChatProvider,
   type ChatProvider,
 } from '@/features/ask/chat/providerModelResolution';
+import { useLocalLlmModelStatus } from '@/platform/hooks/useLocalLlmModelStatus';
 import { getVerifiedProviders, getInvalidProviders } from '@/platform/providers/keyVerification';
 import {
   PROFESSION_PROVIDER_STORAGE_KEY,
@@ -181,12 +183,18 @@ import { ProposedFactsPanel } from './ProposedFactsPanel';
 export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, onOpenFileAtPath, className }: AIChatViewerProps) {
   const { t } = useTranslation();
   const entityLabel = useEntityLabel();
+  // The provider this chat ACTUALLY targets. A chat with no saved provider must
+  // never fall back to the cloud ('anthropic') while the embedded Keepance Local
+  // AI model is ready — that would make the egress badge claim "data leaves" for
+  // a chat that runs on-device. The badge, the input toolbar, and the send path
+  // all read this one value (see effectiveChatProvider) so they can't disagree.
+  const localLlmReady = useLocalLlmModelStatus().state === 'ready';
+  const effectiveProvider = effectiveChatProvider(chatData.provider, localLlmReady);
   // Firm "Assured" availability for THIS chat's provider — does the firm have a
   // managed key for it? Drives the egress indicator's assured-proxy story.
-  const assuredAvailableForChat = useFirmStore((s) => {
-    const p = chatData.provider ?? 'anthropic';
-    return isAssuredProvider(p) && s.assuredProviders.includes(p);
-  });
+  const assuredAvailableForChat = useFirmStore((s) =>
+    isAssuredProvider(effectiveProvider) && s.assuredProviders.includes(effectiveProvider),
+  );
   // 30-day trial gate. Locks chat send + voice when expired and not paid.
   const trialGate = useTrialGate();
   // Use global store for chat state (persists across navigation)
@@ -391,7 +399,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     const count = messages.length;
     if (!shouldRunExtraction(count, extractionStateRef.current)) return;
 
-    const chatProvider = chatData.provider ?? 'anthropic';
+    const chatProvider = effectiveProvider;
     // WS-C honesty — a LOCAL (Ollama) chat extracts facts on the local model
     // itself ($0, nothing leaves). It needs no key, so it must not be gated by
     // the cloud key check, and it must NEVER fall through to a cloud provider.
@@ -512,7 +520,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         extractionInFlightRef.current = false;
       }
     })();
-  }, [messages, isLoading, apiKeys, chatData.provider, chatData.model, chatId]);
+  }, [messages, isLoading, apiKeys, effectiveProvider, chatData.provider, chatData.model, chatId]);
 
   // Clear proposed facts + reset extraction state when the chat switches.
   useEffect(() => {
@@ -534,12 +542,12 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const visionWarning = useMemo<string | null>(() => {
     const hasImageAtt = pendingAttachments.some((a) => a.type === 'image');
     if (!hasImageAtt) return null;
-    const chatProvider = chatData.provider ?? 'anthropic';
+    const chatProvider = effectiveProvider;
     const chatModel = chatData.model ?? '';
     if (!chatModel) return null;
     if (isVisionModel(chatProvider, chatModel)) return null;
     return `${chatModel} does not support images. Switch to a vision-capable model.`;
-  }, [pendingAttachments, chatData.provider, chatData.model]);
+  }, [pendingAttachments, effectiveProvider, chatData.provider, chatData.model]);
 
   // Save draft input to store (debounced) - persists across navigation
   useEffect(() => {
@@ -556,6 +564,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
 
   const { handleSendMessage, handleManualCompress, handleSendAnyway } = useChatSending({
     chatData,
+    localLlmReady,
     onSave,
     apiKeys,
     workspaceServiceRef,
@@ -636,7 +645,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             continue;
           }
           // Determine extraction mode based on current provider + model.
-          const provider = chatData.provider ?? 'anthropic';
+          const provider = effectiveProvider;
           const model = chatData.model ?? '';
           const mode = getPdfMode(provider, model);
 
@@ -694,7 +703,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         setTimeout(() => setAttachmentError(null), 4000);
       }
     }
-  }, [workspaceServiceRef, onAuditLog, chatData.model, chatData.provider]);
+  }, [workspaceServiceRef, onAuditLog, chatData.model, chatData.provider, effectiveProvider]);
 
   // Stream A1 — Remove a pending attachment.
   const handleRemoveAttachment = useCallback((id: string) => {
@@ -1415,14 +1424,14 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
              visible right above the composer so the user can never send
              without seeing the destination. */}
         <EgressIndicator
-          provider={chatData.provider ?? 'anthropic'}
+          provider={effectiveProvider}
           assuredAvailable={assuredAvailableForChat}
           variant="full"
           className="mb-2"
         />
         {/* Stream A1 — ChatInputToolbar: paperclip, paste, drop, tiles, vision warning */}
         <ChatInputToolbar
-          provider={chatData.provider ?? 'anthropic'}
+          provider={effectiveProvider}
           model={chatData.model ?? ''}
           pendingAttachments={pendingAttachments}
           previewUrls={previewUrls}

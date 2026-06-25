@@ -26,6 +26,7 @@ import {
   DEFAULT_CONFIDENTIALITY_MODE,
 } from '@/platform/privacy/egress';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
+import { effectiveChatProvider } from '@/features/ask/chat/providerModelResolution';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import type { ConfidentialityMode } from '@/platform/privacy/egress';
@@ -149,6 +150,19 @@ describe('EgressIndicator', () => {
     const note = screen.getByTestId('egress-indicator-note').textContent || '';
     expect(note).toMatch(/Keepance Local AI/);
     expect(note).not.toMatch(/Ollama/);
+  });
+
+  it('BLOCKER regression: an unset-provider chat with the local model ready shows data-destination=local (never "data leaves")', () => {
+    // The exact bad state Codex flagged: a chat with no saved provider while the
+    // embedded model is ready. effectiveChatProvider must resolve it to
+    // 'keepance-local' (not the old 'anthropic' fallback), so the badge the user
+    // sees says nothing leaves — matching the on-device send.
+    setMode('direct');
+    const provider = effectiveChatProvider(undefined, /* localModelReady */ true);
+    render(<EgressIndicator provider={provider} />);
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.getAttribute('data-destination')).toBe('local');
+    expect(el.getAttribute('data-data-leaves')).toBe('false');
   });
 
   it('shows "Sent to your Anthropic account" with the provider-sees-prompt note in Direct mode', () => {

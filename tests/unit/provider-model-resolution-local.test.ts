@@ -12,8 +12,28 @@ import {
   FALLBACK_MODEL,
   resolveModelsForProvider,
   resolveModelForProvider,
+  effectiveChatProvider,
   type ChatProvider,
 } from '@/features/ask/chat/providerModelResolution';
+
+describe('effectiveChatProvider — the privacy-badge fallback fix', () => {
+  it('returns the saved provider verbatim when one is set', () => {
+    expect(effectiveChatProvider('openai', true)).toBe('openai');
+    expect(effectiveChatProvider('openai', false)).toBe('openai');
+    expect(effectiveChatProvider('keepance-local', false)).toBe('keepance-local');
+  });
+
+  it("an UNSET chat resolves to 'keepance-local' when the embedded model is ready (NEVER a cloud fallback)", () => {
+    // BLOCKER regression: this is the unset-provider state that made the egress
+    // badge falsely claim "data leaves" for an on-device chat.
+    expect(effectiveChatProvider(undefined, true)).toBe('keepance-local');
+    expect(effectiveChatProvider(undefined, true)).not.toBe('anthropic');
+  });
+
+  it("an UNSET chat falls back to 'anthropic' only when no local model is available", () => {
+    expect(effectiveChatProvider(undefined, false)).toBe('anthropic');
+  });
+});
 
 describe("providerModelResolution — 'keepance-local'", () => {
   it('is part of the ChatProvider union (assignable)', () => {

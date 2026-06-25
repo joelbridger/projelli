@@ -20,6 +20,28 @@ import type { ProviderType } from '@/platform/providers/fetchUtils';
 /** The provider ids the chat can target. Mirrors AIChatFile['provider']. */
 export type ChatProvider = 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local';
 
+/**
+ * The provider a chat will ACTUALLY use right now, given its (optional) saved
+ * provider and whether the embedded Keepance Local AI model is ready.
+ *
+ * Why this exists (privacy BLOCKER): a chat with no saved provider must NEVER
+ * silently fall back to a cloud provider ('anthropic') when an on-device model
+ * is available. That fallback made the egress badge claim "data leaves" for a
+ * chat that actually runs locally — and would route the send to a cloud key the
+ * user may not even have. When the embedded model is ready, the honest,
+ * privacy-safe default is 'keepance-local'; otherwise the legacy cloud default
+ * ('anthropic') still drives the add-a-key flow. The egress badge, the input
+ * toolbar, and the send path all read THIS one value, so they can never
+ * disagree about where the next message goes.
+ */
+export function effectiveChatProvider(
+  saved: ChatProvider | undefined,
+  localModelReady: boolean,
+): ChatProvider {
+  if (saved) return saved;
+  return localModelReady ? 'keepance-local' : 'anthropic';
+}
+
 /** Cloud providers that have a hardcoded model list + a models cache. */
 const CLOUD_PROVIDERS: ProviderType[] = ['anthropic', 'openai', 'google'];
 

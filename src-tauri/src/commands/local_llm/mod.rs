@@ -19,10 +19,18 @@ pub async fn local_llm_sidecar_start(
     app: tauri::AppHandle,
     state: tauri::State<'_, LocalLlmSidecarState>,
 ) -> Result<String, String> {
-    let model_path = model_download::model_file_path();
-    if !model_path.exists() {
+    // Require VERIFIED readiness, not just a file on disk: model_ready_in checks
+    // the file is present at the exact expected size AND that a Ready manifest
+    // (matching id/revision/size/sha256) sits beside it. A truncated, partial,
+    // or stale download passes a bare exists() check but would crash or
+    // hallucinate if llama-server tried to load it — so refuse to start until it
+    // is genuinely ready.
+    let model_dir = model_download::writable_model_dir();
+    let spec = model_download::ModelDownloadSpec::production();
+    if !model_download::model_ready_in(&model_dir, &spec) {
         return Err("Keepance Local AI model is not downloaded yet".to_string());
     }
+    let model_path = model_download::model_file_path();
 
     let binary = resolve_llama_server_binary(&app).ok_or_else(|| {
         "llama-server sidecar binary missing. Re-download or reinstall Keepance.".to_string()
