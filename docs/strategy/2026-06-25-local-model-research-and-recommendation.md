@@ -174,6 +174,22 @@ Core-app rule: **no shortcuts, robust over minimal, TDD, real verification, no a
 
 Tracking: pointer added in `BACKLOG.md`; update §6/§8 as tickets land + after the bench.
 
+### 8.1 Real-hardware engine + model bench (2026-06-25, Legion Windows laptop)
+
+The highest-uncertainty questions from §5/Appendix A ("does the real binary run on Windows, and is Qwen3-4B actually good enough at *our* cited-RAG task, fast enough, fully private?") were converted from rankings to **facts** on the real target hardware **before** building the in-app path. Run on the Legion (AMD Ryzen 7 6800H, 31 GB RAM, Windows), CPU-only, using the real `llama-server.exe` (llama.cpp release `b9789`, `win-cpu-x64`) with the app's exact args (`--ctx-size 16384 --parallel 1`) and a faithful reproduction of `buildWorkspaceContextBlock` over 8 advisor-file chunks.
+
+| Check | Result |
+|---|---|
+| **Model download (pinned HF URL)** | Downloaded `2,497,280,736` bytes; SHA-256 = `2fde00ce…4464e` — **exact match** to `model_download.rs`. Fingerprint gotcha verified correct. |
+| **Engine starts on real Windows** | `llama-server.exe` loads the GGUF and reports healthy (`/health` 200) with the app's exact CLI args. |
+| **Grounded cited answer** | Q "Chen household equity target + drift band?" → "**55%** … **plus or minus 5 percentage points** `[clients/chen-margaret/ips-2025.md paragraph 4]`". Correct numbers, correct file, exact `[filename paragraph N]` format, and it **resisted a decoy** (a different client's IPS at 70% equity). No `<think>` leakage. |
+| **Refuse-when-ungrounded** | Q about a 529 balance present in **no** file → "**not mentioned in the provided documents**". No fabrication — the core advisor-software safety rail holds on this model. |
+| **Speed (CPU)** | ~**15 tok/s** generation, ~**90 tok/s** prefill; full grounded answer in ~12 s. Matches the §3(b) prediction (8–16 tok/s for a 4B on CPU). The 6800H is a fairly capable CPU, so older laptops will be slower. |
+| **Zero egress** | Process listens on **127.0.0.1 only** (not `0.0.0.0`); `Get-NetTCPConnection` shows **0** non-loopback connections. No network path off-device. |
+| **Lifecycle** | Clean stop (health → down) and restart (health → 200). |
+
+**Read-out:** the two things that could have killed the feature — the binary not running on real Windows, or the small model being too unfaithful/slow on our actual task — are **retired**. The model gives a correct, properly-cited answer, discriminates between similar client files, refuses rather than fabricates, runs fully offline, and is acceptably fast. Remaining work (Tickets 6/9/10/11) is integration + UI + signing, not risk. **Still pending: the full *in-app* E2E through a real Windows build of the app (Ticket 9+11), which then PAUSES for Jameson's explicit go before any signed/customer build.**
+
 ---
 
 ## Appendix A — methodology & honesty
