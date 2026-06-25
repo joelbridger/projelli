@@ -29,6 +29,7 @@ import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
+import { KeepanceLocalProvider } from '@/platform/providers/KeepanceLocalProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
 import { assertLocalOnlyAllowsSend, assertCloudGenerationAllowed, isLocalOnlyMode, LocalOnlyEgressError } from '@/platform/privacy/localOnlyGuard';
 import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
@@ -1117,6 +1118,17 @@ export function useChatSending(deps: UseChatSendingDeps) {
               // so we don't register tools (the non-tool streaming path handles
               // it; the egress indicator stays "nothing leaves").
               provider = new OllamaProvider({
+                ...(chatModel ? { model: chatModel } : {}),
+                ...rulesOpt,
+              });
+              break;
+            }
+            case 'keepance-local': {
+              // Embedded llama.cpp engine ("Keepance Local AI"). No API key, $0,
+              // fully on-device. Like Ollama it doesn't support file-access tool
+              // calling, so no tools are registered; the non-tool streaming path
+              // handles it and the egress indicator stays "nothing leaves".
+              provider = new KeepanceLocalProvider({
                 ...(chatModel ? { model: chatModel } : {}),
                 ...rulesOpt,
               });

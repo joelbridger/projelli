@@ -25,6 +25,7 @@ import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
+import { KeepanceLocalProvider } from '@/platform/providers/KeepanceLocalProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
 import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import { isAssuredProvider } from '@/platform/firm/resolveAssuredRoute';
@@ -436,6 +437,12 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           case 'ollama':
             // Local extraction — on-machine, nothing leaves.
             provider = new OllamaProvider({
+              ...(chatData.model ? { model: chatData.model } : {}),
+            });
+            break;
+          case 'keepance-local':
+            // Local extraction — embedded llama.cpp engine, nothing leaves.
+            provider = new KeepanceLocalProvider({
               ...(chatData.model ? { model: chatData.model } : {}),
             });
             break;

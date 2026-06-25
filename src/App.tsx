@@ -42,6 +42,7 @@ import { sendEvent } from '@/platform/utils/telemetry';
 import { useFeatureTour } from '@/platform/hooks/useFeatureTour';
 // M1 (v1.5) Memory: workspace RAG indexer + status UI.
 import { ModelDownloadCard } from '@/platform/rag/ui/ModelDownloadCard';
+import { LocalAiDownloadCard } from '@/platform/rag/ui/LocalAiDownloadCard';
 import { RagProgressBanner } from '@/platform/rag/ui/RagProgressBanner';
 import { useMemoryWiring } from '@/platform/hooks/useMemoryWiring';
 import { useGlobalFileDrop } from '@/app/shell/common/GlobalDropOverlay';
@@ -1214,6 +1215,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
             the banner needs its own fixed top-of-screen layer above it. */}
         <div className="fixed inset-x-0 top-0 z-[60]">
           <ModelDownloadCard />
+          <LocalAiDownloadCard />
         </div>
         <WorkspaceSelector
           open={true}
@@ -1357,6 +1359,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
           download / workspace indexer running, or briefly after it
           completes); otherwise it returns null and adds zero layout. */}
       <ModelDownloadCard />
+      <LocalAiDownloadCard />
       <RagProgressBanner />
 
       {/* Trial countdown banner — only renders during the final week of

@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { providerDisplayName, isLocalProvider } from '@/platform/privacy/egress';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
+import { localLlmModelStatus } from '@/platform/utils/tauri-commands';
 import type { ModelInfo } from '@/platform/providers/ModelListService';
 import type { APIKey } from '@/features/ask/AIChatViewer';
 import {
@@ -80,17 +81,39 @@ export function ChatModelPicker({
     };
   }, []);
 
-  // Providers the user can use, filtered by confidentiality mode. Ollama is
-  // added when the daemon is reachable (it's local, so it's allowed in both
-  // local-only and cloud modes), de-duplicated against any apiKeys entry.
+  // Keepance Local AI (the embedded llama.cpp engine) is selectable only once
+  // its GGUF model has been downloaded. Probe the Rust status command on mount;
+  // fails closed (not ready) off the desktop or before the one-time download.
+  const [localAiReady, setLocalAiReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void localLlmModelStatus()
+      .then((status) => {
+        if (!cancelled) setLocalAiReady(status === 'ready');
+      })
+      .catch(() => {
+        if (!cancelled) setLocalAiReady(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Providers the user can use, filtered by confidentiality mode. Keepance Local
+  // AI is listed FIRST (the primary local option) once its model is ready;
+  // Ollama is added after when its daemon is reachable. Both are local, so both
+  // are allowed in local-only and cloud modes; de-duplicated against apiKeys.
   const providers = useMemo(() => {
     const available = resolveAvailableProviders(apiKeys);
-    const withLocal =
-      ollama.reachable && !available.includes('ollama')
-        ? [...available, 'ollama' as ChatProvider]
-        : available;
+    let withLocal: ChatProvider[] = available;
+    if (localAiReady && !withLocal.includes('keepance-local')) {
+      withLocal = ['keepance-local' as ChatProvider, ...withLocal];
+    }
+    if (ollama.reachable && !withLocal.includes('ollama')) {
+      withLocal = [...withLocal, 'ollama' as ChatProvider];
+    }
     return localOnly ? withLocal.filter((p) => isLocalProvider(p)) : withLocal;
-  }, [apiKeys, localOnly, ollama.reachable]);
+  }, [apiKeys, localOnly, ollama.reachable, localAiReady]);
 
   // Models for a provider, narrowed to what the menu renders (id + label).
   // Ollama uses its live-detected tags; everything else uses the

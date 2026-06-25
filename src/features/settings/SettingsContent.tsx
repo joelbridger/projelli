@@ -56,6 +56,7 @@ import {
 import { TemplateModelSettings } from '@/features/settings/TemplateModelSettings';
 import { PrivacySettings } from '@/features/settings/PrivacySettings';
 import { ConfidentialityModeSettings } from '@/features/settings/ConfidentialityModeSettings';
+import { LocalAiSettingsControl } from '@/features/settings/LocalAiSettingsControl';
 import { MemoryFactsSettings } from '@/features/settings/MemoryFactsSettings';
 import { MarketplaceTab } from '@/features/workflows/marketplace/MarketplaceTab';
 import { useTemplateUpdateCount } from '@/features/workflows/useTemplatesMarketplace';
@@ -575,6 +576,7 @@ function AiPrivacySection(props: SectionProps) {
           containsMatch={aiMatch}
         >
           <ConfidentialityModeSettings />
+          <LocalAiSettingsControl />
           {renderRows(aiKeys, props)}
           <AIContextCapabilityWarning getSetting={props.getSetting} />
         </SubSection>

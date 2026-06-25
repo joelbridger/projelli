@@ -18,7 +18,7 @@ import { getDefaultModels, type ModelInfo } from '@/platform/providers/ModelList
 import type { ProviderType } from '@/platform/providers/fetchUtils';
 
 /** The provider ids the chat can target. Mirrors AIChatFile['provider']. */
-export type ChatProvider = 'anthropic' | 'openai' | 'google' | 'ollama';
+export type ChatProvider = 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local';
 
 /** Cloud providers that have a hardcoded model list + a models cache. */
 const CLOUD_PROVIDERS: ProviderType[] = ['anthropic', 'openai', 'google'];
@@ -36,6 +36,11 @@ export const FALLBACK_MODEL: Record<ChatProvider, string> = {
   openai: 'gpt-4o-mini',
   google: 'gemini-1.5-flash',
   ollama: '',
+  // Keepance Local AI (embedded llama.cpp) serves whichever GGUF is loaded; the
+  // model id is cosmetic, so — like ollama — there's no fallback model and the
+  // picker offers it as a selectable "Default model" that lets the provider use
+  // its own default (KEEPANCE_LOCAL_DEFAULT_MODEL).
+  'keepance-local': '',
 };
 
 /** Type guard: is this id one of the three cloud providers? */

@@ -1516,6 +1516,27 @@
     "error-body__locked": true,
     "retry__locked": true
   },
+  "local-ai-download": {
+    "title": "Descargando Keepance Local AI",
+    "body": "Keepance está descargando su IA privada en el dispositivo (unos 2,4 GB), una sola vez. Puedes seguir trabajando. Funciona totalmente sin conexión una vez que está lista.",
+    "verifying": "Comprobando el modelo descargado",
+    "progress": "{{done}} MB de {{total}} MB",
+    "progress-unknown": "{{done}} MB hasta ahora",
+    "stalled": "La descarga parece atascada. Reiniciar Keepance la reanuda donde se detuvo.",
+    "error-title": "La descarga de Keepance Local AI se interrumpió",
+    "error-body": "No se ha perdido nada. La descarga se reanuda donde se detuvo.",
+    "retry": "Reanudar descarga"
+  },
+  "local-ai-settings": {
+    "title": "Keepance Local AI",
+    "description": "Una IA privada que se ejecuta por completo en este equipo. Tus archivos y preguntas nunca salen de la máquina. Es algo menos precisa que los modelos en la nube, pero nada de lo que preguntes sale a internet. Descarga única, unos 2,4 GB.",
+    "download": "Descargar Keepance Local AI",
+    "downloading": "Descargando… {{pct}}%",
+    "verifying": "Comprobando la descarga…",
+    "ready": "Instalada y lista. Elige «Keepance Local AI» como tu modelo en cualquier chat.",
+    "error": "La descarga se interrumpió. No se ha perdido nada.",
+    "retry": "Reanudar descarga"
+  },
   "version": {
     "history": {
       "title": "Historial de versiones",
