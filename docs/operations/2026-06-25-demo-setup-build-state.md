@@ -90,10 +90,17 @@ functional first, THEN a dedicated UI pass** (hold all UI changes until the end)
     honestly declines. Embeddings match topic, not sender name. Use content-specific questions (Roth
     conversion, 529, RSU concentration, QCD, etc.). Retrieval is global top-8 then filtered to email, so
     the target email must out-rank documents+other-emails for that query.
-  - **Ask must be GLOBAL** (no active client) for cross-mailbox email search: clear `activeMatterId`
-    (localStorage `keepance:matters` → state.activeMatterId=null) so retrieval scope is allMatters; then
-    the Email scope chip filters to mail. With a client active, retrieval is scoped to that client and
-    finds no (unassigned) mail.
+  - **Two demo flows, both verified:**
+    1. **GLOBAL** (no active client): clear `activeMatterId` → ask a CONTENT-SPECIFIC question (Roth
+       conversion, 529, etc.). Works but needs careful wording (see rule above).
+    2. **OPEN-CLIENT-THEN-ASK (recommended — robust, no careful wording):** the 14 client emails are now
+       **tagged to their matters** (`scripts/demo/bench-tag-emails.mjs`, via `mail_retag_message_matter`
+       — in-place RAG retag, no re-embed, matched by surname; only "Hollings Family Office" unmatched).
+       Open a client (sets activeMatter) → Email scope → even a VAGUE question ("What did this client
+       email me about their retirement accounts?") returns a cited answer from THAT client's email,
+       because retrieval is scoped to the matter (no cross-client confusion). Verified in Brennan's hub:
+       3 chips + "Answered over your own files". Screenshot `ask-matter-scoped.png`.
+       Re-run after a fresh import: `node scripts/demo/bench-tag-emails.mjs`.
 
 ---
 
@@ -106,16 +113,30 @@ functional first, THEN a dedicated UI pass** (hold all UI changes until the end)
    keychain entry survives restarts, so a connected state persists. The 20 imported messages live in
    the workspace's encrypted mail store + LanceDB (survive app restarts).
 
-2. **BLANK mode**: stage a small fresh workspace on the bench (e.g. `C:\keepance-demo-blank` with
-   one small client folder of `.txt`/`.docx`) so the first-run build-up is fast. reset-blank.mjs
-   already boots to first-run.
+2. **BLANK mode — ✅ staged + foundation verified.** Staged on the bench at
+   **`C:\keepance-demo-blank`** = the small Brennan client folder (6 `.txt` files, $8.54M; the
+   "drag-in to build the map live" set from `scripts/demo/staged-live-client/`). `reset-blank.mjs`
+   boots to first-run (verified bench-local: clears 20 localStorage keys → "Your practice folder…
+   Open Existing / New Workspace"). The live build-up itself (onboarding wizard → open
+   `C:\keepance-demo-blank` → build the client map) is the **presenter's live flow** through the
+   interactive FirstRunWizard; its pieces are each verified (first-run boot; small-folder indexing;
+   client-map build = the same proven mechanic as the LOADED Brennan build) but the full wizard
+   walkthrough was not auto-scripted (the wizard gates programmatic workspace-open). If you want it
+   fully rehearsed end-to-end, drive the wizard once and confirm.
 
-3. **Self-serve desktop shortcuts** on the bench (Loaded / Blank / Reset / Add-Brennan-files).
-   Design note: the reset scripts currently run FROM the server via the tunnel. For a bench desktop
-   button, either install node+playwright on the bench to run them against `127.0.0.1:9223`, or have
-   the .bat SSH to the server to run them. Decide in that task.
+3. **Self-serve desktop shortcuts — ✅ DONE (bench-local).** 3 desktop shortcuts on the bench desktop
+   (`Keepance - 1 Loaded Demo`, `2 Blank Demo`, `3 Restart App`) → `.bat` files in `C:\demo-buttons\`.
+   They run the reset scripts **locally on the bench** (`set DESKTOP_CDP_PORT=9223` → `node
+   scripts\demo\reset-loaded.mjs` / `reset-blank.mjs`); Restart App kills keepance/node/msedgewebview2
+   and re-runs `Start-ScheduledTask KeepanceDev`. Decision = **bench-local** (the bench already has
+   node v24 + playwright + the repo at `C:\keepance`; no SSH/tunnel needed). The current reset scripts
+   + `seed-loaded.json` + `connection.mjs` were copied to the bench. Both Loaded + Blank buttons
+   verified working bench-local. Self-serve via Parsec INTO the bench (host), not as a Parsec client.
+   Setup script: scratchpad `setup-buttons.ps1` (re-runnable). The email connection + imported mail +
+   matter tags SURVIVE a reset (they're in the OS keychain + LanceDB, not localStorage), so resetting
+   between showings keeps the email demo working.
 
-4. **THEN the UI pass** — gather Jameson's UI changes/questions and implement.
+4. **THEN the UI pass** — gather Jameson's UI changes/questions and implement (held to the end).
 
 ---
 
