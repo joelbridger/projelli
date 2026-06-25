@@ -1622,7 +1622,7 @@
     "egress": {
       "local": {
         "label": "On your machine. Nothing leaves",
-        "note": "This runs on a local model (Ollama). No prompt or file is sent over the network."
+        "note": "This runs on a local model ({{provider}}). No prompt or file is sent over the network."
       },
       "direct": {
         "label": "Direct to {{provider}} (your account)",

@@ -13,13 +13,11 @@
 
 use super::Sidecar;
 use anyhow::{anyhow, Context, Result};
-use std::collections::VecDeque;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
-use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
 use tokio::time::{sleep, timeout, Instant};
 
@@ -27,7 +25,11 @@ pub const LLAMA_SERVER_HOST: &str = "127.0.0.1";
 pub const LLAMA_SERVER_PORT: u16 = 18089;
 pub const LLAMA_CONTEXT_SIZE: u32 = 16_384;
 pub const LLAMA_PARALLEL: u32 = 1;
-pub const HEALTH_TIMEOUT_SECS: u64 = 30;
+// Model load on first start memory-maps a multi-GB GGUF and warms up; on a
+// modest laptop that can take well over half a minute. Give it real headroom
+// (readiness is still gated by the /health probe, so a fast machine returns
+// immediately).
+pub const HEALTH_TIMEOUT_SECS: u64 = 120;
 const HEALTH_POLL_MS: u64 = 200;
 const MAX_LOG_LINES: usize = 200;
 
@@ -43,7 +45,7 @@ pub struct LlamaServerSidecar {
     host: String,
     port: u16,
     process: Option<Child>,
-    logs: Arc<Mutex<VecDeque<LlamaServerLog>>>,
+    log_path: PathBuf,
     client: reqwest::Client,
 }
 
@@ -59,7 +61,7 @@ impl LlamaServerSidecar {
             host: LLAMA_SERVER_HOST.to_string(),
             port,
             process: None,
-            logs: Arc::new(Mutex::new(VecDeque::new())),
+            log_path: default_log_path(),
             client: reqwest::Client::new(),
         }
     }
@@ -76,11 +78,18 @@ impl LlamaServerSidecar {
         self.model.clone()
     }
 
+    /// Recent llama-server output, read back from the on-disk log file. The
+    /// child's stdout+stderr are redirected to a file (not in-process pipes) so
+    /// a chatty multi-GB model load can never fill a pipe buffer and stall the
+    /// engine; readiness is judged solely by the HTTP /health probe.
     pub fn logs(&self) -> Vec<LlamaServerLog> {
-        self.logs
-            .lock()
-            .map(|logs| logs.iter().cloned().collect())
-            .unwrap_or_default()
+        read_log_tail(&self.log_path, MAX_LOG_LINES)
+            .into_iter()
+            .map(|line| LlamaServerLog {
+                stream: "llama-server",
+                line,
+            })
+            .collect()
     }
 
     pub fn build_args(&self) -> Vec<String> {
@@ -171,27 +180,38 @@ impl LlamaServerSidecar {
             return Err(anyhow!("GGUF model not found at {}", self.model.display()));
         }
 
+        // Redirect the engine's stdout+stderr to a log FILE rather than
+        // in-process pipes. llama.cpp emits a large, carriage-return-heavy
+        // stream while it memory-maps and warms up a multi-GB GGUF; if that
+        // goes to a pipe nobody drains fast enough, the fixed OS pipe buffer
+        // fills and the engine BLOCKS mid-load and never starts listening
+        // (observed on the Windows bench). A file has no fixed buffer, so the
+        // load always completes; readiness is the /health probe and the file is
+        // read back for diagnostics.
+        if let Some(parent) = self.log_path.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("create llama-server log dir {}", parent.display()))?;
+        }
+        let log_file = std::fs::File::create(&self.log_path)
+            .with_context(|| format!("open llama-server log file {}", self.log_path.display()))?;
+        let log_clone = log_file
+            .try_clone()
+            .context("clone llama-server log file handle")?;
+
         let mut cmd = tokio::process::Command::new(&self.binary);
         cmd.args(self.build_args())
             .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+            .stdout(Stdio::from(log_file))
+            .stderr(Stdio::from(log_clone));
         crate::util::proc::hide_console_tokio(&mut cmd);
 
-        let mut child = cmd.spawn().with_context(|| {
+        let child = cmd.spawn().with_context(|| {
             format!(
                 "spawn llama-server binary {} for model {}",
                 self.binary.display(),
                 self.model.display()
             )
         })?;
-
-        if let Some(stdout) = child.stdout.take() {
-            capture_log("stdout", stdout, Arc::clone(&self.logs));
-        }
-        if let Some(stderr) = child.stderr.take() {
-            capture_log("stderr", stderr, Arc::clone(&self.logs));
-        }
 
         self.process = Some(child);
         Ok(())
@@ -203,17 +223,38 @@ impl LlamaServerSidecar {
             if self.health_check().await {
                 return Ok(());
             }
-            if !self.is_running() {
+            // If the child has exited, capture its exit status directly (so the
+            // code isn't discarded) — the exit code distinguishes a crash
+            // (0xC0000005), a missing-DLL loader failure (0xC0000135), and a
+            // clean non-zero exit, which matters a lot for diagnosing the bench.
+            let exit_note = match self.process.as_mut() {
+                Some(child) => match child.try_wait() {
+                    Ok(Some(status)) => {
+                        self.process = None;
+                        Some(match status.code() {
+                            Some(code) => format!("exit code {code} / 0x{:08X}", code as u32),
+                            None => format!("{status}"),
+                        })
+                    }
+                    Ok(None) => None,
+                    Err(e) => {
+                        self.process = None;
+                        Some(format!("wait error: {e}"))
+                    }
+                },
+                None => Some("process handle missing".to_string()),
+            };
+            if let Some(note) = exit_note {
                 let recent_logs = self
                     .logs()
                     .into_iter()
                     .rev()
-                    .take(8)
+                    .take(12)
                     .map(|entry| format!("{}: {}", entry.stream, entry.line))
                     .collect::<Vec<_>>()
                     .join("\n");
                 return Err(anyhow!(
-                    "llama-server exited before becoming healthy\n{recent_logs}"
+                    "llama-server exited before becoming healthy ({note})\n{recent_logs}"
                 ));
             }
             sleep(Duration::from_millis(HEALTH_POLL_MS)).await;
@@ -253,21 +294,38 @@ impl Sidecar for LlamaServerSidecar {
     }
 }
 
-fn capture_log<R>(stream: &'static str, reader: R, logs: Arc<Mutex<VecDeque<LlamaServerLog>>>)
-where
-    R: tokio::io::AsyncRead + Unpin + Send + 'static,
-{
-    tokio::spawn(async move {
-        let mut lines = BufReader::new(reader).lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            if let Ok(mut logs) = logs.lock() {
-                if logs.len() >= MAX_LOG_LINES {
-                    logs.pop_front();
-                }
-                logs.push_back(LlamaServerLog { stream, line });
-            }
-        }
-    });
+/// Default path for the llama-server log file:
+/// `<data-dir>/keepance/logs/llama-server.log`.
+fn default_log_path() -> PathBuf {
+    let base = dirs::data_dir().unwrap_or_else(std::env::temp_dir);
+    base.join("keepance").join("logs").join("llama-server.log")
+}
+
+/// Read up to the last `max_lines` non-empty lines from `path` (best-effort).
+/// Only the trailing 64 KiB is read so a long session's log can't blow up
+/// memory, and llama.cpp's carriage-return progress is normalized to newlines.
+fn read_log_tail(path: &Path, max_lines: usize) -> Vec<String> {
+    const TAIL_BYTES: u64 = 64 * 1024;
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return Vec::new();
+    };
+    let len = file.metadata().map(|m| m.len()).unwrap_or(0);
+    let start = len.saturating_sub(TAIL_BYTES);
+    if start > 0 {
+        let _ = file.seek(SeekFrom::Start(start));
+    }
+    let mut bytes = Vec::new();
+    if file.read_to_end(&mut bytes).is_err() {
+        return Vec::new();
+    }
+    let text = String::from_utf8_lossy(&bytes).replace('\r', "\n");
+    let lines: Vec<String> = text
+        .lines()
+        .map(|s| s.trim_end().to_string())
+        .filter(|l| !l.is_empty())
+        .collect();
+    let skip = lines.len().saturating_sub(max_lines);
+    lines.into_iter().skip(skip).collect()
 }
 
 fn with_platform_ext(name: &str) -> String {

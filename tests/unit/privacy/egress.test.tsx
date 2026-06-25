@@ -138,6 +138,19 @@ describe('EgressIndicator', () => {
     expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/nothing leaves/i);
   });
 
+  it('names the embedded Keepance Local AI engine in the note (not Ollama)', () => {
+    // Regression: the local note used a static i18n string that hard-coded
+    // "(Ollama)"; for a keepance-local chat it must name the actual engine.
+    setMode('direct');
+    render(<EgressIndicator provider="keepance-local" />);
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.getAttribute('data-destination')).toBe('local');
+    expect(el.getAttribute('data-data-leaves')).toBe('false');
+    const note = screen.getByTestId('egress-indicator-note').textContent || '';
+    expect(note).toMatch(/Keepance Local AI/);
+    expect(note).not.toMatch(/Ollama/);
+  });
+
   it('shows "Sent to your Anthropic account" with the provider-sees-prompt note in Direct mode', () => {
     setMode('direct');
     render(<EgressIndicator provider="anthropic" />);

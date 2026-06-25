@@ -168,9 +168,9 @@ Core-app rule: **no shortcuts, robust over minimal, TDD, real verification, no a
 | 6 | **PART 1 DONE** (gate green + Codex-reviewed): `keepance-local` is a selectable provider (shown FIRST in the chat model picker once downloaded), an opt-in "Download Keepance Local AI" control in Settings → AI + an app-wide progress banner (never auto-downloads the 2.4 GB model), and provider construction in both chat send paths. **REMAINING:** onboarding rework (make it the primary local path) + Ollama → Advanced + reconcile `website/local-model-setup`. | low | gate + site deploy |
 | 7 | ✅ **DONE (covered)** Context sizing — Ollama `num_ctx` + embedded `--ctx-size 16384` (build_args test) + provider metadata reports the true 16K window | low | unit tests |
 | 8 | **Spreadsheet path** — deterministic Excel extraction/compute → feed computed facts to the model | med | tests + demo-sheet bench |
-| 9 | **Cited-answer test path** — extend `tests/desktop/specs/18-rag-cited-ask.mjs` to verify embedded local AI answers with citations | med | desktop harness |
-| 10 | **CI + signing** — llama-server staging/stubs, macOS + Windows sidecar signing, build checks (do not ship) | med | CI green |
-| 11 | **Real-Windows + Mac bench** on the Legion: fresh app data, no Ollama, first-run model download, local RAG cited answer, zero cloud egress, restart/health-check; then **PAUSE for Jameson's explicit go** before any signed/customer build | gate | Jameson go |
+| 9 | ✅ **DONE** Cited-answer test path — a repeatable Windows in-app E2E driver (`scripts/local-ai-win-e2e.mjs`, Playwright-over-CDP) that verifies the embedded local AI's cited answer end-to-end (§8.2). A tauri-driver harness spec (Mac bench) is a clean follow-up. | med | bench green |
+| 10 | **CI + signing** — per-platform llama-server staging, macOS + Windows sidecar signing, build checks (do not ship). **⚠️ MUST ALSO bundle the engine's sibling DLLs (ggml*/llama*) as resources next to the sidecar binary — the bench proved the engine crashes on load without them; `externalBin` bundles only the exe.** Needs Jameson's signing creds. | med | CI green |
+| 11 | ✅ **DONE** Real-Windows in-app bench on the Legion: model ready via the in-app control, local RAG cited answer (free-generation, decoy-resistant, verified citation), egress local + **0** non-loopback connections, sidecar restart/health (§8.2). **PAUSED for Jameson's explicit go** before any signed/customer build (and on Ticket 10). | gate | Jameson go |
 
 Tracking: pointer added in `BACKLOG.md`; update §6/§8 as tickets land + after the bench.
 
@@ -188,7 +188,28 @@ The highest-uncertainty questions from §5/Appendix A ("does the real binary run
 | **Zero egress** | Process listens on **127.0.0.1 only** (not `0.0.0.0`); `Get-NetTCPConnection` shows **0** non-loopback connections. No network path off-device. |
 | **Lifecycle** | Clean stop (health → down) and restart (health → 200). |
 
-**Read-out:** the two things that could have killed the feature — the binary not running on real Windows, or the small model being too unfaithful/slow on our actual task — are **retired**. The model gives a correct, properly-cited answer, discriminates between similar client files, refuses rather than fabricates, runs fully offline, and is acceptably fast. Remaining work (Tickets 6/9/10/11) is integration + UI + signing, not risk. **Still pending: the full *in-app* E2E through a real Windows build of the app (Ticket 9+11), which then PAUSES for Jameson's explicit go before any signed/customer build.**
+**Read-out:** the two things that could have killed the feature — the binary not running on real Windows, or the small model being too unfaithful/slow on our actual task — are **retired**. The model gives a correct, properly-cited answer, discriminates between similar client files, refuses rather than fabricates, runs fully offline, and is acceptably fast. Remaining work (Tickets 6/9/10/11) is integration + UI + signing, not risk. **Update (2026-06-25): the full *in-app* E2E (Ticket 9+11) is now DONE — see §8.2.** A signed/customer build still PAUSES for Jameson's explicit go (and on Ticket 10).
+
+### 8.2 In-app end-to-end bench (2026-06-25, Legion Windows laptop) — Tickets 9 + 11
+
+§8.1 retired the engine/model risk with the raw binary. This is the full **in-app** proof: a real Windows build of Keepance (Tauri/WebView2), the embedded sidecar resolved + the model staged, driven over the Chrome DevTools Protocol exactly as a user would click. Repeatable driver: `scripts/local-ai-win-e2e.mjs`. It seeds a real on-disk advisor file (the Chen IPS: equity target 55%, plus or minus 5pp drift band) plus an Alvarez decoy at 70%, then runs the shipped path end-to-end.
+
+| Check | Result |
+|---|---|
+| **Model ready via the in-app control** | `local_llm_model_ensure` (the "Download Keepance Local AI" button's command) returns `ready` (model staged from the §8.1-verified GGUF; SHA-256 re-verified byte-for-byte before use). |
+| **Provider is selectable + first** | Chat bound to `keepance-local`; the picker labels it "Keepance Local AI · qwen3-4b-instruct-2507". |
+| **Grounded, cited answer (FREE-GENERATION)** | Asked the Chen household's target equity + drift band. The local model answered **"55% … plus or minus 5 percentage points"** with a **verified** citation chip to `chen-margaret-ips.md`, and **resisted the 70% Alvarez decoy**. The app independently verifies the cited paragraph against the retrieved source, so the green "verified" state cannot be faked. |
+| **Egress shows local (in-chat)** | `egress-indicator`: `destination=local`, `severity=safe`, `dataLeaves=false`, "On your machine. Nothing leaves." |
+| **Zero cloud egress (OS-level)** | The `llama-server` engine listens on **127.0.0.1:18089 only**; `Get-NetTCPConnection` shows **0** non-loopback connections. Same rail as §8.1, now for the in-app sidecar. |
+| **Lifecycle** | Sidecar healthy after the chat -> `local_llm_sidecar_stop` (health false) -> `local_llm_sidecar_start` (health true). Clean stop/restart. |
+
+**Read-out: the in-app feature works end-to-end on real Windows.** Three real issues were found and fixed along the way (all on `feature/local-ai-build`, gate-green: typecheck + full Vitest 4064 + ESLint + Rust `llama_server`/`local_llm` unit tests; Codex-reviewed):
+
+1. **Sidecar DLL bundling gap (the important one — now the core of Ticket 10).** Tauri's `externalBin` copies the engine exe to `target\debug\llama-server.exe` (and a packaged build bundles it as the sidecar), but the ~29 sibling `ggml*/llama*` DLLs the engine needs are **not** bundled. The resolved exe then dies on load with no output. For the bench the DLLs were staged next to the resolved exe; **a shippable installer MUST bundle those DLLs as resources next to the sidecar binary, or the feature crashes on first use.**
+2. **Engine spawn robustness (product fix, `llama_server.rs`).** The sidecar now redirects the engine's stdout/stderr to a log file (`<data-dir>/keepance/logs/llama-server.log`) instead of in-process pipes (a chatty multi-GB load can stall an undrained pipe), raises the health timeout 30 -> 120s (older laptops load slower, per §8.1), and surfaces the child's exit code in errors.
+3. **Privacy-copy mislabel (product fix, `EgressIndicator.tsx` + locales + a regression test).** The in-chat egress note hardcoded "(Ollama)" for any local model; it now names the actual engine ("Keepance Local AI"). (The TrustBar/PrivacyCenter mislabel via `useActiveEgressProvider.ts` remains — folded into Ticket 6 Part 2.)
+
+**Bench gotchas for next time:** the persistent bench auto-reopens the Northcrest demo workspace and re-indexes its 301 PDFs on launch — that background job destabilizes UI automation, so let it settle (or don't auto-open it) before driving a chat. The bench's 30-day trial has expired (gates AI off); the driver resets `keepance_first_launch_at` to simulate an active trial / licensed user.
 
 ---
 

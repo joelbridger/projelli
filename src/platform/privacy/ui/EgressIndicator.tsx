@@ -110,7 +110,9 @@ function useEgressView(
   switch (info.destination) {
     case 'local':
       label = t('privacy.egress.local.label');
-      note = t('privacy.egress.local.note');
+      // Name the actual local engine (Keepance Local AI vs a user-run Ollama)
+      // so the privacy copy never mislabels which model is running.
+      note = t('privacy.egress.local.note', { provider: name });
       break;
     case 'demo-proxy':
       label = t('privacy.egress.demo.label');
