@@ -52,6 +52,7 @@ Let an advisor connect their Wealthbox account so that **every household/client 
 | Auth method (later) | **OAuth 2.0 one-click** (Phase 3) | Polished UX + marketplace listing, but gated behind manual Wealthbox partner onboarding (email → build → demo → approve). |
 | Architecture pattern | **Reuse the mail connector's *infrastructure ideas*** (keychain, bounded indexing, progress events, single-flight, the RAG bridge) — but a **CRM-specific, object-level sync engine**, not a literal household-as-folder clone | Keepance already has proven external-data plumbing; the *orchestration* must match Wealthbox's object model (see §5). |
 | Client unit | **Household → Matter** (one matter per household; per-person matter for unhouseholded individual clients) | Matches the advisor pivot's "client/household" unit; `matter_id` is the locked isolation key. |
+| Data breadth (v1) | **Client-knowledge core** (households/people/profile/notes/upcoming); skip opportunities/workflows/projects | Richest Client Map without operational noise; **advisor-adjustable import scope to follow** (Phase 2/3). |
 | Workspace isolation | **Dedicated worktree `feat/wealthbox-connector`** | Three other sessions are actively building Keepance; never collide. |
 
 **Independently reviewed (Codex, 2026-06-25).** An independent engine (OpenAI Codex) adversarially reviewed this design against the live code. It **confirmed** the core integration target (Client Map reads matter-scoped RAG; `matter_id` is the isolation key; the mail trait/sync/indexing pieces exist; `SourceType` needs a new `Crm` variant) and surfaced refinements now folded into §5: (1) the sync engine is **object-level**, not a household-as-folder clone of the mail provider; (2) a **durable CRM object store** is required (deletions / re-render need prior state); (3) index **granular per-object records** plus a household summary (not one lossy mega-brief); (4) add **failure recovery** (separate "fetched" vs "indexed" status + backfill markers); (5) citations need a **virtual Wealthbox source viewer** (there's no workspace file to open); (6) onboarding must say "imports what this Wealthbox user can see" (the API can't prove full firm visibility).
@@ -216,7 +217,7 @@ All share the household's `matter_id`. Re-rendering on change re-writes only the
 ## 6. Phased build plan (high-level, no dates)
 
 - **Phase 1 — MVP (paste-key, read-only, the wow):** token connect + validate; object-level backfill of **households + people + their profile + notes**; CRM store; render granular records + household summary; index as `crm` chunks; auto-create one Matter per household; manual "Sync now"; Client Map fills in; CRM citations open the virtual viewer. *Goal: an advisor pastes a key and sees their book appear as Client Maps.*
-- **Phase 2 — Freshness & breadth:** scheduled cadence; delta sync (timestamp windows); deletion handling (contacts tombstones + store-diff); failure-recovery repair; add tasks/events (and opportunities/workflows if in scope); large-book resilience (checkpoint/resume, rate-limit polish); mapping/review UI.
+- **Phase 2 — Freshness & breadth:** scheduled cadence; delta sync (timestamp windows); deletion handling (contacts tombstones + store-diff); failure-recovery repair; add tasks/events (and opportunities/workflows if in scope); large-book resilience (checkpoint/resume, rate-limit polish); mapping/review UI; **user-facing import-scope control** (advisor chooses what to sync).
 - **Phase 3 — Polished OAuth + partnership:** one-click "Connect with Wealthbox" (OAuth loopback-PKCE behind the same engine); Wealthbox partner application + demo + marketplace listing; multi-user/firm visibility handling.
 
 The engine/store split means Phase 3's OAuth is a *swap of the auth front-end* on the same sync engine, and a future Redtail/Salesforce connector is *another client + normalizer* into the same CRM store — not a rebuild.
@@ -243,7 +244,7 @@ The engine/store split means Phase 3's OAuth is a *swap of the auth front-end* o
 
 ## 8. Open decision (needs Jameson) + my recommendations on the rest
 
-**The one product decision worth your call — how much to capture (data breadth):**
+**Data breadth — RESOLVED (Jameson, 2026-06-25): the client-knowledge core**, and advisors should eventually **adjust the import scope themselves** via a user-facing control (Phase 2/3). v1 ships the core as the default. Rationale below.
 - **My recommendation (balanced):** capture the **client-knowledge core** — households + members (people, trusts, orgs in a household), their full contact/financial/relationship/profile fields + key dates, **notes**, and **upcoming events & open tasks**. *Skip* the operational CRM machinery (sales **opportunities** pipeline, **workflow** templates/progress, **projects**) in v1 — it's advisor-workflow plumbing, not client knowledge, and adds sync cost. Easy to add in Phase 2.
 - Alternatives: **(Minimal)** households + people + notes only (fastest wow, least noise). **(Everything)** mirror all objects including opportunities/workflows/projects (richest, but noisier Client Maps + more API load).
 
