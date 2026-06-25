@@ -17,6 +17,7 @@ const makeSnap = (
   bytesTotal: 2_497_280_736,
   message: null,
   stalled: false,
+  probed: true,
   start: vi.fn(),
   retry: vi.fn(),
   ...overrides,

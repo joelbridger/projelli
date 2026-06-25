@@ -31,7 +31,10 @@ import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import { KeepanceLocalProvider } from '@/platform/providers/KeepanceLocalProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
-import { effectiveChatProvider } from '@/features/ask/chat/providerModelResolution';
+import {
+  effectiveChatProvider,
+  type LocalModelAvailability,
+} from '@/features/ask/chat/providerModelResolution';
 import { assertLocalOnlyAllowsSend, assertCloudGenerationAllowed, isLocalOnlyMode, LocalOnlyEgressError } from '@/platform/privacy/localOnlyGuard';
 import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
@@ -90,7 +93,7 @@ export interface UseChatSendingDeps {
   /** Whether the embedded Keepance Local AI model is ready — so a chat with no
    *  saved provider resolves to 'keepance-local' (on-device) instead of a cloud
    *  fallback. Keeps the send path in agreement with the egress badge. */
-  localLlmReady: boolean;
+  localAvailability: LocalModelAvailability;
   onSave: ((updatedChat: AIChatFile) => void) | undefined;
   apiKeys: APIKey[];
   workspaceServiceRef: React.MutableRefObject<WorkspaceService | null> | undefined;
@@ -138,7 +141,7 @@ export interface UseChatSendingDeps {
 export function useChatSending(deps: UseChatSendingDeps) {
   const {
     chatData,
-    localLlmReady,
+    localAvailability,
     onSave,
     apiKeys,
     workspaceServiceRef,
@@ -184,7 +187,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
   const buildFastProvider = useCallback((): import('@/platform/providers/Provider').Provider | null => {
     // The provider this chat actually targets (never a hidden cloud fallback
     // when the embedded local model is ready — see effectiveChatProvider).
-    const chatProvider = effectiveChatProvider(chatData.provider, localLlmReady);
+    const chatProvider = effectiveChatProvider(chatData.provider, localAvailability);
+    // Privacy: if the local-model status probe is still resolving we don't know
+    // the destination — refuse to build a "fast" compression provider rather
+    // than guess a cloud one (the send button is disabled in this window too).
+    if (chatProvider === null) return null;
     // BUG-021 (privacy): chat compression sends prior messages to a "fast"
     // provider before the main send guard runs. In Local-only mode, force the
     // local model so compression can't leak to the cloud.
@@ -215,7 +222,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // Ollama and unknown providers cannot compress.
         return null;
     }
-  }, [chatData.provider, localLlmReady, apiKeys]);
+  }, [chatData.provider, localAvailability, apiKeys]);
 
   const handleManualCompress = useCallback(async () => {
     const currentMessages = sessions[chatId]?.messages ?? chatData.messages;
@@ -272,7 +279,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
     // The provider this send ACTUALLY targets — must match the egress badge.
     // A chat with no saved provider resolves to the embedded local model when
     // it is ready, never to a hidden cloud fallback (see effectiveChatProvider).
-    const effectiveProvider = effectiveChatProvider(chatData.provider, localLlmReady);
+    const effectiveProvider = effectiveChatProvider(chatData.provider, localAvailability);
+    // Privacy: while the local-model status probe is unresolved we don't know
+    // where this would go — block the send (the composer is disabled in this
+    // window too) rather than guess a cloud default and leak. Silent, like the
+    // empty-input / already-loading guards above.
+    if (effectiveProvider === null) return;
     const bypassContextLimit = bypassNextContextLimitRef.current;
     bypassNextContextLimitRef.current = false;
 
@@ -1614,7 +1626,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
       setLoading(chatId, false);
       useAiBatchReviewStore.getState().openReview();
     });
-  }, [inputValue, pendingAttachments, previewUrls, messages, chatData, localLlmReady, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
+  }, [inputValue, pendingAttachments, previewUrls, messages, chatData, localAvailability, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
 
   const handleSendAnyway = useCallback(() => {
     bypassNextContextLimitRef.current = true;

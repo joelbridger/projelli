@@ -13,25 +13,52 @@ import {
   resolveModelsForProvider,
   resolveModelForProvider,
   effectiveChatProvider,
+  localModelAvailability,
   type ChatProvider,
 } from '@/features/ask/chat/providerModelResolution';
 
-describe('effectiveChatProvider — the privacy-badge fallback fix', () => {
-  it('returns the saved provider verbatim when one is set', () => {
-    expect(effectiveChatProvider('openai', true)).toBe('openai');
-    expect(effectiveChatProvider('openai', false)).toBe('openai');
-    expect(effectiveChatProvider('keepance-local', false)).toBe('keepance-local');
+describe('localModelAvailability — the tri-state behind the privacy fix', () => {
+  it("is 'ready' whenever the model state is ready (regardless of probe)", () => {
+    expect(localModelAvailability(true, true)).toBe('ready');
+    expect(localModelAvailability(true, false)).toBe('ready');
+  });
+
+  it("is 'unknown' while the initial probe has NOT resolved (not-ready + unprobed)", () => {
+    // This is the initial-load race window: we don't KNOW yet, so we must not
+    // guess. It must never collapse to 'absent' (which would default to cloud).
+    expect(localModelAvailability(false, false)).toBe('unknown');
+  });
+
+  it("is 'absent' only once the probe resolves to not-ready", () => {
+    expect(localModelAvailability(false, true)).toBe('absent');
+  });
+});
+
+describe('effectiveChatProvider — the privacy-badge fallback fix + its initial-load race', () => {
+  it('returns the saved provider verbatim when one is set (never null)', () => {
+    expect(effectiveChatProvider('openai', 'ready')).toBe('openai');
+    expect(effectiveChatProvider('openai', 'absent')).toBe('openai');
+    expect(effectiveChatProvider('openai', 'unknown')).toBe('openai');
+    expect(effectiveChatProvider('keepance-local', 'absent')).toBe('keepance-local');
   });
 
   it("an UNSET chat resolves to 'keepance-local' when the embedded model is ready (NEVER a cloud fallback)", () => {
     // BLOCKER regression: this is the unset-provider state that made the egress
     // badge falsely claim "data leaves" for an on-device chat.
-    expect(effectiveChatProvider(undefined, true)).toBe('keepance-local');
-    expect(effectiveChatProvider(undefined, true)).not.toBe('anthropic');
+    expect(effectiveChatProvider(undefined, 'ready')).toBe('keepance-local');
+    expect(effectiveChatProvider(undefined, 'ready')).not.toBe('anthropic');
   });
 
-  it("an UNSET chat falls back to 'anthropic' only when no local model is available", () => {
-    expect(effectiveChatProvider(undefined, false)).toBe('anthropic');
+  it("an UNSET chat is UNRESOLVED (null), NOT 'anthropic', while the probe is pending", () => {
+    // BLOCKER 2 regression (the initial-load race): before the probe resolves we
+    // must not silently default to the cloud. null tells the UI to show
+    // "Checking local AI" and DISABLE send until the status settles.
+    expect(effectiveChatProvider(undefined, 'unknown')).toBeNull();
+    expect(effectiveChatProvider(undefined, 'unknown')).not.toBe('anthropic');
+  });
+
+  it("an UNSET chat falls back to 'anthropic' only once we KNOW the local model is absent", () => {
+    expect(effectiveChatProvider(undefined, 'absent')).toBe('anthropic');
   });
 });
 

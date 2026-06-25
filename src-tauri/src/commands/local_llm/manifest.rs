@@ -63,8 +63,28 @@ pub fn write_manifest(model_dir: &Path, manifest: &LocalModelManifest) -> Result
     let path = manifest_path(model_dir);
     let tmp = path.with_extension("json.tmp");
     let bytes = serde_json::to_vec_pretty(manifest).context("serialize local model manifest")?;
-    std::fs::write(&tmp, bytes).with_context(|| format!("write {}", tmp.display()))?;
+    // Write + fsync the temp file BEFORE the atomic rename. `std::fs::write` does
+    // not flush to disk, so a crash right after the rename could otherwise leave
+    // a torn / 0-byte manifest even though the rename "succeeded" in the page
+    // cache. fsync guarantees the bytes are durable before we swap the file in.
+    {
+        use std::io::Write;
+        let mut f =
+            std::fs::File::create(&tmp).with_context(|| format!("create {}", tmp.display()))?;
+        f.write_all(&bytes)
+            .with_context(|| format!("write {}", tmp.display()))?;
+        f.sync_all()
+            .with_context(|| format!("fsync {}", tmp.display()))?;
+    }
     std::fs::rename(&tmp, &path).with_context(|| format!("replace manifest {}", path.display()))?;
+    // Best-effort: fsync the directory so the rename (the directory-entry change
+    // that makes the new manifest visible) is itself durable. POSIX honours this;
+    // Windows can't open a directory as a File without backup semantics, so it
+    // simply Errs and we skip it — the file's own fsync above already made the
+    // content safe, so this step is non-fatal everywhere.
+    if let Ok(dir) = std::fs::File::open(model_dir) {
+        let _ = dir.sync_all();
+    }
     Ok(())
 }
 

@@ -41,8 +41,13 @@ function hasDemoByokKey(): boolean {
 }
 
 export interface EgressIndicatorProps {
-  /** Provider the next send will use (the active chat's provider). */
-  provider: EgressProvider;
+  /**
+   * Provider the next send will use (the active chat's provider), or `null` when
+   * the embedded local-model status probe has not resolved yet. `null` renders a
+   * neutral "Checking local AI" badge (nothing leaves) instead of guessing a
+   * destination — the composer disables send for the same window.
+   */
+  provider: EgressProvider | null;
   /**
    * Override the confidentiality mode. When omitted the hook value is used.
    * Exposed for tests and for surfaces that already hold the mode.
@@ -89,12 +94,22 @@ function EgressIcon({ info, className }: { info: EgressInfo; className: string }
  * facing strings, so the facts can't drift between code and copy.
  */
 function useEgressView(
-  provider: EgressProvider,
+  provider: EgressProvider | null,
   modeOverride?: ConfidentialityMode,
   assuredAvailable = false,
 ) {
   const { t } = useTranslation();
   const hookMode = useConfidentialityMode();
+  // Local-model status probe still pending: we genuinely don't know the
+  // destination yet, so show a neutral "checking" badge instead of guessing.
+  // Nothing leaves while we're in this state (the composer disables send too).
+  if (provider === null) {
+    return {
+      pending: true as const,
+      label: t('privacy.egress.checking.label'),
+      note: t('privacy.egress.checking.note'),
+    };
+  }
   const mode = modeOverride ?? hookMode;
   const info = resolveEgress({
     provider,
@@ -130,7 +145,7 @@ function useEgressView(
       note = t('privacy.egress.direct.note', { provider: name });
       break;
   }
-  return { info, label, note };
+  return { pending: false as const, info, label, note };
 }
 
 export function EgressIndicator({
@@ -140,7 +155,58 @@ export function EgressIndicator({
   variant = 'full',
   className,
 }: EgressIndicatorProps) {
-  const { info, label, note } = useEgressView(provider, mode, assuredAvailable);
+  const view = useEgressView(provider, mode, assuredAvailable);
+
+  // Neutral "checking" badge while the local-model status probe is unresolved.
+  // data-data-leaves is hard "false" — nothing can leave during this window.
+  if (view.pending) {
+    const pendingStyles =
+      'border-slate-300 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300';
+    if (variant === 'compact') {
+      return (
+        <div
+          data-testid="egress-indicator-compact"
+          data-destination="pending"
+          data-data-leaves="false"
+          className={cn(
+            'flex items-center gap-1 max-w-[260px] rounded px-1.5 py-0.5 border',
+            pendingStyles,
+            className,
+          )}
+          title={`${view.label}. ${view.note}`}
+        >
+          <Laptop className="h-3 w-3 shrink-0 animate-pulse" aria-hidden />
+          <span className="truncate">{view.label}</span>
+        </div>
+      );
+    }
+    return (
+      <div
+        data-testid="egress-indicator"
+        data-destination="pending"
+        data-data-leaves="false"
+        role="status"
+        aria-live="polite"
+        className={cn(
+          'flex items-start gap-2 rounded-md border px-3 py-2 text-xs leading-relaxed',
+          pendingStyles,
+          className,
+        )}
+      >
+        <Laptop className="h-4 w-4 mt-0.5 shrink-0 animate-pulse" aria-hidden />
+        <div className="min-w-0">
+          <span data-testid="egress-indicator-label" className="font-semibold">
+            {view.label}
+          </span>
+          <span data-testid="egress-indicator-note" className="ml-1.5 font-normal opacity-90">
+            {view.note}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  const { info, label, note } = view;
 
   if (variant === 'compact') {
     return (

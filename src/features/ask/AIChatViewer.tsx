@@ -41,6 +41,7 @@ import {
   resolveNewChatDefault,
   resolveSettingsDefaults,
   effectiveChatProvider,
+  localModelAvailability,
   type ChatProvider,
 } from '@/features/ask/chat/providerModelResolution';
 import { useLocalLlmModelStatus } from '@/platform/hooks/useLocalLlmModelStatus';
@@ -188,12 +189,24 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // AI model is ready — that would make the egress badge claim "data leaves" for
   // a chat that runs on-device. The badge, the input toolbar, and the send path
   // all read this one value (see effectiveChatProvider) so they can't disagree.
-  const localLlmReady = useLocalLlmModelStatus().state === 'ready';
-  const effectiveProvider = effectiveChatProvider(chatData.provider, localLlmReady);
+  const localLlmStatus = useLocalLlmModelStatus();
+  const localAvailability = localModelAvailability(
+    localLlmStatus.state === 'ready',
+    localLlmStatus.probed,
+  );
+  // `null` only during the brief desktop window before the local-model status
+  // probe resolves: we don't yet KNOW whether the on-device model is ready, so
+  // we must not guess a provider. The badge then shows "Checking local AI" and
+  // send stays disabled (localStatusPending) until the status settles — never a
+  // silent cloud default mid-probe.
+  const effectiveProvider = effectiveChatProvider(chatData.provider, localAvailability);
+  const localStatusPending = effectiveProvider === null;
   // Firm "Assured" availability for THIS chat's provider — does the firm have a
   // managed key for it? Drives the egress indicator's assured-proxy story.
   const assuredAvailableForChat = useFirmStore((s) =>
-    isAssuredProvider(effectiveProvider) && s.assuredProviders.includes(effectiveProvider),
+    effectiveProvider !== null &&
+    isAssuredProvider(effectiveProvider) &&
+    s.assuredProviders.includes(effectiveProvider),
   );
   // 30-day trial gate. Locks chat send + voice when expired and not paid.
   const trialGate = useTrialGate();
@@ -399,6 +412,11 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     const count = messages.length;
     if (!shouldRunExtraction(count, extractionStateRef.current)) return;
 
+    // Privacy: auto fact-extraction transmits the transcript to the provider.
+    // While the local-model status probe is unresolved (effectiveProvider null)
+    // we don't know the destination — bail and let the effect re-run once it
+    // resolves (effectiveProvider is in the dep array), never guessing a cloud.
+    if (effectiveProvider === null) return;
     const chatProvider = effectiveProvider;
     // WS-C honesty — a LOCAL (Ollama) chat extracts facts on the local model
     // itself ($0, nothing leaves). It needs no key, so it must not be gated by
@@ -543,6 +561,8 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     const hasImageAtt = pendingAttachments.some((a) => a.type === 'image');
     if (!hasImageAtt) return null;
     const chatProvider = effectiveProvider;
+    // No provider resolved yet (status probe pending) — no warning to show.
+    if (chatProvider === null) return null;
     const chatModel = chatData.model ?? '';
     if (!chatModel) return null;
     if (isVisionModel(chatProvider, chatModel)) return null;
@@ -564,7 +584,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
 
   const { handleSendMessage, handleManualCompress, handleSendAnyway } = useChatSending({
     chatData,
-    localLlmReady,
+    localAvailability,
     onSave,
     apiKeys,
     workspaceServiceRef,
@@ -644,8 +664,12 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             setTimeout(() => setAttachmentError(null), 6000);
             continue;
           }
-          // Determine extraction mode based on current provider + model.
-          const provider = effectiveProvider;
+          // Determine extraction mode based on current provider + model. This is
+          // a LOCAL, non-egress heuristic (text vs. image extraction); the actual
+          // send is separately gated on localStatusPending. If the status probe
+          // is still resolving we fall back to the saved/cloud default purely for
+          // this strategy choice — nothing leaves the machine here.
+          const provider = effectiveProvider ?? chatData.provider ?? 'anthropic';
           const model = chatData.model ?? '';
           const mode = getPdfMode(provider, model);
 
@@ -1431,7 +1455,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         />
         {/* Stream A1 — ChatInputToolbar: paperclip, paste, drop, tiles, vision warning */}
         <ChatInputToolbar
-          provider={effectiveProvider}
+          provider={effectiveProvider ?? chatData.provider ?? 'anthropic'}
           model={chatData.model ?? ''}
           pendingAttachments={pendingAttachments}
           previewUrls={previewUrls}
@@ -1439,7 +1463,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           onRemoveAttachment={handleRemoveAttachment}
           onSwitchModel={handleSwitchModel}
           visionWarning={visionWarning}
-          sendDisabled={visionWarning !== null || isLoading || trialGate.isLocked}
+          sendDisabled={visionWarning !== null || isLoading || trialGate.isLocked || localStatusPending}
           className="mb-2"
         />
         <div className="flex gap-2">
@@ -1472,7 +1496,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           <Button
             data-testid="chat-send-button"
             onClick={handleSendMessage}
-            disabled={(!inputValue.trim() && pendingAttachments.length === 0) || isLoading || trialGate.isLocked || visionWarning !== null}
+            disabled={(!inputValue.trim() && pendingAttachments.length === 0) || isLoading || trialGate.isLocked || visionWarning !== null || localStatusPending}
             size="icon"
             className="h-[60px] w-[60px] shrink-0"
           >

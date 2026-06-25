@@ -158,11 +158,26 @@ describe('EgressIndicator', () => {
     // 'keepance-local' (not the old 'anthropic' fallback), so the badge the user
     // sees says nothing leaves — matching the on-device send.
     setMode('direct');
-    const provider = effectiveChatProvider(undefined, /* localModelReady */ true);
+    const provider = effectiveChatProvider(undefined, /* local */ 'ready');
     render(<EgressIndicator provider={provider} />);
     const el = screen.getByTestId('egress-indicator');
     expect(el.getAttribute('data-destination')).toBe('local');
     expect(el.getAttribute('data-data-leaves')).toBe('false');
+  });
+
+  it('BLOCKER 2 regression: while the local-model probe is pending the badge shows "Checking" and never "data leaves"', () => {
+    // The initial-load race: an unset-provider chat before the status probe
+    // resolves. effectiveChatProvider returns null, and the badge must render a
+    // neutral "checking" state (data-data-leaves=false) instead of guessing a
+    // cloud destination — even though the confidentiality mode is Direct.
+    setMode('direct');
+    const provider = effectiveChatProvider(undefined, /* local */ 'unknown');
+    expect(provider).toBeNull();
+    render(<EgressIndicator provider={provider} />);
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.getAttribute('data-destination')).toBe('pending');
+    expect(el.getAttribute('data-data-leaves')).toBe('false');
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Checking local AI/i);
   });
 
   it('shows "Sent to your Anthropic account" with the provider-sees-prompt note in Direct mode', () => {

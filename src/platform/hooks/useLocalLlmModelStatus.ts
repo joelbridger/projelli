@@ -43,6 +43,15 @@ export interface LocalLlmStatusSnapshot {
   message: string | null;
   /** True when a transfer is active but no progress event arrived for 90s. */
   stalled: boolean;
+  /**
+   * Has the INITIAL status probe resolved? It starts false on desktop and flips
+   * true once we know the real status (ready / downloading / absent); it is also
+   * true immediately off-desktop, where there is no model to probe. Consumers
+   * use it to distinguish "no local model" from "still checking" so an
+   * unset-provider chat is never defaulted to the cloud mid-probe (the privacy
+   * initial-load race).
+   */
+  probed: boolean;
   /** Opt-in: begin the one-time download. No-op while already in flight. */
   start: () => void;
   /** Resume after an error (hf-style Range resume); same call as start. */
@@ -55,6 +64,7 @@ interface SnapshotState {
   bytesTotal: number | null;
   message: string | null;
   stalled: boolean;
+  probed: boolean;
 }
 
 const INITIAL: SnapshotState = {
@@ -63,6 +73,7 @@ const INITIAL: SnapshotState = {
   bytesTotal: null,
   message: null,
   stalled: false,
+  probed: false,
 };
 
 /** No progress event for this long while a transfer is active → stalled. */
@@ -110,20 +121,27 @@ export function useLocalLlmModelStatus(): LocalLlmStatusSnapshot {
     void (async () => {
       try {
         const core = await import('@tauri-apps/api/core');
-        if (!core.isTauri()) return;
+        if (!core.isTauri()) {
+          // Off-desktop there is no embedded model to probe: the status is
+          // settled (absent) immediately, so mark it probed so consumers don't
+          // sit forever in the "checking" state.
+          setSnap((s) => ({ ...s, probed: true }));
+          return;
+        }
         const { listen } = await import('@tauri-apps/api/event');
         const stop = await listen<LocalLlmDownloadProgress>(
           LOCAL_LLM_MODEL_EVENT,
           (event) => {
             const p = event.payload;
             lastEventAtRef.current = Date.now();
-            setSnap({
+            setSnap((s) => ({
+              ...s,
               state: p.state,
               bytesDone: p.bytesDone,
               bytesTotal: p.bytesTotal,
               message: p.message ?? null,
               stalled: false,
-            });
+            }));
           },
         );
         if (isCancelled()) {
@@ -143,19 +161,23 @@ export function useLocalLlmModelStatus(): LocalLlmStatusSnapshot {
         const status = await localLlmModelStatus();
         if (isCancelled()) return;
         lastEventAtRef.current = Date.now();
+        // Every branch sets probed:true — the initial status is now KNOWN, which
+        // ends the "checking" window for an unset-provider chat.
         if (status === 'ready') {
-          setSnap((s) => ({ ...s, state: 'ready', stalled: false }));
+          setSnap((s) => ({ ...s, state: 'ready', stalled: false, probed: true }));
         } else if (status === 'downloading') {
           // A download is already in flight (started before this mount):
           // reflect it immediately rather than waiting for the next event.
-          setSnap((s) => ({ ...s, state: 'downloading', stalled: false }));
+          setSnap((s) => ({ ...s, state: 'downloading', stalled: false, probed: true }));
         } else {
           // 'absent' (or anything unexpected) — show the opt-in prompt and do
           // NOT auto-start the 2.4 GB transfer.
-          setSnap((s) => ({ ...s, state: 'absent', stalled: false }));
+          setSnap((s) => ({ ...s, state: 'absent', stalled: false, probed: true }));
         }
       } catch {
-        // Tauri APIs unavailable (browser / test) — stay idle.
+        // Tauri APIs unavailable (browser / test) — settle as probed so the UI
+        // falls back to the cloud default instead of "checking" forever.
+        setSnap((s) => ({ ...s, probed: true }));
       }
     })();
 
