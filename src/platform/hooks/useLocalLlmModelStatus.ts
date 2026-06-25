@@ -95,14 +95,16 @@ export function useLocalLlmModelStatus(): LocalLlmStatusSnapshot {
   }, []);
 
   useEffect(() => {
-    // Deps are [], so this effect runs once; cancelledRef starts false and is
-    // only ever set true by the cleanup below. (No reset here on purpose — a
-    // synchronous `= false` would let TS narrow it to a literal and wrongly
-    // flag the post-await guards as always-false.)
+    // Reset per setup: React 18 StrictMode runs setup → cleanup → setup with
+    // the ref preserved, and the cleanup sets cancelledRef.current = true — so
+    // without this reset the second (real) setup would treat itself as already
+    // cancelled and never reach the status probe (the control/banner would stay
+    // 'idle' forever in dev). Reads go through isCancelled() — a call, not a
+    // direct property read — so TS doesn't narrow this reset to a literal and
+    // wrongly flag the post-await guards as always-false.
+    cancelledRef.current = false;
     let unlisten: (() => void) | null = null;
     let stallTimer: ReturnType<typeof setInterval> | null = null;
-    // Read through a call so TS doesn't narrow the second guard to "always
-    // false" after the first guard's early-return across an await.
     const isCancelled = () => cancelledRef.current;
 
     void (async () => {

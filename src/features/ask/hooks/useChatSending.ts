@@ -180,7 +180,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
     // provider before the main send guard runs. In Local-only mode, force the
     // local model so compression can't leak to the cloud.
     if (isLocalOnlyMode()) {
-      return new OllamaProvider({});
+      // Use the chat's ACTUAL local engine for compression so a Keepance Local
+      // AI chat isn't silently rerouted to the user's Ollama daemon (which may
+      // not even be running). Both stay fully on-device.
+      return chatData.provider === 'keepance-local'
+        ? new KeepanceLocalProvider({})
+        : new OllamaProvider({});
     }
     const chatProvider = chatData.provider ?? 'anthropic';
     // Personal-install choice gate (Task 1.3 fix): compression is cloud generation;
