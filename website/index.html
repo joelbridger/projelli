@@ -412,14 +412,16 @@
       <div class="container hero-inner">
 
         <div class="hero-copy">
-          <h1>Secure <em>client intelligence</em> for<br>high-trust work.</h1>
+          <span style="display:inline-block;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--grad-blue);margin-bottom:16px;">For financial advisors</span>
+          <h1>You already pay for a dozen tools.<br>Keepance isn&rsquo;t a thirteenth.</h1>
           <p class="hero-sub">
-            Keepance is a private AI workspace that turns your files, emails, notes, and interviews into <strong>a living Client Map</strong>. Ask cited questions, draft documents and replies, keep your team aligned, and serve clients with the context they expect you to remember.
+            It&rsquo;s the private <em>client-intelligence</em> layer that reads across the tools you already use, your plans, tax docs, statements, email, and files, and answers any question about a household with <strong>citations you can click</strong>. It runs on your machine, it proposes while you decide, and you switch away from nothing.
           </p>
           <div class="hero-ctas">
-            <a href="/download/" class="btn btn-primary">Start your free trial</a>
-            <a href="#client-map" class="btn btn-outline-light">See a sample Client Map</a>
+            <a href="/download/" class="btn btn-primary">Try it free on one client</a>
+            <a href="#review-demo" class="btn btn-outline-light">See it prep a review</a>
           </div>
+          <p style="margin-top:16px;font-size:13px;color:var(--text-muted-dark);">No credit card. Point it at one client folder and change nothing else.</p>
         </div>
 
         <!-- App screenshot: the Documents view of a matter, files on the user's own computer -->
@@ -453,7 +455,7 @@
             <h2>AI for people, not just facts.</h2>
             <p>Generic AI can summarize a document. Keepance builds context across the whole relationship: emails, files, notes, interviews, timelines, preferences, risks, and open questions. It helps your team understand the client behind the paperwork, then use that context to answer, draft, review, prepare, and hand off work.</p>
           </div>
-          <img class="section-photo" src="/images/keepance-attorney-clients.png" alt="An advisor meeting two clients at a table with documents." loading="lazy" width="1535" height="1024">
+          <img class="section-photo" src="/images/keepance-advisor-clients.png" alt="An advisor meeting two clients at a table with documents." loading="lazy" width="1535" height="1024">
         </div>
         <div class="ai-cards-grid" style="margin-top:48px;">
           <div class="ai-card">
@@ -478,6 +480,93 @@
             <p>Draft replies, documents, summaries, meeting notes, and follow-ups using the client's real history.</p>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ANNUAL REVIEW PREP DEMO (the concrete proof) -->
+    <style>
+      .ard{background:var(--bone);border-top:1px solid var(--border);padding:88px 0;}
+      .ard-wrap{max-width:980px;margin:0 auto;padding:0 28px;}
+      .ard-head{text-align:center;max-width:660px;margin:0 auto 40px;}
+      .ard-eyebrow{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--grad-pink);margin-bottom:14px;}
+      .ard-head h2{font-size:clamp(1.6rem,2.6vw,2.1rem);font-weight:800;color:var(--text-heading);line-height:1.2;letter-spacing:-.02em;margin:0 0 14px;}
+      .ard-head p{font-size:1.0625rem;color:var(--text-body);line-height:1.7;margin:0;}
+      .ard-panel{background:var(--white);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 18px 46px rgba(16,31,53,.10);}
+      .ard-ask{padding:24px 28px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(93,198,255,.06),transparent);}
+      .ard-ask-label{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#94A3B8;}
+      .ard-ask-q{font-size:1.15rem;font-weight:700;color:var(--text-heading);line-height:1.4;margin:6px 0 0;}
+      .ard-src{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px dashed var(--border);}
+      .ard-src-label{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#94A3B8;}
+      .ard-src img{max-height:19px;max-width:92px;width:auto;height:auto;opacity:.9;}
+      .ard-ans{padding:24px 28px;display:grid;grid-template-columns:1fr 1fr;gap:22px 28px;}
+      .ard-b{}
+      .ard-b.full{grid-column:1 / -1;}
+      .ard-b h4{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--grad-blue);margin:0 0 10px;}
+      .ard-b ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px;}
+      .ard-b li{font-size:14px;color:var(--text-body);line-height:1.55;}
+      .ard-cite{display:inline-block;font-size:10.5px;font-weight:700;color:var(--navy);background:rgba(93,198,255,.10);border:1px solid rgba(93,198,255,.28);border-radius:5px;padding:2px 7px;margin-left:4px;white-space:nowrap;}
+      .ard-b li.flag{color:var(--text-muted);font-style:italic;}
+      .ard-b li.flag b{color:var(--text-heading);font-style:normal;}
+      .ard-drafts{grid-column:1 / -1;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:18px;border-top:1px solid var(--border);}
+      .ard-drafts-label{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#94A3B8;}
+      .ard-chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--navy);background:var(--bone);border:1px solid var(--border);border-radius:8px;padding:6px 12px;}
+      .ard-chip svg{width:13px;height:13px;stroke:var(--grad-blue);stroke-width:2;fill:none;}
+      .ard-foot{text-align:center;font-size:13px;color:var(--text-muted);margin:22px auto 0;max-width:640px;line-height:1.6;}
+      @media(max-width:680px){.ard-ans{grid-template-columns:1fr;}}
+    </style>
+    <section id="review-demo" class="ard">
+      <div class="ard-wrap">
+        <div class="ard-head">
+          <span class="ard-eyebrow">See it work</span>
+          <h2>Walk into the review already knowing the household.</h2>
+          <p>Point Keepance at one client and ask the question you actually have before a meeting. Here is a real one, answered across the tools you already use, with a source on every line.</p>
+        </div>
+        <div class="ard-panel">
+          <div class="ard-ask">
+            <span class="ard-ask-label">You ask</span>
+            <p class="ard-ask-q">&ldquo;What changed for the Smiths since our last annual review, and what should I bring up?&rdquo;</p>
+            <div class="ard-src">
+              <span class="ard-src-label">Reads across</span>
+              <img src="/images/stack-logos/rightcapital.svg" alt="RightCapital">
+              <img src="/images/stack-logos/holistiplan.png" alt="Holistiplan">
+              <img src="/images/stack-logos/schwab.svg" alt="Charles Schwab">
+              <img src="/images/stack-logos/outlook.svg" alt="Outlook">
+              <img src="/images/stack-logos/onedrive.svg" alt="OneDrive">
+              <img src="/images/stack-logos/jump.svg" alt="Jump">
+            </div>
+          </div>
+          <div class="ard-ans">
+            <div class="ard-b full">
+              <h4>What changed</h4>
+              <ul>
+                <li>Their plan now targets retirement in 2040, two years earlier than last year.<span class="ard-cite">RightCapital &middot; plan export</span></li>
+                <li>A 529 for the second child was opened in February.<span class="ard-cite">Schwab statement &middot; Feb</span></li>
+                <li>Allison emailed about a possible inheritance in April.<span class="ard-cite">Outlook &middot; Apr 9</span></li>
+              </ul>
+            </div>
+            <div class="ard-b">
+              <h4>Needs your review</h4>
+              <ul>
+                <li>The Roth conversion you agreed to revisit this year is still open.<span class="ard-cite">Meeting notes &middot; Mar 14</span></li>
+                <li>A capital gain from the Q1 rebalance may affect their bracket.<span class="ard-cite">Holistiplan &middot; 2025 report</span></li>
+              </ul>
+            </div>
+            <div class="ard-b">
+              <h4>Missing or stale</h4>
+              <ul>
+                <li>Their risk profile is over a year old and due for an update.<span class="ard-cite">Risk profile &middot; p. 1</span></li>
+                <li class="flag"><b>No support found</b> for an updated estate plan after the new child. Flagged, not guessed.</li>
+              </ul>
+            </div>
+            <div class="ard-drafts">
+              <span class="ard-drafts-label">Drafted for you</span>
+              <span class="ard-chip"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Review agenda</span>
+              <span class="ard-chip"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M4 7l8 6 8-6"/></svg>Follow-up email</span>
+              <span class="ard-chip"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>Reg BI note</span>
+            </div>
+          </div>
+        </div>
+        <p class="ard-foot">An example of a real Keepance answer. It drafts and cites; you review, edit, and decide. Keepance never contacts your clients, and your client data stays on your machine.</p>
       </div>
     </section>
 
@@ -527,6 +616,7 @@
               <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Get citations to the exact source</li>
               <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Open the source in one click</li>
               <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Keep unrelated client files separated</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>If it can&rsquo;t find support, it says so. It never guesses.</li>
             </ul>
           </div>
           <div>
@@ -538,9 +628,9 @@
               <div class="feature-visual-body">
                 <div class="rag-query-box">
                   <div class="rag-query-label">Your question</div>
-                  <div class="rag-query-text">"When did the client first mention the delivery delay?"</div>
+                  <div class="rag-query-text">"What did we decide about the Smiths' 529 plans, and where is it in writing?"</div>
                 </div>
-                <div class="rag-result">The first mention appears in a March 4 email, where the client wrote that the shipment "missed the contractual window." <span class="rag-citation">Email · Re: Q1 logistics · Mar 4</span> The issue appears again in the March 18 meeting notes under "vendor delays." <span class="rag-citation">Meeting_Notes.pdf · p. 3</span></div>
+                <div class="rag-result">In the March review you agreed to fund $5,000 a year per child and revisit at age 14. <span class="rag-citation">Meeting notes · Mar 14</span> The client confirmed it in writing the next day. <span class="rag-citation">Email · Re: 529 plan · Mar 15</span></div>
               </div>
             </div>
           </div>
@@ -563,16 +653,16 @@
             <div class="feature-visual-box">
               <div class="feature-visual-header">
                 <span class="feature-visual-dot r"></span><span class="feature-visual-dot y"></span><span class="feature-visual-dot g"></span>
-                <span class="feature-visual-title">Mutual_NDA.docx · Tracked changes</span>
+                <span class="feature-visual-title">Smith_Annual_Review.docx · Tracked changes</span>
               </div>
               <div class="feature-visual-body">
                 <div class="rag-result" style="line-height:1.8;">
-                  The Receiving Party shall hold the Confidential Information in confidence for a period of
-                  <span style="text-decoration:line-through;color:#C0504D;">two (2) years</span>
-                  <span style="color:#1F7A3D;font-weight:600;">five (5) years</span>
-                  following disclosure.
+                  At our last review we set your target retirement date at
+                  <span style="text-decoration:line-through;color:#C0504D;">2042</span>
+                  <span style="color:#1F7A3D;font-weight:600;">2040</span>
+                  based on the updated plan.
                   <div style="margin-top:12px;padding:8px 10px;background:rgba(93,198,255,0.08);border-left:3px solid var(--grad-blue);font-size:11.5px;color:var(--text-muted);">
-                    <strong style="color:var(--navy);">Keepance:</strong> Your standard NDA uses a 5-year term. Flagging this for your review before you send.
+                    <strong style="color:var(--navy);">Keepance:</strong> The plan you exported in March moved the retirement date to 2040. Flagging this before the letter goes out.
                   </div>
                 </div>
               </div>
@@ -742,6 +832,7 @@
       </div>
 
       <p class="kpfit-foot">Keepance doesn&rsquo;t replace your CRM, your planner, your custodian, or your note-taker. <b>It&rsquo;s the one place everything about a client comes together and answers back.</b></p>
+      <p style="text-align:center;margin-top:24px;font-size:14px;color:var(--text-body);max-width:640px;margin-left:auto;margin-right:auto;line-height:1.7;">Wondering how this is different from Microsoft Copilot, your CRM&rsquo;s new AI, or your meeting note-taker? Each is smart inside its own walls. Keepance is for the facts that live between them.</p>
       <p style="text-align:center;margin-top:22px;"><a href="/how-keepance-fits/" style="display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:14px;color:var(--text-heading);text-decoration:none;border-bottom:2px solid var(--grad-blue);padding-bottom:3px;">See how Keepance fits with each tool &rarr;</a></p>
      </div>
     </section>
@@ -820,6 +911,17 @@
           <div class="pack-template-item"><span class="pack-template-dot"></span>Reg BI Documentation</div>
           <div class="pack-template-item"><span class="pack-template-dot"></span>Reg S-P Safeguards Outline</div>
         </div>
+      </div>
+    </section>
+
+    <!-- PEER PROOF (PLACEHOLDER quote — replace with a real, approved advisor quote before going live) -->
+    <section style="background:var(--bone);border-top:1px solid var(--border);padding:84px 0;">
+      <div class="container" style="max-width:780px;margin:0 auto;text-align:center;">
+        <span class="section-label" style="display:block;margin-bottom:6px;">From advisors using it</span>
+        <blockquote style="font-size:clamp(1.3rem,2.5vw,1.7rem);font-weight:600;color:var(--text-heading);line-height:1.4;letter-spacing:-.01em;margin:14px 0 24px;border:0;padding:0;">&ldquo;I walk into reviews already knowing what changed, and because every answer is cited I actually trust it. The best part: it didn&rsquo;t replace anything in my stack.&rdquo;</blockquote>
+        <div style="font-size:14px;font-weight:600;color:var(--text-heading);">[Advisor name], [Firm name]</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Design partner</div>
+        <p style="margin-top:22px;font-size:12px;color:var(--text-muted);font-style:italic;">Placeholder quote, shown for layout. Replace with a real, approved advisor quote before this section goes live.</p>
       </div>
     </section>
 
