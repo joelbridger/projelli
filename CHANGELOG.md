@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Local (Ollama) AI no longer silently truncates retrieved context.** `OllamaProvider` never set `num_ctx`, so Ollama fell back to its small Modelfile default (often 2048-4096 tokens) and could drop part of the ~3-6K of retrieved RAG context with no warning — producing answers grounded in only part of the evidence. The provider now always requests an explicit working context window (`OLLAMA_WORKING_CONTEXT_WINDOW = 16384`, clamped per-model to the model's known maximum) on chat, streaming, and structured-output requests, and `context-limits.ts` gained correct context windows for the local-model shortlist (llama3.2, qwen3, qwen2.5, granite3.x, gemma3). Part of the local-model initiative (`docs/strategy/2026-06-25-local-model-research-and-recommendation.md`).
+  - Files modified: `src/platform/providers/OllamaProvider.ts`, `src/platform/providers/context-limits.ts`
+  - Tests: `tests/unit/ollama-provider.test.ts`, `tests/unit/models/context-limits.test.ts` (58 green); `npm run typecheck`
 - **Ask/Search citations now survive models that skip inline citation markers.** Ask now does a conservative post-hoc grounding pass over the same retrieved chunks used as context: if an answer sentence's numbers and distinctive words are supported by a retrieved chunk, Keepance adds a verified citation chip even when the model emitted no `[filename paragraph N]` marker. Unsupported answers remain uncited, and model-emitted markers still resolve through the existing strict path.
   - Files modified: `src/features/ask/{askHelpers,askHelpers.test}.ts`
   - Tests: `npm run typecheck`; `npx vitest run src/features/ask/askHelpers.test.ts`

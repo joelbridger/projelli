@@ -45,6 +45,22 @@ export const OLLAMA_DEFAULT_BASE_URL = 'http://127.0.0.1:11434';
 /** Default model we'll fall back to if the caller didn't specify one. */
 export const OLLAMA_DEFAULT_MODEL = 'llama3.2:3b';
 
+/**
+ * Working context window (`num_ctx`) we ask Ollama to allocate. Large enough
+ * for the RAG path — ~8 retrieved chunks plus conversation history plus up to
+ * ~4K of generated output — with headroom, but capped so the KV cache stays
+ * modest on a 16GB CPU-only laptop. It is clamped per-model to the model's
+ * known maximum (see `context-limits`).
+ *
+ * WHY THIS MATTERS: without an explicit `num_ctx`, Ollama silently falls back
+ * to its Modelfile default (often 2048-4096 tokens). With ~3-6K of retrieved
+ * context plus history, that default truncates the evidence and the model
+ * answers from only part of it — with no error and no warning. Setting the
+ * window explicitly is the difference between a grounded answer and a
+ * confidently-wrong one over half the context.
+ */
+export const OLLAMA_WORKING_CONTEXT_WINDOW = 16384;
+
 export interface OllamaProviderConfig {
   model?: string;
   baseUrl?: string;
@@ -88,6 +104,8 @@ interface OllamaChatRequest {
   options?: {
     temperature?: number;
     num_predict?: number;
+    /** Input context window. See OLLAMA_WORKING_CONTEXT_WINDOW. */
+    num_ctx?: number;
     stop?: string[];
   };
 }
@@ -245,17 +263,29 @@ export class OllamaProvider implements Provider {
     return messages;
   }
 
+  /**
+   * Resolve the context window (`num_ctx`) to request from Ollama for this
+   * model: a generous working window, never exceeding the model's known
+   * maximum, so small-context models aren't over-asked and large-context
+   * models don't balloon the KV cache. See `OLLAMA_WORKING_CONTEXT_WINDOW`.
+   */
+  private resolveNumCtx(): number {
+    return Math.min(OLLAMA_WORKING_CONTEXT_WINDOW, getMaxContextTokens('ollama', this.model));
+  }
+
   private async buildRequest(prompt: string, opts: SendOptions | undefined, stream: boolean): Promise<OllamaChatRequest> {
     const request: OllamaChatRequest = {
       model: this.model,
       messages: await this.buildMessages(prompt, opts?.systemPrompt, opts?.attachmentBytes),
       stream,
     };
-    const options: OllamaChatRequest['options'] = {};
+    // num_ctx is always set so retrieved RAG context is never silently
+    // truncated by Ollama's small Modelfile default.
+    const options: OllamaChatRequest['options'] = { num_ctx: this.resolveNumCtx() };
     if (opts?.temperature !== undefined) options.temperature = opts.temperature;
     if (opts?.maxTokens !== undefined) options.num_predict = opts.maxTokens;
     if (opts?.stopSequences && opts.stopSequences.length > 0) options.stop = opts.stopSequences;
-    if (Object.keys(options).length > 0) request.options = options;
+    request.options = options;
     return request;
   }
 
@@ -395,10 +425,10 @@ IMPORTANT: Respond ONLY with the JSON object.`;
       stream: false,
       format: 'json',
     };
-    const runOpts: OllamaChatRequest['options'] = {};
+    const runOpts: OllamaChatRequest['options'] = { num_ctx: this.resolveNumCtx() };
     if (options.temperature !== undefined) runOpts.temperature = options.temperature;
     if (options.maxTokens !== undefined) runOpts.num_predict = options.maxTokens;
-    if (Object.keys(runOpts).length > 0) request.options = runOpts;
+    request.options = runOpts;
 
     const controlled = composeRequestSignal(options.signal, this.requestTimeoutMs);
     let resp: Response;

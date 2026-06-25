@@ -117,7 +117,13 @@ Qwen is made by Alibaba (China). **Technically a non-issue**: once embedded, the
 | Control | We don't control model file, prompt format, **context length**, stop tokens, updates | We own all of it (fixes the `num_ctx` truncation bug by construction) |
 | License | n/a | llama.cpp = **MIT** (free to bundle) |
 
-**Decision:** embed `llama.cpp` as the default local experience; keep "connect my own Ollama server" as an advanced option for power users. Engine integration approach (sidecar binary vs linked Rust crate such as `llama-cpp-2`), cross-platform CPU build, and Provider wiring are being scoped by a Codex spike (see §8); the robust choice will be appended here before implementation.
+**Decision:** embed `llama.cpp` as the default local experience; keep "connect my own Ollama server" as an advanced option for power users.
+
+**Engine integration design (Codex spike, 2026-06-25 — resolved):** ship llama.cpp's `llama-server` as a **bundled sidecar binary**, NOT Rust-linked bindings (`llama-cpp-2`).
+- *Why sidecar:* matches the existing Piper sidecar pattern (`tauri.conf.json` `externalBin`, `src-tauri/src/sidecars/`); crash-isolated (a model crash kills only the helper, not Keepance); uses llama.cpp's OpenAI-compatible HTTP API (streaming + JSON mode + chat templates for free); far less Windows/macOS C++/bindgen build risk; easier to sign/notarize as a separate binary. Rust-linked bindings were rejected for v1 (build fragility + crashes could take down the whole app).
+- *Wiring:* the frontend does **not** call the sidecar directly. A new frontend provider `keepance-local` ("Keepance Local AI") implements the existing `Provider` interface but calls Rust/Tauri commands (`local_llm_chat`, `local_llm_chat_stream`, `local_llm_cancel`, `local_llm_model_status`, `local_llm_model_ensure`); Rust spawns/health-checks `llama-server` on `127.0.0.1`, started with `--ctx-size 16384 --parallel 1`, and relays tokens. This keeps the local-only egress guards, streaming, citations, and download state on one controlled path.
+- *Model:* `bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF` → `Qwen3-4B-Instruct-2507-Q4_K_M.gguf` (~2.5 GB), downloaded on first use into `<app data>/models/qwen3-4b-instruct-2507/` via a new `src-tauri/src/commands/local_llm/` module reusing `model_download.rs` patterns (resumable `.part`, single-download guard, disk-space check, pinned HF revision, expected size + **SHA-256** verify, atomic rename). **Not** bundled in the installer; only the `llama-server` binary is bundled.
+- *Build/release gotchas:* one sidecar binary per target triple; macOS notarization must sign it; Windows builds have broken before (test on the Legion); CI needs lightweight sidecar stubs (like Piper) so cargo tests pass; lazy-start the engine only when local AI is first used, never on app launch.
 
 ---
 
@@ -138,20 +144,30 @@ Qwen is made by Alibaba (China). **Technically a non-issue**: once embedded, the
 
 ## 8. Implementation plan (robustness-first, sequenced)
 
-Core-app rule: **no shortcuts, robust over minimal, TDD, real verification, no autonomous production deploy.** Smallest safe increments first; each independently testable; ends at a real-Windows bench.
+Core-app rule: **no shortcuts, robust over minimal, TDD, real verification, no autonomous production deploy.** Smallest safe increments first; each independently testable; ends at a real-Windows bench. Execution model: subagent-/Codex-delegated on scoped tickets with the lead reviewing + gating + merging serially (per `docs/qa/QA_BOARD.md`).
 
-| # | Step | Risk | Gate |
+**Done so far (2026-06-25):**
+- ✅ **Model + license confirmed.** Qwen3-4B-Instruct-2507 = Apache-2.0 (verified), 4.0B params, 262K ctx. Default = Qwen; IBM Granite = US trust-brand alternative.
+- ✅ **Engine design resolved** (Codex spike): `llama-server` sidecar behind Rust commands + a `keepance-local` provider (see §6).
+- ✅ **Ollama `num_ctx` truncation bug fixed** (the advanced path). `OllamaProvider` now always sets `num_ctx = min(16384, model max)` (new `OLLAMA_WORKING_CONTEXT_WINDOW`); `context-limits.ts` gained correct windows for the shortlist models (llama3.2/qwen3/qwen2.5/granite3.x/gemma3). Unit-tested (58 tests green) + typecheck clean. Branch `feature/local-model`.
+
+**Remaining build (sequenced tickets, lead-reviewed, no auto-deploy):**
+
+| # | Ticket | Risk | Gate |
 |---|---|---|---|
-| 1 | **Confirm model + license** (Qwen3-4B Apache-2.0 ✓ verified 2026-06-25; pick Qwen default + Granite alt ✓) | none | DONE |
-| 2 | **Fix the `num_ctx` truncation bug** in the existing Ollama path (set context window to cover retrieved tokens; test that context isn't silently dropped) | low | `npm run gate` green + unit test |
-| 3 | **Real-world bench** Qwen3-4B vs Llama 3.2 3B on the Legion (Windows) against the demo advisor file set — measure speed, RAM, answer/citation quality | low (read-only eval) | Bench numbers recorded in this doc |
-| 4 | **Codex spike → embedded llama.cpp design** (sidecar vs `llama-cpp-2` crate; download+integrity; Provider wiring; cross-platform CPU build; CI matrix) | design only | Design appended here |
-| 5 | **Build embedded llama.cpp provider** behind the existing `Provider` interface, model auto-download (reuse `model_download.rs`), correct `n_ctx`, streaming, structuredOutput, local-only guard honored | high (core) | TDD + `npm run gate` + Win/Mac build |
-| 6 | **Spreadsheet path:** deterministic extraction/compute → feed computed facts to the model | medium | Tests + bench on demo spreadsheets |
-| 7 | **Reconcile public story:** update `website/local-model-setup` + onboarding copy to one model story | low | Site deploy |
-| 8 | **Real-Windows + Mac verification**, then **PAUSE for Jameson's explicit go** before any signed/customer build | gate | Jameson go |
+| 1 | **Provider identity** — add `keepance-local` to provider types, local-only guard, egress checks, model metadata | low | tests prove it's treated as local |
+| 2 | **Sidecar plumbing** — `src-tauri/src/sidecars/llama_server.rs`: binary resolution, start/stop/health, hidden console on Windows, fake-sidecar tests | med | `cargo test` + fake-sidecar |
+| 3 | **Model manifest + downloader** — `src-tauri/src/commands/local_llm/`: resume, SHA-256 verify, progress, retry, disk-space guard | med | unit-test w/ tiny fake model |
+| 4 | **Rust chat bridge** — POST to `llama-server`, parse stream, emit events, cancellation, structured errors | med | `cargo test` |
+| 5 | **`KeepanceLocalProvider.ts`** — `sendMessage`/streaming/`structuredOutput` over Tauri IPC; Ask + workflows + citations stay stable | med | `npm run gate` |
+| 6 | **Local AI UI** — make "Download Keepance Local AI" the primary path; Ollama → advanced settings; reconcile `website/local-model-setup` to one story | low | gate + site deploy |
+| 7 | **Harden context sizing** — embedded `--ctx-size 16384`; test that local providers never omit a context window (Ollama half ✅ done) | low | unit tests |
+| 8 | **Spreadsheet path** — deterministic Excel extraction/compute → feed computed facts to the model | med | tests + demo-sheet bench |
+| 9 | **Cited-answer test path** — extend `tests/desktop/specs/18-rag-cited-ask.mjs` to verify embedded local AI answers with citations | med | desktop harness |
+| 10 | **CI + signing** — llama-server staging/stubs, macOS + Windows sidecar signing, build checks (do not ship) | med | CI green |
+| 11 | **Real-Windows + Mac bench** on the Legion: fresh app data, no Ollama, first-run model download, local RAG cited answer, zero cloud egress, restart/health-check; then **PAUSE for Jameson's explicit go** before any signed/customer build | gate | Jameson go |
 
-Tracking: add a pointer in `BACKLOG.md`; update this doc's §6/§8 as the Codex spike and bench land.
+Tracking: pointer added in `BACKLOG.md`; update §6/§8 as tickets land + after the bench.
 
 ---
 
