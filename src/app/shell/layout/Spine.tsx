@@ -9,10 +9,10 @@
  * Rendered behind the ?shell=new flag while the matter-centric experience is
  * built out, so the production shell and its tests stay untouched.
  */
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import {
   Briefcase, FolderTree, Sparkles, ListChecks, ShieldCheck, Mail, Settings, Lock,
-  ChevronLeft, ChevronRight, type LucideIcon,
+  ChevronLeft, ChevronRight, ChevronDown, type LucideIcon,
 } from 'lucide-react';
 import { useMatters, useActiveMatterId } from '@/platform/matter/matterStore';
 import { AccountIdentity } from './AccountIdentity';
@@ -91,6 +91,33 @@ export function Spine({
 
   const active = (activeTab as SpineTab) in content ? (activeTab as SpineTab) : 'matters';
 
+  // The "active" surfaces people DO things in stay visible; the passive ones
+  // (you read, not act, in them) tuck under an auto-collapsed "More" group.
+  const MORE_IDS: SpineTab[] = ['workflows', 'audit', 'privacy', 'settings'];
+  const primaryNav = nav.filter((n) => !MORE_IDS.includes(n.id));
+  const moreNav = nav.filter((n) => MORE_IDS.includes(n.id));
+  const [moreOpen, setMoreOpen] = useState(false);
+  const showMore = moreOpen || MORE_IDS.includes(active);
+
+  const renderNavButton = ({ id, label, Icon }: { id: SpineTab; label: string; Icon: LucideIcon }) => {
+    const on = active === id;
+    return (
+      <button key={id} type="button" ref={(el) => { tabRefs.current[id] = el; }}
+        aria-current={on ? 'page' : undefined} onClick={() => onTabChange?.(id)}
+        data-testid={`spine-nav-${id}`}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 'var(--kp-space-sm)', width: '100%', padding: 'var(--kp-space-xs) var(--kp-space-sm)',
+          borderRadius: 'var(--radius-md)', border: 0, cursor: 'pointer', textAlign: 'left', fontSize: 'var(--kp-font-sm)', position: 'relative',
+          fontWeight: on ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-medium)', color: on ? '#fff' : 'rgba(255,255,255,0.72)',
+          background: on ? 'rgba(93,198,255,0.13)' : 'transparent',
+        }}>
+        {on && <span style={{ position: 'absolute', left: 3, width: 3, height: 18, borderRadius: 3, background: 'var(--kp-grad)' }} />}
+        <Icon size={16} strokeWidth={1.75} style={{ flex: 'none', opacity: on ? 1 : 0.9 }} />
+        <span>{label}</span>
+      </button>
+    );
+  };
+
   if (collapsed) {
     return (
       <nav
@@ -132,24 +159,24 @@ export function Spine({
           <span style={{ fontWeight: 'var(--kp-weight-bold)', fontSize: 'var(--kp-font-xl)', letterSpacing: '-0.02em' }}>Keepance</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: 'var(--kp-space-xs) 10px', flex: 'none' }}>
-          {nav.map(({ id, label, Icon }) => {
-            const on = active === id;
-            return (
-              <button key={id} type="button" ref={(el) => { tabRefs.current[id] = el; }}
-                aria-current={on ? 'page' : undefined} onClick={() => onTabChange?.(id)}
-                data-testid={`spine-nav-${id}`}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 'var(--kp-space-sm)', width: '100%', padding: 'var(--kp-space-xs) var(--kp-space-sm)',
-                  borderRadius: 'var(--radius-md)', border: 0, cursor: 'pointer', textAlign: 'left', fontSize: 'var(--kp-font-sm)', position: 'relative',
-                  fontWeight: on ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-medium)', color: on ? '#fff' : 'rgba(255,255,255,0.72)',
-                  background: on ? 'rgba(93,198,255,0.13)' : 'transparent',
-                }}>
-                {on && <span style={{ position: 'absolute', left: 3, width: 3, height: 18, borderRadius: 3, background: 'var(--kp-grad)' }} />}
-                <Icon size={16} strokeWidth={1.75} style={{ flex: 'none', opacity: on ? 1 : 0.9 }} />
-                <span>{label}</span>
-              </button>
-            );
-          })}
+          {primaryNav.map(renderNavButton)}
+
+          {/* Auto-collapsed "More" — passive surfaces you read rather than act in. */}
+          <button type="button" onClick={() => { setMoreOpen((v) => !v); }}
+            aria-expanded={showMore} data-testid="spine-nav-more"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 'var(--kp-space-sm)', width: '100%', padding: 'var(--kp-space-xs) var(--kp-space-sm)',
+              borderRadius: 'var(--radius-md)', border: 0, cursor: 'pointer', textAlign: 'left', fontSize: 'var(--kp-font-sm)',
+              fontWeight: 'var(--kp-weight-medium)', color: 'rgba(255,255,255,0.72)', background: 'transparent',
+            }}>
+            {showMore
+              ? <ChevronDown size={16} strokeWidth={1.75} style={{ flex: 'none', opacity: 0.9 }} />
+              : <ChevronRight size={16} strokeWidth={1.75} style={{ flex: 'none', opacity: 0.9 }} />}
+            {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+            <span>More</span>
+          </button>
+
+          {showMore && moreNav.map(renderNavButton)}
         </div>
         {matters.length > 0 ? (
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--kp-space-2xs) 10px var(--kp-space-xs)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>

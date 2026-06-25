@@ -28,8 +28,10 @@ import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, Surface
 /** localStorage key for dismissing the setup card. */
 const SETUP_CARD_DISMISSED_KEY = 'keepance:setup-card-dismissed';
 
-/** Number of matters above which the search box is shown. */
-const SEARCH_THRESHOLD = 5;
+/** Number of matters above which the search box is shown. The search bar is a
+ *  standing part of the Clients tab, so it appears as soon as there's anything
+ *  to search (any client at all). */
+const SEARCH_THRESHOLD = 0;
 
 export interface MattersHomeProps {
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;

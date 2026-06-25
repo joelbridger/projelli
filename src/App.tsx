@@ -205,8 +205,8 @@ function App() {
   const templatesMarketplaceServiceRef = useRef<MarketplaceService | null>(null);
   const templatesMetadataReaderRef = useRef<TemplateMetadataReader | null>(null);
 
-  // Sidebar state
-  const [sidebarActiveTab, setSidebarActiveTab] = useState<AppSurface>('files');
+  // Sidebar state — land on Clients by default (the matter-centric home), not Documents.
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<AppSurface>('matters');
   // Per-matter UI memory (matterUiStore): subscribe to the active matter so we
   // can save + restore each matter's last working surface and focused document.
   const activeMatterId = useMatterStore((s) => s.activeMatterId);
