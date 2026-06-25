@@ -206,6 +206,47 @@ functional first, THEN a dedicated UI pass** (hold all UI changes until the end)
   `filterHitsByScope` (email/documents are a CLIENT-SIDE filter applied AFTER the top-8). `mail:` paths =
   email chunks. Reset scripts/probes live in `scripts/demo/bench-*.mjs` (probe, ragprobe, ask-clean, etc.).
 
+## QA sweep — every demo run cleanly from scratch (2026-06-25 session 3)
+
+**Verified WORKING (drove each as a presenter, from a clean `reset-loaded`):**
+- LOADED: 26 instant client maps render rich; **Brennan live map build works** (~28s while the
+  cosmetic index ran — faster when idle); **cited document Ask** ("$8,540,000" + allocation, cited);
+  **cited email Ask** both global (content-specific question) and open-client (vague question).
+- BLANK: `reset-blank` → first-run picker; `C:\keepance-demo-blank` opens with the Brennan folder
+  (6 files, instant); New-client creation works.
+- Reset buttons: `reset-loaded` + `reset-blank` both verified bench-local. App stayed up through the
+  whole sweep (the only drops-to-picker were caused by MY in-app `page.reload()` scripts, not the app).
+
+**FIXED (demo data — committed):**
+- ✅ **Doubled client names** ("Brennan, Thomas & Karen - Brennan, Thomas & Karen" everywhere).
+  Root cause: the New-client form has TWO fields — "Client name" + "Client" (org) — and `matterLabel`
+  (`src/platform/rag/matterResolver.ts:91`) renders `"{client} - {name}"`; the seed had `client==name`
+  on all 27 matters. Fix: cleared the org `client` field in `seed-loaded.json` (empty org = correct for
+  advisors). Names now render singly.
+- ✅ **`_README_FAKE_DATA.txt` visible to prospects** in the Documents view. Moved it OUT of the
+  workspace root (to `C:\keepance-demo-northcrest\_README_FAKE_DATA.txt`) — notice preserved, off-screen.
+
+**FLAG for the UI/core instance (not demo-data; left untouched to avoid edit conflicts):**
+- ⚠️ **`matterLabel` should not double when `name===client`** — robust fix for the broader advisor
+  product: `if (name && client && name !== client) return \`${client} - ${name}\`; return name || client`.
+- ⚠️ **Client hub EMAIL panel says "No email folders connected"** even though email is connected and
+  messages are matter-tagged. The hub looks for FOLDER-level mappings; our tagging is message-level
+  (`mail_retag_message_matter`). The Ask finds the emails; the hub panel doesn't show them. To make the
+  hub show a client's emails, add folder-level mapping (`mail_retag_folder_matter`) or teach the hub to
+  read message-level tags.
+- ⚠️ **Egress label inconsistency**: top-bar TrustBar shows "Sent to your Anthropic account" but the Ask
+  shows "Sent to your OpenAI account". `keepance_default_provider=openai`, `keepance_default_model=gpt-4o-mini`.
+  Unify the indicator; consider a stronger demo model than gpt-4o-mini.
+- ⚠️ **Terminology mix** in the New-client dialog: title/body say "client" but the network-lockdown copy
+  still says "matter" ("When this matter is active…").
+
+**DEMO-OPERATION tips:**
+- **Reset a few minutes before showing.** After any reset the app re-indexes PDFs (banner "Indexing PDFs:
+  X / 301") for several minutes; it's usable during, but it competes for CPU and slowed the live Brennan
+  build to ~28s. Reset early so it's idle when you present.
+- BLANK build-up is multi-step: open `C:\keepance-demo-blank` → Clients → New client (name it) → CHECK
+  the matching folder in "Folders in this client" → it indexes → build the client map → Ask.
+
 ## Git
 - Work on `keepance-3.0` in `~/keepance`. Demo work committed locally; **do NOT push keepance-3.0**
   without confirming with Jameson (it carries another session's 3 strategy-doc commits +
