@@ -187,19 +187,30 @@ async function getFreshTreeWithRetry(
   maxAttempts = 14,
   delayMs = 500,
 ): Promise<FileNode[]> {
+  // A successful (non-throwing) getFileTree means the backend IS initialized,
+  // even if the tree is momentarily empty during the populate race. Remember
+  // the last such result so we can prefer it over a stale cached tree if we
+  // never see a populated scan.
+  let lastInitialized: FileNode[] | null = null;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     if (workspaceService?.getFileTree) {
       try {
         const tree = await workspaceService.getFileTree();
         if (Array.isArray(tree) && tree.length > 0) return tree;
+        lastInitialized = Array.isArray(tree) ? tree : [];
       } catch {
         // Workspace not initialized yet — back off and retry.
+        lastInitialized = null;
       }
     }
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    // Skip the sleep after the final attempt — no point waiting to give up.
+    if (attempt < maxAttempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
   }
-  // Gave up waiting — fall back to whatever the cached tree has (may be empty).
-  return useWorkspaceStore.getState().fileTree;
+  // Gave up waiting on a populated scan — prefer a confirmed-initialized (even
+  // if empty) tree over a possibly-stale cached one.
+  return lastInitialized ?? useWorkspaceStore.getState().fileTree;
 }
 
 function pathForms(path: string, rootPath: string | null | undefined): string[] {
