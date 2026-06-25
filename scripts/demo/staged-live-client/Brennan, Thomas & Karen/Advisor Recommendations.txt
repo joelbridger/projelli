@@ -1,0 +1,41 @@
+ADVISOR RECOMMENDATIONS — Brennan, Thomas & Karen
+Northcrest Wealth Partners | Prepared by: Marcus Devlin | June 20, 2026
+
+The following recommendations were discussed with Thomas and Karen on June 17, 2026, and are documented here for the household file. Implementation timelines and follow-up steps are noted.
+
+1. ROTH CONVERSION SCHEDULE (Priority: High)
+Recommended converting $85,000/year from Thomas's Traditional IRA (xxxx-8812) in 2027 and 2028, and $45,000 in 2029 (partial year before retirement triggers Social Security and Karen's deferred wages end). Total projected conversion over three years: $215,000.
+Rationale: Thomas's 2026 income is elevated due to the business sale (top bracket). 2027 and 2028 are expected to show significantly lower income (Karen's $58k salary + modest investment income), keeping conversions within the 22% bracket and well below IRMAA Tier 1 thresholds. Converting now reduces future Required Minimum Distribution exposure and transfers assets to tax-free growth.
+Follow-up: Marcus to deliver formal conversion model with tax bracket waterfall and projected RMD reduction by July 15, 2026. Coordinate timing with Daniel Wexler each year prior to execution.
+
+2. TAXABLE ACCOUNT DEPLOYMENT — DOLLAR-COST AVERAGING (Priority: High)
+The taxable brokerage (xxxx-4471) currently holds $5,120,000 in cash/short-term instruments. Recommendation: hold through the September and January tax payment dates (preserve $1,400,000 liquidity), then deploy the remaining $3,720,000 into the target long-term allocation (60/35/5) over 12 monthly tranches beginning February 2027 ($310,000/month).
+Rationale: Avoids sequence-of-returns risk from deploying all at once; preserves tax payment liquidity; captures any market correction during holding period.
+Follow-up: Marcus to build deployment schedule into investment policy statement.
+
+3. DONOR-ADVISED FUND FUNDING (Priority: High — 2026 tax year deadline)
+Recommend seeding Brennan Family Charitable Fund (Schwab Charitable) with $250,000 in cash from the taxable account before October 1, 2026.
+Rationale: $250,000 charitable deduction in a year when Thomas is in the 37% bracket saves approximately $92,500 in federal tax versus deferring to a lower-income year. The DAF allows the couple to give from the fund over multiple years without further tax-year deadlines.
+Follow-up: Marcus to initiate Schwab Charitable contribution paperwork; Thomas to confirm timing preference.
+
+4. ESTATE PLAN UPDATE (Priority: High — Q4 2026)
+Recommend engaging Catherine Pruett to: (a) update the 2019 revocable trust to reflect the business sale and Megan's marriage; (b) add per stirpes provisions for Megan's household; (c) confirm successor trustee designation; (d) update pour-over wills.
+Additionally: update Karen's 403(b) contingent beneficiary designation to include Megan Brennan-Hartley (married name).
+Follow-up: Clients to sign engagement letter by June 30; Pruett target delivery Q4 2026.
+
+5. LIFE INSURANCE — ALLOW TERM TO LAPSE (Priority: Moderate)
+Thomas's $500,000 term policy expires October 2027. Given household net worth of $8.54M and Karen's projected financial independence, no case for renewing. Recommend allowing the policy to lapse.
+Karen's group term ($150,000) at St. Meridian ends at retirement — no renewal needed.
+Follow-up: No action required until Q3 2027 renewal notice.
+
+6. KAREN'S 403(b) — MAXIMIZE THROUGH 2029 (Priority: Moderate)
+Karen should maximize her 403(b) contributions ($30,500 including catch-up) each year through her retirement date. Combined tax savings at her marginal rate and a three-year runway provide meaningful additional sheltering.
+Follow-up: Karen to update deferral election with St. Meridian HR effective July 1, 2026.
+
+7. 529 EDUCATION ACCOUNTS — STAND BY (Priority: Low / Future)
+When Megan Brennan-Hartley has a child, recommend opening a Schwab 529 plan and superfunding up to $360,000 per beneficiary (5-year gift tax election) from the taxable account. This removes assets from the taxable estate while creating a dedicated education vehicle.
+Follow-up: No action until family event. Marcus to flag in annual review agenda.
+
+OPEN ITEMS REQUIRING EXTERNAL INPUT
+- Daniel Wexler (CPA) to confirm 2026 estimated tax schedule and validate Roth conversion bracket analysis.
+- Catherine Pruett (estate attorney) to scope trust update and provide engagement letter.
