@@ -63,6 +63,22 @@ describe('getMaxContextTokens', () => {
     expect(getMaxContextTokens('ollama', 'llama3.1')).toBe(131_072);
   });
 
+  it('returns 131072 for llama3.2:3b (current local default)', () => {
+    expect(getMaxContextTokens('ollama', 'llama3.2:3b')).toBe(131_072);
+  });
+
+  it('returns 262144 for qwen3:4b (recommended local default)', () => {
+    expect(getMaxContextTokens('ollama', 'qwen3:4b')).toBe(262_144);
+  });
+
+  it('returns 131072 for granite3.3:8b (trust-brand alternative)', () => {
+    expect(getMaxContextTokens('ollama', 'granite3.3:8b')).toBe(131_072);
+  });
+
+  it('returns 131072 for gemma3:4b', () => {
+    expect(getMaxContextTokens('ollama', 'gemma3:4b')).toBe(131_072);
+  });
+
   it('returns 1M for Gemini fallback (unknown model)', () => {
     expect(getMaxContextTokens('gemini', 'gemini-unknown-next')).toBe(1_000_000);
   });

@@ -29,7 +29,12 @@ import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
+import { KeepanceLocalProvider } from '@/platform/providers/KeepanceLocalProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
+import {
+  effectiveChatProvider,
+  type LocalModelAvailability,
+} from '@/features/ask/chat/providerModelResolution';
 import { assertLocalOnlyAllowsSend, assertCloudGenerationAllowed, isLocalOnlyMode, LocalOnlyEgressError } from '@/platform/privacy/localOnlyGuard';
 import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
@@ -85,6 +90,10 @@ import { getEntityLabel } from '@/platform/hooks/useEntityLabel';
 export interface UseChatSendingDeps {
   // Props forwarded from AIChatViewer.
   chatData: AIChatFile;
+  /** Whether the embedded Keepance Local AI model is ready — so a chat with no
+   *  saved provider resolves to 'keepance-local' (on-device) instead of a cloud
+   *  fallback. Keeps the send path in agreement with the egress badge. */
+  localAvailability: LocalModelAvailability;
   onSave: ((updatedChat: AIChatFile) => void) | undefined;
   apiKeys: APIKey[];
   workspaceServiceRef: React.MutableRefObject<WorkspaceService | null> | undefined;
@@ -132,6 +141,7 @@ export interface UseChatSendingDeps {
 export function useChatSending(deps: UseChatSendingDeps) {
   const {
     chatData,
+    localAvailability,
     onSave,
     apiKeys,
     workspaceServiceRef,
@@ -175,13 +185,24 @@ export function useChatSending(deps: UseChatSendingDeps) {
   const bypassNextContextLimitRef = useRef(false);
 
   const buildFastProvider = useCallback((): import('@/platform/providers/Provider').Provider | null => {
+    // The provider this chat actually targets (never a hidden cloud fallback
+    // when the embedded local model is ready — see effectiveChatProvider).
+    const chatProvider = effectiveChatProvider(chatData.provider, localAvailability);
+    // Privacy: if the local-model status probe is still resolving we don't know
+    // the destination — refuse to build a "fast" compression provider rather
+    // than guess a cloud one (the send button is disabled in this window too).
+    if (chatProvider === null) return null;
     // BUG-021 (privacy): chat compression sends prior messages to a "fast"
     // provider before the main send guard runs. In Local-only mode, force the
     // local model so compression can't leak to the cloud.
     if (isLocalOnlyMode()) {
-      return new OllamaProvider({});
+      // Use the chat's ACTUAL local engine for compression so a Keepance Local
+      // AI chat isn't silently rerouted to the user's Ollama daemon (which may
+      // not even be running). Both stay fully on-device.
+      return chatProvider === 'keepance-local'
+        ? new KeepanceLocalProvider({})
+        : new OllamaProvider({});
     }
-    const chatProvider = chatData.provider ?? 'anthropic';
     // Personal-install choice gate (Task 1.3 fix): compression is cloud generation;
     // block it until the user has made an explicit confidentiality choice.
     // assertCloudGenerationAllowed throws synchronously — buildFastProvider is
@@ -201,7 +222,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // Ollama and unknown providers cannot compress.
         return null;
     }
-  }, [chatData.provider, apiKeys]);
+  }, [chatData.provider, localAvailability, apiKeys]);
 
   const handleManualCompress = useCallback(async () => {
     const currentMessages = sessions[chatId]?.messages ?? chatData.messages;
@@ -255,6 +276,15 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
   const handleSendMessage = useCallback(async () => {
     if ((!inputValue.trim() && pendingAttachments.length === 0) || isLoading) return;
+    // The provider this send ACTUALLY targets — must match the egress badge.
+    // A chat with no saved provider resolves to the embedded local model when
+    // it is ready, never to a hidden cloud fallback (see effectiveChatProvider).
+    const effectiveProvider = effectiveChatProvider(chatData.provider, localAvailability);
+    // Privacy: while the local-model status probe is unresolved we don't know
+    // where this would go — block the send (the composer is disabled in this
+    // window too) rather than guess a cloud default and leak. Silent, like the
+    // empty-input / already-loading guards above.
+    if (effectiveProvider === null) return;
     const bypassContextLimit = bypassNextContextLimitRef.current;
     bypassNextContextLimitRef.current = false;
 
@@ -551,7 +581,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
       let providerSendCompletedOrCancelledAfterEgress = false;
       try {
         // Determine provider from chat data, fallback to anthropic
-        const chatProvider = chatData.provider ?? 'anthropic';
+        const chatProvider = effectiveProvider;
         const chatModel = chatData.model;
         let effectiveChatModel = chatModel ?? chatProvider;
 
@@ -1122,6 +1152,17 @@ export function useChatSending(deps: UseChatSendingDeps) {
               });
               break;
             }
+            case 'keepance-local': {
+              // Embedded llama.cpp engine ("Keepance Local AI"). No API key, $0,
+              // fully on-device. Like Ollama it doesn't support file-access tool
+              // calling, so no tools are registered; the non-tool streaming path
+              // handles it and the egress indicator stays "nothing leaves".
+              provider = new KeepanceLocalProvider({
+                ...(chatModel ? { model: chatModel } : {}),
+                ...rulesOpt,
+              });
+              break;
+            }
             case 'openai': {
               const openai = new OpenAIProvider({
                 apiKey: apiKey!.key,
@@ -1472,7 +1513,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
         console.error('AI chat error:', error);
 
-        const chatProvider = chatData.provider ?? 'anthropic';
+        const chatProvider = effectiveProvider;
         const chatModel = chatData.model;
         if (!providerSendCompletedOrCancelledAfterEgress || error instanceof LocalOnlyEgressError) {
           const egress = resolveEgress({
@@ -1522,7 +1563,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // telling the user how to fix it. We NEVER silently retry on a cloud
         // provider here: a Local-only / Ollama selection that errors stays
         // local-and-failed, it does not leak to the cloud.
-        if (isLocalProviderId(chatData.provider ?? 'anthropic')) {
+        if (isLocalProviderId(effectiveProvider)) {
           errorContent =
             "Ollama isn't running, so this local chat couldn't get a response. " +
             'Start Ollama (then try again), or switch your confidentiality mode ' +
@@ -1544,7 +1585,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
           if (statusCode) {
             const parsed = parseApiError(
-              (chatData.provider ?? 'anthropic') as 'anthropic' | 'openai' | 'google',
+              effectiveProvider as 'anthropic' | 'openai' | 'google',
               statusCode,
               error.message,
               chatData.model,
@@ -1585,7 +1626,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
       setLoading(chatId, false);
       useAiBatchReviewStore.getState().openReview();
     });
-  }, [inputValue, pendingAttachments, previewUrls, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
+  }, [inputValue, pendingAttachments, previewUrls, messages, chatData, localAvailability, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
 
   const handleSendAnyway = useCallback(() => {
     bypassNextContextLimitRef.current = true;

@@ -16,6 +16,7 @@ import {
   parseNdjsonChunk,
   formatOllamaDisplayName,
   OLLAMA_DEFAULT_MODEL,
+  OLLAMA_WORKING_CONTEXT_WINDOW,
 } from '@/platform/providers/OllamaProvider';
 
 describe('OllamaProvider (Q7)', () => {
@@ -166,6 +167,36 @@ describe('OllamaProvider (Q7)', () => {
       const p = new OllamaProvider();
       await expect(p.sendMessage('x')).rejects.toThrow(/HTTP 500/);
     });
+
+    it('sets num_ctx to the working window for a large-context model (no silent truncation)', async () => {
+      fetchSpy.mockResolvedValue(
+        new Response(
+          JSON.stringify({ model: 'llama3.2:3b', message: { role: 'assistant', content: 'ok' }, done: true }),
+          { status: 200 },
+        ),
+      );
+      const p = new OllamaProvider({ model: 'llama3.2:3b' });
+      await p.sendMessage('hello');
+      const [, init] = fetchSpy.mock.calls[0]!;
+      const body = JSON.parse((init as RequestInit).body as string);
+      // llama3.2 supports 128K, so we request our full working window.
+      expect(body.options.num_ctx).toBe(OLLAMA_WORKING_CONTEXT_WINDOW);
+    });
+
+    it('clamps num_ctx down to the model maximum for a small-context / unknown model', async () => {
+      fetchSpy.mockResolvedValue(
+        new Response(
+          JSON.stringify({ model: 'custom-local-model', message: { role: 'assistant', content: 'ok' }, done: true }),
+          { status: 200 },
+        ),
+      );
+      const p = new OllamaProvider({ model: 'custom-local-model' });
+      await p.sendMessage('hello');
+      const [, init] = fetchSpy.mock.calls[0]!;
+      const body = JSON.parse((init as RequestInit).body as string);
+      // Unknown Ollama model falls back to 8192; we must not over-ask beyond it.
+      expect(body.options.num_ctx).toBe(8192);
+    });
   });
 
   describe('sendMessageStreaming', () => {
@@ -194,6 +225,25 @@ describe('OllamaProvider (Q7)', () => {
       expect(resp.cost).toBe(0);
       expect(resp.usage.outputTokens).toBe(2);
     });
+
+    it('sets num_ctx on the streaming request too', async () => {
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode('{"done":true,"eval_count":0}\n'));
+          controller.close();
+        },
+      });
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(stream, { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } }),
+      );
+      const p = new OllamaProvider({ model: 'llama3.2:3b' });
+      await p.sendMessageStreaming('prompt', { onChunk: () => {} });
+      const [, init] = fetchSpy.mock.calls[0]!;
+      const body = JSON.parse((init as RequestInit).body as string);
+      expect(body.options.num_ctx).toBe(OLLAMA_WORKING_CONTEXT_WINDOW);
+      vi.restoreAllMocks();
+    });
   });
 
   describe('structuredOutput', () => {
@@ -221,6 +271,26 @@ describe('OllamaProvider (Q7)', () => {
         },
       });
       expect(result).toEqual({ name: 'X', count: 2 });
+    });
+
+    it('sets num_ctx on the structuredOutput request', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            model: 'llama3.2:3b',
+            message: { role: 'assistant', content: '{"ok":true}' },
+            done: true,
+          }),
+          { status: 200 },
+        ),
+      );
+      const p = new OllamaProvider({ model: 'llama3.2:3b' });
+      await p.structuredOutput<{ ok: boolean }>('x', {
+        schema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+      });
+      const [, init] = fetchSpy.mock.calls[0]!;
+      const body = JSON.parse((init as RequestInit).body as string);
+      expect(body.options.num_ctx).toBe(OLLAMA_WORKING_CONTEXT_WINDOW);
     });
 
     it('strips markdown code fences before parsing', async () => {

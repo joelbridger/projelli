@@ -20,10 +20,13 @@ import { render, screen } from '@testing-library/react';
 
 import {
   resolveEgress,
+  isLocalProvider,
+  providerDisplayName,
   CONFIDENTIALITY_MODE_SETTING_KEY,
   DEFAULT_CONFIDENTIALITY_MODE,
 } from '@/platform/privacy/egress';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
+import { effectiveChatProvider } from '@/features/ask/chat/providerModelResolution';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import type { ConfidentialityMode } from '@/platform/privacy/egress';
@@ -95,6 +98,30 @@ describe('resolveEgress (the single source of truth)', () => {
   it('the default mode is Direct (matches shipping behaviour)', () => {
     expect(DEFAULT_CONFIDENTIALITY_MODE).toBe('direct');
   });
+
+  // Embedded Keepance Local AI engine (llama.cpp) — local-model initiative.
+  it('Keepance Local AI => nothing leaves the machine, named correctly', () => {
+    const info = resolveEgress({ provider: 'keepance-local', mode: 'direct' });
+    expect(info.destination).toBe('local');
+    expect(info.severity).toBe('safe');
+    expect(info.dataLeaves).toBe(false);
+    expect(info.provider).toBe('keepance-local');
+    // The honest note names the actual local engine, not Ollama.
+    expect(info.note).toMatch(/Keepance Local AI/);
+    expect(info.note).not.toMatch(/Ollama/);
+  });
+
+  it('Ollama local note still names Ollama (no regression)', () => {
+    const info = resolveEgress({ provider: 'ollama', mode: 'direct' });
+    expect(info.note).toMatch(/\(Ollama\)/);
+  });
+
+  it('both local providers are recognised as local; cloud is not', () => {
+    expect(isLocalProvider('keepance-local')).toBe(true);
+    expect(isLocalProvider('ollama')).toBe(true);
+    expect(isLocalProvider('anthropic')).toBe(false);
+    expect(providerDisplayName('keepance-local')).toBe('Keepance Local AI');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -110,6 +137,47 @@ describe('EgressIndicator', () => {
     expect(el.getAttribute('data-severity')).toBe('safe');
     expect(el.getAttribute('data-data-leaves')).toBe('false');
     expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/nothing leaves/i);
+  });
+
+  it('names the embedded Keepance Local AI engine in the note (not Ollama)', () => {
+    // Regression: the local note used a static i18n string that hard-coded
+    // "(Ollama)"; for a keepance-local chat it must name the actual engine.
+    setMode('direct');
+    render(<EgressIndicator provider="keepance-local" />);
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.getAttribute('data-destination')).toBe('local');
+    expect(el.getAttribute('data-data-leaves')).toBe('false');
+    const note = screen.getByTestId('egress-indicator-note').textContent || '';
+    expect(note).toMatch(/Keepance Local AI/);
+    expect(note).not.toMatch(/Ollama/);
+  });
+
+  it('BLOCKER regression: an unset-provider chat with the local model ready shows data-destination=local (never "data leaves")', () => {
+    // The exact bad state Codex flagged: a chat with no saved provider while the
+    // embedded model is ready. effectiveChatProvider must resolve it to
+    // 'keepance-local' (not the old 'anthropic' fallback), so the badge the user
+    // sees says nothing leaves — matching the on-device send.
+    setMode('direct');
+    const provider = effectiveChatProvider(undefined, /* local */ 'ready');
+    render(<EgressIndicator provider={provider} />);
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.getAttribute('data-destination')).toBe('local');
+    expect(el.getAttribute('data-data-leaves')).toBe('false');
+  });
+
+  it('BLOCKER 2 regression: while the local-model probe is pending the badge shows "Checking" and never "data leaves"', () => {
+    // The initial-load race: an unset-provider chat before the status probe
+    // resolves. effectiveChatProvider returns null, and the badge must render a
+    // neutral "checking" state (data-data-leaves=false) instead of guessing a
+    // cloud destination — even though the confidentiality mode is Direct.
+    setMode('direct');
+    const provider = effectiveChatProvider(undefined, /* local */ 'unknown');
+    expect(provider).toBeNull();
+    render(<EgressIndicator provider={provider} />);
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.getAttribute('data-destination')).toBe('pending');
+    expect(el.getAttribute('data-data-leaves')).toBe('false');
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Checking local AI/i);
   });
 
   it('shows "Sent to your Anthropic account" with the provider-sees-prompt note in Direct mode', () => {

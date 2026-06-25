@@ -63,6 +63,9 @@ tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-http = "2"
 dirs = "5"
+# Local LLM first-run download: preflight free disk space before fetching a
+# multi-GB GGUF model.
+fs2 = "0.4"
 
 # Phase 2 (v1.5) — Rust/Tauri foundation. These four crates unlock the
 # Mediums and Quick Wins in Phases 3 and 4:

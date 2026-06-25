@@ -799,6 +799,27 @@
     "error-body": "Nothing is lost. The download resumes where it stopped.",
     "retry": "Resume download"
   },
+  "local-ai-download": {
+    "title": "Downloading Keepance Local AI",
+    "body": "Keepance is downloading its private, on-device AI (about 2.4 GB), one time. You can keep working. It runs fully offline once it's ready.",
+    "verifying": "Checking the downloaded model",
+    "progress": "{{done}} MB of {{total}} MB",
+    "progress-unknown": "{{done}} MB so far",
+    "stalled": "The download looks stuck. Restarting Keepance resumes it where it stopped.",
+    "error-title": "The Keepance Local AI download was interrupted",
+    "error-body": "Nothing is lost. The download resumes where it stopped.",
+    "retry": "Resume download"
+  },
+  "local-ai-settings": {
+    "title": "Keepance Local AI",
+    "description": "A private AI that runs entirely on this computer. Your files and questions never leave the machine. It's slightly less sharp than the cloud models, but nothing you ask ever goes online. One-time download, about 2.4 GB.",
+    "download": "Download Keepance Local AI",
+    "downloading": "Downloading… {{pct}}%",
+    "verifying": "Checking the download…",
+    "ready": "Installed and ready. Pick \"Keepance Local AI\" as your model in any chat.",
+    "error": "The download was interrupted. Nothing is lost.",
+    "retry": "Resume download"
+  },
   "version": {
     "history": {
       "title": "Version History",
@@ -1148,7 +1169,7 @@
     "egress": {
       "local": {
         "label": "On your machine. Nothing leaves",
-        "note": "This runs on a local model (Ollama). No prompt or file is sent over the network."
+        "note": "This runs on a local model ({{provider}}). No prompt or file is sent over the network."
       },
       "direct": {
         "label": "Sent to your {{provider}} account",
@@ -1157,6 +1178,10 @@
       "demo": {
         "label": "Browser demo. Do not use with client data",
         "note": "In this online demo, messages pass through a shared Keepance relay. The desktop app never does this. Do not enter confidential or client information here."
+      },
+      "checking": {
+        "label": "Checking local AI",
+        "note": "Confirming whether the on-device model is ready before anything is sent. Nothing leaves your machine while this checks."
       },
       "sending": "Sending to your AI provider"
     },

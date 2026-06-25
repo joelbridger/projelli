@@ -3,8 +3,8 @@
     "title": "Keepance — Board Dashboard",
     "subtitle": "The private client-intelligence layer for a financial-advisory practice",
     "framing": "Jameson = Board of Directors  ·  Claude = CEO reporting in",
-    "lastUpdated": "June 24, 2026",
-    "headline": "STRATEGY SHIFT (2026-06-24): Keepance is re-aiming from law firms to FINANCIAL ADVISORS. The core unit becomes a client / household, not a legal matter. This is a continuation, not a rebuild: the advisor product was largely designed-in already (an advisor mode, a 7-template Advisor Practice Pack, a financial-advisors website page, and a Client Map built to treat 'household' as the advisor unit). The only real demand signal Keepance ever got came from the advisor side (a CFP), while the law ICP was never validated. We reuse the engine and re-skin the experience. The binding constraint is unchanged and is NOT features: it is distribution + trust. #1 job right now is an impressive, reliable advisor demo, then hand-selling the first advisors through the design partner (Journey Beyond Wealth).",
+    "lastUpdated": "June 25, 2026",
+    "headline": "PROOF SPRINT (2026-06-25): after a full CEO evaluation, the call is to go ALL-IN ON FIRST USERS for about two months. Freeze big new features and use the demo to turn a handful of real advisors into weekly users — starting with the design partner (Jameson's wife), then her firm, then peers. The advisor bet counts as validated only when 3-5 advisors use it weekly with 1-2 paying, within ~45-60 days. An independent Codex review reached the SAME verdict as our own research: the product is impressive but pre-traction, and the real work is distribution + trust, not more features. New on the board to read: the full evaluation, the demo session plan, the FutureVault competitor read, and an honest 'where your data goes' trust sheet (see Strategy, Competitive, and Sales).",
     "updateRule": "High bar: a Claude session only updates this for a MAJOR decision, a validated insight, a strategy shift, or a real milestone. Routine work never touches it. Jameson maintains it freely."
   },
   "sections": [
@@ -15,6 +15,7 @@
       "status": "Re-aimed to advisors",
       "now": "Keepance is the private client-intelligence layer for a financial-advisory practice: the place an advisor's client context (files, email, notes, plans) lives on their own machine, stays private by design, and answers them back with citations they can verify. Vision: every independent advisor walks into every meeting already knowing the whole household, without putting that family's data in someone else's cloud. The beachhead is deliberately narrow: solo and small independent / fee-only RIAs first. We reuse the whole engine and re-skin the experience for advisors. Full detail in the linked Product Strategy report.",
       "decisions": [
+        "PROOF SPRINT (2026-06-25): go all-in on first users for ~2 months — freeze big new features; land 3-5 advisors using Keepance weekly with 1-2 paying; make ONE aha-path bulletproof (pick client folder → build the Client Map → ask a cited question → draft a review note); and build the trust packet (entity + a data-flow sheet + scrub any 'compliant' wording).",
         "RE-AIM (2026-06-24): pivot from law firms to financial advisors; the unit becomes a client / household, not a legal matter.",
         "Beachhead locked: solo and small fee-only RIAs (own their stack, privacy-minded, buyer = user = compliance owner = short sales cycle).",
         "Positioning: the private client-intelligence layer (a different category from cloud notetakers). Pitch 70% outcome, 30% privacy architecture.",
@@ -25,9 +26,18 @@
         "The advisor re-aim is aiming at the demand that was actually observed: the strongest pain signal in the whole record came from a financial advisor, not a litigator. The law ICP was never validated.",
         "This is ~70% designed-in already: an advisor mode, a shipped 7-template Advisor Practice Pack (Reg S-P / Reg BI), a financial-advisors site page, and a Client Map architected with 'household' as the advisor unit.",
         "North Star metric set: weekly active advisors who ran a real client workflow. We steer by that, not signups.",
-        "The binding constraint is distribution + trust, NOT product features. The demo is the entry ticket; selling is the real work."
+        "The binding constraint is distribution + trust, NOT product features. The demo is the entry ticket; selling is the real work.",
+        "Two independent assessments on 2026-06-25 — our own research and an independent Codex review — reached the same verdict: an impressive pre-traction product whose binding constraint is distribution + trust. That agreement is why this direction is treated as settled, not another guess."
       ],
       "links": [
+        {
+          "label": "📊 CEO Evaluation — full project read + where to go next",
+          "doc": "keepance-ceo-evaluation.html"
+        },
+        {
+          "label": "🎯 Demo session plan — how to show it to your wife for real signal",
+          "doc": "proof-sprint-session-plan.html"
+        },
         {
           "label": "🧭 Product Strategy — vision, personas, metrics, prioritization, roadmap",
           "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-product-strategy.html"
@@ -121,7 +131,8 @@
         "The trust gate is the make-or-break: advisors' compliance officers will ask for a SOC 2 we don't have. Answer with the local-first / no-vendor-server story (client data never reaches a Keepance server, so most vendor-oversight burden does not apply) plus a CCO-forwardable one-pager.",
         "Don't depend on one channel: beyond the design partner, build referrals + XYPN + NAPFA / FPA + advisor Facebook groups + a Kitces push.",
         "Build and sell in parallel: do the LLC, target list, pitch, and outreach now so a warm pipeline is ready the moment the demo lands.",
-        "The demo path must be reliable before it's shown to an advisor."
+        "The demo path must be reliable before it's shown to an advisor.",
+        "The CCO-forwardable trust one-pager now has a first draft, fact-checked line-by-line against the actual app code. An independent review caught and fixed two over-claims before they could embarrass us, and the sheet honestly states what we do and don't have yet (no SOC 2 certificate, no signed data agreement)."
       ],
       "links": [
         {
@@ -131,6 +142,10 @@
         {
           "label": "📣 CEO Brief — channels, the trust gate, onboarding, the 90-day plan",
           "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-ceo-brief-get-keep-customers.html"
+        },
+        {
+          "label": "🔒 Trust sheet — honest 'where your data goes' for compliance",
+          "doc": "proof-sprint-trust-sheet.html"
         }
       ]
     },
@@ -161,12 +176,20 @@
       "decisions": [
         "Do not fight the notetakers head-on. Position as the complementary private context + drafting layer; lead outcome + local-first (70/30).",
         "Keep a competitor-watch log: the event that most threatens us is a funded notetaker shipping a genuinely local / no-vendor-server option.",
-        "Keep the advisor comparison pages (vs Jump / eMoney / ChatGPT) reconciled to current facts and honest about where rivals are the better choice."
+        "Keep the advisor comparison pages (vs Jump / eMoney / ChatGPT) reconciled to current facts and honest about where rivals are the better choice.",
+        "Add FutureVault to the competitor watch as a 'document-vault / client-portal' rival (distinct from the notetakers). Re-check quarterly; the move that would most threaten us is FutureVault launching a self-serve small-RIA tier or a local/private deployment."
       ],
       "insights": [
+        "FutureVault is our CLOSEST competitor: it makes almost the same pitch (a 'client life vault' with an AI insights engine shipped early 2026), but it is cloud-hosted and enterprise-only. That is exactly our wedge — client data on their servers vs. on the advisor's own machine, and slow big-firm sales vs. a solo who can start today.",
         "Privacy is contested now (Zocks and Zeplyn both claim 'privacy-first'), so the defensible wedge is TRUE local-first (data physically never leaves the machine) + the depth of the Client Map + the clean Reg S-P vendor-oversight story.",
         "Well-funded rivals prove the space is hot but don't attack the local-first wedge; they're meeting-notes-centric.",
         "Advisors increasingly discover tools via search / ChatGPT and, above all, peer referrals; word-of-mouth is the highest-quality channel in wealth management."
+      ],
+      "links": [
+        {
+          "label": "⚔️ FutureVault — our closest competitor + why advisors pick us",
+          "doc": "proof-sprint-futurevault.html"
+        }
       ]
     },
     {
@@ -386,71 +409,190 @@
           "label": "Do these first — the 3 hands-on moves",
           "note": "These beat any amount of reading. You have a real advisory firm to learn from — use it.",
           "items": [
-            { "id": "pd-move-shadow", "text": "Shadow your wife's firm: map how their documents & compliance actually work", "note": "Exercises 1–2 · your product spec + first customer chat in one" },
-            { "id": "pd-move-interviews", "text": "Run a 10-advisor discovery sprint (workflow-research calls, not demos)", "note": "Exercise 3 · read The Mom Test first" },
-            { "id": "pd-move-paidask", "text": "Make the paid design-partner ask to your 3 warmest advisors", "note": "Exercise 6 · $500–$1,500 for 90 days — a real 'yes' is the only honest proof" }
+            {
+              "id": "pd-move-shadow",
+              "text": "Shadow your wife's firm: map how their documents & compliance actually work",
+              "note": "Exercises 1–2 · your product spec + first customer chat in one"
+            },
+            {
+              "id": "pd-move-interviews",
+              "text": "Run a 10-advisor discovery sprint (workflow-research calls, not demos)",
+              "note": "Exercise 3 · read The Mom Test first"
+            },
+            {
+              "id": "pd-move-paidask",
+              "text": "Make the paid design-partner ask to your 3 warmest advisors",
+              "note": "Exercise 6 · $500–$1,500 for 90 days — a real 'yes' is the only honest proof"
+            }
           ]
         },
         {
           "label": "More hands-on exercises",
           "items": [
-            { "id": "pd-ex-position", "text": "Position Keepance and write its one-page story", "note": "Exercise 4" },
-            { "id": "pd-ex-reversedemo", "text": "Run the reverse-demo test on a sample client household", "note": "Exercise 5" }
+            {
+              "id": "pd-ex-position",
+              "text": "Position Keepance and write its one-page story",
+              "note": "Exercise 4"
+            },
+            {
+              "id": "pd-ex-reversedemo",
+              "text": "Run the reverse-demo test on a sample client household",
+              "note": "Exercise 5"
+            }
           ]
         },
         {
           "label": "Getting customers — essentials",
           "note": "Tied #1 priority.",
           "items": [
-            { "id": "pd-cust-momtest", "text": "Read The Mom Test — Rob Fitzpatrick", "note": "~$15 · how to get honest answers from advisors", "link": "https://www.momtestbook.com/" },
-            { "id": "pd-cust-obviously", "text": "Read Obviously Awesome (+ Sales Pitch) — April Dunford", "note": "~$20 · make advisors instantly 'get' Keepance", "link": "https://www.aprildunford.com/books" },
-            { "id": "pd-cust-foundingsales", "text": "Work through Founding Sales — Pete Kazanjy", "note": "free online · selling for non-salespeople", "link": "https://www.foundingsales.com/" },
-            { "id": "pd-cust-xypnlive", "text": "Apply to the XYPN LIVE FinTech competition", "note": "pitch to a room of small RIAs", "link": "https://info.xyplanningnetwork.com/xypn-live-fintech" }
+            {
+              "id": "pd-cust-momtest",
+              "text": "Read The Mom Test — Rob Fitzpatrick",
+              "note": "~$15 · how to get honest answers from advisors",
+              "link": "https://www.momtestbook.com/"
+            },
+            {
+              "id": "pd-cust-obviously",
+              "text": "Read Obviously Awesome (+ Sales Pitch) — April Dunford",
+              "note": "~$20 · make advisors instantly 'get' Keepance",
+              "link": "https://www.aprildunford.com/books"
+            },
+            {
+              "id": "pd-cust-foundingsales",
+              "text": "Work through Founding Sales — Pete Kazanjy",
+              "note": "free online · selling for non-salespeople",
+              "link": "https://www.foundingsales.com/"
+            },
+            {
+              "id": "pd-cust-xypnlive",
+              "text": "Apply to the XYPN LIVE FinTech competition",
+              "note": "pitch to a room of small RIAs",
+              "link": "https://info.xyplanningnetwork.com/xypn-live-fintech"
+            }
           ]
         },
         {
           "label": "The advisor world — essentials",
           "note": "Tied #1 priority.",
           "items": [
-            { "id": "pd-adv-kitces", "text": "Live inside Kitces — the blog + AdvisorTech map", "note": "free · how advisors think and shop for software", "link": "https://www.kitces.com/" },
-            { "id": "pd-adv-rules", "text": "Read the 2 rules Keepance exists for (Books-and-Records + Reg S-P)", "note": "free · start with the Reg S-P Small Entity guide", "link": "https://www.sec.gov/files/rules/final/2024/regulation-s-p-small-entity-compliance-guide.pdf" },
-            { "id": "pd-adv-veres", "text": "Read Bob Veres — A History of the Financial Planning Profession", "note": "~$25 · why advisors think the way they do", "link": "https://bobveres.com/a-behind-the-scenes-history-of-the-financial-planning-profession/" },
-            { "id": "pd-adv-conference", "text": "Attend one advisor conference this year", "note": "Wealth Management EDGE or Future Proof" }
+            {
+              "id": "pd-adv-kitces",
+              "text": "Live inside Kitces — the blog + AdvisorTech map",
+              "note": "free · how advisors think and shop for software",
+              "link": "https://www.kitces.com/"
+            },
+            {
+              "id": "pd-adv-rules",
+              "text": "Read the 2 rules Keepance exists for (Books-and-Records + Reg S-P)",
+              "note": "free · start with the Reg S-P Small Entity guide",
+              "link": "https://www.sec.gov/files/rules/final/2024/regulation-s-p-small-entity-compliance-guide.pdf"
+            },
+            {
+              "id": "pd-adv-veres",
+              "text": "Read Bob Veres — A History of the Financial Planning Profession",
+              "note": "~$25 · why advisors think the way they do",
+              "link": "https://bobveres.com/a-behind-the-scenes-history-of-the-financial-planning-profession/"
+            },
+            {
+              "id": "pd-adv-conference",
+              "text": "Attend one advisor conference this year",
+              "note": "Wealth Management EDGE or Future Proof"
+            }
           ]
         },
         {
           "label": "Founder & startup craft",
           "items": [
-            { "id": "pd-found-yc", "text": "Work through Y Combinator Startup School", "note": "free course · your business-school-in-a-weekend", "link": "https://www.startupschool.org/" },
-            { "id": "pd-found-lean", "text": "Read The Lean Startup — Eric Ries", "note": "~$15 · build to learn first, not to polish", "link": "https://theleanstartup.com/" },
-            { "id": "pd-found-zerotoone", "text": "Read Zero to One — Peter Thiel", "note": "~$15 · own a small market completely first", "link": "https://www.penguinrandomhouse.com/books/234730/zero-to-one-by-peter-thiel-with-blake-masters/" },
-            { "id": "pd-found-pg", "text": "Read Paul Graham's essays", "note": "free · start with 'Do Things that Don't Scale'", "link": "https://paulgraham.com/articles.html" }
+            {
+              "id": "pd-found-yc",
+              "text": "Work through Y Combinator Startup School",
+              "note": "free course · your business-school-in-a-weekend",
+              "link": "https://www.startupschool.org/"
+            },
+            {
+              "id": "pd-found-lean",
+              "text": "Read The Lean Startup — Eric Ries",
+              "note": "~$15 · build to learn first, not to polish",
+              "link": "https://theleanstartup.com/"
+            },
+            {
+              "id": "pd-found-zerotoone",
+              "text": "Read Zero to One — Peter Thiel",
+              "note": "~$15 · own a small market completely first",
+              "link": "https://www.penguinrandomhouse.com/books/234730/zero-to-one-by-peter-thiel-with-blake-masters/"
+            },
+            {
+              "id": "pd-found-pg",
+              "text": "Read Paul Graham's essays",
+              "note": "free · start with 'Do Things that Don't Scale'",
+              "link": "https://paulgraham.com/articles.html"
+            }
           ]
         },
         {
           "label": "Focus, energy & mindset",
           "items": [
-            { "id": "pd-focus-deepwork", "text": "Read Deep Work — Cal Newport", "note": "~$15 · turn weekend blocks into real focus", "link": "https://calnewport.com/deep-work-rules-for-focused-success-in-a-distracted-world/" },
-            { "id": "pd-focus-indistractable", "text": "Read Indistractable — Nir Eyal", "note": "~$15 · the direct fix for the YouTube pull", "link": "https://www.nirandfar.com/indistractable/" },
-            { "id": "pd-focus-atomic", "text": "Read Atomic Habits — James Clear", "note": "~$15 · keep showing up between the big blocks", "link": "https://jamesclear.com/atomic-habits" },
-            { "id": "pd-focus-rhythm", "text": "Set your weekly weekend operating rhythm", "note": "Exercise 7 · so the time actually gets used" }
+            {
+              "id": "pd-focus-deepwork",
+              "text": "Read Deep Work — Cal Newport",
+              "note": "~$15 · turn weekend blocks into real focus",
+              "link": "https://calnewport.com/deep-work-rules-for-focused-success-in-a-distracted-world/"
+            },
+            {
+              "id": "pd-focus-indistractable",
+              "text": "Read Indistractable — Nir Eyal",
+              "note": "~$15 · the direct fix for the YouTube pull",
+              "link": "https://www.nirandfar.com/indistractable/"
+            },
+            {
+              "id": "pd-focus-atomic",
+              "text": "Read Atomic Habits — James Clear",
+              "note": "~$15 · keep showing up between the big blocks",
+              "link": "https://jamesclear.com/atomic-habits"
+            },
+            {
+              "id": "pd-focus-rhythm",
+              "text": "Set your weekly weekend operating rhythm",
+              "note": "Exercise 7 · so the time actually gets used"
+            }
           ]
         },
         {
           "label": "The 6-weekend plan",
           "note": "A concrete sequence, front-loaded on your two top priorities. One weekend per line.",
           "items": [
-            { "id": "pd-wk-1", "text": "Weekend 1 — Read The Mom Test; skim Kitces 'Start Here' + the AdvisorTech map; set your weekly rhythm" },
-            { "id": "pd-wk-2", "text": "Weekend 2 — Shadow your wife's firm; do the document/compliance map + software inventory" },
-            { "id": "pd-wk-3", "text": "Weekend 3 — Read Obviously Awesome; draft Keepance's positioning + one-page story" },
-            { "id": "pd-wk-4", "text": "Weekend 4 — Read the Reg S-P guide; skim Books-and-Records; build your advisor interview list" },
-            { "id": "pd-wk-5", "text": "Weekend 5 — Run the first 5 discovery interviews; read Founding Sales alongside" },
-            { "id": "pd-wk-6", "text": "Weekend 6 — Finish interviews; do the reverse-demo test; make the paid design-partner ask" }
+            {
+              "id": "pd-wk-1",
+              "text": "Weekend 1 — Read The Mom Test; skim Kitces 'Start Here' + the AdvisorTech map; set your weekly rhythm"
+            },
+            {
+              "id": "pd-wk-2",
+              "text": "Weekend 2 — Shadow your wife's firm; do the document/compliance map + software inventory"
+            },
+            {
+              "id": "pd-wk-3",
+              "text": "Weekend 3 — Read Obviously Awesome; draft Keepance's positioning + one-page story"
+            },
+            {
+              "id": "pd-wk-4",
+              "text": "Weekend 4 — Read the Reg S-P guide; skim Books-and-Records; build your advisor interview list"
+            },
+            {
+              "id": "pd-wk-5",
+              "text": "Weekend 5 — Run the first 5 discovery interviews; read Founding Sales alongside"
+            },
+            {
+              "id": "pd-wk-6",
+              "text": "Weekend 6 — Finish interviews; do the reverse-demo test; make the paid design-partner ask"
+            }
           ]
         }
       ],
       "links": [
-        { "label": "Open the full plan (all libraries + exercises)", "doc": "https://jameworld.com/claudereports/r/2026-06-24-keepance-personal-development-plan.html" }
+        {
+          "label": "Open the full plan (all libraries + exercises)",
+          "doc": "https://jameworld.com/claudereports/r/2026-06-24-keepance-personal-development-plan.html"
+        }
       ]
     }
   ]

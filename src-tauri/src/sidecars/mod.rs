@@ -5,6 +5,7 @@
 //
 //   - ParakeetSidecar  : voice transcription (parakeet / whisper.cpp)
 //   - PiperSidecar     : text-to-speech (Stream B, not yet added)
+//   - LlamaServerSidecar : local LLM generation (llama.cpp server)
 //
 // The two main lifecycle shapes that impls may take:
 //
@@ -24,6 +25,8 @@ pub mod parakeet;
 pub use parakeet::ParakeetSidecar;
 pub mod piper;
 pub use piper::PiperSidecar;
+pub mod llama_server;
+pub use llama_server::LlamaServerSidecar;
 
 pub trait Sidecar: Send + Sync {
     fn name(&self) -> &str;
