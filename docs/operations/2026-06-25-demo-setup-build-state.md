@@ -48,47 +48,63 @@ functional first, THEN a dedicated UI pass** (hold all UI changes until the end)
   minutes before showing someone. Making it skip already-indexed PDFs would be a core-app change
   (out of scope for demo tooling).
 
-### Email inbox — account created + realistic-population path PROVEN (population/connect remain)
-- **Account created (by Jameson): `sarah.morgan.cfp@outlook.com`** (advisor persona "Sarah Morgan,
-  CFP"). Logged into the always-on Chrome; creds saved in the Chrome password manager. (I could not
-  auto-create one — Microsoft signup hits an Arkose "press and hold" puzzle built to block bots.)
-- **Realistic-population mechanism proven**: I obtained a working **IMAP read/write token** for the
-  account via the auth-code OAuth flow with the **Thunderbird public client** (device-code is blocked
-  for personal MSAs as "first-party"; auth-code works). Full procedure is in the header of
-  `scripts/demo/populate-inbox.py`.
-- **`scripts/demo/populate-inbox.py`** has **15 realistic Northcrest client emails already written**
-  (Brennan Roth-conversion question, Patel RSU concentration, Voss RMD/QCD, Ellison beneficiary,
-  Nakamura 529, Caldwell "can I retire at 60", etc. — varied client senders, past dates, some unread)
-  and IMAP-APPENDs them with proper From headers.
-- **Blocker for population:** IMAP is OFF on the brand-new account, gated behind "verify your account"
-  (Outlook web → Settings → Mail → Forwarding and IMAP). IMAP login currently fails with "User is
-  authenticated but not connected". **Fix:** verify the account (recommended: add
-  jamesondaines@outlook.com as a security email and read the code via the `outlook` CLI — no phone
-  needed), toggle IMAP on, then run populate-inbox.py.
-- The Android phone bridge was **unreachable** this session (`android-cdp status` = bridge unreachable),
-  so OTP-by-phone wasn't available — hence the email-verification route above.
+### Email inbox — ✅ DONE end-to-end (2026-06-25 session 3): emails in inbox, connected, cited Ask works
+- **Account: `sarah.morgan.cfp@outlook.com`** (advisor persona "Sarah Morgan, CFP"), verified by
+  Jameson (added jamesondaines@outlook.com as forwarding + recovery). Logged into the always-on Chrome
+  (session `graph-consent`).
+- **IMAP path FAILED — Microsoft anti-abuse lock on the brand-new account.** Even after enabling IMAP
+  (Outlook web → Settings → Mail → Forwarding and IMAP, toggle ON), IMAP login still returns "User is
+  authenticated but not connected" on all hosts (outlook.office365.com / imap-mail.outlook.com). The
+  token is fine (XOAUTH2 passes); the mailbox just blocks 3rd-party IMAP/POP on new accounts until they
+  age. NOT fixable on our timeline. `populate-inbox.py` (IMAP APPEND) is kept as a fallback for when the
+  lock lifts, but we did NOT use it.
+- **What WE USED — send the emails IN via Brevo (works immediately):**
+  `scripts/demo/brevo_send.py all` sends the 15 client emails TO Sarah from a Brevo-**verified** domain
+  (`jamesondaines.com`) with the real client **display names** (Thomas Brennan, Priya Patel, ...). Data
+  lives in `scripts/demo/inbox_emails.py`. They arrive as genuine received mail with correct sender
+  NAMES. Two cosmetic compromises vs IMAP: sender ADDRESS is `first.last@jamesondaines.com` (not a
+  gmail), and DATES are "today" (Brevo can't backdate). Brevo first lands them in **Junk** — fixed by
+  adding `jamesondaines.com` to Sarah's Safe-senders list (Outlook web → Settings → Mail → Junk email);
+  after that all 15 go straight to Inbox. Verified all 15 in Sarah's Inbox.
+- **Connect in Keepance on the bench — did NOT use the in-app browser OAuth** (the connector opens the
+  bench's *system* browser, which we can't drive). Instead:
+  1. Got a **Graph refresh token** for Keepance's own connector client (`845ddba0-70ab-4f90-88ba-e3522157e37a`,
+     scopes `offline_access openid User.Read Mail.Read Mail.Send`, redirect `http://localhost`) via the
+     always-on Chrome (Sarah already logged in → no password). Auth-code+PKCE, no secret. Scripts in
+     scratchpad: `oauth_url_graph.py` + `oauth_exchange_graph.py`. Verified the token reads all 15 via Graph.
+  2. **Injected the refresh token into the bench's Windows Credential Manager** (service `keepance-mail-ms`,
+     key `ms-refresh-token` — what `mail_is_connected` / `fresh_access_token` read). Used a tiny Rust helper
+     (`C:\Users\james\kcset`, `keyring = "3" features=["windows-native"]`, same crate as the app so the
+     credential format matches exactly). **Must run in the INTERACTIVE desktop session** — over SSH it
+     fails with `NoStorageAccess(1312)`; run it via a one-shot scheduled task (`run-kcset.ps1`).
+  3. Triggered import: `window.__TAURI__.core.invoke('mail_sync_all', { matterMap: [], onlyProvider: 'm365' })`
+     (matterMap is an ARRAY, not an object). → **20 messages written** (15 clients + 5 MS welcome). Account
+     window then shows "Connected. All mail imported and searchable."
+- **Cited-from-email Ask — VERIFIED.** "What did Thomas Brennan ask me about converting his IRA to a Roth
+  before year-end?" → grounded answer with 3 citation chips + green "Answered over your own files"
+  attestation, drawn from his actual email (Traditional IRA → Roth, lower bracket after business sale,
+  $200k Cascade Climate lock-up). Screenshot in scratchpad `cited-email-answer.png`.
+  - **⚠️ Demo-question rule (important):** the question must be SPECIFIC to the target email's content.
+    A generic "What did Thomas Brennan email me about his **retirement accounts**?" retrieves the WRONG
+    client (Carol Greer's "worried about the market" email also matches "retirement accounts") and the AI
+    honestly declines. Embeddings match topic, not sender name. Use content-specific questions (Roth
+    conversion, 529, RSU concentration, QCD, etc.). Retrieval is global top-8 then filtered to email, so
+    the target email must out-rank documents+other-emails for that query.
+  - **Ask must be GLOBAL** (no active client) for cross-mailbox email search: clear `activeMatterId`
+    (localStorage `keepance:matters` → state.activeMatterId=null) so retrieval scope is allMatters; then
+    the Email scope chip filters to mail. With a client active, retrieval is scoped to that client and
+    finds no (unassigned) mail.
 
 ---
 
 ## REMAINING (priority order)
 
-1. **Finish the email inbox** (the realistic path is proven — just execute it):
-   a. Verify `sarah.morgan.cfp@outlook.com` (add jamesondaines@outlook.com as security email →
-      read code via `outlook search "code"` / `outlook list` → enter it). Then enable IMAP in
-      Outlook web settings (Forwarding and IMAP).
-   b. Get a fresh IMAP token (procedure in `populate-inbox.py` header) and run the script → 15
-      client emails land in the inbox.
-   c. **Connect the inbox in Keepance on the bench**: Account window → Connections tab → "Connect
-      Microsoft 365" (open via `window.dispatchEvent(new CustomEvent('keepance:open-account',{detail:{tab:'connections'}}))`).
-      This opens an OAuth browser ON THE BENCH (cross-machine) — sign in as sarah there. Import
-      auto-runs. (See the connector research below.)
-   d. **Verify a cited-from-email Ask**: sidebar Search (`spine-nav-search`) → scope chip
-      `scope-option-email` → `ask-composer-input` → e.g. "What did Thomas Brennan email me about
-      his retirement accounts?" → expect a cited answer (citation chips `ask-citation-chip-N`;
-      mail citations open via `keepance:open-email`).
-   - If the realistic path stalls again, the reliable fallback is to SEND the 15 emails from
-     jamesondaines@outlook.com via the `outlook send` CLI (single sender, clutters his Sent, but
-     functional). Prefer the IMAP path for varied client senders.
+1. **Email inbox — ✅ DONE** (see the DONE section above). To re-run after a wipe: `brevo_send.py all`
+   → ensure `jamesondaines.com` is in Sarah's Outlook Safe-senders → get a fresh Graph refresh token
+   (`oauth_url_graph.py`/`oauth_exchange_graph.py` via the `graph-consent` Chrome) → inject via kcset
+   scheduled task → `mail_sync_all`. Note the **refresh token is the only durable bit**; the bench
+   keychain entry survives restarts, so a connected state persists. The 20 imported messages live in
+   the workspace's encrypted mail store + LanceDB (survive app restarts).
 
 2. **BLANK mode**: stage a small fresh workspace on the bench (e.g. `C:\keepance-demo-blank` with
    one small client folder of `.txt`/`.docx`) so the first-run build-up is fast. reset-blank.mjs
@@ -150,6 +166,24 @@ functional first, THEN a dedicated UI pass** (hold all UI changes until the end)
 - The bench GUI app needs a free interactive screen; never run Parsec as a *client* on the bench.
 - Codex `--read-only` is NOT enforced on this box (broken sandbox) — it CAN edit files.
 - Verify before claiming done (run the actual ask/map and show the result).
+- **Demo workspace = `C:/keepance-demo-northcrest/Northcrest Wealth Partners`** (name "Northcrest Wealth
+  Partners"). There is ALSO a leftover `C:/kp-e2e-workspace` (test data, NO mail) — do NOT open it. The
+  recent-workspace list can drift to kp-e2e; restore the correct one by setting localStorage
+  `keepance_recent_workspaces` to the seed value (`seed-loaded.json` → `recentWorkspaces`) then restart
+  the app so the picker re-reads it. LanceDB + mail are PER-WORKSPACE (under `<workspace>/.keepance/`).
+- **App restart on the bench:** it runs `C:\run-dev.bat` = `vite preview --port 5173 --strictPort` (serves
+  the PREBUILT dist; NOT tauri dev) + the prebuilt `keepance.exe`. To restart cleanly:
+  `Stop-Process -Name keepance,node,msedgewebview2 -Force`, wait ~5s (strictPort needs 5173 free; leftover
+  node/vite holds it), then `Start-ScheduledTask -TaskName KeepanceDev`. NOTE: Vite binds **IPv6 `::1`**, so
+  a `127.0.0.1:5173` TCP check shows false-negative — the app still reaches it. CDP debug port is 9223.
+- **CDP drops on in-app `page.reload()`** (stale targets → scripts hang past the node timeout). Prefer a
+  full app restart over reload: set the localStorage you need, then kill+Start-ScheduledTask; the picker
+  re-reads at boot. Simple connect+evaluate scripts (no reload) are stable.
+- **Direct retrieval probe (very useful for diagnosing Ask):**
+  `window.__TAURI__.core.invoke('rag_retrieve', { query, topK, scope:{kind:'allMatters'}, includePrivileged:false })`.
+  Hit text is in `hit.chunkText` (NOT `hit.text`). The UI Ask uses `DEFAULT_WORKSPACE_TOP_K = 8` then
+  `filterHitsByScope` (email/documents are a CLIENT-SIDE filter applied AFTER the top-8). `mail:` paths =
+  email chunks. Reset scripts/probes live in `scripts/demo/bench-*.mjs` (probe, ragprobe, ask-clean, etc.).
 
 ## Git
 - Work on `keepance-3.0` in `~/keepance`. Demo work committed locally; **do NOT push keepance-3.0**

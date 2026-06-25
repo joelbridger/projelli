@@ -1,18 +1,8 @@
-#!/usr/bin/env python3
-"""Populate sarah.morgan.cfp@outlook.com's inbox with realistic Northcrest client
-emails via IMAP APPEND (XOAUTH2). Each email has a real client sender, subject,
-past date, and body — so the connected Keepance Ask can cite a real email."""
-import imaplib, json, time, ssl
-from email.message import EmailMessage
-from email.utils import formatdate
-from datetime import datetime, timedelta, timezone
+"""Shared data: the 15 realistic Northcrest client emails for Sarah Morgan's demo inbox.
+Used by both populate-inbox.py (IMAP APPEND, when the new-account IMAP lock lifts) and
+brevo_send.py (send real mail via Brevo from a verified domain — works immediately).
+Tuple: (from_name, client_addr, subject, days_ago, unread, body)"""
 
-import os
-TOK = json.load(open(os.environ.get('IMAP_TOKEN_JSON', '/tmp/claude-1000/-home-jameson/dadc9abc-0cc3-4e6a-9a49-136a3006e1b0/scratchpad/token.json')))
-ACCESS = TOK['access_token']
-USER = 'sarah.morgan.cfp@outlook.com'
-
-# (from_name, from_addr, subject, days_ago, unread, body)
 EMAILS = [
  ("Thomas Brennan","tbrennan.mail@gmail.com","Roth conversion before year-end?",2,True,
   "Hi Sarah,\n\nKaren and I have been thinking about the Roth conversion strategy you mentioned at our last review. We'd like to move forward with converting a chunk of my Traditional IRA this year while we're in a lower bracket after the business sale.\n\nMy main question: how much can we convert in 2026 without pushing us into the next tax bracket? We want to be aggressive but not reckless. Also, should we wait until December once we know our full income picture?\n\nOne more thing - the $200k of Cascade Climate preferred shares come out of lock-up in July. Does that change the timing?\n\nThanks,\nThomas"),
@@ -45,31 +35,3 @@ EMAILS = [
  ("Susan Nakamura","susan.nakamura.fam@gmail.com","Quick question on the HSA",58,False,
   "Sarah,\n\nQuick one - we maxed out our HSA again this year. You mentioned we could invest the balance rather than leave it in cash. How do we do that, and what should we invest it in given we probably won't touch it for 20 years?\n\nSusan"),
 ]
-
-def xoauth2_string(user, token):
-    return f"user={user}\x01auth=Bearer {token}\x01\x01"
-
-ctx = ssl.create_default_context()
-M = imaplib.IMAP4_SSL('outlook.office365.com', 993, ssl_context=ctx)
-M.authenticate('XOAUTH2', lambda x: xoauth2_string(USER, ACCESS).encode())
-print("IMAP authenticated as", USER)
-
-now = datetime.now(timezone.utc)
-ok = 0
-for (fname, faddr, subj, days, unread, body) in EMAILS:
-    msg = EmailMessage()
-    msg['From'] = f"{fname} <{faddr}>"
-    msg['To'] = f"Sarah Morgan <{USER}>"
-    msg['Subject'] = subj
-    dt = now - timedelta(days=days, hours=(days % 7) + 1)
-    msg['Date'] = formatdate(dt.timestamp(), localtime=False)
-    msg.set_content(body)
-    flags = '' if unread else '(\\Seen)'
-    res = M.append('INBOX', flags, imaplib.Time2Internaldate(dt.timestamp()), msg.as_bytes())
-    print(f"  {'UNREAD' if unread else 'read  '} {fname:18s} | {subj[:40]:40s} -> {res[0]}")
-    if res[0] == 'OK':
-        ok += 1
-    time.sleep(0.4)
-
-M.logout()
-print(f"\nAPPENDED {ok}/{len(EMAILS)} emails to {USER} inbox")
