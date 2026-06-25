@@ -23,6 +23,7 @@ import {
   normalizeMatterAtAGlanceResult,
 } from '@/platform/matter/matterAtAGlance';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
+import { mailListMessages } from '@/platform/utils/mail-commands';
 import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
 import { Button, IconButton, SearchField, Chip, Badge, Eyebrow, Card } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
@@ -103,6 +104,30 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
   const [glanceStatus, setGlanceStatus] = useState<GlanceStatus>('idle');
   const [glanceResult, setGlanceResult] = useState<MatterAtAGlanceResult | null>(null);
   const glanceAbortRef = useRef<AbortController | null>(null);
+
+  // ── This client's emails (for the Email panel preview) ─────────────────────
+  // Connected mail is searchable globally and tagged to a matter for retrieval,
+  // but there is no "list messages by matter" command yet, so we preview this
+  // client's mail by matching the household name against the sender. Shows the
+  // real connected emails instead of a misleading "no email folders connected".
+  const [clientEmails, setClientEmails] = useState<Array<{ subject: string }>>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const fullName = matter?.name ?? '';
+    const firstPart = fullName.split(/[,&]/)[0] ?? fullName;
+    const surname = firstPart.trim().toLowerCase();
+    if (!surname) { setClientEmails([]); return; }
+    void mailListMessages({ sortBy: 'date', sortDesc: true, limit: 100, offset: 0 })
+      .then((page) => {
+        if (cancelled) return;
+        const mine = (page.items ?? []).filter((m) =>
+          `${m.fromName ?? ''} ${m.fromAddr ?? ''}`.toLowerCase().includes(surname),
+        );
+        setClientEmails(mine.map((m) => ({ subject: m.subject })));
+      })
+      .catch(() => { if (!cancelled) setClientEmails([]); });
+    return () => { cancelled = true; };
+  }, [matterId, matter?.name]);
 
   // Count sessions belonging to this matter (key starts with `ask-${matterId}`)
   const matterSessionPrefix = `ask-${matterId}`;
@@ -759,7 +784,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
               Email
             </Eyebrow>
             <span style={panelCount}>
-              ({String((matter.mailFolderPaths ?? []).length)})
+              ({String(clientEmails.length)})
             </span>
             <IconButton
               icon={ChevronRight}
@@ -771,14 +796,14 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
             />
           </div>
           <div style={panelPreview}>
-            {(matter.mailFolderPaths ?? []).length === 0 ? (
+            {clientEmails.length === 0 ? (
               /* eslint-disable keepance-i18n/no-hardcoded-string */
-              <span>No email folders connected</span>
+              <span>No emails for this client yet</span>
               /* eslint-enable keepance-i18n/no-hardcoded-string */
             ) : (
-              /* eslint-disable keepance-i18n/no-hardcoded-string */
-              <span>{String((matter.mailFolderPaths ?? []).length)} mail folder(s) connected</span>
-              /* eslint-enable keepance-i18n/no-hardcoded-string */
+              clientEmails.slice(0, 2).map((m, i) => (
+                <div key={i} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.subject}</div>
+              ))
             )}
           </div>
         </Card>
