@@ -20,6 +20,8 @@ import { render, screen } from '@testing-library/react';
 
 import {
   resolveEgress,
+  isLocalProvider,
+  providerDisplayName,
   CONFIDENTIALITY_MODE_SETTING_KEY,
   DEFAULT_CONFIDENTIALITY_MODE,
 } from '@/platform/privacy/egress';
@@ -94,6 +96,30 @@ describe('resolveEgress (the single source of truth)', () => {
 
   it('the default mode is Direct (matches shipping behaviour)', () => {
     expect(DEFAULT_CONFIDENTIALITY_MODE).toBe('direct');
+  });
+
+  // Embedded Keepance Local AI engine (llama.cpp) — local-model initiative.
+  it('Keepance Local AI => nothing leaves the machine, named correctly', () => {
+    const info = resolveEgress({ provider: 'keepance-local', mode: 'direct' });
+    expect(info.destination).toBe('local');
+    expect(info.severity).toBe('safe');
+    expect(info.dataLeaves).toBe(false);
+    expect(info.provider).toBe('keepance-local');
+    // The honest note names the actual local engine, not Ollama.
+    expect(info.note).toMatch(/Keepance Local AI/);
+    expect(info.note).not.toMatch(/Ollama/);
+  });
+
+  it('Ollama local note still names Ollama (no regression)', () => {
+    const info = resolveEgress({ provider: 'ollama', mode: 'direct' });
+    expect(info.note).toMatch(/\(Ollama\)/);
+  });
+
+  it('both local providers are recognised as local; cloud is not', () => {
+    expect(isLocalProvider('keepance-local')).toBe(true);
+    expect(isLocalProvider('ollama')).toBe(true);
+    expect(isLocalProvider('anthropic')).toBe(false);
+    expect(providerDisplayName('keepance-local')).toBe('Keepance Local AI');
   });
 });
 

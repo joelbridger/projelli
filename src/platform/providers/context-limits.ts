@@ -28,6 +28,9 @@ const PROVIDER_FALLBACKS: Record<string, number> = {
   openai: 128000,
   gemini: 1000000,
   ollama: 8192,
+  // Embedded Keepance Local AI engine. The Rust side pins the actual context
+  // window via llama.cpp's --ctx-size; this fallback is for UI/metadata only.
+  'keepance-local': 16384,
 };
 
 // Exact-match overrides. Match is attempted first; if no exact match, the
@@ -101,6 +104,8 @@ const MODEL_OVERRIDES: Record<string, ContextLimitInfo> = {
   'gemma3:4b': { maxTokens: 131072 },
   'gemma3:1b': { maxTokens: 32768 },
   'phi4-mini': { maxTokens: 131072 },
+  // Embedded Keepance Local AI default model (Qwen3-4B-Instruct-2507).
+  'qwen3-4b-instruct-2507': { maxTokens: 262144 },
 };
 
 /**

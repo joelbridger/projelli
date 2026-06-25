@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Local-model initiative — "Keepance Local AI" provider identity (Ticket 1).** Introduced the `keepance-local` provider id (display name "Keepance Local AI") for the upcoming embedded llama.cpp engine, wired through the provider/privacy layer as a LOCAL (on-device) provider: `isLocalProviderId`, egress `isLocalProvider`/`providerDisplayName`/`resolveEgress`, and the local-only send guard all now treat it as local (nothing leaves the machine). The egress note names the actual local engine instead of hard-coding "Ollama". `createProvider` fails loudly for it until the engine ships (no silent cloud fallback). Default model id `qwen3-4b-instruct-2507` (Apache-2.0). See `docs/strategy/2026-06-25-local-model-research-and-recommendation.md`.
+  - Files modified: `src/platform/providers/providerFactory.ts`, `src/platform/privacy/egress.ts`, `src/platform/providers/context-limits.ts`
+  - Tests: `tests/unit/models/keepance-local-provider-identity.test.ts`, `tests/unit/privacy/{egress,local-only-egress-guard}.test.ts` (62 green); `npm run typecheck`
+
 ### Fixed
 - **Local (Ollama) AI no longer silently truncates retrieved context.** `OllamaProvider` never set `num_ctx`, so Ollama fell back to its small Modelfile default (often 2048-4096 tokens) and could drop part of the ~3-6K of retrieved RAG context with no warning — producing answers grounded in only part of the evidence. The provider now always requests an explicit working context window (`OLLAMA_WORKING_CONTEXT_WINDOW = 16384`, clamped per-model to the model's known maximum) on chat, streaming, and structured-output requests, and `context-limits.ts` gained correct context windows for the local-model shortlist (llama3.2, qwen3, qwen2.5, granite3.x, gemma3). Part of the local-model initiative (`docs/strategy/2026-06-25-local-model-research-and-recommendation.md`).
   - Files modified: `src/platform/providers/OllamaProvider.ts`, `src/platform/providers/context-limits.ts`

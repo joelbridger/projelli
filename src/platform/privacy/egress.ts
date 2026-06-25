@@ -111,14 +111,20 @@ export function providerDisplayName(provider: EgressProvider): string {
       return 'Google';
     case 'ollama':
       return 'Ollama';
+    case 'keepance-local':
+      return 'Keepance Local AI';
     default:
       return provider;
   }
 }
 
-/** True when a provider id denotes a local (on-machine) model. */
+/**
+ * True when a provider id denotes a local (on-machine) model: the embedded
+ * Keepance Local AI engine ('keepance-local') or a user-run Ollama daemon
+ * ('ollama'). Both keep all inference on the device.
+ */
 export function isLocalProvider(provider: EgressProvider): boolean {
-  return provider === 'ollama';
+  return provider === 'ollama' || provider === 'keepance-local';
 }
 
 export interface ResolveEgressInput {
@@ -161,13 +167,17 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
   const treatAsLocal = isLocalProvider(provider) || mode === 'local-only';
 
   if (treatAsLocal) {
+    // Preserve the actual local provider id (keepance-local vs ollama) so the
+    // note names the right engine; fall back to ollama only when local-only mode
+    // forced locality on a non-local stored provider.
+    const localProvider = isLocalProvider(provider) ? provider : 'ollama';
     return {
       destination: 'local',
       severity: 'safe',
       label: 'On your machine. Nothing leaves',
-      note: 'This runs on a local model (Ollama). No prompt or file is sent over the network.',
+      note: `This runs on a local model (${providerDisplayName(localProvider)}). No prompt or file is sent over the network.`,
       dataLeaves: false,
-      provider: isLocalProvider(provider) ? provider : 'ollama',
+      provider: localProvider,
     };
   }
 
