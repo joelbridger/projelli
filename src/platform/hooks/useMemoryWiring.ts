@@ -170,6 +170,38 @@ async function getFreshOrCachedFileTree(
   return useWorkspaceStore.getState().fileTree;
 }
 
+/**
+ * Like getFreshOrCachedFileTree, but RETRIES the live disk scan with bounded
+ * backoff until the workspace backend is initialized and the tree is non-empty.
+ *
+ * The on-open full index can fire BEFORE the workspace finishes initializing
+ * (most reliably when the embedding model is already cached, so indexing starts
+ * immediately). At that instant `getFileTree()` throws "workspace not
+ * initialized" and the plain helper falls back to the EMPTY cached tree, so
+ * `collectPdfPaths` returns [] and no PDFs index — the single biggest "it
+ * doesn't just work on import" gap (demo bug log A2). Retrying until the scan
+ * succeeds makes the on-open PDF index reliable.
+ */
+async function getFreshTreeWithRetry(
+  workspaceService: MemoryWiringWorkspaceService | null | undefined,
+  maxAttempts = 14,
+  delayMs = 500,
+): Promise<FileNode[]> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (workspaceService?.getFileTree) {
+      try {
+        const tree = await workspaceService.getFileTree();
+        if (Array.isArray(tree) && tree.length > 0) return tree;
+      } catch {
+        // Workspace not initialized yet — back off and retry.
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  // Gave up waiting — fall back to whatever the cached tree has (may be empty).
+  return useWorkspaceStore.getState().fileTree;
+}
+
 function pathForms(path: string, rootPath: string | null | undefined): string[] {
   const forms = new Set<string>();
   forms.add(toForwardSlashPath(path));
@@ -354,7 +386,10 @@ export async function indexWorkspacePdfs(
   const binaryWs = buildBinaryWorkspace(workspaceService);
   if (!binaryWs) return;
   const { rootPath } = useWorkspaceStore.getState();
-  const pdfPaths = collectPdfPaths(await getFreshOrCachedFileTree(workspaceService));
+  // Retry the FRESH scan until the workspace backend is initialized and the tree
+  // is loaded, so PDFs index reliably even when the index fires immediately on
+  // open (the empty-cached-tree race that previously dropped ~80% of files).
+  const pdfPaths = collectPdfPaths(await getFreshTreeWithRetry(workspaceService));
   if (pdfPaths.length === 0) return;
   const progress = usePdfIndexProgressStore.getState();
   progress.set({ processed: 0, total: pdfPaths.length, currentPath: null });
@@ -564,7 +599,14 @@ export function useMemoryWiring(
         s();
       });
     };
-  }, [rootPath]);
+    // Depend on workspaceService too. On open the service is created/set AFTER
+    // rootPath (the recent-open path sets rootPath, then App creates the service
+    // asynchronously), so the FIRST run captures a null service and skips the PDF
+    // pass — silently dropping ~80% of files. App re-renders when the service is
+    // set (e.g. the tree loads), so re-running here fires the PDF index with a
+    // real service. The Rust full walk coalesces via its once-per-activation
+    // latch, so it is not redone.
+  }, [rootPath, workspaceService]);
 
   // A3: React to toggle changes for includePdfsInWorkspaceIndex.
   // When turned ON, trigger PDF indexing. When turned OFF, remove PDF chunks.

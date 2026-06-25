@@ -346,6 +346,37 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
     );
   });
 
+  it('retries the fresh disk scan until the workspace is initialized, then indexes PDFs on open', async () => {
+    // Regression for the #1 import gap: when the embedding model is already
+    // cached, the full index fires the instant the workspace opens — BEFORE the
+    // backend finishes initializing — so getFileTree() throws "not initialized"
+    // and the empty cached tree yields ZERO PDFs. The retry must wait it out.
+    setPdfIndexingEnabledReader(() => true);
+    useWorkspaceStore.setState({ rootPath: 'C:\\ws\\Northcrest', fileTree: [] });
+
+    const pdfTree = [makeFolder('Clients/Acme', [makeFile('Clients/Acme/statement.pdf')])];
+    const getFileTree = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('workspace not initialized')) // not ready yet
+      .mockResolvedValueOnce([]) // ready, but the tree hasn't loaded
+      .mockResolvedValue(pdfTree); // finally populated
+
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      readFileBinary: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+      getFileTree,
+    };
+
+    await indexWorkspacePdfs(ws);
+
+    expect(getFileTree.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(indexPdfFile).toHaveBeenCalledTimes(1);
+    const [pdfPath] = indexPdfFile.mock.calls[0] as [string];
+    expect(pdfPath).toBe('C:/ws/Northcrest/Clients/Acme/statement.pdf');
+  });
+
   it('skips PDFs during folder reindex when PDF indexing is disabled', async () => {
     const matterId = 'matter-acme';
     const folder = 'Clients/Acme';
