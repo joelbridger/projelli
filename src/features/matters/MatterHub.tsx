@@ -116,12 +116,17 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
     const fullName = matter?.name ?? '';
     const firstPart = fullName.split(/[,&]/)[0] ?? fullName;
     const surname = firstPart.trim().toLowerCase();
-    if (!surname) { setClientEmails([]); return; }
+    if (!surname) {
+      // Defer the empty-state reset out of the effect body (no synchronous
+      // setState in an effect — it can trigger cascading renders).
+      void Promise.resolve().then(() => { if (!cancelled) setClientEmails([]); });
+      return;
+    }
     void mailListMessages({ sortBy: 'date', sortDesc: true, limit: 100, offset: 0 })
       .then((page) => {
         if (cancelled) return;
-        const mine = (page.items ?? []).filter((m) =>
-          `${m.fromName ?? ''} ${m.fromAddr ?? ''}`.toLowerCase().includes(surname),
+        const mine = page.items.filter((m) =>
+          `${m.fromName} ${m.fromAddr}`.toLowerCase().includes(surname),
         );
         setClientEmails(mine.map((m) => ({ subject: m.subject })));
       })

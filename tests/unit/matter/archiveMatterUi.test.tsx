@@ -20,6 +20,7 @@ const auditMocks = vi.hoisted(() => ({
 
 // ── Mail commands (async probes used by GetStartedCard) ────────────────────────
 vi.mock('@/platform/utils/mail-commands', () => ({
+  mailListMessages: async () => ({ items: [], total: 0 }),
   mailIsConnected: async () => false,
   gmailIsConnected: async () => false,
   mailImapIsConnected: async () => false,
@@ -269,7 +270,7 @@ describe('MatterManagerDialog — external AI tool access grant', () => {
     expect(screen.queryByTestId(`matter-mcp-access-badge-${matter.id}`)).not.toBeInTheDocument();
 
     const input = screen.getByLabelText(
-      'Allow external AI tools (MCP) to access this matter',
+      'Allow external AI tools (MCP) to access this client',
     ) as HTMLInputElement;
     fireEvent.click(input);
 

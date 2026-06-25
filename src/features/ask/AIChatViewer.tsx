@@ -547,7 +547,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     if (!chatModel) return null;
     if (isVisionModel(chatProvider, chatModel)) return null;
     return `${chatModel} does not support images. Switch to a vision-capable model.`;
-  }, [pendingAttachments, effectiveProvider, chatData.provider, chatData.model]);
+  }, [pendingAttachments, effectiveProvider, chatData.model]);
 
   // Save draft input to store (debounced) - persists across navigation
   useEffect(() => {

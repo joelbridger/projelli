@@ -504,6 +504,36 @@ mod tests {
         assert!(!free_space_covers_download(99 + reserve, 900, expected));
     }
 
+    /// #2 + #3 belt-and-suspenders: the download writes a `Downloading` manifest,
+    /// then overwrites it with a `Ready` one — the rename-over-existing Codex
+    /// flagged for Windows. This locks the demo-critical contract end to end: the
+    /// Ready write must REPLACE the existing Downloading manifest atomically, AND
+    /// `model_ready_in` must only flip true once that Ready manifest sits beside a
+    /// correctly-sized model file (so a truncated/partial download can't start
+    /// the engine).
+    #[test]
+    fn ready_manifest_replaces_downloading_and_flips_model_ready_in() {
+        let tmp = tempfile::tempdir().unwrap();
+        let bytes = b"tiny fake gguf bytes";
+        let spec = tiny_spec("http://unused".to_string(), bytes);
+        // The model file must sit at the exact expected size for readiness.
+        std::fs::write(tmp.path().join(spec.filename), bytes).unwrap();
+
+        // Mid-download: a Downloading manifest. Must NOT count as ready.
+        write_manifest(tmp.path(), &spec.manifest(LocalModelStatus::Downloading)).unwrap();
+        assert!(
+            !model_ready_in(tmp.path(), &spec),
+            "a Downloading manifest must never count as ready"
+        );
+
+        // The Ready write lands OVER the existing Downloading manifest.json.
+        write_manifest(tmp.path(), &spec.manifest(LocalModelStatus::Ready)).unwrap();
+        assert!(
+            model_ready_in(tmp.path(), &spec),
+            "model_ready_in must flip true once the Ready manifest replaces the Downloading one"
+        );
+    }
+
     #[tokio::test]
     async fn downloads_tiny_model_and_writes_ready_manifest() {
         let bytes = b"tiny fake gguf bytes".to_vec();
