@@ -149,19 +149,24 @@ Core-app rule: **no shortcuts, robust over minimal, TDD, real verification, no a
 **Done so far (2026-06-25):**
 - ✅ **Model + license confirmed.** Qwen3-4B-Instruct-2507 = Apache-2.0 (verified), 4.0B params, 262K ctx. Default = Qwen; IBM Granite = US trust-brand alternative.
 - ✅ **Engine design resolved** (Codex spike): `llama-server` sidecar behind Rust commands + a `keepance-local` provider (see §6).
-- ✅ **Ollama `num_ctx` truncation bug fixed** (the advanced path). `OllamaProvider` now always sets `num_ctx = min(16384, model max)` (new `OLLAMA_WORKING_CONTEXT_WINDOW`); `context-limits.ts` gained correct windows for the shortlist models (llama3.2/qwen3/qwen2.5/granite3.x/gemma3). Unit-tested (58 tests green) + typecheck clean. Branch `feature/local-model`.
+- ✅ **Ollama `num_ctx` truncation bug fixed** (the advanced path). `OllamaProvider` now always sets `num_ctx = min(16384, model max)` (new `OLLAMA_WORKING_CONTEXT_WINDOW`); `context-limits.ts` gained correct windows for the shortlist models (llama3.2/qwen3/qwen2.5/granite3.x/gemma3). Unit-tested + typecheck clean.
+- ✅ **Ticket 1 — provider identity.** `keepance-local` ("Keepance Local AI") wired through the provider/privacy layer as a LOCAL provider (factory, egress, local-only guard).
+- ✅ **Tickets 2-3 — sidecar + downloader (Rust).** `LlamaServerSidecar` (lazy, `--ctx-size 16384`, health checks, hidden console, log capture) + `local_llm` first-run GGUF downloader (pinned HF revision, `.part` resume, SHA-256 verify, disk-space guard, atomic rename). `cargo test --lib llama_server` (8) + `local_llm` (9) green.
+- ✅ **Tickets 4-5 — KeepanceLocalProvider (the chat path).** Provider implements chat / streaming / structuredOutput, lazily starts the sidecar via the Rust command, and streams from its local OpenAI-compatible endpoint; wired into `createProvider`. 446 unit tests + typecheck + ESLint gate green.
+- 🔧 **Design revision (2026-06-25):** chose **frontend-direct chat** (provider → `127.0.0.1` sidecar over the CSP-allowed localhost port, reusing the proven Ollama streaming pattern) over the Codex-spiked "Rust IPC bridge". Rust still owns the sidecar LIFECYCLE (start/stop/health) and the model download; only the chat HTTP is frontend-direct — less new code, consistent with the existing local provider. This folds the original "Ticket 4 (Rust chat bridge)" into Ticket 5.
+- **All built on branch `feature/local-ai-build` (an isolated worktree), based on `feature/local-model`.**
 
 **Remaining build (sequenced tickets, lead-reviewed, no auto-deploy):**
 
 | # | Ticket | Risk | Gate |
 |---|---|---|---|
-| 1 | **Provider identity** — add `keepance-local` to provider types, local-only guard, egress checks, model metadata | low | tests prove it's treated as local |
-| 2 | **Sidecar plumbing** — `src-tauri/src/sidecars/llama_server.rs`: binary resolution, start/stop/health, hidden console on Windows, fake-sidecar tests | med | `cargo test` + fake-sidecar |
-| 3 | **Model manifest + downloader** — `src-tauri/src/commands/local_llm/`: resume, SHA-256 verify, progress, retry, disk-space guard | med | unit-test w/ tiny fake model |
-| 4 | **Rust chat bridge** — POST to `llama-server`, parse stream, emit events, cancellation, structured errors | med | `cargo test` |
-| 5 | **`KeepanceLocalProvider.ts`** — `sendMessage`/streaming/`structuredOutput` over Tauri IPC; Ask + workflows + citations stay stable | med | `npm run gate` |
-| 6 | **Local AI UI** — make "Download Keepance Local AI" the primary path; Ollama → advanced settings; reconcile `website/local-model-setup` to one story | low | gate + site deploy |
-| 7 | **Harden context sizing** — embedded `--ctx-size 16384`; test that local providers never omit a context window (Ollama half ✅ done) | low | unit tests |
+| 1 | ✅ **DONE** Provider identity (`keepance-local`) | low | tests green |
+| 2 | ✅ **DONE** Sidecar plumbing (`llama_server.rs`) | med | `cargo test` (8) |
+| 3 | ✅ **DONE** Model manifest + downloader (`local_llm/`) | med | `cargo test` (9) |
+| 4 | ✅ **DONE — folded into 5** (chose frontend-direct chat, not a Rust IPC bridge) | — | n/a |
+| 5 | ✅ **DONE** `KeepanceLocalProvider.ts` (chat / streaming / structuredOutput) | med | 446 unit + gate green |
+| 6 | **TODO** Local AI UI — "Download Keepance Local AI" primary; Ollama → advanced; reconcile `website/local-model-setup` (do AFTER the feature can actually ship) | low | gate + site deploy |
+| 7 | ✅ **DONE (covered)** Context sizing — Ollama `num_ctx` + embedded `--ctx-size 16384` (build_args test) + provider metadata reports the true 16K window | low | unit tests |
 | 8 | **Spreadsheet path** — deterministic Excel extraction/compute → feed computed facts to the model | med | tests + demo-sheet bench |
 | 9 | **Cited-answer test path** — extend `tests/desktop/specs/18-rag-cited-ask.mjs` to verify embedded local AI answers with citations | med | desktop harness |
 | 10 | **CI + signing** — llama-server staging/stubs, macOS + Windows sidecar signing, build checks (do not ship) | med | CI green |
