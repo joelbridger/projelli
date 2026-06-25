@@ -137,6 +137,8 @@ pub enum SourceType {
     /// group's locator start page (derived from the locator's first
     /// number), stored in `page_number` the way PDF pages band.
     Transcript { start_page: u32 },
+    /// Wealthbox CRM record (per-object record or household summary). text column holds hex-encoded AES-256-GCM ciphertext.
+    Crm,
 }
 
 /// Name of the per-workspace LanceDB table that stores chunk embeddings.
@@ -531,6 +533,8 @@ pub fn build_batch(
         // Fail loudly — this is a programmer error on a code-chosen enum, never
         // data-driven.
         SourceType::Mail => unreachable!("mail chunks must use build_batch_mail, not build_batch"),
+        // CRM chunks MUST go through build_batch_crm so source_type = "crm".
+        SourceType::Crm => unreachable!("crm chunks must use build_batch_crm, not build_batch"),
     };
     let st_arr = StringArray::from(vec![st_str; rows.len()]);
     let pn_arr = UInt32Array::from(vec![pn_val; rows.len()]);
@@ -698,6 +702,114 @@ pub fn build_batch_mail(
         ],
     )
     .context("RecordBatch::try_new failed for mail chunks batch")
+}
+
+/// Build a RecordBatch for CRM chunks. Mirrors `build_batch_mail` exactly —
+/// the `text` column holds hex-encoded AES-256-GCM ciphertext, `source_type`
+/// is written as `"crm"`, and `encrypted = true`. Used by the Wealthbox
+/// connector (Phase 1A) to persist per-object records and household summaries.
+///
+/// WS-VEC: `key` is the vector-store master key — the same key used by every
+/// other batch builder, so the whole `chunks` table decrypts under one key.
+///
+/// WS-B/C: `matter_id` is the confidentiality scope key (NON-NULL) written to
+/// every row. `source_id` is formatted as `crm:<kind>:<id>` by the caller.
+///
+/// WS-PRIV: `privilege` is the litigation-safety status (NON-NULL) written to
+/// every row.
+pub fn build_batch_crm(
+    rows: &[(Chunk, Vec<f32>)],
+    key: &[u8; 32],
+    matter_id: &str,
+    privilege: &str,
+) -> Result<RecordBatch> {
+    use crate::commands::mail::crypto::encrypt_with_key;
+
+    let schema = build_schema();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+
+    let ids: Vec<String> = rows
+        .iter()
+        .map(|(c, _)| chunk_id(&c.path, c.paragraph_index))
+        .collect();
+    let para_idx: Vec<u32> = rows.iter().map(|(c, _)| c.paragraph_index).collect();
+    let timestamps = vec![now; rows.len()];
+
+    // Encrypt each chunk's text; store as hex string in the text column.
+    // S2: Propagate encrypt errors — silently storing empty with encrypted=true
+    // would produce a permanently-unrecoverable chunk.
+    let mut encrypted_texts: Vec<String> = Vec::with_capacity(rows.len());
+    for (c, _) in rows.iter() {
+        let blob = encrypt_with_key(c.text.as_bytes(), key)
+            .map_err(|e| anyhow::anyhow!("encrypt crm chunk {}: {e}", c.path))?;
+        encrypted_texts.push(hex::encode(&blob));
+    }
+
+    // VG-6e: same tokenization as build_batch_mail — a "crm:<kind>:<id>" key is
+    // a re-identification surface, so it gets the same token + path_enc pair.
+    let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
+    let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
+    for (c, _) in rows.iter() {
+        path_tokens.push(super::crypto::path_token(key, &c.path));
+        let blob = encrypt_with_key(c.path.as_bytes(), key)
+            .map_err(|e| anyhow::anyhow!("encrypt crm chunk path {}: {e}", c.path))?;
+        path_encs.push(hex::encode(&blob));
+    }
+
+    let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
+        rows.iter()
+            .map(|(_, v)| Some(v.iter().copied().map(Some).collect::<Vec<_>>())),
+        EMBEDDING_DIM as i32,
+    );
+
+    let id_arr = StringArray::from_iter_values(ids.iter().map(|s| s.as_str()));
+    let path_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
+    // WS-B/C: matter_id (one value, all rows) + source_id (== path = "crm:<kind>:<id>"
+    // — VG-6e: both columns hold the token).
+    let matter_arr = StringArray::from(vec![matter_id; rows.len()]);
+    let src_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
+    let penc_arr = StringArray::from_iter_values(path_encs.iter().map(|s| s.as_str()));
+    let pi_arr = UInt32Array::from(para_idx);
+    let text_arr = StringArray::from_iter_values(encrypted_texts.iter().map(|s| s.as_str()));
+    let ts_arr = Int64Array::from(timestamps);
+    let st_arr = StringArray::from(vec!["crm"; rows.len()]);
+    let pn_arr = UInt32Array::from(vec![0u32; rows.len()]);
+    // G4: encrypted = true — the text column holds ciphertext, not plaintext.
+    let enc_arr = arrow_array::BooleanArray::from(vec![true; rows.len()]);
+    // WS-PRIV: validate + write the privilege value to every crm row.
+    let privilege = validate_privilege(privilege)?;
+    let priv_arr = StringArray::from(vec![privilege; rows.len()]);
+    // VG-2: crm is never OCR-extracted — extraction columns stay null.
+    let ext_arr = StringArray::from(vec![None::<&str>; rows.len()]);
+    let conf_arr = arrow_array::Float32Array::from(vec![None::<f32>; rows.len()]);
+    // VG-3c: crm never carries a page:line locator.
+    let loc_arr = StringArray::from(vec![None::<&str>; rows.len()]);
+
+    RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(id_arr),
+            Arc::new(path_arr),
+            Arc::new(matter_arr),
+            Arc::new(src_arr),
+            Arc::new(pi_arr),
+            Arc::new(text_arr),
+            Arc::new(vectors),
+            Arc::new(ts_arr),
+            Arc::new(st_arr),
+            Arc::new(pn_arr),
+            Arc::new(enc_arr),
+            Arc::new(priv_arr),
+            Arc::new(ext_arr),
+            Arc::new(conf_arr),
+            Arc::new(loc_arr),
+            Arc::new(penc_arr),
+        ],
+    )
+    .context("RecordBatch::try_new failed for crm chunks batch")
 }
 
 /// Replace all rows for `path` with the new `rows`. Idempotent re-index.

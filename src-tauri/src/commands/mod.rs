@@ -10,6 +10,8 @@ pub mod http;
 pub mod keychain;
 // Keepance 3.0 — SQLCipher-encrypted, append-only audit "defense file" store.
 pub mod audit;
+// Wealthbox CRM connector (Phase 1A) — CRM RAG ingestion bridge.
+pub mod crm;
 // M365 email-import (Task 1+) — pure-Rust Graph JSON parsing, local index, sync.
 pub mod mail;
 // Phase 4 M4 (v1.5 Flag 2) — host-side bridge for the Keepance MCP sidecar:

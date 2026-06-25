@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Wealthbox connector (Phase 1A): CRM RAG ingestion pipeline.** Adds the encrypted, matter-scoped RAG foundation for CRM-derived text. A new `SourceType::Crm` variant and `build_batch_crm` function mirror the mail connector's encryption and privacy guarantees. A new `crm` module provides `index_crm_text_internal` and `spawn_crm_rag_index` for turning Wealthbox text into stored, retrievable chunks tagged `source_type="crm"`. The frontend routes `crm` hits as their own citation kind with a dedicated `keepance:open-crm` event for future viewer wiring.
+  - Files modified: `src-tauri/src/commands/rag/store.rs` (SourceType enum, build_batch, build_batch_crm), `src-tauri/src/commands/crm/mod.rs` (new), `src-tauri/src/commands/mod.rs`, `src-tauri/tests/crm_fixture_import.rs` (new), `src/platform/utils/tauri-commands.ts`, `src/platform/clientMap/types.ts`, `src/platform/clientMap/openSource.ts`, `src/platform/types/ai.ts`, `src/features/workflows/engine/legalAnalysis.ts`
+  - Tests: `cargo test --test crm_fixture_import` PASS; `cargo build --lib` clean; `npm run typecheck` PASS
+
 ### Fixed
 - **Ask/Search citations now survive models that skip inline citation markers.** Ask now does a conservative post-hoc grounding pass over the same retrieved chunks used as context: if an answer sentence's numbers and distinctive words are supported by a retrieved chunk, Keepance adds a verified citation chip even when the model emitted no `[filename paragraph N]` marker. Unsupported answers remain uncited, and model-emitted markers still resolve through the existing strict path.
   - Files modified: `src/features/ask/{askHelpers,askHelpers.test}.ts`
