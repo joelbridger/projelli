@@ -11,6 +11,7 @@ import { ClaudeProvider } from './ClaudeProvider';
 import { OpenAIProvider } from './OpenAIProvider';
 import { GeminiProvider } from './GeminiProvider';
 import { OllamaProvider, OLLAMA_DEFAULT_MODEL } from './OllamaProvider';
+import { KeepanceLocalProvider, KEEPANCE_LOCAL_DEFAULT_MODEL } from './KeepanceLocalProvider';
 import {
   getDefaultModelForTier,
   type Provider as CloudProviderId,
@@ -30,8 +31,10 @@ import type { AssuredRoute } from '@/platform/firm/assuredInference';
  */
 export type ChatProviderId = CloudProviderId | 'ollama' | 'keepance-local'; // 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local'
 
-/** Default model for the embedded Keepance Local AI engine (llama.cpp). */
-export const KEEPANCE_LOCAL_DEFAULT_MODEL = 'qwen3-4b-instruct-2507';
+/** Default model for the embedded Keepance Local AI engine — defined in
+ *  KeepanceLocalProvider and re-exported here so factory callers/tests can
+ *  import it from one place (mirrors OLLAMA_DEFAULT_MODEL). */
+export { KEEPANCE_LOCAL_DEFAULT_MODEL };
 
 /**
  * True when a provider id denotes a LOCAL (on-machine) model — either the
@@ -84,13 +87,10 @@ export function createProvider(opts: CreateProviderOptions): Provider {
     }
     case 'keepance-local': {
       // Embedded llama.cpp engine ("Keepance Local AI"). Local, keyless, $0,
-      // never assured-routed. The provider implementation + Rust bridge land in
-      // a later ticket of the local-model initiative; until then construction is
-      // an explicit, loud error rather than a silent cloud fallback. See
-      // docs/strategy/2026-06-25-local-model-research-and-recommendation.md (§8).
-      throw new Error(
-        'Keepance Local AI (embedded engine) is being wired up and is not available in this build yet.',
-      );
+      // never assured-routed. The Rust side owns the model download + sidecar
+      // lifecycle; the provider streams from the local sidecar endpoint.
+      const model = opts.model ?? KEEPANCE_LOCAL_DEFAULT_MODEL;
+      return new KeepanceLocalProvider({ model, ...rulesOpt });
     }
     case 'openai': {
       const model = opts.model ?? getDefaultModelForTier('openai', 'free');

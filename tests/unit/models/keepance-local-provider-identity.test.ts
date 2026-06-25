@@ -2,10 +2,8 @@
  * Local-model initiative — Ticket 1 (provider identity).
  *
  * Proves the embedded "Keepance Local AI" engine ('keepance-local') is wired
- * into the provider type system AS A LOCAL PROVIDER before its implementation
- * lands (the Rust bridge + KeepanceLocalProvider arrive in a later ticket).
- * Until then `createProvider` must fail LOUDLY for it rather than silently
- * falling back to a cloud branch.
+ * into the provider type system AS A LOCAL PROVIDER, and that the factory
+ * constructs the real provider for it (never a silent cloud fallback).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -31,7 +29,8 @@ describe('keepance-local provider identity (Ticket 1)', () => {
     expect(KEEPANCE_LOCAL_DEFAULT_MODEL).toBe('qwen3-4b-instruct-2507');
   });
 
-  it('createProvider fails loudly (never silently cloud-falls-back) until the engine ships', () => {
-    expect(() => createProvider({ provider: 'keepance-local' })).toThrow(/being wired up|not available/i);
+  it('createProvider constructs the embedded local provider (never a cloud fallback)', () => {
+    const p = createProvider({ provider: 'keepance-local' });
+    expect(p.getMetadata().providerId).toBe('keepance-local');
   });
 });
