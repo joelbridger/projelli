@@ -6,6 +6,8 @@
 //! phases add the Wealthbox client, the durable object store, and the
 //! object-level sync engine.
 
+pub mod client;
+pub mod model;
 pub mod store;
 
 use std::path::{Path, PathBuf};

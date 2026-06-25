@@ -1,0 +1,68 @@
+//! Live smoke test against the real Wealthbox API.
+//!
+//! **Skipped by default** (`#[ignore]`).  To run against a real account:
+//!
+//! ```bash
+//! WEALTHBOX_TEST_TOKEN=<token> \
+//!   CARGO_TARGET_DIR=/home/jameson/keepance/src-tauri/target \
+//!   cargo test --test wealthbox_live_smoke -- --ignored --nocapture
+//! ```
+//!
+//! This test is intentionally **read-only** (GET requests only).  It prints
+//! observations that help confirm empirically-unknown API behaviours (§3.6
+//! of the design spec):
+//!
+//!   1. Total contact count + per-page loop behaviour (helps confirm max per_page).
+//!   2. Whether `updated_since=<ISO-8601 UTC>` is accepted or rejected.
+//!      If rejected, the format needs to be updated in `client.rs`.
+//!
+//! TODO(live-probe): confirm updated_since format + max per_page against a real token.
+
+#[tokio::test]
+#[ignore = "requires WEALTHBOX_TEST_TOKEN env var; run manually against a trial account"]
+async fn wealthbox_live_smoke() {
+    let token = std::env::var("WEALTHBOX_TEST_TOKEN")
+        .expect("WEALTHBOX_TEST_TOKEN must be set to run the live smoke test");
+
+    use keepance_lib::commands::crm::client::WealthboxClient;
+
+    let client = WealthboxClient::new(token);
+
+    // --- /me: validate token + workspace/plan metadata ---
+    let me = client
+        .me()
+        .await
+        .expect("GET /me should succeed with a valid token");
+    println!(
+        "[smoke] /me response:\n{}",
+        serde_json::to_string_pretty(&me).unwrap_or_else(|_| "<not JSON>".into())
+    );
+
+    // --- contacts: full page loop to observe count + paging ---
+    let contacts = client
+        .list_contacts(None, None)
+        .await
+        .expect("list_contacts should succeed");
+    println!(
+        "[smoke] list_contacts: {} total contacts fetched across all pages",
+        contacts.len()
+    );
+
+    // --- updated_since ISO-8601 probe ---
+    // If accepted  → format is fine; record the count.
+    // If rejected  → we need to switch to Wealthbox's native timestamp format
+    //               (see design §3.4: "2015-05-24 10:00 AM -0400").
+    let since_iso = "2020-01-01T00:00:00Z";
+    match client.list_contacts(Some(since_iso), None).await {
+        Ok(cs) => println!(
+            "[smoke] updated_since={} ACCEPTED — {} contacts returned",
+            since_iso,
+            cs.len()
+        ),
+        Err(e) => println!(
+            "[smoke] updated_since={} REJECTED — {} \
+             (update the format in client.rs + model.rs TODOs)",
+            since_iso, e
+        ),
+    }
+}
