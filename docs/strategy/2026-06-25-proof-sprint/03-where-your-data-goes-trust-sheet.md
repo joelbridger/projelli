@@ -8,14 +8,16 @@
 
 ## The short version
 
-Keepance runs on your own computer. Your client files, the search index it builds, and the "Client Map" it creates all stay on your machine. Nothing about your clients is stored on a Keepance server. The only time anything leaves your computer is when you choose to use a cloud AI, and in that case it goes straight from your computer to the AI provider on your own account, never through us.
+Keepance runs on your own computer. Your client files, the search index it builds, and the "Client Map" it creates all stay on your machine. Nothing about your clients is stored on a Keepance server. The only time your client information leaves your computer is when you choose to use a cloud AI, and in that case it goes straight from your computer to the AI provider on your own account, not through a Keepance server.
+
+*(This sheet describes the two ways a solo or small-firm advisor runs Keepance: fully on your own machine, or with your own AI key.)*
 
 ## What stays on your computer
 
 - **Your files and notes.** They remain ordinary files in a folder you choose. Keepance does not upload or sync them anywhere.
 - **The search index.** Keepance reads your documents and builds a private search index on your machine so it can find things fast. That index, and the AI "embeddings" behind it, are created on your computer and stored on your computer.
 - **The Client Map.** The profile Keepance builds for each client household lives in the app on your machine.
-- **Everything is encrypted at rest.** Sensitive data (the document vault, your email store, the search index, and the activity log) is locked with strong, industry-standard encryption (AES-256). The keys are held in your operating system's secure keychain, not in a file someone could copy.
+- **Your sensitive data is encrypted on your machine.** The optional secure vault, your imported email, the activity log, and the readable text inside the search index are locked with strong, industry-standard encryption (AES-256), with the keys held in your operating system's secure keychain (not in a file someone could copy). Your ordinary working files and the Client Map also stay on your computer; like the rest of your documents they're protected by your device's own security, and you can place anything especially sensitive inside the encrypted vault.
 
 ## The one thing that can leave: the AI
 
@@ -33,9 +35,9 @@ In bring-your-own-key mode, the AI provider you chose does see the text of your 
 
 **The only routine connections the app makes to us are:**
 - **A license check** to confirm your subscription. It sends your license key, a machine identifier, and the app version. It contains **no client data**.
-- **A software-update check**, which reads a public file to see if a new version exists. It contains **no client data**.
+- **A software-update check**, which reads a public release list (hosted on GitHub) to see if a newer version exists. It contains **no client data**.
 
-**Optional and off by default:** anonymous usage counts (for example, "a search happened") that carry no content. This is turned off unless you choose to turn it on.
+**Optional and off by default:** basic usage counts and an opt-in diagnostics channel for design partners. Both are turned off unless you choose to turn them on, and neither carries any of your content.
 
 ## Your email connections
 
@@ -54,7 +56,7 @@ We are happy to complete your firm's vendor or security questionnaire and to wal
 
 We are an early-stage company, and we will not claim certifications we don't have:
 - **We are not SOC 2 certified yet.** We have done the readiness work and can share our security design and roadmap.
-- **We do not yet have a counsel-reviewed, signed data-processing agreement.** We can provide a draft and are glad to put one in place before you onboard.
+- **We do not yet have a lawyer-reviewed, signed data-processing agreement.** We have a draft in progress that still needs legal review before we can use it, and we are glad to work toward a signed agreement before you onboard if your firm requires one.
 - We can answer security and recordkeeping questions directly while these formal artifacts are in progress.
 
 We would rather earn your trust with a straight answer than lose it with an exaggerated one.
@@ -65,4 +67,4 @@ Reach out any time and we will walk you or your compliance team through exactly 
 
 ---
 
-*Internal note (not for customers): every statement here was verified against the app's source code on 2026-06-25 (see `docs/trust/security-overview.md` and the data-flow verification in the proof-sprint research). Do not add claims about SOC 2, a signed DPA, a penetration test, a formed legal entity, or an audited inference proxy until they are actually true. Per the project's no-em-dash rule for customer-facing copy, this document uses none.*
+*Internal note (STRIP THIS before sending to any customer): claims here were verified against the app's source code on 2026-06-25 and then corrected after an independent Codex over-claim review (see `docs/trust/security-overview.md` and the data-flow verification in this proof-sprint folder). The scope is deliberately limited to Local mode and bring-your-own-key mode; the Firm-tier managed-AI path is out of scope and must be described separately if it is ever used. Do not add claims about SOC 2, a signed DPA, a penetration test, a formed legal entity, or an audited inference proxy until they are actually true. Per the project's no-em-dash rule for customer-facing copy, this document uses none.*
