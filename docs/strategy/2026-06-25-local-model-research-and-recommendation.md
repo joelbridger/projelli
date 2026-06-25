@@ -165,7 +165,7 @@ Core-app rule: **no shortcuts, robust over minimal, TDD, real verification, no a
 | 3 | ✅ **DONE** Model manifest + downloader (`local_llm/`) | med | `cargo test` (9) |
 | 4 | ✅ **DONE — folded into 5** (chose frontend-direct chat, not a Rust IPC bridge) | — | n/a |
 | 5 | ✅ **DONE** `KeepanceLocalProvider.ts` (chat / streaming / structuredOutput) | med | 446 unit + gate green |
-| 6 | **TODO** Local AI UI — "Download Keepance Local AI" primary; Ollama → advanced; reconcile `website/local-model-setup` (do AFTER the feature can actually ship) | low | gate + site deploy |
+| 6 | **PART 1 DONE** (gate green + Codex-reviewed): `keepance-local` is a selectable provider (shown FIRST in the chat model picker once downloaded), an opt-in "Download Keepance Local AI" control in Settings → AI + an app-wide progress banner (never auto-downloads the 2.4 GB model), and provider construction in both chat send paths. **REMAINING:** onboarding rework (make it the primary local path) + Ollama → Advanced + reconcile `website/local-model-setup`. | low | gate + site deploy |
 | 7 | ✅ **DONE (covered)** Context sizing — Ollama `num_ctx` + embedded `--ctx-size 16384` (build_args test) + provider metadata reports the true 16K window | low | unit tests |
 | 8 | **Spreadsheet path** — deterministic Excel extraction/compute → feed computed facts to the model | med | tests + demo-sheet bench |
 | 9 | **Cited-answer test path** — extend `tests/desktop/specs/18-rag-cited-ask.mjs` to verify embedded local AI answers with citations | med | desktop harness |
