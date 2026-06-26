@@ -211,4 +211,25 @@ describe('useClientMap — autoBuild on open (connector-created clients)', () =>
     // must not run and clobber/rebuild it.
     expect(buildMock).not.toHaveBeenCalled();
   });
+
+  it('dedupes concurrent builds for the same matter (in-flight guard → no duplicate cost)', async () => {
+    // Hold the build open so a second generate() lands while the first is in flight.
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    buildMock.mockImplementation(async () => {
+      await gate;
+      return { ...emptyClientMap('mD'), lastBuiltAt: 't' };
+    });
+    computeFingerprintMock.mockResolvedValue('fp');
+
+    const { result } = renderHook(() => useClientMap('mD'));
+    await act(async () => {
+      const p1 = result.current.generate();
+      const p2 = result.current.generate(); // in flight → must no-op
+      release();
+      await Promise.all([p1, p2]);
+    });
+    // Two generate() calls, ONE actual build (the StrictMode / fast-click guard).
+    expect(buildMock).toHaveBeenCalledTimes(1);
+  });
 });

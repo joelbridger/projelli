@@ -36,6 +36,7 @@ import { AddCustomSectionForm } from '@/features/matters/AddCustomSectionForm';
 import { ClientMapTemplates } from '@/features/matters/ClientMapTemplates';
 import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
+import { useCrmStore } from '@/features/crm/crmStore';
 import { answerQuestion, flagForClient } from '@/platform/clientMap/guidedInterview';
 import { dispatchOpenSource } from '@/platform/clientMap/openSource';
 import type { SourceRef } from '@/platform/clientMap/types';
@@ -228,6 +229,19 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
       void checkForUpdates();
     }
   }, [clientMap.status, checkForUpdates]);
+
+  // Live recovery: when a Wealthbox sync FINISHES while this client is already
+  // open, re-check for the freshly-indexed CRM source material so an empty/stale
+  // Client Map populates in place rather than only on the next reopen.
+  // checkForUpdates() no-ops when the source fingerprint is unchanged, so firing
+  // on every completion is safe. The effect re-runs only when the sync status
+  // transitions (e.g. syncing -> done), so it fires once per completed sync.
+  const crmSyncStatus = useCrmStore((s) => s.progress?.status);
+  useEffect(() => {
+    if (crmSyncStatus === 'done') {
+      void checkForUpdates();
+    }
+  }, [crmSyncStatus, checkForUpdates]);
 
   const handleGlanceRefresh = useCallback(() => {
     glanceAbortRef.current?.abort();

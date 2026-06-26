@@ -8,6 +8,12 @@ import type { AuditEntry } from '@/platform/types/audit';
 
 export type ClientMapStatus = 'idle' | 'generating' | 'ready' | 'empty' | 'error';
 
+/** Matters whose Client Map build is currently in flight. Shared across all hook
+ *  instances so the auto-build effect and the manual build can't fire two
+ *  concurrent builds for the same matter — a React StrictMode double-invoke (dev)
+ *  or a fast manual click otherwise spends duplicate AI cost + audit entries. */
+const clientMapBuildsInFlight = new Set<string>();
+
 /** A stored map is "ready" if it holds something to show: a section item, a
  *  pending update, or an open gap question (which the Guided Interview works
  *  through). A truly empty stored object surfaces the honest empty state
@@ -60,6 +66,10 @@ export function useClientMap(
   const onAuditLog = options?.onAuditLog;
   const [status, setStatus] = useState<ClientMapStatus>(mapHasContent(map) ? 'ready' : map ? 'empty' : 'idle');
   const generate = useCallback(async () => {
+    // Dedupe concurrent builds for the same matter (auto-build vs manual click,
+    // StrictMode double-invoke). A build already in flight wins; this call no-ops.
+    if (clientMapBuildsInFlight.has(matterId)) return;
+    clientMapBuildsInFlight.add(matterId);
     setStatus('generating');
     try {
       const built = await buildClientMap(
@@ -95,6 +105,8 @@ export function useClientMap(
       setStatus(mapHasContent(builtMap) ? 'ready' : 'empty');
     } catch {
       setStatus('error');
+    } finally {
+      clientMapBuildsInFlight.delete(matterId);
     }
   }, [matterId, setMap, onAuditLog]);
 

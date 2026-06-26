@@ -38,6 +38,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'ask->matters',         // Ask is matter-scoped (active matter context)
   'documents->firm',      // file navigator shows privilege/vault affordances
   'firm->matters',        // solo-to-firm bridge reuses the matters promote-to-shared routine
+  'matters->crm',         // Matter Hub's Client Map recovers live when a Wealthbox sync completes
   'onboarding->firm',     // onboarding explains firm/SSO setup
   'onboarding->settings', // onboarding hands off to settings sections
   'privacy->firm',        // Privacy Center hosts the vault enable/disable control
