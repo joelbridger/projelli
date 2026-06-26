@@ -343,14 +343,20 @@ pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult {
             }
         }
 
-        // Emit durable audit — description reflects the actual purge outcome.
-        let audit_desc = if result.rag_purged && result.crm_db_purged {
-            "Disconnected Wealthbox; removed the API key and deleted the imported data."
-                .to_string()
+        // Emit durable audit — the description must reflect EXACTLY what
+        // happened (key removal AND data purge). The token delete is best-effort,
+        // so the audit must never claim the key was removed when it was not.
+        let key_part = if result.token_deleted {
+            "removed the API key"
         } else {
-            "Disconnected Wealthbox; removed the API key; some imported data could not be deleted."
-                .to_string()
+            "could NOT remove the API key (keychain unavailable)"
         };
+        let data_part = if result.rag_purged && result.crm_db_purged {
+            "deleted the imported data"
+        } else {
+            "some imported data could not be deleted"
+        };
+        let audit_desc = format!("Disconnected Wealthbox; {key_part}; {data_part}.");
         append_crm_audit_best_effort(ws, "wealthbox.disconnect", &audit_desc).await;
     } else {
         result.warnings.push(

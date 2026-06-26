@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Honest disconnect: never claim the Wealthbox key was removed when it wasn't.** The best-effort token delete can fail (keychain momentarily unavailable), leaving the saved key on the device. The UI now claims a clean disconnect (and flips to the disconnected state) ONLY when `tokenDeleted && ragPurged && crmDbPurged`; if the key could not be removed it shows an honest partial message and stays connected. The backend disconnect audit text now reflects `token_deleted` instead of always saying the key was removed. Files: `src/features/settings/WealthboxConnect.tsx`, `src-tauri/src/commands/crm/commands.rs`.
 - **Wealthbox `background_info` field now syncs (real-data bug found during seeding).** The live Wealthbox API returns the contact background field as `background_info`, but `model.rs` deserialized only `background_information`, so the Background text silently dropped on sync. Added `#[serde(alias = "background_info")]` (reads both names; documented `background_information` stays the primary name, so no fixture/test breaks) plus a guard test. Files: `src-tauri/src/commands/crm/model.rs`.
 - **`crm_disconnect` refactored for testability + best-effort token deletion (pre-merge re-review).**
   - Extracted the disconnect body into `pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult` so integration tests can drive the full real disconnect path without a Tauri runtime.

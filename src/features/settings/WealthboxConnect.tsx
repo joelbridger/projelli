@@ -171,22 +171,33 @@ export function WealthboxConnect() {
         }
       }
 
-      // Fix #2-UI: claim deletion only when it actually happened.
-      if (result.ragPurged && result.crmDbPurged) {
+      // Honesty gate: the token delete is best-effort (a momentarily
+      // unavailable keychain can fail it), which leaves the saved key on the
+      // device. Only claim a clean disconnect when the key was ACTUALLY removed
+      // AND both local stores were purged. If the key could not be removed, do
+      // NOT claim it was, and do NOT flip to a disconnected state.
+      const dataDeleted = result.ragPurged && result.crmDbPurged;
+      const warn = result.warnings.length > 0 ? ` (${result.warnings.join('; ')})` : '';
+      if (!result.tokenDeleted) {
+        const dataMsg = dataDeleted
+          ? 'The imported Wealthbox data was deleted, but the saved key could not be removed'
+          : 'Some imported data could not be deleted, and the saved key could not be removed';
+        setDisconnectNote(`${dataMsg}${warn}. Please try disconnecting again.`);
+        // The key is still stored, so the account is still connected.
+        crmIsConnected().then(setConnected).catch(() => {});
+      } else if (dataDeleted) {
         setDisconnectNote('Disconnected and deleted the imported Wealthbox data from this device.');
+        setConnected(false);
+        setConnectedInfo(null);
+        setLastSyncReport(null);
       } else {
-        const detail =
-          result.warnings.length > 0
-            ? result.warnings.join('; ')
-            : 'Some imported data could not be deleted.';
         setDisconnectNote(
-          `Disconnected and removed the key, but some imported data could not be deleted: ${detail} Open the workspace and disconnect again to finish removing it.`,
+          `Removed the Wealthbox key, but some imported data could not be deleted${warn}. Open the workspace and disconnect again to finish removing it.`,
         );
+        setConnected(false);
+        setConnectedInfo(null);
+        setLastSyncReport(null);
       }
-
-      setConnected(false);
-      setConnectedInfo(null);
-      setLastSyncReport(null);
     } catch (err) {
       setConnectError(
         typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not disconnect. Please try again.',
