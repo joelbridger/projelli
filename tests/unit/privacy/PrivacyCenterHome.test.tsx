@@ -103,9 +103,11 @@ describe('PrivacyCenterHome', () => {
     expect(indicator.getAttribute('data-provider')).toBe('openai');
   });
 
-  it('BUG-001: falls back to anthropic when no API keys are configured', () => {
+  it('UX-01: shows "No AI connected" (none), not a guessed provider, when no API keys are configured', () => {
+    // Previously this fell back to a guessed 'anthropic'. The egress badge is the
+    // #1 trust signal, so when nothing is configured it must be honest: 'none'.
     render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
     const indicator = screen.getByTestId('egress-indicator-mock');
-    expect(indicator.getAttribute('data-provider')).toBe('anthropic');
+    expect(indicator.getAttribute('data-provider')).toBe('none');
   });
 });

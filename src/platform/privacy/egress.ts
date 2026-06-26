@@ -40,6 +40,13 @@
 export type EgressProvider = string;
 
 /**
+ * Sentinel for "no AI provider is configured at all". The egress badge renders
+ * this as a neutral "No AI connected" state instead of guessing a provider.
+ * It is NOT a real provider id and never reaches `resolveEgress`'s routing.
+ */
+export const NO_AI_PROVIDER: EgressProvider = 'none';
+
+/**
  * Confidentiality mode (the visible "spectrum" the user can choose).
  *
  *   - 'local-only'  Only local models (Ollama) are usable; cloud providers are

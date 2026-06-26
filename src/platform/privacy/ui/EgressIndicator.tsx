@@ -15,11 +15,12 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { Laptop, Cloud, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Laptop, Cloud, CloudOff, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   resolveEgress,
   providerDisplayName,
+  NO_AI_PROVIDER,
   type EgressProvider,
   type ConfidentialityMode,
   type EgressInfo,
@@ -106,8 +107,20 @@ function useEgressView(
   if (provider === null) {
     return {
       pending: true as const,
+      disconnected: false as const,
       label: t('privacy.egress.checking.label'),
       note: t('privacy.egress.checking.note'),
+    };
+  }
+  // No provider configured at all: a neutral, honest "No AI connected" badge,
+  // never a guessed destination. Reuses the neutral (pending) styling but is a
+  // stable state — no pulse, and a distinct "disconnected" icon.
+  if (provider === NO_AI_PROVIDER) {
+    return {
+      pending: true as const,
+      disconnected: true as const,
+      label: t('privacy.egress.none.label'),
+      note: t('privacy.egress.none.note'),
     };
   }
   const mode = modeOverride ?? hookMode;
@@ -160,13 +173,17 @@ export function EgressIndicator({
   // Neutral "checking" badge while the local-model status probe is unresolved.
   // data-data-leaves is hard "false" — nothing can leave during this window.
   if (view.pending) {
+    const disconnected = view.disconnected;
+    const destination = disconnected ? 'none' : 'pending';
+    const NeutralIcon = disconnected ? CloudOff : Laptop;
+    const pulse = disconnected ? '' : 'animate-pulse';
     const pendingStyles =
       'border-slate-300 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300';
     if (variant === 'compact') {
       return (
         <div
           data-testid="egress-indicator-compact"
-          data-destination="pending"
+          data-destination={destination}
           data-data-leaves="false"
           className={cn(
             'flex items-center gap-1 max-w-[260px] rounded px-1.5 py-0.5 border',
@@ -175,7 +192,7 @@ export function EgressIndicator({
           )}
           title={`${view.label}. ${view.note}`}
         >
-          <Laptop className="h-3 w-3 shrink-0 animate-pulse" aria-hidden />
+          <NeutralIcon className={cn('h-3 w-3 shrink-0', pulse)} aria-hidden />
           <span className="truncate">{view.label}</span>
         </div>
       );
@@ -183,7 +200,7 @@ export function EgressIndicator({
     return (
       <div
         data-testid="egress-indicator"
-        data-destination="pending"
+        data-destination={destination}
         data-data-leaves="false"
         role="status"
         aria-live="polite"
@@ -193,7 +210,7 @@ export function EgressIndicator({
           className,
         )}
       >
-        <Laptop className="h-4 w-4 mt-0.5 shrink-0 animate-pulse" aria-hidden />
+        <NeutralIcon className={cn('h-4 w-4 mt-0.5 shrink-0', pulse)} aria-hidden />
         <div className="min-w-0">
           <span data-testid="egress-indicator-label" className="font-semibold">
             {view.label}

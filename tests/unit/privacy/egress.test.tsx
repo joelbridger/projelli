@@ -22,6 +22,7 @@ import {
   resolveEgress,
   isLocalProvider,
   providerDisplayName,
+  NO_AI_PROVIDER,
   CONFIDENTIALITY_MODE_SETTING_KEY,
   DEFAULT_CONFIDENTIALITY_MODE,
 } from '@/platform/privacy/egress';
@@ -157,6 +158,18 @@ describe('EgressIndicator', () => {
     const note = screen.getByTestId('egress-indicator-note').textContent || '';
     expect(note).toMatch(/Keepance Local AI/);
     expect(note).not.toMatch(/Ollama/);
+  });
+
+  it('shows a neutral "No AI connected" badge (no guessed provider) when nothing is configured', () => {
+    // UX-01: the always-visible trust badge must be honest — when there is no
+    // configured provider it says "No AI connected", never a guessed provider.
+    setMode('direct');
+    render(<EgressIndicator provider={NO_AI_PROVIDER} />);
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.getAttribute('data-destination')).toBe('none');
+    expect(el.getAttribute('data-data-leaves')).toBe('false');
+    expect(el.getAttribute('role')).toBe('status');
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/no ai connected/i);
   });
 
   it('BLOCKER regression: an unset-provider chat with the local model ready shows data-destination=local (never "data leaves")', () => {

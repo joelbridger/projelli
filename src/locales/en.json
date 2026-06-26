@@ -1183,6 +1183,10 @@
         "label": "Checking AI destination",
         "note": "Keepance is confirming where this request will go before sending."
       },
+      "none": {
+        "label": "No AI connected",
+        "note": "Connect an AI provider to start getting answers."
+      },
       "sending": "Sending to your AI provider"
     },
     "privileged-matter": {
