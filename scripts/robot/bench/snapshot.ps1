@@ -124,9 +124,21 @@ try {
     if ($bytes -le 0) { Remove-Item -LiteralPath $tmpArchive -Force -EA SilentlyContinue; Emit @{ ok = $false; error = 'archive is empty after tar - existing archive untouched' }; exit 1 }
     $sha = (Get-FileHash -LiteralPath $tmpArchive -Algorithm SHA256).Hash
 
-    # Atomic-ish replace: the validated temp tar becomes the canonical archive.
-    if (Test-Path -LiteralPath $Archive) { Remove-Item -LiteralPath $Archive -Force }
-    Move-Item -LiteralPath $tmpArchive -Destination $Archive -Force
+    # TRUE atomic replace. When the archive already exists, use the NTFS
+    # ReplaceFile primitive ([System.IO.File]::Replace) so the swap is a single
+    # atomic operation: a crash or failure can never leave us with NO archive (the
+    # old one stays intact on any error). This requires source + dest + backup on
+    # the SAME volume, which holds because $tmpArchive / the backup live in $snapDir
+    # next to $Archive. Only when there is NO existing archive (nothing to atomically
+    # replace) do we fall back to a plain move.
+    if (Test-Path -LiteralPath $Archive) {
+      $replaceBak = "$Archive.replaced.bak"
+      if (Test-Path -LiteralPath $replaceBak) { Remove-Item -LiteralPath $replaceBak -Force -EA SilentlyContinue }
+      [System.IO.File]::Replace($tmpArchive, $Archive, $replaceBak)
+      Remove-Item -LiteralPath $replaceBak -Force -EA SilentlyContinue
+    } else {
+      Move-Item -LiteralPath $tmpArchive -Destination $Archive -Force
+    }
 
     $bytes = Get-FileSize $Archive
     Emit @{ ok = $true; archive = $Archive; archiveBytes = $bytes; sha256 = $sha; wsRoot = $WsRoot }
