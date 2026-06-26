@@ -38,23 +38,6 @@ const CHUNK_DELAY_MS = Number(process.env.RECORD_CHUNK_DELAY_MS || 6);
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'ai-replays', `${NAME}.json`);
 const log = (m) => console.log(`[record-ask] ${m}`);
 
-/** Parse a captured OpenAI SSE body into the replay fixture's chunk list. */
-function parseOpenAISse(body) {
-  const chunks = [];
-  for (const line of body.split('\n')) {
-    const t = line.trim();
-    if (!t.startsWith('data:')) continue;
-    const payload = t.slice(5).trim();
-    if (!payload || payload === '[DONE]') continue;
-    let ev;
-    try { ev = JSON.parse(payload); } catch { continue; }
-    const text = ev?.choices?.[0]?.delta?.content;
-    if (text) chunks.push({ delayMs: CHUNK_DELAY_MS, text });
-  }
-  if (chunks.length) chunks[0].delayMs = 0;
-  return chunks;
-}
-
 async function main() {
   await ensureTunnel();
   const page = await getPage();
@@ -63,38 +46,56 @@ async function main() {
   const opened = await openWorkspace(page, {});
   if (!opened.ok) throw new Error(`open failed: ${JSON.stringify(opened)}`);
 
-  // Pass-through capture on the OpenAI chat-completions path ONLY (so we don't
-  // capture peripheral /models calls). Forward to the real provider, snapshot the
-  // streamed body, and fulfill the app with it so the answer + citations render.
-  const captured = [];
-  let model = 'gpt-4o';
-  const chatPaths = ['**/api/openai/v1/chat/completions', '**/api.openai.com/v1/chat/completions'];
-  for (const pattern of chatPaths) {
-    await page.route(pattern, async (route) => {
-      try {
-        const post = route.request().postData();
-        if (post) { try { const j = JSON.parse(post); if (j.model) model = j.model; } catch { /* ignore */ } }
-      } catch { /* ignore */ }
-      try {
-        const response = await route.fetch();
-        const body = await response.text();
-        captured.push(body);
-        await route.fulfill({ response, body });
-      } catch (e) {
-        log(`pass-through error: ${e.message}`);
-        await route.continue().catch(() => {});
-      }
-    });
-  }
+  // Capture model from the live request (best-effort).
+  let model = null;
+  const isChat = (u) => /\/chat\/completions(?:[/?#]|$)/.test(String(u || ''));
+  page.on('request', (req) => {
+    try { if (isChat(req.url())) { const j = JSON.parse(req.postData() || '{}'); if (j.model) model = j.model; } } catch { /* ignore */ }
+  });
 
-  log('asking the question LIVE (capturing the provider stream)…');
+  log('asking the question LIVE (against the frozen snapshot)…');
   const result = await askQuestion(page, { question: QUESTION, deterministic: false, matterId: MATTER });
+  await new Promise((r) => setTimeout(r, 1000));
   log(`ask ok=${result.ok} settled=${result.settled} newChips=${result.newCitationChips}`);
-  if (!captured.length) throw new Error('no OpenAI chat-completions stream was captured — did Ask resolve to OpenAI?');
+  if (!result.settled) throw new Error('Ask did not settle — cannot record a fixture');
 
-  // Use the LAST captured stream (the final answer turn).
-  const chunks = parseOpenAISse(captured[captured.length - 1]);
-  if (!chunks.length) throw new Error('captured stream had no choices[].delta.content — wrong provider/wire format?');
+  // Read the FULL assistant answer (with its {N} citation markers) from the app's
+  // chat store. We can't read the raw SSE body (Playwright doesn't buffer
+  // text/event-stream), and the on-disk answer is the faithful, marker-preserving
+  // source. Replaying THIS text against the frozen index reproduces the citations.
+  const captured = await page.evaluate(() => {
+    let answer = null; let foundModel = null;
+    try {
+      const j = JSON.parse(localStorage.getItem('ai-chat-storage') || 'null');
+      const s = (j && (j.state || j)) || {};
+      const walk = (o, depth = 0) => {
+        if (!o || depth > 6) return;
+        if (Array.isArray(o)) {
+          for (const m of o) {
+            if (m && /assist|^ai$|model/i.test(String(m.role || '')) && typeof m.content === 'string' && m.content.trim()) {
+              answer = m.content; if (m.model) foundModel = m.model; // keep walking → last wins
+            }
+          }
+          for (const m of o) walk(m, depth + 1);
+        } else if (typeof o === 'object') {
+          for (const k of Object.keys(o)) walk(o[k], depth + 1);
+        }
+      };
+      walk(s);
+    } catch (e) { return { error: String(e) }; }
+    return { answer, foundModel };
+  });
+  if (!captured || captured.error || !captured.answer) {
+    throw new Error(`could not read the assistant answer from ai-chat-storage: ${JSON.stringify(captured)}`);
+  }
+  model = model || captured.foundModel || 'gpt-4o-mini';
+  const answer = captured.answer;
+  log(`captured answer (${answer.length} chars): ${JSON.stringify(answer.slice(0, 200))}`);
+
+  // Split into word-sized streaming chunks (boundaries are cosmetic; the app
+  // accumulates them back into the same full text).
+  const parts = answer.match(/\S+\s*/g) || [answer];
+  const chunks = parts.map((text, i) => ({ delayMs: i === 0 ? 0 : CHUNK_DELAY_MS, text }));
 
   const fixture = {
     model,
@@ -102,7 +103,8 @@ async function main() {
     recordedAt: new Date().toISOString(),
     question: QUESTION,
     matterId: MATTER,
-    note: 'Recorded against the FROZEN snapshot so citation markers stay stable on replay.',
+    note: 'Answer text recorded from the app chat store against the FROZEN snapshot, so the {N} citation markers map to the same retrieved sources on replay.',
+    answerText: answer,
     chunks,
   };
   writeFileSync(OUT, JSON.stringify(fixture, null, 2));
