@@ -220,6 +220,19 @@ impl CrmStore {
         Ok(rows)
     }
 
+    /// Return every non-deleted object id across all kinds. Used for snapshot-diff
+    /// deletion detection: ids present here but absent from the latest full API
+    /// response have been removed in Wealthbox and should be tombstoned.
+    #[allow(dead_code)]
+    pub fn list_all_object_ids(&self) -> Result<Vec<String>> {
+        let c = self.conn.lock().unwrap();
+        let mut stmt = c.prepare("SELECT id FROM crm_objects WHERE deleted = 0")?;
+        let rows = stmt
+            .query_map([], |r| r.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<String>>>()?;
+        Ok(rows)
+    }
+
     /// Soft-delete an object (sets `deleted = 1`).
     #[allow(dead_code)]
     pub fn tombstone_object(&self, id: &str) -> Result<()> {

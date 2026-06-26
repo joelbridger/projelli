@@ -51,6 +51,10 @@ pub struct IngestReport {
     /// a known contact id.  They were not stored and are counted here so the
     /// caller can surface data gaps to the user.
     pub skipped_unlinked: u32,
+    /// Objects that were stored on a previous sync but are absent from this API
+    /// response (removed in Wealthbox), and were soft-deleted (tombstoned) so they
+    /// stop being re-planned/re-indexed.
+    pub removed_tombstoned: u32,
 }
 
 /// One item to be written to the RAG index.
@@ -107,6 +111,12 @@ pub fn content_hash(json: &str) -> String {
 pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<IngestReport> {
     let mut report = IngestReport::default();
 
+    // Every store id we FILED this sync: contacts always; a note/task/event only when
+    // its link resolves to a household. The deletion diff at the end tombstones any
+    // previously-stored object that is NOT filed now — i.e. removed from Wealthbox OR
+    // newly unlinkable — so neither can leave a stale chunk behind on re-sync.
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
     // ── 1. Contacts ──────────────────────────────────────────────────────────
     let contacts = source.list_all_contacts().await?;
 
@@ -120,6 +130,7 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
     for c in &contacts {
         let gk = contact_to_group[&c.id].clone();
         let store_id = format!("contact:{}", c.id);
+        seen.insert(store_id.clone());
         let json = serde_json::to_string(c)?;
         let hash = content_hash(&json);
         // Store the kind canonicalised to lowercase. The live Wealthbox API returns
@@ -137,6 +148,7 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
         match resolve_grouping_key(&n.linked_to, &contact_to_group) {
             Some(gk) => {
                 let store_id = format!("note:{}", n.id);
+                seen.insert(store_id.clone());
                 let json = serde_json::to_string(n)?;
                 let hash = content_hash(&json);
                 store.upsert_object(&store_id, "note", &gk, &n.updated_at, &hash, &json)?;
@@ -155,6 +167,7 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
         match resolve_grouping_key(&t.linked_to, &contact_to_group) {
             Some(gk) => {
                 let store_id = format!("task:{}", t.id);
+                seen.insert(store_id.clone());
                 let json = serde_json::to_string(t)?;
                 let hash = content_hash(&json);
                 // WbTask has no updated_at; use "" (content_hash drives change detection).
@@ -173,6 +186,7 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
         match resolve_grouping_key(&e.linked_to, &contact_to_group) {
             Some(gk) => {
                 let store_id = format!("event:{}", e.id);
+                seen.insert(store_id.clone());
                 let json = serde_json::to_string(e)?;
                 let hash = content_hash(&json);
                 // WbEvent has no updated_at; use "" (content_hash drives change detection).
@@ -182,6 +196,21 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
             None => {
                 report.skipped_unlinked += 1;
             }
+        }
+    }
+
+    // ── 5. Tombstone objects that are no longer filed ────────────────────────
+    // `seen` holds everything we filed this sync. Anything still stored (deleted = 0)
+    // from a previous sync but NOT in `seen` is either gone from Wealthbox OR newly
+    // unlinkable (its contact link was removed) — both must stop surfacing. Soft-delete
+    // it so `plan_household_index` (which filters deleted = 0) stops re-planning it and
+    // its stale RAG chunk drops on the household's next delete-then-insert.
+    // `upsert_object` resets deleted = 0, so an object that re-appears (or is re-linked)
+    // un-tombstones itself automatically.
+    for existing in store.list_all_object_ids()? {
+        if !seen.contains(&existing) {
+            store.tombstone_object(&existing)?;
+            report.removed_tombstoned += 1;
         }
     }
 
@@ -344,13 +373,18 @@ pub fn plan_household_index(
 /// Embed and write a household's [`CrmIndexItem`]s to the RAG index, reusing an
 /// already-open LanceDB table and master key.
 ///
-/// This is the performance-critical hot path. The previous version called
-/// `index_crm_text_internal` per item, which **opened the LanceDB connection and
-/// scanned the table on every single record** — hundreds of opens per sync, each
-/// contending with the document re-index for the single-writer table. Here the
-/// table is opened once by the caller ([`backfill`]) and passed in; all of a
-/// household's chunks are embedded in one batched call and written in one
-/// `table.add` per matter (one household == one matter in practice).
+/// This is the performance-critical hot path. Two earlier costs were removed:
+///   1. It used to call `index_crm_text_internal` per item, which **opened the
+///      LanceDB connection and scanned the table on every record**. The caller
+///      ([`backfill`]) now opens the table once and passes it in.
+///   2. It used to call `delete_path` **per item** to clear stale chunks — on a
+///      ~40-household / ~200-item first sync that was ~200 sequential full-table
+///      deletes (each a scan + commit + compaction, all no-ops on a first sync)
+///      and never completed. Stale-chunk clearing now happens **per household** in
+///      [`backfill`] (`delete_crm_for_matters` for that one matter, after the cancel
+///      check — an atomic delete-then-insert), NOT per item and NOT one up-front bulk
+///      wipe. So this function is a pure insert: chunk → embed (batched per matter)
+///      → one `table.add`.
 ///
 /// Requires the embedding model to be loaded (model-gated).
 #[allow(dead_code)]
@@ -366,16 +400,9 @@ pub async fn apply_index(
         return Ok(0);
     }
 
-    // 1. Delete any stale chunks for each source id first (idempotent re-index).
-    for item in items {
-        crate::commands::rag::store::delete_path(table, &item.source_id, key)
-            .await
-            .context("delete stale crm chunks")?;
-    }
-
-    // 2. Chunk every non-empty item, grouped by matter id. One household maps to
-    //    one matter, but we group defensively so `build_batch_crm` (which takes a
-    //    single matter id) always gets a uniform batch.
+    // Chunk every non-empty item, grouped by matter id. One household maps to one
+    // matter, but we group defensively so `build_batch_crm` (which takes a single
+    // matter id) always gets a uniform batch.
     let mut by_matter: HashMap<String, Vec<crate::commands::rag::chunker::Chunk>> = HashMap::new();
     for item in items {
         if item.text.trim().is_empty() {
@@ -391,8 +418,8 @@ pub async fn apply_index(
         return Ok(0);
     }
 
-    // 3. For each matter group: embed all its chunks in one batched model call
-    //    and write them in a single `table.add` (was one add per item).
+    // For each matter group: embed all its chunks in one batched model call and
+    // write them in a single `table.add` (was one add per item).
     let mut total = 0u32;
     for (matter_id, chunks) in by_matter {
         let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
@@ -439,6 +466,10 @@ pub async fn apply_index(
 /// `cancel` is polled between households so a long sync can be stopped from the
 /// UI without waiting for all of them; households already processed stay indexed
 /// and `SyncReport::cancelled` is set.
+///
+/// `rag_key` is the RAG/vector-store master key, supplied by the caller. The
+/// command layer reads it from the OS keychain (`get_or_create_master_key`); tests
+/// pass a literal key so the real entry point can be driven without a keychain.
 #[allow(dead_code)]
 pub async fn backfill(
     source: &dyn CrmSource,
@@ -446,6 +477,7 @@ pub async fn backfill(
     workspace: &Path,
     matter_map: &HashMap<String, String>,
     cancel: &std::sync::atomic::AtomicBool,
+    rag_key: &[u8; 32],
 ) -> anyhow::Result<SyncReport> {
     use std::sync::atomic::Ordering;
 
@@ -458,18 +490,21 @@ pub async fn backfill(
         return Ok(report);
     }
 
-    // Open the RAG connection + table + master key ONCE for the whole sync. This
-    // was previously done per record inside `index_crm_text_internal`; opening the
-    // table scans LanceDB, so per-record opens were the dominant cost and the main
-    // source of contention with the document re-index.
-    let key = crate::commands::rag::crypto::get_or_create_master_key()?;
+    // Open the RAG connection + table ONCE for the whole sync. This was previously
+    // done per record inside `index_crm_text_internal`; opening the table scans
+    // LanceDB, so per-record opens were the dominant cost and the main source of
+    // contention with the document re-index.
     let conn = crate::commands::rag::store::open_connection(workspace).await?;
     let table = crate::commands::rag::store::open_or_create_table(&conn).await?;
 
-    // Phase 2: index each household that has a matter.
+    // Phase 2: index each household ATOMICALLY — delete its old CRM chunks, then
+    // insert the fresh ones. Doing the delete per household (one scoped delete each,
+    // NOT one per item — the per-item churn is what hung the first sync) rather than
+    // one big up-front delete means a cancel or error only affects the household in
+    // flight; the rest of the CRM index is never left empty or half-restored.
     for (grouping_key, matter_id) in matter_map {
-        // Cooperative cancellation: stop cleanly between households so the UI's
-        // Stop button takes effect without waiting for the whole batch.
+        // Cooperative cancellation: stop BEFORE touching this household, so Stop
+        // never leaves a half-deleted one.
         if cancel.load(Ordering::SeqCst) {
             report.cancelled = true;
             break;
@@ -478,9 +513,18 @@ pub async fn backfill(
         let items = plan_household_index(store, grouping_key, matter_id)?;
         report.households_processed += 1;
 
-        // Skip all RAG work for a household with nothing to embed.
+        // Atomic replace for this matter: clear its old CRM chunks (scoped to
+        // source_type='crm', so a merged household keeps its file chunks), then
+        // insert the fresh plan. delete-then-insert per household means a removed
+        // object's stale chunk is gone and a re-sync never duplicates; on a first
+        // sync this delete matches nothing and returns immediately.
+        crate::commands::rag::store::delete_crm_for_matters(
+            &table,
+            std::slice::from_ref(matter_id),
+        )
+        .await?;
         if !items.is_empty() {
-            report.records_indexed += apply_index(&table, &key, &items).await?;
+            report.records_indexed += apply_index(&table, rag_key, &items).await?;
         }
 
         // Stable render hash: SHA-256 over all source_ids + texts in plan order.
@@ -820,6 +864,34 @@ mod tests {
                     }),
                     ..Default::default()
                 },
+                WbContact {
+                    id: 20003,
+                    r#type: "Organization".to_string(), // live capitalisation
+                    company_name: "Bishop Holdings LLC".to_string(),
+                    contact_type: "Client".to_string(),
+                    status: "Active".to_string(),
+                    household: Some(WbHouseholdRef {
+                        id: 20001,
+                        name: "The Bishops".to_string(),
+                        title: "Entity".to_string(),
+                        members: vec![],
+                    }),
+                    ..Default::default()
+                },
+                WbContact {
+                    id: 20004,
+                    r#type: "Trust".to_string(), // live capitalisation
+                    company_name: "Bishop Family Trust".to_string(),
+                    contact_type: "Client".to_string(),
+                    status: "Active".to_string(),
+                    household: Some(WbHouseholdRef {
+                        id: 20001,
+                        name: "The Bishops".to_string(),
+                        title: "Entity".to_string(),
+                        members: vec![],
+                    }),
+                    ..Default::default()
+                },
             ])
         }
         async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> {
@@ -838,14 +910,19 @@ mod tests {
         let (_d, store) = crm_store();
         ingest(&CapitalizedKindSource, &store).await.expect("ingest");
 
-        // Stored kinds are canonicalised to lowercase on ingest.
+        // Stored kinds are canonicalised to lowercase on ingest — for ALL FOUR
+        // live contact types (Household / Person / Organization / Trust).
         let hh = store.get_object("contact:20001").unwrap().expect("household row");
         assert_eq!(hh.kind, "household", "kind must be lowercased on store");
         let person = store.get_object("contact:20002").unwrap().expect("person row");
         assert_eq!(person.kind, "person", "kind must be lowercased on store");
+        let org = store.get_object("contact:20003").unwrap().expect("organization row");
+        assert_eq!(org.kind, "organization", "kind must be lowercased on store");
+        let trust = store.get_object("contact:20004").unwrap().expect("trust row");
+        assert_eq!(trust.kind, "trust", "kind must be lowercased on store");
 
-        // plan_household_index produces the household summary + the member contact
-        // record — NOT skipped as "unknown kind". This is the whole connector value.
+        // plan_household_index produces the household summary + a record for EVERY
+        // member type — NOT skipped as "unknown kind". This is the connector value.
         let items = plan_household_index(&store, "20001", "matter-bishop").expect("plan");
         let source_ids: Vec<&str> = items.iter().map(|i| i.source_id.as_str()).collect();
         assert!(
@@ -853,11 +930,13 @@ mod tests {
             "expected household summary from a live 'Household' contact; got {:?}",
             source_ids
         );
-        assert!(
-            source_ids.contains(&"crm:contact:20002"),
-            "expected member record from a live 'Person' contact; got {:?}",
-            source_ids
-        );
+        for sid in ["crm:contact:20002", "crm:contact:20003", "crm:contact:20004"] {
+            assert!(
+                source_ids.contains(&sid),
+                "expected member record {sid} (Person/Organization/Trust); got {:?}",
+                source_ids
+            );
+        }
     }
 
     /// Defense-in-depth: a row stored with a CAPITALISED kind (e.g. by an older
@@ -883,6 +962,170 @@ mod tests {
         assert!(
             items.iter().any(|i| i.source_id == "crm:contact:21000"),
             "a stored capitalised 'Person' kind must still index, not be skipped"
+        );
+    }
+
+    // ── Test: removed objects are tombstoned and drop from the plan ────────────
+
+    /// A source returning the Bishops WITHOUT the trust member (20004) — simulates
+    /// that contact being removed in Wealthbox on a later sync.
+    struct BishopsMinusTrust;
+
+    #[async_trait]
+    impl CrmSource for BishopsMinusTrust {
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<WbContact>> {
+            Ok(vec![
+                WbContact {
+                    id: 20001,
+                    r#type: "Household".to_string(),
+                    company_name: "The Bishops".to_string(),
+                    contact_type: "Client".to_string(),
+                    status: "Active".to_string(),
+                    ..Default::default()
+                },
+                WbContact {
+                    id: 20002,
+                    r#type: "Person".to_string(),
+                    first_name: "Grace".to_string(),
+                    last_name: "Bishop".to_string(),
+                    contact_type: "Client".to_string(),
+                    status: "Active".to_string(),
+                    household: Some(WbHouseholdRef {
+                        id: 20001,
+                        name: "The Bishops".to_string(),
+                        title: "Head".to_string(),
+                        members: vec![],
+                    }),
+                    ..Default::default()
+                },
+                WbContact {
+                    id: 20003,
+                    r#type: "Organization".to_string(),
+                    company_name: "Bishop Holdings LLC".to_string(),
+                    contact_type: "Client".to_string(),
+                    status: "Active".to_string(),
+                    household: Some(WbHouseholdRef {
+                        id: 20001,
+                        name: "The Bishops".to_string(),
+                        title: "Entity".to_string(),
+                        members: vec![],
+                    }),
+                    ..Default::default()
+                },
+                // 20004 (Trust) removed upstream.
+            ])
+        }
+        async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> {
+            Ok(vec![])
+        }
+        async fn list_tasks(&self) -> anyhow::Result<Vec<WbTask>> {
+            Ok(vec![])
+        }
+        async fn list_events(&self) -> anyhow::Result<Vec<WbEvent>> {
+            Ok(vec![])
+        }
+    }
+
+    #[tokio::test]
+    async fn removed_objects_are_tombstoned_and_drop_from_the_plan() {
+        let (_d, store) = crm_store();
+
+        // First sync: household + person(20002) + org(20003) + trust(20004).
+        let r1 = ingest(&CapitalizedKindSource, &store).await.expect("ingest 1");
+        assert_eq!(r1.removed_tombstoned, 0, "nothing is removed on a first sync");
+        let before = plan_household_index(&store, "20001", "m").expect("plan 1");
+        assert!(
+            before.iter().any(|i| i.source_id == "crm:contact:20004"),
+            "the trust member is present before it is removed upstream"
+        );
+
+        // Second sync: the same household but the TRUST (20004) is gone from Wealthbox.
+        let r2 = ingest(&BishopsMinusTrust, &store).await.expect("ingest 2");
+        assert_eq!(r2.removed_tombstoned, 1, "the removed trust is tombstoned exactly once");
+        let after = plan_household_index(&store, "20001", "m").expect("plan 2");
+        assert!(
+            !after.iter().any(|i| i.source_id == "crm:contact:20004"),
+            "a removed object must drop from the plan after tombstoning"
+        );
+        assert!(
+            after.iter().any(|i| i.source_id == "crm:contact:20002"),
+            "a surviving member is still planned"
+        );
+
+        // Re-appearance self-heals: the trust returns, upsert resets deleted=0.
+        let r3 = ingest(&CapitalizedKindSource, &store).await.expect("ingest 3");
+        assert_eq!(r3.removed_tombstoned, 0, "nothing removed when the trust returns");
+        let again = plan_household_index(&store, "20001", "m").expect("plan 3");
+        assert!(
+            again.iter().any(|i| i.source_id == "crm:contact:20004"),
+            "a re-appearing object un-tombstones itself and is planned again"
+        );
+    }
+
+    // ── Test: a previously-filed object that becomes UNLINKED is tombstoned ────
+
+    /// The Anderson household + head, with the note linked to the head (filed).
+    struct LinkedNoteSource;
+    #[async_trait]
+    impl CrmSource for LinkedNoteSource {
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<WbContact>> {
+            Ok(vec![fixture_household(), fixture_head()])
+        }
+        async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> {
+            Ok(vec![fixture_note()])
+        }
+        async fn list_tasks(&self) -> anyhow::Result<Vec<WbTask>> {
+            Ok(vec![])
+        }
+        async fn list_events(&self) -> anyhow::Result<Vec<WbEvent>> {
+            Ok(vec![])
+        }
+    }
+
+    /// Same household + head, but the SAME note is now UNLINKED (empty `linked_to`)
+    /// — its contact link was removed upstream, so it can no longer be filed.
+    struct UnlinkedNoteSource;
+    #[async_trait]
+    impl CrmSource for UnlinkedNoteSource {
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<WbContact>> {
+            Ok(vec![fixture_household(), fixture_head()])
+        }
+        async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> {
+            let mut n = fixture_note();
+            n.linked_to = vec![]; // unlinked now — cannot resolve a household
+            Ok(vec![n])
+        }
+        async fn list_tasks(&self) -> anyhow::Result<Vec<WbTask>> {
+            Ok(vec![])
+        }
+        async fn list_events(&self) -> anyhow::Result<Vec<WbEvent>> {
+            Ok(vec![])
+        }
+    }
+
+    #[tokio::test]
+    async fn became_unlinked_object_is_tombstoned_and_dropped_from_plan() {
+        let (_d, store) = crm_store();
+
+        // First sync: the note is linked to the head and filed under the household.
+        ingest(&LinkedNoteSource, &store).await.expect("ingest linked");
+        let before = plan_household_index(&store, "10001", "m").expect("plan 1");
+        assert!(
+            before.iter().any(|i| i.source_id == "crm:note:30001"),
+            "the linked note is planned on the first sync"
+        );
+
+        // Re-sync: the note is now UNLINKED upstream — skipped, not re-filed.
+        let r2 = ingest(&UnlinkedNoteSource, &store).await.expect("ingest unlinked");
+        assert_eq!(r2.skipped_unlinked, 1, "the now-unlinkable note is counted as skipped");
+        assert_eq!(
+            r2.removed_tombstoned, 1,
+            "a previously-filed object that becomes unlinkable is tombstoned, not left stale"
+        );
+        let after = plan_household_index(&store, "10001", "m").expect("plan 2");
+        assert!(
+            !after.iter().any(|i| i.source_id == "crm:note:30001"),
+            "a became-unlinked note must drop from the plan so its stale chunk is cleared"
         );
     }
 
@@ -1004,14 +1247,15 @@ mod tests {
 
     // ── Model-gated headless integration test ────────────────────────────────
     //
-    // Proves the full ingest → plan → embed → store → retrieve chain end-to-end
-    // WITHOUT the OS keychain.  The real app reads the RAG encryption key from
-    // the OS keychain at runtime; that path is not available on a headless CI
-    // server.  This test uses a LITERAL key ([0x5Au8;32]) everywhere instead,
-    // bypassing apply_index (which calls index_crm_text_internal → keychain) and
-    // instead driving the RAG store layer directly — the same approach used in
-    // tests/crm_fixture_import.rs and tests/rag_matter_scope.rs.  The keychain
-    // path itself is exercised on a real machine via the full user-test playbook.
+    // Drives the REAL `backfill` end-to-end — ingest → plan → apply_index (the
+    // delete-then-insert path that hung) → embed → store → retrieve — without the OS
+    // keychain. The real app reads the RAG key from the keychain at runtime; here we
+    // pass `backfill` a LITERAL key ([0x5Au8;32]) (the engine takes the key as a param
+    // exactly so the real entry point is testable headless). The keychain path itself
+    // is exercised on a real machine via the full user-test playbook. This is the
+    // real-entry-point proof; the always-on gate covers the per-household delete shape
+    // at 40-household scale via `rag::store`'s
+    // `per_household_replace_completes_at_scale_no_orphans_or_dupes`.
     //
     // Requires the e5-small embedding model.  Self-skips when the model is absent
     // (normal CI behaviour).  Panics loudly when REQUIRE_RAG_MODEL=1 and the
@@ -1051,69 +1295,45 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn backfill_full_integration_requires_embedding_model() {
-        use arrow_array::RecordBatchIterator;
-        use crate::commands::rag::store::{self, PRIVILEGE_NONE};
-        use crate::commands::rag::chunker::chunk_text;
+        use crate::commands::rag::store;
         use crate::commands::rag::embedder::embed_documents_batched;
         use crate::commands::mail::crypto::decrypt_with_key;
 
         skip_without_model!();
 
-        // Literal RAG encryption key — no OS keychain needed on a headless server.
-        // The real app reads this key from the OS keychain; that path is verified
-        // on a real machine via the full user-test playbook.  Here we use a fixed
-        // test key identical to the one in tests/crm_fixture_import.rs.
+        // Literal RAG encryption key — passed straight into `backfill` (which takes
+        // the key as a param), so no OS keychain is needed on a headless server. The
+        // real app reads this key from the keychain; that path is verified on a real
+        // machine via the full user-test playbook.
         const VEC_KEY: [u8; 32] = [0x5Au8; 32];
 
-        // ── 1. Ingest ────────────────────────────────────────────────────────────
+        // ── Drive the REAL backfill (ingest → plan → apply_index → embed → store) ──
         let ws = TempDir::new().unwrap();
         let crm_key = [0x33u8; 32];
         let store = CrmStore::open_with_key(ws.path(), &crm_key).unwrap();
 
-        ingest(&FakeCrmSource, &store).await.expect("ingest");
+        let matter_map: std::collections::HashMap<String, String> =
+            [("10001".to_string(), "matter-integration".to_string())]
+                .into_iter()
+                .collect();
+        let cancel = std::sync::atomic::AtomicBool::new(false);
+        let report = backfill(&FakeCrmSource, &store, ws.path(), &matter_map, &cancel, &VEC_KEY)
+            .await
+            .expect("backfill");
+        assert!(
+            report.records_indexed > 0,
+            "backfill must embed + store at least one CRM chunk for the Anderson household"
+        );
 
-        // ── 2. Plan ──────────────────────────────────────────────────────────────
-        let items = plan_household_index(&store, "10001", "matter-integration")
-            .expect("plan_household_index");
-        assert!(!items.is_empty(), "plan must produce at least one item for the Anderson household");
-
-        // ── 3. Open RAG store directly (bypass apply_index's keychain path) ──────
-        let conn = crate::commands::rag::store::open_connection(ws.path())
+        // ── Open a fresh handle to the persisted store, then retrieve end-to-end ──
+        let conn = store::open_connection(ws.path())
             .await
             .expect("open rag connection");
-        let table = crate::commands::rag::store::open_or_create_table(&conn)
+        let table = store::open_or_create_table(&conn)
             .await
             .expect("open or create rag table");
 
-        // ── 4. Embed + write each plan item with the LITERAL key ─────────────────
-        let mut total_chunks = 0usize;
-        for item in &items {
-            let chunks = chunk_text(&item.source_id, &item.text);
-            if chunks.is_empty() {
-                continue;
-            }
-            let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-            let vectors = embed_documents_batched(&texts, None)
-                .await
-                .expect("embed_documents_batched")
-                .unwrap_or_default();
-            if vectors.is_empty() {
-                continue;
-            }
-            let rows: Vec<_> = chunks.into_iter().zip(vectors).collect();
-            let batch = store::build_batch_crm(&rows, &VEC_KEY, &item.matter_id, PRIVILEGE_NONE)
-                .expect("build_batch_crm");
-            let schema = batch.schema();
-            table
-                .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
-                .execute()
-                .await
-                .expect("table add");
-            total_chunks += rows.len();
-        }
-        assert!(total_chunks > 0, "expected at least one chunk written to the RAG store");
-
-        // ── 5. Retrieve — prove the chain end-to-end ─────────────────────────────
+        // ── Retrieve — prove the chain end-to-end ────────────────────────────────
         let query_texts = vec!["Anderson household net worth assets".to_string()];
         let query_vecs = embed_documents_batched(&query_texts, None)
             .await

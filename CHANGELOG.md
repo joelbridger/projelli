@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Audit entries normalize `metadata`/`inputs`/`outputs` at the LOAD source (robustness follow-up).** `AuditService.recordToEntry` parsed a persisted record's `payloadJson` and returned those objects as-is, so an OLD thin persisted row (e.g. `{"auditEventType":"wealthbox.connect"}` with no metadata) loaded with `metadata === undefined`. The display-side `asRecord()` guards already prevented the Activity Log crash, but normalizing at the source means every loaded entry always has those three as objects — closing the gap at its origin (mirrors the live-event guard in `useWorkspaceLifecycle.ts`). File: `src/platform/audit/AuditService.ts`. Test: `tests/unit/audit/audit-record-normalize.test.ts` (a persisted record missing metadata/inputs/outputs loads with `{}`, not `undefined`); verified it fails without the normalization and passes with it.
+- **🔴 CRM sync no longer hangs — the connector is searchable end-to-end (last blocker).** The sync
+  pegged the CPU and never finished, so CRM content was never embedded. Root cause: `apply_index`
+  cleared stale chunks with one `delete_path` PER ITEM — a 40-household / ~200-item first sync issued
+  ~200 sequential full-table LanceDB deletes (each a scan + commit + compaction, all no-ops on a first
+  sync) and never completed, contending with the document re-index for the single-writer table. The
+  1–2-household integration fixtures never reached this scale. Fix: stale CRM chunks are now cleared
+  per household — `engine::backfill` does an ATOMIC delete-then-insert for each household (one scoped
+  delete `source_type='crm' AND matter_id IN (...)` via the new `store::delete_crm_for_matters`, NOT
+  `delete_matter`, which would wipe a merged household's file chunks — then inserts the fresh plan).
+  The delete is per HOUSEHOLD, not per item (the churn that hung), and is placed AFTER the cancel check
+  so a cancel/error only affects the household in flight — the rest of the CRM index is never left empty
+  or half-restored (an up-front bulk delete would risk that). `apply_index` is a pure insert.
+  Removed/unlinked-object handling: `ingest` now records only the store ids it actually FILED this sync
+  and tombstones any previously-stored object that is no longer filed — i.e. removed from Wealthbox OR
+  newly UNLINKED (its contact link gone) — so a removed contact/note AND a became-unlinkable one both
+  drop out of the plan on re-sync (and their stale chunks clear on the household's delete-then-insert);
+  `upsert_object` resets `deleted=0`, so a re-appearing/re-linked object un-tombstones itself.
+  Testability: `backfill` now takes the RAG master key as a parameter (the command layer reads it from
+  the keychain; tests pass a literal key), so the model-gated integration test drives the REAL backfill
+  → apply_index path (not a hand-rolled copy). Tests: pure predicate (one escaped clause; none on empty);
+  a REAL-SCALE real-table test (40-household first sync COMPLETES + a re-sync with a removed record
+  leaves no orphan/duplicate); removed-object and became-unlinked tombstone tests (incl. re-appear); the
+  kind-case regression now covers all four live capitalized types (Household/Person/Organization/Trust).
+  Files: `src-tauri/src/commands/crm/engine.rs`, `src-tauri/src/commands/rag/store.rs`,
+  `src-tauri/src/commands/crm/commands.rs`.
 - **Activity Log can no longer white-screen the whole app (BLOCKER, defensive).** Clicking "Activity Log" crashed the entire app with `TypeError: Cannot read properties of undefined (reading 'scope')`: connector-emitted audit entries arrive without a `metadata` object, but `getAuditEntryMatterScope` (via the `availableMatterScopes` useMemo) read `entry.metadata['scope']` unguarded, and nothing caught the throw — so the app blanked (reload required), not just the panel. Two layers of defense: (1) a new `asRecord()` helper coerces a missing/odd `metadata`/`inputs`/`outputs` to `{}` at every read site across the audit render + export path (`audit-export.ts`, `auditHomeHelpers.ts` `getScopeLabel`, `auditHomeViews.tsx` DetailPanel, and the legacy `AuditLog.tsx`), so no audit row can throw whatever its shape; (2) a reusable `ErrorBoundary` (`src/ui/ErrorBoundary.tsx`, light-theme contained fallback) now wraps `AuditHome` in `AppSurfaceRouter`, so even a future malformed row shows a contained, recoverable card instead of blanking the app. Regression tests: `tests/unit/audit-export.test.ts` (uniqueMatterScopes / entriesToCSV / filterEntries don't throw on undefined metadata/inputs/outputs), `tests/unit/reimagined-audit-home.test.tsx` (AuditHome renders + opens the detail panel for a metadata-less connector entry), and `tests/unit/ui/ErrorBoundary.test.tsx`. Verified the render test reproduces the exact reported error without the guard and passes with it.
 - **🔴 CRM content is now actually indexed/searchable (Blocker B).** The ingest engine stored each
   contact with `kind = c.r#type` = the RAW live-API value, which is CAPITALISED
