@@ -132,6 +132,19 @@ pub struct CrmSyncStatusDto {
     pub last_report: Option<CrmSyncReportDto>,
 }
 
+/// One household entry returned by `crm_list_households`.
+///
+/// Slim view suitable for the Client Map / matter-creation UI.
+/// The `id` is the Wealthbox contact id as a string (JSON-safe, no
+/// i64 precision issues on the JS side).  The `name` is the trimmed
+/// `company_name`, or `"Household {id}"` if that field is blank.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CrmHouseholdDto {
+    pub id: String,
+    pub name: String,
+}
+
 // ---------------------------------------------------------------------------
 // Event name
 // ---------------------------------------------------------------------------
@@ -314,6 +327,47 @@ pub async fn crm_cancel_sync(state: State<'_, CrmState>) -> Result<(), String> {
 }
 
 // ---------------------------------------------------------------------------
+// crm_list_households helpers + command
+// ---------------------------------------------------------------------------
+
+/// Derive the display name for a household `WbContact`.
+///
+/// Returns `company_name` trimmed if non-empty; otherwise `"Household {id}"`.
+/// Factored out of the command so it can be unit-tested without any
+/// Tauri runtime, OS keychain, or network call.
+fn household_dto_name(contact: &crate::commands::crm::model::WbContact) -> String {
+    let trimmed = contact.company_name.trim().to_string();
+    if trimmed.is_empty() {
+        format!("Household {}", contact.id)
+    } else {
+        trimmed
+    }
+}
+
+/// Return a slim list of every household in the advisor's Wealthbox account.
+///
+/// Reads the stored token (returns `"not connected"` if absent) → builds
+/// `WealthboxClient` → calls `list_households()` (paged, ~1 rps gated) →
+/// maps each `WbContact` to `CrmHouseholdDto { id, name }`.
+///
+/// **Token and raw API body are never logged or returned** per the module
+/// security contract.
+#[tauri::command]
+pub async fn crm_list_households() -> Result<Vec<CrmHouseholdDto>, String> {
+    let token = read_token().ok_or_else(|| "not connected".to_string())?;
+    let client = WealthboxClient::new(token);
+    let contacts = client.list_households().await.map_err(|e| e.to_string())?;
+    let dtos = contacts
+        .iter()
+        .map(|c| CrmHouseholdDto {
+            id: c.id.to_string(),
+            name: household_dto_name(c),
+        })
+        .collect();
+    Ok(dtos)
+}
+
+// ---------------------------------------------------------------------------
 // Tests — pure-logic only (no OS keychain, no network, no Tauri runtime)
 // ---------------------------------------------------------------------------
 
@@ -427,6 +481,74 @@ mod tests {
         assert_eq!(plan, "", "missing 'plan' must default to empty string");
         assert_eq!(email, "", "missing 'email' must default to empty string");
     }
+
+    // ── household_dto_name helper ──────────────────────────────────────────────
+
+    #[test]
+    fn household_dto_name_uses_company_name_when_present() {
+        use crate::commands::crm::model::WbContact;
+        let c = WbContact {
+            id: 10001,
+            company_name: "The Andersons".to_string(),
+            r#type: "household".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(
+            household_dto_name(&c),
+            "The Andersons",
+            "non-empty company_name must be returned as-is (trimmed)"
+        );
+    }
+
+    #[test]
+    fn household_dto_name_trims_surrounding_whitespace() {
+        use crate::commands::crm::model::WbContact;
+        let c = WbContact {
+            id: 10001,
+            company_name: "  The Andersons  ".to_string(),
+            r#type: "household".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(
+            household_dto_name(&c),
+            "The Andersons",
+            "leading/trailing whitespace must be stripped"
+        );
+    }
+
+    #[test]
+    fn household_dto_name_falls_back_for_empty_company_name() {
+        use crate::commands::crm::model::WbContact;
+        let c = WbContact {
+            id: 42,
+            company_name: "".to_string(),
+            r#type: "household".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(
+            household_dto_name(&c),
+            "Household 42",
+            "empty company_name must fall back to 'Household {{id}}'"
+        );
+    }
+
+    #[test]
+    fn household_dto_name_falls_back_for_whitespace_only_company_name() {
+        use crate::commands::crm::model::WbContact;
+        let c = WbContact {
+            id: 99,
+            company_name: "   ".to_string(),
+            r#type: "household".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(
+            household_dto_name(&c),
+            "Household 99",
+            "whitespace-only company_name must fall back to 'Household {{id}}'"
+        );
+    }
+
+    // ── parse_me_json tests (continued) ───────────────────────────────────────
 
     /// Exact fixture from the task spec: {{"name":"Northcrest","plan":"trial",...}}.
     #[test]

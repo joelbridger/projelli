@@ -155,6 +155,7 @@ pub fn run() {
             commands::crm::commands::crm_sync_all,
             commands::crm::commands::crm_sync_status,
             commands::crm::commands::crm_cancel_sync,
+            commands::crm::commands::crm_list_households,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
             // Wave 3b encrypted vault — per-workspace AES-256-GCM at-rest encryption.
