@@ -126,7 +126,7 @@ export function ConfidentialityReportDialog({ open, onOpenChange, report }: Conf
           Confidentiality Report for {report.matterName}
         </DialogTitle>
         <DialogDescription className="sr-only">
-          A printable record of AI activity for this matter and where the data went.
+          A printable record of AI activity for this {entityLabel.one} and where the data went.
         </DialogDescription>
 
         {/* Header */}

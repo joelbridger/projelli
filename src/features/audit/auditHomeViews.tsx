@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import { asRecord, type AuditMatterScopeOption } from '@/features/audit/audit-export';
-import { getEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import {
   Button,
   FilterPanel,
@@ -48,6 +48,7 @@ export interface DetailPanelProps {
 }
 
 export function DetailPanel({ entry, onClose }: DetailPanelProps) {
+  const entityLabel = useEntityLabel();
   const category = lookupCategory(ACTION_CATEGORY, entry.action);
   const iconColor = CATEGORY_COLOR[category];
   const scopeLabel = getScopeLabel(entry);
@@ -124,8 +125,8 @@ export function DetailPanel({ entry, onClose }: DetailPanelProps) {
           const soid = toSafeString(oid);
           return (
             <div style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {sfmid && <GovRow label="Firm matter" value={sfmid} />}
-              {smid && smid !== sfmid && <GovRow label="Local matter" value={smid} />}
+              {sfmid && <GovRow label={`Firm ${entityLabel.one}`} value={sfmid} />}
+              {smid && smid !== sfmid && <GovRow label={`Local ${entityLabel.one}`} value={smid} />}
               {stuid && <GovRow label="Target user" value={stuid} />}
               {soid && <GovRow label="Org" value={soid} />}
             </div>
@@ -475,7 +476,7 @@ export function AuditFilterPanel({
   activeFilterCount,
   onReset,
 }: AuditFilterPanelProps) {
-  const entityLabel = getEntityLabel();
+  const entityLabel = useEntityLabel();
   const categories: CategoryFilter[] = ['all', 'file', 'ai', 'workflow', 'privilege', 'firm', 'system'];
 
   const inputStyle: React.CSSProperties = {
@@ -554,7 +555,7 @@ export function AuditFilterPanel({
           </div>
         )}
         <div>
-          <Eyebrow style={{ marginBottom: 6 }}>Matter</Eyebrow>
+          <Eyebrow style={{ marginBottom: 6 }}>{entityLabel.One}</Eyebrow>
           <select
             value={matterIdFilter}
             onChange={(e) => { onMatterChange(e.target.value); }}
