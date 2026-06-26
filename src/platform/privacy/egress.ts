@@ -174,7 +174,7 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
     return {
       destination: 'local',
       severity: 'safe',
-      label: 'On your machine — no cloud AI',
+      label: 'On your machine. No cloud AI',
       note: `This runs on a local model (${providerDisplayName(localProvider)}). No AI prompt or file is sent to a cloud AI.`,
       dataLeaves: false,
       provider: localProvider,

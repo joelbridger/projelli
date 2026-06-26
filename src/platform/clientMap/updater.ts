@@ -147,6 +147,52 @@ export function capGeneratedSectionItems(
   return selected.map((entry) => entry.item);
 }
 
+/** Merge two source lists, de-duping by content-addressed citation id (or ref).
+ *  So a fact known from both a file and a CRM record ends up citing BOTH. */
+function mergeSourceRefs(a: SourceRef[], b: SourceRef[]): SourceRef[] {
+  const seen = new Set(a.map((s) => s.citationId ?? s.ref));
+  const merged = [...a];
+  for (const s of b) {
+    const key = s.citationId ?? s.ref;
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(s);
+    }
+  }
+  return merged;
+}
+
+/**
+ * Collapse facts that appear in MORE THAN ONE section. On a MERGED client the
+ * same fact can surface from both a file source and a CRM source and land in two
+ * different sections (e.g. "Key goals" and "Where things stand"), differing only
+ * in casing/wording — the per-section dedup (`capGeneratedSectionItems`) can't see
+ * across sections, so the user sees it twice. This keeps the first occurrence (in
+ * section order) and drops later near-duplicates, merging the dropped item's
+ * sources into the kept one so the single entry cites both the file and the CRM.
+ */
+export function dedupeAcrossSections(sections: ClientMapSection[]): ClientMapSection[] {
+  interface Kept { sectionIdx: number; item: ClientMapItem; sources: SourceRef[] }
+  const kept: Kept[] = [];
+  sections.forEach((section, sectionIdx) => {
+    for (const item of section.items) {
+      const existing = kept.find((k) => areNearDuplicateFacts(k.item.text, item.text));
+      if (existing) {
+        // Cross-section duplicate: drop it, merge its sources into the kept one.
+        existing.sources = mergeSourceRefs(existing.sources, item.sources);
+      } else {
+        kept.push({ sectionIdx, item, sources: item.sources });
+      }
+    }
+  });
+  return sections.map((section, sectionIdx) => ({
+    ...section,
+    items: kept
+      .filter((k) => k.sectionIdx === sectionIdx)
+      .map((k) => (k.sources === k.item.sources ? k.item : { ...k.item, sources: k.sources })),
+  }));
+}
+
 /** Stable content identity of a proposal: section + op + normalized text.
  *  The same fact proposed across passes yields the same signature, so it can be
  *  deduped and matched to a dismissal regardless of the volatile `id`. */

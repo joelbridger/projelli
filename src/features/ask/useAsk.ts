@@ -475,7 +475,12 @@ export function useAsk({
 
       const workspaceBlock = hits.length > 0 ? buildWorkspaceContextBlock(hits) : '';
 
-      const matterHint = activeMatter
+      // B4 (audit honesty): build the prompt scope from the SAME retrievalScope
+      // the retrieval actually used — NOT from activeMatter. Otherwise, when a
+      // matter is active but the user picked the "All matters" scope, the prompt
+      // would tell the AI it's answering for the active client while retrieval ran
+      // across everything — so the prompt and the audited scope would disagree.
+      const matterHint = retrievalScope.kind === 'matter' && activeMatter
         ? `You are answering a question scoped to this client or matter: "${matterLabel(activeMatter)}".`
         : 'You are answering a question across all of your clients and matters.';
 

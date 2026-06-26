@@ -1168,7 +1168,7 @@
   "privacy": {
     "egress": {
       "local": {
-        "label": "On your machine — no cloud AI",
+        "label": "On your machine. No cloud AI",
         "note": "This runs on a local model ({{provider}}). No AI prompt or file is sent to a cloud AI."
       },
       "direct": {

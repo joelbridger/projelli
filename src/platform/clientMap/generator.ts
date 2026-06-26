@@ -12,7 +12,7 @@ import {
 } from './types';
 import type { ClientMap, ClientMapSection, CoreSectionKey, GapQuestion } from './types';
 import { parseItems, itemsFromRaw } from './aiSection';
-import { capGeneratedSectionItems } from './updater';
+import { capGeneratedSectionItems, dedupeAcrossSections } from './updater';
 import type { AuditEntry } from '@/platform/types/audit';
 
 // Gap questions are tagged with the section their answer belongs to so the
@@ -176,10 +176,14 @@ export async function buildClientMap(
     ask = parseGapQuestions(res.content);
   }
 
+  // B6: collapse facts that surfaced in more than one section (e.g. the same fact
+  // from a file source AND a CRM source on a merged client) so it shows once.
+  const dedupedSections = dedupeAcrossSections(sections);
+
   return {
     matterId,
-    sections,
-    completeness: deriveCompleteness(sections, ask),
+    sections: dedupedSections,
+    completeness: deriveCompleteness(dedupedSections, ask),
     pendingUpdates: [],
     lastBuiltAt: new Date().toISOString(),
     lastSourceFingerprint: '',

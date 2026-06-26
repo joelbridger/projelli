@@ -132,6 +132,17 @@ interface MatterState {
   // Wealthbox CRM household mapping.
   addCrmHouseholdKey: (id: string, householdId: string) => void;
   removeCrmHouseholdKey: (id: string, householdId: string) => void;
+  /**
+   * Remove every trace of Wealthbox from local matters after a disconnect:
+   *   - pure-CRM matters (no user files/mail) are deleted;
+   *   - CRM-created matters the user has since added content to keep their content
+   *     but have their imported name/client scrubbed to a neutral value and CRM
+   *     origin cleared;
+   *   - user matters merely linked to a household just lose the household keys.
+   * The at-a-glance cache is invalidated for every affected matter (its summary
+   * may have been built from Wealthbox data). Returns affected matter ids.
+   */
+  scrubWealthboxFromMatters: () => string[];
 
   // Privileged Matter Mode: per-matter privileged designation. When the active
   // matter is privileged, network plugins + MCP are disabled (see
@@ -478,6 +489,65 @@ export const useMatterStore = create<MatterState>()(
               : m,
           ),
         }));
+      },
+
+      scrubWealthboxFromMatters: () => {
+        const { matters, deleteMatter, invalidate } = get();
+        const affected: string[] = [];
+        const toDelete: string[] = [];
+        const toScrub: string[] = []; // CRM-created matters the user added content to
+        const toUnlink: string[] = []; // user matters merely linked to a household
+        for (const m of matters) {
+          const keys = m.crmHouseholdKeys ?? [];
+          if (keys.length === 0) continue;
+          affected.push(m.id);
+          const hasContent = m.folderPaths.length > 0 || (m.mailFolderPaths ?? []).length > 0;
+          if (!hasContent) {
+            toDelete.push(m.id);
+          } else if (m.createdFromCrm) {
+            toScrub.push(m.id);
+          } else {
+            toUnlink.push(m.id);
+          }
+        }
+        // Scrub imported name/client + unlink keys (and unlink the linked-only
+        // matters) in a single update. A scrubbed CRM-created matter takes a
+        // neutral, user-derived name from its first folder so no Wealthbox-derived
+        // identity persists; its content is untouched.
+        const scrubSet = new Set(toScrub);
+        const unlinkSet = new Set(toUnlink);
+        if (scrubSet.size > 0 || unlinkSet.size > 0) {
+          set((state) => ({
+            matters: state.matters.map((m) => {
+              if (scrubSet.has(m.id)) {
+                const firstFolder = m.folderPaths[0];
+                const base = (firstFolder
+                  ? firstFolder.split(/[\\/]/).filter(Boolean).pop() ?? ''
+                  : '').trim();
+                const scrubbedName = base || 'Untitled client';
+                return {
+                  ...m,
+                  name: scrubbedName,
+                  client: scrubbedName,
+                  crmHouseholdKeys: [],
+                  createdFromCrm: false,
+                };
+              }
+              if (unlinkSet.has(m.id)) {
+                return { ...m, crmHouseholdKeys: [] };
+              }
+              return m;
+            }),
+          }));
+        }
+        // Delete pure-CRM matters last (deleteMatter also purges their RAG chunks,
+        // mail filings, at-a-glance cache, snapshot, and clears the active matter).
+        for (const id of toDelete) deleteMatter(id);
+        // Invalidate the at-a-glance cache for kept (scrubbed/unlinked) matters —
+        // their cached summary may have been computed from Wealthbox data.
+        for (const id of toScrub) invalidate(id);
+        for (const id of toUnlink) invalidate(id);
+        return affected;
       },
 
       setMatterPrivileged: (id, privileged) => {
