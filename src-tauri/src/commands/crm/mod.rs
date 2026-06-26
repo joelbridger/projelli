@@ -7,6 +7,7 @@
 //! object-level sync engine.
 
 pub mod client;
+pub mod commands;
 pub mod engine;
 pub mod model;
 pub mod render;

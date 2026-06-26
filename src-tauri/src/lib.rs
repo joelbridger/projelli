@@ -147,6 +147,14 @@ pub fn run() {
             commands::mail::outlook_connect,
             // Email send — compose and send from any connected provider (M365/Gmail/IMAP).
             commands::mail::mail_send,
+            // Plan 1B.4 — Wealthbox CRM connector commands (connect/sync/status/disconnect).
+            commands::crm::commands::crm_set_workspace,
+            commands::crm::commands::crm_connect,
+            commands::crm::commands::crm_is_connected,
+            commands::crm::commands::crm_disconnect,
+            commands::crm::commands::crm_sync_all,
+            commands::crm::commands::crm_sync_status,
+            commands::crm::commands::crm_cancel_sync,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
             // Wave 3b encrypted vault — per-workspace AES-256-GCM at-rest encryption.
@@ -177,6 +185,8 @@ pub fn run() {
             commands::rag::manage_state(app);
             // Phase 1 email — manage mail state (active workspace + cancel flag).
             commands::mail::manage_state(app);
+            // Plan 1B.4 — manage CRM state (active workspace + sync flag + last report).
+            commands::crm::commands::manage_state(app);
             // Keepance 3.0 — manage encrypted audit-store state (active workspace).
             commands::audit::manage_state(app);
             // Auto-updater stack. Desktop-only because the underlying
