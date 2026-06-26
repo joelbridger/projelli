@@ -646,6 +646,9 @@ function VoiceSection(props: SectionProps) {
 
 function AdvancedSection(props: SectionProps) {
   const updatesKeys = ['autoUpdateCheck', 'updateChannel', 'manualCheckNow'];
+  // Power-user / developer-view toggles (e.g. the AI cost & usage meters,
+  // which are off by default so the assistant doesn't read like a dev console).
+  const advancedKeys = ['showAiCostMeters'];
 
   const lowerQ = props.searchQuery.toLowerCase();
   const extMatch = !props.searchActive
@@ -687,8 +690,9 @@ function AdvancedSection(props: SectionProps) {
           id="adv-advanced"
           label="Advanced"
           testid="subheader-advanced"
-          containsMatch={advMatch}
+          containsMatch={advMatch || anyMatch(advancedKeys, props)}
         >
+          {renderRows(advancedKeys, props)}
           <AdvancedSettings />
           <MobileSettings />
         </SubSection>

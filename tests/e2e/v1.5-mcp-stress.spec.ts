@@ -28,6 +28,9 @@ async function openAccountConnections(page: import('@playwright/test').Page) {
   await hardClick(page.getByTestId('account-identity'));
   await expect(page.getByTestId('account-window')).toBeVisible();
   await hardClick(page.getByTestId('account-tab-connections'));
+  // The MCP panel now lives behind a collapsed "Developer tools" disclosure so
+  // advisors don't see this power-user plumbing by default. Open it first.
+  await hardClick(page.getByTestId('connections-developer-tools-trigger'));
   await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
 }
 
@@ -113,15 +116,15 @@ test.describe('v1.5 Flag 2 — MCP + .mcpb stress', () => {
     await expect(page.getByTestId('mcp-server-status')).toBeVisible();
     await expect(page.getByTestId('ollama-status')).toBeVisible();
 
-    // Their heading order should be MCP first, Ollama second — the two
-    // tests above can pass even if the Ollama section rendered above MCP,
-    // which would surprise users. Grab bounding boxes and compare Y.
+    // Layout order: the advisor-facing Ollama section sits above the tucked-away
+    // "Developer tools" disclosure that holds MCP, so once expanded the MCP
+    // panel renders below Ollama. Grab bounding boxes and compare Y.
     const mcpBox = await page.getByTestId('mcp-settings-section').boundingBox();
     const ollamaBox = await page.getByTestId('ollama-settings-section').boundingBox();
     expect(mcpBox).not.toBeNull();
     expect(ollamaBox).not.toBeNull();
     if (mcpBox && ollamaBox) {
-      expect(mcpBox.y).toBeLessThan(ollamaBox.y);
+      expect(ollamaBox.y).toBeLessThan(mcpBox.y);
     }
   });
 });

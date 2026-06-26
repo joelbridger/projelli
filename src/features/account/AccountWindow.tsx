@@ -23,6 +23,12 @@ import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
 import { WealthboxConnect } from '@/features/settings/WealthboxConnect';
 import { McpSettingsSection } from '@/features/settings/McpSettingsSection';
 import { OllamaSettingsSection } from '@/features/settings/OllamaSettingsSection';
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from '@/ui/accordion';
 
 interface AccountWindowProps {
   open: boolean;
@@ -296,8 +302,22 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                 <MailImapConnect />
                 <MailGmailConnect />
                 <WealthboxConnect />
-                <McpSettingsSection />
                 <OllamaSettingsSection />
+                {/* Developer tools — connecting Keepance to outside AI clients
+                    (Claude Desktop, Cursor) via MCP. This is power-user
+                    plumbing, not something a typical advisor needs, so it's
+                    tucked behind a closed disclosure by default and stays one
+                    click away for anyone who wants it. */}
+                <Accordion data-testid="connections-developer-tools">
+                  <AccordionItem value="developer-tools">
+                    <AccordionTrigger data-testid="connections-developer-tools-trigger">
+                      Developer tools
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <McpSettingsSection />
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </div>
             )}
           </div>

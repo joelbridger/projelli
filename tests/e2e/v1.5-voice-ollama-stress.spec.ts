@@ -226,6 +226,8 @@ test.describe('v1.5 Flag 4 — Voice + Ollama stress', () => {
     // refactor where one accidentally hides the other (e.g. tabs).
     await openAccountConnections(page);
 
+    // MCP now sits behind a collapsed "Developer tools" disclosure — expand it.
+    await hardClick(page.getByTestId('connections-developer-tools-trigger'));
     await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
     await expect(page.getByTestId('ollama-settings-section')).toBeVisible();
     await expect(page.getByTestId('mcp-server-status')).toBeVisible();

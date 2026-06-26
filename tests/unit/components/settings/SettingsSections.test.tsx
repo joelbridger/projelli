@@ -15,7 +15,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { SettingsModal } from '@/features/settings/SettingsModal';
-import { resolveSection, CATEGORY_ALIAS_MAP } from '@/platform/settings/schema';
+import { resolveSection, CATEGORY_ALIAS_MAP, SETTINGS_SCHEMA } from '@/platform/settings/schema';
 
 afterEach(() => {
   cleanup();
@@ -323,6 +323,14 @@ describe('SettingsModal controls per section', () => {
     expect(screen.getByTestId('setting-autoUpdateCheck')).toBeInTheDocument();
   });
 
+  it('Advanced: the AI cost/usage meters toggle is reachable (from advanced, after expanding)', () => {
+    // The meters are hidden by default in the AI assistant; this toggle is how
+    // a power user opts back into them, so it must be present under Advanced.
+    renderModal('advanced');
+    expandSubsection('subheader-advanced');
+    expect(screen.getByTestId('setting-showAiCostMeters')).toBeInTheDocument();
+  });
+
   it('Help: aboutWebsite action is present (from about, after expanding)', () => {
     renderModal('help');
     expandSubsection('subheader-about');
@@ -465,4 +473,22 @@ describe('SettingsModal sidebar does not expose old category ids', () => {
       expect(screen.queryByTestId(`settings-category-${id}`)).not.toBeInTheDocument();
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// AI cost/usage meters are off by default (advisor-friendly default).
+// ---------------------------------------------------------------------------
+
+describe('showAiCostMeters setting (default-off contract)', () => {
+  it('is registered as an Advanced toggle that defaults to false', () => {
+    const def = SETTINGS_SCHEMA.find((d) => d.key === 'showAiCostMeters');
+    expect(def).toBeDefined();
+    // Lives under Advanced so it's reachable but out of an advisor's way.
+    expect(def!.category).toBe('advanced');
+    // Renders as a toggle.
+    expect(def!.type).toBe('toggle');
+    // Off by default: the AI assistant hides the token/cost/context meters
+    // unless the user explicitly turns this on.
+    expect(def!.defaultValue).toBe(false);
+  });
 });

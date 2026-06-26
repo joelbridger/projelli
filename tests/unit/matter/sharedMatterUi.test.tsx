@@ -208,6 +208,23 @@ describe('MatterManagerDialog — solo mode (no firm session)', () => {
     expect(screen.queryByTestId('firm-shared-mine-section')).not.toBeInTheDocument();
   });
 
+  it('labels the second field as an optional company/organization with helper text', () => {
+    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+
+    // The field itself is unchanged (same internal binding / testid).
+    expect(screen.getByTestId('matter-new-client')).toBeInTheDocument();
+
+    // The rendered label now reads as a clearly optional company/org field
+    // (no longer the ambiguous "Client").
+    expect(screen.getByText('Company / Organization (optional)')).toBeInTheDocument();
+    expect(screen.queryByText('Client')).not.toBeInTheDocument();
+
+    // A short helper line explains it's optional.
+    const helper = screen.getByTestId('matter-new-client-helper');
+    expect(helper).toBeInTheDocument();
+    expect(helper.textContent ?? '').toMatch(/optional/i);
+  });
+
   it('pressing Escape closes only the matter manager dialog', async () => {
     const onOpenChange = vi.fn();
     render(<MatterManagerDialog open={true} onOpenChange={onOpenChange} />);

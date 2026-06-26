@@ -311,6 +311,10 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const { getSetting } = useSettingsStore();
   const chatContextTokenLimit = (getSetting('chatContextTokenLimit') as number | undefined) ?? 200_000;
   const keepRecentTurns = (getSetting('keepRecentTurns') as number | undefined) ?? 6;
+  // Off by default: the per-message cost chip and context-usage meter make the
+  // assistant read like a developer console, so advisors don't see them unless
+  // they opt in via Settings → Advanced → "Show AI cost and usage meters".
+  const showAiCostMeters = getSetting<boolean | undefined>('showAiCostMeters') ?? false;
 
   // Initialize session on mount if it doesn't exist
   useEffect(() => {
@@ -1354,12 +1358,16 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           </div>
         )}
         {/* Q3 — real-time cost chip, anchored bottom-right of the chat pane
-             just above the input. Hover reveals today's provider breakdown. */}
-        <div className="flex justify-end mb-2">
-          <ChatCostChip chatId={chatId} />
-        </div>
-        {/* Stream A4 — context meter bar: utilization, cost preview, 80% warning, Compress */}
-        {(() => {
+             just above the input. Hover reveals today's provider breakdown.
+             Hidden unless the user opts into developer cost meters. */}
+        {showAiCostMeters && (
+          <div className="flex justify-end mb-2">
+            <ChatCostChip chatId={chatId} />
+          </div>
+        )}
+        {/* Stream A4 — context meter bar: utilization, cost preview, 80% warning, Compress.
+            Hidden unless the user opts into developer cost meters. */}
+        {showAiCostMeters && (() => {
           // Simple 4-chars-per-token heuristic for meter display.
           const historyChars = messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0);
           const usedTokens = Math.round((historyChars + inputValue.length) / 4);
