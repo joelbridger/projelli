@@ -528,11 +528,25 @@ pub async fn crm_sync_all(
         e.to_string()
     })?;
 
+    // Read the RAG/vector master key from the OS keychain and hand it to the engine
+    // (the engine stays keychain-free so it can be driven in tests with a literal key).
+    let rag_key = crate::commands::rag::crypto::get_or_create_master_key().map_err(|e| {
+        let _ = app.emit(CRM_SYNC_PROGRESS_EVENT, serde_json::json!({ "status": "error" }));
+        e.to_string()
+    })?;
+
     // Run the full backfill (fetch → ingest → index). The cancel flag is polled
     // between households so the UI's Stop button interrupts a long sync.
     let client = WealthboxClient::new(token);
-    let report = match engine::backfill(&client, &store, &workspace, &matter_hashmap, &state.cancel)
-        .await
+    let report = match engine::backfill(
+        &client,
+        &store,
+        &workspace,
+        &matter_hashmap,
+        &state.cancel,
+        &rag_key,
+    )
+    .await
     {
         Ok(r) => r,
         Err(e) => {

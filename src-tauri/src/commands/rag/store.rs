@@ -966,6 +966,51 @@ pub async fn delete_source_type(table: &Table, source_type: &str) -> Result<()> 
     Ok(())
 }
 
+/// Build the predicate for [`delete_crm_for_matters`]: delete every CRM chunk
+/// whose matter is in `matter_ids`, in ONE clause. Returns `None` for an empty
+/// list (nothing to delete). Pure + SQL-escaped so it is unit-testable without a
+/// table.
+fn crm_delete_predicate(matter_ids: &[String]) -> Option<String> {
+    if matter_ids.is_empty() {
+        return None;
+    }
+    let list = matter_ids
+        .iter()
+        .map(|m| format!("'{}'", sql_escape(m)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Some(format!("source_type = 'crm' AND matter_id IN ({list})"))
+}
+
+/// Delete every CRM chunk belonging to any of `matter_ids` in a SINGLE table
+/// delete (one scan + commit + compaction), instead of one delete per source id.
+///
+/// Scoped to `source_type = 'crm'` so the file/mail chunks of a *merged* household
+/// (a matter that has both files and CRM data) are preserved. A first sync matches
+/// nothing and returns quickly; an empty list is a no-op.
+///
+/// This replaces the per-item `delete_path` loop the CRM backfill used to run: on a
+/// ~40-household / ~200-item first sync that issued ~200 sequential full-table
+/// deletes — each a scan + commit + compaction, all no-ops on a first sync — and
+/// never completed (the hang the bench observed).
+///
+/// `backfill` calls this **per household** (a one-element `matter_ids`), right after
+/// the cancel check, as the delete half of an atomic delete-then-insert — so a
+/// cancel/error only affects the household in flight and never leaves the whole CRM
+/// index empty (which one big up-front wipe would risk). One scoped delete per
+/// household (not per item) is what removed the churn. The slice form is kept so the
+/// same primitive can clear several matters at once where atomicity isn't required.
+pub async fn delete_crm_for_matters(table: &Table, matter_ids: &[String]) -> Result<()> {
+    let Some(predicate) = crm_delete_predicate(matter_ids) else {
+        return Ok(());
+    };
+    table
+        .delete(&predicate)
+        .await
+        .context("delete failed for crm matters")?;
+    Ok(())
+}
+
 /// WS-PRIV — re-tag the privilege of every already-indexed chunk for `path`
 /// IN PLACE, without re-embedding. Used when the user toggles a source's
 /// privilege: the chunk text + vectors are unchanged, only the `privilege`
@@ -2258,6 +2303,31 @@ mod tests {
         );
     }
 
+    // ---- crm_delete_predicate: one scoped delete PER CALL (backfill uses it per
+    //      household), never one delete per item — that per-item churn is what hung.
+
+    #[test]
+    fn crm_delete_predicate_builds_one_clause_for_all_matters() {
+        // The perf fix's contract: ONE predicate per call (scoped to source_type='crm'),
+        // never one delete per ITEM. backfill calls it per household with a single
+        // matter; the multi-matter form is exercised here for completeness.
+        let ids = vec!["m1".to_string(), "m2".to_string(), "m3".to_string()];
+        let p = crm_delete_predicate(&ids).expect("some predicate");
+        assert_eq!(p, "source_type = 'crm' AND matter_id IN ('m1', 'm2', 'm3')");
+    }
+
+    #[test]
+    fn crm_delete_predicate_is_none_for_empty() {
+        assert!(crm_delete_predicate(&[]).is_none(), "empty list => no delete at all");
+    }
+
+    #[test]
+    fn crm_delete_predicate_sql_escapes_matter_ids() {
+        let ids = vec!["a'b".to_string()];
+        let p = crm_delete_predicate(&ids).expect("some predicate");
+        assert_eq!(p, "source_type = 'crm' AND matter_id IN ('a''b')");
+    }
+
     /// BUG-099 tombstone — an empty tombstone slice adds NO extra clause.
     #[test]
     fn predicate_empty_tombstone_adds_no_clause() {
@@ -2994,6 +3064,207 @@ mod tests {
             .execute()
             .await
             .expect("add mail chunk");
+    }
+
+    /// Test helper: add several CRM chunks for one matter in a single batch.
+    async fn add_crm_chunks(table: &Table, matter_id: &str, source_ids: &[String], seed: f32) {
+        let key = [0x42u8; 32];
+        let rows: Vec<(Chunk, Vec<f32>)> = source_ids
+            .iter()
+            .map(|sid| {
+                (
+                    Chunk {
+                        path: sid.clone(),
+                        paragraph_index: 0,
+                        text: format!("crm record {sid}"),
+                        start_offset: 0,
+                        end_offset: 4,
+                        locator: None,
+                    },
+                    vec![seed; EMBEDDING_DIM],
+                )
+            })
+            .collect();
+        let batch = build_batch_crm(&rows, &key, matter_id, PRIVILEGE_NONE).expect("build crm batch");
+        let schema = batch.schema();
+        table
+            .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+            .execute()
+            .await
+            .expect("add crm chunks");
+    }
+
+    /// REAL-SCALE regression for the sync hang (B-LAST): a 40-household sync's
+    /// worth of CRM chunks across 40 matters (~200 items) is cleared by ONE
+    /// `delete_crm_for_matters` call, while a MERGED household's file chunk under
+    /// the same matter is preserved. The 1–2-household integration fixtures never
+    /// reached this scale, so the live per-item delete loop (~200 sequential
+    /// full-table deletes) hung here unnoticed.
+    #[tokio::test]
+    async fn delete_crm_for_matters_clears_all_crm_in_one_call_preserving_files() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        // 40 matters, 5 CRM chunks each = 200 CRM rows (a 40-household sync).
+        let mut matter_ids: Vec<String> = Vec::new();
+        for h in 0..40 {
+            let matter = format!("matter-{h}");
+            matter_ids.push(matter.clone());
+            let sids = vec![
+                format!("crm:household:{h}"),
+                format!("crm:contact:{h}a"),
+                format!("crm:contact:{h}b"),
+                format!("crm:note:{h}"),
+                format!("crm:task:{h}"),
+            ];
+            add_crm_chunks(&table, &matter, &sids, 0.10 + (h as f32) * 0.001).await;
+        }
+
+        // matter-0 is a MERGED household: it ALSO has a file chunk that must survive.
+        {
+            let key = [0x42u8; 32];
+            let rows = vec![(
+                Chunk {
+                    path: "/clients/bishop/statement.pdf".into(),
+                    paragraph_index: 0,
+                    text: "annual statement".into(),
+                    start_offset: 0,
+                    end_offset: 16,
+                    locator: None,
+                },
+                vec![0.10f32; EMBEDDING_DIM],
+            )];
+            let batch =
+                build_batch(&rows, SourceType::Text, "matter-0", PRIVILEGE_NONE, None, &key)
+                    .expect("build file batch");
+            let schema = batch.schema();
+            table
+                .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+                .execute()
+                .await
+                .expect("add file chunk");
+        }
+
+        // ONE scoped delete clears every CRM chunk for all 40 matters.
+        delete_crm_for_matters(&table, &matter_ids)
+            .await
+            .expect("delete crm for matters");
+
+        // The merged matter-0 keeps ONLY its file chunk; its CRM chunks are gone.
+        let q = vec![0.10f32; EMBEDDING_DIM];
+        let hits = nearest(&table, &q, 50, Some("matter-0"), false, &[])
+            .await
+            .expect("nearest matter-0");
+        let paths: Vec<String> = hits.iter().map(stored_path).collect();
+        assert!(
+            paths.iter().any(|p| p == "/clients/bishop/statement.pdf"),
+            "the merged household's file chunk must survive the crm delete; got {paths:?}"
+        );
+        assert!(
+            !paths.iter().any(|p| p.starts_with("crm:")),
+            "all crm chunks for the matter must be gone after one delete; got {paths:?}"
+        );
+
+        // A different matter's CRM is gone too (the single IN-clause covered all 40).
+        let hits2 = nearest(&table, &q, 50, Some("matter-17"), false, &[])
+            .await
+            .expect("nearest matter-17");
+        assert!(
+            !hits2.iter().map(stored_path).any(|p| p.starts_with("crm:")),
+            "matter-17 crm must be gone after the single batched delete"
+        );
+    }
+
+    /// FIRST-SYNC-COMPLETES + REPLACEMENT regression. Mirrors `engine::backfill`'s
+    /// per-household delete-then-insert loop (the real thing needs the embedder +
+    /// keychain, so we exercise the delete/insert shape directly). 40 households on
+    /// an EMPTY table = 40 no-op scoped deletes + inserts — the exact first-sync
+    /// shape that HUNG with the old per-ITEM delete loop; per household it completes.
+    /// Then a re-sync of one household with a removed record leaves exactly the new
+    /// set — no orphan, no duplicate — and other households are untouched.
+    #[tokio::test]
+    async fn per_household_replace_completes_at_scale_no_orphans_or_dupes() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        // 40 households, 5 CRM records each (~200 items) — a first sync (empty table).
+        let households: Vec<(String, Vec<String>)> = (0..40)
+            .map(|h| {
+                (
+                    format!("matter-{h}"),
+                    vec![
+                        format!("crm:household:{h}"),
+                        format!("crm:contact:{h}a"),
+                        format!("crm:contact:{h}b"),
+                        format!("crm:note:{h}"),
+                        format!("crm:task:{h}"),
+                    ],
+                )
+            })
+            .collect();
+
+        // First sync: per-household delete (a no-op on the empty table) then insert.
+        for (matter, sids) in &households {
+            delete_crm_for_matters(&table, std::slice::from_ref(matter))
+                .await
+                .expect("first-sync delete (no-op)");
+            add_crm_chunks(&table, matter, sids, 0.10).await;
+        }
+
+        let q = vec![0.10f32; EMBEDDING_DIM];
+        let crm0: Vec<String> = nearest(&table, &q, 50, Some("matter-0"), false, &[])
+            .await
+            .expect("nearest 0")
+            .iter()
+            .map(stored_path)
+            .filter(|p| p.starts_with("crm:"))
+            .collect();
+        assert_eq!(crm0.len(), 5, "first sync indexed all of matter-0; got {crm0:?}");
+
+        // Re-sync matter-0 with contact `0b` REMOVED in Wealthbox (4 records now).
+        let m0 = "matter-0".to_string();
+        let resynced = vec![
+            "crm:household:0".to_string(),
+            "crm:contact:0a".to_string(),
+            // crm:contact:0b removed upstream
+            "crm:note:0".to_string(),
+            "crm:task:0".to_string(),
+        ];
+        delete_crm_for_matters(&table, std::slice::from_ref(&m0))
+            .await
+            .expect("re-sync delete");
+        add_crm_chunks(&table, &m0, &resynced, 0.10).await;
+
+        let crm0b: Vec<String> = nearest(&table, &q, 50, Some("matter-0"), false, &[])
+            .await
+            .expect("nearest 0 resync")
+            .iter()
+            .map(stored_path)
+            .filter(|p| p.starts_with("crm:"))
+            .collect();
+        assert_eq!(
+            crm0b.len(),
+            4,
+            "re-sync replaced matter-0: removed record gone, no dupes; got {crm0b:?}"
+        );
+        assert!(
+            !crm0b.iter().any(|p| p == "crm:contact:0b"),
+            "the removed contact must not survive re-sync; got {crm0b:?}"
+        );
+        let uniq: std::collections::HashSet<&String> = crm0b.iter().collect();
+        assert_eq!(uniq.len(), crm0b.len(), "no duplicate chunks after re-sync");
+
+        // A different household is untouched by matter-0's re-sync.
+        let crm17: Vec<String> = nearest(&table, &q, 50, Some("matter-17"), false, &[])
+            .await
+            .expect("nearest 17")
+            .iter()
+            .map(stored_path)
+            .filter(|p| p.starts_with("crm:"))
+            .collect();
+        assert_eq!(crm17.len(), 5, "matter-17 unaffected by matter-0 re-sync; got {crm17:?}");
     }
 
     /// An email indexed under Matter A must be retrievable under the Matter A
