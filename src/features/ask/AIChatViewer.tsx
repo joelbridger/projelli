@@ -666,10 +666,10 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           }
           // Determine extraction mode based on current provider + model. This is
           // a LOCAL, non-egress heuristic (text vs. image extraction); the actual
-          // send is separately gated on localStatusPending. If the status probe
-          // is still resolving we fall back to the saved/cloud default purely for
-          // this strategy choice — nothing leaves the machine here.
-          const provider = effectiveProvider ?? chatData.provider ?? 'anthropic';
+          // send is separately gated on localStatusPending. effectiveProvider is
+          // null only mid-probe (when no provider is saved), so this resolves to
+          // the cloud default purely for the strategy choice — nothing leaves.
+          const provider = effectiveProvider ?? 'anthropic';
           const model = chatData.model ?? '';
           const mode = getPdfMode(provider, model);
 
@@ -1455,7 +1455,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         />
         {/* Stream A1 — ChatInputToolbar: paperclip, paste, drop, tiles, vision warning */}
         <ChatInputToolbar
-          provider={effectiveProvider ?? chatData.provider ?? 'anthropic'}
+          provider={effectiveProvider ?? 'anthropic'}
           model={chatData.model ?? ''}
           pendingAttachments={pendingAttachments}
           previewUrls={previewUrls}

@@ -288,7 +288,10 @@ export function useAsk({
     setQuestion('');
 
     let providerAudit:
-      | { providerId: 'anthropic' | 'openai' | 'google' | 'ollama'; model: string }
+      | {
+          providerId: 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local';
+          model: string;
+        }
       | null = null;
     let providerCallStarted = false;
 
