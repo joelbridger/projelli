@@ -44,8 +44,8 @@ export interface EgressIndicatorProps {
   /**
    * Provider the next send will use (the active chat's provider), or `null` when
    * the embedded local-model status probe has not resolved yet. `null` renders a
-   * neutral "Checking local AI" badge (nothing leaves) instead of guessing a
-   * destination — the composer disables send for the same window.
+   * neutral "Checking AI destination" badge instead of guessing a destination —
+   * the composer disables send for the same window.
    */
   provider: EgressProvider | null;
   /**

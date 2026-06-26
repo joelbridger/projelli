@@ -34,7 +34,6 @@ import { matterLabel } from '@/platform/rag/matterResolver';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
-import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useAsk, type UseAskProps } from './useAsk';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
@@ -61,7 +60,8 @@ export function Ask(props: UseAskProps) {
     errorMsg,
     status,
     savingIdx,
-    activeProvider,
+    displayedProvider,
+    confidentialityMode,
     bottomRef,
     composerInputRef,
     recentSessions,
@@ -134,7 +134,7 @@ export function Ask(props: UseAskProps) {
                   : `Search across all ${entityLabel.other}…`
           }
           disabled={isBusy}
-          aria-label="Search this matter"
+          aria-label={`Search this ${entityLabel.one}`}
           data-testid="ask-composer-input"
           size="md"
           style={{ flex: 1, minWidth: 240 }}
@@ -156,7 +156,7 @@ export function Ask(props: UseAskProps) {
 
       {/* Egress indicator — where this search's AI request goes. */}
       <div style={{ padding: 'var(--kp-space-xs) var(--kp-gutter)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-        <EgressIndicator provider={activeProvider} mode={getConfidentialityMode()} variant="full" />
+        <EgressIndicator provider={displayedProvider} mode={confidentialityMode} variant="full" />
       </div>
 
       {/* Recent sessions chips */}

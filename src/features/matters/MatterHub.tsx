@@ -834,7 +834,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
               <span>2 workflows available</span>
             ) : (
               /* eslint-disable keepance-i18n/no-hardcoded-string */
-              <span>Run a workflow on this matter</span>
+              <span>Run a workflow on this {entityLabel.one}</span>
               /* eslint-enable keepance-i18n/no-hardcoded-string */
             )}
           </div>

@@ -7,6 +7,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { useActiveMatter, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
@@ -22,12 +23,14 @@ import { useAIChatStore } from '@/platform/state/aiChatStore';
 import type { ChatMessage } from '@/platform/types/ai';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
-import { resolveEgress } from '@/platform/privacy/egress';
-import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { resolveEgress, isLocalProvider, type ConfidentialityMode } from '@/platform/privacy/egress';
+import { getConfidentialityMode, useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { assertLocalOnlyAllowsSend, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import type { AskScope, AskTurn } from './askHelpers';
 import {
   hasCloudKey,
   buildResolvedAskProvider,
+  resolveLocalAskProvider,
   resolveActiveAskProviderId,
   resolveEmailCitationLabels,
   friendlyErrorMessage,
@@ -74,6 +77,12 @@ export function useAsk({
   const activeMatter = useActiveMatter();
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const profession = useProfessionStore((s) => s.profession);
+  // B-PRIV-1: subscribe to the confidentiality mode so the egress banner is
+  // reactive. The Search/Ask banner must recompute the moment the user switches
+  // mode in Settings — it can never keep claiming "nothing leaves" while the
+  // next query goes to the cloud. Drives both the EgressIndicator `mode` prop
+  // (passed from Ask) and the activeProvider re-resolution effect below.
+  const confidentialityMode = useConfidentialityMode();
   const isSampleMatterActive = activeMatter?.id === SAMPLE_MATTER_ID;
   // Profession-aware demo questions: a tax user on the sample matter sees tax
   // questions; a consultant sees consulting questions; legal is the default.
@@ -113,8 +122,28 @@ export function useAsk({
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLInputElement>(null);
-  // Fix #8: track the active provider name for EgressIndicator
-  const [activeProvider, setActiveProvider] = useState<string>('anthropic');
+  // Fix #8 / B-PRIV-1: the provider the egress banner names, TAGGED with the
+  // confidentiality mode it was resolved UNDER. `null` means "destination not
+  // yet known". We tag the mode so the displayed value (derived synchronously in
+  // render below) can fall back to "checking" the instant the mode changes —
+  // BEFORE the resolver effect runs — closing the one-frame window where a
+  // provider resolved under the OLD mode would otherwise paint under the NEW mode
+  // (e.g. a local provider painting "nothing leaves" while the mode is already
+  // Direct). The EgressIndicator renders a neutral "checking" badge
+  // (data-leaves=false) for null rather than guessing a destination.
+  const [activeProvider, setActiveProvider] =
+    useState<{ provider: string; mode: ConfidentialityMode } | null>(null);
+
+  // Derived SYNCHRONOUSLY in render: the badge shows a concrete destination only
+  // when we have a resolved provider AND it was resolved under the CURRENT mode.
+  // Any mismatch (or unresolved) => null => the EgressIndicator's neutral
+  // "checking" state. Because this is computed in render, it flips to "checking"
+  // on the very render the mode changes, before any effect fires — so the banner
+  // can never display a provider resolved under a different mode, even for a frame.
+  const displayedProvider: string | null =
+    activeProvider && activeProvider.mode === confidentialityMode
+      ? activeProvider.provider
+      : null;
 
   // Recent sessions: sessions keyed "ask-*", scoped to the current workspace.
   const recentSessions = buildRecentAskSessions(sessions, rootPath, {
@@ -205,17 +234,36 @@ export function useAsk({
   // Keepance Local AI when it is ready (not a generic "Ollama"), and the local
   // engine in Local-only mode regardless of any cloud key. resolveActiveAskProviderId
   // mirrors buildResolvedAskProvider's destination decision so the two can't drift.
+  //
+  // B-PRIV-1: re-resolve whenever the confidentiality mode changes (not just on
+  // mount). Without this the badge stayed pinned to the mount-time engine — e.g.
+  // "keepance-local" — so flipping from Local-only to Cloud mid-session left the
+  // banner falsely claiming "nothing leaves" while the query went to the cloud.
+  //
+  // HOLE #1 (Codex re-review) — resolution is async, so during the in-flight
+  // window the OLD provider value combined with the NEW mode could still lie
+  // (a stale local provider + Direct mode renders as "nothing leaves"). We close
+  // that window by BLANKING to null up front: the banner shows a neutral
+  // "checking AI destination" badge for the whole async window, never a
+  // concrete-but-stale destination. The cancellation guard drops
+  // a superseded in-flight resolution so the displayed engine can't race backwards.
   useEffect(() => {
-    void (async () => {
-      try {
-        setActiveProvider(await resolveActiveAskProviderId());
-      } catch {
-        // Display-only: a failure resolving the badge NAME must never surface as
-        // an unhandled rejection. Leave the badge at its current/default name —
-        // it degrades gracefully (the send path has its own guards).
-      }
-    })();
-  }, []);
+    let cancelled = false;
+    setActiveProvider(null);
+    void resolveActiveAskProviderId()
+      .then((resolved) => {
+        if (!cancelled) setActiveProvider({ provider: resolved, mode: confidentialityMode });
+      })
+      .catch(() => {
+        // The resolver almost never throws (it has internal fallbacks), but if it
+        // does we must NOT strand the badge on "checking" forever. Fall back to a
+        // CONSERVATIVE cloud identity: in Local-only mode resolveEgress still forces
+        // "nothing leaves"; in cloud modes this over-warns ("data leaves"), which is
+        // the safe direction for a privacy indicator — it can never UNDER-claim egress.
+        if (!cancelled) setActiveProvider({ provider: 'anthropic', mode: confidentialityMode });
+      });
+    return () => { cancelled = true; };
+  }, [confidentialityMode]);
 
   // Derived: currently selected citation
   const selectedCite = (() => {
@@ -454,12 +502,46 @@ export function useAsk({
         .join('\n\n');
 
       let answerText = '';
-      const resolvedProvider = await buildResolvedAskProvider();
+      let resolvedProvider = await buildResolvedAskProvider();
+
+      // FINAL SYNCHRONOUS LOCAL-ONLY SEND GUARD (Codex re-review #4 — the
+      // important one). This is a real privacy enforcement, not a display fix:
+      // buildResolvedAskProvider() checks the mode only at its START and then
+      // awaits keychain reads. If the user switches to Local-only DURING those
+      // awaits, it can still return a CLOUD provider — which would send the query
+      // to the cloud while Local-only is on, breaking that mode's core guarantee
+      // (nothing ever leaves the machine). We re-check the CURRENT mode after the
+      // await: if Local-only is now on and the resolved provider is NOT local,
+      // re-resolve to the on-device engine so the user still gets a private answer
+      // instead of a failed query (local sends are always safe, whatever the mode
+      // does next).
+      if (isLocalOnlyMode() && !isLocalProvider(resolvedProvider.providerId)) {
+        resolvedProvider = await resolveLocalAskProvider();
+      }
+      // Airtight backstop: there is NO await between this assertion and the send
+      // below (only synchronous setup + flushSync), so the mode cannot change in
+      // between. If we somehow still hold a cloud provider in Local-only mode,
+      // fail closed (throw) rather than leak — the catch surfaces the reason.
+      assertLocalOnlyAllowsSend(resolvedProvider.providerId);
+
       const provider = resolvedProvider.provider;
       providerAudit = {
         providerId: resolvedProvider.providerId,
         model: resolvedProvider.model,
       };
+      // HOLE #2 (Codex re-review) — pin the egress banner to the engine this send
+      // ACTUALLY resolved to (buildResolvedAskProvider is the single source of
+      // truth for where the request goes), and do it SYNCHRONOUSLY. A plain
+      // setState here may be batched, so the banner is not guaranteed to repaint
+      // before the network call on the next line. flushSync forces the React
+      // commit now, so the banner DOM reflects the real destination BEFORE
+      // sendMessage/sendMessageStreaming runs — even if the badge was still
+      // "checking" (null) at click time, or the effective provider changed for a
+      // reason the mode-keyed effect doesn't watch (e.g. a cloud key added
+      // mid-session). The banner can never be sent-to-cloud-while-showing-local.
+      flushSync(() => {
+        setActiveProvider({ provider: resolvedProvider.providerId, mode: getConfidentialityMode() });
+      });
 
       const emitSuccessfulEgress = () => {
         if (!providerAudit) return;
@@ -653,7 +735,8 @@ export function useAsk({
     errorMsg,
     status,
     savingIdx,
-    activeProvider,
+    displayedProvider,
+    confidentialityMode,
     bottomRef,
     composerInputRef,
     recentSessions,
