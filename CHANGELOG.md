@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Wealthbox connector: privacy Data Map entry, audit events, import confirmation, honest disconnect.**
+  - `src/platform/privacy/ui/DataMapDialog.tsx`: added a Wealthbox row to `DATA_MAP_ROWS` (after the email row) documenting that the API key lives in the OS keychain, requests go device-to-Wealthbox directly (never through Keepance servers), and disconnecting purges imported data. Uses the `Users` lucide icon.
+  - `src/platform/types/audit.ts`: added `wealthbox.connect`, `wealthbox.sync`, `wealthbox.disconnect` to `AuditActionType`.
+  - `src/app/shell/common/AuditLog.tsx` + `src/features/audit/auditHomeHelpers.ts`: added icon, label, color, and category entries for the three new Wealthbox audit action types.
+  - `src/features/settings/WealthboxConnect.tsx`: four Codex-review fixes applied:
+    - Audit logging on connect ("API key stored locally; requests go direct"), sync (household + record count), and disconnect (data deleted from device). Uses a `useMemo`-constructed `AuditService('default')`, fire-and-forget.
+    - Import confirmation before sync: shows the household count and explains that a local encrypted database is created; user can cancel with no side-effects.
+    - Honest disconnect: button now labeled "Disconnect and delete imported data"; confirmation dialog explains key removal and local data deletion before proceeding. On confirm, `crmDisconnect()` is called, then auto-created CRM matters are cleaned up (pure-Wealthbox matters deleted; matters with user-added files/mail have only `crmHouseholdKeys` cleared).
+    - Integrates `useConfirmDialog` + `ConfirmDialog` for both flows (one shared instance since sync and disconnect are mutually exclusive).
+
 - **Wealthbox connector (Plan 1C): frontend UI + Client Map surface.** Complete frontend for the Wealthbox connector, mirroring the email connector pattern end-to-end.
   - `src/platform/utils/wealthbox-commands.ts`: typed `invoke<T>` wrappers (with `isTauri()` guards) for all CRM Tauri commands (`crmConnect`, `crmIsConnected`, `crmDisconnect`, `crmListHouseholds`, `crmSyncAll`, `crmSyncStatus`, `crmCancelSync`, `crmSetWorkspace`). Exports `CRM_SYNC_EVENT = 'crm-sync-progress'`, and DTO types (`CrmConnectInfo`, `CrmHouseholdDto`, `CrmSyncReport`, `CrmSyncProgress`).
   - `src/features/crm/crmStore.ts`: small Zustand store holding `{ progress: CrmSyncProgress | null }` with `setProgress`.

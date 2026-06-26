@@ -101,6 +101,10 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   wall_set_from_manager: ShieldOff,
   key_published: KeyRound,
   seat_revoked: UserX,
+  // Wealthbox CRM connector.
+  'wealthbox.connect': Users2,
+  'wealthbox.sync': Users2,
+  'wealthbox.disconnect': Users2,
 };
 
 export const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -136,6 +140,10 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   wall_set_from_manager: 'Information Barrier Set',
   key_published: 'Key Published',
   seat_revoked: 'Seat Revoked',
+  // Wealthbox CRM connector.
+  'wealthbox.connect': 'Wealthbox Connected',
+  'wealthbox.sync': 'Wealthbox Synced',
+  'wealthbox.disconnect': 'Wealthbox Disconnected',
 };
 
 /** Semantic category per action, drives colour + grouping in filters. */
@@ -174,6 +182,10 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   wall_set_from_manager: 'firm',
   key_published: 'firm',
   seat_revoked: 'firm',
+  // Wealthbox CRM connector.
+  'wealthbox.connect': 'system',
+  'wealthbox.sync': 'system',
+  'wealthbox.disconnect': 'system',
 };
 
 export const CATEGORY_COLOR: Record<ActionCategory, string> = {
