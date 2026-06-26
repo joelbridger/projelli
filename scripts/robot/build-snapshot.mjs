@@ -52,23 +52,31 @@ const args = process.argv.slice(2);
 const SKIP_INDEX_WAIT = args.includes('--skip-index-wait');
 const VERSION = Number((args.find((a) => a.startsWith('--version=')) || '--version=1').split('=')[1]) || 1;
 const INDEX_TIMEOUT_MS = Number(process.env.BUILD_SNAPSHOT_INDEX_TIMEOUT_MS || 1_200_000);
+// Floor so a STALLED/partial index can't look "stable" and get frozen. The
+// Northcrest demo indexes hundreds of chunks; a healthy broad query returns the
+// topK cap. Tune via env if the demo set changes.
+const MIN_HITS = Number(process.env.BUILD_SNAPSHOT_MIN_HITS || 40);
+const TOPK = 50;
 
 const log = (m) => console.log(`[build-snapshot] ${m}`);
 
-/** Poll rag_retrieve until the hit count is non-zero and stable across polls. */
+/**
+ * Poll rag_retrieve until the hit count is >= MIN_HITS and stable across polls.
+ * The floor guards against archiving a half-built index that briefly plateaus.
+ */
 async function waitForIndex(page, { timeoutMs = INDEX_TIMEOUT_MS, stableNeeded = 3, pollMs = 8000 } = {}) {
   let last = -1;
   let stable = 0;
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const count = await page
-      .evaluate(async () => {
+      .evaluate(async (topK) => {
         const inv = window.__TAURI__ && (window.__TAURI__.core?.invoke || window.__TAURI__.invoke);
         if (!inv) return -1;
         try {
           const hits = await inv('rag_retrieve', {
             query: 'portfolio retirement estate tax meeting statement goals trust holdings',
-            topK: 50,
+            topK,
             scope: { kind: 'allMatters' },
             includePrivileged: false,
           });
@@ -76,20 +84,21 @@ async function waitForIndex(page, { timeoutMs = INDEX_TIMEOUT_MS, stableNeeded =
         } catch {
           return -1;
         }
-      })
+      }, TOPK)
       .catch(() => -1);
-    if (count > 0 && count === last) {
+    // Only count toward "stable" once we're at/above the floor.
+    if (count >= MIN_HITS && count === last) {
       stable += 1;
-      log(`index poll: ${count} hits (stable ${stable}/${stableNeeded})`);
-      if (stable >= stableNeeded) return { ok: true, count };
+      log(`index poll: ${count} hits (>= floor ${MIN_HITS}; stable ${stable}/${stableNeeded})`);
+      if (stable >= stableNeeded) return { ok: true, count, minHits: MIN_HITS };
     } else {
       stable = 0;
-      log(`index poll: ${count} hits (settling)`);
+      log(`index poll: ${count} hits (need >= ${MIN_HITS} and stable; settling)`);
     }
     last = count;
     await sleep(pollMs);
   }
-  return { ok: false, count: last, reason: 'index-wait timeout' };
+  return { ok: false, count: last, minHits: MIN_HITS, reason: `index-wait timeout (never reached >= ${MIN_HITS} stable)` };
 }
 
 /** Read the on-disk index schema version (proof the index actually wrote). */

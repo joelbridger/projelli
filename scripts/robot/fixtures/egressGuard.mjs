@@ -19,6 +19,23 @@
 // (Line comments, not a block comment: the glob patterns contain the "*/"
 // sequence, which would prematurely close a block comment.)
 
+// Generation (answer-producing) endpoints — distinct from peripheral calls like
+// `/v1/models`. The deterministic proof "the fixture was used" must count a real
+// GENERATION call, not a model-list refresh, so a future stray request can't make
+// a leaked answer look served. Used by aiReplay.mjs's `served` counter.
+export const GENERATION_PATTERNS = [
+  /\/chat\/completions(?:[/?#]|$)/, // OpenAI
+  /\/v1\/messages(?:[/?#]|$)/, // Anthropic
+  /:streamGenerateContent/, // Gemini (streaming)
+  /:generateContent/, // Gemini (non-streaming)
+];
+
+/** True if `url` is an AI *generation* endpoint (not /models etc.). Pure. */
+export function isGenerationUrl(url) {
+  const u = String(url || '');
+  return GENERATION_PATTERNS.some((re) => re.test(u));
+}
+
 export const LIVE_AI_PATTERNS = [
   // Absolute provider hosts
   '**/api.openai.com/**',

@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 import {
   assertSnapshotRestorable,
   parseSnapshotResult,
-  buildSnapshotSshArgs,
+  buildSnapshotCmd,
   buildManifest,
   WS_ROOT,
   SNAPSHOT_ARCHIVE,
@@ -55,20 +55,22 @@ describe('parseSnapshotResult', () => {
   });
 });
 
-describe('buildSnapshotSshArgs', () => {
-  it('targets the bench and runs the remote ps1 with the action + paths', () => {
-    const args = buildSnapshotSshArgs('Restore');
-    expect(args).toContain('james@100.127.67.22');
-    expect(args).toContain('-File');
-    expect(args.join(' ')).toMatch(/robot-snapshot\.ps1/);
-    // action + the canonical paths are passed through
-    const i = args.indexOf('-Action');
-    expect(args[i + 1]).toBe('Restore');
-    expect(args).toContain(SNAPSHOT_ARCHIVE);
-    expect(args).toContain(WS_ROOT);
-    // runs non-interactively so it cannot stall on a profile/policy prompt
-    expect(args).toContain('-NoProfile');
-    expect(args).toContain('Bypass');
+describe('buildSnapshotCmd', () => {
+  it('builds a non-interactive ps1 invocation with the action + paths', () => {
+    const cmd = buildSnapshotCmd('Restore');
+    expect(cmd).toMatch(/robot-snapshot\.ps1/);
+    expect(cmd).toMatch(/-Action Restore\b/);
+    expect(cmd).toContain('-NoProfile');
+    expect(cmd).toContain('Bypass');
+    expect(cmd).toContain(SNAPSHOT_ARCHIVE);
+    expect(cmd).toContain(WS_ROOT);
+  });
+
+  it('QUOTES the workspace path so its space does not split the argument', () => {
+    const cmd = buildSnapshotCmd('Restore');
+    // WS_ROOT contains "Northcrest Wealth Partners" — it must appear single-quoted
+    expect(cmd).toContain(`-WsRoot '${WS_ROOT}'`);
+    expect(cmd).toContain(`-Archive '${SNAPSHOT_ARCHIVE}'`);
   });
 });
 

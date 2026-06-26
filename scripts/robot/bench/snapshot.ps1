@@ -111,6 +111,21 @@ try {
       Emit @{ ok = $false; error = 'refusing to restore: archive is empty (0 bytes)' }; exit 1
     }
 
+    # --- Integrity: if a manifest with a sha256 is present, the archive MUST match
+    #     it (catches truncation / corruption / a swapped-in wrong file). ---
+    $manifestPath = [regex]::Replace($Archive, '\.tar$', '.manifest.json')
+    if ($manifestPath -eq $Archive) { $manifestPath = "$Archive.manifest.json" }
+    if (Test-Path -LiteralPath $manifestPath) {
+      $m = $null
+      try { $m = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json } catch { $m = $null }
+      if ($m -and $m.sha256) {
+        $actual = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash
+        if ($actual -ne $m.sha256) {
+          Emit @{ ok = $false; error = "refusing to restore: archive sha256 mismatch vs manifest (corrupt/wrong archive)"; expected = $m.sha256; actual = $actual }; exit 1
+        }
+      }
+    }
+
     # --- Extract into a temp dir; verify BEFORE any destructive change ---
     Remove-Hard $tempRoot
     New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
@@ -124,16 +139,35 @@ try {
       Remove-Hard $tempRoot
       Emit @{ ok = $false; error = "refusing to swap: extracted snapshot is missing .keepance\vectors ($stagedVectors)" }; exit 1
     }
+    # Not a skeleton: the staged tree must contain at least one DOCUMENT (a file
+    # outside .keepance), or we'd be replacing the real workspace with an index-only husk.
+    $docCount = (Get-ChildItem -LiteralPath $staged -Recurse -File -Force -EA SilentlyContinue |
+      Where-Object { $_.FullName -notlike '*\.keepance\*' } | Measure-Object).Count
+    if ($docCount -lt 1) {
+      Remove-Hard $tempRoot
+      Emit @{ ok = $false; error = "refusing to swap: extracted snapshot has no documents (skeleton?)" }; exit 1
+    }
 
-    # --- Atomic-ish swap: drop the old canonical workspace, move staged in ---
-    Remove-Hard $WsRoot
+    # --- Swap with rollback: move the OLD workspace aside, move staged in, and
+    #     restore the old one if the move fails — so the canonical path is never
+    #     left empty by a failed replace. ---
     if (-not (Test-Path -LiteralPath $wsParent)) { New-Item -ItemType Directory -Force -Path $wsParent | Out-Null }
-    Move-Item -LiteralPath $staged -Destination $WsRoot -Force
+    $backup = "$WsRoot.bak-restore"
+    Remove-Hard $backup
+    if (Test-Path -LiteralPath $WsRoot) { Move-Item -LiteralPath $WsRoot -Destination $backup -Force }
+    try {
+      Move-Item -LiteralPath $staged -Destination $WsRoot -Force
+    } catch {
+      if (Test-Path -LiteralPath $backup) { Move-Item -LiteralPath $backup -Destination $WsRoot -Force }
+      Remove-Hard $tempRoot
+      Emit @{ ok = $false; error = "swap failed, rolled back to original workspace: $($_.Exception.Message)" }; exit 1
+    }
+    Remove-Hard $backup
     Remove-Hard $tempRoot
 
     $restoredVectors = Join-Path $WsRoot '.keepance\vectors'
     $okSwap = Test-Path -LiteralPath $restoredVectors
-    Emit @{ ok = [bool]$okSwap; wsRoot = $WsRoot; restoredFrom = $Archive; archiveBytes = (Get-FileSize $Archive) }
+    Emit @{ ok = [bool]$okSwap; wsRoot = $WsRoot; restoredFrom = $Archive; archiveBytes = (Get-FileSize $Archive); docCount = $docCount }
     if ($okSwap) { exit 0 } else { exit 1 }
   }
 }

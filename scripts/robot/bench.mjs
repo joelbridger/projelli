@@ -129,32 +129,30 @@ export async function waitForPorts(timeoutMs = 90000) {
 // restore it only on the Legion bench, only to WS_ROOT.
 // ===========================================================================
 
+/** PowerShell single-quote a value so spaces/backslashes survive intact. */
+function psQuote(s) {
+  return `'${String(s).replace(/'/g, "''")}'`;
+}
+
 /**
- * Build the ssh argv that runs snapshot.ps1 for one action ('Status' |
- * 'Archive' | 'Restore'). Pure — no side effects — so it is unit-testable.
+ * Build the single PowerShell command string that runs snapshot.ps1 for one
+ * action ('Status' | 'Archive' | 'Restore'). Pure — unit-testable.
+ *
+ * CRITICAL: the workspace path contains a space ("Northcrest Wealth Partners").
+ * ssh joins remote args with spaces into ONE string that the remote shell
+ * re-parses, so -Archive/-WsRoot/-File values MUST be PowerShell-quoted here or
+ * the path splits on the space (binding -WsRoot to "...\Northcrest" only).
  */
-export function buildSnapshotSshArgs(action, opts = {}) {
+export function buildSnapshotCmd(action, opts = {}) {
   const {
     archive = SNAPSHOT_ARCHIVE,
     wsRoot = WS_ROOT,
     ps = SNAPSHOT_PS_REMOTE,
   } = opts;
-  return [
-    ...SSH_OPTS,
-    LEGION,
-    'powershell',
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-File',
-    ps,
-    '-Action',
-    action,
-    '-Archive',
-    archive,
-    '-WsRoot',
-    wsRoot,
-  ];
+  return (
+    `powershell -NoProfile -ExecutionPolicy Bypass -File ${psQuote(ps)} ` +
+    `-Action ${action} -Archive ${psQuote(archive)} -WsRoot ${psQuote(wsRoot)}`
+  );
 }
 
 /**
@@ -221,13 +219,21 @@ export function scpSnapshotPs() {
 /** Run one snapshot.ps1 action over ssh and return the parsed result packet. */
 function runSnapshotAction(action, opts = {}) {
   let raw = '';
+  let threw = false;
   try {
-    raw = execFileSync('ssh', buildSnapshotSshArgs(action, opts), { encoding: 'utf8' });
+    raw = execFileSync('ssh', [...SSH_OPTS, LEGION, buildSnapshotCmd(action, opts)], { encoding: 'utf8' });
   } catch (e) {
     // PowerShell -File exits non-zero on a guarded refusal; still capture stdout.
+    threw = true;
     raw = `${(e.stdout || '').toString()}\n${(e.stderr || '').toString()}`;
   }
-  return parseSnapshotResult(raw);
+  const result = parseSnapshotResult(raw);
+  // Don't trust an `ok:true` JSON if the remote process actually exited non-zero
+  // (e.g. emitted ok then a later step / SSH transport failed). Fail closed.
+  if (threw && result.ok === true) {
+    return { ...result, ok: false, exitError: true, error: result.error || 'remote process exited non-zero after reporting ok' };
+  }
+  return result;
 }
 
 /** Query whether a usable golden archive exists on the bench. */

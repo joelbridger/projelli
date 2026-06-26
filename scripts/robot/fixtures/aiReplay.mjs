@@ -32,6 +32,7 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isGenerationUrl } from './egressGuard.mjs';
 
 const FIXTURES_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -106,9 +107,10 @@ export function closeAllReplayServers() {
  * @param {object} page        Playwright page
  * @param {string} replayName  Fixture filename without extension (e.g. "launch-plan-stream")
  * @returns {Promise<{ port: number, served: number, report: () => object }>}
- *          A controller. `served` counts how many AI requests the fixture actually
- *          answered — the egress guardrail asserts it is >= 1 so a "deterministic"
- *          run can't silently pass without ever using the fixture.
+ *          A controller. `served` counts how many GENERATION calls (chat
+ *          completions / messages / generateContent — NOT /models) the fixture
+ *          answered; the egress guardrail asserts it is >= 1 so a "deterministic"
+ *          run can't silently pass without ever using the fixture for a real answer.
  */
 export async function installAIReplay(page, replayName) {
   const fixturePath = path.join(FIXTURES_DIR, `${replayName}.json`);
@@ -128,7 +130,11 @@ export async function installAIReplay(page, replayName) {
 
   for (const pattern of devPaths) {
     await page.route(pattern, async (route) => {
-      served += 1; // an AI request was intercepted + served by the fixture
+      // Count GENERATION calls only — a /models refresh must not satisfy the
+      // "fixture was used" proof (Codex review).
+      let url = '';
+      try { url = route.request().url(); } catch { /* ignore */ }
+      if (isGenerationUrl(url)) served += 1;
       try {
         // Forward to our local SSE proxy. route.fetch() makes a real HTTP
         // request from the Playwright process (not the browser), so it can
