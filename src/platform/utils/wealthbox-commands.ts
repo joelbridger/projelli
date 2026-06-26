@@ -13,6 +13,15 @@ import type { CrmMatterMapEntry } from '@/platform/rag/matterResolver';
 /** Tauri event name emitted by `crm_sync_all` during a household sync. */
 export const CRM_SYNC_EVENT = 'crm-sync-progress';
 
+/**
+ * Tauri event emitted by `append_crm_audit_best_effort` after a CRM audit
+ * entry is successfully written to the encrypted store.  Payload is an
+ * `AuditEntryRecord` (camelCase JSON).  The frontend listener in
+ * `useWorkspaceLifecycle.ts` uses this to push the entry into the live
+ * `auditEntries` React state without requiring a workspace re-open.
+ */
+export const CRM_AUDIT_APPENDED_EVENT = 'crm-audit-appended';
+
 // ── DTO types ────────────────────────────────────────────────────────────────
 
 /** Information returned by `crm_connect` after a successful connection. */

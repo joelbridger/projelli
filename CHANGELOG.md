@@ -8,6 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **B-CONN-3 (HIGH): Wealthbox connect/disconnect/sync now appear in the Activity Log immediately.**
+  Root cause: `append_crm_audit_best_effort` wrote correctly to the SQLCipher audit DB, but the
+  Activity Log reads from in-memory React state populated only at workspace hydration — backend
+  writes after hydration were invisible until the next workspace re-open. Two-part fix: (1) Backend
+  now resolves the workspace path via `AuditState` (same path `audit_list` reads from) instead of
+  `CrmState`, eliminating any potential path divergence; `crm_connect` and `crm_disconnect` now
+  accept `AppHandle` so audit writes use the managed state rather than an ad-hoc path. (2) After
+  a successful DB write, the backend emits a `crm-audit-appended` Tauri event carrying the
+  `AuditEntryRecord`. A new `useEffect` in `useWorkspaceLifecycle.ts` listens for this event and
+  prepends the entry to `auditEntries` React state, making it visible in the Activity Log in the
+  current session without a re-open.
+  Files: `src-tauri/src/commands/crm/commands.rs`, `src/platform/utils/wealthbox-commands.ts`,
+  `src/app/lifecycle/useWorkspaceLifecycle.ts`.
+
+- **B-CONN-4 (cosmetic): "Connected to Wealthbox" now shows the firm/account name, not the user's name.**
+  `crm_connect` now parses `accounts[0].name` from the `/me` response (the RIA firm name, e.g.
+  "Northcrest") preferring it over the top-level `name` field (the individual user's name, e.g.
+  "Jameson Daines"). Falls back to the user name when no accounts are present. New test
+  `parse_me_json_prefers_account_name_over_user_name` covers the preference; existing tests
+  updated to use the shared `parse_me_to_info` helper.
+  File: `src-tauri/src/commands/crm/commands.rs`.
+
+- **household name in list DTO now uses the live `name` field (Fix C).**
+  `household_dto_name` previously returned `company_name` only, which is empty on real Wealthbox
+  household contacts. The live API returns the display name (e.g. "Ellison, Robert & Margaret") in
+  the top-level `name` field. Priority order is now: `contact.name` > `company_name` > "Household
+  {id}". New tests: `household_dto_name_prefers_name_field_over_company_name` and
+  `household_dto_name_falls_back_to_company_name_when_name_empty`.
+  File: `src-tauri/src/commands/crm/commands.rs`.
+
 - **B-CONN-5 (HIGH): Wealthbox sync now merges into existing file-clients by name instead of duplicating.**
   Previously `runSync` matched households only by `crmHouseholdKeys`, so the 27 existing
   file-clients (which have no CRM keys) were always ignored — a sync of 40 households created
