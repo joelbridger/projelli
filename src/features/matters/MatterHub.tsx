@@ -82,10 +82,14 @@ const LABEL_YOUR_ANSWER_PROMPT = 'Your answer to:';
 export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
   // ── Client Map wiring ────────────────────────────────────────────────────
   // Declare client map hook at component top — must not be inside a condition.
-  const clientMap = useClientMap(
-    matterId,
-    onAuditLog ? { onAuditLog } : undefined,
-  );
+  // autoBuild: a client's Client Map builds automatically the first time the
+  // matter is opened (no manual "Open Client Map" step), so connector-created
+  // clients a Wealthbox sync added show a populated, cited map — mirroring the
+  // at-a-glance auto-run. The sample matter is excluded (its content is canned).
+  const clientMap = useClientMap(matterId, {
+    ...(onAuditLog ? { onAuditLog } : {}),
+    autoBuild: matterId !== SAMPLE_MATTER_ID,
+  });
   const { checkForUpdates } = clientMap;
   const matters = useMatters();
   const matter = matters.find((m) => m.id === matterId) ?? null;
@@ -212,9 +216,15 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
     };
   }, [matterId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When the Client Map becomes ready, check for updates from new source material.
+  // Once a map exists, re-check for new source material. Covers BOTH a populated
+  // map ('ready') AND one that was built empty ('empty') — the latter recovers a
+  // map built before its content was indexed (e.g. a client opened before its
+  // Wealthbox household synced): when the source fingerprint later changes,
+  // checkForUpdates rebuilds and routes the new facts through the approve-first
+  // tray. checkForUpdates no-ops when the fingerprint is unchanged, so an empty
+  // matter with still no content costs nothing.
   useEffect(() => {
-    if (clientMap.status === 'ready') {
+    if (clientMap.status === 'ready' || clientMap.status === 'empty') {
       void checkForUpdates();
     }
   }, [clientMap.status, checkForUpdates]);

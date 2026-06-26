@@ -1,5 +1,5 @@
 // src/features/matters/useClientMap.ts
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { buildClientMap } from '@/platform/clientMap/generator';
 import { computeSourceFingerprint, proposeUpdates, mergePendingUpdates } from '@/platform/clientMap/updater';
@@ -38,7 +38,20 @@ function mapHasPreservableState(map: ClientMap | undefined): boolean {
 
 export function useClientMap(
   matterId: string,
-  options?: { onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void },
+  options?: {
+    onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+    /**
+     * When true, automatically build the map the first time a matter is opened
+     * with no map yet (status 'idle'), so a connector-created client — or any
+     * client — shows a populated, cited map with NO manual "Open Client Map"
+     * step. Mirrors the Matter-at-a-Glance auto-run on open. Cheap for
+     * content-less matters (buildClientMap short-circuits before any AI call)
+     * and runs at most once (the result is cached; status leaves 'idle' after
+     * the first build, and a build error lands on 'error', not back on 'idle',
+     * so it never retry-loops).
+     */
+    autoBuild?: boolean;
+  },
 ): {
   status: ClientMapStatus; map: ClientMap | undefined; generate: () => Promise<void>; checkForUpdates: () => Promise<void>;
 } {
@@ -117,5 +130,20 @@ export function useClientMap(
         : map
           ? 'empty'
           : status;
+
+  // Auto-build on first open (opt-in). 'idle' means no map is stored yet, so this
+  // fires once per matter the first time it is viewed, then never again (the
+  // build moves status off 'idle' and the result is cached). See the autoBuild
+  // option doc above for why this is safe + cheap.
+  const autoBuild = options?.autoBuild ?? false;
+  useEffect(() => {
+    if (autoBuild && resolvedStatus === 'idle') {
+      // Defer out of the synchronous effect body so generate()'s initial
+      // setStatus('generating') doesn't run synchronously inside the effect
+      // (avoids cascading renders — same pattern the at-a-glance auto-run uses).
+      void Promise.resolve().then(() => { void generate(); });
+    }
+  }, [autoBuild, resolvedStatus, generate]);
+
   return { status: resolvedStatus, map, generate, checkForUpdates };
 }

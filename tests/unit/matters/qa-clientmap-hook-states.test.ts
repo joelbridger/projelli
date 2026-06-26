@@ -160,3 +160,55 @@ describe('useClientMap — regression tests for fixed bugs (KEEPANCE 5)', () => 
     expect(result.current.status).toBe('ready');
   });
 });
+
+// Fix 2 — autoBuild: a Client Map builds automatically the first time a matter
+// is opened (status 'idle'), so a connector-created (Wealthbox-synced) client —
+// whose CRM data is indexed under the matter — shows a populated, cited map with
+// NO manual "Open Client Map" step. Idle-gated so it fires once per matter.
+describe('useClientMap — autoBuild on open (connector-created clients)', () => {
+  it('auto-builds a populated map on first open when autoBuild is set (no manual generate())', async () => {
+    const built = { ...emptyClientMap('mA'), lastBuiltAt: 't' };
+    built.sections[0]!.items = [
+      {
+        id: 'ai1',
+        text: 'Household: the Carter family',
+        origin: 'ai',
+        isAssumption: false,
+        sources: [{ kind: 'crm', ref: 'wb:123', snippet: 'Wealthbox household' }],
+        updatedAt: 't',
+      },
+    ];
+    buildMock.mockResolvedValue(built);
+    computeFingerprintMock.mockResolvedValue('fp');
+
+    // No explicit generate() — the hook builds itself on mount.
+    const { result } = renderHook(() => useClientMap('mA', { autoBuild: true }));
+
+    await waitFor(() => expect(buildMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    const stored = useClientMapStore.getState().getMap('mA');
+    expect(
+      stored?.sections.some((s) => s.items.some((i) => i.text.includes('Carter'))),
+    ).toBe(true);
+  });
+
+  it('does NOT auto-build when autoBuild is unset (the lazy default is preserved)', () => {
+    buildMock.mockResolvedValue({ ...emptyClientMap('mB'), lastBuiltAt: 't' });
+    renderHook(() => useClientMap('mB'));
+    // Effects flush synchronously inside renderHook; generate() would call
+    // buildClientMap up to its first await immediately, so this is reliable.
+    expect(buildMock).not.toHaveBeenCalled();
+  });
+
+  it('does NOT auto-build a matter that already has a stored map (idle-gated → fires once)', () => {
+    const seeded = { ...emptyClientMap('mC'), lastBuiltAt: 't' };
+    seeded.sections[2]!.items = [userItem('Client insists on settling by year end')];
+    useClientMapStore.getState().setMap('mC', seeded);
+    buildMock.mockResolvedValue({ ...emptyClientMap('mC'), lastBuiltAt: 't2' });
+
+    renderHook(() => useClientMap('mC', { autoBuild: true }));
+    // Status is 'ready' (a stored map exists), so the idle-gated auto-build
+    // must not run and clobber/rebuild it.
+    expect(buildMock).not.toHaveBeenCalled();
+  });
+});
