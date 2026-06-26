@@ -43,3 +43,7 @@ pub mod docx;
 pub mod firm;
 // Wave 3b encrypted vault — create/status/read/write + keychain VMK integration.
 pub mod vault;
+// Onboarding/setup progress aggregator — unifies the 5 per-source progress
+// signals (AI/models, email, Wealthbox CRM, file indexing, Client Map) into one
+// queryable `get_setup_progress` snapshot + a `setup-progress-changed` event.
+pub mod setup_progress;
