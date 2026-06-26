@@ -22,6 +22,18 @@ export interface CrmConnectInfo {
   email: string;
 }
 
+/**
+ * Result returned by `crm_disconnect`. Each boolean reflects whether that
+ * purge step actually completed. When either is false the corresponding data
+ * may still be on disk; `warnings` carries the human-readable reason(s).
+ */
+export interface CrmDisconnectResult {
+  tokenDeleted: boolean;
+  ragPurged: boolean;
+  crmDbPurged: boolean;
+  warnings: string[];
+}
+
 /** One Wealthbox household, as returned by `crm_list_households`. */
 export interface CrmHouseholdDto {
   id: string;
@@ -73,12 +85,19 @@ export async function crmIsConnected(): Promise<boolean> {
 }
 
 /**
- * Remove the stored Wealthbox API token from the keychain. Idempotent — safe to
- * call even when not connected. No-op outside Tauri.
+ * Disconnect from Wealthbox: removes the API token from the keychain and
+ * purges all imported CRM data (RAG chunks + encrypted CRM object store).
+ * Returns a structured result so callers can show an honest status message
+ * that only claims deletion when it actually happened.
+ *
+ * Idempotent — safe to call even when not connected. In non-Tauri
+ * environments returns a "nothing done" result rather than throwing.
  */
-export async function crmDisconnect(): Promise<void> {
-  if (!isTauri()) return;
-  await invoke('crm_disconnect');
+export async function crmDisconnect(): Promise<CrmDisconnectResult> {
+  if (!isTauri()) {
+    return { tokenDeleted: false, ragPurged: false, crmDbPurged: false, warnings: [] };
+  }
+  return invoke<CrmDisconnectResult>('crm_disconnect');
 }
 
 /**

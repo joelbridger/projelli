@@ -1,5 +1,5 @@
 /* eslint-disable keepance-i18n/no-hardcoded-string */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import {
   crmConnect,
@@ -9,13 +9,13 @@ import {
   crmSyncAll,
   crmCancelSync,
   type CrmConnectInfo,
+  type CrmDisconnectResult,
 } from '@/platform/utils/wealthbox-commands';
 import { useCrmSync } from '@/features/crm/useCrmSync';
 import { useCrmStore } from '@/features/crm/crmStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { buildCrmMatterMap } from '@/platform/rag/matterResolver';
-import { AuditService } from '@/platform/audit/AuditService';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
@@ -32,15 +32,14 @@ export function WealthboxConnect() {
   const [connectError, setConnectError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [lastSyncReport, setLastSyncReport] = useState<{ householdsProcessed: number; recordsIndexed: number } | null>(null);
+  // Post-disconnect status note — honest about what was actually deleted.
+  const [disconnectNote, setDisconnectNote] = useState<string | null>(null);
 
   const createMatter = useMatterStore((s) => s.createMatter);
 
   // Shared confirm dialog (sync + disconnect flows are mutually exclusive so
   // one instance is sufficient).
   const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
-
-  // Audit service — best-effort, fire-and-forget (never blocks the user).
-  const audit = useMemo(() => new AuditService('default'), []);
 
   // Check connection on mount.
   useEffect(() => {
@@ -64,16 +63,12 @@ export function WealthboxConnect() {
     }
     setConnecting(true);
     setConnectError(null);
+    setDisconnectNote(null);
     try {
       const info = await crmConnect(trimmed);
       setConnectedInfo(info);
       setConnected(true);
       setToken('');
-      // Audit: record that the key is stored locally and requests go direct.
-      audit.log(
-        'wealthbox.connect',
-        'Connected Wealthbox. The API key is stored locally; data requests go directly from this device to Wealthbox and never through Keepance servers.',
-      );
     } catch (err) {
       setConnectError(
         typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not connect. Check your API key and try again.',
@@ -86,28 +81,26 @@ export function WealthboxConnect() {
   async function runSync() {
     setSyncError(null);
     setLastSyncReport(null);
+
+    // Fix #4: confirm BEFORE any Wealthbox API request. The household count
+    // is not known yet — it appears in the sync progress once the backend
+    // starts importing. This keeps the pre-confirm dialog honest.
+    const confirmed = await confirm(
+      'Import your Wealthbox households? Keepance will fetch your household list directly from Wealthbox and create one local, encrypted client record for each.',
+      {
+        title: 'Import Wealthbox households',
+        confirmLabel: 'Import',
+        cancelLabel: 'Cancel',
+      },
+    );
+    if (!confirmed) return;
+
     setSyncing(true);
     try {
-      // 1. Fetch the full list of households this login can see.
+      // 1. Fetch after confirm — no network request happens before here.
       const households = await crmListHouseholds();
 
-      // 2. Ask the user to confirm before creating matters and importing data.
-      //    Pause the syncing indicator so the button is clickable and the dialog
-      //    feels intentional rather than appearing mid-progress.
-      setSyncing(false);
-      const n = households.length;
-      const confirmed = await confirm(
-        `Import ${String(n)} Wealthbox household${n === 1 ? '' : 's'}? Keepance will create a client record for each and import their data into a local, encrypted database on this device.`,
-        {
-          title: 'Import Wealthbox households',
-          confirmLabel: 'Import',
-          cancelLabel: 'Cancel',
-        },
-      );
-      if (!confirmed) return;
-      setSyncing(true);
-
-      // 3. For each household, find or create a matching matter.
+      // 2. For each household, find or create a matching matter.
       const currentMatters = getMatters();
       for (const household of households) {
         const existing = currentMatters.find((m) =>
@@ -122,18 +115,12 @@ export function WealthboxConnect() {
         }
       }
 
-      // 4. Build the map from the now-updated store.
+      // 3. Build the map from the now-updated store.
       const map = buildCrmMatterMap(getMatters());
 
-      // 5. Run the sync.
+      // 4. Run the sync.
       const report = await crmSyncAll(map);
       setLastSyncReport({ householdsProcessed: report.householdsProcessed, recordsIndexed: report.recordsIndexed });
-
-      // Audit: record what was imported and where it went.
-      audit.log(
-        'wealthbox.sync',
-        `Imported ${String(report.householdsProcessed)} Wealthbox household${report.householdsProcessed === 1 ? '' : 's'} into the local encrypted store. ${String(report.recordsIndexed)} record${report.recordsIndexed === 1 ? '' : 's'} indexed.`,
-      );
     } catch (err) {
       setSyncError(
         typeof err === 'string' ? err : err instanceof Error ? err.message : 'Sync could not complete. Please try again.',
@@ -160,7 +147,8 @@ export function WealthboxConnect() {
     setConnectError(null);
     setSyncError(null);
     try {
-      await crmDisconnect();
+      // Fix #2-UI: consume the structured result so the message is honest.
+      const result: CrmDisconnectResult = await crmDisconnect();
 
       // Clean up auto-created CRM matters:
       //   - Matters with NO user-added folders and NO user-added mail folders are
@@ -183,11 +171,18 @@ export function WealthboxConnect() {
         }
       }
 
-      // Audit: record the disconnection and data removal.
-      audit.log(
-        'wealthbox.disconnect',
-        'Disconnected Wealthbox and deleted the imported data from this device.',
-      );
+      // Fix #2-UI: claim deletion only when it actually happened.
+      if (result.ragPurged && result.crmDbPurged) {
+        setDisconnectNote('Disconnected and deleted the imported Wealthbox data from this device.');
+      } else {
+        const detail =
+          result.warnings.length > 0
+            ? result.warnings.join('; ')
+            : 'Some imported data could not be deleted.';
+        setDisconnectNote(
+          `Disconnected and removed the key, but some imported data could not be deleted: ${detail} Open the workspace and disconnect again to finish removing it.`,
+        );
+      }
 
       setConnected(false);
       setConnectedInfo(null);
@@ -229,6 +224,10 @@ export function WealthboxConnect() {
 
         {!connected && (
           <div className="mt-3 space-y-3">
+            {disconnectNote && (
+              <p className="text-sm text-slate-600">{disconnectNote}</p>
+            )}
+
             <p className="text-xs text-slate-500">
               Paste your Wealthbox API key below. You can find it in Wealthbox under Settings &gt; API Access.
             </p>
