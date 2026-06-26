@@ -64,6 +64,13 @@ describe('buildCrmMatterMap', () => {
     expect(buildCrmMatterMap(matters)).toEqual([]);
   });
 
+  it('dedupes a household that appears in TWO matters (first wins) — BUG-B defense', () => {
+    // A stale duplicate (the same household claimed by both m1 and m2) must map to
+    // exactly ONE matter, or the backend would index it under two matters at once.
+    const matters = [matter('m1', ['hh-dup']), matter('m2', ['hh-dup'])];
+    expect(buildCrmMatterMap(matters)).toEqual([{ householdId: 'hh-dup', matterId: 'm1' }]);
+  });
+
   it('skips the unassigned sentinel matter', () => {
     const matters = [
       matter(UNASSIGNED_MATTER_ID, ['hh-x']),
@@ -154,6 +161,18 @@ describe('addCrmHouseholdKey / removeCrmHouseholdKey', () => {
     removeCrmHouseholdKey(m.id, 'hh-001');
     const updated = useMatterStore.getState().matters.find((x) => x.id === m.id);
     expect(updated?.crmHouseholdKeys).toEqual(['hh-002']);
+  });
+
+  it('moves a household key OFF every other matter when added to a new one (BUG-B)', () => {
+    // Re-linking a household to a new matter must remove it from its old matter, so it
+    // is never claimed by (and re-indexed + orphaned under) two matters at once.
+    const { createMatter, addCrmHouseholdKey } = useMatterStore.getState();
+    const a = createMatter({ name: 'A', client: 'A', crmHouseholdKeys: ['hh-move'] });
+    const b = createMatter({ name: 'B', client: 'B' });
+    addCrmHouseholdKey(b.id, 'hh-move');
+    const matters = useMatterStore.getState().matters;
+    expect(matters.find((x) => x.id === a.id)?.crmHouseholdKeys).toEqual([]); // removed from A
+    expect(matters.find((x) => x.id === b.id)?.crmHouseholdKeys).toEqual(['hh-move']); // now on B
   });
 
   it('add is a no-op for a blank key', () => {

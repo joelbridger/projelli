@@ -994,12 +994,12 @@ fn crm_delete_predicate(matter_ids: &[String]) -> Option<String> {
 /// deletes — each a scan + commit + compaction, all no-ops on a first sync — and
 /// never completed (the hang the bench observed).
 ///
-/// `backfill` calls this **per household** (a one-element `matter_ids`), right after
-/// the cancel check, as the delete half of an atomic delete-then-insert — so a
-/// cancel/error only affects the household in flight and never leaves the whole CRM
-/// index empty (which one big up-front wipe would risk). One scoped delete per
-/// household (not per item) is what removed the churn. The slice form is kept so the
-/// same primitive can clear several matters at once where atomicity isn't required.
+/// `backfill` calls this **per matter** (a one-element `matter_ids`), right after the
+/// cancel check, as the delete half of a delete-then-insert (NOT a real transaction —
+/// LanceDB gives none here; cancel is checked before the delete so a Stop leaves the
+/// matter unchanged). One scoped delete per matter (not per item, not per household) is
+/// what removed the churn. The slice form is kept so the same primitive can clear
+/// several matters at once (e.g. the empty-map / orphan purge).
 pub async fn delete_crm_for_matters(table: &Table, matter_ids: &[String]) -> Result<()> {
     let Some(predicate) = crm_delete_predicate(matter_ids) else {
         return Ok(());
@@ -1008,6 +1008,56 @@ pub async fn delete_crm_for_matters(table: &Table, matter_ids: &[String]) -> Res
         .delete(&predicate)
         .await
         .context("delete failed for crm matters")?;
+    Ok(())
+}
+
+/// Return the set of distinct `matter_id`s that currently have at least one CRM
+/// chunk. ONE column-only scan (`matter_id` is the plaintext, queryable scope
+/// column — no decryption needed). The CRM backfill uses this to (a) skip the
+/// stale-chunk delete for a matter that has no chunks yet — a first sync's deletes
+/// are all no-ops, and avoiding them removes their commit + compaction churn — and
+/// (b) find matters that still have CRM chunks but are no longer being synced
+/// (a household re-linked elsewhere), so their orphaned chunks can be purged.
+pub async fn list_crm_matters(table: &Table) -> Result<HashSet<String>> {
+    use futures_util::TryStreamExt;
+    let mut stream = table
+        .query()
+        .only_if("source_type = 'crm'")
+        .select(Select::columns(&["matter_id"]))
+        .execute()
+        .await
+        .context("list_crm_matters query execute failed")?;
+
+    let mut out = HashSet::new();
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("list_crm_matters stream try_next failed")?
+    {
+        let col = batch
+            .column_by_name("matter_id")
+            .context("missing matter_id column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("matter_id column is not StringArray")?;
+        for i in 0..col.len() {
+            if !col.is_null(i) {
+                out.insert(col.value(i).to_string());
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Compact data fragments and prune old versions in ONE pass. Called once at the
+/// END of a CRM sync so the per-matter appends don't drive per-household compaction
+/// churn during the run (the "Auto cleanup every ~30s" the bench observed). Failure
+/// must NOT fail the sync — call sites treat it as best-effort.
+pub async fn optimize_after_bulk_write(table: &Table) -> Result<()> {
+    table
+        .optimize(lancedb::table::OptimizeAction::All)
+        .await
+        .context("optimize crm table after bulk write")?;
     Ok(())
 }
 
@@ -3265,6 +3315,79 @@ mod tests {
             .filter(|p| p.starts_with("crm:"))
             .collect();
         assert_eq!(crm17.len(), 5, "matter-17 unaffected by matter-0 re-sync; got {crm17:?}");
+    }
+
+    /// PERF: a first sync's writes are bounded by MATTERS, not items. Mirrors the
+    /// backfill commit shape after the perf fix — on a first sync there are NO deletes
+    /// (nothing to clear) and ONE combined add per matter — so the table version (one
+    /// bump per commit) grows by ~O(matters), NOT O(items). A regression back to
+    /// per-item writes/deletes would blow this past `items`.
+    #[tokio::test]
+    async fn first_sync_writes_are_bounded_by_matters_not_items() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        let v0 = table.version().await.expect("version0");
+
+        // 40 matters, 5 records each (~200 items). First sync = no deletes, ONE add
+        // per matter (the combined per-matter insert).
+        for m in 0..40 {
+            let matter = format!("matter-{m}");
+            let sids: Vec<String> = (0..5).map(|i| format!("crm:rec:{m}-{i}")).collect();
+            add_crm_chunks(&table, &matter, &sids, 0.10).await;
+        }
+
+        let v1 = table.version().await.expect("version1");
+        let delta = v1 - v0;
+        assert!(
+            delta <= 2 * 40,
+            "first-sync commits must be O(matters) (<= 80); got {delta} (regressed to per-item?)"
+        );
+        assert!(
+            delta < 200,
+            "first-sync commits must NOT be O(items=200); got {delta}"
+        );
+    }
+
+    /// BUG-B (orphan cleanup): a matter that still has CRM chunks but is no longer
+    /// synced (its household re-linked elsewhere) has its CRM purged by ONE scoped
+    /// delete, while OTHER matters' CRM and the orphaned matter's FILE chunks survive.
+    #[tokio::test]
+    async fn orphan_matter_crm_is_purged_preserving_files_and_other_matters() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        // matter-A: CRM + a file chunk (a merged household). matter-B: CRM only.
+        add_crm_chunks(&table, "matter-A", &["crm:household:A".to_string()], 0.10).await;
+        add_crm_chunks(&table, "matter-B", &["crm:household:B".to_string()], 0.11).await;
+        {
+            let key = [0x42u8; 32];
+            let rows = vec![(
+                Chunk { path: "/clients/a.pdf".into(), paragraph_index: 0, text: "file".into(), start_offset: 0, end_offset: 4, locator: None },
+                vec![0.10f32; EMBEDDING_DIM],
+            )];
+            let batch = build_batch(&rows, SourceType::Text, "matter-A", PRIVILEGE_NONE, None, &key).expect("file batch");
+            let schema = batch.schema();
+            table.add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema))).execute().await.expect("add file");
+        }
+
+        // list_crm_matters sees both A and B.
+        let matters = list_crm_matters(&table).await.expect("list crm matters");
+        assert!(matters.contains("matter-A") && matters.contains("matter-B"), "got {matters:?}");
+
+        // A is orphaned (no longer synced) → purge its CRM only.
+        delete_crm_for_matters(&table, &["matter-A".to_string()]).await.expect("purge orphan");
+
+        // A's CRM gone; A's file chunk survives; B's CRM intact.
+        let after = list_crm_matters(&table).await.expect("list after");
+        assert!(!after.contains("matter-A"), "orphaned matter-A CRM must be purged; got {after:?}");
+        assert!(after.contains("matter-B"), "matter-B CRM must survive; got {after:?}");
+        let q = vec![0.10f32; EMBEDDING_DIM];
+        let a_paths: Vec<String> = nearest(&table, &q, 20, Some("matter-A"), false, &[]).await.expect("nearest A").iter().map(stored_path).collect();
+        assert!(a_paths.iter().any(|p| p == "/clients/a.pdf"), "matter-A file chunk must survive; got {a_paths:?}");
+        assert!(!a_paths.iter().any(|p| p.starts_with("crm:")), "matter-A CRM must be gone; got {a_paths:?}");
     }
 
     /// An email indexed under Matter A must be retrievable under the Matter A

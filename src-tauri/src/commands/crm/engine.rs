@@ -380,11 +380,11 @@ pub fn plan_household_index(
 ///   2. It used to call `delete_path` **per item** to clear stale chunks — on a
 ///      ~40-household / ~200-item first sync that was ~200 sequential full-table
 ///      deletes (each a scan + commit + compaction, all no-ops on a first sync)
-///      and never completed. Stale-chunk clearing now happens **per household** in
-///      [`backfill`] (`delete_crm_for_matters` for that one matter, after the cancel
-///      check — an atomic delete-then-insert), NOT per item and NOT one up-front bulk
-///      wipe. So this function is a pure insert: chunk → embed (batched per matter)
-///      → one `table.add`.
+///      and never completed. Stale-chunk clearing now happens **per matter** in
+///      [`backfill`] (one `delete_crm_for_matters`, only when the matter already has
+///      chunks, after the cancel check — a delete-then-insert), NOT per item
+///      and NOT one up-front bulk wipe. So this function is a pure insert: chunk →
+///      embed (batched per matter) → one `table.add`.
 ///
 /// Requires the embedding model to be loaded (model-gated).
 #[allow(dead_code)]
@@ -455,21 +455,28 @@ pub async fn apply_index(
 // 5. backfill  (top-level entry point)
 // ---------------------------------------------------------------------------
 
-/// Full backfill: ingest all objects from `source`, then for each
-/// `(grouping_key, matter_id)` in `matter_map`, plan the index items and
-/// apply them to the RAG store.
+/// Full backfill: ingest all objects from `source`, then index each MATTER in
+/// `matter_map` (grouping all of its households together) into the RAG store —
+/// one delete + one combined, batched insert per matter.
 ///
-/// `matter_map` is supplied by the frontend in Plan 1C once it creates one
-/// Matter per household.  Only households present in the map are indexed —
-/// ingest still stores *all* contacts so the store is a complete snapshot.
+/// `matter_map` is the frontend's household→matter mapping. Usually one household
+/// per matter, but a matter may own several; they are grouped so the matter's CRM
+/// chunks are replaced as a unit — a delete-then-insert (not once per household,
+/// which would wipe siblings). Only matters present in the map are indexed; ingest still stores
+/// *all* contacts so the store is a complete snapshot. A matter that previously had
+/// CRM chunks but is absent from the map (a re-linked household) has its orphaned
+/// chunks purged. Unchanged matters (byte-identical plan) do zero RAG work.
 ///
-/// `cancel` is polled between households so a long sync can be stopped from the
-/// UI without waiting for all of them; households already processed stay indexed
-/// and `SyncReport::cancelled` is set.
+/// `cancel` is polled between matters so a long sync can be stopped from the UI;
+/// matters already processed stay indexed and `SyncReport::cancelled` is set.
 ///
 /// `rag_key` is the RAG/vector-store master key, supplied by the caller. The
 /// command layer reads it from the OS keychain (`get_or_create_master_key`); tests
 /// pass a literal key so the real entry point can be driven without a keychain.
+///
+/// `progress` is updated with the running count of households processed as each matter
+/// completes, so a watching `crm_sync_status` (and the progress emitter) sees steady
+/// movement during the sync instead of a number that only jumps at the end.
 #[allow(dead_code)]
 pub async fn backfill(
     source: &dyn CrmSource,
@@ -478,6 +485,7 @@ pub async fn backfill(
     matter_map: &HashMap<String, String>,
     cancel: &std::sync::atomic::AtomicBool,
     rag_key: &[u8; 32],
+    progress: &std::sync::atomic::AtomicU32,
 ) -> anyhow::Result<SyncReport> {
     use std::sync::atomic::Ordering;
 
@@ -486,59 +494,154 @@ pub async fn backfill(
     // Phase 1: ingest everything into the store.
     report.ingest = ingest(source, store).await?;
 
-    if matter_map.is_empty() {
-        return Ok(report);
-    }
-
-    // Open the RAG connection + table ONCE for the whole sync. This was previously
-    // done per record inside `index_crm_text_internal`; opening the table scans
-    // LanceDB, so per-record opens were the dominant cost and the main source of
-    // contention with the document re-index.
+    // Open the RAG connection + table ONCE for the whole sync. Opening the table
+    // scans LanceDB, so per-record opens were a dominant cost; one open per sync.
+    // We open even when `matter_map` is EMPTY: a re-sync with no CRM links (Wealthbox
+    // returned none, or all unlinked) must still purge previously-indexed CRM chunks
+    // in the orphan pass below — never leave them searchable.
     let conn = crate::commands::rag::store::open_connection(workspace).await?;
     let table = crate::commands::rag::store::open_or_create_table(&conn).await?;
 
-    // Phase 2: index each household ATOMICALLY — delete its old CRM chunks, then
-    // insert the fresh ones. Doing the delete per household (one scoped delete each,
-    // NOT one per item — the per-item churn is what hung the first sync) rather than
-    // one big up-front delete means a cancel or error only affects the household in
-    // flight; the rest of the CRM index is never left empty or half-restored.
+    // Which matters already have CRM chunks? ONE column-only scan up front. Used to
+    // (a) skip the stale-chunk delete for a matter that has none yet — a first sync's
+    // deletes are all no-ops, and skipping them removes their commit + compaction churn
+    // (the perf cost), and (b) find orphaned matters to purge below.
+    let indexed_matters = crate::commands::rag::store::list_crm_matters(&table).await?;
+
+    // Group the household→matter map BY MATTER. A matter can own several households,
+    // and the old per-household loop deleted the matter's CRM chunks once PER household
+    // — each delete wiping the previous household's just-inserted rows (BUG-A: last
+    // household wins). Indexing per matter (one delete + one combined batched insert)
+    // both fixes that and cuts commits. BTreeMap → deterministic order.
+    let mut by_matter: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
     for (grouping_key, matter_id) in matter_map {
-        // Cooperative cancellation: stop BEFORE touching this household, so Stop
-        // never leaves a half-deleted one.
-        if cancel.load(Ordering::SeqCst) {
-            report.cancelled = true;
-            break;
-        }
-
-        let items = plan_household_index(store, grouping_key, matter_id)?;
-        report.households_processed += 1;
-
-        // Atomic replace for this matter: clear its old CRM chunks (scoped to
-        // source_type='crm', so a merged household keeps its file chunks), then
-        // insert the fresh plan. delete-then-insert per household means a removed
-        // object's stale chunk is gone and a re-sync never duplicates; on a first
-        // sync this delete matches nothing and returns immediately.
-        crate::commands::rag::store::delete_crm_for_matters(
-            &table,
-            std::slice::from_ref(matter_id),
-        )
-        .await?;
-        if !items.is_empty() {
-            report.records_indexed += apply_index(&table, rag_key, &items).await?;
-        }
-
-        // Stable render hash: SHA-256 over all source_ids + texts in plan order.
-        // Stored so a future delta pass can skip re-indexing unchanged households.
-        let plan_hash = {
-            let mut h = Sha256::new();
-            for item in &items {
-                h.update(item.source_id.as_bytes());
-                h.update(item.text.as_bytes());
-            }
-            hex::encode(h.finalize())
-        };
-        store.set_render_state(grouping_key, &plan_hash, true)?;
+        by_matter
+            .entry(matter_id.clone())
+            .or_default()
+            .push(grouping_key.clone());
     }
+    let synced_matters: std::collections::HashSet<&String> = by_matter.keys().collect();
+
+    let mut did_write = false;
+
+    // Run the index phase in one fallible block so the post-sync `optimize` below runs
+    // in a finally-style path even if a delete/embed/add errors — an error must not
+    // leave the index bloated. The first error is propagated AFTER the optimize.
+    let index_result: anyhow::Result<()> = async {
+        // Orphan cleanup (BUG-B + empty-map): a matter that still has CRM chunks but is
+        // no longer synced — INCLUDING the empty-map case, where EVERY indexed matter is
+        // orphaned — must have its CRM purged (scoped to `source_type='crm'`, so file/mail
+        // chunks survive), or its client data stays wrongly retrievable under the old
+        // matter. One scoped delete per orphaned matter (none on the happy path).
+        for orphan in indexed_matters
+            .iter()
+            .filter(|m| !synced_matters.contains(m))
+        {
+            if cancel.load(Ordering::SeqCst) {
+                report.cancelled = true;
+                return Ok(());
+            }
+            // Mark BEFORE the write: a delete that succeeds but errors elsewhere must
+            // still trigger the final optimize, or a partial write bloats the index.
+            did_write = true;
+            crate::commands::rag::store::delete_crm_for_matters(
+                &table,
+                std::slice::from_ref(orphan),
+            )
+            .await?;
+        }
+
+        // Phase 2: index each MATTER — plan all its households together, then (only if
+        // its plan changed) delete its old CRM chunks and insert the combined, batched
+        // fresh plan. This is a delete-then-insert, NOT a real transaction (LanceDB
+        // gives none here): cancel is checked BEFORE the delete so a Stop leaves the
+        // matter UNCHANGED, and a mid-write error is surfaced (optimize still runs).
+        for (matter_id, households) in &by_matter {
+            if cancel.load(Ordering::SeqCst) {
+                report.cancelled = true;
+                return Ok(());
+            }
+
+            // Plan every household under this matter, concatenated. Poll cancel inside
+            // the loop so a large multi-household matter stays responsive to Stop.
+            let mut items: Vec<CrmIndexItem> = Vec::new();
+            for hk in households {
+                if cancel.load(Ordering::SeqCst) {
+                    report.cancelled = true;
+                    return Ok(());
+                }
+                items.extend(plan_household_index(store, hk, matter_id)?);
+            }
+            report.households_processed += households.len() as u32;
+            // Publish live progress as each matter is reached (steady movement for a
+            // watching crm_sync_status / progress emitter).
+            progress.store(report.households_processed, Ordering::SeqCst);
+
+            // Combined render hash over the matter's whole plan (source_ids + texts).
+            let plan_hash = {
+                let mut h = Sha256::new();
+                for item in &items {
+                    h.update(item.source_id.as_bytes());
+                    h.update(item.text.as_bytes());
+                }
+                hex::encode(h.finalize())
+            };
+
+            let already_indexed = indexed_matters.contains(matter_id.as_str());
+
+            // Unchanged-skip: byte-identical plan + chunks already present → ZERO RAG
+            // work. (Guarded on actual-chunk presence too, so a stale render row can
+            // never cause an incorrect skip.)
+            if already_indexed {
+                if let Some((prev_hash, true)) = store.get_render_state(matter_id)? {
+                    if prev_hash == plan_hash {
+                        continue;
+                    }
+                }
+            }
+
+            // Cancel right before the expensive delete + embed, so a Stop on a large
+            // matter leaves it UNCHANGED (nothing deleted, nothing inserted).
+            if cancel.load(Ordering::SeqCst) {
+                report.cancelled = true;
+                return Ok(());
+            }
+
+            // Delete only when the matter actually has stale chunks (never on a first
+            // sync — that no-op-delete churn is what we removed). Set `did_write` BEFORE
+            // each LanceDB write so a partial write (delete ok then add fails, or add ok
+            // then render-state write fails) still triggers the finally-style optimize.
+            if already_indexed {
+                did_write = true;
+                crate::commands::rag::store::delete_crm_for_matters(
+                    &table,
+                    std::slice::from_ref(matter_id),
+                )
+                .await?;
+            }
+            if !items.is_empty() {
+                did_write = true;
+                report.records_indexed += apply_index(&table, rag_key, &items).await?;
+            }
+            store.set_render_state(matter_id, &plan_hash, true)?;
+        }
+
+        Ok(())
+    }
+    .await;
+
+    // Finally: ONE optimize at the end (deferred compaction — perf), regardless of
+    // whether the index phase errored, so an error never leaves the index bloated.
+    // Best-effort: a failure here never fails the sync.
+    if did_write {
+        if let Err(e) = crate::commands::rag::store::optimize_after_bulk_write(&table).await {
+            log::warn!("crm post-sync optimize failed (non-fatal): {e:#}");
+        }
+    }
+
+    // Propagate the first index-phase error (if any) AFTER the optimize ran.
+    index_result?;
 
     Ok(report)
 }
@@ -1317,12 +1420,19 @@ mod tests {
                 .into_iter()
                 .collect();
         let cancel = std::sync::atomic::AtomicBool::new(false);
-        let report = backfill(&FakeCrmSource, &store, ws.path(), &matter_map, &cancel, &VEC_KEY)
+        let progress = std::sync::atomic::AtomicU32::new(0);
+        let report = backfill(&FakeCrmSource, &store, ws.path(), &matter_map, &cancel, &VEC_KEY, &progress)
             .await
             .expect("backfill");
         assert!(
             report.records_indexed > 0,
             "backfill must embed + store at least one CRM chunk for the Anderson household"
+        );
+        // P4 progress: the live counter reaches the final household count.
+        assert_eq!(
+            progress.load(std::sync::atomic::Ordering::SeqCst),
+            report.households_processed,
+            "the progress counter must reach the final households_processed"
         );
 
         // ── Open a fresh handle to the persisted store, then retrieve end-to-end ──
@@ -1374,6 +1484,216 @@ mod tests {
             top.matter_id.as_deref(),
             Some("matter-integration"),
             "matter_id must match the indexed matter"
+        );
+    }
+
+    /// Two distinct households (Alpha 30001, Beta 30003) for the BUG-A test.
+    struct TwoHouseholdsSource;
+    #[async_trait]
+    impl CrmSource for TwoHouseholdsSource {
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<WbContact>> {
+            Ok(vec![
+                WbContact { id: 30001, r#type: "Household".to_string(), company_name: "Alpha".to_string(), contact_type: "Client".to_string(), status: "Active".to_string(), ..Default::default() },
+                WbContact { id: 30002, r#type: "Person".to_string(), first_name: "Ann".to_string(), last_name: "Alpha".to_string(), contact_type: "Client".to_string(), status: "Active".to_string(),
+                    household: Some(WbHouseholdRef { id: 30001, name: "Alpha".to_string(), title: "Head".to_string(), members: vec![] }), ..Default::default() },
+                WbContact { id: 30003, r#type: "Household".to_string(), company_name: "Beta".to_string(), contact_type: "Client".to_string(), status: "Active".to_string(), ..Default::default() },
+                WbContact { id: 30004, r#type: "Person".to_string(), first_name: "Ben".to_string(), last_name: "Beta".to_string(), contact_type: "Client".to_string(), status: "Active".to_string(),
+                    household: Some(WbHouseholdRef { id: 30003, name: "Beta".to_string(), title: "Head".to_string(), members: vec![] }), ..Default::default() },
+            ])
+        }
+        async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> { Ok(vec![]) }
+        async fn list_tasks(&self) -> anyhow::Result<Vec<WbTask>> { Ok(vec![]) }
+        async fn list_events(&self) -> anyhow::Result<Vec<WbEvent>> { Ok(vec![]) }
+    }
+
+    /// BUG-A (model-gated): two distinct households mapped to the SAME matter must
+    /// BOTH be indexed. The group-by-matter restructure plans them together and does
+    /// one combined insert, so neither wipes the other (the old per-household loop
+    /// deleted the matter's chunks between them, leaving only the last household).
+    #[tokio::test]
+    #[ignore]
+    async fn backfill_two_households_one_matter_keeps_both() {
+        use crate::commands::rag::store;
+        use crate::commands::rag::embedder::embed_documents_batched;
+        use crate::commands::mail::crypto::decrypt_with_key;
+        skip_without_model!();
+
+        const VEC_KEY: [u8; 32] = [0x5Au8; 32];
+        let ws = TempDir::new().unwrap();
+        let store_db = CrmStore::open_with_key(ws.path(), &[0x33u8; 32]).unwrap();
+        let matter_map: std::collections::HashMap<String, String> = [
+            ("30001".to_string(), "matter-shared".to_string()),
+            ("30003".to_string(), "matter-shared".to_string()),
+        ]
+        .into_iter()
+        .collect();
+        let cancel = std::sync::atomic::AtomicBool::new(false);
+        let progress = std::sync::atomic::AtomicU32::new(0);
+        backfill(&TwoHouseholdsSource, &store_db, ws.path(), &matter_map, &cancel, &VEC_KEY, &progress)
+            .await
+            .expect("backfill");
+
+        let conn = store::open_connection(ws.path()).await.unwrap();
+        let table = store::open_or_create_table(&conn).await.unwrap();
+        let q = embed_documents_batched(&["household client".to_string()], None)
+            .await
+            .unwrap()
+            .unwrap();
+        let hits = store::nearest(&table, &q[0], 50, Some("matter-shared"), false, &[])
+            .await
+            .unwrap();
+        let paths: Vec<String> = hits
+            .iter()
+            .filter_map(|h| {
+                h.path_enc
+                    .as_deref()
+                    .and_then(|pe| hex::decode(pe).ok())
+                    .and_then(|b| decrypt_with_key(&b, &VEC_KEY).ok())
+                    .and_then(|v| String::from_utf8(v).ok())
+            })
+            .collect();
+        assert!(
+            paths.iter().any(|p| p.contains(":30001") || p.contains(":30002")),
+            "Alpha household must be indexed; got {paths:?}"
+        );
+        assert!(
+            paths.iter().any(|p| p.contains(":30003") || p.contains(":30004")),
+            "Beta household must be indexed (NOT wiped by Alpha's sibling under the same matter); got {paths:?}"
+        );
+    }
+
+    /// BUG-B (model-gated): a household re-linked from matter A to matter B leaves NO
+    /// orphaned CRM chunks under A — only under B (the orphan cleanup purges A).
+    #[tokio::test]
+    #[ignore]
+    async fn backfill_relink_household_no_orphan_under_old_matter() {
+        use crate::commands::rag::store;
+        use crate::commands::rag::embedder::embed_documents_batched;
+        skip_without_model!();
+
+        const VEC_KEY: [u8; 32] = [0x5Au8; 32];
+        let ws = TempDir::new().unwrap();
+        let store_db = CrmStore::open_with_key(ws.path(), &[0x33u8; 32]).unwrap();
+        let cancel = std::sync::atomic::AtomicBool::new(false);
+        let progress = std::sync::atomic::AtomicU32::new(0);
+
+        // Sync 1: household 10001 under matter-A.
+        let map_a: std::collections::HashMap<String, String> =
+            [("10001".to_string(), "matter-A".to_string())].into_iter().collect();
+        backfill(&FakeCrmSource, &store_db, ws.path(), &map_a, &cancel, &VEC_KEY, &progress)
+            .await
+            .expect("sync A");
+
+        // Sync 2: the SAME household re-linked to matter-B (A absent from the map).
+        let map_b: std::collections::HashMap<String, String> =
+            [("10001".to_string(), "matter-B".to_string())].into_iter().collect();
+        backfill(&FakeCrmSource, &store_db, ws.path(), &map_b, &cancel, &VEC_KEY, &progress)
+            .await
+            .expect("sync B");
+
+        let conn = store::open_connection(ws.path()).await.unwrap();
+        let table = store::open_or_create_table(&conn).await.unwrap();
+        let q = embed_documents_batched(&["Anderson household".to_string()], None)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let under_b = store::nearest(&table, &q[0], 50, Some("matter-B"), false, &[])
+            .await
+            .unwrap();
+        assert!(!under_b.is_empty(), "household must be retrievable under the new matter-B");
+
+        let under_a = store::nearest(&table, &q[0], 50, Some("matter-A"), false, &[])
+            .await
+            .unwrap();
+        let a_crm = under_a
+            .iter()
+            .filter(|h| h.source_type.as_deref() == Some("crm"))
+            .count();
+        assert_eq!(
+            a_crm, 0,
+            "a re-linked household must leave NO orphaned CRM chunks under the old matter-A"
+        );
+    }
+
+    /// HIGH (empty-map orphan cleanup, model-gated): a re-sync with NO CRM links must
+    /// still purge previously-indexed CRM chunks (Wealthbox returned none, or all are
+    /// unlinked) — never leave them searchable — while preserving file/mail chunks. The
+    /// early-return on an empty map (which skipped the orphan pass) was the bug.
+    #[tokio::test]
+    #[ignore]
+    async fn backfill_empty_map_purges_crm_preserving_files() {
+        use crate::commands::rag::chunker::Chunk;
+        use crate::commands::rag::embedder::{embed_documents_batched, EMBEDDING_DIM};
+        use crate::commands::rag::store::{self, SourceType, PRIVILEGE_NONE};
+        use arrow_array::RecordBatchIterator;
+        skip_without_model!();
+
+        const VEC_KEY: [u8; 32] = [0x5Au8; 32];
+        let ws = TempDir::new().unwrap();
+        let store_db = CrmStore::open_with_key(ws.path(), &[0x33u8; 32]).unwrap();
+        let cancel = std::sync::atomic::AtomicBool::new(false);
+        let progress = std::sync::atomic::AtomicU32::new(0);
+
+        // Sync household 10001 under matter-A (real backfill → CRM chunks exist).
+        let map: std::collections::HashMap<String, String> =
+            [("10001".to_string(), "matter-A".to_string())].into_iter().collect();
+        backfill(&FakeCrmSource, &store_db, ws.path(), &map, &cancel, &VEC_KEY, &progress)
+            .await
+            .expect("sync A");
+
+        // Add a FILE chunk under matter-A (a merged household) to prove preservation.
+        let conn = store::open_connection(ws.path()).await.unwrap();
+        let table = store::open_or_create_table(&conn).await.unwrap();
+        {
+            let rows = vec![(
+                Chunk {
+                    path: "/clients/a.pdf".into(),
+                    paragraph_index: 0,
+                    text: "file body".into(),
+                    start_offset: 0,
+                    end_offset: 9,
+                    locator: None,
+                },
+                vec![0.10f32; EMBEDDING_DIM],
+            )];
+            let batch = store::build_batch(&rows, SourceType::Text, "matter-A", PRIVILEGE_NONE, None, &VEC_KEY)
+                .expect("file batch");
+            let schema = batch.schema();
+            table
+                .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+                .execute()
+                .await
+                .expect("add file chunk");
+        }
+        assert!(
+            store::list_crm_matters(&table).await.unwrap().contains("matter-A"),
+            "CRM must exist under matter-A before the empty-map sync"
+        );
+
+        // Re-sync with an EMPTY map → must purge ALL CRM, preserve the file chunk.
+        let empty: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+        backfill(&FakeCrmSource, &store_db, ws.path(), &empty, &cancel, &VEC_KEY, &progress)
+            .await
+            .expect("empty-map sync");
+
+        let conn2 = store::open_connection(ws.path()).await.unwrap();
+        let table2 = store::open_or_create_table(&conn2).await.unwrap();
+        assert!(
+            store::list_crm_matters(&table2).await.unwrap().is_empty(),
+            "an empty-map sync must purge ALL previously-indexed CRM (the early-return bug)"
+        );
+        // The file chunk survives — matter-A still has a retrievable (non-CRM) chunk.
+        let q = embed_documents_batched(&["file body".to_string()], None)
+            .await
+            .unwrap()
+            .unwrap();
+        let hits = store::nearest(&table2, &q[0], 20, Some("matter-A"), false, &[])
+            .await
+            .unwrap();
+        assert!(
+            !hits.is_empty(),
+            "the file chunk under matter-A must survive the empty-map CRM purge"
         );
     }
 }

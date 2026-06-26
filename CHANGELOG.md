@@ -9,6 +9,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Private-mode hardening — Phase A (egress): a hard guarantee your data never reaches a cloud AI.** Local-only ("On this computer only") now enforces "no cloud AI" at every cloud-AI send, not just for Ask. A shared fail-closed helper `assertLocalOnlyAllowsExternal(op)` (+ `LocalOnlyExternalError`) was added alongside the existing `assertLocalOnlyAllowsSend`. The three at-a-glance/Client-Map/email-draft AI sends now re-check the mode IMMEDIATELY before the send (after all awaits) via `assertLocalOnlyAllowsSend(providerId)` — closing the race where a cloud provider resolved before a mid-flight flip to Local-only could still send (`matterAtAGlance.ts`, `clientMap/generator.ts`, `EmailViewer.tsx`). "Run on all" (cloud fan-out) is disabled + guarded in Local-only (`RunOnAllButton.tsx`). The provider model-list refresh (sends the API key off-device) and telemetry/diagnostics are skipped in Local-only (`useModelList.ts`, `telemetry.ts`, `diagnostics.ts`). Per Jameson's decision, user-authorized CONNECTORS (Wealthbox sync, email sync) and the local-model download stay ON in private mode — they pull the user's own data in / fetch model weights and send no data to a cloud AI; the `assertLocalOnlyAllowsExternal` seam is in place but deliberately NOT wired into those paths. The private-mode banner copy is reworded for precision — it no longer claims "nothing leaves" (untrue while a connector syncs) and instead states "your documents and prompts are never sent to a cloud AI" (`ConfidentialityModeSettings.tsx`, `settings/schema.ts`). Tests: `tests/unit/privacy/local-only-{fe-killswitch,model-list-hook,at-a-glance-race,email-draft}.test.*`, plus Local-only cases in `clientMap/generator.test.ts` and `run-on-all-3.test.tsx` — each asserts no external call is issued in Local-only (verified to fail without the guard, pass with it).
+- **Wealthbox disconnect hardening + live sync progress (backend).** Four fixes so a disconnect reliably
+  deletes everything and never strands data, plus a steady progress counter:
+  - **Token deleted only AFTER a confirmed purge (P2).** `crm_disconnect_logic` used to delete the API
+    key FIRST, then purge — so a failed/skipped purge could leave the user "disconnected" with data still
+    on disk. Now it purges the RAG chunks + CRM DB FIRST and removes the token only when both succeed; if
+    the purge can't run (no workspace) or fails, it KEEPS the token + connected state and returns
+    `data_remains: true` so the UI can offer a "finish deleting" retry (result shape:
+    `tokenDeleted/ragPurged/crmDbPurged/dataRemains/warnings`).
+  - **Disconnect waits out an active sync (P3).** A disconnect during a running sync could re-insert
+    chunks after the purge (and lock the DB). Disconnect now signals cancel and claims the same
+    single-flight slot as the sync (waiting, bounded, for the sync to stop) before purging, so nothing
+    re-inserts post-purge; if a sync won't stop in time it defers (keeps the token, `data_remains: true`).
+  - **Purge leaves no residue (P4).** `CrmStore::purge` now removes the SQLite sidecars (`-wal`, `-shm`,
+    `-journal`) as well as `crm-enc.db`, and after a confirmed DB+vector purge the disconnect deletes the
+    CRM DB encryption key (`keepance-crm-enc/master-key-v1`) from the keychain — so no decryptable CRM
+    pages or orphaned key remain.
+  - **Live sync progress (P4).** The household counter used to sit stale and jump to the total at the end.
+    The engine now publishes a running count as each matter completes; `crm_sync_status` returns the live
+    count while syncing and `crm_sync_all` emits `syncing` progress events, so a watching user sees steady
+    movement. The final report stays accurate.
+  Tests: `purge_removes_db_and_all_sqlite_sidecars`, `disconnect_no_workspace_keeps_token_and_reports_data_remains`,
+  `disconnect_waits_for_running_sync_then_claims_slot`, and the model-gated integration test asserts the
+  progress counter reaches the final count. (No egress/audit changes.)
+  Files: `src-tauri/src/commands/crm/commands.rs`, `src-tauri/src/commands/crm/store.rs`,
+  `src-tauri/src/commands/crm/engine.rs`.
+- **CRM sync is much faster, and indexes per MATTER (perf + two correctness fixes, one coherent change).**
+  The first 40-household / 247-record sync took ~8–10 min; the cost was LanceDB commit/compaction churn
+  (one no-op `delete` per household on a first sync, each a scan + commit + compaction, plus continuous
+  auto-cleanup) on top of the embed. `engine::backfill` was restructured to **group by matter** and do
+  **one delete + one combined, batched insert per matter**, with three perf levers folded in:
+  (1) a single up-front `store::list_crm_matters` scan tells the sync which matters already have chunks,
+  so the stale-chunk delete is **skipped entirely on a first sync** (the no-op-delete churn is gone);
+  (2) a matter whose plan is byte-identical to last time (render hash) does **zero RAG work**;
+  (3) compaction is **deferred to ONE `optimize` at the end** instead of per-commit auto-cleanup.
+  Correctness preserved: the delete is per matter (not per item, not an up-front bulk wipe), runs only
+  when the matter actually has chunks, and stays AFTER the cancel check, so a cancel/error only affects
+  the matter in flight; removed/unlinked tombstones still apply. **Estimated first-sync time: roughly
+  halved or better** (the no-op delete churn removed; embed + one add per matter + one optimize remain) —
+  the bench will time the exact figure.
+  Two correctness bugs fixed in the same pass (Codex adversarial review; not happy-path, but hardened):
+  - **BUG-A — two households under one matter no longer wipe each other.** The old per-household loop
+    deleted the matter's CRM chunks once per household, so the second household's delete erased the first.
+    Grouping by matter (one delete + one combined insert) fixes it. Model-gated test
+    `backfill_two_households_one_matter_keeps_both` (real embeddings) confirms both are retrievable.
+  - **BUG-B — a re-linked household no longer orphans its old CRM data.** Moving a household from matter A
+    to B left A's chunks retrievable under the wrong matter. Frontend: `addCrmHouseholdKey` now removes the
+    household from every OTHER matter, and `buildCrmMatterMap` dedupes (a household maps to exactly one
+    matter). Backend: `backfill` purges CRM chunks for matters that still have chunks but are no longer
+    synced (orphan cleanup). Model-gated test `backfill_relink_household_no_orphan_under_old_matter` +
+    frontend tests confirm H ends up only under B.
+  Hardened per Codex pass-1 review: (1) an EMPTY map (Wealthbox returned no links, or all unlinked) no
+  longer early-returns — it still runs the orphan pass, purging ALL previously-indexed CRM so stale
+  client data can't stay searchable (model-gated `backfill_empty_map_purges_crm_preserving_files`
+  confirms CRM purged + file chunks preserved); (2) the post-sync `optimize` runs in a finally-style
+  path so a mid-write error never leaves the index bloated, and the error is surfaced after; the
+  per-matter delete-then-insert is documented honestly as NOT a real transaction (LanceDB gives none);
+  (3) cancel is now polled inside the household-planning loop and right before the delete+embed, so Stop
+  stays responsive on a large multi-household matter (and leaves that matter unchanged).
+  Tests: `first_sync_writes_are_bounded_by_matters_not_items` (table version grows O(matters), not
+  O(items)), `orphan_matter_crm_is_purged_preserving_files_and_other_matters`, three model-gated
+  backfill tests (BUG-A, BUG-B, empty-map), and frontend dedupe/move-off-other-matter tests.
+  Files: `src-tauri/src/commands/crm/engine.rs`, `src-tauri/src/commands/rag/store.rs`,
+  `src/platform/matter/matterStore.ts`, `src/platform/rag/matterResolver.ts`.
 
 ### Fixed
 - **Audit entries normalize `metadata`/`inputs`/`outputs` at the LOAD source (robustness follow-up).** `AuditService.recordToEntry` parsed a persisted record's `payloadJson` and returned those objects as-is, so an OLD thin persisted row (e.g. `{"auditEventType":"wealthbox.connect"}` with no metadata) loaded with `metadata === undefined`. The display-side `asRecord()` guards already prevented the Activity Log crash, but normalizing at the source means every loaded entry always has those three as objects — closing the gap at its origin (mirrors the live-event guard in `useWorkspaceLifecycle.ts`). File: `src/platform/audit/AuditService.ts`. Test: `tests/unit/audit/audit-record-normalize.test.ts` (a persisted record missing metadata/inputs/outputs loads with `{}`, not `undefined`); verified it fails without the normalization and passes with it.
@@ -18,7 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ~200 sequential full-table LanceDB deletes (each a scan + commit + compaction, all no-ops on a first
   sync) and never completed, contending with the document re-index for the single-writer table. The
   1–2-household integration fixtures never reached this scale. Fix: stale CRM chunks are now cleared
-  per household — `engine::backfill` does an ATOMIC delete-then-insert for each household (one scoped
+  per household — `engine::backfill` does a per-household delete-then-insert (one scoped
   delete `source_type='crm' AND matter_id IN (...)` via the new `store::delete_crm_for_matters`, NOT
   `delete_matter`, which would wipe a merged household's file chunks — then inserts the fresh plan).
   The delete is per HOUSEHOLD, not per item (the churn that hung), and is placed AFTER the cancel check
