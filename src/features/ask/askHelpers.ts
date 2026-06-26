@@ -157,7 +157,7 @@ export async function hasCloudKey(): Promise<boolean> {
  * `localLlmModelStatus` is desktop-only and returns 'absent' off-desktop; any
  * non-ready result (or a thrown error) falls back to Ollama.
  */
-async function resolveLocalAskProvider(): Promise<ResolvedAskProvider> {
+export async function resolveLocalAskProvider(): Promise<ResolvedAskProvider> {
   try {
     if ((await localLlmModelStatus()) === 'ready') {
       const provider = new KeepanceLocalProvider({});

@@ -1180,8 +1180,8 @@
         "note": "In this online demo, messages pass through a shared Keepance relay. The desktop app never does this. Do not enter confidential or client information here."
       },
       "checking": {
-        "label": "Checking local AI",
-        "note": "Confirming whether the on-device model is ready before anything is sent. Nothing leaves your machine while this checks."
+        "label": "Checking AI destination",
+        "note": "Keepance is confirming where this request will go before sending."
       },
       "sending": "Sending to your AI provider"
     },

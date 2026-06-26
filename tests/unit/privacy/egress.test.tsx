@@ -177,7 +177,10 @@ describe('EgressIndicator', () => {
     const el = screen.getByTestId('egress-indicator');
     expect(el.getAttribute('data-destination')).toBe('pending');
     expect(el.getAttribute('data-data-leaves')).toBe('false');
-    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Checking local AI/i);
+    // Pending copy is NEUTRAL (no "nothing leaves" claim) — Search can be clicked
+    // while pending, so the badge must not promise locality before it's resolved.
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Checking AI destination/i);
+    expect(screen.getByTestId('egress-indicator-note').textContent).not.toMatch(/nothing leaves/i);
   });
 
   it('shows "Sent to your Anthropic account" with the provider-sees-prompt note in Direct mode', () => {

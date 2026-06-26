@@ -50,7 +50,13 @@ const h = vi.hoisted(() => ({
   // Recorded by the send spy: the banner's data-destination at the instant the
   // network call begins. This is the load-bearing send-time honesty assertion.
   bannerAtSend: undefined as string | null | undefined,
-  sendCalled: 0,
+  // Number of times each provider's send was actually invoked. The send-side
+  // privacy test asserts the CLOUD send is never called once Local-only is on.
+  sendCalled: 0, // cloud provider (from buildResolvedAskProvider)
+  localSendCalled: 0, // on-device provider (from resolveLocalAskProvider re-resolve)
+  // Optional hook run INSIDE buildResolvedAskProvider to model the user flipping
+  // the confidentiality mode DURING the resolver's keychain await.
+  onBuildResolve: null as (() => void) | null,
 }));
 
 function setMode(mode: ConfidentialityMode) {
@@ -131,26 +137,43 @@ vi.mock('@/platform/privacy/egress', async (orig) => {
   return { ...actual, resolveEgress: vi.fn(actual.resolveEgress) };
 });
 
-// Keep the REAL resolveActiveAskProviderId (what drives the badge). Override only
-// buildResolvedAskProvider — the SEND path — to return a spy provider whose
-// sendMessageStreaming records the banner DOM at the instant the call begins.
+// Keep the REAL resolveActiveAskProviderId (what drives the badge). Override the
+// SEND path: buildResolvedAskProvider returns a CLOUD spy provider (and can flip
+// the mode mid-resolve via h.onBuildResolve to model the race), and
+// resolveLocalAskProvider returns an on-device spy. The send-side guard in
+// useAsk must route to the local spy (never the cloud spy) once Local-only is on.
 vi.mock('@/features/ask/askHelpers', async (orig) => {
   const actual = await orig<typeof import('@/features/ask/askHelpers')>();
   return {
     ...actual,
-    buildResolvedAskProvider: vi.fn(async () => ({
+    buildResolvedAskProvider: vi.fn(async () => {
+      // Model the user switching mode DURING the resolver's (awaited) keychain reads.
+      h.onBuildResolve?.();
+      return {
+        provider: {
+          sendMessageStreaming: async () => {
+            h.bannerAtSend = document
+              .querySelector('[data-testid="egress-indicator"]')
+              ?.getAttribute('data-destination') ?? null;
+            h.sendCalled += 1;
+            return { content: 'Answer.', usage: {}, cost: 0 };
+          },
+          getMetadata: () => ({ provider: 'openai', model: 'gpt-4o' }),
+        },
+        providerId: 'openai',
+        model: 'gpt-4o',
+      };
+    }),
+    resolveLocalAskProvider: vi.fn(async () => ({
       provider: {
         sendMessageStreaming: async () => {
-          h.bannerAtSend = document
-            .querySelector('[data-testid="egress-indicator"]')
-            ?.getAttribute('data-destination') ?? null;
-          h.sendCalled += 1;
-          return { content: 'Answer.', usage: {}, cost: 0 };
+          h.localSendCalled += 1;
+          return { content: 'Local answer.', usage: {}, cost: 0 };
         },
-        getMetadata: () => ({ provider: 'openai', model: 'gpt-4o' }),
+        getMetadata: () => ({ provider: 'keepance-local', model: 'kp' }),
       },
-      providerId: 'openai',
-      model: 'gpt-4o',
+      providerId: 'keepance-local',
+      model: 'kp',
     })),
   };
 });
@@ -165,6 +188,8 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
     h.resolverHold = null;
     h.bannerAtSend = undefined;
     h.sendCalled = 0;
+    h.localSendCalled = 0;
+    h.onBuildResolve = null;
     try {
       localStorage.clear();
     } catch {
@@ -311,6 +336,43 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
       expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe(
         'provider-direct',
       );
+    });
+  });
+
+  it('SEND-SIDE PRIVACY GUARANTEE: flipping to Local-only DURING the resolve await never sends to the cloud provider', async () => {
+    // The deeper hole: buildResolvedAskProvider checks the mode only at its START,
+    // then awaits keychain reads. If the user switches to Local-only during those
+    // awaits it can still return a CLOUD provider — and without the final
+    // synchronous send guard the query would actually go to OpenAI while
+    // Local-only is on. That is a real privacy violation (local-only's whole
+    // guarantee is that NOTHING is ever sent to the cloud), not just a display lie.
+    h.keys.openai = true;
+    h.memoryEnabled = true;
+    h.hits = [{ path: '/workspace/doc.pdf', chunkText: 'text', score: 0.9, paragraphIndex: 0 }];
+    setMode('direct');
+
+    // Model the race: flip to Local-only WHILE buildResolvedAskProvider is resolving.
+    h.onBuildResolve = () => {
+      useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'local-only');
+    };
+
+    render(<Ask />);
+    const input = screen.getByTestId('ask-composer-input');
+    fireEvent.change(input, { target: { value: 'What is the portfolio value?' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Search$/i }));
+
+    // The send guard must re-resolve to the on-device engine and answer locally...
+    await waitFor(() => {
+      expect(h.localSendCalled).toBe(1);
+    });
+    // ...and the CLOUD provider must NEVER have been sent to. This is the
+    // load-bearing privacy assertion: local-only never leaks to the cloud, even
+    // when the mode flips mid-resolve.
+    expect(h.sendCalled).toBe(0);
+
+    // The banner reflects the local destination at the (local) send too.
+    await waitFor(() => {
+      expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe('local');
     });
   });
 });

@@ -74,7 +74,7 @@ beforeEach(resetStores);
 afterEach(resetStores);
 
 describe('Privacy initial-load race: local-model status UNKNOWN (probe pending)', () => {
-  it('shows a neutral "Checking local AI" badge (nothing leaves) and DISABLES send', () => {
+  it('shows a neutral "Checking AI destination" badge and DISABLES send', () => {
     // The race window: not ready AND the probe has not resolved -> unknown.
     localStatus.current = makeSnap({ state: 'idle', probed: false });
     render(<AIChatViewer chatData={unsetChat()} apiKeys={[]} />);
@@ -82,7 +82,7 @@ describe('Privacy initial-load race: local-model status UNKNOWN (probe pending)'
     const badge = screen.getByTestId('egress-indicator');
     expect(badge.getAttribute('data-destination')).toBe('pending');
     expect(badge.getAttribute('data-data-leaves')).toBe('false');
-    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Checking local AI/i);
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Checking AI destination/i);
 
     // Even with text typed, send stays disabled until the status resolves —
     // there is no honest destination to send to yet.

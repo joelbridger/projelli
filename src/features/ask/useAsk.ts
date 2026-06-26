@@ -23,12 +23,14 @@ import { useAIChatStore } from '@/platform/state/aiChatStore';
 import type { ChatMessage } from '@/platform/types/ai';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
-import { resolveEgress, type ConfidentialityMode } from '@/platform/privacy/egress';
+import { resolveEgress, isLocalProvider, type ConfidentialityMode } from '@/platform/privacy/egress';
 import { getConfidentialityMode, useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { assertLocalOnlyAllowsSend, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import type { AskScope, AskTurn } from './askHelpers';
 import {
   hasCloudKey,
   buildResolvedAskProvider,
+  resolveLocalAskProvider,
   resolveActiveAskProviderId,
   resolveEmailCitationLabels,
   friendlyErrorMessage,
@@ -242,8 +244,8 @@ export function useAsk({
   // window the OLD provider value combined with the NEW mode could still lie
   // (a stale local provider + Direct mode renders as "nothing leaves"). We close
   // that window by BLANKING to null up front: the banner shows a neutral
-  // "checking — nothing leaves while this checks" badge for the whole async
-  // window, never a concrete-but-stale destination. The cancellation guard drops
+  // "checking AI destination" badge for the whole async window, never a
+  // concrete-but-stale destination. The cancellation guard drops
   // a superseded in-flight resolution so the displayed engine can't race backwards.
   useEffect(() => {
     let cancelled = false;
@@ -500,7 +502,28 @@ export function useAsk({
         .join('\n\n');
 
       let answerText = '';
-      const resolvedProvider = await buildResolvedAskProvider();
+      let resolvedProvider = await buildResolvedAskProvider();
+
+      // FINAL SYNCHRONOUS LOCAL-ONLY SEND GUARD (Codex re-review #4 — the
+      // important one). This is a real privacy enforcement, not a display fix:
+      // buildResolvedAskProvider() checks the mode only at its START and then
+      // awaits keychain reads. If the user switches to Local-only DURING those
+      // awaits, it can still return a CLOUD provider — which would send the query
+      // to the cloud while Local-only is on, breaking that mode's core guarantee
+      // (nothing ever leaves the machine). We re-check the CURRENT mode after the
+      // await: if Local-only is now on and the resolved provider is NOT local,
+      // re-resolve to the on-device engine so the user still gets a private answer
+      // instead of a failed query (local sends are always safe, whatever the mode
+      // does next).
+      if (isLocalOnlyMode() && !isLocalProvider(resolvedProvider.providerId)) {
+        resolvedProvider = await resolveLocalAskProvider();
+      }
+      // Airtight backstop: there is NO await between this assertion and the send
+      // below (only synchronous setup + flushSync), so the mode cannot change in
+      // between. If we somehow still hold a cloud provider in Local-only mode,
+      // fail closed (throw) rather than leak — the catch surfaces the reason.
+      assertLocalOnlyAllowsSend(resolvedProvider.providerId);
+
       const provider = resolvedProvider.provider;
       providerAudit = {
         providerId: resolvedProvider.providerId,
