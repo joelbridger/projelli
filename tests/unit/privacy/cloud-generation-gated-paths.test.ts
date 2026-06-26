@@ -132,6 +132,9 @@ vi.mock('@/platform/providers/KeychainService', () => ({
       if (provider === 'google') return h.googleKey;
       return null;
     }
+    async hasKey(provider: string) {
+      return Boolean(await this.getKey(provider));
+    }
   },
   createKeychainService: () => ({
     async getKey(provider: string) {
@@ -139,6 +142,12 @@ vi.mock('@/platform/providers/KeychainService', () => ({
       if (provider === 'openai') return h.openaiKey;
       if (provider === 'google') return h.googleKey;
       return null;
+    },
+    async hasKey(provider: string): Promise<boolean> {
+      if (provider === 'anthropic') return Boolean(h.anthropicKey);
+      if (provider === 'openai') return Boolean(h.openaiKey);
+      if (provider === 'google') return Boolean(h.googleKey);
+      return false;
     },
   }),
 }));

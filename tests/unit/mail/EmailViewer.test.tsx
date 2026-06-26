@@ -49,7 +49,10 @@ vi.mock('react-i18next', () => ({
 
 // Stub provider building so Draft with AI doesn't hit real APIs
 vi.mock('@/platform/providers/KeychainService', () => ({
-  createKeychainService: vi.fn(() => ({ getKey: vi.fn(async () => null) })),
+  createKeychainService: vi.fn(() => ({
+    getKey: vi.fn(async () => null),
+    hasKey: vi.fn(async () => false),
+  })),
 }));
 
 vi.mock('@/platform/providers/OllamaProvider', () => ({

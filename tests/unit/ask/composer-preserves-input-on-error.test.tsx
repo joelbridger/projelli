@@ -38,7 +38,10 @@ vi.mock('@/platform/rag/workspaceCommand', () => ({
 
 vi.mock('@/platform/providers/KeychainService', () => ({
   KeychainService: vi.fn().mockImplementation(function () {
-    return { getKey: mockGetKey };
+    return {
+      getKey: mockGetKey,
+      hasKey: async (p: string) => Boolean(await mockGetKey(p)),
+    };
   }),
 }));
 

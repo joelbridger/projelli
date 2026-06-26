@@ -18,7 +18,6 @@ import {
   buildWorkspaceContextBlock,
 } from '@/platform/rag/workspaceCommand';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
-import { KeychainService } from '@/platform/providers/KeychainService';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import type { ChatMessage } from '@/platform/types/ai';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
@@ -29,6 +28,8 @@ import type { AskScope, AskTurn } from './askHelpers';
 import {
   hasCloudKey,
   buildResolvedAskProvider,
+  resolveActiveAskProviderId,
+  resolveEmailCitationLabels,
   friendlyErrorMessage,
   buildHistoryBlock,
   reconstructTurns,
@@ -199,17 +200,20 @@ export function useAsk({
     return () => { window.removeEventListener('keydown', onKeyDown); };
   }, []);
 
-  // Fix #8: resolve the active provider name for the EgressIndicator.
+  // Fix #8: resolve the active provider NAME for the pre-send EgressIndicator.
+  // It must name the SAME engine the send will actually use — the embedded
+  // Keepance Local AI when it is ready (not a generic "Ollama"), and the local
+  // engine in Local-only mode regardless of any cloud key. resolveActiveAskProviderId
+  // mirrors buildResolvedAskProvider's destination decision so the two can't drift.
   useEffect(() => {
     void (async () => {
-      const kc = new KeychainService();
-      const ak = await kc.getKey('anthropic');
-      if (ak?.trim()) { setActiveProvider('anthropic'); return; }
-      const ok = await kc.getKey('openai');
-      if (ok?.trim()) { setActiveProvider('openai'); return; }
-      const gk = await kc.getKey('google');
-      if (gk?.trim()) { setActiveProvider('google'); return; }
-      setActiveProvider('ollama');
+      try {
+        setActiveProvider(await resolveActiveAskProviderId());
+      } catch {
+        // Display-only: a failure resolving the badge NAME must never surface as
+        // an unhandled rejection. Leave the badge at its current/default name —
+        // it degrades gracefully (the send path has its own guards).
+      }
     })();
   }, []);
 
@@ -528,7 +532,10 @@ export function useAsk({
        */
       const expectedMatterId: string | null =
         activeMatter && askScope !== 'all-matters' ? activeMatter.id : null;
-      const { answer: rewritten, citations, sources } = bindAnswerCitations(answerText, hits, expectedMatterId);
+      const { answer: rewritten, citations: boundCitations, sources } = bindAnswerCitations(answerText, hits, expectedMatterId);
+      // Cosmetic: name email citations by their subject line instead of the raw
+      // `mail:<id>` message-id (display-only; path/verification untouched).
+      const citations = await resolveEmailCitationLabels(boundCitations);
 
       const completedTurn: AskTurn = {
         question: q,

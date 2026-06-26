@@ -114,7 +114,10 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({ OllamaProvider: class {}
 // Keychain returns an Anthropic key so buildProviderAsync builds the (stubbed) cloud provider.
 vi.mock('@/platform/providers/KeychainService', () => ({
   KeychainService: vi.fn().mockImplementation(function () {
-    return { getKey: (p: string) => Promise.resolve(p === 'anthropic' ? 'sk-ant-test' : null) };
+    return {
+      getKey: (p: string) => Promise.resolve(p === 'anthropic' ? 'sk-ant-test' : null),
+      hasKey: (p: string) => Promise.resolve(p === 'anthropic'),
+    };
   }),
 }));
 

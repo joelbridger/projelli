@@ -83,7 +83,10 @@ const mockGetKey = vi.fn().mockResolvedValue(null);
 vi.mock('@/platform/providers/KeychainService', () => ({
   // Must use `function` (not an arrow) so `new KeychainService(...)` works.
   KeychainService: vi.fn().mockImplementation(function () {
-    return { getKey: mockGetKey };
+    return {
+      getKey: mockGetKey,
+      hasKey: async (p: string) => Boolean(await mockGetKey(p)),
+    };
   }),
 }));
 vi.mock('@/platform/providers/OllamaProvider', () => ({

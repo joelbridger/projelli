@@ -21,6 +21,9 @@ vi.mock('@/platform/providers/KeychainService', () => ({
     async getKey(provider: string) {
       return cmode.keys[provider as keyof typeof cmode.keys] ?? null;
     }
+    async hasKey(provider: string) {
+      return Boolean(await this.getKey(provider));
+    }
   },
 }));
 vi.mock('@/platform/providers/ClaudeProvider', () => ({
