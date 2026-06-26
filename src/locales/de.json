@@ -14,6 +14,20 @@
       "integrity-altered": "Protokoll verändert (Eintrag {{seq}})",
       "integrity-altered__sourceHash": "dfe33a7aceaf60fb2cb8c227525b32eaa7419c4f90d620e222912b9ab7904ea1"
     },
+    "ai-setup-help": {
+      "link": "Ich brauche Hilfe bei der Einrichtung",
+      "title": "Hilfe beim Verbinden deiner KI",
+      "description": "Hängst du beim Verbinden von {{provider}} fest? Schreib mir, was los ist, und ich helfe dir, es abzuschließen.",
+      "message-label": "Wobei hängst du fest?",
+      "message-placeholder": "Schreib mir, in welchem Schritt du bist, welchen Fehler du siehst und was du schon versucht hast.",
+      "email-label": "Deine E-Mail-Adresse",
+      "email-help": "(damit ich antworten kann)",
+      "success": "Alles klar. Ich melde mich per E-Mail bei dir.",
+      "send-failed": "Deine Nachricht konnte nicht gesendet werden.",
+      "network-error": "Netzwerkfehler.",
+      "retry-hint": "Du kannst es erneut versuchen oder deine E-Mail-App mit der fertigen Nachricht öffnen.",
+      "open-email-client": "Stattdessen E-Mail-App öffnen"
+    },
     "bug-report": {
       "title": "Fehler melden",
       "title__sourceHash": "f75e0bd8ff2369251bc8767de55dd8c0bcb3efd1dbc34041bfca4058f9edf0ef",

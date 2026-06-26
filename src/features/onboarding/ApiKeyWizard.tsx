@@ -39,6 +39,7 @@ import { openExternal } from '@/platform/utils/openExternal';
 import { ExternalLink, Eye, EyeOff, Check, CheckCircle, XCircle, Loader2, AlertCircle, ArrowLeft, ArrowRight, RefreshCw, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
+import { AiSetupHelpLink } from '@/features/onboarding/AiSetupHelpLink';
 import { markKeyVerified, clearKeyStatus } from '@/platform/providers/keyVerification';
 import {
   validateApiKeyLive,
@@ -443,6 +444,11 @@ export function ApiKeyWizard({
               )}
               {validation && <WizardValidationBadge outcome={validation.outcome} message={validation.message} />}
               <p className="text-xs text-muted-foreground italic">{meta.costLine}</p>
+              <AiSetupHelpLink
+                provider={provider}
+                providerName={meta.name}
+                context="settings · api-key-wizard"
+              />
             </div>
           </StepShell>
         )}

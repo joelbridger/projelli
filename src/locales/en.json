@@ -9,6 +9,20 @@
       "integrity-verified": "Log verified",
       "integrity-altered": "Log altered (entry {{seq}})"
     },
+    "ai-setup-help": {
+      "link": "I need help setting this up",
+      "title": "Get help connecting your AI",
+      "description": "Stuck connecting {{provider}}? Tell me what's happening and I'll help you finish.",
+      "message-label": "What are you stuck on?",
+      "message-placeholder": "Tell me which step you're on, any error you see, and what you've tried.",
+      "email-label": "Your email",
+      "email-help": "(so I can write back)",
+      "success": "Got it. I'll get back to you by email.",
+      "send-failed": "Couldn't send your message.",
+      "network-error": "Network error.",
+      "retry-hint": "You can retry, or open your email app with the message ready to send.",
+      "open-email-client": "Open email app instead"
+    },
     "bug-report": {
       "title": "Report a bug",
       "description": "Tell us what went wrong. Reports go straight to the Keepance team.",
