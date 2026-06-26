@@ -15,8 +15,17 @@
  * keeps the connection genuinely open, emitting chunks over time, which the
  * browser sees as a real streaming response.
  *
- * Fixture format: { model: string, chunks: { delayMs: number, text: string }[] }
+ * Fixture format: {
+ *   model: string,
+ *   wireFormat?: 'anthropic' | 'openai',   // default 'anthropic' (back-compat)
+ *   chunks: { delayMs: number, text: string }[],
+ * }
  * Fixtures directory: scripts/robot/fixtures/ai-replays/<name>.json
+ *
+ * Wire format matters: the Northcrest Ask path uses the OpenAI provider, whose
+ * parser reads `choices[0].delta.content` + `choices[0].finish_reason` and skips
+ * `data: [DONE]` (see src/platform/providers/OpenAIProvider.ts). The Anthropic
+ * default emits `content_block_delta` / `text_delta` / `message_stop` instead.
  */
 
 import { readFileSync } from 'node:fs';
@@ -28,6 +37,41 @@ const FIXTURES_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   'ai-replays',
 );
+
+// ---------------------------------------------------------------------------
+// SSE frame builders (pure — unit-testable). One per provider wire format.
+// ---------------------------------------------------------------------------
+
+/** One streamed-text delta frame in the requested wire format. */
+export function deltaFrame(openai, model, text) {
+  if (openai) {
+    const event = {
+      id: 'chatcmpl-replay',
+      object: 'chat.completion.chunk',
+      created: 0,
+      model: model || 'gpt-4o',
+      choices: [{ index: 0, delta: { content: text }, finish_reason: null }],
+    };
+    return `data: ${JSON.stringify(event)}\n\n`;
+  }
+  const event = { type: 'content_block_delta', delta: { type: 'text_delta', text } };
+  return `data: ${JSON.stringify(event)}\n\n`;
+}
+
+/** The closing frame(s) that signal end-of-stream in the requested format. */
+export function terminatorFrames(replay) {
+  if (replay.wireFormat === 'openai') {
+    const stop = {
+      id: 'chatcmpl-replay',
+      object: 'chat.completion.chunk',
+      created: 0,
+      model: replay.model || 'gpt-4o',
+      choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+    };
+    return `data: ${JSON.stringify(stop)}\n\ndata: [DONE]\n\n`;
+  }
+  return 'data: {"type":"message_stop"}\n\n';
+}
 
 // Track active proxy servers so callers can shut them down.
 const activeServers = [];
@@ -61,13 +105,17 @@ export function closeAllReplayServers() {
  *
  * @param {object} page        Playwright page
  * @param {string} replayName  Fixture filename without extension (e.g. "launch-plan-stream")
- * @returns {Promise<number>}  The port the local SSE proxy is listening on
+ * @returns {Promise<{ port: number, served: number, report: () => object }>}
+ *          A controller. `served` counts how many AI requests the fixture actually
+ *          answered — the egress guardrail asserts it is >= 1 so a "deterministic"
+ *          run can't silently pass without ever using the fixture.
  */
 export async function installAIReplay(page, replayName) {
   const fixturePath = path.join(FIXTURES_DIR, `${replayName}.json`);
   const replay = JSON.parse(readFileSync(fixturePath, 'utf-8'));
 
   const port = await startSseProxy(replay);
+  let served = 0;
 
   const devPaths = [
     '**/api/anthropic/**',
@@ -80,6 +128,7 @@ export async function installAIReplay(page, replayName) {
 
   for (const pattern of devPaths) {
     await page.route(pattern, async (route) => {
+      served += 1; // an AI request was intercepted + served by the fixture
       try {
         // Forward to our local SSE proxy. route.fetch() makes a real HTTP
         // request from the Playwright process (not the browser), so it can
@@ -99,7 +148,11 @@ export async function installAIReplay(page, replayName) {
     });
   }
 
-  return port;
+  return {
+    port,
+    get served() { return served; },
+    report() { return { servedRequests: served, port, model: replay.model, wireFormat: replay.wireFormat || 'anthropic' }; },
+  };
 }
 
 /**
@@ -135,22 +188,18 @@ function startSseProxy(replay) {
       });
 
       // Emit chunks one-by-one with inter-chunk delays.
+      const openai = replay.wireFormat === 'openai';
       let idx = 0;
 
       const sendNext = () => {
         if (idx >= replay.chunks.length) {
-          // Final message_stop event then close.
-          res.write('data: {"type":"message_stop"}\n\n');
+          res.write(terminatorFrames(replay));
           res.end();
           return;
         }
 
         const chunk = replay.chunks[idx++];
-        const event = {
-          type: 'content_block_delta',
-          delta: { type: 'text_delta', text: chunk.text },
-        };
-        res.write(`data: ${JSON.stringify(event)}\n\n`);
+        res.write(deltaFrame(openai, replay.model, chunk.text));
 
         // Schedule next chunk after this chunk's delay.
         const nextChunk = replay.chunks[idx];

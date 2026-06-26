@@ -1,0 +1,9 @@
+{
+  "model": "gpt-4o",
+  "wireFormat": "openai",
+  "_PLACEHOLDER": "Synthetic OpenAI-format stub so the file resolves. REPLACE IT with a real recording made against the FROZEN snapshot: `node scripts/robot/record-ask-fixture.mjs`. Until then the deterministic Ask will not produce real citation chips (its text references no real retrieved chunks), so the smoke's cited-attestation check is expected to fail with this stub.",
+  "chunks": [
+    { "delayMs": 0, "text": "This is a placeholder answer. " },
+    { "delayMs": 6, "text": "Record the real fixture against the frozen snapshot before using deterministic mode." }
+  ]
+}
