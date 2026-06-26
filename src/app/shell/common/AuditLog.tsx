@@ -101,6 +101,10 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   wall_set_from_manager: ShieldOff,
   key_published: KeyIcon,
   seat_revoked: UserX,
+  // Wealthbox CRM connector.
+  'wealthbox.connect': Users2,
+  'wealthbox.sync': Users2,
+  'wealthbox.disconnect': Users2,
 };
 
 const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -138,6 +142,10 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   wall_set_from_manager: 'Information Barrier Set',
   key_published: 'Key Published',
   seat_revoked: 'Seat Revoked',
+  // Wealthbox CRM connector.
+  'wealthbox.connect': 'Wealthbox Connected',
+  'wealthbox.sync': 'Wealthbox Synced',
+  'wealthbox.disconnect': 'Wealthbox Disconnected',
 };
 
 const ACTION_COLORS: Record<AuditActionType, string> = {
@@ -175,6 +183,10 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   wall_set_from_manager: 'text-amber-700',
   key_published: 'text-sky-600',
   seat_revoked: 'text-rose-700',
+  // Wealthbox CRM connector.
+  'wealthbox.connect': 'text-emerald-600 dark:text-emerald-400',
+  'wealthbox.sync': 'text-sky-600 dark:text-sky-400',
+  'wealthbox.disconnect': 'text-orange-600 dark:text-orange-400',
 };
 
 export function AuditLog({

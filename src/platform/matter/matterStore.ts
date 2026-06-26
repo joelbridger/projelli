@@ -91,6 +91,8 @@ export interface CreateMatterInput {
   client: string;
   folderPaths?: string[];
   mailFolderPaths?: string[];
+  /** Wealthbox household IDs to link at creation time. */
+  crmHouseholdKeys?: string[];
   /** Mark the matter privileged at creation time (defaults to false). */
   privileged?: boolean;
   /** Explicitly grant external AI tools (MCP) access at creation time. Defaults to false. */
@@ -123,6 +125,10 @@ interface MatterState {
   // WS-B/C — mail folder mapping (provider/account[/folder] keys).
   addMailFolderPath: (id: string, mailFolderKey: string) => void;
   removeMailFolderPath: (id: string, mailFolderKey: string) => void;
+
+  // Wealthbox CRM household mapping.
+  addCrmHouseholdKey: (id: string, householdId: string) => void;
+  removeCrmHouseholdKey: (id: string, householdId: string) => void;
 
   // Privileged Matter Mode: per-matter privileged designation. When the active
   // matter is privileged, network plugins + MCP are disabled (see
@@ -187,7 +193,7 @@ interface PersistedMatterState {
 const MATTERS_KEY = 'keepance:matters';
 const UI_KEY = 'keepance:matter-ui-snapshots';
 const GLANCE_KEY = 'keepance:matter-at-a-glance';
-const MATTERS_VERSION = 5;
+const MATTERS_VERSION = 6;
 
 type MatterAuditEmitter = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 
@@ -300,6 +306,7 @@ export const useMatterStore = create<MatterState>()(
           client: input.client.trim(),
           folderPaths: dedupeFolderPaths(input.folderPaths ?? []),
           mailFolderPaths: Array.from(new Set((input.mailFolderPaths ?? []).filter(Boolean))),
+          crmHouseholdKeys: Array.from(new Set((input.crmHouseholdKeys ?? []).filter(Boolean))),
           privileged: input.privileged ?? false,
           mcpAccessGranted: input.mcpAccessGranted ?? false,
           createdAt: new Date().toISOString(),
@@ -429,6 +436,30 @@ export const useMatterStore = create<MatterState>()(
           matters: state.matters.map((m) =>
             m.id === id
               ? { ...m, mailFolderPaths: (m.mailFolderPaths ?? []).filter((k) => k !== key) }
+              : m,
+          ),
+        }));
+      },
+
+      addCrmHouseholdKey: (id, householdId) => {
+        const key = householdId.trim();
+        if (!key) return;
+        set((state) => ({
+          matters: state.matters.map((m) => {
+            if (m.id !== id) return m;
+            const existing = m.crmHouseholdKeys ?? [];
+            if (existing.includes(key)) return m;
+            return { ...m, crmHouseholdKeys: [...existing, key] };
+          }),
+        }));
+      },
+
+      removeCrmHouseholdKey: (id, householdId) => {
+        const key = householdId.trim();
+        set((state) => ({
+          matters: state.matters.map((m) =>
+            m.id === id
+              ? { ...m, crmHouseholdKeys: (m.crmHouseholdKeys ?? []).filter((k) => k !== key) }
               : m,
           ),
         }));
@@ -571,7 +602,8 @@ export const useMatterStore = create<MatterState>()(
       // v1 -> v2: matters gained `mailFolderPaths`. v2 -> v3: matters gained the
       // `privileged` flag. v3 -> v4: matters gained firm linkage fields
       // (firmMatterId, orgId, role, shared). v4 -> v5: matters gained the
-      // explicit MCP access grant. Backfill defaults so older persisted matters
+      // explicit MCP access grant. v5 -> v6: matters gained `crmHouseholdKeys`
+      // for the Wealthbox connector. Backfill defaults so older persisted matters
       // parse cleanly (missing values are tolerated by readers, but normalising
       // here keeps the shape consistent). Only the `matters` slice is versioned;
       // the snapshots/cache slices pass through untouched.
@@ -607,6 +639,15 @@ export const useMatterStore = create<MatterState>()(
           state.matters = state.matters.map((m) => ({
             ...m,
             mcpAccessGranted: m.mcpAccessGranted ?? false,
+          }));
+        }
+        if (version < 6) {
+          // v5 -> v6: matters gained `crmHouseholdKeys` for the Wealthbox
+          // connector. Backfill an empty array so older persisted matters parse
+          // cleanly; a missing value on disk is treated as an empty list.
+          state.matters = state.matters.map((m) => ({
+            ...m,
+            crmHouseholdKeys: m.crmHouseholdKeys ?? [],
           }));
         }
         return state as PersistedMatterState;

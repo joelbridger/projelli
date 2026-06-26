@@ -38,8 +38,8 @@ export interface RetrievedChunk {
   matterId?: string;
   sourceId?: string;
   /** VG-2b widens the union with the office formats; VG-3c with certified
-   *  transcripts (mirrors `RagHit`). */
-  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf' | 'transcript';
+   *  transcripts; Phase 1A adds 'crm' (mirrors `RagHit`). */
+  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf' | 'transcript' | 'crm';
   pageNumber?: number;
   /** VG-3c: page:line locator for certified transcript chunks
    *  (`"startPage:startLine-endPage:endLine"`, mirrors `RagHit`); finder

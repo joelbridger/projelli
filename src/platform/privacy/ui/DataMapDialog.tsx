@@ -50,6 +50,7 @@ import {
   ChevronDown,
   X,
   BarChart2,
+  Users,
 } from 'lucide-react';
 
 export interface DataMapDialogProps {
@@ -98,6 +99,13 @@ export const DATA_MAP_ROWS: MapRow[] = [
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'Imported email is encrypted on your machine',
     body: 'If you import email, it is stored in a local, encrypted database on your device. It is searched and used for AI context the same way your files are: locally, under the same confidentiality rules.',
+  },
+  {
+    icon: Users,
+    tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
+    title: 'Your Wealthbox connection runs from your machine to Wealthbox',
+    body: "When you connect Wealthbox, your API key is stored in your computer's own keychain, never on a Keepance server. Keepance reads your Wealthbox data by calling Wealthbox directly from your machine with that key, so those requests never pass through Keepance's servers and Keepance never sees your CRM data. A sync imports the households and client records your Wealthbox login can see, and stores them in a local, encrypted database on your device, searched the same way your files are.",
+    caveat: 'The connection is read-only: Keepance never writes anything back to Wealthbox. Disconnecting deletes the imported Wealthbox data from this device.',
   },
   {
     icon: ScanText,

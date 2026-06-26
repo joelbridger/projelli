@@ -55,6 +55,7 @@ import {
   type WorkspaceChangeEvent,
 } from '@/platform/utils/tauri-commands';
 import { mailSetWorkspace } from '@/platform/utils/mail-commands';
+import { crmSetWorkspace } from '@/platform/utils/wealthbox-commands';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/platform/types/workspace';
 import { usePdfIndexProgressStore } from '@/platform/rag/pdfIndexProgressStore';
@@ -528,6 +529,15 @@ export function useMemoryWiring(
 
         await MemoryService.setWorkspace(rootPath);
         await mailSetWorkspace(rootPath);
+        // Best-effort: tell the CRM backend which workspace to use so
+        // crm_sync_all and crm_disconnect know where to read/write. The CRM
+        // connector is optional; a failure here must NOT break the rest of
+        // workspace wiring (file watching + memory indexing) for every user.
+        try {
+          await crmSetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('crmSetWorkspace failed; continuing workspace setup:', err);
+        }
         await watchWorkspace(rootPath);
 
         const { listen } = await import('@tauri-apps/api/event');

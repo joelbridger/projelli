@@ -25,8 +25,8 @@ export const CORE_SECTION_TITLE: Record<CoreSectionKey, string> = {
 };
 
 export interface SourceRef {
-  kind: 'document' | 'email';
-  /** Resolvable origin: a workspace path or `mail:<id>` (from RagHit.sourceId). */
+  kind: 'document' | 'email' | 'crm';
+  /** Resolvable origin: a workspace path, `mail:<id>`, or `crm:<kind>:<id>` (from RagHit.sourceId). */
   ref: string;
   /** The supporting quote (from RagHit.chunkText). */
   snippet: string;
@@ -144,7 +144,7 @@ function locatorFromRagHit(hit: RagHit): string | undefined {
 
 export function sourceRefFromRagHit(hit: RagHit): SourceRef {
   const ref = hit.sourceId ?? hit.path;
-  const kind: SourceRef['kind'] = hit.sourceType === 'mail' ? 'email' : 'document';
+  const kind: SourceRef['kind'] = hit.sourceType === 'crm' ? 'crm' : hit.sourceType === 'mail' ? 'email' : 'document';
   const locator = locatorFromRagHit(hit);
   const out: SourceRef = { kind, ref, snippet: hit.chunkText };
   if (hit.id !== undefined) out.citationId = hit.id;

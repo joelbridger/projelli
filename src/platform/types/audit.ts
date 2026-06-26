@@ -48,7 +48,11 @@ export type AuditActionType =
   | 'member_removed'
   | 'wall_set_from_manager'
   | 'key_published'
-  | 'seat_revoked';
+  | 'seat_revoked'
+  // Wealthbox CRM connector lifecycle events.
+  | 'wealthbox.connect'
+  | 'wealthbox.sync'
+  | 'wealthbox.disconnect';
 
 /**
  * The verdict from citation verification (mirrors `CitationVerdict.verdict`

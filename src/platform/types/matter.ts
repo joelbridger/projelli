@@ -47,6 +47,16 @@ export interface Matter {
    */
   mailFolderPaths?: string[];
   /**
+   * Wealthbox household IDs whose CRM records belong to this matter. Each
+   * entry is the Wealthbox household id string returned by `crm_list_households`
+   * (and stored in `CrmHouseholdDto.id`). CRM objects synced for a matched
+   * household are indexed under this matter's scope.
+   *
+   * Optional so matters created before the Wealthbox connector landed still
+   * parse from persisted storage (a missing value is treated as an empty list).
+   */
+  crmHouseholdKeys?: string[];
+  /**
    * Privileged-matter designation. When `true`, this matter holds
    * attorney-client / work-product material and is treated as a confidentiality
    * boundary that must never be exfiltrated through a network-capable extension.

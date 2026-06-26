@@ -30,6 +30,7 @@ export interface DocumentReader {
 }
 
 export const OPEN_EMAIL_EVENT = 'keepance:open-email';
+export const OPEN_CRM_EVENT = 'keepance:open-crm';
 export const MATTER_LAUNCH_EVENT = 'keepance:matter-launch';
 
 /** The document-source payload carried on a `keepance:matter-launch` event. */
@@ -48,6 +49,10 @@ export function dispatchOpenSource(matterId: string, ref: SourceRef): void {
   if (typeof window === 'undefined') return;
   if (ref.kind === 'email') {
     window.dispatchEvent(new CustomEvent(OPEN_EMAIL_EVENT, { detail: { sourceId: ref.ref } }));
+    return;
+  }
+  if (ref.kind === 'crm') {
+    window.dispatchEvent(new CustomEvent(OPEN_CRM_EVENT, { detail: { sourceId: ref.ref } }));
     return;
   }
   const source: MatterLaunchSource = { kind: 'document', ref: ref.ref };
