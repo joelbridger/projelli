@@ -1,11 +1,12 @@
 /**
- * TauriFSBackend.list — desktop dotfile visibility (UX-21, pre-merge review).
+ * TauriFSBackend.list — desktop dotfile visibility + shallow contract (UX-21).
  *
- * The desktop backend used to drop EVERY dot-prefixed entry before the UI saw
- * it, so "Show Hidden Files" could never reveal .gitignore and the hiddenNodes
- * helper never got a chance to act. The backend must now drop ONLY Keepance's
- * internal `.keepance` folder (never recursing into it) and let ordinary
- * dotfiles through for the UI/settings layer to decide, while keeping .trash.
+ * The desktop backend used to (a) drop EVERY dot-prefixed entry before the UI
+ * saw it, so "Show Hidden Files" could never reveal .gitignore, and (b) recurse
+ * internally, which after (a)'s removal would have walked huge dot-directories
+ * like .git. It now drops ONLY Keepance's internal `.keepance` folder and is
+ * SHALLOW (one level, like WebFSBackend) — real recursion + the .trash / dot-dir
+ * / symlink rules are owned by WorkspaceService.listRecursive.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -48,7 +49,8 @@ describe('TauriFSBackend.list — desktop dotfile visibility', () => {
 
     const backend = new TauriFSBackend();
     await backend.setRootPath('/ws');
-    const names = (await backend.list('')).map((n) => n.name);
+    const nodes = await backend.list('');
+    const names = nodes.map((n) => n.name);
 
     // Ordinary dotfile now reaches the UI so "Show Hidden Files" can reveal it.
     expect(names).toContain('.gitignore');
@@ -59,11 +61,11 @@ describe('TauriFSBackend.list — desktop dotfile visibility', () => {
     expect(names).toContain('.trash');
     // Keepance's internal config folder is never listed.
     expect(names).not.toContain('.keepance');
-    // Perf guard: ordinary directories ARE walked, dot-directories (.git/.trash)
-    // and .keepance are NOT — a huge .git must not slow workspace load.
-    expect(readDir).toHaveBeenCalledWith('/ws/docs');
-    expect(readDir).not.toHaveBeenCalledWith('/ws/.git');
-    expect(readDir).not.toHaveBeenCalledWith('/ws/.trash');
-    expect(readDir).not.toHaveBeenCalledWith('/ws/.keepance');
+    // Shallow contract: list() reads ONLY the requested directory and never
+    // walks into ANY subdirectory (so a huge .git can't slow load, no matter how
+    // list() is called) — recursion is owned by WorkspaceService.listRecursive.
+    expect(readDir).toHaveBeenCalledTimes(1);
+    expect(readDir).toHaveBeenCalledWith('/ws');
+    expect(nodes.find((n) => n.name === 'docs')?.children).toEqual([]);
   });
 });

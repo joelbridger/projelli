@@ -371,19 +371,16 @@ export class TauriFSBackend implements FSBackend {
         const entryPath = path ? `${path}/${entry.name}` : entry.name;
 
         if (entry.isDirectory) {
-          // Do NOT walk into dot-directories (.git, .vscode, .trash, ...): they
-          // can be enormous (a real .git slows workspace load) and aren't useful
-          // in the tree. They still appear as folders so "Show Hidden Files" can
-          // reveal them; real recursion is owned by WorkspaceService.listRecursive.
-          const children = entry.name.startsWith('.')
-            ? []
-            : await this.list(entryPath);
+          // Shallow (one level), exactly like WebFSBackend.list(). Real recursion
+          // is owned by WorkspaceService.listRecursive, which applies the .trash /
+          // dot-directory / symlink rules — so the backend never walks into a
+          // huge directory (e.g. .git) regardless of how list() is called.
           nodes.push({
             id: entryPath,
             name: entry.name,
             type: 'folder',
             path: entryPath,
-            children,
+            children: [],
           });
         } else if (entry.isFile) {
           nodes.push({
