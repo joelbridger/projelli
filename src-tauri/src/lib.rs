@@ -179,6 +179,11 @@ pub fn run() {
             commands::vault::vault_encrypt_all,
             commands::vault::vault_decrypt_all,
             commands::vault::vault_disable,
+            // Onboarding/setup progress — one unified, queryable snapshot of all
+            // five first-run setup signals, plus a renderer hook to report the
+            // frontend-only Client Map build counts.
+            commands::setup_progress::get_setup_progress,
+            commands::setup_progress::setup_report_client_map,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -201,6 +206,10 @@ pub fn run() {
             commands::crm::commands::manage_state(app);
             // Keepance 3.0 — manage encrypted audit-store state (active workspace).
             commands::audit::manage_state(app);
+            // Onboarding/setup progress — register the aggregator state + the
+            // listeners that bridge the five per-source events into one
+            // `setup-progress-changed` notification.
+            commands::setup_progress::manage_state(app);
             // Auto-updater stack. Desktop-only because the underlying
             // crates are gated to macOS / Windows / Linux in Cargo.toml.
             // The plugin reads endpoints + pubkey from tauri.conf.json so
