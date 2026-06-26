@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
-import type { AuditMatterScopeOption } from '@/features/audit/audit-export';
+import { asRecord, type AuditMatterScopeOption } from '@/features/audit/audit-export';
 import {
   Button,
   FilterPanel,
@@ -50,9 +50,13 @@ export function DetailPanel({ entry, onClose }: DetailPanelProps) {
   const category = lookupCategory(ACTION_CATEGORY, entry.action);
   const iconColor = CATEGORY_COLOR[category];
   const scopeLabel = getScopeLabel(entry);
-  const hasInputs = Object.keys(entry.inputs).length > 0;
-  const hasOutputs = Object.keys(entry.outputs).length > 0;
-  const hasMetadata = Object.keys(entry.metadata).length > 0;
+  // Defensive: a row may arrive without these objects (e.g. connector entries).
+  const inputs = asRecord(entry.inputs);
+  const outputs = asRecord(entry.outputs);
+  const metadata = asRecord(entry.metadata);
+  const hasInputs = Object.keys(inputs).length > 0;
+  const hasOutputs = Object.keys(outputs).length > 0;
+  const hasMetadata = Object.keys(metadata).length > 0;
 
   return (
     <SlidePanel
@@ -108,10 +112,10 @@ export function DetailPanel({ entry, onClose }: DetailPanelProps) {
 
         {/* Firm governance fields */}
         {(() => {
-          const fmid = entry.metadata['firm_matter_id'];
-          const mid = entry.metadata['matter_id'];
-          const tuid = entry.metadata['target_user_id'];
-          const oid = entry.metadata['org_id'];
+          const fmid = metadata['firm_matter_id'];
+          const mid = metadata['matter_id'];
+          const tuid = metadata['target_user_id'];
+          const oid = metadata['org_id'];
           if (fmid == null && mid == null && tuid == null) return null;
           const sfmid = toSafeString(fmid);
           const smid = toSafeString(mid);
@@ -129,17 +133,17 @@ export function DetailPanel({ entry, onClose }: DetailPanelProps) {
 
         {/* Inputs */}
         {hasInputs && (
-          <JsonBlock label="Inputs" value={entry.inputs} />
+          <JsonBlock label="Inputs" value={inputs} />
         )}
 
         {/* Outputs */}
         {hasOutputs && (
-          <JsonBlock label="Outputs" value={entry.outputs} />
+          <JsonBlock label="Outputs" value={outputs} />
         )}
 
         {/* Metadata */}
         {hasMetadata && (
-          <JsonBlock label="Metadata" value={entry.metadata} />
+          <JsonBlock label="Metadata" value={metadata} />
         )}
       </div>
     </SlidePanel>

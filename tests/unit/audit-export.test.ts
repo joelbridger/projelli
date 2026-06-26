@@ -11,10 +11,12 @@ import {
   entriesToCSV,
   buildExportFilename,
   uniqueModels,
+  uniqueMatterScopes,
   filterEntries,
   triggerDownload,
   downloadAuditJSON,
   downloadAuditCSV,
+  asRecord,
   CSV_COLUMNS,
 } from '@/features/audit/audit-export';
 
@@ -411,5 +413,64 @@ describe('audit-export / triggerDownload', () => {
     expect(downloadAuditCSV([makeEntry()], now)).toBe(
       'keepance-audit-2026-04-16T09-00-00.csv'
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Defensive: an audit row may arrive WITHOUT inputs/outputs/metadata objects.
+//
+// Regression for the demo-blocker where clicking "Activity Log" white-screened
+// the whole app: connector-emitted audit entries lacked a `metadata` object, so
+// `getAuditEntryMatterScope` (via uniqueMatterScopes) did `entry.metadata['scope']`
+// on `undefined` and threw, with nothing catching it. No audit row should ever
+// throw, whatever its shape.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('audit-export / resilience to missing metadata|inputs|outputs', () => {
+  // A connector-style entry that omits the three object fields the type marks
+  // as required. The cast models real runtime data that bypassed the type.
+  function malformedEntry(): AuditEntry {
+    return makeEntry({
+      id: 'connector-1',
+      action: 'wealthbox.connect' as AuditEntry['action'],
+      description: 'Connected Wealthbox',
+      metadata: undefined as unknown as Record<string, unknown>,
+      inputs: undefined as unknown as Record<string, unknown>,
+      outputs: undefined as unknown as Record<string, unknown>,
+    });
+  }
+
+  it('uniqueMatterScopes does not throw and ignores a row with undefined metadata', () => {
+    expect(() => uniqueMatterScopes([malformedEntry()])).not.toThrow();
+    expect(uniqueMatterScopes([malformedEntry()])).toEqual([]);
+  });
+
+  it('uniqueMatterScopes still reads scope from well-formed rows alongside malformed ones', () => {
+    const good = makeEntry({
+      id: 'good-1',
+      action: 'scope_active',
+      metadata: { scope: { kind: 'matter', matterId: 'm-1', matterName: 'Ellison' } },
+    });
+    const scopes = uniqueMatterScopes([malformedEntry(), good]);
+    expect(scopes).toHaveLength(1);
+    expect(scopes[0]?.matterId).toBe('m-1');
+  });
+
+  it('entriesToCSV does not throw on a row with undefined inputs/outputs/metadata', () => {
+    expect(() => entriesToCSV([malformedEntry()])).not.toThrow();
+    const csv = entriesToCSV([malformedEntry()]);
+    expect(csv).toContain('connector-1');
+  });
+
+  it('filterEntries (matter filter) does not throw on a malformed row', () => {
+    expect(() => filterEntries([malformedEntry()], { matterId: 'm-1' })).not.toThrow();
+  });
+
+  it('asRecord coerces missing/odd values to a plain record', () => {
+    expect(asRecord(undefined)).toEqual({});
+    expect(asRecord(null)).toEqual({});
+    expect(asRecord('x')).toEqual({});
+    expect(asRecord([1, 2])).toEqual({});
+    const obj = { a: 1 };
+    expect(asRecord(obj)).toBe(obj);
   });
 });
