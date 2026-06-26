@@ -1,0 +1,77 @@
+# Ask answer-quality eval
+
+A small, extensible scorecard for the single most important thing an AI product
+does: **give good, grounded answers.** Other tests prove the AI *can't fake
+citations*; this one proves it *gives the right answer, cites the right source,
+and declines when it doesn't know.*
+
+## The two layers
+
+| Layer | Model | When | What it proves |
+|---|---|---|---|
+| **Gate** (`ask-eval.gate.test.ts`) | MockProvider (scripted) | every `npm run gate` | The grader + rubric are correct and discriminate good answers from bad ones. Fast, free, deterministic. |
+| **Nightly** (`realModel.eval.test.ts`) | a real model (OpenAI/Claude) | scheduled, opt-in | The *live* model still answers well over the corpus; drift is reported to Jameson. |
+
+The gate never calls a real model. The nightly is skipped unless `ASK_EVAL_REAL=1`
+and an API key are set.
+
+## How it works
+
+Each **case** (`cases.ts`) is a question over a fixed slice of the eval **corpus**
+(`corpus/*.md` — the Johnson employment matter and the Acme contract matter,
+mirroring `tests/fixtures/matter-corpus/`). A case declares its expectation:
+
+- `expect: 'answer'` → must answer, with the required **grounded** citation
+  (`mustCite`), the right facts (`mustInclude`), and no fabrication
+  (`mustNotInclude`).
+- `expect: 'decline'` → the answer is not in the context, so the model must say
+  it can't find it instead of guessing.
+
+The **harness** (`harness.ts`) builds the *exact* prompt the app ships
+(`buildAskSystemPrompt` + `buildWorkspaceContextBlock`, the same functions
+`useAsk.ts` uses), asks the provider, and the **grader** (`grade.ts`) scores the
+answer. "Grounded" means what it means in the product: the citation resolves to
+the cited file *and the exact retrieved paragraph* (`resolveCitationTarget`,
+BUG-065) — so an answer can't pass by citing a file it never grounded.
+
+Every case also ships a `gold` answer (should pass) and `traps` (should fail).
+The gate asserts golds pass and traps fail — the traps are the negative control
+that keeps the grader honest.
+
+## Add a case
+
+1. If you need a new fact, add it to a `corpus/*.md` file (one fact per
+   paragraph; blank lines separate paragraphs; paragraph index is 0-based).
+2. Add an `EvalCase` to `cases.ts` with `sources` (which paragraphs are
+   "retrieved"), `expect`, the `mustCite`/`mustInclude`/`mustNotInclude` checks,
+   a `rubric` (for the nightly judge), a `gold` answer, and at least one `trap`.
+3. Run `npx vitest run tests/eval/ask/ask-eval.gate.test.ts`. The gate will tell
+   you if your gold doesn't pass or a trap doesn't fail.
+
+## Run it
+
+```bash
+# Gate (deterministic, part of the normal gate)
+npx vitest run tests/eval/ask/ask-eval.gate.test.ts
+
+# Nightly (real model) — needs a key
+OPENAI_API_KEY=sk-... node scripts/eval/ask-nightly.mjs
+ASK_EVAL_PROVIDER=anthropic ANTHROPIC_API_KEY=... node scripts/eval/ask-nightly.mjs
+
+# First trusted run sets the baseline:
+OPENAI_API_KEY=sk-... node scripts/eval/ask-nightly.mjs --update-baseline
+```
+
+The nightly writes `results/latest.json` (gitignored), compares the pass rate to
+`baseline.json` (committed), and notifies Jameson — `MILESTONE` when steady,
+`NEED YOU` on a regression. Tune the floor with `ASK_EVAL_FLOOR` /
+`ASK_EVAL_TOLERANCE`; pick the model with `ASK_EVAL_MODEL`.
+
+To schedule it, add the cron line in the header of `scripts/eval/ask-nightly.mjs`.
+
+## Why MockProvider for the gate?
+
+We can't run real RAG (LanceDB/embeddings are native Rust) or a real model inside
+the unit-test gate, and we don't want to. The gate's job is to lock the *eval
+itself* — the rubric, the grounding check, the harness wiring — deterministically
+and for free. Measuring the actual live model is the nightly's job.

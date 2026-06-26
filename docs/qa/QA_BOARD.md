@@ -55,6 +55,15 @@ FIND (parallel, light) ─→ TRIAGE (lead) ─→ FIX (parallel, throttled) ─
    sanity-check the risky ones, and merges **one branch at a time**. Never merge
    parallel branches blind.
 
+**Bench-bug → fast test (operating rule #4).** A bug found on the real
+Windows/Mac bench isn't "closed" until it has a **fast lower-layer regression
+test** (Vitest / `cargo test` / Playwright) that fails without the fix and passes
+with it — or is consciously tagged **EXPLORATORY** (only catchable by driving the
+real app, e.g. a native OS dialog). Record it in the backlog's regression-test
+table: [`../quality/2026-06-20-test-bug-backlog.md`](../quality/2026-06-20-test-bug-backlog.md)
+("Bench-bug → fast regression test"). This keeps the slow Windows pass from
+re-discovering the same problems.
+
 ### Concurrency caps (this box is MEMORY-TIGHT — it has OOM'd before)
 - **Read-only audits (FIND):** up to ~4-6 at once (light: no builds/tests).
 - **Heavy fix-agents (FIX, run tests/builds):** **cap ~2 concurrent.**

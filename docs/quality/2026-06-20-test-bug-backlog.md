@@ -27,6 +27,45 @@ Status key: 🔴 open · 🟡 fix planned · 🟢 fixed (commit) · ⚪ needs-co
 
 ---
 
+## Bench-bug → fast regression test (operating rule #4)
+
+**The rule.** Every bug found on the real Windows/Mac bench must, within ~a day of
+the fix, gain a **fast lower-layer regression test** (Vitest / `cargo test` /
+Playwright) that fails without the fix and passes with it — **or** be consciously
+tagged **EXPLORATORY** here, with a one-line reason it can only be caught by
+driving the real app (e.g. a native OS dialog the test layer can't reach). A bench
+bug is **not "closed"** until one of those is true. This stops the slow Windows
+pass from forever re-discovering the same problems — push the truth down to a fast
+layer that runs every gate. (QA_BOARD §2 carries the one-line version of this rule;
+the per-bug detail sections below carry the evidence.)
+
+**Backfill — recent bench findings and the fast test that now guards each** (test
+paths verified present in the tree on 2026-06-26):
+
+| Bench bug | What | Fast regression test | Guarded |
+|---|---|---|---|
+| BUG-001 | provider indicator inconsistent across UI | `tests/unit/privacy/PrivacyCenterHome.test.tsx` (+ `useActiveEgressProvider`) | ✅ |
+| BUG-002 | Ask composer clears question on error | `tests/unit/ask/composer-preserves-input-on-error.test.tsx` | ✅ |
+| BUG-007 | mail never syncs after restart / no Sync button | `tests/unit/mail/BUG007-startup-sync.test.tsx` | ✅ |
+| BUG-008 | email sync spins forever, no feedback | `tests/unit/settings/MailConnect.test.tsx`, `MailGmailConnect.test.tsx` (+ `src-tauri/src/commands/mail`) | ✅ |
+| BUG-009 | AI redline dead for non-Anthropic BYOK | `tests/unit/resolve-redline-provider.test.ts`, `tests/unit/docx-redline-composer.test.tsx` | ✅ |
+| BUG-010 | M365 sign-in: browser never opened / redirect lost | Rust loopback/oauth changed (`src-tauri/.../gmail/oauth.rs`); **native `ShellExecuteW` browser-open + loopback bind stay EXPLORATORY** — only the real OS shell exercises them | 🟠 EXPLORATORY (native) |
+| BUG-012 | markdown/text inline "Ask AI" dead for everyone | `tests/unit/inline-edit-provider.test.ts` | ✅ |
+| BUG-013 | "filed to matter" not persistent on reopen | `tests/unit/mail/EmailViewer.test.tsx`, `src-tauri/tests/mail_fixture_import.rs` | ✅ |
+| BUG-014 | "Add files" opens New-Document, never imports | `tests/unit/import-picked-files.test.ts` | ✅ |
+| BUG-015 | scanned PDF never became searchable (OCR→search) | `tests/unit/pdf-index-default.test.ts`, `tests/unit/settings/includePdfsToggle.test.ts` | ✅ |
+| BUG-016 | AI fabricates a confident answer + fake citation | `tests/unit/ask/bug016-ask-grounding.test.tsx`, `tests/unit/workspace-command.test.ts` | ✅ |
+| BUG-080 | live workflow produced no Activity-Log entry (r4 bench signal) | `tests/integration/workflow.test.ts` (activity-log path) | 🟡 partial — confirm the bench signal is fully covered |
+| BUG-081 | AI redline logs Model Call but no egress row (r4 bench signal) | `tests/unit/docx-redline-audit.test.ts` | ✅ |
+
+**Net:** the recent Windows bench findings are guarded by fast tests, with one
+honest exception — **BUG-010's native browser-open path stays exploratory** (no
+test layer can drive the real Windows shell), and **BUG-080** is flagged to confirm
+its bench signal is fully pinned. New bench bugs land in this table as they're
+fixed.
+
+---
+
 ## BUG-001 — Stale global provider indicator  ·  Severity: Minor  ·  🟢 FIXED (verified in code 2026-06-21)
 **Resolution:** the global trust banner + Privacy Center now derive the provider from the shared `useActiveEgressProvider` hook (single source of truth), which follows the provider the user actually has a key for instead of a hardcoded Anthropic default. `src/app/shell/layout/TrustBar.tsx`, `src/features/privacy/PrivacyCenterHome.tsx`, `src/platform/hooks/useActiveEgressProvider.ts`. **Residual (tracked as BUG-024):** the resolver reads key *presence* from localStorage rather than the OS keychain / *validity* — deliberately deferred (display-only; BUG-021 enforces actual egress regardless of the indicator).
 **(original below)**
