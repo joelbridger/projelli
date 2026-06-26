@@ -20,6 +20,7 @@ import { CostMetrics } from '@/platform/analysis/ui/CostMetrics';
 import { MailConnect } from '@/features/settings/MailConnect';
 import { MailImapConnect } from '@/features/settings/MailImapConnect';
 import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
+import { WealthboxConnect } from '@/features/settings/WealthboxConnect';
 import { McpSettingsSection } from '@/features/settings/McpSettingsSection';
 import { OllamaSettingsSection } from '@/features/settings/OllamaSettingsSection';
 
@@ -294,6 +295,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                 <MailConnect />
                 <MailImapConnect />
                 <MailGmailConnect />
+                <WealthboxConnect />
                 <McpSettingsSection />
                 <OllamaSettingsSection />
               </div>

@@ -97,6 +97,7 @@ import type { MailIndexChunk } from '@/platform/utils/mail-commands';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { useUndoToast } from '@/app/shell/common/UndoToast';
+import { CrmSourcePanel } from '@/features/crm/CrmSourcePanel';
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
@@ -1504,6 +1505,10 @@ This file contains rules and guidelines for AI assistants in this workspace.
         showWhatsNewModalDirect={showWhatsNewModalDirect}
         setShowWhatsNewModalDirect={setShowWhatsNewModalDirect}
       />
+
+      {/* Wealthbox CRM citation viewer — listens for keepance:open-crm events
+          dispatched when a `crm:` source link is clicked in a Client Map. */}
+      <CrmSourcePanel />
     </div>
   );
 }

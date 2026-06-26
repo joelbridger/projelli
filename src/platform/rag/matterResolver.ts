@@ -172,6 +172,38 @@ export function buildMailMatterMap(matters: Matter[]): MailMatterMapEntry[] {
   return out;
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Wealthbox CRM -> matter mapping
+//
+// CRM records are indexed under a matter by the Wealthbox HOUSEHOLD id the
+// household was mapped to when the matter was created or linked. The backend
+// `crm_sync_all` command accepts `Vec<CrmMatterMapEntry>` in camelCase; this
+// helper converts the matter store's `crmHouseholdKeys` lists into that format.
+// ─────────────────────────────────────────────────────────────────────
+
+/** One CRM household -> matter mapping entry (camelCase, mirroring the Rust DTO). */
+export interface CrmMatterMapEntry {
+  householdId: string;
+  matterId: string;
+}
+
+/**
+ * Flatten every matter's `crmHouseholdKeys` into the `CrmMatterMapEntry[]` the
+ * backend `crm_sync_all` command consumes. Skips the unassigned sentinel and any
+ * blank household ids.
+ */
+export function buildCrmMatterMap(matters: Matter[]): CrmMatterMapEntry[] {
+  const out: CrmMatterMapEntry[] = [];
+  for (const m of matters) {
+    if (m.id === UNASSIGNED_MATTER_ID) continue;
+    for (const key of m.crmHouseholdKeys ?? []) {
+      if (!key) continue;
+      out.push({ householdId: key, matterId: m.id });
+    }
+  }
+  return out;
+}
+
 /**
  * Resolve which matter a given mail folder (provider/account/folder) belongs to,
  * mirroring the backend `resolve_mail_matter`: a folder-level mapping wins over
