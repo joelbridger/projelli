@@ -245,11 +245,16 @@ export interface HouseholdResolution {
  *   1. **reuse** — a matter is already linked to this household via `crmHouseholdKeys`.
  *      No change needed; the map will pick it up automatically.
  *
- *   2. **link** — a matter whose `name` or `client` matches `normalizeClientName(household.name)`
- *      AND that matter has NO existing `crmHouseholdKeys` (pure file-client, not already
- *      linked to a different household). The caller should call `addCrmHouseholdKey` and
- *      add `matterId` to `claimedMatterIds` to prevent a second household from linking to
- *      the same matter in the same sync batch.
+ *   2. **link** — the household's normalized name must identify EXACTLY ONE existing matter,
+ *      counted over ALL matters by `name`/`client` **before** any linked/claimed filter. A
+ *      normalized name shared by two or more existing clients is not a reliable identity, so
+ *      it is AMBIGUOUS and we never link (attaching this household's CRM data to a possibly-
+ *      wrong same-name client would corrupt that client's record) — even if filtering would
+ *      otherwise leave a single eligible candidate. When the name does identify exactly one
+ *      matter, we link only if that matter has NO existing `crmHouseholdKeys` (not already tied
+ *      to another household) and isn't already claimed earlier in this batch; otherwise we
+ *      `create`. The caller should call `addCrmHouseholdKey` and add `matterId` to
+ *      `claimedMatterIds` after a link so a second household can't grab the same matter.
  *
  *   3. **create** — no match was found; the caller should call `createMatter`.
  *
@@ -271,22 +276,35 @@ export function resolveMatterForHousehold(
   }
 
   // Priority 2: name-based merge into an existing file-client.
+  // Judge ambiguity over ALL matters that carry this normalized name FIRST, before
+  // any linked/claimed filtering. A name shared by 2+ existing clients is not a
+  // reliable identity, so linking on it could attach this household's CRM data to
+  // the WRONG same-name client (a record-correctness/privacy hazard) — even if the
+  // claimed/linked filter would otherwise leave a single eligible candidate. Only a
+  // name that uniquely identifies one existing matter is safe to consider for a link.
   const normalizedHouseholdName = normalizeClientName(household.name);
   if (normalizedHouseholdName) {
-    for (const matter of matters) {
-      // Skip matters that already have a CRM key (don't cross-link to a different household).
-      if ((matter.crmHouseholdKeys ?? []).length > 0) continue;
-      // Skip matters already claimed for linking in this sync batch.
-      if (claimedMatterIds.has(matter.id)) continue;
-      const nameMatch = normalizeClientName(matter.name) === normalizedHouseholdName;
-      const clientMatch = normalizeClientName(matter.client) === normalizedHouseholdName;
-      if (nameMatch || clientMatch) {
-        return { matterId: matter.id, action: 'link', name: matter.name };
+    const matches = matters.filter(
+      (m) =>
+        normalizeClientName(m.name) === normalizedHouseholdName ||
+        normalizeClientName(m.client) === normalizedHouseholdName,
+    );
+    // Exactly one matter carries this name → unambiguous identity. Zero or many → create.
+    if (matches.length === 1) {
+      const match = matches[0];
+      // That single match is linkable only if it isn't already tied to another
+      // household (its own CRM key) and hasn't been claimed earlier in this batch.
+      if (
+        match &&
+        (match.crmHouseholdKeys ?? []).length === 0 &&
+        !claimedMatterIds.has(match.id)
+      ) {
+        return { matterId: match.id, action: 'link', name: match.name };
       }
     }
   }
 
-  // Priority 3: no match — create a new matter.
+  // Priority 3: no match (or an ambiguous one) — create a new matter.
   return { matterId: '', action: 'create', name: household.name };
 }
 

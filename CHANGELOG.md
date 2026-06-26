@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Merge-by-name no longer false-attaches a household to the wrong client (correctness/privacy).**
+  `resolveMatterForHousehold` previously linked a Wealthbox household to the FIRST file-client whose
+  normalized name matched, so when two or more local clients shared the same normalized name (e.g. two
+  "Smith, Bob") a household could be silently attached to the wrong client record. It now collects every
+  eligible name match and links only when there is EXACTLY ONE; an ambiguous match (two or more) falls
+  through to creating a new record instead of guessing. New tests cover the duplicate-normalized-name
+  case (must create, not link), the single-unambiguous-match case, and the case where a same-name matter
+  is already CRM-linked (only the unclaimed one is eligible).
+  File: `src/platform/rag/matterResolver.ts`, `src/platform/rag/matterResolver.crm.test.ts`.
+- **Activity-Log live listener hardened.** The `crm-audit-appended` listener in `useWorkspaceLifecycle.ts`
+  now (a) handles the cancelled-before-`listen()`-resolves race by calling the returned unlisten if the
+  effect has already torn down (no leaked listener), and (b) dedupes the prepend by entry id so a single
+  entry can't appear twice when it arrives via both the event and the once-on-open DB read (or a
+  StrictMode double-invoke).
+  File: `src/app/lifecycle/useWorkspaceLifecycle.ts`.
 - **B-CONN-3 (HIGH): Wealthbox connect/disconnect/sync now appear in the Activity Log immediately.**
   Root cause: `append_crm_audit_best_effort` wrote correctly to the SQLCipher audit DB, but the
   Activity Log reads from in-memory React state populated only at workspace hydration — backend

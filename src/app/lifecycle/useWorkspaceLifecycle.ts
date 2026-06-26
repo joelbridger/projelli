@@ -309,6 +309,10 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window)) return;
 
     let unlisten: (() => void) | null = null;
+    // Guards the race where this effect tears down before `listen()` resolves: if
+    // we've already cleaned up, immediately call the unlisten we get back so the
+    // listener never leaks past the effect's lifetime.
+    let cancelled = false;
     import('@tauri-apps/api/event').then(({ listen }) => {
       listen<AuditEntryRecord>(CRM_AUDIT_APPENDED_EVENT, (event) => {
         const rec = event.payload;
@@ -329,14 +333,24 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
           userDecision: undefined,
           metadata,
         };
-        // Prepend so the Activity Log shows newest-first (matches the normal order).
-        setAuditEntries((prev) => [entry, ...prev]);
+        // Prepend newest-first, but DEDUPE by id: the same entry can arrive both via
+        // this event and via the once-on-open DB read (or a StrictMode double-invoke),
+        // and it must never appear twice in the Activity Log.
+        setAuditEntries((prev) =>
+          prev.some((e) => e.id === entry.id) ? prev : [entry, ...prev],
+        );
       })
-        .then((fn) => { unlisten = fn; })
+        .then((fn) => {
+          if (cancelled) fn();
+          else unlisten = fn;
+        })
         .catch(() => { /* best-effort — non-fatal if listener setup fails */ });
     }).catch(() => { /* best-effort */ });
 
-    return () => { unlisten?.(); };
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, [setAuditEntries]);
 
   return { handleWorkspaceSelected, handleOpenRecentProject };

@@ -149,6 +149,44 @@ describe('resolveMatterForHousehold', () => {
     expect(result.action).toBe('create');
   });
 
+  // (e) AMBIGUOUS name match — two eligible file-clients share the same normalized
+  // name → must NOT auto-attach to either (would corrupt the wrong client); create new.
+  it('(e) creates instead of linking when two file-clients share the same normalized name', () => {
+    const matters: Matter[] = [
+      makeMatter({ id: 'm1', name: 'Smith, Bob', client: 'Smith, Bob' }),
+      makeMatter({ id: 'm2', name: 'SMITH, BOB', client: 'SMITH, BOB' }),
+    ];
+    const result = resolveMatterForHousehold(matters, { id: 'wb-dup', name: 'Smith, Bob' });
+    expect(result.action).toBe('create');
+    expect(result.matterId).toBe('');
+  });
+
+  // (e2) one unambiguous match among other non-matching matters still links cleanly.
+  it('(e) links to the single unambiguous match even when other non-matching matters exist', () => {
+    const matters: Matter[] = [
+      makeMatter({ id: 'm1', name: 'Jones, Alice', client: 'Jones, Alice' }),
+      makeMatter({ id: 'm2', name: 'Smith, Bob', client: 'Smith, Bob' }),
+    ];
+    const result = resolveMatterForHousehold(matters, { id: 'wb-1', name: 'Smith, Bob' });
+    expect(result.action).toBe('link');
+    expect(result.matterId).toBe('m2');
+  });
+
+  // (e3) AMBIGUOUS even when one of the same-name matters is already CRM-linked.
+  // The name "Smith, Bob" is shared by 2 existing clients, so it cannot reliably
+  // identify which one this household is — the already-linked twin must NOT be
+  // filtered out before judging ambiguity, or we'd silently link to the file-client
+  // and risk attaching the household to the wrong "Smith". Ambiguity → create.
+  it('(e) creates (not links) when two matters share a name and one is already CRM-linked', () => {
+    const matters: Matter[] = [
+      makeMatter({ id: 'm-linked', name: 'Smith, Bob', client: 'Smith, Bob', crmHouseholdKeys: ['wb-9'] }),
+      makeMatter({ id: 'm-file', name: 'Smith, Bob', client: 'Smith, Bob' }),
+    ];
+    const result = resolveMatterForHousehold(matters, { id: 'wb-new', name: 'Smith, Bob' });
+    expect(result.action).toBe('create');
+    expect(result.matterId).toBe('');
+  });
+
   // Guard: two households with the same name must not both link to the same matter
   it('does not link two households to the same matter when claimedMatterIds is supplied', () => {
     const matters: Matter[] = [
