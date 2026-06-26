@@ -95,18 +95,27 @@ function entryToRecord(entry: AuditEntry): AuditEntryRecord {
 }
 
 /** Parse an encrypted-store record back into a flat entry. Falls back to a
- *  minimal entry if the JSON payload is somehow unreadable (never throws). */
-function recordToEntry(rec: AuditEntryRecord): AuditEntry {
+ *  minimal entry if the JSON payload is somehow unreadable (never throws).
+ *  Exported for unit testing the load-source normalization. */
+export function recordToEntry(rec: AuditEntryRecord): AuditEntry {
   try {
-    const parsed = JSON.parse(rec.payloadJson) as AuditEntry;
+    const parsed = JSON.parse(rec.payloadJson) as Partial<AuditEntry>;
     // Trust the summary columns for the indexed fields in case the payload is
-    // an older/partial shape.
+    // an older/partial shape. Normalize inputs/outputs/metadata to OBJECTS at the
+    // LOAD source so an OLD thin persisted row (e.g. {"auditEventType":"..."} with
+    // no metadata) loads with {} rather than undefined — the Activity Log reads
+    // `metadata['scope']` / `Object.keys(inputs)` directly. The display layer's
+    // asRecord() also guards this, but normalizing here closes it at the source.
+    // Mirrors the live-event guard in useWorkspaceLifecycle.ts.
     return {
-      ...parsed,
+      ...(parsed as AuditEntry),
       id: rec.id,
       timestamp: rec.timestamp,
       action: rec.action as AuditActionType,
       description: rec.description,
+      inputs: parsed.inputs && typeof parsed.inputs === 'object' ? parsed.inputs : {},
+      outputs: parsed.outputs && typeof parsed.outputs === 'object' ? parsed.outputs : {},
+      metadata: parsed.metadata && typeof parsed.metadata === 'object' ? parsed.metadata : {},
     };
   } catch {
     return {
