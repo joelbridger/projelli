@@ -17,6 +17,7 @@ import {
   AiSetupHelpDialog,
 } from '@/features/onboarding/AiSetupHelpLink';
 import { redactSecrets } from '@/platform/utils/redactSecrets';
+import { openExternal } from '@/platform/utils/openExternal';
 
 vi.mock('@/platform/utils/openExternal', () => ({
   openExternal: vi.fn(async () => {}),
@@ -265,6 +266,33 @@ describe('AiSetupHelpLink / AiSetupHelpDialog', () => {
     expect(
       screen.getByTestId('ai-setup-help-email-error'),
     ).toBeInTheDocument();
+  });
+
+  it('redacts a key pasted into the EMAIL box from the mailto fallback body', () => {
+    render(
+      <AiSetupHelpDialog
+        open
+        onOpenChange={vi.fn()}
+        provider="anthropic"
+        providerName="Claude"
+        context="ctx"
+      />,
+    );
+    const key = 'sk-ant-api03-' + 'A1b2C3d4'.repeat(12);
+    fireEvent.change(screen.getByTestId('ai-setup-help-message'), {
+      target: { value: 'please help' },
+    });
+    // The mailto path skips email-format validation, so a key here used to leak
+    // into the draft body. It must be redacted.
+    fireEvent.change(screen.getByTestId('ai-setup-help-email'), {
+      target: { value: key },
+    });
+    fireEvent.click(screen.getByTestId('ai-setup-help-mailto'));
+    expect(openExternal).toHaveBeenCalledTimes(1);
+    const url = vi.mocked(openExternal).mock.calls[0]?.[0] ?? '';
+    const decoded = decodeURIComponent(url);
+    expect(decoded).not.toContain(key);
+    expect(decoded).toContain('[redacted possible API key]');
   });
 });
 

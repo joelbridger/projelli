@@ -103,6 +103,41 @@ function buildMailto(
   )}&body=${encodeURIComponent(lines.join('\n'))}`;
 }
 
+interface RedactedTicket {
+  message: string;
+  email: string;
+  provider: string;
+  context: string;
+  version: string;
+  os: string;
+  user_agent: string;
+}
+
+/**
+ * Build the ticket fields once, with EVERY user-reachable string redacted and
+ * capped, so no raw API key can leave the machine by ANY path. The same object
+ * feeds both the POST body and the mailto fallback — a key pasted into the
+ * email box (or anywhere) is scrubbed before it can reach either. Redact first,
+ * then cap, so a key near the length boundary is scrubbed before truncation.
+ */
+function buildRedactedTicket(
+  rawMessage: string,
+  rawEmail: string,
+  provider: string,
+  context: string,
+  meta: Metadata,
+): RedactedTicket {
+  return {
+    message: redactSecrets(rawMessage).slice(0, MAX_MESSAGE),
+    email: redactSecrets(rawEmail).slice(0, MAX_EMAIL),
+    provider,
+    context: redactSecrets(context).slice(0, MAX_META),
+    version: redactSecrets(meta.version).slice(0, MAX_META),
+    os: redactSecrets(meta.os).slice(0, MAX_META),
+    user_agent: redactSecrets(meta.userAgent).slice(0, MAX_META),
+  };
+}
+
 export interface AiSetupHelpDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -150,9 +185,13 @@ export function AiSetupHelpDialog({
     setEmailError('');
     setStatus('sending');
 
-    const meta = collectMetadata();
-    // Redact possible keys FIRST, then cap — a key near the length boundary is
-    // still scrubbed before the cap shortens the message.
+    const ticket = buildRedactedTicket(
+      trimmed,
+      trimmedEmail,
+      provider,
+      context,
+      collectMetadata(),
+    );
     const payload: {
       message: string;
       provider: string;
@@ -162,14 +201,14 @@ export function AiSetupHelpDialog({
       user_agent: string;
       email?: string;
     } = {
-      message: redactSecrets(trimmed).slice(0, MAX_MESSAGE),
-      provider,
-      context: redactSecrets(context).slice(0, MAX_META),
-      version: meta.version,
-      os: meta.os,
-      user_agent: meta.userAgent,
+      message: ticket.message,
+      provider: ticket.provider,
+      context: ticket.context,
+      version: ticket.version,
+      os: ticket.os,
+      user_agent: ticket.user_agent,
     };
-    if (trimmedEmail) payload.email = trimmedEmail.slice(0, MAX_EMAIL);
+    if (ticket.email) payload.email = ticket.email;
 
     try {
       // The help ticket goes to Keepance infrastructure, not the user's AI
@@ -190,14 +229,20 @@ export function AiSetupHelpDialog({
   }, [message, email, provider, context, t]);
 
   const handleFallbackEmail = useCallback(() => {
-    const meta = collectMetadata();
-    const url = buildMailto(
-      redactSecrets(message.trim()).slice(0, MAX_MESSAGE),
-      email.trim().slice(0, MAX_EMAIL),
+    // Same redacted ticket as the POST path — the mailto body can't leak a key
+    // pasted into any field, including the email box.
+    const ticket = buildRedactedTicket(
+      message.trim(),
+      email.trim(),
       provider,
-      redactSecrets(context).slice(0, MAX_META),
-      meta,
+      context,
+      collectMetadata(),
     );
+    const url = buildMailto(ticket.message, ticket.email, ticket.provider, ticket.context, {
+      version: ticket.version,
+      os: ticket.os,
+      userAgent: ticket.user_agent,
+    });
     void openExternal(url);
     onOpenChange(false);
   }, [message, email, provider, context, onOpenChange]);
@@ -306,6 +351,7 @@ export function AiSetupHelpDialog({
             <div className="flex items-center justify-between gap-2 pt-2">
               <button
                 type="button"
+                data-testid="ai-setup-help-mailto"
                 onClick={handleFallbackEmail}
                 className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
               >
