@@ -132,6 +132,24 @@ pub struct CrmSyncStatusDto {
     pub last_report: Option<CrmSyncReportDto>,
 }
 
+/// Returned by `crm_disconnect` — reports exactly what was purged so the UI
+/// can show an accurate post-disconnect status instead of always claiming
+/// "deleted imported data" regardless of what actually happened.
+#[derive(Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CrmDisconnectResult {
+    /// `true` when the Wealthbox API key was removed from the OS keychain.
+    pub token_deleted: bool,
+    /// `true` when `source_type='crm'` RAG chunks were purged from the
+    /// LanceDB vector store.
+    pub rag_purged: bool,
+    /// `true` when the encrypted CRM object database file was deleted.
+    pub crm_db_purged: bool,
+    /// Non-empty when any purge step was skipped or failed (best-effort).
+    /// Each entry is a plain-English sentence suitable for a UI warning banner.
+    pub warnings: Vec<String>,
+}
+
 /// One household entry returned by `crm_list_households`.
 ///
 /// Slim view suitable for the Client Map / matter-creation UI.
@@ -152,6 +170,64 @@ pub struct CrmHouseholdDto {
 const CRM_SYNC_PROGRESS_EVENT: &str = "crm-sync-progress";
 
 // ---------------------------------------------------------------------------
+// Durable audit helper
+// ---------------------------------------------------------------------------
+
+/// Append one CRM audit entry to the encrypted audit store at `workspace`.
+///
+/// Best-effort: any failure (keychain unavailable, I/O error, spawn panic)
+/// is logged as a `warn!` and **never** propagates to the calling command.
+/// The id is `audit_crm_<nanos>_<4-byte-hex>` (unique per call within the
+/// nanosecond range of the system clock) and the timestamp is RFC 3339.
+async fn append_crm_audit_best_effort(
+    workspace: &std::path::Path,
+    action: &str,
+    description: &str,
+) {
+    use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
+
+    let ws = workspace.to_path_buf();
+    let action_s = action.to_string();
+    let desc_s = description.to_string();
+
+    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        let store = EncryptedAuditStore::open(&ws)?;
+
+        let timestamp = chrono::Utc::now().to_rfc3339();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default();
+        let mut rng_bytes = [0u8; 4];
+        rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut rng_bytes);
+        let id = format!("audit_crm_{}_{}", nanos, hex::encode(rng_bytes));
+
+        let payload_json = serde_json::json!({
+            "auditEventType": action_s,
+            "source": "crm-backend",
+        })
+        .to_string();
+
+        let rec = AuditEntryRecord {
+            id,
+            timestamp,
+            action: action_s,
+            description: desc_s,
+            payload_json,
+        };
+        store.append(&rec)?;
+        Ok(())
+    })
+    .await;
+
+    match result {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => log::warn!("crm audit append failed (non-fatal): {e:#}"),
+        Err(e) => log::warn!("crm audit spawn failed (non-fatal): {e}"),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
 
@@ -168,12 +244,19 @@ pub async fn crm_set_workspace(
 
 /// Validate a Wealthbox API token by calling `GET /me`.
 ///
-/// On success the token is written to the OS keychain and a `CrmConnectInfo`
-/// containing the workspace/account name, plan, and email is returned.
-/// On failure a clean, status-only error is returned — the raw response body
-/// and the token itself are **never** included in the error string.
+/// On success the token is written to the OS keychain, a durable audit entry
+/// is appended (best-effort), and a `CrmConnectInfo` containing the
+/// workspace/account name, plan, and email is returned.  On failure a clean,
+/// status-only error is returned — the raw response body and the token itself
+/// are **never** included in the error string.
+///
+/// Audit is skipped gracefully when no workspace has been set yet via
+/// `crm_set_workspace` (the audit store lives inside the workspace directory).
 #[tauri::command]
-pub async fn crm_connect(token: String) -> Result<CrmConnectInfo, String> {
+pub async fn crm_connect(
+    state: State<'_, CrmState>,
+    token: String,
+) -> Result<CrmConnectInfo, String> {
     let client = WealthboxClient::new(token.clone());
 
     // Validate: call /me and check the response is a success. Any network
@@ -186,6 +269,18 @@ pub async fn crm_connect(token: String) -> Result<CrmConnectInfo, String> {
 
     // Store the token only after a confirmed successful validation.
     store_token(&token)?;
+
+    // Emit durable audit — best-effort, skipped if no workspace is set yet.
+    let workspace = state.workspace.lock().await.clone();
+    if let Some(ws) = workspace {
+        append_crm_audit_best_effort(
+            &ws,
+            "wealthbox.connect",
+            "Connected Wealthbox. API key stored locally; data requests go directly \
+             from this device to Wealthbox, never through Keepance servers.",
+        )
+        .await;
+    }
 
     // Parse account info tolerantly — absent or null fields fall back to "".
     let name = me.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -203,31 +298,65 @@ pub async fn crm_is_connected() -> Result<bool, String> {
 
 /// Remove the stored Wealthbox API token from the OS keychain and purge all
 /// locally-imported Wealthbox data from this device (RAG chunks + encrypted
-/// CRM object store). Idempotent — succeeds even if the token was never stored
-/// or no data was ever synced.
+/// CRM object store).  Returns a `CrmDisconnectResult` that reports exactly
+/// what was and was not deleted — the UI must use these flags to show an
+/// honest status rather than always claiming "deleted imported data".
 ///
-/// Purge steps are best-effort: if one fails a warning is logged and the
-/// remaining steps still run, but the token is ALWAYS deleted first so the
-/// account is definitively disconnected regardless.
+/// Contract:
+/// - Token deletion always happens first; `Err` is returned **only** if the
+///   keychain call itself fails catastrophically.
+/// - Purge steps are best-effort: on failure a warning string is added to
+///   `result.warnings` and the remaining steps still run.
+/// - If no workspace is set, both purge flags stay `false` and a warning is
+///   pushed explaining that imported data could not be located.
+/// - A durable audit entry is appended after the purge (best-effort, workspace
+///   must be set; if unset, audit is skipped gracefully).
 #[tauri::command]
-pub async fn crm_disconnect(state: State<'_, CrmState>) -> Result<(), String> {
-    // Always delete the token first — the definitive disconnect action.
-    delete_token()?;
+pub async fn crm_disconnect(state: State<'_, CrmState>) -> Result<CrmDisconnectResult, String> {
+    let mut result = CrmDisconnectResult::default();
 
-    // Best-effort purge of all locally-imported Wealthbox data.
+    // Always delete the token first — the definitive disconnect action.
+    // Only propagate as Err if this step itself fails.
+    delete_token()?;
+    result.token_deleted = true;
+
     let workspace = state.workspace.lock().await.clone();
-    if let Some(ws) = workspace {
+    if let Some(ref ws) = workspace {
         // Purge RAG chunks whose source_type = 'crm'.
-        if let Err(e) = purge_crm_rag_chunks(&ws).await {
-            log::warn!("crm_disconnect: rag purge failed (non-fatal): {e:#}");
+        match purge_crm_rag_chunks(ws).await {
+            Ok(()) => result.rag_purged = true,
+            Err(e) => {
+                log::warn!("crm_disconnect: rag purge failed (non-fatal): {e:#}");
+                result.warnings.push(format!("RAG chunk purge failed: {e}"));
+            }
         }
-        // Purge the encrypted CRM object store.
-        if let Err(e) = CrmStore::purge(&ws) {
-            log::warn!("crm_disconnect: crm db purge failed (non-fatal): {e:#}");
+        // Purge the encrypted CRM object database.
+        match CrmStore::purge(ws) {
+            Ok(()) => result.crm_db_purged = true,
+            Err(e) => {
+                log::warn!("crm_disconnect: crm db purge failed (non-fatal): {e:#}");
+                result.warnings.push(format!("CRM database purge failed: {e}"));
+            }
         }
+
+        // Emit durable audit — description reflects the actual purge outcome.
+        let audit_desc = if result.rag_purged && result.crm_db_purged {
+            "Disconnected Wealthbox; removed the API key and deleted the imported data."
+                .to_string()
+        } else {
+            "Disconnected Wealthbox; removed the API key; some imported data could not be deleted."
+                .to_string()
+        };
+        append_crm_audit_best_effort(ws, "wealthbox.disconnect", &audit_desc).await;
+    } else {
+        result.warnings.push(
+            "No workspace set; imported Wealthbox data could not be located and was NOT deleted."
+                .to_string(),
+        );
+        // Audit skipped gracefully — no workspace path to open the store at.
     }
 
-    Ok(())
+    Ok(result)
 }
 
 /// Open the workspace RAG table and delete every chunk with source_type = 'crm'.
@@ -333,6 +462,18 @@ pub async fn crm_sync_all(
 
     // Persist the last report in state so `crm_sync_status` can return it.
     *state.last_report.lock().await = Some(dto.clone());
+
+    // Emit durable audit — records the confirmed import counts.
+    let households = dto.households_processed;
+    let records = dto.records_indexed;
+    append_crm_audit_best_effort(
+        &workspace,
+        "wealthbox.sync",
+        &format!(
+            "Imported {households} Wealthbox households ({records} records) into the local encrypted store."
+        ),
+    )
+    .await;
 
     Ok(dto)
 }

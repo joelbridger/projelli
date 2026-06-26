@@ -168,3 +168,130 @@ async fn delete_source_type_removes_all_crm_chunks() {
         hits_after.len()
     );
 }
+
+/// True end-to-end purge: CRM database rows AND RAG index chunks are both gone.
+///
+/// Steps:
+/// 1. Opens a `CrmStore` with a literal test key (no OS keychain).
+/// 2. Upserts a household row and a contact row via `upsert_object`.
+/// 3. Inserts `source_type='crm'` RAG chunks via `build_batch_crm`.
+/// 4. Runs the full purge: `delete_source_type("crm")` then `CrmStore::purge`.
+/// 5. Asserts the CRM store is empty: `list_household_ids()` returns nothing
+///    (or the DB file is gone — `purge` removes it).
+/// 6. Asserts the RAG store has zero `source_type='crm'` chunks.
+#[tokio::test]
+async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
+    use arrow_array::RecordBatchIterator;
+    use keepance_lib::commands::crm::store::CrmStore;
+    use keepance_lib::commands::rag::chunker::chunk_text;
+    use keepance_lib::commands::rag::embedder::EMBEDDING_DIM;
+    use keepance_lib::commands::rag::store::{self, build_batch_crm, PRIVILEGE_NONE};
+
+    const E2E_MATTER: &str = "matter-e2e-purge";
+    // Deterministic literal key — bypasses the OS keychain.
+    const CRM_KEY: [u8; 32] = [0xAAu8; 32];
+
+    let workspace = tempfile::tempdir().expect("workspace tempdir");
+    let ws = workspace.path();
+
+    // ── 1 & 2: Insert CRM DB rows ────────────────────────────────────────────
+    {
+        let crm = CrmStore::open_with_key(ws, &CRM_KEY).expect("open crm store");
+        crm.upsert_object(
+            "household:7001",
+            "household",
+            "7001",
+            "2026-06-01T00:00:00Z",
+            "hash-h7001",
+            r#"{"id":7001,"company_name":"Purge Test Family"}"#,
+        )
+        .expect("upsert household");
+        crm.upsert_object(
+            "contact:7002",
+            "contact",
+            "7001",
+            "2026-06-01T00:00:00Z",
+            "hash-c7002",
+            r#"{"id":7002,"first_name":"Alice","last_name":"Purge"}"#,
+        )
+        .expect("upsert contact");
+
+        // Confirm rows are present before purge.
+        let hids = crm.list_household_ids().expect("list_household_ids");
+        assert_eq!(hids.len(), 1, "one household id must exist before purge");
+    } // CrmStore dropped — connection closed.
+
+    // ── 3: Insert RAG chunks ─────────────────────────────────────────────────
+    let conn = store::open_connection(ws).await.expect("open vector store");
+    let table = store::open_or_create_table(&conn)
+        .await
+        .expect("open chunks table");
+
+    let chunks = chunk_text("crm:household:7001", FIXTURE_BRIEF);
+    assert!(!chunks.is_empty(), "fixture must produce at least one chunk");
+    let rows: Vec<_> = chunks
+        .into_iter()
+        .map(|c| (c, vec![0.2f32; EMBEDDING_DIM]))
+        .collect();
+    let batch = build_batch_crm(&rows, &VEC_KEY, E2E_MATTER, PRIVILEGE_NONE)
+        .expect("build crm batch");
+    let schema = batch.schema();
+    table
+        .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+        .execute()
+        .await
+        .expect("add rag chunks");
+
+    // Confirm RAG chunks are present before purge.
+    let hits_before = store::nearest(
+        &table,
+        &vec![0.2f32; EMBEDDING_DIM],
+        20,
+        Some(E2E_MATTER),
+        false,
+        &[],
+    )
+    .await
+    .expect("nearest before purge");
+    assert!(
+        hits_before.iter().any(|h| h.source_type.as_deref() == Some("crm")),
+        "at least one crm rag chunk must exist before purge"
+    );
+
+    // ── 4: Run the full purge ─────────────────────────────────────────────────
+    store::delete_source_type(&table, "crm")
+        .await
+        .expect("delete_source_type(crm)");
+    CrmStore::purge(ws).expect("CrmStore::purge");
+
+    // ── 5: Assert CRM DB is empty ─────────────────────────────────────────────
+    // `purge` deletes the DB file; re-opening creates a fresh empty store.
+    let crm_after = CrmStore::open_with_key(ws, &CRM_KEY).expect("reopen after purge");
+    let hids_after = crm_after
+        .list_household_ids()
+        .expect("list_household_ids after purge");
+    assert!(
+        hids_after.is_empty(),
+        "no households should remain in CrmStore after purge; got: {hids_after:?}"
+    );
+
+    // ── 6: Assert no source_type='crm' RAG chunks remain ─────────────────────
+    let hits_after = store::nearest(
+        &table,
+        &vec![0.2f32; EMBEDDING_DIM],
+        20,
+        Some(E2E_MATTER),
+        false,
+        &[],
+    )
+    .await
+    .expect("nearest after purge");
+    let remaining_crm = hits_after
+        .iter()
+        .filter(|h| h.source_type.as_deref() == Some("crm"))
+        .count();
+    assert!(
+        remaining_crm == 0,
+        "no crm chunks should survive purge; got {remaining_crm} remaining"
+    );
+}

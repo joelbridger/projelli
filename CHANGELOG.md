@@ -16,6 +16,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Files changed: `src/platform/hooks/useMemoryWiring.ts`, `src/platform/utils/wealthbox-commands.ts`, `src/features/settings/WealthboxConnect.tsx`
   - Tests: typecheck PASS, eslint on changed files 0 errors, lint:gate "No ESLint regression vs baseline", `npx vitest run tests/unit/crm-workspace-wiring.test.tsx` 3/3 PASS.
 
+- **`crm_disconnect` returns a structured, honest result (HIGH — re-review #2, backend).**  
+  Previously `crm_disconnect` returned `Ok(())` whether or not the purge steps ran, so the UI
+  would always claim "deleted imported data" even when the workspace was not set or a purge
+  failed.  Now it returns `CrmDisconnectResult { tokenDeleted, ragPurged, crmDbPurged, warnings }`
+  so callers know exactly what happened.  `Err` is only returned if the keychain token deletion
+  itself fails catastrophically; each purge failure pushes a plain-English string into `warnings`
+  and all remaining steps still execute.  No workspace → both purge flags stay `false` and a
+  warning explains that data could not be located.
+  - File: `src-tauri/src/commands/crm/commands.rs` — new `CrmDisconnectResult` struct; rewritten
+    `crm_disconnect` body.
+  - Tests: `cargo build --lib` clean (no warnings); `cargo test --test crm_fixture_import` → 3/3 PASS.
+
+- **Backend emits durable audit records for connect, sync, and disconnect (HIGH — re-review #3, backend).**  
+  Audit was previously UI-side only, so direct command callers bypassed the privacy log entirely.
+  The Rust backend now appends entries to the encrypted `audit-enc.db` at the workspace via a
+  new `append_crm_audit_best_effort` private async helper.  Three events are recorded:
+  `wealthbox.connect` (after confirmed API-key save), `wealthbox.sync` (after successful
+  full-backfill, with household and record counts), `wealthbox.disconnect` (after the purge,
+  with description that matches the actual result).  All are best-effort: any failure is logged
+  as `warn!` and never propagates.  Audit is skipped gracefully when no workspace is set.
+  `crm_connect` received a `State<'_, CrmState>` parameter so it can access the workspace path;
+  Tauri injects it automatically alongside `token: String`.
+  - File: `src-tauri/src/commands/crm/commands.rs` — `append_crm_audit_best_effort` helper;
+    `crm_connect` signature extended; `crm_sync_all` + `crm_disconnect` updated.
+  - Tests: `cargo build --lib` clean (no warnings); `cargo test --test crm_fixture_import` → 3/3 PASS.
+
+- **True end-to-end purge integration test (MEDIUM — re-review #5, backend).**  
+  `crm_purge_e2e_removes_both_db_rows_and_rag_chunks` in `tests/crm_fixture_import.rs` inserts
+  both CRM database rows (`CrmStore::upsert_object` — a household + a contact) and
+  `source_type='crm'` RAG chunks (`build_batch_crm`), then runs the full purge
+  (`delete_source_type("crm")` + `CrmStore::purge`), and asserts both stores are empty:
+  `list_household_ids()` returns nothing, and a nearest-vector scan finds zero CRM chunks.
+  Uses literal keys throughout — no OS keychain dependency.
+  - File: `src-tauri/tests/crm_fixture_import.rs`
+  - Tests: `cargo test --test crm_fixture_import` → **3 passed, 0 failed**.
+
 - **Wealthbox disconnect now purges all imported data (HIGH privacy fix).** `crm_disconnect` previously only deleted the API key; imported Wealthbox objects and RAG index chunks remained on disk. Now disconnect deletes the token AND purges both stores best-effort: all `source_type='crm'` chunks are removed from the LanceDB RAG index, and the encrypted CRM object database file is deleted. If either purge step fails it is logged as a warning and the token is still deleted — the account is always disconnected.
   - `src-tauri/src/commands/rag/store.rs`: new `delete_source_type(table, source_type)` function (parallel to `delete_matter`).
   - `src-tauri/src/commands/crm/store.rs`: new `CrmStore::purge(workspace_root)` static method — removes `crm-enc.db`.
