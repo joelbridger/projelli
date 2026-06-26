@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **DEMO-BLOCKER: Wealthbox household contacts now deserialize correctly (null-field crash).**
+  Household-type contacts from the live Wealthbox API carry only `id`, `type`, `name`,
+  and a handful of shared fields — they omit person-only fields entirely AND send some
+  shared fields (e.g. `background_info`, `email_addresses`, `company_name`) as explicit
+  `null`.  `#[serde(default)]` on the struct handles MISSING keys but does NOT handle a
+  key that is present with a `null` value — serde still tries to deserialize `null` into
+  `String` or `Vec<T>` and fails with "invalid type: null, expected a string/sequence",
+  crashing the sync at the very first household page.  Root cause: present-null into
+  non-Option field.  Fix: added `null_to_default` helper in `model.rs` and applied
+  `#[serde(default, deserialize_with = "null_to_default")]` to every bare `String` and
+  `Vec<…>` field on `WbContact`; `background_information` keeps its `alias = "background_info"`.
+  Added a `household_with_null_fields_and_top_level_name_parses_correctly` test that
+  asserts the exact failure shape (explicit null on `background_info`, `email_addresses`,
+  `company_name`) parses without error and that null fields become empty defaults.
+- **Wealthbox household `name` field now captured (unnamed Client Maps fix).**
+  The live API returns the household display name in a top-level `name` field
+  (e.g. "Ellison, Robert & Margaret"), not in `company_name`.  `WbContact` now has
+  a `pub name: String` field with `null_to_default`.  `render_household_summary` now
+  prefers `name` over `company_name`, falling back to `company_name` then the built-from-members
+  name.  Added `household_summary_prefers_name_field_over_company_name` render test.
+  Files: `src-tauri/src/commands/crm/model.rs`, `src-tauri/src/commands/crm/render.rs`.
+  Verify: `cargo build --lib` clean; `cargo test --lib crm` 48/48 PASS;
+  `cargo test --test crm_fixture_import` 3/3 PASS.
 - **Honest disconnect: never claim the Wealthbox key was removed when it wasn't.** The best-effort token delete can fail (keychain momentarily unavailable), leaving the saved key on the device. The UI now claims a clean disconnect (and flips to the disconnected state) ONLY when `tokenDeleted && ragPurged && crmDbPurged`; if the key could not be removed it shows an honest partial message and stays connected. The backend disconnect audit text now reflects `token_deleted` instead of always saying the key was removed. Files: `src/features/settings/WealthboxConnect.tsx`, `src-tauri/src/commands/crm/commands.rs`.
 - **Wealthbox `background_info` field now syncs (real-data bug found during seeding).** The live Wealthbox API returns the contact background field as `background_info`, but `model.rs` deserialized only `background_information`, so the Background text silently dropped on sync. Added `#[serde(alias = "background_info")]` (reads both names; documented `background_information` stays the primary name, so no fixture/test breaks) plus a guard test. Files: `src-tauri/src/commands/crm/model.rs`.
 - **`crm_disconnect` refactored for testability + best-effort token deletion (pre-merge re-review).**

@@ -319,9 +319,16 @@ pub fn render_household_summary(household: &WbContact, members: &[WbContact]) ->
     let source_id = format!("crm:household:{}", household.id);
     let mut text = String::new();
 
-    // Household name: prefer company_name (how household contacts store it),
-    // then fall back to constructing one from the first member's last name.
-    let hh_name = if !household.company_name.trim().is_empty() {
+    // Household name priority:
+    //  1. `name` — the top-level field the live API returns on household contacts
+    //     (e.g. "Ellison, Robert & Margaret").  This is the most specific source.
+    //  2. `company_name` — the fallback used by legacy fixtures and advisors who
+    //     store the household name there.
+    //  3. Constructed from the first member's last name + " Household".
+    //  4. Generic "(id N)" fallback when nothing else is available.
+    let hh_name = if !household.name.trim().is_empty() {
+        household.name.trim().to_string()
+    } else if !household.company_name.trim().is_empty() {
         household.company_name.trim().to_string()
     } else if let Some(m) = members.first() {
         let last = m.last_name.trim();
@@ -605,6 +612,39 @@ mod tests {
         assert!(
             text.contains("(self-reported)"),
             "should label financials as self-reported; actual text:\n{}",
+            text
+        );
+    }
+
+    // ── render_household_summary with live-API `name` field ─────────────────
+
+    #[test]
+    fn household_summary_prefers_name_field_over_company_name() {
+        // Simulates a household contact as returned by the live Wealthbox API:
+        // `name` is set to the formatted household display name; `company_name`
+        // is absent (defaults to "").  The rendered summary must use `name`.
+        let hh = WbContact {
+            id: 20001,
+            r#type: "household".to_string(),
+            name: "Ellison, Robert & Margaret".to_string(),
+            // company_name intentionally empty — as it arrives from the live API
+            company_name: "".to_string(),
+            contact_type: "Client".to_string(),
+            status: "Active".to_string(),
+            ..Default::default()
+        };
+
+        let (source_id, text) = render_household_summary(&hh, &[]);
+
+        assert_eq!(source_id, "crm:household:20001");
+        assert!(
+            text.contains("Ellison, Robert & Margaret"),
+            "rendered summary must use the top-level `name` field; got:\n{}",
+            text
+        );
+        assert!(
+            !text.contains("Household (id 20001)"),
+            "must not fall back to the generic id label when `name` is set; got:\n{}",
             text
         );
     }

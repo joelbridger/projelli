@@ -18,6 +18,26 @@
 pub const DEFAULT_PER_PAGE: usize = 50;
 
 // ---------------------------------------------------------------------------
+// Serde helper — tolerates both MISSING and explicit NULL
+// ---------------------------------------------------------------------------
+
+/// Deserialize a field that may be absent (handled by `#[serde(default)]`) OR
+/// present as `null` (NOT handled by `#[serde(default)]`).
+///
+/// `#[serde(default)]` on the struct only fills in the Rust default when a
+/// JSON key is completely absent.  When the key is present as `null`, serde
+/// tries to deserialize `null` into the target type (e.g. `String` or
+/// `Vec<T>`) and fails with "invalid type: null, expected …".  This helper
+/// turns `null` into the type's `Default` value instead, covering both cases.
+fn null_to_default<'de, D, T>(d: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de> + Default,
+{
+    Ok(<Option<T> as serde::Deserialize<'de>>::deserialize(d)?.unwrap_or_default())
+}
+
+// ---------------------------------------------------------------------------
 // Household reference (embedded inside a person contact)
 // ---------------------------------------------------------------------------
 
@@ -112,21 +132,43 @@ pub struct WbTag {
 ///
 /// Captures the client-knowledge core used by the dossier / Client Map.
 /// Sensitive government-ID fields are intentionally absent (§5.5).
+///
+/// # Null-safety
+///
+/// `#[serde(default)]` on the struct handles MISSING keys (the Wealthbox API
+/// omits empty fields entirely).  `#[serde(deserialize_with = "null_to_default")]`
+/// on every bare `String` / `Vec<…>` field handles keys that are present but
+/// explicitly `null` — as the live API sends on household-type contacts that
+/// omit person-only fields.  `Option<…>` fields already tolerate null.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
 pub struct WbContact {
     pub id: i64,
-    #[serde(rename = "type")]
+    #[serde(rename = "type", default, deserialize_with = "null_to_default")]
     pub r#type: String,
 
+    // ── display name (household contacts) ────────────────────────────────────
+    /// Top-level `name` field returned by the live API on household contacts
+    /// (e.g. `"Ellison, Robert & Margaret"`).  Empty on person/org/trust contacts.
+    #[serde(default, deserialize_with = "null_to_default")]
+    pub name: String,
+
     // ── identity ─────────────────────────────────────────────────────────────
+    #[serde(default, deserialize_with = "null_to_default")]
     pub first_name: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub middle_name: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub last_name: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub nickname: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub prefix: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub suffix: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub company_name: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub job_title: String,
 
     // ── key dates ────────────────────────────────────────────────────────────
@@ -137,21 +179,29 @@ pub struct WbContact {
     pub date_of_death: Option<String>,
 
     // ── classification ───────────────────────────────────────────────────────
+    #[serde(default, deserialize_with = "null_to_default")]
     pub marital_status: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub contact_type: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub status: String,
     // Wealthbox's live API returns this as `background_info`; the alias reads
     // BOTH names so the real Background text actually syncs (it was silently
     // dropping before). `background_information` stays the primary name so
     // existing fixtures/tests are unaffected.
-    #[serde(alias = "background_info")]
+    #[serde(default, alias = "background_info", deserialize_with = "null_to_default")]
     pub background_information: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub important_information: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub personal_interests: String,
 
     // ── investment profile ───────────────────────────────────────────────────
+    #[serde(default, deserialize_with = "null_to_default")]
     pub investment_objective: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub time_horizon: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub risk_tolerance: String,
 
     // ── financial profile (self-reported; tolerant Value to handle number/string/null) ──
@@ -173,14 +223,19 @@ pub struct WbContact {
     pub trusted_contact: Option<i64>,
 
     // ── arrays ───────────────────────────────────────────────────────────────
+    #[serde(default, deserialize_with = "null_to_default")]
     pub street_addresses: Vec<WbStreetAddress>,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub email_addresses: Vec<WbEmailAddress>,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub phone_numbers: Vec<WbPhoneNumber>,
 
     // ── nested ───────────────────────────────────────────────────────────────
     /// Populated on person/trust/org contacts; `None` on household contacts.
     pub household: Option<WbHouseholdRef>,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub tags: Vec<WbTag>,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub contact_roles: Vec<serde_json::Value>,
 }
 
@@ -544,5 +599,59 @@ mod tests {
         assert!(c.tags.is_empty());
         assert!(c.household.is_none());
         assert_eq!(c.household_id(), None);
+    }
+
+    // ── null-field tolerance (the DEMO-BLOCKER fix) ───────────────────────────
+
+    /// Household contacts from the live Wealthbox API:
+    ///  - carry a top-level `name` field (e.g. "Ellison, Robert & Margaret")
+    ///  - omit person-only fields entirely (handled by `#[serde(default)]`)
+    ///  - send some shared fields as explicit `null` rather than absent
+    ///
+    /// `#[serde(default)]` on the struct does NOT cover present-null — serde
+    /// still tries to deserialize `null` into `String` or `Vec<T>` and fails
+    /// with "invalid type: null, expected …".  The `null_to_default` helper
+    /// (paired with `#[serde(deserialize_with)]` on each bare field) is the
+    /// complete fix: null → `Default::default()` for both String and Vec types.
+    #[test]
+    fn household_with_null_fields_and_top_level_name_parses_correctly() {
+        // Shape of a real Wealthbox household-type contact response.
+        // Without the null_to_default fix, `"background_info": null` would fail
+        // with `invalid type: null, expected a string`, and
+        // `"email_addresses": null` would fail with
+        // `invalid type: null, expected a sequence`.
+        let json = r#"{
+            "id": 20001,
+            "type": "household",
+            "name": "Ellison, Robert & Margaret",
+            "background_info": null,
+            "email_addresses": null,
+            "company_name": null,
+            "contact_type": "Client",
+            "status": "Active",
+            "tags": [],
+            "members": []
+        }"#;
+
+        let c: WbContact = serde_json::from_str(json)
+            .expect("household contact with explicit null fields must parse without error");
+
+        // Type and top-level name field are captured.
+        assert_eq!(c.r#type, "household");
+        assert_eq!(c.name, "Ellison, Robert & Margaret",
+            "top-level `name` field must be captured on household contacts");
+
+        // Explicit nulls on bare String fields become empty strings.
+        assert_eq!(c.background_information, "",
+            "null background_info must deserialize to empty string, not error");
+        assert_eq!(c.company_name, "",
+            "null company_name must deserialize to empty string, not error");
+
+        // Explicit null on a Vec field becomes an empty vec.
+        assert!(c.email_addresses.is_empty(),
+            "null email_addresses must deserialize to empty vec, not error");
+
+        // household_id() for a household-type contact returns its own id.
+        assert_eq!(c.household_id(), Some(20001));
     }
 }
