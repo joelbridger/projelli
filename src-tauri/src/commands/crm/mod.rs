@@ -8,6 +8,7 @@
 
 pub mod client;
 pub mod model;
+pub mod render;
 pub mod store;
 
 use std::path::{Path, PathBuf};
