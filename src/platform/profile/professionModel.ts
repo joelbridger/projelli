@@ -22,7 +22,7 @@ import {
   DEFAULT_ANTHROPIC_FREE,
   type Provider,
 } from '@/platform/utils/defaultModel';
-import { notifyEgressConfigChange } from '@/platform/hooks/useActiveEgressProvider';
+import { notifyEgressConfigChange } from '@/platform/privacy/egressConfigEvents';
 
 export type Profession = 'legal' | 'tax' | 'consulting' | 'advisor' | 'other';
 

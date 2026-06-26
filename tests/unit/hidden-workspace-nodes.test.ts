@@ -13,9 +13,16 @@ import {
 } from '@/features/documents/workspace/hiddenNodes';
 
 describe('hidden workspace nodes', () => {
-  it('treats dot-prefixed names (e.g. .keepance) as hidden', () => {
+  it('hides Keepance-internal entries (.keepance)', () => {
     expect(isHiddenNode({ name: '.keepance' })).toBe(true);
-    expect(isHiddenNode({ name: '.git' })).toBe(true);
+  });
+
+  it('does NOT hide ordinary dotfiles — they keep their Show-Hidden behaviour', () => {
+    // Regression guard (Codex review): hiding ALL dotfiles kept .gitignore etc.
+    // hidden even with "Show Hidden Files" ON. Only .keepance is unconditional.
+    expect(isHiddenNode({ name: '.git' })).toBe(false);
+    expect(isHiddenNode({ name: '.gitignore' })).toBe(false);
+    expect(isHiddenNode({ name: '.env' })).toBe(false);
   });
 
   it('treats normal names as visible', () => {
@@ -23,12 +30,17 @@ describe('hidden workspace nodes', () => {
     expect(isHiddenNode({ name: 'Hendricks Household.docx' })).toBe(false);
   });
 
-  it('filters hidden nodes out of a listing, keeping order and the rest', () => {
+  it('filters ONLY .keepance out of a listing, keeping order and the rest', () => {
     const nodes = [
       { name: 'docs' },
       { name: '.keepance' },
+      { name: '.gitignore' },
       { name: 'clients' },
     ];
-    expect(visibleNodes(nodes).map((n) => n.name)).toEqual(['docs', 'clients']);
+    expect(visibleNodes(nodes).map((n) => n.name)).toEqual([
+      'docs',
+      '.gitignore',
+      'clients',
+    ]);
   });
 });

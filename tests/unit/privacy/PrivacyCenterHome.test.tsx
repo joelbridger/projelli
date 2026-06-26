@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { PrivacyCenterHome } from '@/features/privacy/PrivacyCenterHome';
+import { KeychainService } from '@/platform/providers/KeychainService';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Matter } from '@/platform/types/matter';
 
@@ -96,11 +97,13 @@ describe('PrivacyCenterHome', () => {
   // BUG-001: Privacy Center "Current mode" must show the RESOLVED provider,
   // not always 'anthropic'. With only an OpenAI key configured the indicator
   // must match the trust bar (openai), not stay hardcoded to anthropic.
-  it('BUG-001: shows resolved provider (openai) when only an OpenAI key is configured', () => {
-    localStorage.setItem('apiKey_openai', 'sk-test-openai');
+  it('BUG-001: shows resolved provider (openai) when only an OpenAI key is configured', async () => {
+    // Key presence comes from KeychainService (the same source Ask sends with),
+    // not a legacy apiKey_* localStorage value.
+    await new KeychainService().setKey('openai', 'sk-test-00000000000000000000');
     render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
-    const indicator = screen.getByTestId('egress-indicator-mock');
-    expect(indicator.getAttribute('data-provider')).toBe('openai');
+    const indicator = await screen.findByTestId('egress-indicator-mock');
+    await waitFor(() => expect(indicator.getAttribute('data-provider')).toBe('openai'));
   });
 
   it('UX-01: shows "No AI connected" (none), not a guessed provider, when no API keys are configured', () => {

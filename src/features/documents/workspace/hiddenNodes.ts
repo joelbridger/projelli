@@ -1,16 +1,22 @@
 /**
- * hiddenNodes — hide internal, dot-prefixed workspace entries (e.g. the
- * `.keepance` config folder) from the rendered file listing.
+ * hiddenNodes — hide Keepance's OWN internal entries from the rendered file
+ * listing, so the user never sees (or deletes) app config they didn't create.
  *
- * This is DISPLAY-ONLY: the underlying files are untouched and still readable by
- * the app. It mirrors the convention the workspace selector already uses
- * (`!folder.startsWith('.')`), so the file grid, tree, and folder pickers don't
- * surface internal config folders the user could be confused by or delete.
+ * This hides ONLY Keepance-internal names (e.g. the `.keepance` config folder),
+ * NOT every dotfile: ordinary dotfiles like `.gitignore` keep their existing
+ * behaviour and still respect the user's "Show Hidden Files" setting. (An earlier
+ * version hid every dot-prefixed node unconditionally, which kept `.gitignore`
+ * etc. hidden even with Show Hidden turned ON.)
+ *
+ * Display-only: the underlying files are untouched and still readable by the app.
  */
 
-/** True when a node is an internal/hidden entry (dot-prefixed name). */
+/** Keepance-internal entry names, hidden from the file UI regardless of settings. */
+const KEEPANCE_INTERNAL_NAMES = new Set(['.keepance']);
+
+/** True when a node is a Keepance-internal entry that must never be shown. */
 export function isHiddenNode(node: { name: string }): boolean {
-  return node.name.startsWith('.');
+  return KEEPANCE_INTERNAL_NAMES.has(node.name);
 }
 
 /** Drop hidden (dot-prefixed) nodes from a listing, preserving order. */

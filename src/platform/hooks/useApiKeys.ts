@@ -5,7 +5,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import type { APIKey } from '@/platform/types';
-import { notifyEgressConfigChange } from '@/platform/hooks/useActiveEgressProvider';
+import { notifyEgressConfigChange } from '@/platform/privacy/egressConfigEvents';
 
 interface UseApiKeysReturn {
   apiKeys: APIKey[];
