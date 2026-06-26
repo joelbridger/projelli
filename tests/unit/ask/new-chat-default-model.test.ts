@@ -41,6 +41,22 @@ describe('resolveModelForProvider — curated default wins over a weak models[0]
     seedOpenAiModels(['gpt-3.5-turbo', 'gpt-4-turbo']);
     expect(resolveModelForProvider('openai')).toBe('gpt-3.5-turbo');
   });
+
+  it('prefers the CURRENT curated Google model (gemini-2.5-flash), not an older one', () => {
+    // Regression guard (Codex review): the curated Google default must be the
+    // current gemini-2.5-flash, never the older gemini-1.5-flash, even when the
+    // live list happens to put 1.5-flash first.
+    localStorage.setItem(
+      'keepance_models_google',
+      JSON.stringify({
+        models: [
+          { id: 'gemini-1.5-flash', displayName: 'g', provider: 'google' },
+          { id: 'gemini-2.5-flash', displayName: 'g', provider: 'google' },
+        ],
+      }),
+    );
+    expect(resolveModelForProvider('google')).toBe('gemini-2.5-flash');
+  });
 });
 
 describe('resolveNewChatDefault — a freshly-keyed OpenAI chat seeds gpt-4o-mini', () => {

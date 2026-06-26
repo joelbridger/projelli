@@ -334,10 +334,13 @@ export function friendlyErrorMessage(
   const lower = raw.toLowerCase();
   const localOnly = opts?.mode === 'local-only';
 
-  // Genuine auth — the ONLY branch that mentions a key, and never in Local-only
-  // (there is no key to check there).
+  // Genuine auth — the ONLY branch that mentions a key. Never in Local-only
+  // (there is no key to check there), and never when the AI was not even reached
+  // (reachedProvider === false => the failure was in the file-search stage, so an
+  // auth-shaped string there must not be blamed on a key).
   if (
     !localOnly &&
+    opts?.reachedProvider !== false &&
     (lower.includes('401') ||
       lower.includes('unauthorized') ||
       lower.includes('invalid_api_key') ||

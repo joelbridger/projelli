@@ -22,6 +22,7 @@ import {
   DEFAULT_ANTHROPIC_FREE,
   type Provider,
 } from '@/platform/utils/defaultModel';
+import { notifyEgressConfigChange } from '@/platform/hooks/useActiveEgressProvider';
 
 export type Profession = 'legal' | 'tax' | 'consulting' | 'advisor' | 'other';
 
@@ -92,6 +93,10 @@ export function persistProfessionModelDefault(
     }
     if (localStorage.getItem(PROFESSION_PROVIDER_STORAGE_KEY) == null) {
       localStorage.setItem(PROFESSION_PROVIDER_STORAGE_KEY, def.provider);
+      // Let the always-visible egress badge re-resolve against the new default
+      // provider (it only honours a default that has a key, so usually a no-op
+      // until a key is added — but keeps the single reactive source honest).
+      notifyEgressConfigChange();
     }
   } catch {
     // localStorage may be unavailable (strict privacy mode); the default is

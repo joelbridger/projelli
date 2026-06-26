@@ -97,7 +97,10 @@ const CLOUD_PROVIDERS: ProviderType[] = ['anthropic', 'openai', 'google'];
 export const FALLBACK_MODEL: Record<ChatProvider, string> = {
   anthropic: 'claude-sonnet-4-6',
   openai: 'gpt-4o-mini',
-  google: 'gemini-1.5-flash',
+  // gemini-2.5-flash (not the older 1.5-flash) — this value is also the curated
+  // new-chat default preferred over the live list's first entry, so it must be a
+  // current model, matching DEFAULT_GOOGLE_FREE in defaultModel.ts.
+  google: 'gemini-2.5-flash',
   ollama: '',
   // Keepance Local AI (embedded llama.cpp) serves whichever GGUF is loaded; the
   // model id is cosmetic, so — like ollama — there's no fallback model and the

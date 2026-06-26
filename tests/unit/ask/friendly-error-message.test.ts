@@ -45,6 +45,17 @@ describe('friendlyErrorMessage', () => {
     expect(msg).toMatch(/keyword/i);
   });
 
+  it('does NOT blame the key for an auth-shaped error if the AI was never reached (Codex review)', () => {
+    // A 401-shaped string can surface from a pre-provider stage; with
+    // reachedProvider=false it must be treated as a search-stage failure.
+    const msg = friendlyErrorMessage('401 unauthorized', {
+      mode: 'direct',
+      reachedProvider: false,
+    });
+    expect(msg).not.toMatch(/\bkey\b/i);
+    expect(msg).toMatch(/search your files|still be setting up/i);
+  });
+
   it('offers a "search by keyword instead" fallback on a generic cloud failure', () => {
     const msg = friendlyErrorMessage('socket hang up', {
       mode: 'direct',
