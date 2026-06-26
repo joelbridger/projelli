@@ -29,7 +29,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const RESULTS_DIR = join(HERE, 'results');
 const BASELINE_PATH = join(HERE, 'baseline.json');
 
-const ENABLED = !!process.env['ASK_EVAL_REAL'];
+// STRICT opt-in: only the literal "1" arms this paid, live-AI test. `!!` would
+// be true for ASK_EVAL_REAL=0 / "false" too (any non-empty string is truthy), so
+// a stray value + a key present in `npm run gate` could silently hit a live model
+// and cost money. Exactly "1" — set only by scripts/eval/ask-nightly.mjs.
+const ENABLED = process.env['ASK_EVAL_REAL'] === '1';
 /** Default absolute floor; the baseline (if present) raises it. */
 const FLOOR = Number(process.env['ASK_EVAL_FLOOR'] ?? '0.75');
 /** Allowed slip below the committed baseline pass rate before failing. */

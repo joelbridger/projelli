@@ -18,7 +18,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -45,7 +45,11 @@ function notify(level, subject, body) {
   if (res.error) console.error('[ask-nightly] notify-jameson failed:', res.error.message);
 }
 
-// 1. Run the real-model eval. ASK_EVAL_REAL flips the skipIf in the test on.
+// 1. Delete any stale results FIRST, so a present results/latest.json after the
+//    run can only be from THIS run (a crash can't leave us reading old numbers).
+if (existsSync(RESULTS)) rmSync(RESULTS);
+
+// 2. Run the real-model eval. ASK_EVAL_REAL=1 flips the skipIf in the test on.
 console.log('[ask-nightly] running real-model Ask eval…');
 const run = spawnSync(
   'npx',
@@ -53,7 +57,9 @@ const run = spawnSync(
   { cwd: REPO, stdio: 'inherit', env: { ...process.env, ASK_EVAL_REAL: '1' } },
 );
 
-// 2. Read the machine-readable report the test wrote.
+// 3. Read the machine-readable report the test wrote. With the pre-delete above,
+//    a missing file now unambiguously means "this run produced nothing" (no key,
+//    or a crash before the test wrote results) — not a stale leftover.
 if (!existsSync(RESULTS)) {
   notify(
     'critical',
@@ -79,17 +85,26 @@ const delta = baselineRate != null ? summary.passRate - baselineRate : null;
 const baselineFailing = new Set(baseline?.failing ?? []);
 const newlyFailing = summary.failures.map((f) => f.id).filter((id) => !baselineFailing.has(id));
 
-// 4. Optionally rebaseline from this run (intentional, manual).
+// 4. Optionally rebaseline from this run (intentional, manual). ONLY when the
+//    run passed cleanly (exit 0 = the floor held) — never bake a failing/
+//    regressed run in as the new baseline.
 if (updateBaseline) {
-  const next = {
-    note: 'Captured by scripts/eval/ask-nightly.mjs --update-baseline.',
-    passRate: summary.passRate,
-    model: `${answerer.provider}/${answerer.model}`,
-    capturedAt: report.capturedAt,
-    failing: summary.failures.map((f) => f.id),
-  };
-  writeFileSync(BASELINE, JSON.stringify(next, null, 2) + '\n');
-  console.log(`[ask-nightly] baseline updated → ${pct(summary.passRate)} (${next.model}).`);
+  if (run.status === 0) {
+    const next = {
+      note: 'Captured by scripts/eval/ask-nightly.mjs --update-baseline.',
+      passRate: summary.passRate,
+      model: `${answerer.provider}/${answerer.model}`,
+      capturedAt: report.capturedAt,
+      failing: summary.failures.map((f) => f.id),
+    };
+    writeFileSync(BASELINE, JSON.stringify(next, null, 2) + '\n');
+    console.log(`[ask-nightly] baseline updated → ${pct(summary.passRate)} (${next.model}).`);
+  } else {
+    console.warn(
+      `[ask-nightly] --update-baseline SKIPPED: the run did not pass the floor (vitest exit ${run.status}). ` +
+        'Refusing to baseline a failing run — investigate the failures first, or lower ASK_EVAL_FLOOR for a calibration run.',
+    );
+  }
 }
 
 // 5. Report. Critical when the run failed OR a regression appeared.
