@@ -1365,15 +1365,18 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             <ChatCostChip chatId={chatId} />
           </div>
         )}
-        {/* Stream A4 — context meter bar: utilization, cost preview, 80% warning, Compress.
-            Hidden unless the user opts into developer cost meters. */}
-        {showAiCostMeters && (() => {
+        {/* Stream A4 — context meter bar. The token / cost / "Context: N of 200K"
+            meters are hidden unless the user opts in (showAiCostMeters), but the
+            manual Compress action stays reachable for everyone, so this always
+            renders and only the meter visuals are gated (showMeters). */}
+        {(() => {
           // Simple 4-chars-per-token heuristic for meter display.
           const historyChars = messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0);
           const usedTokens = Math.round((historyChars + inputValue.length) / 4);
           const metadata = chatData.provider ? undefined : undefined; // cost lookup deferred
           void metadata;
-          const costPerInputToken = (() => {
+          // Only price the next message when the cost meters are actually shown.
+          const costPerInputToken = showAiCostMeters ? (() => {
             try {
               if (!chatData.provider || !chatData.model) return null;
               if (chatData.provider === 'anthropic') {
@@ -1392,7 +1395,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               // ignore metadata errors for cost preview
             }
             return null;
-          })();
+          })() : null;
           const projectedCost = costPerInputToken != null
             ? costPerInputToken * usedTokens
             : null;
@@ -1406,6 +1409,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               projectedCost={projectedCost}
               modelLabel={modelLabel}
               onCompressClick={handleManualCompress}
+              showMeters={showAiCostMeters}
               className="mb-2"
             />
           );

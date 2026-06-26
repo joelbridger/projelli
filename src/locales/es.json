@@ -1092,6 +1092,10 @@
       "key-pending": "Esperando a que el administrador de tu firma conceda acceso a este dispositivo para este asunto. Lo abriré automáticamente cuando lo haga."
     },
     "manager": {
+      "client-name": "Empresa / Organización (opcional)",
+      "client-name__sourceHash": "5b7231de652c296f57821d62965640eaaead52dbdfbe874886788c153f447cd3",
+      "client-name-helper": "Opcional. La empresa u organización a la que pertenece este cliente, si corresponde.",
+      "client-name-helper__sourceHash": "89c86f783427f18c0326ec5387549e3c4ea6074405a362c105af8b0dd515c6be",
       "mail-label": "Cuentas de correo en este asunto",
       "mail-label__sourceHash": "894f4e905bce6814391e9107fa9e0d0e23f8d94eee4a68377ba19ce693254204",
       "no-mail-accounts": "Conecta una cuenta de correo en Ajustes para asignarla a este asunto.",

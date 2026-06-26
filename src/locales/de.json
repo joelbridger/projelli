@@ -1092,6 +1092,10 @@
       "key-pending": "Ich warte darauf, dass dein Kanzleiadmin diesem Gerät Zugriff auf diesen Fall gewährt. Ich öffne ihn automatisch, sobald das erledigt ist."
     },
     "manager": {
+      "client-name": "Firma / Organisation (optional)",
+      "client-name__sourceHash": "5b7231de652c296f57821d62965640eaaead52dbdfbe874886788c153f447cd3",
+      "client-name-helper": "Optional. Die Firma oder Organisation, zu der dieser Kunde gehört, falls vorhanden.",
+      "client-name-helper__sourceHash": "89c86f783427f18c0326ec5387549e3c4ea6074405a362c105af8b0dd515c6be",
       "mail-label": "E-Mail-Konten in diesem Mandat",
       "mail-label__sourceHash": "894f4e905bce6814391e9107fa9e0d0e23f8d94eee4a68377ba19ce693254204",
       "no-mail-accounts": "Verbinde in den Einstellungen ein E-Mail-Konto, um es diesem Mandat zuzuordnen.",
