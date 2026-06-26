@@ -194,10 +194,15 @@ export interface CrmMatterMapEntry {
  */
 export function buildCrmMatterMap(matters: Matter[]): CrmMatterMapEntry[] {
   const out: CrmMatterMapEntry[] = [];
+  // A household maps to exactly ONE matter. `addCrmHouseholdKey` already removes a key
+  // from other matters, but dedupe defensively here too (first matter wins) so a stale
+  // duplicate can never make the backend index the same household under two matters.
+  const claimed = new Set<string>();
   for (const m of matters) {
     if (m.id === UNASSIGNED_MATTER_ID) continue;
     for (const key of m.crmHouseholdKeys ?? []) {
-      if (!key) continue;
+      if (!key || claimed.has(key)) continue;
+      claimed.add(key);
       out.push({ householdId: key, matterId: m.id });
     }
   }
