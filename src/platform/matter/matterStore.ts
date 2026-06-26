@@ -446,10 +446,21 @@ export const useMatterStore = create<MatterState>()(
         if (!key) return;
         set((state) => ({
           matters: state.matters.map((m) => {
-            if (m.id !== id) return m;
-            const existing = m.crmHouseholdKeys ?? [];
-            if (existing.includes(key)) return m;
-            return { ...m, crmHouseholdKeys: [...existing, key] };
+            if (m.id === id) {
+              // Add to the target matter (dedup within it).
+              const existing = m.crmHouseholdKeys ?? [];
+              return existing.includes(key)
+                ? m
+                : { ...m, crmHouseholdKeys: [...existing, key] };
+            }
+            // A household belongs to exactly ONE matter: remove this key from every
+            // OTHER matter so re-linking it never leaves it claimed by — and re-indexed
+            // + orphaned under — its previous matter. (Pairs with the backend orphan
+            // cleanup that purges the old matter's now-stale CRM chunks on next sync.)
+            const others = m.crmHouseholdKeys ?? [];
+            return others.includes(key)
+              ? { ...m, crmHouseholdKeys: others.filter((k) => k !== key) }
+              : m;
           }),
         }));
       },
