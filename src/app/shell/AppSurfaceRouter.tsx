@@ -16,6 +16,7 @@ import { EmailWorkspace } from '@/features/email/EmailWorkspace';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';
 import { AuditHome } from '@/features/audit/AuditHome';
+import { ErrorBoundary } from '@/ui/ErrorBoundary';
 import { PrivacyCenterHome } from '@/features/privacy/PrivacyCenterHome';
 import { MainPanel } from '@/app/shell/layout/MainPanel';
 import { SettingsContent } from '@/features/settings/SettingsContent';
@@ -284,11 +285,17 @@ export function AppSurfaceRouter({
           }}
         />
       ) : sidebarActiveTab ==='audit' ? (
-        <AuditHome
-          entries={auditEntries}
-          integrity={auditIntegrity}
-          onVerifyIntegrity={verifyAuditIntegrity}
-        />
+        // Error boundary: the Activity Log is the "auditable / inspectable" trust
+        // surface, so one malformed audit row must never white-screen the whole
+        // app — contain any render failure here. (The data layer is also guarded
+        // against missing inputs/outputs/metadata via asRecord.)
+        <ErrorBoundary label="Activity Log">
+          <AuditHome
+            entries={auditEntries}
+            integrity={auditIntegrity}
+            onVerifyIntegrity={verifyAuditIntegrity}
+          />
+        </ErrorBoundary>
       ) : sidebarActiveTab ==='privacy' ? (
         <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />
       ) : sidebarActiveTab ==='settings' ? (

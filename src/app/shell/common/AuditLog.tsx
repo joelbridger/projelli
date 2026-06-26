@@ -44,6 +44,7 @@ import {
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import { EmptyState } from '@/ui/EmptyState';
 import {
+  asRecord,
   downloadAuditCSV,
   downloadAuditJSON,
   filterEntries,
@@ -539,9 +540,12 @@ function AuditEntryRow({
   const Icon = ACTION_ICONS[entry.action] ?? History;
   const colorClass = ACTION_COLORS[entry.action] ?? 'text-muted-foreground';
 
+  // Defensive: a row may arrive without these objects (e.g. connector entries).
+  const inputs = asRecord(entry.inputs);
+  const outputs = asRecord(entry.outputs);
   const hasDetails =
-    Object.keys(entry.inputs).length > 0 ||
-    Object.keys(entry.outputs).length > 0;
+    Object.keys(inputs).length > 0 ||
+    Object.keys(outputs).length > 0;
 
   return (
     <div className="hover:bg-muted/50">
@@ -606,19 +610,19 @@ function AuditEntryRow({
       {/* Expanded content */}
       {isExpanded && hasDetails && (
         <div className="px-3 pb-2 ml-9 space-y-2">
-          {Object.keys(entry.inputs).length > 0 && (
+          {Object.keys(inputs).length > 0 && (
             <div className="text-xs">
               <span className="font-medium text-muted-foreground">Inputs:</span>
               <pre className="mt-1 p-2 rounded bg-muted text-[10px] overflow-x-auto font-mono">
-                {JSON.stringify(entry.inputs, null, 2)}
+                {JSON.stringify(inputs, null, 2)}
               </pre>
             </div>
           )}
-          {Object.keys(entry.outputs).length > 0 && (
+          {Object.keys(outputs).length > 0 && (
             <div className="text-xs">
               <span className="font-medium text-muted-foreground">Outputs:</span>
               <pre className="mt-1 p-2 rounded bg-muted text-[10px] overflow-x-auto font-mono">
-                {JSON.stringify(entry.outputs, null, 2)}
+                {JSON.stringify(outputs, null, 2)}
               </pre>
             </div>
           )}
@@ -636,6 +640,11 @@ interface AuditEntryDetailsProps {
 function AuditEntryDetails({ entry, formatTimestamp }: AuditEntryDetailsProps) {
   const Icon = ACTION_ICONS[entry.action] ?? History;
   const colorClass = ACTION_COLORS[entry.action] ?? 'text-muted-foreground';
+
+  // Defensive: a row may arrive without these objects (e.g. connector entries).
+  const inputs = asRecord(entry.inputs);
+  const outputs = asRecord(entry.outputs);
+  const metadata = asRecord(entry.metadata);
 
   return (
     <div className="space-y-4">
@@ -679,25 +688,25 @@ function AuditEntryDetails({ entry, formatTimestamp }: AuditEntryDetailsProps) {
       </div>
 
       {/* Inputs */}
-      {Object.keys(entry.inputs).length > 0 && (
+      {Object.keys(inputs).length > 0 && (
         <div>
           <div className="text-xs text-muted-foreground uppercase mb-1">
             Inputs
           </div>
           <pre className="p-3 rounded bg-muted text-xs overflow-x-auto max-h-40">
-            {JSON.stringify(entry.inputs, null, 2)}
+            {JSON.stringify(inputs, null, 2)}
           </pre>
         </div>
       )}
 
       {/* Outputs */}
-      {Object.keys(entry.outputs).length > 0 && (
+      {Object.keys(outputs).length > 0 && (
         <div>
           <div className="text-xs text-muted-foreground uppercase mb-1">
             Outputs
           </div>
           <pre className="p-3 rounded bg-muted text-xs overflow-x-auto max-h-40">
-            {JSON.stringify(entry.outputs, null, 2)}
+            {JSON.stringify(outputs, null, 2)}
           </pre>
         </div>
       )}
@@ -707,10 +716,10 @@ function AuditEntryDetails({ entry, formatTimestamp }: AuditEntryDetailsProps) {
           record rather than a raw JSON blob. The full metadata is still shown
           below for completeness. */}
       {(() => {
-        const fmid = entry.metadata['firm_matter_id'];
-        const mid = entry.metadata['matter_id'];
-        const tuid = entry.metadata['target_user_id'];
-        const oid = entry.metadata['org_id'];
+        const fmid = metadata['firm_matter_id'];
+        const mid = metadata['matter_id'];
+        const tuid = metadata['target_user_id'];
+        const oid = metadata['org_id'];
         if (!mid && !fmid && !tuid) return null;
         return (
           <div className="rounded-md border border-border px-3 py-2 space-y-1 text-sm">
@@ -743,13 +752,13 @@ function AuditEntryDetails({ entry, formatTimestamp }: AuditEntryDetailsProps) {
       })()}
 
       {/* Metadata */}
-      {Object.keys(entry.metadata).length > 0 && (
+      {Object.keys(metadata).length > 0 && (
         <div>
           <div className="text-xs text-muted-foreground uppercase mb-1">
             Additional Metadata
           </div>
           <pre className="p-3 rounded bg-muted text-xs overflow-x-auto max-h-40">
-            {JSON.stringify(entry.metadata, null, 2)}
+            {JSON.stringify(metadata, null, 2)}
           </pre>
         </div>
       )}

@@ -30,6 +30,7 @@ import {
   UserX,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
+import { asRecord } from './audit-export';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -263,7 +264,7 @@ export function formatFullTimestamp(iso: string): string {
 
 /** Reads confidentiality scope from egress / scope_active metadata if present. */
 export function getScopeLabel(entry: AuditEntry): string | null {
-  const meta = entry.metadata;
+  const meta = asRecord(entry.metadata);
   if (entry.action === 'egress') {
     const mode = meta['mode'];
     if (mode === 'local-only') return 'Local';

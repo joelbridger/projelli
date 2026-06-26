@@ -259,4 +259,43 @@ describe('AuditHome', () => {
     expect(screen.getByTestId('audit-scope-pill')).toBeInTheDocument();
     expect(screen.getByTestId('audit-scope-pill')).toHaveTextContent('Direct');
   });
+
+  // Regression for the demo-blocker: a connector-emitted entry without a
+  // `metadata` (or `inputs`/`outputs`) object must NOT crash the Activity Log —
+  // previously `getAuditEntryMatterScope` read `metadata['scope']` off undefined
+  // in the availableMatterScopes useMemo and white-screened the whole app.
+  it('renders without crashing when an entry has undefined metadata/inputs/outputs', () => {
+    const malformed = makeEntry({
+      id: 'connector-1',
+      action: 'wealthbox.connect' as AuditEntry['action'],
+      description: 'Connected Wealthbox',
+      model: undefined,
+      metadata: undefined as unknown as Record<string, unknown>,
+      inputs: undefined as unknown as Record<string, unknown>,
+      outputs: undefined as unknown as Record<string, unknown>,
+    });
+    expect(() =>
+      render(<AuditHome entries={[malformed, ...SAMPLE]} />),
+    ).not.toThrow();
+    // The malformed row still renders alongside the well-formed ones.
+    expect(screen.getByText('Connected Wealthbox')).toBeInTheDocument();
+    expect(screen.getAllByTestId('audit-table-row').length).toBe(SAMPLE.length + 1);
+  });
+
+  it('opens the detail panel for a malformed entry without crashing', () => {
+    const malformed = makeEntry({
+      id: 'connector-2',
+      action: 'wealthbox.disconnect' as AuditEntry['action'],
+      description: 'Disconnected Wealthbox',
+      model: undefined,
+      metadata: undefined as unknown as Record<string, unknown>,
+      inputs: undefined as unknown as Record<string, unknown>,
+      outputs: undefined as unknown as Record<string, unknown>,
+    });
+    render(<AuditHome entries={[malformed]} />);
+    expect(() => {
+      fireEvent.click(screen.getByText('Disconnected Wealthbox'));
+    }).not.toThrow();
+    expect(screen.getByTestId('audit-detail-panel')).toBeInTheDocument();
+  });
 });

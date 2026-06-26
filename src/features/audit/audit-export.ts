@@ -122,18 +122,18 @@ function extractField(entry: AuditEntry, col: CsvColumn): string {
       return STATUS_FOR_ACTION[entry.action] ?? '';
     case 'user_decision':
       return entry.userDecision ?? '';
-    case 'inputs':
-      return Object.keys(entry.inputs).length > 0
-        ? JSON.stringify(entry.inputs)
-        : '';
-    case 'outputs':
-      return Object.keys(entry.outputs).length > 0
-        ? JSON.stringify(entry.outputs)
-        : '';
-    case 'metadata':
-      return Object.keys(entry.metadata).length > 0
-        ? JSON.stringify(entry.metadata)
-        : '';
+    case 'inputs': {
+      const inputs = asRecord(entry.inputs);
+      return Object.keys(inputs).length > 0 ? JSON.stringify(inputs) : '';
+    }
+    case 'outputs': {
+      const outputs = asRecord(entry.outputs);
+      return Object.keys(outputs).length > 0 ? JSON.stringify(outputs) : '';
+    }
+    case 'metadata': {
+      const metadata = asRecord(entry.metadata);
+      return Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : '';
+    }
     case 'tokens_in':
       return readNumeric(entry, ['tokensIn', 'tokens_in', 'input_tokens']);
     case 'tokens_out':
@@ -151,8 +151,8 @@ function extractField(entry: AuditEntry, col: CsvColumn): string {
  */
 function readNumeric(entry: AuditEntry, keys: string[]): string {
   const haystacks: Array<Record<string, unknown>> = [
-    entry.outputs,
-    entry.metadata,
+    asRecord(entry.outputs),
+    asRecord(entry.metadata),
     entry as unknown as Record<string, unknown>,
   ];
   for (const haystack of haystacks) {
@@ -316,7 +316,7 @@ type AuditEntryScope =
   | { kind: 'allMatters' };
 
 function getAuditEntryMatterScope(entry: AuditEntry): AuditEntryScope | null {
-  const meta = entry.metadata;
+  const meta = asRecord(entry.metadata);
   const scope = meta['scope'];
   if (isRecord(scope)) {
     const kind = stringValue(scope['kind']);
@@ -363,6 +363,18 @@ function getAuditEntryMatterScope(entry: AuditEntry): AuditEntryScope | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Defensive coercion to a plain record. An audit row may legitimately arrive
+ * WITHOUT an `inputs` / `outputs` / `metadata` object (e.g. backend-emitted
+ * connector entries), even though the `AuditEntry` type marks them required.
+ * Reading `.scope` / `Object.keys()` off such an `undefined` throws and — with
+ * no catch around the Activity Log's `useMemo` — white-screens the entire app.
+ * Coercing to `{}` here means no audit row can ever throw, whatever its shape.
+ */
+export function asRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
 }
 
 function stringValue(value: unknown): string | null {
