@@ -253,7 +253,14 @@ function wireMockGitHub(fakeFs: FakeFs): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  if (typeof localStorage !== 'undefined') localStorage.clear();
+  if (typeof localStorage !== 'undefined') {
+    localStorage.clear();
+    // Non-private mode so the fail-closed cloud-send guard lets the engine run.
+    localStorage.setItem(
+      'keepance:settings',
+      JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 }),
+    );
+  }
 });
 
 describe('marketplace install end-to-end', () => {

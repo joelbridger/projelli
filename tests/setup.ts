@@ -1,4 +1,24 @@
 import '@testing-library/jest-dom/vitest';
+import { beforeEach } from 'vitest';
+
+// The cloud-send guard is fail-closed: it BLOCKS unless the PERSISTED
+// confidentiality mode explicitly reads 'direct'/'assured' (raw localStorage
+// read, so it can't be fooled during hydration). For the test environment we
+// default that persisted value to 'direct' before each test — mirroring a
+// configured app where the user has chosen a cloud mode — so ordinary
+// cloud-send tests aren't blocked. This ONLY affects the raw-read guard;
+// `getConfidentialityMode()` (in-memory) is untouched. Privacy / fail-closed
+// tests override this by writing their own value (or clearing the key).
+beforeEach(() => {
+  try {
+    localStorage.setItem(
+      'keepance:settings',
+      JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 }),
+    );
+  } catch {
+    /* localStorage unavailable in this environment */
+  }
+});
 
 // Initialize i18next so components calling useTranslation() render real
 // English strings under test instead of returning the raw key. Tests assert

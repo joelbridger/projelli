@@ -162,21 +162,61 @@ function mergeSourceRefs(a: SourceRef[], b: SourceRef[]): SourceRef[] {
   return merged;
 }
 
+/** True when two source lists share an underlying source (same content-addressed
+ *  citation id, or same resolvable ref) — i.e. it is provably the SAME fact. */
+function sourcesOverlap(a: SourceRef[], b: SourceRef[]): boolean {
+  const aKeys = new Set(a.map((s) => s.citationId ?? s.ref).filter((k) => k.length > 0));
+  return b.some((s) => aKeys.has(s.citationId ?? s.ref));
+}
+
+/** True when one item is backed by a document source and the other by a CRM
+ *  source — the "merged client" case where a file fact and a CRM fact coincide. */
+function crmDocumentPair(a: SourceRef[], b: SourceRef[]): boolean {
+  const aKinds = new Set(a.map((s) => s.kind));
+  const bKinds = new Set(b.map((s) => s.kind));
+  return (aKinds.has('crm') && bKinds.has('document')) || (aKinds.has('document') && bKinds.has('crm'));
+}
+
+/**
+ * STRICT cross-section duplicate test. Used only to collapse facts that appear in
+ * more than one section — far stricter than `areNearDuplicateFacts` (which the
+ * per-section dedup uses), because advisors need EVERY distinct fact: two account
+ * facts that differ by a number, date, value, or type must NEVER be collapsed.
+ * We collapse ONLY when:
+ *   (a) the sources genuinely overlap (provably the same underlying fact), OR
+ *   (b) the text is an EXACT match (case/whitespace only) AND one side is a
+ *       document source and the other a CRM source (the merged-client case).
+ */
+function isStrictCrossSectionDuplicate(
+  aText: string, aSources: SourceRef[], bText: string, bSources: SourceRef[],
+): boolean {
+  // Exact text match (case/whitespace only) is REQUIRED. This guarantees we never
+  // collapse facts that differ in a number, date, value, or type — two distinct
+  // facts that merely cite the same source must BOTH survive.
+  if (normalizeText(aText) !== normalizeText(bText)) return false;
+  // Among exact-text matches, collapse only the merged-client case (a file source
+  // paired with a CRM source) or items that cite the same underlying source.
+  return crmDocumentPair(aSources, bSources) || sourcesOverlap(aSources, bSources);
+}
+
 /**
  * Collapse facts that appear in MORE THAN ONE section. On a MERGED client the
- * same fact can surface from both a file source and a CRM source and land in two
- * different sections (e.g. "Key goals" and "Where things stand"), differing only
- * in casing/wording — the per-section dedup (`capGeneratedSectionItems`) can't see
- * across sections, so the user sees it twice. This keeps the first occurrence (in
- * section order) and drops later near-duplicates, merging the dropped item's
- * sources into the kept one so the single entry cites both the file and the CRM.
+ * SAME fact can surface from both a file source and a CRM source and land in two
+ * different sections, differing only in casing — the per-section dedup
+ * (`capGeneratedSectionItems`) can't see across sections, so the user sees it
+ * twice. Keeps the first occurrence (in section order), drops the later one, and
+ * merges its sources into the kept item so the single entry cites both the file
+ * and the CRM. Uses a STRICT match (see `isStrictCrossSectionDuplicate`) so two
+ * genuinely-distinct facts (different number/date/value/type) are NEVER collapsed.
  */
 export function dedupeAcrossSections(sections: ClientMapSection[]): ClientMapSection[] {
   interface Kept { sectionIdx: number; item: ClientMapItem; sources: SourceRef[] }
   const kept: Kept[] = [];
   sections.forEach((section, sectionIdx) => {
     for (const item of section.items) {
-      const existing = kept.find((k) => areNearDuplicateFacts(k.item.text, item.text));
+      const existing = kept.find((k) =>
+        isStrictCrossSectionDuplicate(k.item.text, k.sources, item.text, item.sources),
+      );
       if (existing) {
         // Cross-section duplicate: drop it, merge its sources into the kept one.
         existing.sources = mergeSourceRefs(existing.sources, item.sources);

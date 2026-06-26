@@ -13,7 +13,6 @@
  * NOT call it, so on-device inference is unaffected.
  */
 
-import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import {
   CONFIDENTIALITY_MODE_SETTING_KEY,
   CONFIDENTIALITY_MODES,
@@ -59,17 +58,22 @@ function persistedConfidentialityModeRaw(): ConfidentialityMode | undefined {
 }
 
 /**
- * Fail-closed Local-only check for privacy guards. Returns true (= block any
- * cloud send) when Local-only is on — read from BOTH the raw persisted value AND
- * the in-memory store. The raw read closes the hydration gap: if the user
- * persisted Local-only but the store has not rehydrated yet, the in-memory mode
- * transiently reports the schema default ('direct'), which would otherwise let a
- * send slip through. We never assume "cloud allowed" while a persisted Local-only
- * choice exists.
+ * TRULY fail-closed Local-only check for privacy guards. Returns true (= BLOCK
+ * any cloud/external send) UNLESS the persisted confidentiality choice EXPLICITLY
+ * reads 'direct' or 'assured'. Everything else blocks:
+ *   - 'local-only' (the user chose private mode),
+ *   - missing / corrupt / unreadable storage,
+ *   - the not-yet-hydrated window (the in-memory store would report the schema
+ *     default 'direct', which we deliberately do NOT trust here).
+ *
+ * Read straight from storage so the answer is correct the instant the app starts.
+ * We never default to "cloud allowed" when the mode is unknown — a fresh install
+ * with no choice yet is gated separately by the personal-install choice gate, so
+ * blocking here is safe and correct.
  */
 export function isLocalOnlyModeFailClosed(): boolean {
-  if (persistedConfidentialityModeRaw() === 'local-only') return true;
-  return getConfidentialityMode() === 'local-only';
+  const persisted = persistedConfidentialityModeRaw();
+  return persisted !== 'direct' && persisted !== 'assured';
 }
 
 /**

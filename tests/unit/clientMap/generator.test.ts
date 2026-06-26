@@ -59,7 +59,10 @@ beforeEach(() => {
   retrieveMock.mockReset();
   sendMock.mockReset();
   // Default to a non-local-only mode so the existing tests' cloud provider sends.
+  // setSetting persists to localStorage too, which is what the fail-closed
+  // cloud-send guard reads. The local-only race test overrides this in its body.
   useSettingsStore.setState({ values: {} });
+  useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
 });
 
 describe('buildClientMap', () => {

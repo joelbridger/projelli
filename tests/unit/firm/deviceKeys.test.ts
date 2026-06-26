@@ -63,6 +63,13 @@ describe('deviceKeys — getOrCreateDeviceKeypair', () => {
     fetchMock.mockReset();
     invokeMock.mockClear();
     _resetDeviceCache();
+    // The global test harness (tests/setup.ts) seeds a 'keepance:settings'
+    // entry into localStorage so cloud-send tests aren't blocked by the
+    // fail-closed guard. Clear it here so the "no localStorage fallback"
+    // security assertion below reads a true value — i.e. it proves the
+    // device-key code itself wrote NOTHING to localStorage, not just that
+    // the harness seed is absent.
+    localStorage.clear();
   });
 
   it('generates a stable deviceId and valid ECDH P-256 public key', async () => {
@@ -90,13 +97,25 @@ describe('deviceKeys — getOrCreateDeviceKeypair', () => {
   });
 
   it('persists in the keychain (no localStorage fallback in Tauri mode)', async () => {
+    // Assert on what the device-key code ITSELF writes, not on the global
+    // localStorage length. A bare `localStorage.length === 0` check is fragile:
+    // it can be tripped by an unrelated async write leaking in from another
+    // test during the await below, or by the global harness seed. Spying on
+    // setItem and clearing it immediately before the call scopes the assertion
+    // precisely to the security property we care about: the device-key code
+    // must persist key material to the keychain, never to localStorage.
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    setItemSpy.mockClear();
+
     await getOrCreateDeviceKeypair();
 
     // At least one keychain_set call should have occurred
     const setCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === 'keychain_set');
     expect(setCalls.length).toBeGreaterThan(0);
-    // No localStorage entries should exist
-    expect(localStorage.length).toBe(0);
+    // The device-key code must not write anything to localStorage.
+    expect(setItemSpy).not.toHaveBeenCalled();
+
+    setItemSpy.mockRestore();
   });
 
   it('can ECDH-derive bits from the returned public key (proves it is a real EC key)', async () => {

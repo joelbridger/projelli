@@ -39,4 +39,37 @@ describe('dedupeAcrossSections (B6)', () => {
     ];
     expect(dedupeAcrossSections(sections).flatMap((s) => s.items)).toHaveLength(2);
   });
+
+  it('does NOT collapse two distinct facts that differ only by a NUMBER (even file + CRM)', () => {
+    // High token overlap (would collapse under the loose token-overlap test) but
+    // the dollar amounts differ — these are two real, distinct account facts.
+    const sections: ClientMapSection[] = [
+      {
+        id: 's1', kind: 'core', key: 'story', title: 'Story',
+        items: [item('a', 'Brokerage account balance is $50,000', [{ kind: 'document', ref: '/stmt.pdf', snippet: '50000' }])],
+      },
+      {
+        id: 's2', kind: 'core', key: 'standing', title: 'Standing',
+        items: [item('b', 'Brokerage account balance is $120,000', [{ kind: 'crm', ref: 'crm:contact:1', snippet: '120000' }])],
+      },
+    ];
+    // BOTH facts survive — advisors must keep every distinct figure.
+    expect(dedupeAcrossSections(sections).flatMap((s) => s.items)).toHaveLength(2);
+  });
+
+  it('does NOT collapse exact-text duplicates that are NOT a file+CRM pair', () => {
+    // Two document-sourced items with identical text in different sections: strict
+    // rule keeps both (collapse is reserved for overlapping sources or file+CRM).
+    const sections: ClientMapSection[] = [
+      {
+        id: 's1', kind: 'core', key: 'story', title: 'Story',
+        items: [item('a', 'Owns a vacation home', [{ kind: 'document', ref: '/a.pdf', snippet: 'home' }])],
+      },
+      {
+        id: 's2', kind: 'core', key: 'standing', title: 'Standing',
+        items: [item('b', 'owns a vacation home', [{ kind: 'document', ref: '/b.pdf', snippet: 'home' }])],
+      },
+    ];
+    expect(dedupeAcrossSections(sections).flatMap((s) => s.items)).toHaveLength(2);
+  });
 });

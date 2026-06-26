@@ -30,6 +30,17 @@ function setMode(mode: string) {
   useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, mode);
 }
 
+/** Simulate the HYDRATION window: a mode is PERSISTED in storage but the
+ *  in-memory store has not loaded it yet (values empty → would report the schema
+ *  default 'direct'). The fail-closed guard must read the raw persisted value. */
+function persistRawModeButLeaveStoreUnhydrated(mode: string) {
+  useSettingsStore.setState({ values: {} }); // in-memory empty (unhydrated)
+  localStorage.setItem(
+    'keepance:settings',
+    JSON.stringify({ state: { values: { [CONFIDENTIALITY_MODE_SETTING_KEY]: mode } }, version: 1 }),
+  );
+}
+
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
@@ -69,6 +80,12 @@ describe('telemetry.sendEvent', () => {
     await sendEvent('app_launch');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('fail-closed: does NOT POST when Local-only is PERSISTED but the store is unhydrated', async () => {
+    persistRawModeButLeaveStoreUnhydrated('local-only');
+    await sendEvent('app_launch');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('diagnostics.sendDiagnosticEvent', () => {
@@ -82,5 +99,11 @@ describe('diagnostics.sendDiagnosticEvent', () => {
     setMode('direct');
     await sendDiagnosticEvent({ event: 'matter_count', count: 3 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('fail-closed: does NOT POST when Local-only is PERSISTED but the store is unhydrated', async () => {
+    persistRawModeButLeaveStoreUnhydrated('local-only');
+    await sendDiagnosticEvent({ event: 'matter_count', count: 3 });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -51,6 +51,18 @@ describe('useModelList Local-only kill-switch', () => {
     await waitFor(() => expect(getModelsMock).toHaveBeenCalledWith('anthropic', 'sk-ant-test'));
   });
 
+  it('fail-closed: does NOT send the API key when Local-only is PERSISTED but the store is unhydrated', async () => {
+    // In-memory store empty (unhydrated) + persisted Local-only in storage.
+    useSettingsStore.setState({ values: {} });
+    localStorage.setItem(
+      'keepance:settings',
+      JSON.stringify({ state: { values: { [CONFIDENTIALITY_MODE_SETTING_KEY]: 'local-only' } }, version: 1 }),
+    );
+    renderHook(() => useModelList(KEYS));
+    await act(async () => {});
+    expect(getModelsMock).not.toHaveBeenCalled();
+  });
+
   it('manual refreshProvider does NOT hit the network in Local-only', async () => {
     setMode('local-only');
     const { result } = renderHook(() => useModelList(KEYS));

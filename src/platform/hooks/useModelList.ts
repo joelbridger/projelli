@@ -10,7 +10,7 @@ import {
   clearModelCache,
   getDefaultModels,
 } from '@/platform/providers/ModelListService';
-import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { isLocalOnlyModeFailClosed } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 
 interface ApiKeyEntry {
@@ -45,7 +45,7 @@ export function useModelList(apiKeys: ApiKeyEntry[]): UseModelListReturn {
     // API key off-device. In Local-only we fall back to the built-in default lists
     // (no network). The dedup key uses a 'local-only' sentinel so toggling the mode
     // re-runs this effect (it is also in the dep list).
-    const localOnly = isLocalOnlyMode();
+    const localOnly = isLocalOnlyModeFailClosed();
     const keysSerialized = localOnly
       ? 'local-only'
       : apiKeys.map(k => `${k.provider}:${k.key}`).sort().join('|');
@@ -99,9 +99,9 @@ export function useModelList(apiKeys: ApiKeyEntry[]): UseModelListReturn {
   }, [apiKeys, confidentialityMode]);
 
   const refreshProvider = useCallback(async (provider: ProviderType, apiKey: string) => {
-    // Local-only kill-switch: a manual refresh also sends the API key off-device.
-    // Skip the external call and keep the built-in defaults.
-    if (isLocalOnlyMode()) {
+    // Private-mode kill-switch (fail-closed): a manual refresh also sends the API
+    // key off-device. Skip the external call and keep the built-in defaults.
+    if (isLocalOnlyModeFailClosed()) {
       setModels(prev => ({ ...prev, [provider]: getDefaultModels(provider) }));
       return;
     }
