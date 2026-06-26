@@ -364,12 +364,38 @@ impl CrmStore {
     /// residual CRM data on disk.
     #[allow(dead_code)]
     pub fn purge(workspace_root: &Path) -> Result<()> {
-        let p = Self::db_path(workspace_root);
-        if p.exists() {
-            std::fs::remove_file(&p)
-                .with_context(|| format!("failed to remove crm db {}", p.display()))?;
+        // Remove the main DB file AND its SQLite sidecars. WAL/SHM hold
+        // un-checkpointed pages and the rollback journal holds pre-images; leaving
+        // any of them behind would strand decryptable CRM data after a disconnect.
+        let base = Self::db_path(workspace_root);
+        for suffix in ["", "-wal", "-shm", "-journal"] {
+            let p = if suffix.is_empty() {
+                base.clone()
+            } else {
+                let mut s = base.clone().into_os_string();
+                s.push(suffix);
+                PathBuf::from(s)
+            };
+            if p.exists() {
+                std::fs::remove_file(&p)
+                    .with_context(|| format!("failed to remove crm db file {}", p.display()))?;
+            }
         }
         Ok(())
+    }
+
+    /// Delete the CRM database's encryption key from the OS keychain. Called only
+    /// AFTER a confirmed DB + vector purge (by `crm_disconnect_logic`), so a
+    /// disconnect leaves neither decryptable CRM data NOR an orphaned key behind.
+    /// A missing entry is treated as success (idempotent).
+    pub fn delete_master_key() -> Result<()> {
+        match keyring::Entry::new(CRM_KEYCHAIN_SERVICE, CRM_KEYCHAIN_KEY)
+            .context("crm keychain entry")?
+            .delete_credential()
+        {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(anyhow::anyhow!("crm keychain key delete: {e}")),
+        }
     }
 }
 
@@ -418,6 +444,40 @@ mod tests {
         let key = [0x33u8; 32];
         let s = CrmStore::open_with_key(dir.path(), &key).expect("crm store open");
         (dir, s)
+    }
+
+    /// Build the path for a CRM DB SQLite sidecar suffix (e.g. "-wal").
+    fn sidecar(base: &std::path::Path, suffix: &str) -> std::path::PathBuf {
+        let mut s = base.to_path_buf().into_os_string();
+        s.push(suffix);
+        std::path::PathBuf::from(s)
+    }
+
+    /// PURGE P4: `purge` must remove the main DB AND every SQLite sidecar (-wal, -shm,
+    /// -journal), or a disconnect would leave decryptable CRM pages on disk.
+    #[test]
+    fn purge_removes_db_and_all_sqlite_sidecars() {
+        let dir = TempDir::new().unwrap();
+        // Create the real DB, then fabricate its sidecars.
+        let _ = CrmStore::open_with_key(dir.path(), &[0x33u8; 32]).expect("open");
+        let base = CrmStore::db_path(dir.path());
+        for suffix in ["-wal", "-shm", "-journal"] {
+            std::fs::write(sidecar(&base, suffix), b"residue").unwrap();
+        }
+        assert!(base.exists(), "db file should exist before purge");
+        for suffix in ["-wal", "-shm", "-journal"] {
+            assert!(sidecar(&base, suffix).exists(), "sidecar {suffix} should exist before purge");
+        }
+
+        CrmStore::purge(dir.path()).expect("purge");
+
+        assert!(!base.exists(), "crm-enc.db must be gone after purge");
+        for suffix in ["-wal", "-shm", "-journal"] {
+            assert!(
+                !sidecar(&base, suffix).exists(),
+                "crm-enc.db{suffix} must be gone after purge"
+            );
+        }
     }
 
     // -----------------------------------------------------------------------
