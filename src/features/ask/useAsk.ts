@@ -28,6 +28,11 @@ import { getConfidentialityMode, useConfidentialityMode } from '@/platform/hooks
 import { assertLocalOnlyAllowsSend, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import type { AskScope, AskTurn } from './askHelpers';
 import {
+  NO_EVIDENCE_DECLINE,
+  buildAskSystemPrompt,
+  scopeHintForMatter,
+} from './askPrompt';
+import {
   hasCloudKey,
   buildResolvedAskProvider,
   resolveLocalAskProvider,
@@ -40,16 +45,6 @@ import {
   bindAnswerCitations,
   buildRecentAskSessions,
 } from './askHelpers';
-
-/**
- * BUG-016: the single decline message shown when the answer is NOT in the
- * user's indexed files. Used both by the retrieval-evidence gate (when nothing
- * is retrieved) and referenced in the answer prompt (so the model declines with
- * identical wording), keeping the experience uniform whether the gate or the
- * model produces the decline.
- */
-const NO_EVIDENCE_DECLINE =
-  "I couldn't find anything about that in your documents.";
 
 export interface UseAskProps {
   onSaveToDocument?: (content: string) => Promise<void>;
@@ -480,9 +475,9 @@ export function useAsk({
       // matter is active but the user picked the "All matters" scope, the prompt
       // would tell the AI it's answering for the active client while retrieval ran
       // across everything — so the prompt and the audited scope would disagree.
-      const matterHint = retrievalScope.kind === 'matter' && activeMatter
-        ? `You are answering a question scoped to this client or matter: "${matterLabel(activeMatter)}".`
-        : 'You are answering a question across all of your clients and matters.';
+      const matterHint = scopeHintForMatter(
+        retrievalScope.kind === 'matter' && activeMatter ? matterLabel(activeMatter) : null,
+      );
 
       // Build history from completed turns (last 6)
       const historyBlock = buildHistoryBlock(turns, 6);
@@ -493,18 +488,14 @@ export function useAsk({
       // and never state a figure/date/name or cite a source that isn't present
       // in the context. This is the model-side half of the grounding fix; the
       // citation-binding step below structurally drops any citation that still
-      // doesn't resolve to a retrieved chunk.
-      const systemPrompt = [
-        matterHint,
-        "You are a private research assistant. Answer the user's question using ONLY the information in the context block below. Do not use outside knowledge.",
-        `If the context block does not contain the answer, reply with exactly this sentence and nothing else: "${NO_EVIDENCE_DECLINE}" Do not guess, and never state a dollar amount, figure, date, deadline, or name that does not appear in the context block.`,
-        "After every factual claim, cite the source in square brackets, copying the filename and its location EXACTLY as they appear in the matching source header in the context block — e.g. [agreement.docx paragraph 3] or [statement.pdf page 2]. Only cite filenames that appear in the context block, and only the paragraph/page actually shown there. Never invent a citation or a source.",
-        'Respond in 3-6 sentences maximum.',
+      // doesn't resolve to a retrieved chunk. The prompt assembly lives in
+      // `askPrompt.ts` so the answer-quality eval (tests/eval/ask) tests the
+      // exact prompt we ship.
+      const systemPrompt = buildAskSystemPrompt({
+        scopeHint: matterHint,
         workspaceBlock,
         historyBlock,
-      ]
-        .filter(Boolean)
-        .join('\n\n');
+      });
 
       let answerText = '';
       let resolvedProvider = await buildResolvedAskProvider();

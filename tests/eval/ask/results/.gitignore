@@ -1,0 +1,4 @@
+# Nightly run artifacts — transient, never committed. The committed truth is
+# baseline.json one level up.
+*
+!.gitignore

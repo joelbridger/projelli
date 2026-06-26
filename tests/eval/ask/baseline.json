@@ -1,0 +1,7 @@
+{
+  "note": "SEED baseline — replace with a real run via `node scripts/eval/ask-nightly.mjs --update-baseline` once a trusted key + model are configured. Until then the nightly holds the absolute floor (ASK_EVAL_FLOOR, default 0.75).",
+  "passRate": 0.9,
+  "model": "seed",
+  "capturedAt": null,
+  "failing": []
+}
