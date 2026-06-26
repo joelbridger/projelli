@@ -473,6 +473,10 @@ pub async fn apply_index(
 /// `rag_key` is the RAG/vector-store master key, supplied by the caller. The
 /// command layer reads it from the OS keychain (`get_or_create_master_key`); tests
 /// pass a literal key so the real entry point can be driven without a keychain.
+///
+/// `progress` is updated with the running count of households processed as each matter
+/// completes, so a watching `crm_sync_status` (and the progress emitter) sees steady
+/// movement during the sync instead of a number that only jumps at the end.
 #[allow(dead_code)]
 pub async fn backfill(
     source: &dyn CrmSource,
@@ -481,6 +485,7 @@ pub async fn backfill(
     matter_map: &HashMap<String, String>,
     cancel: &std::sync::atomic::AtomicBool,
     rag_key: &[u8; 32],
+    progress: &std::sync::atomic::AtomicU32,
 ) -> anyhow::Result<SyncReport> {
     use std::sync::atomic::Ordering;
 
@@ -569,6 +574,9 @@ pub async fn backfill(
                 items.extend(plan_household_index(store, hk, matter_id)?);
             }
             report.households_processed += households.len() as u32;
+            // Publish live progress as each matter is reached (steady movement for a
+            // watching crm_sync_status / progress emitter).
+            progress.store(report.households_processed, Ordering::SeqCst);
 
             // Combined render hash over the matter's whole plan (source_ids + texts).
             let plan_hash = {
@@ -1412,12 +1420,19 @@ mod tests {
                 .into_iter()
                 .collect();
         let cancel = std::sync::atomic::AtomicBool::new(false);
-        let report = backfill(&FakeCrmSource, &store, ws.path(), &matter_map, &cancel, &VEC_KEY)
+        let progress = std::sync::atomic::AtomicU32::new(0);
+        let report = backfill(&FakeCrmSource, &store, ws.path(), &matter_map, &cancel, &VEC_KEY, &progress)
             .await
             .expect("backfill");
         assert!(
             report.records_indexed > 0,
             "backfill must embed + store at least one CRM chunk for the Anderson household"
+        );
+        // P4 progress: the live counter reaches the final household count.
+        assert_eq!(
+            progress.load(std::sync::atomic::Ordering::SeqCst),
+            report.households_processed,
+            "the progress counter must reach the final households_processed"
         );
 
         // ── Open a fresh handle to the persisted store, then retrieve end-to-end ──
@@ -1513,7 +1528,8 @@ mod tests {
         .into_iter()
         .collect();
         let cancel = std::sync::atomic::AtomicBool::new(false);
-        backfill(&TwoHouseholdsSource, &store_db, ws.path(), &matter_map, &cancel, &VEC_KEY)
+        let progress = std::sync::atomic::AtomicU32::new(0);
+        backfill(&TwoHouseholdsSource, &store_db, ws.path(), &matter_map, &cancel, &VEC_KEY, &progress)
             .await
             .expect("backfill");
 
@@ -1559,18 +1575,19 @@ mod tests {
         let ws = TempDir::new().unwrap();
         let store_db = CrmStore::open_with_key(ws.path(), &[0x33u8; 32]).unwrap();
         let cancel = std::sync::atomic::AtomicBool::new(false);
+        let progress = std::sync::atomic::AtomicU32::new(0);
 
         // Sync 1: household 10001 under matter-A.
         let map_a: std::collections::HashMap<String, String> =
             [("10001".to_string(), "matter-A".to_string())].into_iter().collect();
-        backfill(&FakeCrmSource, &store_db, ws.path(), &map_a, &cancel, &VEC_KEY)
+        backfill(&FakeCrmSource, &store_db, ws.path(), &map_a, &cancel, &VEC_KEY, &progress)
             .await
             .expect("sync A");
 
         // Sync 2: the SAME household re-linked to matter-B (A absent from the map).
         let map_b: std::collections::HashMap<String, String> =
             [("10001".to_string(), "matter-B".to_string())].into_iter().collect();
-        backfill(&FakeCrmSource, &store_db, ws.path(), &map_b, &cancel, &VEC_KEY)
+        backfill(&FakeCrmSource, &store_db, ws.path(), &map_b, &cancel, &VEC_KEY, &progress)
             .await
             .expect("sync B");
 
@@ -1616,11 +1633,12 @@ mod tests {
         let ws = TempDir::new().unwrap();
         let store_db = CrmStore::open_with_key(ws.path(), &[0x33u8; 32]).unwrap();
         let cancel = std::sync::atomic::AtomicBool::new(false);
+        let progress = std::sync::atomic::AtomicU32::new(0);
 
         // Sync household 10001 under matter-A (real backfill → CRM chunks exist).
         let map: std::collections::HashMap<String, String> =
             [("10001".to_string(), "matter-A".to_string())].into_iter().collect();
-        backfill(&FakeCrmSource, &store_db, ws.path(), &map, &cancel, &VEC_KEY)
+        backfill(&FakeCrmSource, &store_db, ws.path(), &map, &cancel, &VEC_KEY, &progress)
             .await
             .expect("sync A");
 
@@ -1655,7 +1673,7 @@ mod tests {
 
         // Re-sync with an EMPTY map → must purge ALL CRM, preserve the file chunk.
         let empty: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-        backfill(&FakeCrmSource, &store_db, ws.path(), &empty, &cancel, &VEC_KEY)
+        backfill(&FakeCrmSource, &store_db, ws.path(), &empty, &cancel, &VEC_KEY, &progress)
             .await
             .expect("empty-map sync");
 

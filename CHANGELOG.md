@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Wealthbox disconnect hardening + live sync progress (backend).** Four fixes so a disconnect reliably
+  deletes everything and never strands data, plus a steady progress counter:
+  - **Token deleted only AFTER a confirmed purge (P2).** `crm_disconnect_logic` used to delete the API
+    key FIRST, then purge — so a failed/skipped purge could leave the user "disconnected" with data still
+    on disk. Now it purges the RAG chunks + CRM DB FIRST and removes the token only when both succeed; if
+    the purge can't run (no workspace) or fails, it KEEPS the token + connected state and returns
+    `data_remains: true` so the UI can offer a "finish deleting" retry (result shape:
+    `tokenDeleted/ragPurged/crmDbPurged/dataRemains/warnings`).
+  - **Disconnect waits out an active sync (P3).** A disconnect during a running sync could re-insert
+    chunks after the purge (and lock the DB). Disconnect now signals cancel and claims the same
+    single-flight slot as the sync (waiting, bounded, for the sync to stop) before purging, so nothing
+    re-inserts post-purge; if a sync won't stop in time it defers (keeps the token, `data_remains: true`).
+  - **Purge leaves no residue (P4).** `CrmStore::purge` now removes the SQLite sidecars (`-wal`, `-shm`,
+    `-journal`) as well as `crm-enc.db`, and after a confirmed DB+vector purge the disconnect deletes the
+    CRM DB encryption key (`keepance-crm-enc/master-key-v1`) from the keychain — so no decryptable CRM
+    pages or orphaned key remain.
+  - **Live sync progress (P4).** The household counter used to sit stale and jump to the total at the end.
+    The engine now publishes a running count as each matter completes; `crm_sync_status` returns the live
+    count while syncing and `crm_sync_all` emits `syncing` progress events, so a watching user sees steady
+    movement. The final report stays accurate.
+  Tests: `purge_removes_db_and_all_sqlite_sidecars`, `disconnect_no_workspace_keeps_token_and_reports_data_remains`,
+  `disconnect_waits_for_running_sync_then_claims_slot`, and the model-gated integration test asserts the
+  progress counter reaches the final count. (No egress/audit changes.)
+  Files: `src-tauri/src/commands/crm/commands.rs`, `src-tauri/src/commands/crm/store.rs`,
+  `src-tauri/src/commands/crm/engine.rs`.
 - **CRM sync is much faster, and indexes per MATTER (perf + two correctness fixes, one coherent change).**
   The first 40-household / 247-record sync took ~8–10 min; the cost was LanceDB commit/compaction churn
   (one no-op `delete` per household on a first sync, each a scan + commit + compaction, plus continuous

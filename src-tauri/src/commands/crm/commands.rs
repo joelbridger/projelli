@@ -62,6 +62,10 @@ pub struct CrmState {
     pub is_syncing: Arc<AtomicBool>,
     pub cancel: Arc<AtomicBool>,
     pub last_report: tokio::sync::Mutex<Option<CrmSyncReportDto>>,
+    /// Live count of households processed so far in the CURRENT sync. The engine
+    /// stores the running total per matter; `crm_sync_status` reads it so a watching
+    /// user sees steady movement instead of a stale number that jumps at the end.
+    pub progress_households: Arc<std::sync::atomic::AtomicU32>,
 }
 
 pub fn manage_state(app: &tauri::App) {
@@ -70,6 +74,7 @@ pub fn manage_state(app: &tauri::App) {
         is_syncing: Arc::new(AtomicBool::new(false)),
         cancel: Arc::new(AtomicBool::new(false)),
         last_report: tokio::sync::Mutex::new(None),
+        progress_households: Arc::new(std::sync::atomic::AtomicU32::new(0)),
     });
 }
 
@@ -146,6 +151,11 @@ pub struct CrmDisconnectResult {
     pub rag_purged: bool,
     /// `true` when the encrypted CRM object database file was deleted.
     pub crm_db_purged: bool,
+    /// `true` when imported CRM data may STILL be on disk after this disconnect —
+    /// because the purge could not run (no workspace, or a sync was still running) or
+    /// a purge step failed. The API token + connected state are KEPT in that case, so
+    /// the UI can offer a "finish deleting" retry instead of stranding the data.
+    pub data_remains: bool,
     /// Non-empty when any purge step was skipped or failed (best-effort).
     /// Each entry is a plain-English sentence suitable for a UI warning banner.
     pub warnings: Vec<String>,
@@ -381,40 +391,100 @@ pub async fn crm_is_connected() -> Result<bool, String> {
 pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult {
     let mut result = CrmDisconnectResult::default();
 
-    // Best-effort token deletion: a keychain failure is reported as a warning
-    // but must NOT prevent the local data purge from running.  The user's
-    // imported data is always deleted regardless of keychain availability;
-    // token_deleted reports honestly whether the API key was also removed.
-    match delete_token() {
-        Ok(()) => result.token_deleted = true,
+    // P3 — stop any in-flight sync and CLAIM the single-flight slot BEFORE purging, so
+    // nothing re-inserts CRM chunks after the purge and the DB file isn't locked. Signal
+    // cancel, then spin until we win the slot (the running sync releases it when it sees
+    // cancel between matters) or a short timeout elapses.
+    state.cancel.store(true, Ordering::SeqCst);
+    let mut claimed = false;
+    let mut waited_ms: u64 = 0;
+    loop {
+        if state
+            .is_syncing
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+        {
+            claimed = true;
+            break;
+        }
+        if waited_ms >= 10_000 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        waited_ms += 50;
+        state.cancel.store(true, Ordering::SeqCst); // keep signalling while we wait
+    }
+
+    if !claimed {
+        // A sync wouldn't stop in time. Refuse to purge — it would race inserts against
+        // the delete and could lock the DB — and KEEP the token + connected state.
+        result.data_remains = true;
+        result.warnings.push(
+            "A Wealthbox sync is still running; disconnect was deferred. Stop the sync and try \
+             disconnecting again."
+                .to_string(),
+        );
+        return result;
+    }
+    // We hold `is_syncing` for the whole purge; the guard releases it on every exit path,
+    // so no NEW sync can start mid-purge.
+    let _slot_guard = SyncGuard(state.is_syncing.clone());
+
+    // No workspace → the imported data can't be located/deleted. KEEP the token + connected
+    // state so the user can finish deleting once a workspace is open.
+    let Some(ws) = state.workspace.lock().await.clone() else {
+        result.data_remains = true;
+        result.warnings.push(
+            "No workspace is open, so the imported Wealthbox data could not be located and was NOT \
+             deleted. Your API key was kept — open the workspace and disconnect again to finish \
+             deleting."
+                .to_string(),
+        );
+        return result;
+    };
+
+    // Purge RAG chunks (source_type='crm'), then the encrypted CRM database + sidecars.
+    match purge_crm_rag_chunks(&ws).await {
+        Ok(()) => result.rag_purged = true,
         Err(e) => {
-            log::warn!("crm_disconnect: token deletion failed (non-fatal): {e}");
-            result.warnings.push(format!("API key could not be removed from keychain: {e}"));
+            log::warn!("crm_disconnect: rag purge failed (non-fatal): {e:#}");
+            result.warnings.push(format!("Search-index (RAG) purge failed: {e}"));
+        }
+    }
+    match CrmStore::purge(&ws) {
+        Ok(()) => result.crm_db_purged = true,
+        Err(e) => {
+            log::warn!("crm_disconnect: crm db purge failed (non-fatal): {e:#}");
+            result.warnings.push(format!("CRM database purge failed: {e}"));
         }
     }
 
-    let workspace = state.workspace.lock().await.clone();
-    if let Some(ref ws) = workspace {
-        // Purge RAG chunks whose source_type = 'crm'.
-        match purge_crm_rag_chunks(ws).await {
-            Ok(()) => result.rag_purged = true,
+    // P2 — remove the API token (= become "disconnected") ONLY AFTER both purges succeed,
+    // so the user is never disconnected with data stranded on disk. Then drop the CRM DB
+    // encryption key (P4), now that there is nothing left to decrypt. If a purge failed,
+    // KEEP the token + connected state and flag `data_remains` so the UI can retry.
+    if result.rag_purged && result.crm_db_purged {
+        match delete_token() {
+            Ok(()) => result.token_deleted = true,
             Err(e) => {
-                log::warn!("crm_disconnect: rag purge failed (non-fatal): {e:#}");
-                result.warnings.push(format!("RAG chunk purge failed: {e}"));
+                log::warn!("crm_disconnect: token deletion failed (non-fatal): {e}");
+                result.warnings.push(format!(
+                    "Imported data was deleted, but the API key could not be removed from the \
+                     keychain: {e}"
+                ));
             }
         }
-        // Purge the encrypted CRM object database.
-        match CrmStore::purge(ws) {
-            Ok(()) => result.crm_db_purged = true,
-            Err(e) => {
-                log::warn!("crm_disconnect: crm db purge failed (non-fatal): {e:#}");
-                result.warnings.push(format!("CRM database purge failed: {e}"));
-            }
+        if let Err(e) = CrmStore::delete_master_key() {
+            log::warn!("crm_disconnect: crm db key deletion failed (non-fatal): {e:#}");
+            result.warnings.push(format!(
+                "The CRM database encryption key could not be removed from the keychain: {e}"
+            ));
         }
-
     } else {
+        result.data_remains = true;
         result.warnings.push(
-            "No workspace set; imported Wealthbox data could not be located and was NOT deleted."
+            "Some imported Wealthbox data could not be deleted; your API key was kept so you can \
+             try disconnecting again to finish deleting."
                 .to_string(),
         );
     }
@@ -443,13 +513,15 @@ pub async fn crm_disconnect(
     // Build an honest audit description from the result flags.
     let key_part = if result.token_deleted {
         "removed the API key"
+    } else if result.data_remains {
+        "kept the API key so deletion can be finished later"
     } else {
-        "could NOT remove the API key (keychain unavailable)"
+        "could NOT remove the API key"
     };
-    let data_part = if result.rag_purged && result.crm_db_purged {
-        "deleted the imported data"
+    let data_part = if result.data_remains {
+        "some imported data could not be deleted yet"
     } else {
-        "some imported data could not be deleted"
+        "deleted the imported data"
     };
     let audit_desc = format!("Disconnected Wealthbox; {key_part}; {data_part}.");
     append_crm_audit_best_effort(&app, "wealthbox.disconnect", &audit_desc).await;
@@ -497,8 +569,9 @@ pub async fn crm_sync_all(
     // RAII guard: restores is_syncing=false on every exit path.
     let _sync_guard = SyncGuard(state.is_syncing.clone());
 
-    // Reset the cancel flag now that we hold the sync slot.
+    // Reset the cancel flag and the live progress counter now that we hold the slot.
     state.cancel.store(false, Ordering::SeqCst);
+    state.progress_households.store(0, Ordering::SeqCst);
 
     // Read the stored token (error if not connected).
     let token = read_token().ok_or("Wealthbox not connected — call crm_connect first")?;
@@ -535,19 +608,43 @@ pub async fn crm_sync_all(
         e.to_string()
     })?;
 
+    // Live progress emitter: poll the shared counter every 250ms and emit `syncing`
+    // events with the running household count, so the FE's progress display climbs
+    // steadily instead of jumping at the end. Aborted once backfill returns (the
+    // terminal done/cancelled/error event is emitted below).
+    let emit_counter = state.progress_households.clone();
+    let emit_app = app.clone();
+    let emitter = tokio::spawn(async move {
+        let mut last = u32::MAX;
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            let done = emit_counter.load(Ordering::SeqCst);
+            if done != last {
+                last = done;
+                let _ = emit_app.emit(
+                    CRM_SYNC_PROGRESS_EVENT,
+                    serde_json::json!({ "status": "syncing", "households": done }),
+                );
+            }
+        }
+    });
+
     // Run the full backfill (fetch → ingest → index). The cancel flag is polled
-    // between households so the UI's Stop button interrupts a long sync.
+    // between matters so the UI's Stop button interrupts a long sync.
     let client = WealthboxClient::new(token);
-    let report = match engine::backfill(
+    let backfill_result = engine::backfill(
         &client,
         &store,
         &workspace,
         &matter_hashmap,
         &state.cancel,
         &rag_key,
+        &state.progress_households,
     )
-    .await
-    {
+    .await;
+    emitter.abort();
+
+    let report = match backfill_result {
         Ok(r) => r,
         Err(e) => {
             let _ = app.emit(CRM_SYNC_PROGRESS_EVENT, serde_json::json!({ "status": "error" }));
@@ -603,6 +700,20 @@ pub async fn crm_sync_all(
 #[tauri::command]
 pub async fn crm_sync_status(state: State<'_, CrmState>) -> Result<CrmSyncStatusDto, String> {
     let is_syncing = state.is_syncing.load(Ordering::SeqCst);
+    if is_syncing {
+        // Live, in-progress count so a watching poller sees steady movement rather than
+        // last sync's stale report. `records_indexed` is only final-accurate, so the
+        // live report carries the household count and leaves the rest at defaults.
+        let done = state.progress_households.load(Ordering::SeqCst);
+        let live = CrmSyncReportDto {
+            households_processed: done,
+            ..Default::default()
+        };
+        return Ok(CrmSyncStatusDto {
+            is_syncing,
+            last_report: Some(live),
+        });
+    }
     let last_report = state.last_report.lock().await.clone();
     Ok(CrmSyncStatusDto { is_syncing, last_report })
 }
@@ -675,6 +786,75 @@ pub async fn crm_list_households() -> Result<Vec<CrmHouseholdDto>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Build a `CrmState` for disconnect tests. Workspace is `None` by default so the
+    /// purge path (which needs the keychain) is not exercised headless.
+    fn test_state(is_syncing: bool) -> CrmState {
+        CrmState {
+            workspace: tokio::sync::Mutex::new(None),
+            is_syncing: Arc::new(AtomicBool::new(is_syncing)),
+            cancel: Arc::new(AtomicBool::new(false)),
+            last_report: tokio::sync::Mutex::new(None),
+            progress_households: Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        }
+    }
+
+    /// DISCONNECT P2: when the purge can't run (no workspace), the API token is KEPT
+    /// and `data_remains` is true, so the user is never "disconnected" with data
+    /// stranded on disk.
+    #[tokio::test]
+    async fn disconnect_no_workspace_keeps_token_and_reports_data_remains() {
+        let state = test_state(false);
+        let result = crm_disconnect_logic(&state).await;
+
+        assert!(result.data_remains, "data_remains must be true when the purge can't run");
+        assert!(!result.token_deleted, "the API token must be KEPT when data couldn't be purged");
+        assert!(!result.rag_purged && !result.crm_db_purged);
+        assert!(
+            result.warnings.iter().any(|w| w.contains("No workspace")),
+            "expected a no-workspace warning; got {:?}",
+            result.warnings
+        );
+        // The single-flight slot claimed during the attempt is released again.
+        assert!(!state.is_syncing.load(Ordering::SeqCst), "the claimed slot must be released");
+    }
+
+    /// DISCONNECT P3: a disconnect signals cancel and WAITS for an in-flight sync to
+    /// release the single-flight slot, then claims it before purging — so nothing
+    /// re-inserts after the purge. Here the "running sync" releases the slot shortly
+    /// after it sees cancel; disconnect must claim it and proceed (not defer).
+    #[tokio::test]
+    async fn disconnect_waits_for_running_sync_then_claims_slot() {
+        let state = test_state(true); // a sync is "running" (slot held)
+
+        // Simulate the running sync stopping once it observes cancel.
+        let is_syncing = state.is_syncing.clone();
+        let cancel = state.cancel.clone();
+        tokio::spawn(async move {
+            while !cancel.load(Ordering::SeqCst) {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            is_syncing.store(false, Ordering::SeqCst);
+        });
+
+        let result = crm_disconnect_logic(&state).await;
+
+        // It WAITED, claimed the slot, and reached the no-workspace path — NOT the
+        // "deferred, sync still running" path.
+        assert!(
+            result.warnings.iter().any(|w| w.contains("No workspace")),
+            "expected the no-workspace path (claimed after waiting); got {:?}",
+            result.warnings
+        );
+        assert!(
+            !result.warnings.iter().any(|w| w.contains("still running")),
+            "must NOT be the deferred path; got {:?}",
+            result.warnings
+        );
+        assert!(state.cancel.load(Ordering::SeqCst), "disconnect must signal cancel");
+        assert!(!state.is_syncing.load(Ordering::SeqCst), "the claimed slot must be released");
+    }
 
     // ── Vec<CrmMatterMapEntry> → HashMap conversion ────────────────────────
 
