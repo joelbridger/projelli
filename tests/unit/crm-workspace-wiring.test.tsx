@@ -141,4 +141,16 @@ describe('useMemoryWiring — CRM workspace wiring', () => {
       expect(crmMocks.crmSetWorkspace).toHaveBeenCalledWith(root2);
     });
   });
+
+  it('a crmSetWorkspace failure does not break the rest of workspace wiring', async () => {
+    // The CRM connector is optional; if its setup throws, file-watching and
+    // memory indexing must still be wired for the user.
+    crmMocks.crmSetWorkspace.mockRejectedValueOnce(new Error('crm backend unavailable'));
+    const root = '/home/user/Northcrest';
+    render(<Harness root={root} />);
+
+    await waitFor(() => {
+      expect(tauriCmdMocks.watchWorkspace).toHaveBeenCalledWith(root);
+    });
+  });
 });
