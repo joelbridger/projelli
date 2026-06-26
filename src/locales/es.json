@@ -22,6 +22,8 @@
       "message-placeholder": "Cuéntame en qué paso estás, qué error ves y qué has intentado.",
       "email-label": "Tu correo electrónico",
       "email-help": "(para poder responderte)",
+      "dont-paste": "No pegues aquí tu clave de API ni tu contraseña.",
+      "email-invalid": "Ese correo electrónico no parece correcto.",
       "success": "Listo. Te responderé por correo electrónico.",
       "send-failed": "No se pudo enviar tu mensaje.",
       "network-error": "Error de red.",

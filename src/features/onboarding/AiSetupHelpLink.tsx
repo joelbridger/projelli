@@ -10,6 +10,12 @@
  * own pile, separate from bug reports. The ticket carries which provider the
  * user was connecting and which step they were on, so the reply can be specific.
  *
+ * SECURITY: the box sits right under "Paste your API key", so a stuck user
+ * might paste their actual key into the message. Before anything is sent, the
+ * message and context are run through `redactSecrets`, which replaces anything
+ * that looks like an Anthropic / OpenAI / Google API key with a placeholder.
+ * A real key must never leave the user's machine in a ticket.
+ *
  * Like the bug report, this request goes to Keepance infrastructure (NOT the
  * user's AI provider), so it opts out of the "Sending to your AI provider"
  * egress pulse via getCorsSafeFetch({ signalEgress: false }).
@@ -31,10 +37,18 @@ import { HelpCircle, LifeBuoy, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
 import { openExternal } from '@/platform/utils/openExternal';
+import { redactSecrets } from '@/platform/utils/redactSecrets';
 
 const AI_SETUP_HELP_URL =
   'https://keepance.com/api/forms/keepance/ai-setup-help';
 const MAILTO_ADDRESS = 'support@keepance.com';
+
+// Payload bounds (defense-in-depth; the server also caps + whitelists).
+const MAX_MESSAGE = 2000;
+const MAX_EMAIL = 254;
+const MAX_META = 500;
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type Status = 'idle' | 'sending' | 'success' | 'error';
 
@@ -58,7 +72,11 @@ function collectMetadata(): Metadata {
     (import.meta.env['VITE_APP_VERSION'] as string | undefined) ?? 'unknown';
   const userAgent =
     typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown';
-  return { version, os: readPlatform(), userAgent };
+  return {
+    version: version.slice(0, MAX_META),
+    os: readPlatform().slice(0, MAX_META),
+    userAgent: userAgent.slice(0, MAX_META),
+  };
 }
 
 function buildMailto(
@@ -109,24 +127,32 @@ export function AiSetupHelpDialog({
   const { t } = useTranslation();
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState(defaultEmail ?? '');
+  const [emailError, setEmailError] = useState('');
   const [status, setStatus] = useState<Status>('idle');
-  const [errorText, setErrorText] = useState('');
 
   // Reset transient state each time the dialog closes so the next open is clean.
   useEffect(() => {
     if (!open) {
       setStatus('idle');
-      setErrorText('');
+      setEmailError('');
     }
   }, [open]);
 
   const handleSubmit = useCallback(async () => {
     const trimmed = message.trim();
     if (!trimmed) return;
+
+    const trimmedEmail = email.trim();
+    if (trimmedEmail && !EMAIL_RE.test(trimmedEmail)) {
+      setEmailError(t('common.ai-setup-help.email-invalid'));
+      return;
+    }
+    setEmailError('');
     setStatus('sending');
-    setErrorText('');
 
     const meta = collectMetadata();
+    // Redact possible keys FIRST, then cap — a key near the length boundary is
+    // still scrubbed before the cap shortens the message.
     const payload: {
       message: string;
       provider: string;
@@ -136,15 +162,14 @@ export function AiSetupHelpDialog({
       user_agent: string;
       email?: string;
     } = {
-      message: trimmed,
+      message: redactSecrets(trimmed).slice(0, MAX_MESSAGE),
       provider,
-      context,
+      context: redactSecrets(context).slice(0, MAX_META),
       version: meta.version,
       os: meta.os,
       user_agent: meta.userAgent,
     };
-    const trimmedEmail = email.trim();
-    if (trimmedEmail) payload.email = trimmedEmail;
+    if (trimmedEmail) payload.email = trimmedEmail.slice(0, MAX_EMAIL);
 
     try {
       // The help ticket goes to Keepance infrastructure, not the user's AI
@@ -160,18 +185,17 @@ export function AiSetupHelpDialog({
       setMessage('');
     } catch (err) {
       console.error('[AiSetupHelpDialog] submit failed', err);
-      setErrorText(err instanceof Error ? err.message : 'Unknown error');
       setStatus('error');
     }
-  }, [message, email, provider, context]);
+  }, [message, email, provider, context, t]);
 
   const handleFallbackEmail = useCallback(() => {
     const meta = collectMetadata();
     const url = buildMailto(
-      message.trim(),
-      email.trim(),
+      redactSecrets(message.trim()).slice(0, MAX_MESSAGE),
+      email.trim().slice(0, MAX_EMAIL),
       provider,
-      context,
+      redactSecrets(context).slice(0, MAX_META),
       meta,
     );
     void openExternal(url);
@@ -179,8 +203,6 @@ export function AiSetupHelpDialog({
   }, [message, email, provider, context, onOpenChange]);
 
   const canSubmit = message.trim().length > 0 && status !== 'sending';
-  const errorDetail =
-    errorText.length > 0 ? errorText : t('common.ai-setup-help.network-error');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -224,9 +246,16 @@ export function AiSetupHelpDialog({
                   }}
                   placeholder={t('common.ai-setup-help.message-placeholder')}
                   rows={5}
+                  maxLength={MAX_MESSAGE}
                   autoFocus
                   disabled={status === 'sending'}
                 />
+                <p
+                  className="text-xs text-muted-foreground"
+                  data-testid="ai-setup-help-dont-paste"
+                >
+                  {t('common.ai-setup-help.dont-paste')}
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -243,10 +272,20 @@ export function AiSetupHelpDialog({
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
+                    if (emailError) setEmailError('');
                   }}
                   placeholder="you@example.com"
+                  maxLength={MAX_EMAIL}
                   disabled={status === 'sending'}
                 />
+                {emailError && (
+                  <p
+                    className="text-xs text-destructive"
+                    data-testid="ai-setup-help-email-error"
+                  >
+                    {emailError}
+                  </p>
+                )}
               </div>
 
               {status === 'error' && (
@@ -258,7 +297,7 @@ export function AiSetupHelpDialog({
                     {t('common.ai-setup-help.send-failed')}
                   </p>
                   <p className="text-muted-foreground text-xs mt-1">
-                    {errorDetail} {t('common.ai-setup-help.retry-hint')}
+                    {t('common.ai-setup-help.retry-hint')}
                   </p>
                 </div>
               )}

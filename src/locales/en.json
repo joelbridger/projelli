@@ -17,6 +17,8 @@
       "message-placeholder": "Tell me which step you're on, any error you see, and what you've tried.",
       "email-label": "Your email",
       "email-help": "(so I can write back)",
+      "dont-paste": "Don't paste your API key or password.",
+      "email-invalid": "That email doesn't look right.",
       "success": "Got it. I'll get back to you by email.",
       "send-failed": "Couldn't send your message.",
       "network-error": "Network error.",

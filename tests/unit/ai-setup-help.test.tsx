@@ -16,6 +16,7 @@ import {
   AiSetupHelpLink,
   AiSetupHelpDialog,
 } from '@/features/onboarding/AiSetupHelpLink';
+import { redactSecrets } from '@/platform/utils/redactSecrets';
 
 vi.mock('@/platform/utils/openExternal', () => ({
   openExternal: vi.fn(async () => {}),
@@ -177,5 +178,110 @@ describe('AiSetupHelpLink / AiSetupHelpDialog', () => {
     });
     fireEvent.click(screen.getByTestId('ai-setup-help-submit'));
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('shows the "do not paste your key" helper text', () => {
+    render(
+      <AiSetupHelpDialog
+        open
+        onOpenChange={vi.fn()}
+        provider="anthropic"
+        providerName="Claude"
+        context="ctx"
+      />,
+    );
+    expect(
+      screen.getByTestId('ai-setup-help-dont-paste'),
+    ).toBeInTheDocument();
+  });
+
+  it('redacts a pasted API key from the message before sending', async () => {
+    render(
+      <AiSetupHelpDialog
+        open
+        onOpenChange={vi.fn()}
+        provider="anthropic"
+        providerName="Claude"
+        context="ctx"
+      />,
+    );
+    const key = 'sk-ant-api03-' + 'A1b2C3d4'.repeat(12);
+    fireEvent.change(screen.getByTestId('ai-setup-help-message'), {
+      target: { value: `my key is ${key} and it fails` },
+    });
+    fireEvent.click(screen.getByTestId('ai-setup-help-submit'));
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+    const call = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(call[1].body as string) as Record<string, unknown>;
+    const sent = body['message'] as string;
+    expect(sent).not.toContain(key);
+    expect(sent).toContain('[redacted possible API key]');
+  });
+
+  it('caps an over-long message at the payload limit', async () => {
+    render(
+      <AiSetupHelpDialog
+        open
+        onOpenChange={vi.fn()}
+        provider="anthropic"
+        providerName="Claude"
+        context="ctx"
+      />,
+    );
+    // fireEvent.change bypasses the input maxLength, so this exercises the
+    // in-code cap (the real defense if a paste slips past the attribute).
+    fireEvent.change(screen.getByTestId('ai-setup-help-message'), {
+      target: { value: 'x'.repeat(5000) },
+    });
+    fireEvent.click(screen.getByTestId('ai-setup-help-submit'));
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+    const call = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(call[1].body as string) as Record<string, unknown>;
+    expect((body['message'] as string).length).toBeLessThanOrEqual(2000);
+  });
+
+  it('blocks submit and flags an invalid email', () => {
+    render(
+      <AiSetupHelpDialog
+        open
+        onOpenChange={vi.fn()}
+        provider="anthropic"
+        providerName="Claude"
+        context="ctx"
+      />,
+    );
+    fireEvent.change(screen.getByTestId('ai-setup-help-message'), {
+      target: { value: 'help please' },
+    });
+    fireEvent.change(screen.getByTestId('ai-setup-help-email'), {
+      target: { value: 'not-an-email' },
+    });
+    fireEvent.click(screen.getByTestId('ai-setup-help-submit'));
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(
+      screen.getByTestId('ai-setup-help-email-error'),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('redactSecrets', () => {
+  it('redacts Anthropic, OpenAI and Google keys', () => {
+    const anthropic = 'sk-ant-api03-' + 'Zz9'.repeat(20);
+    const openai = 'sk-' + 'aB3d'.repeat(12);
+    const google = 'AIza' + 'Cd5f'.repeat(10);
+    for (const key of [anthropic, openai, google]) {
+      const out = redactSecrets(`before ${key} after`);
+      expect(out).not.toContain(key);
+      expect(out).toContain('[redacted possible API key]');
+    }
+  });
+
+  it('leaves ordinary prose untouched', () => {
+    const text = "I can't connect and my key keeps failing on step 2.";
+    expect(redactSecrets(text)).toBe(text);
   });
 });
