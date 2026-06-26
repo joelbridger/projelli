@@ -37,6 +37,7 @@ import {
   downloadAuditJSON,
 } from '@/features/audit/audit-export';
 import { isAuditEncrypted } from '@/platform/audit/AuditService';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import {
   Button,
@@ -72,6 +73,9 @@ export interface AuditHomeProps {
 
 export function AuditHome({ entries, integrity, onVerifyIntegrity }: AuditHomeProps) {
   const { t } = useTranslation();
+  // Profession-aware entity word so the export note follows the practice
+  // (advisor → "clients", legal → "matters") instead of a hardcoded "matters".
+  const entityLabel = useEntityLabel();
   // ── Filter state ──────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -129,10 +133,10 @@ export function AuditHome({ entries, integrity, onVerifyIntegrity }: AuditHomePr
   }, [entries, deferredEffectiveTypes, deferredDateFrom, deferredDateTo, deferredModelFilter, matterIdFilter, deferredSearch]);
 
   const exportScopeLabel = useMemo(() => {
-    if (!matterIdFilter) return 'Exporting all matters.';
+    if (!matterIdFilter) return `Exporting all ${entityLabel.other}.`;
     const selected = availableMatterScopes.find((scope) => scope.matterId === matterIdFilter);
     return `Exporting ${selected?.label ?? matterIdFilter} only.`;
-  }, [availableMatterScopes, matterIdFilter]);
+  }, [availableMatterScopes, matterIdFilter, entityLabel.other]);
 
   const visibleEntries = filteredEntries.slice(0, visibleCount);
   const hasMore = visibleCount < filteredEntries.length;

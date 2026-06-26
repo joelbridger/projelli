@@ -23,7 +23,7 @@ import type { ChatMessage } from '@/platform/types/ai';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
-import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { getConfidentialityMode, useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import type { AskScope, AskTurn } from './askHelpers';
 import {
   hasCloudKey,
@@ -74,6 +74,12 @@ export function useAsk({
   const activeMatter = useActiveMatter();
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const profession = useProfessionStore((s) => s.profession);
+  // B-PRIV-1: subscribe to the confidentiality mode so the egress banner is
+  // reactive. The Search/Ask banner must recompute the moment the user switches
+  // mode in Settings — it can never keep claiming "nothing leaves" while the
+  // next query goes to the cloud. Drives both the EgressIndicator `mode` prop
+  // (passed from Ask) and the activeProvider re-resolution effect below.
+  const confidentialityMode = useConfidentialityMode();
   const isSampleMatterActive = activeMatter?.id === SAMPLE_MATTER_ID;
   // Profession-aware demo questions: a tax user on the sample matter sees tax
   // questions; a consultant sees consulting questions; legal is the default.
@@ -205,17 +211,26 @@ export function useAsk({
   // Keepance Local AI when it is ready (not a generic "Ollama"), and the local
   // engine in Local-only mode regardless of any cloud key. resolveActiveAskProviderId
   // mirrors buildResolvedAskProvider's destination decision so the two can't drift.
+  //
+  // B-PRIV-1: re-resolve whenever the confidentiality mode changes (not just on
+  // mount). Without this the badge stayed pinned to the mount-time engine — e.g.
+  // "keepance-local" — so flipping from Local-only to Cloud mid-session left the
+  // banner falsely claiming "nothing leaves" while the query went to the cloud.
+  // The cancellation guard drops a stale in-flight resolution if the mode flips
+  // again before it completes, so the displayed engine can't race backwards.
   useEffect(() => {
-    void (async () => {
-      try {
-        setActiveProvider(await resolveActiveAskProviderId());
-      } catch {
+    let cancelled = false;
+    void resolveActiveAskProviderId()
+      .then((resolved) => {
+        if (!cancelled) setActiveProvider(resolved);
+      })
+      .catch(() => {
         // Display-only: a failure resolving the badge NAME must never surface as
         // an unhandled rejection. Leave the badge at its current/default name —
         // it degrades gracefully (the send path has its own guards).
-      }
-    })();
-  }, []);
+      });
+    return () => { cancelled = true; };
+  }, [confidentialityMode]);
 
   // Derived: currently selected citation
   const selectedCite = (() => {
@@ -460,6 +475,13 @@ export function useAsk({
         providerId: resolvedProvider.providerId,
         model: resolvedProvider.model,
       };
+      // B-PRIV-1 (defense in depth): pin the egress banner to the engine this
+      // send ACTUALLY resolved to, so the badge can never disagree with where the
+      // request is about to go — even if the effective provider changed for a
+      // reason the mode-keyed effect above doesn't watch (e.g. a cloud key added
+      // mid-session). The banner reflects the real destination before the network
+      // call begins.
+      setActiveProvider(resolvedProvider.providerId);
 
       const emitSuccessfulEgress = () => {
         if (!providerAudit) return;
@@ -654,6 +676,7 @@ export function useAsk({
     status,
     savingIdx,
     activeProvider,
+    confidentialityMode,
     bottomRef,
     composerInputRef,
     recentSessions,

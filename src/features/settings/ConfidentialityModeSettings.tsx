@@ -5,9 +5,10 @@
  * glance (the adoption blocker is that lawyers can't *explain* where data goes;
  * seeing the range, with the active one marked, is the fix):
  *
- *   - Local-only  Only local models (Ollama) are usable; cloud providers are
- *                 disabled. Nothing leaves the machine. Selecting this
- *                 constrains the model picker elsewhere.
+ *   - Local-only  Only on-device models are usable (the built-in Keepance
+ *                 Local AI by default, or the user's own Ollama); cloud
+ *                 providers are disabled. Nothing leaves the machine.
+ *                 Selecting this constrains the model picker elsewhere.
  *   - Direct      Default. Your own key, straight to your chosen provider.
  *   - Assured     Selectable once the firm admin sets a managed key; routed
  *                 through the firm's zero-retention proxy (managed key + DPA).
@@ -59,7 +60,7 @@ const SOLO_CARDS: ModeCard[] = [
     icon: Laptop,
     title: 'On this computer only',
     blurb:
-      'Nothing leaves your machine. Only local models (Ollama) can be used; cloud providers are turned off. Use this for your most sensitive client work.',
+      'Nothing leaves your machine. Only on-device models can be used — the built-in Keepance Local AI, or your own Ollama — and cloud providers are turned off. Use this for your most sensitive client work.',
     accent: 'text-emerald-700 border-emerald-400 dark:text-emerald-300 dark:border-emerald-700',
   },
   {
@@ -192,8 +193,9 @@ export function ConfidentialityModeSettings() {
           className="mt-2 text-xs rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
         >
           On this computer only is on. Cloud providers are disabled in the chat
-          picker, so only local models (Ollama) can be used, and nothing leaves
-          your machine. Make sure Ollama is installed and running (Settings &rarr; Integrations).
+          picker, so only on-device models can be used and nothing leaves your
+          machine. Answers run on the built-in Keepance Local AI; you can also
+          use your own Ollama if you have it installed (Settings &rarr; Integrations).
         </p>
       )}
 
