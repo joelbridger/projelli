@@ -85,7 +85,10 @@ export function TrustBar() {
           full sentence ("On your machine. Nothing leaves.") never clips at any
           viewport width. The flex-shrink:0 wrapper prevents the pill from being
           squeezed by the sibling matter-scope label. */}
-      <div style={{ flexShrink: 0 }}>
+      {/* role=status + aria-live so a mid-session provider/mode switch is
+          announced to screen readers (the compact EgressIndicator variant
+          does not carry the live region the full variant does). */}
+      <div style={{ flexShrink: 0 }} role="status" aria-live="polite">
         <EgressIndicator provider={activeProvider} mode={confidentialityMode} variant="compact" className="max-w-none" />
       </div>
 

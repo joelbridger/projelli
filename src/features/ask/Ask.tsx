@@ -240,7 +240,7 @@ export function Ask(props: UseAskProps) {
                 body={
                   activeMatter?.id === SAMPLE_MATTER_ID
                     ? `This is a sample ${entityLabel.one}. Click a question below and see a cited answer. Click any citation to read the exact passage.`
-                    : 'Every answer cites the document and locator. Click any chip to read the exact passage.'
+                    : 'Every answer shows the exact document and page it came from. Click any chip to read the passage.'
                 }
                 actions={
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--kp-space-xs)', justifyContent: 'center', maxWidth: 480 }}>
@@ -256,11 +256,11 @@ export function Ask(props: UseAskProps) {
                         key={example}
                         size="md"
                         onClick={() => {
-                          if (activeMatter?.id === SAMPLE_MATTER_ID) {
-                            void handleAsk(example);
-                          } else {
-                            setQuestion(example);
-                          }
+                          // UX-28: a suggestion chip RUNS the search on click
+                          // (it used to only fill the box for non-sample matters,
+                          // which read as broken). Sample + real matters now behave
+                          // the same.
+                          void handleAsk(example);
                         }}
                       >
                         {example}
@@ -374,9 +374,11 @@ export function Ask(props: UseAskProps) {
             <SampleBridgeCallout />
           )}
 
-          {/* Error */}
+          {/* Error — announced to assistive tech (acc-04 / UX-29). */}
           {status === 'error' && errorMsg && (
             <div
+              role="status"
+              aria-live="polite"
               style={{
                 display: 'flex',
                 gap: 8,

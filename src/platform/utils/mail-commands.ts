@@ -8,6 +8,16 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { MailMatterMapEntry } from '@/platform/rag/matterResolver';
 
+/**
+ * True when a mail connect/sync error is the EXPECTED "this needs the desktop
+ * app" limitation (the wrappers below throw "... only available in the desktop
+ * app." in browser mode). The UI uses this to show a calm info note instead of
+ * a red "Something went wrong" alarm (UX-22).
+ */
+export function isDesktopOnlyMailError(message: string | null | undefined): boolean {
+  return !!message && /desktop app/i.test(message);
+}
+
 export interface DeviceCodePrompt { userCode: string; verificationUri: string; deviceCode: string; intervalSecs: number; expiresInSecs: number; }
 
 /** One attachment reference. `id` is a stable provider-specific id used to

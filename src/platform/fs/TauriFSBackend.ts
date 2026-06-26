@@ -358,8 +358,12 @@ export class TauriFSBackend implements FSBackend {
       const nodes: FileNode[] = [];
 
       for (const entry of entries) {
-        // Skip hidden files starting with .
-        if (entry.name.startsWith('.') && entry.name !== '.trash') {
+        // Only Keepance's own internal config folder is dropped here (and never
+        // recursed into); the UI's hiddenNodes helper hides it everywhere too.
+        // Ordinary dotfiles like .gitignore are NOT dropped at the backend — the
+        // UI / "Show Hidden Files" setting decides about those (matching the
+        // WebFS backend). The .trash folder keeps its existing handling.
+        if (entry.name === '.keepance') {
           continue;
         }
 
@@ -367,14 +371,16 @@ export class TauriFSBackend implements FSBackend {
         const entryPath = path ? `${path}/${entry.name}` : entry.name;
 
         if (entry.isDirectory) {
-          // Recursively list subdirectories
-          const children = await this.list(entryPath);
+          // Shallow (one level), exactly like WebFSBackend.list(). Real recursion
+          // is owned by WorkspaceService.listRecursive, which applies the .trash /
+          // dot-directory / symlink rules — so the backend never walks into a
+          // huge directory (e.g. .git) regardless of how list() is called.
           nodes.push({
             id: entryPath,
             name: entry.name,
             type: 'folder',
             path: entryPath,
-            children,
+            children: [],
           });
         } else if (entry.isFile) {
           nodes.push({

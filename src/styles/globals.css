@@ -39,6 +39,19 @@
   --kp-blue: #5dc6ff;
   --kp-grad: linear-gradient(135deg, #ff3ce8, #5dc6ff);
   --kp-accent: #1f74c4;
+  /* ---- Sidebar palette (light "calm fintech" sidebar — UX-07, approved
+     2026-06-26: light-gray over navy). Swap --kp-side-bg to #fff for the pure-
+     white variant; everything else (navy text, blue active highlight) is shared. ---- */
+  --kp-side-bg: #f3f6fb;
+  --kp-side-fg: #0a2540;
+  --kp-side-fg-dim: rgba(10,37,64,0.64);
+  --kp-side-fg-faint: rgba(10,37,64,0.46);
+  --kp-side-border: rgba(10,37,64,0.09);
+  --kp-side-active-bg: rgba(31,116,196,0.11);
+  --kp-side-accent: #1f74c4;
+  --kp-side-edge: rgba(10,37,64,0.08);
+  --kp-side-avatar-bg: rgba(31,116,196,0.13);
+  --kp-side-logo: #0a2540;
   --kp-local: #16654a; --kp-local-bg: #e6f0ea; --kp-local-line: #8fbca6;
   --kp-direct: #8a5410; --kp-direct-bg: #f6ecd6; --kp-direct-line: #d0ad6c;
   --kp-assured: #1b5e86; --kp-assured-bg: #e1eef6; --kp-assured-line: #8fbedb;
@@ -163,9 +176,17 @@
     outline: 2px solid var(--kp-accent, #1f74c4);
     outline-offset: 2px;
   }
-  /* On the navy spine the ring must be white to be visible. */
-  nav[aria-label="Primary"] button:focus-visible {
-    outline-color: rgba(255, 255, 255, 0.85);
+  /* The Primary sidebar is now light (UX-07), so the default accent-blue ring is
+     already visible there — no white-ring override needed. */
+  /* Keyboard focus ring on text inputs/selects (acc-02). The Ask/Search composer
+     and other inline-styled fields suppressed the default outline, leaving the
+     product's most-used control with no visible focus indicator. Advisors skew
+     older, so an obvious focus ring matters more than usual. */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--kp-accent, #1f74c4);
+    outline-offset: 2px;
   }
 }
 

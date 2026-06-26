@@ -18,6 +18,7 @@ import { Sparkles, X } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 import { hasDeferredAiSetup } from '@/features/onboarding/aiSetupState';
+import { useProfessionCopy } from '@/features/onboarding/useProfessionCopy';
 
 const SESSION_DISMISS_KEY = 'keepance_ai_setup_reminder_dismissed';
 
@@ -43,6 +44,7 @@ export interface AiSetupReminderProps {
 
 export function AiSetupReminder({ hasModelConnected, onConnect, className }: AiSetupReminderProps) {
   const [dismissed, setDismissed] = useState<boolean>(() => dismissedThisSession());
+  const professionCopy = useProfessionCopy();
 
   // Show only when: the user deferred, nothing is connected, and they have not
   // dismissed it this session.
@@ -70,8 +72,8 @@ export function AiSetupReminder({ hasModelConnected, onConnect, className }: AiS
       <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
       <div className="min-w-0 flex-1">
         <p className="leading-relaxed">
-          Connect your Claude or OpenAI account for the best results on legal work.
-          Local models are available but are less capable for legal analysis.
+          Connect your Claude or OpenAI account for the best results on {professionCopy.clientWorkNoun}.
+          Local models are available but are less capable for {professionCopy.complexWorkDesc}.
         </p>
         <button
           type="button"

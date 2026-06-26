@@ -70,9 +70,9 @@ const SECTIONS: Section[] = [
     heading: 'What Keepance is',
     body: (
       <p>
-        Keepance is a private intelligence layer for a law practice. It runs as a
-        desktop app on the lawyer&apos;s own machine. Documents, email, and matters stay
-        in local files the lawyer controls. Keepance answers questions across all of
+        Keepance is a private intelligence layer for your practice. It runs as a
+        desktop app on your own computer. Documents, email, and client records stay
+        in local files you control. Keepance answers questions across all of
         it and shows a citation you can open and check for every answer.
       </p>
     ),
@@ -85,8 +85,8 @@ const SECTIONS: Section[] = [
     body: (
       <>
         <p>
-          Your files stay on the lawyer&apos;s device. Keepance has no content server.
-          We never receive, store, or can read your matter data.
+          Your files stay on your own computer. Keepance has no content server.
+          We never receive, store, or can read your client records.
         </p>
         <p style={{ marginTop: '0.75rem', fontWeight: 600 }}>Data map (full detail below):</p>
       </>
@@ -304,7 +304,7 @@ export function FirmSecurityPackContent() {
         Keepance security overview for your firm&apos;s IT / General Counsel
       </h1>
       <p className="sub text-sm text-muted-foreground mb-4">
-        This is a plain-English summary of how Keepance handles a lawyer&apos;s
+        This is a plain-English summary of how Keepance handles your client
         data, written so your security and ethics reviewers can evaluate it
         quickly. Every claim here matches how the software actually works. If
         something isn&apos;t finished yet, I say so.

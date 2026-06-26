@@ -175,7 +175,7 @@
       "description": "Keepance is local-first. Your files, your AI prompts, and your account keys never leave your machine. Any opt-ins below are the only data Keepance ever collects, and all default to off.",
       "design-partner": {
         "title": "Design-partner diagnostics",
-        "description": "You are among the first lawyers using Keepance in practice. With this on, Keepance sends structured usage counts only: which features you use and where you get stuck. Never your content, file names, matter names, or prompts. Off by default; turn it off any time.",
+        "description": "You are among the first advisors using Keepance in practice. With this on, Keepance sends structured usage counts only: which features you use and where you get stuck. Never your content, file names, client names, or prompts. Off by default; turn it off any time.",
         "enabled": "Enabled",
         "disabled": "Disabled",
         "what-is-sent": "What is sent, exactly:",
@@ -183,7 +183,7 @@
         "field-workflow-id": "Which workflow template you ran (the template id, not the output).",
         "field-search-count": "How many searches you ran. No query text.",
         "field-install-id": "Your anonymous install id plus app version and platform.",
-        "endpoint-note": "Endpoint: keepance.com/api/forms/keepance/design-partner-event. Used only to improve the product for legal practice."
+        "endpoint-note": "Endpoint: keepance.com/api/forms/keepance/design-partner-event. Used only to improve the product for your practice."
       },
       "telemetry": {
         "title": "Anonymous usage stats",
@@ -789,8 +789,8 @@
     "scanned-low-title": "This passage was read from a scanned page by local OCR with low confidence. Open the source and verify before relying on it."
   },
   "model-download": {
-    "title": "Setting up private search",
-    "body": "Keepance is downloading its private search engine (about 465 MB), one time, from Hugging Face. You can keep working. Search and AI answers from your files switch on when it finishes.",
+    "title": "Setting up your private AI (1 of 2: search)",
+    "body": "Keepance is downloading the part that searches your files (about 465 MB), one time. You can keep working. Search and AI answers from your files switch on when it finishes.",
     "verifying": "Checking the downloaded files",
     "progress": "{{done}} MB of {{total}} MB",
     "progress-unknown": "{{done}} MB so far",
@@ -800,8 +800,8 @@
     "retry": "Resume download"
   },
   "local-ai-download": {
-    "title": "Downloading Keepance Local AI",
-    "body": "Keepance is downloading its private, on-device AI (about 2.4 GB), one time. You can keep working. It runs fully offline once it's ready.",
+    "title": "Setting up your private AI (2 of 2: the AI that writes answers)",
+    "body": "Keepance is downloading the part that writes answers (about 2.4 GB), one time. You can keep working. It runs fully offline once it's ready.",
     "verifying": "Checking the downloaded model",
     "progress": "{{done}} MB of {{total}} MB",
     "progress-unknown": "{{done}} MB so far",
@@ -1182,6 +1182,10 @@
       "checking": {
         "label": "Checking AI destination",
         "note": "Keepance is confirming where this request will go before sending."
+      },
+      "none": {
+        "label": "No AI connected",
+        "note": "Connect an AI provider to start getting answers."
       },
       "sending": "Sending to your AI provider"
     },

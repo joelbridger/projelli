@@ -207,11 +207,13 @@ describe('AiSetupReminder — WS5 BYOK-first nudge copy', () => {
     expect(reminder.textContent).toMatch(/Claude|OpenAI/i);
   });
 
-  it('reminder text mentions "legal work" or "legal analysis"', () => {
+  it('reminder names the work concretely, profession-aware (default advisor → "client work"), not legacy "legal" copy', () => {
     localStorage.setItem('keepance_ai_setup_deferred', 'true');
     render(<AiSetupReminder hasModelConnected={false} onConnect={vi.fn()} />);
     const reminder = screen.getByTestId('ai-setup-reminder');
-    expect(reminder.textContent).toMatch(/legal work|legal analysis/i);
+    // Default profession is 'advisor' → profession-aware copy via professionCopy.
+    expect(reminder.textContent).toMatch(/client work/i);
+    expect(reminder.textContent).not.toMatch(/legal work|legal analysis/i);
   });
 
   it('reminder text does NOT contain "whenever you are ready" (old generic copy)', () => {
@@ -344,10 +346,12 @@ describe('AiSetupStep — WS5 BYOK-first ordering and badges', () => {
     expect(ownAccount.textContent).not.toMatch(/when ready/i);
   });
 
-  it('BYOK badge reads "Recommended for legal work"', () => {
+  it('BYOK badge is profession-aware (default advisor → "Recommended for client work"), not legacy "legal work"', () => {
     renderStep();
     const ownAccount = screen.getByTestId('ai-path-own-account');
-    expect(ownAccount.textContent).toMatch(/Recommended for legal work/i);
+    // Default profession is 'advisor' → routed through professionCopy.clientWorkNoun.
+    expect(ownAccount.textContent).toMatch(/Recommended for client work/i);
+    expect(ownAccount.textContent).not.toMatch(/Recommended for legal work/i);
   });
 
   it('local card carries the quality caveat in its badge', () => {

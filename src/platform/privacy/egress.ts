@@ -40,6 +40,13 @@
 export type EgressProvider = string;
 
 /**
+ * Sentinel for "no AI provider is configured at all". The egress badge renders
+ * this as a neutral "No AI connected" state instead of guessing a provider.
+ * It is NOT a real provider id and never reaches `resolveEgress`'s routing.
+ */
+export const NO_AI_PROVIDER: EgressProvider = 'none';
+
+/**
  * Confidentiality mode (the visible "spectrum" the user can choose).
  *
  *   - 'local-only'  Only local models (Ollama) are usable; cloud providers are
@@ -175,7 +182,10 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
       destination: 'local',
       severity: 'safe',
       label: 'On your machine. No cloud AI',
-      note: `This runs on a local model (${providerDisplayName(localProvider)}). No AI prompt or file is sent to a cloud AI.`,
+      // Always-visible trust badge: name the engine in plain language
+      // ("Keepance Local AI"), never the developer tool ("Ollama") — the brand
+      // name only belongs in the advanced bring-your-own-runtime panel.
+      note: 'This runs on Keepance Local AI, a private model on your own computer. No AI prompt or file is sent to a cloud AI.',
       dataLeaves: false,
       provider: localProvider,
     };

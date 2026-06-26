@@ -156,7 +156,7 @@ export function OnboardingStepFrame({
     right: 0,
     bottom: 0,
     width: 2,
-    background: 'var(--kp-grad)',
+    background: 'var(--kp-accent)',
     opacity: 0.85,
   };
 
@@ -319,7 +319,7 @@ function StepItem({ index, label, done, active }: StepItemProps) {
     fontWeight: 700,
     flex: 'none',
     background: done
-      ? 'linear-gradient(135deg,#ff3ce8,#5dc6ff)'
+      ? 'var(--kp-accent)'
       : active
         ? 'rgba(93,198,255,0.22)'
         : 'rgba(255,255,255,0.10)',
@@ -343,7 +343,7 @@ function StepItem({ index, label, done, active }: StepItemProps) {
     width: 3,
     height: 18,
     borderRadius: 3,
-    background: 'var(--kp-grad)',
+    background: 'var(--kp-accent)',
     display: active ? 'block' : 'none',
   };
 

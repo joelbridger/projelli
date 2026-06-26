@@ -402,7 +402,7 @@ export function ApiKeyWizard({
         )}
 
         {!tutorialOnly && step === 3 && provider !== 'ollama' && (
-          <StepShell testid="api-key-wizard-step-3" title="Step 3. Paste your key" description="We'll store it in your OS keychain (or localStorage in browser mode).">
+          <StepShell testid="api-key-wizard-step-3" title="Step 3. Paste your key" description="Your key is stored securely on this computer and never leaves your machine.">
             <div className="space-y-3">
               <div className="relative">
                 <Input

@@ -48,8 +48,8 @@ export function AccountIdentity({ collapsed = false, onOpen }: AccountIdentityPr
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'rgba(255,255,255,0.12)',
-        color: '#fff',
+        background: 'var(--kp-side-avatar-bg)',
+        color: 'var(--kp-side-fg)',
         fontSize: 'var(--kp-font-2xs)',
         fontWeight: 'var(--kp-weight-bold)',
       }}
@@ -104,7 +104,7 @@ export function AccountIdentity({ collapsed = false, onOpen }: AccountIdentityPr
         padding: 'var(--kp-space-sm) var(--kp-space-md)',
         border: 0,
         background: 'transparent',
-        color: '#fff',
+        color: 'var(--kp-side-fg)',
         cursor: 'pointer',
         textAlign: 'left',
       }}
@@ -123,7 +123,7 @@ export function AccountIdentity({ collapsed = false, onOpen }: AccountIdentityPr
         >
           {name}
         </span>
-        <span style={{ display: 'block', fontSize: 'var(--kp-font-2xs)', color: 'rgba(255,255,255,0.55)' }}>
+        <span style={{ display: 'block', fontSize: 'var(--kp-font-2xs)', color: 'var(--kp-side-fg-faint)' }}>
           {sublabel}
         </span>
       </span>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { gmailConnect, gmailIsConnected, gmailDisconnect, mailSyncAll, mailCancelSync } from '@/platform/utils/mail-commands';
+import { gmailConnect, gmailIsConnected, gmailDisconnect, mailSyncAll, mailCancelSync, isDesktopOnlyMailError } from '@/platform/utils/mail-commands';
 import { useMailSync } from '@/features/email/useMailSync';
 import { useMailStore } from '@/features/email/mailStore';
 import { getMatters } from '@/platform/matter/matterStore';
@@ -76,7 +76,7 @@ export function MailGmailConnect() {
 
   return (
     <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
-      <h3 className="text-sm font-semibold text-slate-900">Gmail (native)</h3>
+      <h3 className="text-sm font-semibold text-slate-900">Gmail</h3>
       <p className="mt-1 text-sm text-slate-600">
         Signs in with your Google account directly. Your email stays on this device and never
         leaves your machine. Requires the Keepance desktop app.
@@ -84,16 +84,26 @@ export function MailGmailConnect() {
 
       {!connected && (
         <div className="mt-3 space-y-3">
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
           <p className="text-xs text-slate-500">
-            A browser window will open to sign in to Google. You may see an "unverified app"
-            notice (this is expected while in testing). Choose Continue.
+            A browser window will open to sign in to Google. Google will ask you to confirm
+            access to Keepance. This is normal. Choose Continue.
           </p>
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
 
-          {connectError && (
-            <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-800">
-              <p className="text-red-700 font-medium">Something went wrong: {connectError}</p>
-            </div>
-          )}
+          {connectError &&
+            (isDesktopOnlyMailError(connectError) ? (
+              /* Expected limitation in the web preview — a calm info note, not a
+                 red alarm (UX-22). */
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+                <p>Email connects in the Keepance desktop app.</p>
+              </div>
+            ) : (
+              <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-800">
+                <p className="text-red-700 font-medium">Something went wrong: {connectError}</p>
+              </div>
+            ))}
 
           <button
             type="button"

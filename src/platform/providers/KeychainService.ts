@@ -2,6 +2,7 @@
 // Secure API key storage with multiple backend support
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import { notifyEgressConfigChange } from '@/platform/privacy/egressConfigEvents';
 
 export type KeyProvider = 'anthropic' | 'openai' | 'google';
 
@@ -343,6 +344,8 @@ export class KeychainService {
       lastUsed: new Date(),
     });
     this.saveMetadata();
+    // Let the always-visible egress trust badge re-resolve immediately.
+    notifyEgressConfigChange();
   }
 
   /**
@@ -352,6 +355,7 @@ export class KeychainService {
     await this.backend.delete(provider);
     this.metadata.delete(provider);
     this.saveMetadata();
+    notifyEgressConfigChange();
   }
 
   /**

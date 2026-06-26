@@ -22,6 +22,7 @@ import {
   resolveEgress,
   isLocalProvider,
   providerDisplayName,
+  NO_AI_PROVIDER,
   CONFIDENTIALITY_MODE_SETTING_KEY,
   DEFAULT_CONFIDENTIALITY_MODE,
 } from '@/platform/privacy/egress';
@@ -112,9 +113,15 @@ describe('resolveEgress (the single source of truth)', () => {
     expect(info.note).not.toMatch(/Ollama/);
   });
 
-  it('Ollama local note still names Ollama (no regression)', () => {
+  it('Ollama-backed local note never surfaces "Ollama" in the always-visible trust badge', () => {
     const info = resolveEgress({ provider: 'ollama', mode: 'direct' });
-    expect(info.note).toMatch(/\(Ollama\)/);
+    // The trust badge is always on screen for a non-technical advisor: it must
+    // read as a private on-device model, never name the developer tool "Ollama"
+    // (UX-05 — that jargon belongs only in the advanced bring-your-own-runtime panel).
+    expect(info.note).not.toMatch(/Ollama/);
+    expect(info.note).toMatch(/private model on your own computer/i);
+    // The internal provider id is unchanged — only the rendered copy adapts.
+    expect(info.provider).toBe('ollama');
   });
 
   it('both local providers are recognised as local; cloud is not', () => {
@@ -151,6 +158,18 @@ describe('EgressIndicator', () => {
     const note = screen.getByTestId('egress-indicator-note').textContent || '';
     expect(note).toMatch(/Keepance Local AI/);
     expect(note).not.toMatch(/Ollama/);
+  });
+
+  it('shows a neutral "No AI connected" badge (no guessed provider) when nothing is configured', () => {
+    // UX-01: the always-visible trust badge must be honest — when there is no
+    // configured provider it says "No AI connected", never a guessed provider.
+    setMode('direct');
+    render(<EgressIndicator provider={NO_AI_PROVIDER} />);
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.getAttribute('data-destination')).toBe('none');
+    expect(el.getAttribute('data-data-leaves')).toBe('false');
+    expect(el.getAttribute('role')).toBe('status');
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/no ai connected/i);
   });
 
   it('BLOCKER regression: an unset-provider chat with the local model ready shows data-destination=local (never "data leaves")', () => {

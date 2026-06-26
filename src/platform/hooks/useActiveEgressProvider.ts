@@ -1,47 +1,131 @@
 /**
- * useActiveEgressProvider — derive the active AI provider for any egress surface.
+ * useActiveEgressProvider — derive the HONEST active AI provider for any egress
+ * surface (the trust bar, Privacy Center, and any other display that lives
+ * outside a specific chat, so there is no "active chat provider" to read).
  *
- * The trust bar, privacy center, and any other egress display live outside a
- * specific chat, so there is no "active chat provider" to read. This hook
- * derives the truthful provider value from what the user has actually configured,
- * in priority order:
+ * The egress badge is the product's #1 trust signal, so it must never name a
+ * provider the user can't actually send to, and it must agree with what Ask
+ * actually does. Ask resolves the active provider from KEY PRESENCE via
+ * `KeychainService.hasKey()` (askHelpers.ts) — on desktop the real keys live in
+ * the OS keychain, and the legacy `apiKey_*` localStorage keys are migrated away.
+ * So this hook reads key presence from the SAME source (KeychainService), NOT
+ * from localStorage, or the badge would show "No AI connected" on desktop while
+ * Ask happily sends with the keychain key. Resolution, in priority order:
  *
  *   1. local-only mode => always 'ollama' (nothing leaves regardless of config).
- *   2. First cloud provider for which the user has saved an API key in
- *      localStorage, checked in the same order the settings UI presents providers:
- *      anthropic > openai > google.
- *   3. Fallback: 'anthropic' (the most common default; resolveEgress labels it
- *      accurately, so this only fires when no key exists yet).
+ *   2. The user's saved default provider — but ONLY if a key for it exists.
+ *   3. Otherwise, the first cloud provider that has a key, in the same order the
+ *      settings UI presents them: anthropic > openai > google.
+ *   4. Otherwise the 'none' sentinel — rendered as a neutral "No AI connected"
+ *      badge, never a guessed provider.
  *
- * Used by TrustBar, PrivacyCenterHome, and any future surface that needs the
- * honest resolved provider — single source of truth so all indicators agree.
+ * Reactivity: keys change through KeychainService.setKey/deleteKey (which call
+ * `notifyEgressConfigChange()`), and the cross-tab `storage` event covers other
+ * tabs, so the badge updates the moment a key is added or removed mid-session.
  */
 
-import { useMemo } from 'react';
-import type { EgressProvider } from '@/platform/privacy/egress';
+import { useEffect, useRef, useState } from 'react';
+import { NO_AI_PROVIDER, type EgressProvider } from '@/platform/privacy/egress';
+import { KeychainService } from '@/platform/providers/KeychainService';
+import {
+  EGRESS_CONFIG_CHANGE_EVENT,
+  notifyEgressConfigChange,
+} from '@/platform/privacy/egressConfigEvents';
+
+// Re-export so existing importers keep working; the canonical home is
+// egressConfigEvents (KeychainService imports it there to avoid a cycle).
+export { EGRESS_CONFIG_CHANGE_EVENT, notifyEgressConfigChange };
+
+const CLOUD_ORDER = ['anthropic', 'openai', 'google'] as const;
+
+function readDefaultProvider(): string | null {
+  try {
+    return localStorage.getItem('keepance_default_provider');
+  } catch {
+    return null;
+  }
+}
+
+/** Shared resolution given a key-presence predicate. */
+function resolveFrom(mode: string, hasKey: (p: string) => boolean): EgressProvider {
+  if (mode === 'local-only') return 'ollama';
+  const def = readDefaultProvider();
+  // Honor the saved default only when it actually has a key behind it.
+  if ((def === 'anthropic' || def === 'openai' || def === 'google') && hasKey(def)) {
+    return def;
+  }
+  for (const p of CLOUD_ORDER) {
+    if (hasKey(p)) return p;
+  }
+  return NO_AI_PROVIDER;
+}
+
+/**
+ * Synchronous best-effort resolution from the key METADATA mirror
+ * (`getStoredKeys`), which is kept in localStorage on every platform — including
+ * desktop, where the secret itself lives in the OS keychain. Used as the hook's
+ * initial value so the badge does not flash "No AI connected" before the
+ * authoritative async check resolves. Exported for non-React reads/tests.
+ */
+export function resolveActiveEgressProviderSync(mode: string): EgressProvider {
+  if (mode === 'local-only') return 'ollama';
+  let present = new Set<string>();
+  try {
+    present = new Set(new KeychainService().getStoredKeys().map((k) => k.provider));
+  } catch {
+    // KeychainService unavailable — fall through to "no provider".
+  }
+  return resolveFrom(mode, (p) => present.has(p));
+}
+
+/**
+ * Authoritative resolution using the EXACT key source Ask sends with
+ * (`KeychainService.hasKey`: backend — OS keychain on desktop — plus env keys),
+ * so the badge and the actual send can never disagree.
+ */
+export async function resolveActiveEgressProvider(mode: string): Promise<EgressProvider> {
+  if (mode === 'local-only') return 'ollama';
+  const kc = new KeychainService();
+  const present = new Set<string>();
+  for (const p of CLOUD_ORDER) {
+    try {
+      if (await kc.hasKey(p)) present.add(p);
+    } catch {
+      // Probe failed for this provider — treat as absent.
+    }
+  }
+  return resolveFrom(mode, (p) => present.has(p));
+}
 
 export function useActiveEgressProvider(mode: string): EgressProvider {
-  return useMemo(() => {
-    if (mode === 'local-only') return 'ollama';
-    // Prefer the user's explicitly chosen default provider — the same value the
-    // model picker and the Ask surface use — so every egress indicator agrees
-    // (fixes the trust bar showing a different provider than the Ask).
-    try {
-      const def = localStorage.getItem('keepance_default_provider');
-      if (def === 'anthropic' || def === 'openai' || def === 'google') return def;
-    } catch {
-      // localStorage may be unavailable in some environments; fall through.
-    }
-    const order: EgressProvider[] = ['anthropic', 'openai', 'google'];
-    for (const p of order) {
-      try {
-        if (localStorage.getItem(`apiKey_${p}`)) return p;
-      } catch {
-        // localStorage may be unavailable in some environments; fall through.
-      }
-    }
-    return 'anthropic';
-  // Re-derive when the confidentiality mode changes; localStorage is not
-  // reactive, but provider selection is stable within a session.
+  const requestIdRef = useRef(0);
+  const [provider, setProvider] = useState<EgressProvider>(() =>
+    resolveActiveEgressProviderSync(mode),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const update = () => {
+      // Tag this resolution so a slower earlier async check can't overwrite the
+      // badge with stale state after a newer change (e.g. rapid key add/remove).
+      const requestId = ++requestIdRef.current;
+      // Instant, flicker-free best-effort from the metadata mirror...
+      setProvider(resolveActiveEgressProviderSync(mode));
+      // ...then correct it with the authoritative key-presence check (keychain
+      // on desktop), so the badge matches exactly what Ask would send with.
+      void resolveActiveEgressProvider(mode).then((p) => {
+        if (!cancelled && requestId === requestIdRef.current) setProvider(p);
+      });
+    };
+    update();
+    window.addEventListener(EGRESS_CONFIG_CHANGE_EVENT, update);
+    window.addEventListener('storage', update);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(EGRESS_CONFIG_CHANGE_EVENT, update);
+      window.removeEventListener('storage', update);
+    };
   }, [mode]);
+
+  return provider;
 }

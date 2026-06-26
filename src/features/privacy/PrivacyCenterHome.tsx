@@ -18,6 +18,7 @@ import { DataMapContent } from '@/platform/privacy/ui/DataMapDialog';
 import { VaultControlCard } from '@/features/firm/vault/VaultControlCard';
 import { ConfidentialityReportDialog } from '@/platform/privacy/ui/ConfidentialityReportDialog';
 import { buildConfidentialityReport } from '@/platform/privacy/confidentialityReport';
+import { getEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
@@ -39,7 +40,7 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
   const buildReport = useCallback((): ConfidentialityReport => {
     return buildConfidentialityReport(auditEntries, {
       matterId: activeMatter?.id ?? null,
-      matterName: activeMatter?.name ?? 'All matters',
+      matterName: activeMatter?.name ?? `All ${getEntityLabel().other}`,
       generatedAt: new Date().toISOString(),
     });
   }, [auditEntries, activeMatter]);

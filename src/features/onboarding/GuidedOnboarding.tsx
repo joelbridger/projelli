@@ -321,7 +321,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
           <li key={title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <span style={{
               width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 2,
-              background: 'linear-gradient(135deg,#ff3ce8,#5dc6ff)',
+              background: 'var(--kp-accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <Check size={12} color="#fff" />
@@ -619,7 +619,7 @@ function TrustStep({ onBack, onNext }: { onBack: () => void; onNext: () => void 
           <li key={bullet} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <span style={{
               width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 1,
-              background: 'linear-gradient(135deg,#ff3ce8,#5dc6ff)',
+              background: 'var(--kp-accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <Check size={12} color="#fff" />
@@ -1338,7 +1338,7 @@ function GradientButton({ children, style, ...rest }: GradientButtonProps) {
       type="button"
       {...rest}
       style={{
-        background: 'linear-gradient(135deg,#ff3ce8,#5dc6ff)',
+        background: 'var(--kp-accent)',
         color: '#fff',
         border: 'none',
         borderRadius: 8,

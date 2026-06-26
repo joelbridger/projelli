@@ -13,6 +13,8 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   get gmailDisconnect() { return mockGmailDisconnect; },
   get mailSyncAll() { return mockMailSyncAll; },
   get mailCancelSync() { return mockMailCancelSync; },
+  // Pure helper used to choose info-note vs error tone (UX-22).
+  isDesktopOnlyMailError: (m: string | null | undefined) => !!m && /desktop app/i.test(m),
 }));
 vi.mock('@/features/email/useMailSync', () => ({ useMailSync: () => {} }));
 
@@ -67,6 +69,19 @@ describe('MailGmailConnect', () => {
     expect(screen.getByText(/auth failed/i)).toBeInTheDocument();
     // Should not have transitioned to connected state.
     expect(screen.queryByText(/connected\./i)).not.toBeInTheDocument();
+  });
+
+  it('shows a calm info note (not a red alarm) for the desktop-only limitation — UX-22', async () => {
+    mockGmailConnect.mockRejectedValue(new Error('Email connect is only available in the desktop app.'));
+
+    render(<MailGmailConnect />);
+    await waitFor(() => expect(mockGmailIsConnected).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole('button', { name: /connect gmail/i }));
+
+    expect(await screen.findByText(/email connects in the keepance desktop app/i)).toBeInTheDocument();
+    // The alarm framing must NOT be used for an expected limitation.
+    expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument();
   });
 
   it('shows Connected immediately when gmailIsConnected resolves true on mount', async () => {

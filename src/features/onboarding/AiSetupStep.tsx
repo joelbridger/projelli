@@ -177,7 +177,7 @@ function ChooseView({
           icon={Cloud}
           tone="text-sky-700 bg-sky-50"
           title="Connect your AI provider account"
-          badge="Recommended for legal work"
+          badge={`Recommended for ${professionCopy.clientWorkNoun}`}
           prominent
           body={`Connect your Claude, OpenAI, or Gemini account with a few clicks. We walk you through it step by step. Your AI usage goes straight to your provider. ${professionCopy.estimatedCostDesc}`}
           onClick={onPickOwnAccount}
@@ -187,7 +187,7 @@ function ChooseView({
           icon={Laptop}
           tone="text-emerald-700 bg-emerald-50"
           title="Keep everything on your computer"
-          badge="Maximum privacy. Less capable for legal work."
+          badge={`Maximum privacy. Less capable for ${professionCopy.clientWorkNoun}.`}
           body="Run a free AI model on your own machine with a tool called Ollama. Nothing is sent over the internet, not even to an AI company. We will check whether it is installed and help you if it is not."
           onClick={onPickLocal}
         />
@@ -501,7 +501,7 @@ function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
   return (
     <div className="space-y-5" data-testid="ai-setup-local-view">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight" style={{ color: 'var(--kp-navy)' }}>Maximum privacy. Less capable for legal work.</h2>
+        <h2 className="text-3xl font-bold tracking-tight" style={{ color: 'var(--kp-navy)' }}>{`Maximum privacy. Less capable for ${professionCopy.clientWorkNoun}.`}</h2>
         <p className="text-base text-muted-foreground mt-1">
           Run the AI on your own machine. Nothing is sent over the internet, not
           even to an AI company.
@@ -510,8 +510,7 @@ function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
 
       <div className="rounded-lg border border-border bg-emerald-50/60 p-4 text-sm text-foreground leading-relaxed space-y-2">
         <p>
-          Local models keep everything on your machine, but are meaningfully less capable for legal drafting
-          and analysis than Claude or GPT. Most attorneys use their own cloud key.
+          Local models keep everything on your machine, but are meaningfully less capable for {professionCopy.complexWorkDesc} than Claude or GPT. Most {professionCopy.peerNoun} use their own cloud key.
           This uses a free tool called <span className="font-medium">Ollama</span> that runs an AI model
           directly on your computer. Nothing ever leaves your machine, and it is a good fit for {professionCopy.sensitiveWorkDesc}.
           A fast computer helps.

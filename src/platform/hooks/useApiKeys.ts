@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import type { APIKey } from '@/platform/types';
+import { notifyEgressConfigChange } from '@/platform/privacy/egressConfigEvents';
 
 interface UseApiKeysReturn {
   apiKeys: APIKey[];
@@ -28,12 +29,15 @@ export function useApiKeys(): UseApiKeysReturn {
     });
     // In production, this would be stored in secure keychain
     localStorage.setItem(`apiKey_${provider}`, key);
+    // Let the always-visible egress badge re-resolve immediately.
+    notifyEgressConfigChange();
   }, []);
 
   // Handle deleting API key
   const handleDeleteApiKey = useCallback((provider: 'anthropic' | 'openai' | 'google') => {
     setApiKeys((prev) => prev.filter((k) => k.provider !== provider));
     localStorage.removeItem(`apiKey_${provider}`);
+    notifyEgressConfigChange();
   }, []);
 
   // Load API keys from localStorage on mount
