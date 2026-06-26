@@ -307,7 +307,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     type: 'select',
     defaultValue: 'direct',
     options: [
-      { value: 'local-only', label: 'Local-only (nothing leaves)' },
+      { value: 'local-only', label: 'Local-only (no cloud AI)' },
       { value: 'direct', label: 'Direct (your key, your provider)' },
       { value: 'assured', label: 'Assured (firm managed key)' },
     ],

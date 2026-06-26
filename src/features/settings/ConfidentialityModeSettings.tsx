@@ -5,9 +5,10 @@
  * glance (the adoption blocker is that lawyers can't *explain* where data goes;
  * seeing the range, with the active one marked, is the fix):
  *
- *   - Local-only  Only on-device models are usable (the built-in Keepance
- *                 Local AI by default, or the user's own Ollama); cloud
- *                 providers are disabled. Nothing leaves the machine.
+ *   - Local-only  Documents and prompts are never sent to a cloud AI: only
+ *                 on-device models are usable (the built-in Keepance Local AI
+ *                 by default, or the user's own Ollama) and cloud AI providers
+ *                 are disabled. (User-authorized connectors still sync.)
  *                 Selecting this constrains the model picker elsewhere.
  *   - Direct      Default. Your own key, straight to your chosen provider.
  *   - Assured     Selectable once the firm admin sets a managed key; routed
@@ -60,7 +61,7 @@ const SOLO_CARDS: ModeCard[] = [
     icon: Laptop,
     title: 'On this computer only',
     blurb:
-      'Nothing leaves your machine. Only on-device models can be used — the built-in Keepance Local AI, or your own Ollama — and cloud providers are turned off. Use this for your most sensitive client work.',
+      'AI runs on your machine: your documents and prompts are never sent to a cloud AI. Cloud AI providers are turned off and only on-device models are used — the built-in Keepance Local AI, or your own Ollama. Connectors you have set up still sync. Use this for your most sensitive client work.',
     accent: 'text-emerald-700 border-emerald-400 dark:text-emerald-300 dark:border-emerald-700',
   },
   {
@@ -192,10 +193,11 @@ export function ConfidentialityModeSettings() {
           data-testid="confidentiality-local-active-note"
           className="mt-2 text-xs rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
         >
-          On this computer only is on. Cloud providers are disabled in the chat
-          picker, so only on-device models can be used and nothing leaves your
-          machine. Answers run on a local model — the built-in Keepance Local AI
-          when it's ready, or your own Ollama (Settings &rarr; Integrations).
+          On this computer only is on. Your documents and prompts are never sent
+          to a cloud AI — answers run on a local model on your machine (the
+          built-in Keepance Local AI when it&rsquo;s ready, or your own Ollama).
+          Cloud AI providers are disabled in the chat picker. Connectors you have
+          set up still sync.
         </p>
       )}
 

@@ -21,6 +21,7 @@
 
 import { getInstallId } from './installId';
 import { getTelemetryConsent } from '@/platform/hooks/useTelemetryConsent';
+import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 
 const ENDPOINT = 'https://keepance.com/api/forms/keepance/app-event';
 const SENT_KEY = 'keepance_telemetry_sent_events';
@@ -50,6 +51,10 @@ function getAppVersion(): string {
 
 export async function sendEvent(event: string, fields: EventFields = {}): Promise<void> {
   if (getTelemetryConsent() !== 'enabled') return;
+  // Local-only kill-switch: never make an outbound telemetry call when the user
+  // has chosen "nothing leaves this device". Silent skip (fire-and-forget) —
+  // checked here, AFTER any await would be, as the last line before the fetch.
+  if (isLocalOnlyMode()) return;
   const body: Record<string, string> = {
     install_id: getInstallId(),
     app_version: getAppVersion(),

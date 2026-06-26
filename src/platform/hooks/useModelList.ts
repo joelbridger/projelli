@@ -10,6 +10,8 @@ import {
   clearModelCache,
   getDefaultModels,
 } from '@/platform/providers/ModelListService';
+import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 
 interface ApiKeyEntry {
   provider: ProviderType;
@@ -33,19 +35,41 @@ export function useModelList(apiKeys: ApiKeyEntry[]): UseModelListReturn {
 
   // Track previous keys to avoid refetching on every render
   const prevKeysRef = useRef<string>('');
+  // Re-run the effect when the confidentiality mode changes (so switching OUT of
+  // Local-only re-fetches live model lists, and switching IN drops to defaults).
+  const confidentialityMode = useConfidentialityMode();
 
   // Fetch models for all providers with keys on mount / key change
   useEffect(() => {
-    const keysSerialized = apiKeys.map(k => `${k.provider}:${k.key}`).sort().join('|');
+    // Local-only kill-switch: never call provider model-list APIs — that sends the
+    // API key off-device. In Local-only we fall back to the built-in default lists
+    // (no network). The dedup key uses a 'local-only' sentinel so toggling the mode
+    // re-runs this effect (it is also in the dep list).
+    const localOnly = isLocalOnlyMode();
+    const keysSerialized = localOnly
+      ? 'local-only'
+      : apiKeys.map(k => `${k.provider}:${k.key}`).sort().join('|');
     if (keysSerialized === prevKeysRef.current) return;
     prevKeysRef.current = keysSerialized;
 
     let cancelled = false;
     const providers: ProviderType[] = ['anthropic', 'openai', 'google'];
 
-    setIsLoading(true);
-
     const fetchAll = async () => {
+      setIsLoading(true);
+      // Local-only: drop straight to the built-in defaults, no provider API call.
+      if (localOnly) {
+        if (!cancelled) {
+          setModels({
+            anthropic: getDefaultModels('anthropic'),
+            openai: getDefaultModels('openai'),
+            google: getDefaultModels('google'),
+          });
+          setIsLoading(false);
+        }
+        return;
+      }
+
       const results: Partial<Record<ProviderType, ModelInfo[]>> = {};
 
       await Promise.all(
@@ -72,9 +96,15 @@ export function useModelList(apiKeys: ApiKeyEntry[]): UseModelListReturn {
     fetchAll();
 
     return () => { cancelled = true; };
-  }, [apiKeys]);
+  }, [apiKeys, confidentialityMode]);
 
   const refreshProvider = useCallback(async (provider: ProviderType, apiKey: string) => {
+    // Local-only kill-switch: a manual refresh also sends the API key off-device.
+    // Skip the external call and keep the built-in defaults.
+    if (isLocalOnlyMode()) {
+      setModels(prev => ({ ...prev, [provider]: getDefaultModels(provider) }));
+      return;
+    }
     const freshModels = await refreshModels(provider, apiKey);
     setModels(prev => ({ ...prev, [provider]: freshModels }));
   }, []);

@@ -20,7 +20,7 @@ import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import type { Provider } from '@/platform/providers/Provider';
-import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
+import { isLocalOnlyMode, assertCloudGenerationAllowed, assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import {
@@ -317,6 +317,12 @@ Rules:
   if (options?.signal !== undefined) {
     sendOpts.signal = options.signal;
   }
+  // Race guard (Ask's gold pattern): buildResolvedProviderForGlance checks the
+  // mode only at its START, then awaits keychain reads. Re-check the CURRENT mode
+  // here — AFTER all awaits, immediately before the send — so a flip to Local-only
+  // mid-resolve can never send this client's context to the cloud. Throws for a
+  // cloud provider in Local-only; a resolved local provider (ollama) passes.
+  assertLocalOnlyAllowsSend(resolvedProvider.providerId);
   const response = await provider.sendMessage(
     'Summarize this client for the advisor.',
     sendOpts,

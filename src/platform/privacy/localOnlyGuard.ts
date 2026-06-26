@@ -57,6 +57,44 @@ export function assertLocalOnlyAllowsSend(provider: string): void {
 }
 
 /**
+ * Thrown when an EXTERNAL (off-device) operation is attempted while Local-only
+ * mode is on. Distinct from `LocalOnlyEgressError` (which is about routing an AI
+ * provider send): this covers operations that have NO on-device equivalent and
+ * must simply not run in Local-only — connector syncs (Wealthbox, mail), model
+ * downloads / model-list refresh (sends API keys), telemetry, diagnostics, and
+ * fan-out runs that issue cloud calls. The UI surfaces the message so the user
+ * knows why the action is disabled.
+ */
+export class LocalOnlyExternalError extends Error {
+  constructor(op: string) {
+    super(
+      `Local-only mode is on, so "${op}" can't run — it would contact a service ` +
+        `off your device. Turn off Local-only mode in the Privacy Center to use it.`,
+    );
+    this.name = 'LocalOnlyExternalError';
+  }
+}
+
+/**
+ * Fail-closed guard for any EXTERNAL (off-device) operation that has NO on-device
+ * equivalent (connector syncs, model download / model-list refresh, telemetry,
+ * diagnostics, cloud fan-out). Throws `LocalOnlyExternalError` when Local-only is
+ * on.
+ *
+ * Call this IMMEDIATELY before the external call and AFTER every `await`, so a
+ * confidentiality-mode flip mid-operation can't slip a call through (the same
+ * race the Ask path closes with `assertLocalOnlyAllowsSend`). `op` is a short
+ * human label used in the thrown message. Surfaces (buttons, auto-effects) should
+ * ALSO check `isLocalOnlyMode()` up front to disable/skip the action; this guard
+ * is the last-line enforcement that makes the kill-switch airtight.
+ */
+export function assertLocalOnlyAllowsExternal(op: string): void {
+  if (isLocalOnlyMode()) {
+    throw new LocalOnlyExternalError(op);
+  }
+}
+
+/**
  * Thrown when a personal install attempts cloud AI generation before the user
  * has made an explicit, informed confidentiality choice via the Privacy Center.
  * The chat/ask UI surfaces this message through the existing catch-block path

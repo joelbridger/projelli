@@ -28,6 +28,8 @@ vi.mock('@/platform/clientMap/provider', () => ({
 
 import { buildClientMap } from '@/platform/clientMap/generator';
 import { CLIENT_MAP_SECTION_ITEM_CAP } from '@/platform/clientMap/updater';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 
 const hit = (path: string, text: string): RagHit => ({ path, chunkText: text, score: 0.9, paragraphIndex: 0, id: `${path}#0`, sourceId: path, matterId: 'm1' });
 const distinctFacts = [
@@ -56,6 +58,8 @@ const distinctFacts = [
 beforeEach(() => {
   retrieveMock.mockReset();
   sendMock.mockReset();
+  // Default to a non-local-only mode so the existing tests' cloud provider sends.
+  useSettingsStore.setState({ values: {} });
 });
 
 describe('buildClientMap', () => {
@@ -132,6 +136,19 @@ describe('buildClientMap', () => {
     expect(map.completeness.ask).toContainEqual({ text: 'What is the filing deadline?', sectionKey: 'upcoming' });
     // Unknown / invalid section names fall back to 'standing'.
     expect(map.completeness.ask).toContainEqual({ text: 'Who signed the lease?', sectionKey: 'standing' });
+  });
+
+  it('Local-only: never sends Client Map context to a cloud provider (race guard)', async () => {
+    // The provider mock resolves to a CLOUD provider ('anthropic') — the exact
+    // race outcome where the mode flips to Local-only after a cloud provider was
+    // resolved. The immediately-before-send guard must block the send.
+    retrieveMock.mockResolvedValue([hit('/a.docx', 'fact')]);
+    sendMock.mockResolvedValue({ content: JSON.stringify({ items: [] }) });
+    useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'local-only');
+
+    await expect(buildClientMap('m1')).rejects.toThrow(/local-only/i);
+    // The load-bearing privacy assertion: no cloud send ever happened.
+    expect(sendMock).not.toHaveBeenCalled();
   });
 
   it('still accepts a plain list of gap question strings (defaults them to standing)', async () => {
