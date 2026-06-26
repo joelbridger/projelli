@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **`crm_disconnect` refactored for testability + best-effort token deletion (pre-merge re-review).**
+  - Extracted the disconnect body into `pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult` so integration tests can drive the full real disconnect path without a Tauri runtime.
+  - Token deletion is now best-effort: if the OS keychain is momentarily unavailable the function pushes a warning and sets `token_deleted=false` but continues to purge the local data and returns the structured result. `crm_disconnect` essentially never returns `Err`.
+  - Rewrote `crm_purge_e2e_removes_both_db_rows_and_rag_chunks` in `tests/crm_fixture_import.rs` to call `crm_disconnect_logic` instead of calling the raw `delete_source_type`/`CrmStore::purge` helpers directly. The test now catches wiring regressions (e.g. disconnect not reading the workspace from state).
+  - Post-purge RAG assertion re-opens a fresh connection so it sees the deletion made by the disconnect logic's internal connection (Lance MVCC snapshot isolation).
+  - Files: `src-tauri/src/commands/crm/commands.rs`, `src-tauri/tests/crm_fixture_import.rs`.
+  - Verify: `cargo build --lib` → clean; `cargo test --test crm_fixture_import` → 3/3 PASS; `cargo test --lib -- commands::crm` → 45/45 PASS.
 - **Wealthbox re-review fixes (4 findings, frontend-only — no cargo).** Pre-merge Codex re-review pass; trust-critical changes.
   - **Fix #1 (BLOCKER) — CRM workspace wired in useMemoryWiring.** `crmSetWorkspace(rootPath)` is now called alongside `MemoryService.setWorkspace` and `mailSetWorkspace` in the per-workspace lifecycle in `src/platform/hooks/useMemoryWiring.ts`. Previously `crmSetWorkspace` had no caller, so `crm_sync_all` always returned "workspace not set" and `crm_disconnect` could not purge CRM data. Regression test added: `tests/unit/crm-workspace-wiring.test.tsx` — 3 tests mount the hook with `isTauri()=true` and assert `crmSetWorkspace` is called with the root path.
   - **Fix #2-UI (HIGH) — disconnect now shows honest result.** `crmDisconnect()` in `src/platform/utils/wealthbox-commands.ts` now returns `Promise<CrmDisconnectResult>` (`invoke<CrmDisconnectResult>('crm_disconnect')`). New `CrmDisconnectResult` interface exported (`tokenDeleted`, `ragPurged`, `crmDbPurged`, `warnings`). The disconnect handler in `WealthboxConnect.tsx` shows "Disconnected and deleted the imported Wealthbox data from this device." only when `ragPurged && crmDbPurged`; otherwise shows an honest warning: "Disconnected and removed the key, but some imported data could not be deleted: [details]. Open the workspace and disconnect again to finish removing it."

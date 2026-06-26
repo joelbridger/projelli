@@ -296,29 +296,33 @@ pub async fn crm_is_connected() -> Result<bool, String> {
     Ok(read_token().is_some())
 }
 
-/// Remove the stored Wealthbox API token from the OS keychain and purge all
-/// locally-imported Wealthbox data from this device (RAG chunks + encrypted
-/// CRM object store).  Returns a `CrmDisconnectResult` that reports exactly
-/// what was and was not deleted — the UI must use these flags to show an
-/// honest status rather than always claiming "deleted imported data".
+/// Core disconnect logic — extracted for testability so integration tests can
+/// drive the full disconnect path without a Tauri runtime.
 ///
-/// Contract:
-/// - Token deletion always happens first; `Err` is returned **only** if the
-///   keychain call itself fails catastrophically.
-/// - Purge steps are best-effort: on failure a warning string is added to
-///   `result.warnings` and the remaining steps still run.
-/// - If no workspace is set, both purge flags stay `false` and a warning is
-///   pushed explaining that imported data could not be located.
-/// - A durable audit entry is appended after the purge (best-effort, workspace
-///   must be set; if unset, audit is skipped gracefully).
-#[tauri::command]
-pub async fn crm_disconnect(state: State<'_, CrmState>) -> Result<CrmDisconnectResult, String> {
+/// Reads the workspace from `state`, deletes the Wealthbox API token
+/// (best-effort: a keychain failure sets `token_deleted=false` and adds a
+/// warning, but does **not** abort — the local data purge always proceeds),
+/// purges RAG `source_type='crm'` chunks, purges the CRM database file, and
+/// emits a durable audit entry.  Returns a `CrmDisconnectResult` that reports
+/// exactly what happened; essentially never propagates `Err`.
+///
+/// A wiring regression (e.g. disconnect not reading the workspace from state,
+/// or the purge helpers not being called) is caught by tests that call this
+/// function and assert on the purge flags + the data being gone.
+pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult {
     let mut result = CrmDisconnectResult::default();
 
-    // Always delete the token first — the definitive disconnect action.
-    // Only propagate as Err if this step itself fails.
-    delete_token()?;
-    result.token_deleted = true;
+    // Best-effort token deletion: a keychain failure is reported as a warning
+    // but must NOT prevent the local data purge from running.  The user's
+    // imported data is always deleted regardless of keychain availability;
+    // token_deleted reports honestly whether the API key was also removed.
+    match delete_token() {
+        Ok(()) => result.token_deleted = true,
+        Err(e) => {
+            log::warn!("crm_disconnect: token deletion failed (non-fatal): {e}");
+            result.warnings.push(format!("API key could not be removed from keychain: {e}"));
+        }
+    }
 
     let workspace = state.workspace.lock().await.clone();
     if let Some(ref ws) = workspace {
@@ -356,7 +360,21 @@ pub async fn crm_disconnect(state: State<'_, CrmState>) -> Result<CrmDisconnectR
         // Audit skipped gracefully — no workspace path to open the store at.
     }
 
-    Ok(result)
+    result
+}
+
+/// Remove the stored Wealthbox API token from the OS keychain and purge all
+/// locally-imported Wealthbox data from this device (RAG chunks + encrypted
+/// CRM object store).  Returns a `CrmDisconnectResult` that reports exactly
+/// what was and was not deleted — the UI must use these flags to show an
+/// honest status rather than always claiming "deleted imported data".
+///
+/// Thin wrapper over `crm_disconnect_logic`.  Token deletion is best-effort:
+/// a momentarily unavailable keychain no longer blocks the local data purge.
+/// Essentially never returns `Err`.
+#[tauri::command]
+pub async fn crm_disconnect(state: State<'_, CrmState>) -> Result<CrmDisconnectResult, String> {
+    Ok(crm_disconnect_logic(&state).await)
 }
 
 /// Open the workspace RAG table and delete every chunk with source_type = 'crm'.

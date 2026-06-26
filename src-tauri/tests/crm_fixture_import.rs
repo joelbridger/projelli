@@ -169,34 +169,55 @@ async fn delete_source_type_removes_all_crm_chunks() {
     );
 }
 
-/// True end-to-end purge: CRM database rows AND RAG index chunks are both gone.
+/// True end-to-end purge exercising the REAL `crm_disconnect_logic` path.
+///
+/// This test catches wiring regressions — e.g. disconnect not reading the
+/// workspace from `CrmState`, or the purge helpers not being called — that
+/// direct low-level helper calls would miss.
 ///
 /// Steps:
-/// 1. Opens a `CrmStore` with a literal test key (no OS keychain).
-/// 2. Upserts a household row and a contact row via `upsert_object`.
-/// 3. Inserts `source_type='crm'` RAG chunks via `build_batch_crm`.
-/// 4. Runs the full purge: `delete_source_type("crm")` then `CrmStore::purge`.
-/// 5. Asserts the CRM store is empty: `list_household_ids()` returns nothing
-///    (or the DB file is gone — `purge` removes it).
-/// 6. Asserts the RAG store has zero `source_type='crm'` chunks.
+/// 1. Constructs a `CrmState` with the temp workspace set directly on it
+///    (equivalent to what `crm_set_workspace` does at runtime).
+/// 2. Seeds the CRM DB via `CrmStore::open_with_key` + `upsert_object`.
+/// 3. Seeds `source_type='crm'` RAG chunks via `build_batch_crm`.
+/// 4. Calls `crm_disconnect_logic(&state)` — the same code path the Tauri
+///    command runs — NOT the raw helpers directly.
+/// 5. Asserts `result.rag_purged == true` and `result.crm_db_purged == true`.
+///    (`result.token_deleted` may be false in a headless CI environment with
+///    no working keychain — that is expected; we assert on the DATA purge.)
+/// 6. Asserts the CRM store is empty (re-opening after purge yields no rows).
+/// 7. Asserts the RAG store has zero `source_type='crm'` chunks.
 #[tokio::test]
 async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
     use arrow_array::RecordBatchIterator;
+    use keepance_lib::commands::crm::commands::{CrmState, crm_disconnect_logic};
     use keepance_lib::commands::crm::store::CrmStore;
     use keepance_lib::commands::rag::chunker::chunk_text;
     use keepance_lib::commands::rag::embedder::EMBEDDING_DIM;
     use keepance_lib::commands::rag::store::{self, build_batch_crm, PRIVILEGE_NONE};
 
     const E2E_MATTER: &str = "matter-e2e-purge";
-    // Deterministic literal key — bypasses the OS keychain.
+    // Deterministic literal key for the CRM store — bypasses the OS keychain.
     const CRM_KEY: [u8; 32] = [0xAAu8; 32];
 
     let workspace = tempfile::tempdir().expect("workspace tempdir");
-    let ws = workspace.path();
+    let ws = workspace.path().to_path_buf();
 
-    // ── 1 & 2: Insert CRM DB rows ────────────────────────────────────────────
+    // ── 1: Construct CrmState with workspace pre-set ─────────────────────────
+    // Setting workspace.lock() directly is equivalent to what crm_set_workspace
+    // does at runtime: `*state.workspace.lock().await = Some(PathBuf::from(path))`.
+    let state = CrmState {
+        workspace: tokio::sync::Mutex::new(Some(ws.clone())),
+        is_syncing: Arc::new(AtomicBool::new(false)),
+        cancel: Arc::new(AtomicBool::new(false)),
+        last_report: tokio::sync::Mutex::new(None),
+    };
+
+    // ── 2: Seed the CRM DB rows ───────────────────────────────────────────────
     {
-        let crm = CrmStore::open_with_key(ws, &CRM_KEY).expect("open crm store");
+        let crm = CrmStore::open_with_key(&ws, &CRM_KEY).expect("open crm store");
         crm.upsert_object(
             "household:7001",
             "household",
@@ -216,13 +237,13 @@ async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
         )
         .expect("upsert contact");
 
-        // Confirm rows are present before purge.
+        // Confirm rows are present before the disconnect call.
         let hids = crm.list_household_ids().expect("list_household_ids");
-        assert_eq!(hids.len(), 1, "one household id must exist before purge");
+        assert_eq!(hids.len(), 1, "one household id must exist before disconnect");
     } // CrmStore dropped — connection closed.
 
-    // ── 3: Insert RAG chunks ─────────────────────────────────────────────────
-    let conn = store::open_connection(ws).await.expect("open vector store");
+    // ── 3: Seed RAG chunks with source_type='crm' ────────────────────────────
+    let conn = store::open_connection(&ws).await.expect("open vector store");
     let table = store::open_or_create_table(&conn)
         .await
         .expect("open chunks table");
@@ -242,7 +263,7 @@ async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
         .await
         .expect("add rag chunks");
 
-    // Confirm RAG chunks are present before purge.
+    // Confirm RAG chunks are present before the disconnect call.
     let hits_before = store::nearest(
         &table,
         &vec![0.2f32; EMBEDDING_DIM],
@@ -252,32 +273,55 @@ async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
         &[],
     )
     .await
-    .expect("nearest before purge");
+    .expect("nearest before disconnect");
     assert!(
         hits_before.iter().any(|h| h.source_type.as_deref() == Some("crm")),
-        "at least one crm rag chunk must exist before purge"
+        "at least one crm rag chunk must exist before disconnect"
     );
 
-    // ── 4: Run the full purge ─────────────────────────────────────────────────
-    store::delete_source_type(&table, "crm")
-        .await
-        .expect("delete_source_type(crm)");
-    CrmStore::purge(ws).expect("CrmStore::purge");
+    // ── 4: Drive the REAL disconnect path ────────────────────────────────────
+    // crm_disconnect_logic reads the workspace from CrmState, purges the RAG
+    // store and the CRM DB, and emits the durable audit — exactly what the
+    // Tauri `crm_disconnect` command calls.  A wiring regression (e.g. the
+    // workspace not being read, or a purge step not being called) is caught here.
+    let result = crm_disconnect_logic(&state).await;
 
-    // ── 5: Assert CRM DB is empty ─────────────────────────────────────────────
-    // `purge` deletes the DB file; re-opening creates a fresh empty store.
-    let crm_after = CrmStore::open_with_key(ws, &CRM_KEY).expect("reopen after purge");
+    // ── 5: Assert purge flags ─────────────────────────────────────────────────
+    // token_deleted may be false in a headless CI environment with no usable
+    // keychain — that is expected and acceptable; we only assert on the DATA
+    // purge to keep the test portable.
+    assert!(
+        result.rag_purged,
+        "crm_disconnect_logic must set rag_purged=true; warnings: {:?}",
+        result.warnings
+    );
+    assert!(
+        result.crm_db_purged,
+        "crm_disconnect_logic must set crm_db_purged=true; warnings: {:?}",
+        result.warnings
+    );
+
+    // ── 6: Assert CRM DB is empty ─────────────────────────────────────────────
+    // purge() deletes the DB file; re-opening creates a fresh empty store.
+    let crm_after = CrmStore::open_with_key(&ws, &CRM_KEY).expect("reopen crm after disconnect");
     let hids_after = crm_after
         .list_household_ids()
-        .expect("list_household_ids after purge");
+        .expect("list_household_ids after disconnect");
     assert!(
         hids_after.is_empty(),
-        "no households should remain in CrmStore after purge; got: {hids_after:?}"
+        "no households should remain in CrmStore after disconnect; got: {hids_after:?}"
     );
 
-    // ── 6: Assert no source_type='crm' RAG chunks remain ─────────────────────
+    // ── 7: Assert zero source_type='crm' RAG chunks remain ───────────────────
+    // Re-open the connection + table after disconnect so we get a fresh view of
+    // the Lance file — the disconnect logic opens its own internal connection
+    // when it deletes, so querying the old handle would see a stale snapshot.
+    let conn2 = store::open_connection(&ws).await.expect("reopen vector store after disconnect");
+    let table2 = store::open_or_create_table(&conn2)
+        .await
+        .expect("reopen chunks table after disconnect");
     let hits_after = store::nearest(
-        &table,
+        &table2,
         &vec![0.2f32; EMBEDDING_DIM],
         20,
         Some(E2E_MATTER),
@@ -285,13 +329,13 @@ async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
         &[],
     )
     .await
-    .expect("nearest after purge");
+    .expect("nearest after disconnect");
     let remaining_crm = hits_after
         .iter()
         .filter(|h| h.source_type.as_deref() == Some("crm"))
         .count();
     assert!(
         remaining_crm == 0,
-        "no crm chunks should survive purge; got {remaining_crm} remaining"
+        "no crm chunks should survive disconnect; got {remaining_crm} remaining"
     );
 }
