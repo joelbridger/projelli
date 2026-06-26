@@ -11,6 +11,8 @@ const h = vi.hoisted(() => ({
   mode: 'direct' as string,
   defaultProvider: '',
   defaultModel: '',
+  // Embedded Keepance Local AI status as local_llm_model_status() would report.
+  localStatus: 'absent' as string,
   keys: {
     anthropic: 'sk-ant-test' as string | null,
     openai: null as string | null,
@@ -71,6 +73,20 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
     getMetadata() { return { model: 'ollama-test' }; }
   },
 }));
+vi.mock('@/platform/providers/KeepanceLocalProvider', () => ({
+  KeepanceLocalProvider: class {
+    kind = 'keepance-local';
+    getMetadata() { return { model: 'qwen3-4b' }; }
+  },
+}));
+// Drive local_llm_model_status() per-test; keep every other tauri-command real.
+vi.mock('@/platform/utils/tauri-commands', async (orig) => {
+  const actual = await orig<typeof import('@/platform/utils/tauri-commands')>();
+  return {
+    ...actual,
+    localLlmModelStatus: vi.fn(async () => h.localStatus),
+  };
+});
 vi.mock('@/platform/providers/KeychainService', () => ({
   // Always has an Anthropic cloud key available.
   KeychainService: vi.fn().mockImplementation(function () {
@@ -86,13 +102,14 @@ import {
   isLocalOnlyMode,
   LocalOnlyEgressError,
 } from '@/platform/privacy/localOnlyGuard';
-import { buildProviderAsync } from '@/features/ask/askHelpers';
+import { buildProviderAsync, buildResolvedAskProvider } from '@/features/ask/askHelpers';
 
 describe('localOnlyGuard (A1)', () => {
   beforeEach(() => {
     h.mode = 'direct';
     h.defaultProvider = '';
     h.defaultModel = '';
+    h.localStatus = 'absent';
     h.keys = { anthropic: 'sk-ant-test', openai: null, google: null };
     localStorage.clear();
   });
@@ -132,12 +149,44 @@ describe('localOnlyGuard (A1)', () => {
 describe('Ask buildProviderAsync honours local-only (A1)', () => {
   beforeEach(() => {
     h.mode = 'direct';
+    h.defaultProvider = '';
+    h.defaultModel = '';
+    h.localStatus = 'absent';
+    h.keys = { anthropic: 'sk-ant-test', openai: null, google: null };
+    localStorage.clear();
   });
 
   it('returns the LOCAL provider in local-only mode even when a cloud key exists', async () => {
     h.mode = 'local-only';
     const provider = (await buildProviderAsync()) as unknown as { kind: string };
     expect(provider.kind).toBe('ollama');
+  });
+
+  it('prefers the EMBEDDED Keepance Local AI in local-only mode when the model is ready', async () => {
+    // The live Windows-bench gap: a fresh install with the embedded model ready
+    // must use it for Ask/Search, NOT route to an external Ollama that is not
+    // installed (which failed with "I couldn't reach your AI provider").
+    h.mode = 'local-only';
+    h.localStatus = 'ready';
+    const resolved = await buildResolvedAskProvider();
+    expect(resolved.providerId).toBe('keepance-local');
+    expect((resolved.provider as unknown as { kind: string }).kind).toBe('keepance-local');
+  });
+
+  it('falls back to Ollama in local-only mode ONLY when the embedded model is absent', async () => {
+    h.mode = 'local-only';
+    h.localStatus = 'absent';
+    const resolved = await buildResolvedAskProvider();
+    expect(resolved.providerId).toBe('ollama');
+  });
+
+  it('prefers the embedded model on a personal install with no cloud key (not local-only)', async () => {
+    // The no-cloud-key fallback path must prefer the on-device model too.
+    h.mode = 'direct';
+    h.keys = { anthropic: null, openai: null, google: null };
+    h.localStatus = 'ready';
+    const resolved = await buildResolvedAskProvider();
+    expect(resolved.providerId).toBe('keepance-local');
   });
 
   it('uses the cloud provider (key present) when not in local-only mode', async () => {
