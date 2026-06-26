@@ -51,7 +51,13 @@ export function WealthboxConnect() {
   useEffect(() => {
     if (progress?.status === 'syncing') {
       setSyncing(true);
-    } else if (progress?.status === 'done' || progress?.status === 'error') {
+    } else if (
+      progress?.status === 'done' ||
+      progress?.status === 'error' ||
+      progress?.status === 'cancelled'
+    ) {
+      // All three are terminal — a cancelled run must release the UI too, or the
+      // Stop button leaves it stuck on "Syncing…" with Disconnect disabled.
       setSyncing(false);
     }
   }, [progress?.status]);
@@ -313,6 +319,13 @@ export function WealthboxConnect() {
             )}
             {!syncing && progress?.status === 'done' && !lastSyncReport && (
               <p className="text-slate-600">Sync complete.</p>
+            )}
+            {!syncing && progress?.status === 'cancelled' && (
+              <p className="text-slate-600">
+                Sync stopped.
+                {lastSyncReport &&
+                  ` ${lastSyncReport.householdsProcessed.toLocaleString()} households imported before stopping.`}
+              </p>
             )}
             {progress?.status === 'error' && (
               <p className="text-red-700">Sync ran into a problem. Try again.</p>
