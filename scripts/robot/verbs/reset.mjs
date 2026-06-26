@@ -231,7 +231,14 @@ export async function resetToSeed(page, { mode = 'fast' } = {}) {
 
     // 2. Restore the frozen workspace (extract -> verify -> atomic swap). The
     //    bench-side script re-guards and only swaps after verifying the extract.
-    const restored = restoreSnapshot();
+    //    Wrap so a thrown re-guard (e.g. a transient SSH miss) becomes a clean
+    //    failure return rather than an unhandled throw after the app was killed.
+    let restored;
+    try {
+      restored = restoreSnapshot();
+    } catch (e) {
+      restored = { ok: false, error: String(e.message || e) };
+    }
     if (!restored || restored.ok !== true) {
       return {
         ok: false, mode, restored, removed: [], remaining: 0,

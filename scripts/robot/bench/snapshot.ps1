@@ -69,7 +69,7 @@ try {
   if ($Action -eq 'Status') {
     $exists = Test-Path -LiteralPath $Archive
     $bytes = Get-FileSize $Archive
-    $manifestPath = [regex]::Replace($Archive, '\.tar$', '.manifest.json')
+    $manifestPath = [regex]::Replace($Archive, '(?i)\.tar$', '.manifest.json')
     if ($manifestPath -eq $Archive) { $manifestPath = "$Archive.manifest.json" }
     $manifest = $null
     if (Test-Path -LiteralPath $manifestPath) {
@@ -111,14 +111,18 @@ try {
       Emit @{ ok = $false; error = 'refusing to restore: archive is empty (0 bytes)' }; exit 1
     }
 
-    # --- Integrity: if a manifest with a sha256 is present, the archive MUST match
-    #     it (catches truncation / corruption / a swapped-in wrong file). ---
-    $manifestPath = [regex]::Replace($Archive, '\.tar$', '.manifest.json')
+    # --- Integrity: if a manifest is present, the archive MUST match its sha256
+    #     (catches truncation / corruption / a swapped-in wrong file). A present-
+    #     but-unparseable manifest is treated as suspicious and REFUSED (fail-closed). ---
+    $manifestPath = [regex]::Replace($Archive, '(?i)\.tar$', '.manifest.json')
     if ($manifestPath -eq $Archive) { $manifestPath = "$Archive.manifest.json" }
     if (Test-Path -LiteralPath $manifestPath) {
       $m = $null
       try { $m = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json } catch { $m = $null }
-      if ($m -and $m.sha256) {
+      if (-not $m) {
+        Emit @{ ok = $false; error = "refusing to restore: manifest present but unreadable ($manifestPath)" }; exit 1
+      }
+      if ($m.sha256) {
         $actual = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash
         if ($actual -ne $m.sha256) {
           Emit @{ ok = $false; error = "refusing to restore: archive sha256 mismatch vs manifest (corrupt/wrong archive)"; expected = $m.sha256; actual = $actual }; exit 1
@@ -148,20 +152,42 @@ try {
       Emit @{ ok = $false; error = "refusing to swap: extracted snapshot has no documents (skeleton?)" }; exit 1
     }
 
-    # --- Swap with rollback: move the OLD workspace aside, move staged in, and
-    #     restore the old one if the move fails — so the canonical path is never
-    #     left empty by a failed replace. ---
+    # --- Swap with guarded rollback (hardened per Codex review). Use a UNIQUE
+    #     backup path (never clobber a prior backup), and on a failed staged move
+    #     clear any partial $WsRoot before rolling back so the backup REPLACES it
+    #     rather than landing inside it. If rollback itself fails, keep the backup
+    #     and report it loudly — never silently lose the workspace. ---
     if (-not (Test-Path -LiteralPath $wsParent)) { New-Item -ItemType Directory -Force -Path $wsParent | Out-Null }
-    $backup = "$WsRoot.bak-restore"
-    Remove-Hard $backup
-    if (Test-Path -LiteralPath $WsRoot) { Move-Item -LiteralPath $WsRoot -Destination $backup -Force }
+    $hadOriginal = Test-Path -LiteralPath $WsRoot
+    $backup = "$WsRoot.bak-restore-$([guid]::NewGuid().ToString('n'))"
+    $backupCreated = $false
     try {
+      if ($hadOriginal) {
+        Move-Item -LiteralPath $WsRoot -Destination $backup -Force
+        $backupCreated = $true
+      }
       Move-Item -LiteralPath $staged -Destination $WsRoot -Force
     } catch {
-      if (Test-Path -LiteralPath $backup) { Move-Item -LiteralPath $backup -Destination $WsRoot -Force }
+      $swapError = $_.Exception.Message
+      $rollbackOk = $false
+      $rollbackError = $null
+      if ($backupCreated -and (Test-Path -LiteralPath $backup)) {
+        try {
+          if (Test-Path -LiteralPath $WsRoot) { Remove-Hard $WsRoot } # clear any partial staged move
+          Move-Item -LiteralPath $backup -Destination $WsRoot -Force
+          $rollbackOk = Test-Path -LiteralPath $WsRoot
+        } catch {
+          $rollbackError = $_.Exception.Message
+        }
+      } elseif (-not $hadOriginal) {
+        $rollbackOk = $true # nothing to roll back to; canonical was absent to begin with
+      }
       Remove-Hard $tempRoot
-      Emit @{ ok = $false; error = "swap failed, rolled back to original workspace: $($_.Exception.Message)" }; exit 1
+      # Keep the backup if rollback failed, so the workspace stays recoverable.
+      Emit @{ ok = $false; error = 'swap failed'; swapError = $swapError; rollbackOk = $rollbackOk; rollbackError = $rollbackError; backup = $backup }
+      exit 1
     }
+    # Success: drop the backup + temp.
     Remove-Hard $backup
     Remove-Hard $tempRoot
 
