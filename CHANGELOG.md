@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Wealthbox `background_info` field now syncs (real-data bug found during seeding).** The live Wealthbox API returns the contact background field as `background_info`, but `model.rs` deserialized only `background_information`, so the Background text silently dropped on sync. Added `#[serde(alias = "background_info")]` (reads both names; documented `background_information` stays the primary name, so no fixture/test breaks) plus a guard test. Files: `src-tauri/src/commands/crm/model.rs`.
 - **`crm_disconnect` refactored for testability + best-effort token deletion (pre-merge re-review).**
   - Extracted the disconnect body into `pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult` so integration tests can drive the full real disconnect path without a Tauri runtime.
   - Token deletion is now best-effort: if the OS keychain is momentarily unavailable the function pushes a warning and sets `token_deleted=false` but continues to purge the local data and returns the structured result. `crm_disconnect` essentially never returns `Err`.

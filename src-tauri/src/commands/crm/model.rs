@@ -140,6 +140,11 @@ pub struct WbContact {
     pub marital_status: String,
     pub contact_type: String,
     pub status: String,
+    // Wealthbox's live API returns this as `background_info`; the alias reads
+    // BOTH names so the real Background text actually syncs (it was silently
+    // dropping before). `background_information` stays the primary name so
+    // existing fixtures/tests are unaffected.
+    #[serde(alias = "background_info")]
     pub background_information: String,
     pub important_information: String,
     pub personal_interests: String,
@@ -244,6 +249,21 @@ pub struct WbEvent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn background_info_alias_populates_background_information() {
+        // The live Wealthbox API returns this field as `background_info`, not the
+        // documented `background_information`. The serde alias must accept it so
+        // the real Background text is not silently dropped on sync.
+        let json = r#"{ "id": 42, "type": "person", "background_info": "Loyal client; prefers email." }"#;
+        let c: WbContact = serde_json::from_str(json).expect("parse contact with background_info");
+        assert_eq!(c.background_information, "Loyal client; prefers email.");
+
+        // The documented primary name must still parse (no fixture/test breakage).
+        let json2 = r#"{ "id": 43, "type": "person", "background_information": "Primary name still works." }"#;
+        let c2: WbContact = serde_json::from_str(json2).expect("parse with background_information");
+        assert_eq!(c2.background_information, "Primary name still works.");
+    }
 
     // ── realistic fixture JSON (shaped like documented Wealthbox responses) ──
 
