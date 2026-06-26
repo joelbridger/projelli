@@ -13,8 +13,7 @@ import type { RagHit } from '@/platform/utils/tauri-commands';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
-import { OllamaProvider } from '@/platform/providers/OllamaProvider';
-import { KeepanceLocalProvider } from '@/platform/providers/KeepanceLocalProvider';
+import { resolveLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import { localLlmModelStatus } from '@/platform/utils/tauri-commands';
 import { mailGetMessage } from '@/platform/utils/mail-commands';
 import { KeychainService } from '@/platform/providers/KeychainService';
@@ -148,35 +147,14 @@ export async function hasCloudKey(): Promise<boolean> {
 /**
  * The local engine the Ask / Search surface should use when no cloud provider is
  * chosen: the embedded Keepance Local AI when it is downloaded and READY,
- * otherwise the user's own Ollama daemon. Mirrors the Client Map + onboarding
- * resolution (Codex #4) so every surface prefers the on-device model
- * consistently — and so Local-only mode is honest about WHICH local model runs
- * (a fresh install with the embedded model ready must NOT fail with "couldn't
- * reach your AI provider" because Ollama isn't installed).
- *
- * `localLlmModelStatus` is desktop-only and returns 'absent' off-desktop; any
- * non-ready result (or a thrown error) falls back to Ollama.
+ * otherwise the user's own Ollama daemon. Delegates to the shared resolver so
+ * every surface (Ask / Chat / Client Map / Glance / email / workflows) prefers
+ * the same on-device engine — and so Local-only mode is honest about WHICH local
+ * model runs (a fresh install with the embedded model ready must NOT fail with
+ * "couldn't reach your AI provider" because Ollama isn't installed).
  */
 export async function resolveLocalAskProvider(): Promise<ResolvedAskProvider> {
-  try {
-    if ((await localLlmModelStatus()) === 'ready') {
-      const provider = new KeepanceLocalProvider({});
-      return {
-        provider,
-        providerId: 'keepance-local',
-        model: provider.getMetadata().model,
-      };
-    }
-  } catch {
-    // Desktop-only command unavailable or the status probe failed — fall back to
-    // the user's own Ollama daemon below. Nothing leaves the machine either way.
-  }
-  const provider = new OllamaProvider({});
-  return {
-    provider,
-    providerId: 'ollama',
-    model: provider.getMetadata().model,
-  };
+  return await resolveLocalGenerationProvider();
 }
 
 /**

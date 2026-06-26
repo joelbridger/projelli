@@ -16,9 +16,7 @@ import { KeychainService } from '@/platform/providers/KeychainService';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
-import { OllamaProvider } from '@/platform/providers/OllamaProvider';
-import { KeepanceLocalProvider } from '@/platform/providers/KeepanceLocalProvider';
-import { localLlmModelStatus } from '@/platform/utils/tauri-commands';
+import { resolveLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import type { Provider } from '@/platform/providers/Provider';
 import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
@@ -53,24 +51,15 @@ export interface ResolvedClientMapProvider {
 }
 
 /**
- * The on-device provider for the Client Map: prefer the embedded Keepance Local
- * AI engine when its model is downloaded + ready, and fall back to a user-run
- * Ollama daemon otherwise. Both keep ALL inference on the user's machine — this
- * only changes WHICH local engine runs, never whether anything leaves. The
- * model-status probe is desktop-only, so any failure falls through to Ollama.
+ * The on-device provider for the Client Map: the embedded Keepance Local AI
+ * engine when its model is downloaded + ready, else a user-run Ollama daemon.
+ * Delegates to the shared resolver so every surface (Ask / Chat / Client Map /
+ * Glance / email / workflows) picks the same on-device engine. Both keep ALL
+ * inference on the user's machine — this only changes WHICH local engine runs,
+ * never whether anything leaves.
  */
 async function resolveLocalProviderForClientMap(): Promise<ResolvedClientMapProvider> {
-  try {
-    if ((await localLlmModelStatus()) === 'ready') {
-      const provider = new KeepanceLocalProvider({});
-      return { provider, providerId: 'keepance-local', model: provider.getMetadata().model };
-    }
-  } catch {
-    // localLlmModelStatus is only available in the desktop app; off-desktop or
-    // on any error, fall back to Ollama (unchanged behaviour).
-  }
-  const provider = new OllamaProvider({});
-  return { provider, providerId: 'ollama', model: provider.getMetadata().model };
+  return await resolveLocalGenerationProvider();
 }
 
 /**

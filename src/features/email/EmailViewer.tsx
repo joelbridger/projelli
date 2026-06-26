@@ -57,7 +57,7 @@ import { createKeychainService } from '@/platform/providers/KeychainService';
 import { createClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { createOpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { createGeminiProvider } from '@/platform/providers/GeminiProvider';
-import { OllamaProvider } from '@/platform/providers/OllamaProvider';
+import { resolveLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import { isLocalOnlyMode, assertCloudGenerationAllowed, assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import type { Provider } from '@/platform/providers/Provider';
 import { matterLabel } from '@/platform/rag/matterResolver';
@@ -112,8 +112,10 @@ export async function buildProviderAsync(): Promise<Provider> {
   // BUG-021 (privacy): "Draft with AI" sends the email body to the provider, so
   // it must honour Local-only mode — force the local model instead of picking a
   // cloud key, so an email never leaves the machine when the indicator says so.
+  // F-503 — the local engine is the embedded Keepance Local AI when ready, else
+  // Ollama (the same on-device resolution Ask / Chat / Client Map use).
   if (isLocalOnlyMode()) {
-    return new OllamaProvider({});
+    return (await resolveLocalGenerationProvider()).provider;
   }
   // Personal-install choice gate (Task 1.3): email draft generation is cloud generation,
   // so block it until the user has made an explicit confidentiality choice. Gate ONLY on
@@ -136,7 +138,9 @@ export async function buildProviderAsync(): Promise<Provider> {
     assertCloudGenerationAllowed();
     return createGeminiProvider({ apiKey: googleKey.trim() });
   }
-  return new OllamaProvider({});
+  // No cloud key — fall back to the on-device engine (embedded model when ready,
+  // else Ollama). No egress, nothing to gate.
+  return (await resolveLocalGenerationProvider()).provider;
 }
 
 // ── downloadBase64File — browser-side blob download, no disk persistence ───

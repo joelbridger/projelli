@@ -18,7 +18,7 @@ import { KeychainService } from '@/platform/providers/KeychainService';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
-import { OllamaProvider } from '@/platform/providers/OllamaProvider';
+import { resolveLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import type { Provider } from '@/platform/providers/Provider';
 import { isLocalOnlyMode, assertCloudGenerationAllowed, assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
@@ -140,7 +140,7 @@ export async function hasCloudKeyForGlance(): Promise<boolean> {
 
 export interface ResolvedGlanceProvider {
   provider: Provider;
-  providerId: 'anthropic' | 'openai' | 'google' | 'ollama';
+  providerId: 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local';
   model: string;
 }
 
@@ -151,11 +151,14 @@ export interface ResolvedGlanceProvider {
  * to the AI, so it MUST honour Local-only mode — otherwise it would send to the
  * cloud whenever a cloud key exists, contradicting the "nothing leaves"
  * indicator. In Local-only, force the local model.
+ *
+ * F-503 — the local engine is the embedded Keepance Local AI when ready, else
+ * Ollama (the same on-device resolution Ask / Chat / Client Map use), so the
+ * auto-summary works on a machine with the embedded model but no Ollama.
  */
 export async function buildResolvedProviderForGlance(): Promise<ResolvedGlanceProvider> {
   if (isLocalOnlyMode()) {
-    const provider = new OllamaProvider({});
-    return { provider, providerId: 'ollama', model: provider.getMetadata().model };
+    return await resolveLocalGenerationProvider();
   }
   // Personal-install choice gate (Task 1.3): at-a-glance auto-runs and sends matter
   // context to a cloud AI, so block it until the user has made an explicit
@@ -206,8 +209,9 @@ export async function buildResolvedProviderForGlance(): Promise<ResolvedGlancePr
       }
     }
   }
-  const provider = new OllamaProvider({});
-  return { provider, providerId: 'ollama', model: provider.getMetadata().model };
+  // No usable cloud key — fall back to the on-device engine (embedded model when
+  // ready, else Ollama). No egress, nothing to gate.
+  return await resolveLocalGenerationProvider();
 }
 
 export async function buildProviderForGlance(): Promise<Provider> {

@@ -75,14 +75,19 @@ export function resolveTemplateModel(
 /**
  * Discriminated union for the result of resolveWorkflowProvider.
  *
+ *   'keepance-local'   — run on the embedded Keepance Local AI (on-device,
+ *                        downloaded + ready). Preferred local engine in private
+ *                        mode — needs no separate Ollama daemon.
  *   'ollama'           — run locally on Ollama (reachable, confirmed by caller)
  *   'cloud'            — run on a cloud provider (key present)
  *   'mock'             — run MockProvider (only in IS_TEST_MODE)
  *   'needs-provider'   — no key and not testMode; surface the blocking UI
- *   'ollama-unreachable' — template pinned to Ollama but ollamaReachable=false;
+ *   'ollama-unreachable' — local-only/ollama-pinned but no local engine is
+ *                          available (no embedded model AND Ollama unreachable);
  *                          NEVER fall back to cloud
  */
 export type WorkflowProviderResolution =
+  | { kind: 'keepance-local'; model: string | undefined }
   | { kind: 'ollama'; model: string | undefined }
   | { kind: 'cloud'; provider: 'claude' | 'openai' | 'gemini'; model: string | undefined; key: string }
   | { kind: 'mock' }
@@ -113,6 +118,14 @@ export interface ResolveWorkflowProviderInput {
    * none are installed or the probe was skipped.
    */
   installedOllamaModels: string[];
+  /**
+   * F-503 — true when the embedded Keepance Local AI model is downloaded and
+   * READY (caller probes localLlmModelStatus()). In local-only mode this on-
+   * device engine is preferred over Ollama — it needs no separate daemon, so a
+   * machine with the embedded model but no Ollama still runs private workflows.
+   * Mirrors how Ask / Chat / Client Map already resolve the local provider.
+   */
+  localModelReady: boolean;
 }
 
 /**
@@ -146,14 +159,27 @@ export function resolveWorkflowProvider(
     isTestMode,
     localOnly,
     installedOllamaModels,
+    localModelReady,
   } = input;
 
-  // F-502 — Local-only confidentiality mode: workflows run on Ollama, full
-  // stop. A cloud pin/default is overridden to the first installed local
-  // model (the chat surface's behavior); an explicit ollama pin keeps its
-  // model. NEVER 'cloud' and NEVER 'mock' in this mode — the mode is a
+  // F-502 / F-503 — Local-only confidentiality mode: workflows run ON DEVICE,
+  // full stop. NEVER 'cloud' and NEVER 'mock' in this mode — the mode is a
   // confidentiality promise, not a preference.
+  //
+  // WHICH local engine: the embedded Keepance Local AI is preferred when it is
+  // downloaded + ready (F-503) — it needs no separate daemon, so a machine with
+  // the embedded model but no Ollama still runs private workflows. This mirrors
+  // how Ask / Chat / Client Map already resolve the local provider. Only when no
+  // embedded model is ready do we fall back to the user's Ollama daemon: a cloud
+  // pin/default is overridden to the first installed Ollama model; an explicit
+  // ollama pin keeps its model. If neither local engine is available, block
+  // honestly with 'ollama-unreachable' (never cloud).
   if (localOnly) {
+    if (localModelReady) {
+      // Embedded model serves whichever GGUF is loaded; the model id is
+      // cosmetic, so leave it undefined and let the provider use its default.
+      return { kind: 'keepance-local', model: undefined };
+    }
     if (!ollamaReachable) {
       return { kind: 'ollama-unreachable' };
     }
