@@ -1,34 +1,53 @@
 /**
- * B-PRIV-1 regression — the inline Search/Ask egress banner must NEVER go stale
- * when the confidentiality mode is switched mid-session.
+ * B-PRIV-1 regression — the inline Search/Ask egress banner must NEVER lie about
+ * where the next AI request goes. It is the product's flagship "honest egress
+ * indicator", so a banner saying "No prompt or file is sent over the network"
+ * while the query goes to OpenAI is a correctness defect.
  *
  * The reported bug (Windows-bench, 2026-06-26): start a search in "On this
- * computer only" (local-only) mode — the banner correctly reads "On your
- * machine. Nothing leaves … No prompt or file is sent over the network." Switch
- * to Cloud (direct) mode in Settings, then run another query in the SAME search
- * session: the inline banner KEPT saying "nothing leaves / local" even though
- * the query now goes to the cloud provider. For a product whose flagship is an
- * always-honest egress indicator, a banner literally saying "No prompt or file
- * is sent over the network" while it IS sent to OpenAI is a correctness defect.
+ * computer only" (local-only) mode — banner correctly reads "Nothing leaves …".
+ * Switch to Cloud (direct) mode in Settings, then run another query in the SAME
+ * session: the banner KEPT saying "nothing leaves / local" while the query went
+ * to the cloud.
  *
- * Root cause: useAsk resolved `activeProvider` once on mount (empty effect deps),
- * so a mid-session confidentiality-mode flip never re-resolved the provider the
- * banner names. resolveEgress treats any local provider as "nothing leaves", so
- * the stale `keepance-local` value kept the banner green long after the send had
- * become a cloud send.
+ * Codex re-review found two further holes after the first fix; this suite pins
+ * BOTH, driving the REAL resolver (resolveActiveAskProviderId) + the REAL
+ * EgressIndicator + the REAL egress logic + the REAL (reactive) settings store:
  *
- * Fix: the banner recomputes from the CURRENT confidentiality mode / effective
- * provider whenever the mode changes (and after each send). This test drives the
- * REAL EgressIndicator + the REAL egress logic + the REAL (reactive) settings
- * store, flips the mode, and asserts the banner follows.
+ *   1. DISPLAY race on mode-switch — resolution is async; until it finishes the
+ *      stale local provider + the new Direct mode still rendered as "nothing
+ *      leaves". Fixed by blanking the badge to a neutral "checking" state for the
+ *      whole async window (tests 1 & 2, and the pending assertion in test 3).
+ *   2. SEND-TIME race — the badge must reflect the REAL destination BEFORE the
+ *      network call begins, even if it was still "checking" at click time. Fixed
+ *      with flushSync at send (test 3: a spy on sendMessageStreaming reads the
+ *      banner DOM at the instant the send begins).
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Ask } from '@/features/ask/Ask';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 import type { ConfidentialityMode } from '@/platform/privacy/egress';
+
+// Control object for the REAL resolver's dependencies + the send spy. Driven
+// per-test; the confidentiality mode itself uses the real (reactive) settings
+// store so the component genuinely re-renders on a mode flip.
+const h = vi.hoisted(() => ({
+  keys: { anthropic: false, openai: false, google: false } as Record<string, boolean>,
+  localStatus: 'absent' as string,
+  memoryEnabled: false,
+  hits: [] as unknown[],
+  // When set to a pending Promise, KeychainService.hasKey awaits it — this holds
+  // the REAL resolver mid-flight so we can prove the badge is "checking" (never a
+  // stale destination) and that the send-time pin still names the real engine.
+  resolverHold: null as Promise<unknown> | null,
+  // Recorded by the send spy: the banner's data-destination at the instant the
+  // network call begins. This is the load-bearing send-time honesty assertion.
+  bannerAtSend: undefined as string | null | undefined,
+  sendCalled: 0,
+}));
 
 function setMode(mode: ConfidentialityMode) {
   act(() => {
@@ -36,20 +55,18 @@ function setMode(mode: ConfidentialityMode) {
   });
 }
 
-// ---- standard Ask store mocks (mirrors reimagined-ask.test.tsx) -------------
+// ---- standard Ask store mocks ----------------------------------------------
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: () => null,
   SAMPLE_MATTER_ID: 'matter_sample_garcia_v_meridian',
 }));
 vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: (selector: (s: { rootPath: string | null }) => unknown) =>
-    selector({ rootPath: null }),
+    selector({ rootPath: '/workspace' }),
 }));
 vi.mock('@/platform/matter/samples/sampleMatterDemo', () => ({
   getDemoAnswerForWorkspace: () => null,
-  getDemoQuestions: () => [
-    'A', 'B', 'C', 'D',
-  ] as [string, string, string, string],
+  getDemoQuestions: () => ['A', 'B', 'C', 'D'] as [string, string, string, string],
   DEMO_QUESTIONS: ['A', 'B', 'C', 'D'],
 }));
 vi.mock('@/platform/profile/professionStore', () => ({
@@ -61,50 +78,79 @@ vi.mock('@/platform/rag/matterResolver', () => ({
   matterLabel: (m: unknown) => String(m),
 }));
 vi.mock('@/platform/rag/MemoryService', () => ({
-  MemoryService: { retrieve: vi.fn().mockResolvedValue([]) },
-  isMemoryEnabled: () => false,
+  MemoryService: { retrieve: vi.fn(async () => h.hits) },
+  isMemoryEnabled: () => h.memoryEnabled,
 }));
 vi.mock('@/platform/rag/workspaceCommand', () => ({
   DEFAULT_WORKSPACE_TOP_K: 5,
   buildWorkspaceContextBlock: () => '',
 }));
 vi.mock('@/platform/state/aiChatStore', () => {
-  const mockSessions: Record<string, unknown> = {};
   const state = {
     initSession: vi.fn(),
     setSessionWorkspaceRoot: vi.fn(),
     addMessage: vi.fn(),
     updateLastMessage: vi.fn(),
-    sessions: mockSessions,
+    sessions: {} as Record<string, unknown>,
   };
   const hook = (selector: (s: unknown) => unknown) => selector(state);
   hook.getState = () => state;
   return { useAIChatStore: hook };
 });
 
-// The pre-send badge resolution is exercised in its own unit test
-// (local-only-egress-guard.test.ts). Here we only need it to name the engine the
-// CURRENT confidentiality mode would use, so we can assert the banner reacts to a
-// mid-session mode flip. It reads the REAL (reactive) settings store at call time
-// so it can never disagree with the mode the banner is showing.
+// ---- REAL resolver, mocked dependencies ------------------------------------
+// hasKey can be held mid-flight (h.resolverHold) so we can observe the badge
+// while resolution is in progress. getKey is unused on the badge path.
+vi.mock('@/platform/providers/KeychainService', () => ({
+  KeychainService: vi.fn().mockImplementation(function () {
+    return {
+      getKey: async (p: string) => (h.keys[p] ? 'sk-test' : null),
+      hasKey: async (p: string) => {
+        if (h.resolverHold) await h.resolverHold;
+        return Boolean(h.keys[p]);
+      },
+    };
+  }),
+}));
+vi.mock('@/platform/utils/tauri-commands', async (orig) => {
+  const actual = await orig<typeof import('@/platform/utils/tauri-commands')>();
+  return { ...actual, localLlmModelStatus: vi.fn(async () => h.localStatus) };
+});
+
+// Keep the REAL resolveActiveAskProviderId (what drives the badge). Override only
+// buildResolvedAskProvider — the SEND path — to return a spy provider whose
+// sendMessageStreaming records the banner DOM at the instant the call begins.
 vi.mock('@/features/ask/askHelpers', async (orig) => {
   const actual = await orig<typeof import('@/features/ask/askHelpers')>();
-  const settings = await import('@/platform/settings/settingsStore');
-  const egress = await import('@/platform/privacy/egress');
   return {
     ...actual,
-    resolveActiveAskProviderId: vi.fn(async () => {
-      const mode = settings.useSettingsStore
-        .getState()
-        .getSetting(egress.CONFIDENTIALITY_MODE_SETTING_KEY);
-      return mode === 'local-only' ? 'keepance-local' : 'openai';
-    }),
+    buildResolvedAskProvider: vi.fn(async () => ({
+      provider: {
+        sendMessageStreaming: async () => {
+          h.bannerAtSend = document
+            .querySelector('[data-testid="egress-indicator"]')
+            ?.getAttribute('data-destination') ?? null;
+          h.sendCalled += 1;
+          return { content: 'Answer.', usage: {}, cost: 0 };
+        },
+        getMetadata: () => ({ provider: 'openai', model: 'gpt-4o' }),
+      },
+      providerId: 'openai',
+      model: 'gpt-4o',
+    })),
   };
 });
 
-describe('B-PRIV-1: Search egress banner follows the confidentiality mode mid-session', () => {
+describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at send time', () => {
   beforeEach(() => {
     useSettingsStore.setState({ values: {} });
+    h.keys = { anthropic: false, openai: false, google: false };
+    h.localStatus = 'absent';
+    h.memoryEnabled = false;
+    h.hits = [];
+    h.resolverHold = null;
+    h.bannerAtSend = undefined;
+    h.sendCalled = 0;
     try {
       localStorage.clear();
     } catch {
@@ -112,16 +158,20 @@ describe('B-PRIV-1: Search egress banner follows the confidentiality mode mid-se
     }
   });
 
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('flips from "nothing leaves" (local-only) to a cloud destination when the mode switches', async () => {
+    h.localStatus = 'ready'; // local-only resolves to the embedded Keepance Local AI
+    h.keys.openai = true; // present for the post-switch cloud resolution
     setMode('local-only');
     render(<Ask />);
 
-    // Starts honest: local-only => nothing leaves the machine.
     await waitFor(() => {
       expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe('local');
     });
-    const localEl = screen.getByTestId('egress-indicator');
-    expect(localEl.getAttribute('data-data-leaves')).toBe('false');
+    expect(screen.getByTestId('egress-indicator').getAttribute('data-data-leaves')).toBe('false');
     expect(screen.getByTestId('egress-indicator-note').textContent).toMatch(
       /no prompt or file is sent over the network/i,
     );
@@ -129,8 +179,6 @@ describe('B-PRIV-1: Search egress banner follows the confidentiality mode mid-se
     // User switches to Cloud (direct) mode in Settings — same search session.
     setMode('direct');
 
-    // The banner MUST recompute: it can never keep claiming "nothing leaves"
-    // while the next query goes to the cloud provider.
     await waitFor(() => {
       expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe(
         'provider-direct',
@@ -144,6 +192,8 @@ describe('B-PRIV-1: Search egress banner follows the confidentiality mode mid-se
   });
 
   it('flips back to "nothing leaves" when the user returns to local-only mode', async () => {
+    h.keys.openai = true;
+    h.localStatus = 'ready';
     setMode('direct');
     render(<Ask />);
 
@@ -159,5 +209,56 @@ describe('B-PRIV-1: Search egress banner follows the confidentiality mode mid-se
       expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe('local');
     });
     expect(screen.getByTestId('egress-indicator').getAttribute('data-data-leaves')).toBe('false');
+  });
+
+  it('SEND-TIME GUARANTEE: the banner shows the real cloud destination before the network call — even when the badge was still "checking" at click time', async () => {
+    // Direct mode + a cloud key => the send goes to OpenAI. Memory is on with a
+    // hit so the query reaches the provider (no decline).
+    h.keys.openai = true;
+    h.memoryEnabled = true;
+    h.hits = [{ path: '/workspace/doc.pdf', chunkText: 'text', score: 0.9, paragraphIndex: 0 }];
+    setMode('direct');
+
+    // HOLD the real resolver mid-flight: the badge cannot resolve, so at click
+    // time it is the neutral "checking" (pending) state — NOT a stale "local"
+    // banner and NOT yet the cloud banner. This is the worst case for honesty.
+    let release: (v: unknown) => void = () => undefined;
+    h.resolverHold = new Promise((r) => { release = r; });
+
+    try {
+      render(<Ask />);
+
+      // HOLE #1 proof: while resolving, the banner is neutral "pending" — it never
+      // shows a concrete (and possibly stale) destination.
+      await waitFor(() => {
+        expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe(
+          'pending',
+        );
+      });
+      expect(screen.getByTestId('egress-indicator').getAttribute('data-data-leaves')).toBe('false');
+
+      // Send anyway, while the badge is still "checking".
+      const input = screen.getByTestId('ask-composer-input');
+      fireEvent.change(input, { target: { value: 'What is the portfolio value?' } });
+      fireEvent.click(screen.getByRole('button', { name: /^Search$/i }));
+
+      // HOLE #2 proof: at the instant sendMessageStreaming runs, the banner DOM
+      // already reflects the REAL destination (provider-direct / data leaves) —
+      // not "pending" and never "local". flushSync guarantees the repaint before
+      // the network call.
+      await waitFor(() => {
+        expect(h.sendCalled).toBe(1);
+      });
+      expect(h.bannerAtSend).toBe('provider-direct');
+    } finally {
+      release('done'); // let the held resolver settle so no promise dangles
+    }
+
+    // And after everything settles the badge stays on the real destination.
+    await waitFor(() => {
+      expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe(
+        'provider-direct',
+      );
+    });
   });
 });

@@ -7,6 +7,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { useActiveMatter, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
@@ -119,8 +120,13 @@ export function useAsk({
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLInputElement>(null);
-  // Fix #8: track the active provider name for EgressIndicator
-  const [activeProvider, setActiveProvider] = useState<string>('anthropic');
+  // Fix #8 / B-PRIV-1: the provider the egress banner names. `null` means
+  // "destination not yet known" — the EgressIndicator renders a neutral
+  // "checking" badge (data-leaves=false) for null rather than guessing, so the
+  // banner can never show a CONCRETE (and possibly stale) destination while the
+  // real one is still being resolved. It starts null and is blanked back to null
+  // on every confidentiality-mode change (see the resolver effect below).
+  const [activeProvider, setActiveProvider] = useState<string | null>(null);
 
   // Recent sessions: sessions keyed "ask-*", scoped to the current workspace.
   const recentSessions = buildRecentAskSessions(sessions, rootPath, {
@@ -216,18 +222,28 @@ export function useAsk({
   // mount). Without this the badge stayed pinned to the mount-time engine — e.g.
   // "keepance-local" — so flipping from Local-only to Cloud mid-session left the
   // banner falsely claiming "nothing leaves" while the query went to the cloud.
-  // The cancellation guard drops a stale in-flight resolution if the mode flips
-  // again before it completes, so the displayed engine can't race backwards.
+  //
+  // HOLE #1 (Codex re-review) — resolution is async, so during the in-flight
+  // window the OLD provider value combined with the NEW mode could still lie
+  // (a stale local provider + Direct mode renders as "nothing leaves"). We close
+  // that window by BLANKING to null up front: the banner shows a neutral
+  // "checking — nothing leaves while this checks" badge for the whole async
+  // window, never a concrete-but-stale destination. The cancellation guard drops
+  // a superseded in-flight resolution so the displayed engine can't race backwards.
   useEffect(() => {
     let cancelled = false;
+    setActiveProvider(null);
     void resolveActiveAskProviderId()
       .then((resolved) => {
         if (!cancelled) setActiveProvider(resolved);
       })
       .catch(() => {
-        // Display-only: a failure resolving the badge NAME must never surface as
-        // an unhandled rejection. Leave the badge at its current/default name —
-        // it degrades gracefully (the send path has its own guards).
+        // The resolver almost never throws (it has internal fallbacks), but if it
+        // does we must NOT strand the badge on "checking" forever. Fall back to a
+        // CONSERVATIVE cloud identity: in Local-only mode resolveEgress still forces
+        // "nothing leaves"; in cloud modes this over-warns ("data leaves"), which is
+        // the safe direction for a privacy indicator — it can never UNDER-claim egress.
+        if (!cancelled) setActiveProvider('anthropic');
       });
     return () => { cancelled = true; };
   }, [confidentialityMode]);
@@ -475,13 +491,17 @@ export function useAsk({
         providerId: resolvedProvider.providerId,
         model: resolvedProvider.model,
       };
-      // B-PRIV-1 (defense in depth): pin the egress banner to the engine this
-      // send ACTUALLY resolved to, so the badge can never disagree with where the
-      // request is about to go — even if the effective provider changed for a
-      // reason the mode-keyed effect above doesn't watch (e.g. a cloud key added
-      // mid-session). The banner reflects the real destination before the network
-      // call begins.
-      setActiveProvider(resolvedProvider.providerId);
+      // HOLE #2 (Codex re-review) — pin the egress banner to the engine this send
+      // ACTUALLY resolved to (buildResolvedAskProvider is the single source of
+      // truth for where the request goes), and do it SYNCHRONOUSLY. A plain
+      // setState here may be batched, so the banner is not guaranteed to repaint
+      // before the network call on the next line. flushSync forces the React
+      // commit now, so the banner DOM reflects the real destination BEFORE
+      // sendMessage/sendMessageStreaming runs — even if the badge was still
+      // "checking" (null) at click time, or the effective provider changed for a
+      // reason the mode-keyed effect doesn't watch (e.g. a cloud key added
+      // mid-session). The banner can never be sent-to-cloud-while-showing-local.
+      flushSync(() => { setActiveProvider(resolvedProvider.providerId); });
 
       const emitSuccessfulEgress = () => {
         if (!providerAudit) return;

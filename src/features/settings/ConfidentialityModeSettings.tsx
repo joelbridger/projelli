@@ -194,8 +194,8 @@ export function ConfidentialityModeSettings() {
         >
           On this computer only is on. Cloud providers are disabled in the chat
           picker, so only on-device models can be used and nothing leaves your
-          machine. Answers run on the built-in Keepance Local AI; you can also
-          use your own Ollama if you have it installed (Settings &rarr; Integrations).
+          machine. Answers run on a local model — the built-in Keepance Local AI
+          when it's ready, or your own Ollama (Settings &rarr; Integrations).
         </p>
       )}
 
