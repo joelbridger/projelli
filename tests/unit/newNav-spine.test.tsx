@@ -1,0 +1,72 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Spine } from '@/app/shell/layout/Spine';
+import { NEW_NAV_FLAG_KEY } from '@/platform/flags/newNav';
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+vi.mock('@/platform/matter/matterStore', () => ({
+  useMatters: () => [],
+  useActiveMatterId: () => null,
+  useMatterStore: (selector: (s: { setActiveMatter: () => void }) => unknown) =>
+    selector({ setActiveMatter: vi.fn() }),
+}));
+vi.mock('@/platform/rag/matterResolver', () => ({
+  matterLabel: (m: unknown) => String(m),
+}));
+
+describe('Spine — newNav 3-tab shell', () => {
+  beforeEach(() => {
+    window.localStorage.setItem(NEW_NAV_FLAG_KEY, '1');
+  });
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('renders exactly the 3 primary tabs: Client Map, Ask, Workflows', () => {
+    render(<Spine activeTab="matters" />);
+    expect(screen.getByTestId('spine-nav-matters')).toBeTruthy();
+    expect(screen.getByTestId('spine-nav-search')).toBeTruthy();
+    expect(screen.getByTestId('spine-nav-workflows')).toBeTruthy();
+  });
+
+  it('relabels the tabs (Client Map / Ask) while keeping internal ids', () => {
+    render(<Spine activeTab="matters" />);
+    expect(screen.getByTestId('spine-nav-matters').textContent).toMatch(/client map/i);
+    expect(screen.getByTestId('spine-nav-search').textContent).toMatch(/^ask$/i);
+  });
+
+  it('does NOT render the demoted surfaces as rail tabs (files/email/audit/privacy/settings)', () => {
+    render(<Spine activeTab="matters" />);
+    expect(screen.queryByTestId('spine-nav-files')).toBeNull();
+    expect(screen.queryByTestId('spine-nav-email')).toBeNull();
+    expect(screen.queryByTestId('spine-nav-audit')).toBeNull();
+    expect(screen.queryByTestId('spine-nav-privacy')).toBeNull();
+    expect(screen.queryByTestId('spine-nav-settings')).toBeNull();
+  });
+
+  it('still fires onTabChange with the internal id when a tab is clicked', () => {
+    const onTabChange = vi.fn();
+    render(<Spine activeTab="matters" onTabChange={onTabChange} />);
+    fireEvent.click(screen.getByTestId('spine-nav-search'));
+    expect(onTabChange).toHaveBeenCalledWith('search');
+  });
+
+  it('exposes a "+ New client" affordance that opens the matter manager', () => {
+    const spy = vi.fn();
+    window.addEventListener('keepance:open-matter-manager', spy);
+    render(<Spine activeTab="matters" />);
+    fireEvent.click(screen.getByTestId('spine-new-client'));
+    expect(spy).toHaveBeenCalled();
+    window.removeEventListener('keepance:open-matter-manager', spy);
+  });
+
+  it('collapsed mode shows the 3 primary tabs only', () => {
+    render(<Spine activeTab="matters" collapsed />);
+    expect(screen.getByTestId('spine-nav-collapsed-matters')).toBeTruthy();
+    expect(screen.getByTestId('spine-nav-collapsed-search')).toBeTruthy();
+    expect(screen.getByTestId('spine-nav-collapsed-workflows')).toBeTruthy();
+    expect(screen.queryByTestId('spine-nav-collapsed-settings')).toBeNull();
+  });
+});

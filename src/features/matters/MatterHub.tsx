@@ -29,6 +29,8 @@ import { Button, IconButton, SearchField, Chip, Badge, Eyebrow, Card } from '@/u
 import SurfaceHeader from '@/ui/SurfaceHeader';
 import { useClientMap } from '@/features/matters/useClientMap';
 import { ClientMapView } from '@/features/matters/ClientMapView';
+import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
+import { useNewNav } from '@/platform/flags/newNav';
 import { GuidedInterview } from '@/features/matters/GuidedInterview';
 import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
 import { ClientMapUpdatesTray } from '@/features/matters/ClientMapUpdatesTray';
@@ -93,6 +95,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
   });
   const { checkForUpdates } = clientMap;
   const matters = useMatters();
+  const newNav = useNewNav();
   const matter = matters.find((m) => m.id === matterId) ?? null;
   const isPrivileged = useActiveMatterPrivileged();
   const entityLabel = useEntityLabel();
@@ -1022,33 +1025,53 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
                       />
                     </div>
                   )}
-                  <ClientMapView
-                    map={clientMap.map}
-                    onOpenSource={handleOpenSource}
-                    onEditItem={handleEditItem}
-                    onAnswerQuestion={(gap) => {
-                      const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`);
-                      if (a != null && a.trim() !== '') {
-                        // File the answer in the section this gap question came from,
-                        // and mark the gap resolved so it stops being asked (BUG-106).
-                        answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
-                      }
-                    }}
-                    onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
-                  />
-                  <div style={{ marginTop: 12 }}>
-                    <ClientQuestionsList matterId={matterId} />
-                  </div>
+                  {newNav ? (
+                    // newNav: the redesigned tabbed Client Map panel absorbs the
+                    // questions list, the custom-section composer, and the
+                    // templates list — so they are NOT rendered separately here.
+                    <ClientMapPanel
+                      map={clientMap.map}
+                      onOpenSource={handleOpenSource}
+                      onEditItem={handleEditItem}
+                      onAnswerQuestion={(gap) => {
+                        const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`);
+                        if (a != null && a.trim() !== '') {
+                          answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
+                        }
+                      }}
+                      onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
+                    />
+                  ) : (
+                    <>
+                      <ClientMapView
+                        map={clientMap.map}
+                        onOpenSource={handleOpenSource}
+                        onEditItem={handleEditItem}
+                        onAnswerQuestion={(gap) => {
+                          const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`);
+                          if (a != null && a.trim() !== '') {
+                            // File the answer in the section this gap question came from,
+                            // and mark the gap resolved so it stops being asked (BUG-106).
+                            answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
+                          }
+                        }}
+                        onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
+                      />
+                      <div style={{ marginTop: 12 }}>
+                        <ClientQuestionsList matterId={matterId} />
+                      </div>
 
-                  {/* Add a custom section */}
-                  <div style={{ marginTop: 16, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
-                    <AddCustomSectionForm matterId={matterId} />
-                  </div>
+                      {/* Add a custom section */}
+                      <div style={{ marginTop: 16, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                        <AddCustomSectionForm matterId={matterId} />
+                      </div>
 
-                  {/* Save / apply templates */}
-                  <div style={{ marginTop: 16, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
-                    <ClientMapTemplates matterId={matterId} />
-                  </div>
+                      {/* Save / apply templates */}
+                      <div style={{ marginTop: 16, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                        <ClientMapTemplates matterId={matterId} />
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>

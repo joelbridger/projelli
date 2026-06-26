@@ -21,6 +21,8 @@ import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
 import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelector';
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
+import { GearMenu } from '@/app/shell/layout/GearMenu';
+import { isNewNavEnabled, useNewNav } from '@/platform/flags/newNav';
 import { TrustBar } from '@/app/shell/layout/TrustBar';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
@@ -207,8 +209,12 @@ function App() {
   const templatesMarketplaceServiceRef = useRef<MarketplaceService | null>(null);
   const templatesMetadataReaderRef = useRef<TemplateMetadataReader | null>(null);
 
-  // Sidebar state
-  const [sidebarActiveTab, setSidebarActiveTab] = useState<AppSurface>('files');
+  // Sidebar state. newNav lands on the Client Map (matter-centric home); the
+  // legacy shell keeps its Documents-first default so nothing changes flag-off.
+  const newNav = useNewNav();
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<AppSurface>(
+    isNewNavEnabled() ? 'matters' : 'files',
+  );
   // Per-matter UI memory (matterUiStore): subscribe to the active matter so we
   // can save + restore each matter's last working surface and focused document.
   const activeMatterId = useMatterStore((s) => s.activeMatterId);
@@ -1325,22 +1331,36 @@ This file contains rules and guidelines for AI assistants in this workspace.
               <Moon data-testid="theme-icon-dark" className="h-4 w-4" />
             )}
           </Button>
-          <Button
-            data-testid="settings-gear"
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => {
-              // Fix 5: no-op when Settings tab is already the active surface.
-              if (sidebarActiveTab !== 'settings') {
-                setShowSettingsModal(true);
-              }
-            }}
-            title="Settings (Ctrl+,)"
-            aria-label="Open settings"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
+          {newNav ? (
+            // newNav: the gear consolidates the relocated surfaces (Settings +
+            // Privacy Center + Activity Log + Documents). The egress badge stays
+            // in the TrustBar; only the deeper detail moves behind the gear.
+            <GearMenu
+              onOpenSettings={() => {
+                if (sidebarActiveTab !== 'settings') setShowSettingsModal(true);
+              }}
+              onOpenPrivacy={() => { setSidebarActiveTab('privacy'); }}
+              onOpenActivity={() => { setSidebarActiveTab('audit'); }}
+              onOpenDocuments={() => { setDocumentsView('browser'); setSidebarActiveTab('files'); }}
+            />
+          ) : (
+            <Button
+              data-testid="settings-gear"
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => {
+                // Fix 5: no-op when Settings tab is already the active surface.
+                if (sidebarActiveTab !== 'settings') {
+                  setShowSettingsModal(true);
+                }
+              }}
+              title="Settings (Ctrl+,)"
+              aria-label="Open settings"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             data-testid="command-palette-button"
             variant="ghost"

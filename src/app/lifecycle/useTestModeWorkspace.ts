@@ -12,6 +12,7 @@ import { setActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
 import { useFileBackupStore } from '@/platform/fs/fileBackupStore';
 import { useFileContextStore } from '@/platform/state/fileContextStore';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
+import { seedDemoClients } from '@/app/lifecycle/seedDemoClients';
 import { buildOpenFilesPromptBlock } from '@/features/ask/AIChatViewer';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileNode } from '@/platform/types/workspace';
@@ -33,6 +34,14 @@ export function useTestModeWorkspace(options: UseTestModeWorkspaceOptions): void
     if (isTestMode && !rootPath) {
       // Set a mock workspace path
       setRootPath('/test-workspace');
+
+      // Dev/preview-only: seed a realistic advisor book of business so the
+      // Clients list + the redesigned Client Map can be driven with believable
+      // content WITHOUT a cloud key or real documents. Gated by ?seedDemo so
+      // the normal E2E path (which expects an empty workspace) is untouched.
+      if (window.location.search.includes('seedDemo')) {
+        seedDemoClients();
+      }
 
       // Pre-load 2 demo tabs for testing
       const demoTab1Path = '/test-workspace/docs/test1.md';
