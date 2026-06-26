@@ -55,7 +55,8 @@ describe('resolveEgress (the single source of truth)', () => {
     expect(info.destination).toBe('local');
     expect(info.severity).toBe('safe');
     expect(info.dataLeaves).toBe(false);
-    expect(info.label).toMatch(/nothing leaves/i);
+    expect(info.label).toMatch(/on your machine/i);
+    expect(info.note).toMatch(/no AI prompt or file is sent to a cloud AI/i);
   });
 
   it('cloud provider in Direct mode => direct-to-provider, data leaves, honest note', () => {
@@ -136,7 +137,7 @@ describe('EgressIndicator', () => {
     expect(el.getAttribute('data-destination')).toBe('local');
     expect(el.getAttribute('data-severity')).toBe('safe');
     expect(el.getAttribute('data-data-leaves')).toBe('false');
-    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/nothing leaves/i);
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/on your machine/i);
   });
 
   it('names the embedded Keepance Local AI engine in the note (not Ollama)', () => {
@@ -208,7 +209,7 @@ describe('EgressIndicator', () => {
     const el = screen.getByTestId('egress-indicator');
     expect(el.getAttribute('data-destination')).toBe('local');
     expect(el.getAttribute('data-severity')).toBe('safe');
-    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/nothing leaves/i);
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/on your machine/i);
   });
 
   it('compact variant carries the same destination/severity data attributes', () => {
@@ -248,9 +249,9 @@ describe('DataMapDialog', () => {
     expect(screen.getByText(/honest asterisk/i)).toBeTruthy();
     expect(screen.getByText(/used to train their models is governed by your account settings/i)).toBeTruthy();
 
-    // Local-only path for nothing-leaves.
+    // Local-only path: no AI prompt or file is sent to a cloud AI.
     expect(screen.getByText(/use a local model/i)).toBeTruthy();
-    expect(screen.getByText(/nothing is sent over the network at all/i)).toBeTruthy();
+    expect(screen.getByText(/no AI prompt or file is ever sent to a cloud AI/i)).toBeTruthy();
 
     // Email encrypted locally.
     expect(screen.getByText(/encrypted on your machine/i)).toBeTruthy();

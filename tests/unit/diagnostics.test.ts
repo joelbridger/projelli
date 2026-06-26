@@ -113,6 +113,8 @@ describe('sendDiagnosticEvent', () => {
 
   beforeEach(() => {
     store = setupLocalStorage();
+    // Non-private mode so the fail-closed kill-switch doesn't skip the send.
+    store['keepance:settings'] = JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 });
     fetchCalls = [];
     fetchBodies = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {

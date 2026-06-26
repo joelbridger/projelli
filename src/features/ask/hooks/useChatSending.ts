@@ -1341,6 +1341,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
           let streamingResponse: Awaited<ReturnType<NonNullable<typeof provider.sendMessageStreaming>>> | null = null;
 
           try {
+            // Race guard (defense-in-depth; cloud providers also fail-closed
+            // centrally): the local-only check at the top of this send happened
+            // BEFORE the attachment/memory awaits, so re-check immediately before
+            // the actual network send.
+            assertLocalOnlyAllowsSend(provider.getMetadata().providerId ?? chatProvider);
             streamingResponse = await provider.sendMessageStreaming!(userMessage.content, {
               systemPrompt,
               maxTokens: 4096,
@@ -1434,6 +1439,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // cancel the in-flight request. UX-39.
           const abortController = new AbortController();
           abortControllerRef.current = abortController;
+          // Race guard (defense-in-depth): re-check the mode immediately before
+          // the actual send (the top-of-send check predates the awaits above).
+          assertLocalOnlyAllowsSend(provider.getMetadata().providerId ?? chatProvider);
           const response = await provider.sendMessage(userMessage.content, {
             systemPrompt,
             maxTokens: 4096,

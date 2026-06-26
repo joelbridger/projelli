@@ -34,6 +34,11 @@ export function WealthboxConnect() {
   const [lastSyncReport, setLastSyncReport] = useState<{ householdsProcessed: number; recordsIndexed: number } | null>(null);
   // Post-disconnect status note — honest about what was actually deleted.
   const [disconnectNote, setDisconnectNote] = useState<string | null>(null);
+  // B3: true when disconnect could not fully remove imported data (or the key).
+  // While true we keep a visible "Finish deleting local data" retry action and do
+  // NOT scrub the local CRM mapping, so the user can complete the deletion.
+  const [dataRemains, setDataRemains] = useState(false);
+  const [finishingDelete, setFinishingDelete] = useState(false);
 
   const createMatter = useMatterStore((s) => s.createMatter);
   const addCrmHouseholdKey = useMatterStore((s) => s.addCrmHouseholdKey);
@@ -90,6 +95,12 @@ export function WealthboxConnect() {
     setLastSyncReport(null);
     setSyncing(true);
 
+    // B2: track the matter mutations we stage in Step 3 so a FAILED backend sync
+    // (Step 4) can be rolled back — otherwise a sync that errors leaves phantom
+    // Wealthbox-linked clients in local state.
+    const createdMatterIds: string[] = [];
+    const linkedKeys: Array<{ matterId: string; key: string }> = [];
+
     try {
       // Step 1: Fetch the household list.
       // Clicking "Sync now" is the user's consent to read the list from Wealthbox.
@@ -124,14 +135,18 @@ export function WealthboxConnect() {
         if (resolution.action === 'link') {
           // Merge: attach this Wealthbox household to the matching file-client.
           addCrmHouseholdKey(resolution.matterId, household.id);
+          linkedKeys.push({ matterId: resolution.matterId, key: household.id });
           claimedMatterIds.add(resolution.matterId);
         } else if (resolution.action === 'create') {
           // No matching file-client — create a fresh matter for this household.
-          createMatter({
+          // Mark it createdFromCrm so a later disconnect can scrub its imported name.
+          const created = createMatter({
             name: household.name,
             client: household.name,
             crmHouseholdKeys: [household.id],
+            createdFromCrm: true,
           });
+          createdMatterIds.push(created.id);
         }
         // 'reuse': already linked — buildCrmMatterMap picks it up automatically.
       }
@@ -142,6 +157,13 @@ export function WealthboxConnect() {
       const report = await crmSyncAll(map);
       setLastSyncReport({ householdsProcessed: report.householdsProcessed, recordsIndexed: report.recordsIndexed });
     } catch (err) {
+      // B2 rollback: undo the staged matter changes so a failed sync leaves no
+      // phantom Wealthbox-linked clients behind.
+      if (createdMatterIds.length > 0 || linkedKeys.length > 0) {
+        const { deleteMatter, removeCrmHouseholdKey } = useMatterStore.getState();
+        for (const id of createdMatterIds) deleteMatter(id);
+        for (const { matterId, key } of linkedKeys) removeCrmHouseholdKey(matterId, key);
+      }
       setSyncError(
         typeof err === 'string' ? err : err instanceof Error ? err.message : 'Sync could not complete. Please try again.',
       );
@@ -162,67 +184,68 @@ export function WealthboxConnect() {
       },
     );
     if (!confirmed) return;
+    await runDisconnectPurge();
+  }
 
+  /**
+   * The disconnect purge itself (no confirm dialog), shared by the Disconnect
+   * button and the "Finish deleting local data" retry. Idempotent — safe to run
+   * repeatedly until the data and key are fully removed.
+   */
+  async function runDisconnectPurge() {
     try { await crmCancelSync(); } catch { /* best-effort */ }
     setConnectError(null);
     setSyncError(null);
     try {
-      // Fix #2-UI: consume the structured result so the message is honest.
       const result: CrmDisconnectResult = await crmDisconnect();
 
-      // Clean up auto-created CRM matters:
-      //   - Matters with NO user-added folders and NO user-added mail folders are
-      //     pure-Wealthbox records; delete them entirely.
-      //   - Matters with user content keep their files; just unlink the Wealthbox
-      //     household keys so they are no longer associated with Wealthbox.
-      const matters = getMatters();
-      const { deleteMatter, removeCrmHouseholdKey } = useMatterStore.getState();
-      for (const matter of matters) {
-        const keys = matter.crmHouseholdKeys ?? [];
-        if (keys.length === 0) continue;
-        const hasFolders = matter.folderPaths.length > 0;
-        const hasMail = (matter.mailFolderPaths ?? []).length > 0;
-        if (!hasFolders && !hasMail) {
-          deleteMatter(matter.id);
-        } else {
-          for (const key of keys) {
-            removeCrmHouseholdKey(matter.id, key);
-          }
-        }
+      // `dataRemains` is authoritative when the backend provides it; older
+      // backends omit it, so derive it from the purge booleans as a fallback.
+      const remains = result.dataRemains ?? !(result.ragPurged && result.crmDbPurged);
+      const dataDeleted = !remains && result.ragPurged && result.crmDbPurged;
+
+      // B3 safety: scrub the local CRM matter mappings ONLY after deletion is
+      // CONFIRMED. If data remains (no workspace / purge failed), keep the mapping
+      // so we never end up "still connected, data on disk, mapping gone".
+      if (dataDeleted) {
+        // B1: delete pure-CRM matters, scrub imported name/client on mixed matters,
+        // unlink linked matters, and clear their at-a-glance cache.
+        useMatterStore.getState().scrubWealthboxFromMatters();
       }
 
-      // Honesty gate: the token delete is best-effort (a momentarily
-      // unavailable keychain can fail it), which leaves the saved key on the
-      // device. Only claim a clean disconnect when the key was ACTUALLY removed
-      // AND both local stores were purged. If the key could not be removed, do
-      // NOT claim it was, and do NOT flip to a disconnected state.
-      const dataDeleted = result.ragPurged && result.crmDbPurged;
       const warn = result.warnings.length > 0 ? ` (${result.warnings.join('; ')})` : '';
-      if (!result.tokenDeleted) {
-        const dataMsg = dataDeleted
-          ? 'The imported Wealthbox data was deleted, but the saved key could not be removed'
-          : 'Some imported data could not be deleted, and the saved key could not be removed';
-        setDisconnectNote(`${dataMsg}${warn}. Please try disconnecting again.`);
-        // The key is still stored, so the account is still connected.
-        crmIsConnected().then(setConnected).catch(() => {});
-      } else if (dataDeleted) {
+      if (dataDeleted && result.tokenDeleted) {
+        setDataRemains(false);
         setDisconnectNote('Disconnected and deleted the imported Wealthbox data from this device.');
         setConnected(false);
         setConnectedInfo(null);
         setLastSyncReport(null);
       } else {
+        // Either the key could not be removed or imported data still remains.
+        // Keep a visible retry; re-check the real connection state.
+        setDataRemains(true);
+        const reason = !result.tokenDeleted
+          ? 'the Wealthbox key could not be removed'
+          : 'some imported Wealthbox data could not be deleted yet';
         setDisconnectNote(
-          `Removed the Wealthbox key, but some imported data could not be deleted${warn}. Open the workspace and disconnect again to finish removing it.`,
+          `Disconnect is not finished — ${reason}${warn}. Use “Finish deleting local data” to try again.`,
         );
-        setConnected(false);
-        setConnectedInfo(null);
-        setLastSyncReport(null);
+        crmIsConnected().then(setConnected).catch(() => {});
       }
     } catch (err) {
       setConnectError(
         typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not disconnect. Please try again.',
       );
       crmIsConnected().then(setConnected).catch(() => {});
+    }
+  }
+
+  async function finishDeletingLocalData() {
+    setFinishingDelete(true);
+    try {
+      await runDisconnectPurge();
+    } finally {
+      setFinishingDelete(false);
     }
   }
 
@@ -253,9 +276,32 @@ export function WealthboxConnect() {
           Connect your Wealthbox account to bring client household data into your Client Maps. Keepance imports what this Wealthbox login can see.
         </p>
 
+        {/* B3: disconnect didn't fully remove the data/key — keep a visible retry
+            regardless of connection state, so the user is never stuck with data
+            on disk and no way to finish removing it. */}
+        {dataRemains && (
+          <div
+            data-testid="wealthbox-data-remains"
+            className="mt-3 space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3"
+          >
+            <p className="text-sm text-amber-900">
+              {disconnectNote ?? 'Some imported Wealthbox data could not be deleted yet.'}
+            </p>
+            <button
+              type="button"
+              data-testid="wealthbox-finish-delete"
+              disabled={finishingDelete}
+              onClick={() => void finishDeletingLocalData()}
+              className="rounded-md bg-[#0A2540] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+            >
+              {finishingDelete ? 'Deleting…' : 'Finish deleting local data'}
+            </button>
+          </div>
+        )}
+
         {!connected && (
           <div className="mt-3 space-y-3">
-            {disconnectNote && (
+            {disconnectNote && !dataRemains && (
               <p className="text-sm text-slate-600">{disconnectNote}</p>
             )}
 

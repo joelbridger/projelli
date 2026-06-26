@@ -17,6 +17,7 @@
 
 import { getInstallId } from './installId';
 import { getDesignPartnerConsent } from '@/platform/hooks/useDesignPartnerConsent';
+import { isLocalOnlyModeFailClosed } from '@/platform/privacy/localOnlyGuard';
 
 const ENDPOINT = 'https://keepance.com/api/forms/keepance/design-partner-event';
 
@@ -89,6 +90,9 @@ export type DiagnosticEvent =
  */
 export async function sendDiagnosticEvent(event: DiagnosticEvent): Promise<void> {
   if (getDesignPartnerConsent() !== 'enabled') return;
+  // Private-mode kill-switch (fail-closed): never make an outbound diagnostics
+  // call in private mode, or before the mode is confirmed non-local. Silent skip.
+  if (isLocalOnlyModeFailClosed()) return;
 
   const base: Record<string, string | number> = {
     install_id: getInstallId(),

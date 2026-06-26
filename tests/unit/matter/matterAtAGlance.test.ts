@@ -105,7 +105,25 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
 }));
 
 // Confidentiality mode — controllable for the Local-only enforcement test (A1).
-const cmode = vi.hoisted(() => ({ mode: 'direct' as string }));
+const cmode = vi.hoisted(() => {
+  let _mode = 'direct';
+  return {
+    // Getter/setter: assigning `mode` drives BOTH the mocked getConfidentialityMode
+    // AND the raw persisted localStorage value the fail-closed cloud-send guard reads.
+    get mode() { return _mode; },
+    set mode(m: string) {
+      _mode = m;
+      try {
+        localStorage.setItem(
+          'keepance:settings',
+          JSON.stringify({ state: { values: { confidentialityMode: m } }, version: 1 }),
+        );
+      } catch {
+        /* localStorage unavailable */
+      }
+    },
+  };
+});
 vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
   getConfidentialityMode: () => cmode.mode,
 }));
@@ -168,6 +186,7 @@ describe('generateMatterAtAGlance', () => {
     keychainKeys.openai = null;
     keychainKeys.google = null;
     localStorage.clear();
+    cmode.mode = 'direct'; // persist 'direct' (post-clear) for the fail-closed guard
   });
 
   afterEach(() => {
@@ -399,6 +418,7 @@ describe('buildProviderForGlance', () => {
     keychainKeys.openai = null;
     keychainKeys.google = null;
     localStorage.clear();
+    cmode.mode = 'direct'; // persist 'direct' (post-clear) for the fail-closed guard
   });
   afterEach(() => { cmode.mode = 'direct'; });
 

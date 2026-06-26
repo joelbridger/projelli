@@ -16,6 +16,7 @@ import type {
 import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
+import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInference';
 import { isVisionModel } from './vision-capability';
@@ -268,6 +269,8 @@ export class OpenAIProvider implements Provider {
     prompt: string,
     options?: SendOptions
   ): Promise<ProviderResponse> {
+    // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
+    assertCloudSendAllowed('openai');
     const messages: OpenAIMessage[] = [];
 
     // Build system prompt with AI Rules prepended if available
@@ -412,6 +415,8 @@ export class OpenAIProvider implements Provider {
     prompt: string,
     options: StreamOptions
   ): Promise<ProviderResponse> {
+    // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
+    assertCloudSendAllowed('openai');
     const { onChunk, signal, ...sendOpts } = options;
 
     const messages: OpenAIMessage[] = [];
@@ -523,6 +528,8 @@ export class OpenAIProvider implements Provider {
     prompt: string,
     options: StructuredOutputOptions
   ): Promise<T> {
+    // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
+    assertCloudSendAllowed('openai');
     // Build a prompt that requests JSON output
     const structuredPrompt = `${prompt}
 

@@ -13,7 +13,14 @@
 //     disallowed per the Phase 5 spec).
 
 import { useCallback, useMemo, useState } from 'react';
-import { assertCloudGenerationAllowed, ConfidentialityChoiceRequiredError } from '@/platform/privacy/localOnlyGuard';
+import {
+  assertCloudGenerationAllowed,
+  ConfidentialityChoiceRequiredError,
+  assertLocalOnlyAllowsExternal,
+  LocalOnlyExternalError,
+  isLocalOnlyModeFailClosed,
+} from '@/platform/privacy/localOnlyGuard';
+import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -67,11 +74,15 @@ export function RunOnAllButton({
   const [isRunning, setIsRunning] = useState(false);
 
   const hasComparison = tierHasFeature(tier, 'multi-model-comparison');
+  // Local-only kill-switch: "Run on all" is inherently a CLOUD fan-out (it
+  // excludes ollama and compares 2+ cloud providers), so it must be unavailable
+  // when "nothing leaves" is selected. Reactive so the button reacts to the mode.
+  const localOnly = useConfidentialityMode() === 'local-only';
   const distinctProviderIds = useMemo(
     () => new Set(providers.map((p) => p.id).filter((id) => id !== 'ollama')),
     [providers],
   );
-  const canRun = hasComparison && distinctProviderIds.size >= 2 && prompt.trim().length > 0;
+  const canRun = hasComparison && distinctProviderIds.size >= 2 && prompt.trim().length > 0 && !localOnly;
 
   const runAll = useCallback(async () => {
     setIsRunning(true);
@@ -84,10 +95,14 @@ export function RunOnAllButton({
     // an explicit confidentiality choice. Surface as per-provider error rows so the
     // comparison panel renders a clear message rather than a blank screen.
     try {
+      // Local-only kill-switch (last line, no await before the fan-out below):
+      // never run a cloud comparison when "nothing leaves" is on, even if the
+      // mode flipped after the button was enabled.
+      assertLocalOnlyAllowsExternal('Run on all models');
       assertCloudGenerationAllowed();
     } catch (gateErr) {
       const msg =
-        gateErr instanceof ConfidentialityChoiceRequiredError
+        gateErr instanceof LocalOnlyExternalError || gateErr instanceof ConfidentialityChoiceRequiredError
           ? gateErr.message
           : 'Cloud generation is not allowed yet.';
       setResults(
@@ -138,7 +153,9 @@ export function RunOnAllButton({
     setIsRunning(false);
 
     // Fire-and-forget contradiction analysis if the caller gave us a provider.
-    if (analysisProvider) {
+    // SECOND cloud call after the fan-out awaits — skip entirely in private mode
+    // so the comparison outputs are never sent to a cloud AI for analysis.
+    if (analysisProvider && !isLocalOnlyModeFailClosed()) {
       const outputs = out
         .filter((r) => !r.error && r.content)
         .map((r) => ({ source: r.label, text: r.content }));
@@ -169,11 +186,13 @@ export function RunOnAllButton({
         onClick={runAll}
         disabled={!canRun || isRunning}
         title={
-          !hasComparison
-            ? 'Run on all 3 providers (paid license)'
-            : distinctProviderIds.size < 2
-              ? 'Requires 2+ providers configured'
-              : 'Run this prompt on every configured provider'
+          localOnly
+            ? 'Off while "On this computer only" is selected — this compares cloud providers over the network.'
+            : !hasComparison
+              ? 'Run on all 3 providers (paid license)'
+              : distinctProviderIds.size < 2
+                ? 'Requires 2+ providers configured'
+                : 'Run this prompt on every configured provider'
         }
       >
         {isRunning ? (

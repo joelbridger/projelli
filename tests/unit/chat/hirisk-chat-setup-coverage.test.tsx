@@ -102,6 +102,7 @@ import { useFileContextStore } from '@/platform/state/fileContextStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { CONFIDENTIALITY_CHOICE_MADE_KEY } from '@/platform/privacy/resolvePersonalEgressDefault';
+import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 import { TooltipProvider } from '@/ui/tooltip';
 
 const apiKey = [{ provider: 'anthropic', key: 'stub-key', isValid: true }];
@@ -141,9 +142,15 @@ function resetStores() {
   useSettingsStore.setState({ values: {} });
   // Mark the confidentiality choice as made so the Task 1.3 gate is a no-op
   // in these tests, which focus on chat wiring, not the choice gate itself.
-  useSettingsStore.getState().setSetting(CONFIDENTIALITY_CHOICE_MADE_KEY, true);
   localStorage.clear();
   sessionStorage.clear();
+  // Set these AFTER the clears, via setSetting, so they live in the in-memory
+  // store AND are persisted to localStorage (and survive a later re-persist):
+  //  - the choice flag makes the Task 1.3 gate a no-op;
+  //  - 'direct' mode makes the fail-closed cloud-send guard allow chat sends
+  //    (these tests exercise chat wiring, not private mode).
+  useSettingsStore.getState().setSetting(CONFIDENTIALITY_CHOICE_MADE_KEY, true);
+  useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
 }
 
 function renderChat(element: ReactElement) {
@@ -178,6 +185,9 @@ describe('High-risk chat/setup coverage from the current UI', () => {
         keepRecentTurns: 6,
         // Keep the Task 1.3 gate open so the test reaches the context-limit logic.
         confidentialityChoiceMade: true,
+        // Non-private mode so the fail-closed cloud-send guard allows the send
+        // (this setState replaces `values`, so the mode must be restated here).
+        confidentialityMode: 'direct',
       },
     });
 

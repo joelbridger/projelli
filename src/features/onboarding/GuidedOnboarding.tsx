@@ -798,7 +798,7 @@ function ConfidentialityChoiceStep({
             <p style={{ fontSize: 14, fontWeight: 700, color: 'hsl(222.2 84% 4.9%)', margin: 0 }}>Local-only</p>
           </div>
           <p style={{ fontSize: 13, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.55, margin: 0 }}>
-            Nothing leaves this computer, ever. Answers are written by a model running on your own machine. You&apos;ll need a local model installed, and I&apos;ll help you set one up.
+            No AI prompt or file is ever sent to a cloud AI. Answers are written by a model running on your own machine. You&apos;ll need a local model installed, and I&apos;ll help you set one up.
           </p>
         </button>
 

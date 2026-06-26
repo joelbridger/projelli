@@ -10,10 +10,12 @@
  *   - Total cost is the sum across all non-failed providers
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { RunOnAllButton } from '@/features/ask/chat/RunOnAllButton';
 import type { Provider, ProviderResponse } from '@/platform/providers/Provider';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 
 // The personal-install choice gate (Task 1.3) is added to RunOnAllButton.runAll.
 // Stub assertCloudGenerationAllowed as a no-op here — these tests focus on the
@@ -52,6 +54,33 @@ function makeProvider(
 }
 
 describe('RunOnAllButton (Q15)', () => {
+  afterEach(() => {
+    // Reset confidentiality mode so the Local-only test never leaks into others.
+    useSettingsStore.setState({ values: {} });
+  });
+
+  it('Local-only: button disabled and no provider is ever sent to (cloud fan-out off)', () => {
+    useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'local-only');
+    const claude = makeProvider('claude', {});
+    const openai = makeProvider('openai', {});
+    render(
+      <RunOnAllButton
+        tier="professional"
+        providers={[
+          { id: 'claude', label: 'Claude', provider: claude },
+          { id: 'openai', label: 'OpenAI', provider: openai },
+        ]}
+        prompt="hello"
+      />
+    );
+    const btn = screen.getByTestId('run-on-all-button');
+    expect(btn).toBeDisabled();
+    // Even a forced click cannot start a cloud send.
+    fireEvent.click(btn);
+    expect(claude.sendMessage).not.toHaveBeenCalled();
+    expect(openai.sendMessage).not.toHaveBeenCalled();
+  });
+
   it('disables the button for free tier', () => {
     render(
       <RunOnAllButton

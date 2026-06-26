@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { ClientMap, ClientMapSection, ClientQuestion, DismissedSignature, ProposedUpdate, GapQuestion } from './types';
-import { autoApplySafeAddUpdates, proposalSignature } from './updater';
+import { proposalSignature } from './updater';
 
 interface ClientMapState {
   maps: Record<string, ClientMap>;
@@ -87,8 +87,11 @@ export const useClientMapStore = create<ClientMapState>()(
       maps: {},
       clientQuestions: {},
       getMap: (matterId) => get().maps[matterId],
+      // B5 (approve-first): do NOT auto-apply any AI updates — even "safe adds".
+      // Every proposed change stays in pendingUpdates until the user approves it,
+      // honoring the approve-first promise (AI proposes, user decides).
       setMap: (matterId, map) =>
-        set((s) => ({ maps: { ...s.maps, [matterId]: autoApplySafeAddUpdates(map) } })),
+        set((s) => ({ maps: { ...s.maps, [matterId]: map } })),
       editItem: (matterId, sectionKey, itemId, text) =>
         set((s) => {
           const map = s.maps[matterId];
@@ -149,7 +152,8 @@ export const useClientMapStore = create<ClientMapState>()(
         set((s) => {
           const map = s.maps[matterId];
           if (!map) return {};
-          return { maps: { ...s.maps, [matterId]: autoApplySafeAddUpdates({ ...map, pendingUpdates: updates }) } };
+          // B5 (approve-first): updates are queued for approval, never auto-applied.
+          return { maps: { ...s.maps, [matterId]: { ...map, pendingUpdates: updates } } };
         }),
       acceptUpdate: (matterId, updateId, override) =>
         set((s) => {

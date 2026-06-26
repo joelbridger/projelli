@@ -3,6 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
+import { useDirectModeForTests } from '../../helpers/cloudModeForTests';
+
+// These tests send via real cloud providers — opt into a non-private mode so the
+// fail-closed cloud-send guard lets the send through.
+useDirectModeForTests();
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {

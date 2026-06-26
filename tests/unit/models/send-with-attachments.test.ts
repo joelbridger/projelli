@@ -17,6 +17,11 @@ import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import { MockProvider } from '@/platform/providers/MockProvider';
 import type { ChatAttachment } from '@/platform/types/ai';
+import { useDirectModeForTests } from '../../helpers/cloudModeForTests';
+
+// These tests send via real cloud providers — opt into a non-private mode so the
+// fail-closed cloud-send guard lets the send through.
+useDirectModeForTests();
 
 // Minimal 1x1 PNG bytes (enough that base64 isn't empty)
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);

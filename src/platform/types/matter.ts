@@ -57,6 +57,15 @@ export interface Matter {
    */
   crmHouseholdKeys?: string[];
   /**
+   * True when this matter's DISPLAY identity (name/client) originated from a CRM
+   * connector (e.g. a Wealthbox household), as opposed to user-entered or
+   * file-derived. Used at disconnect time to scrub Wealthbox-derived names: a
+   * pure-CRM matter is deleted, but a CRM-created matter the user has since added
+   * files/mail to keeps its content while its imported name/client are scrubbed.
+   * Optional/absent for non-CRM and pre-flag matters (treated as `false`).
+   */
+  createdFromCrm?: boolean;
+  /**
    * Privileged-matter designation. When `true`, this matter holds
    * attorney-client / work-product material and is treated as a confidentiality
    * boundary that must never be exfiltrated through a network-capable extension.

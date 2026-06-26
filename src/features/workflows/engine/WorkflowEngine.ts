@@ -22,6 +22,7 @@ import type {
 import type { RetrievalScope } from '@/platform/utils/tauri-commands';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
+import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import {
   resolveEgress,
   type ConfidentialityMode,
@@ -414,6 +415,10 @@ export class WorkflowEngine {
     prompt: string,
     options?: SendOptions,
   ): Promise<ProviderResponse> {
+    // Race guard (defense-in-depth; cloud providers also fail-closed centrally):
+    // the workflow's pre-run gate can be far in the past for long workflows, so
+    // re-check the mode immediately before each provider send.
+    assertLocalOnlyAllowsSend(this.provider.getMetadata().providerId ?? 'unknown');
     this.emitEgressAudit(step);
     const response = await this.provider.sendMessage(prompt, options);
     this.emitModelCallAudit(step, callKind, prompt, response);
@@ -433,6 +438,7 @@ export class WorkflowEngine {
       ...(sendMessageStreaming
         ? {
           sendMessageStreaming: async (prompt: string, options: StreamOptions) => {
+            assertLocalOnlyAllowsSend(base.getMetadata().providerId ?? 'unknown');
             this.emitEgressAudit(step);
             const response = await sendMessageStreaming(prompt, options);
             this.emitModelCallAudit(step, 'generate', prompt, response);
@@ -447,6 +453,7 @@ export class WorkflowEngine {
         }
         : {}),
       structuredOutput: async <T,>(prompt: string, options: StructuredOutputOptions) => {
+        assertLocalOnlyAllowsSend(base.getMetadata().providerId ?? 'unknown');
         this.emitEgressAudit(step);
         const response = await base.structuredOutput<T>(prompt, options);
         this.emitModelCallAudit(step, callKind, prompt, response);

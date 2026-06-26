@@ -40,6 +40,15 @@ export interface CrmDisconnectResult {
   tokenDeleted: boolean;
   ragPurged: boolean;
   crmDbPurged: boolean;
+  /**
+   * True when imported Wealthbox data could NOT be fully removed and may still be
+   * on disk (e.g. no workspace was set, or a purge step failed). The backend's
+   * disconnect-hardening keeps the saved key when this is true so the user can
+   * retry; the UI surfaces a "Finish deleting local data" action. Optional so a
+   * backend that predates the field still parses (treated as derived from the
+   * purge booleans).
+   */
+  dataRemains?: boolean;
   warnings: string[];
 }
 
@@ -104,7 +113,7 @@ export async function crmIsConnected(): Promise<boolean> {
  */
 export async function crmDisconnect(): Promise<CrmDisconnectResult> {
   if (!isTauri()) {
-    return { tokenDeleted: false, ragPurged: false, crmDbPurged: false, warnings: [] };
+    return { tokenDeleted: false, ragPurged: false, crmDbPurged: false, dataRemains: true, warnings: [] };
   }
   return invoke<CrmDisconnectResult>('crm_disconnect');
 }

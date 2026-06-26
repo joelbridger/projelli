@@ -5,13 +5,14 @@ import { buildResolvedProviderForClientMap } from './provider';
 import { deriveCompleteness } from './completeness';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
+import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import {
   CORE_SECTION_ORDER, CORE_SECTION_TITLE, emptyClientMap,
 } from './types';
 import type { ClientMap, ClientMapSection, CoreSectionKey, GapQuestion } from './types';
 import { parseItems, itemsFromRaw } from './aiSection';
-import { capGeneratedSectionItems } from './updater';
+import { capGeneratedSectionItems, dedupeAcrossSections } from './updater';
 import type { AuditEntry } from '@/platform/types/audit';
 
 // Gap questions are tagged with the section their answer belongs to so the
@@ -144,6 +145,11 @@ export async function buildClientMap(
   for (const { key, hits } of perSection) {
     if (hits.length === 0) { sections.push({ id: key, kind: 'core', key, title: CORE_SECTION_TITLE[key], items: [] }); continue; }
     const ctx = buildWorkspaceContextBlock(hits);
+    // Race guard (Ask's gold pattern): re-check the CURRENT mode AFTER all awaits,
+    // immediately before each send — a flip to Local-only mid-build must never
+    // send this client's context to the cloud. Re-checked per section because the
+    // prior section's await is itself a window for the mode to change.
+    assertLocalOnlyAllowsSend(resolvedProvider.providerId);
     const res = await provider.sendMessage('Build this section.', { systemPrompt: sectionPrompt(CORE_SECTION_TITLE[key], ctx), maxTokens: 500 });
     emitAiAudit(key, res);
     sections.push({
@@ -160,6 +166,8 @@ export async function buildClientMap(
   let ask: GapQuestion[] = [];
   if (askHits.length > 0) {
     const ctx = buildWorkspaceContextBlock(askHits);
+    // Same race guard immediately before the gap-questions send.
+    assertLocalOnlyAllowsSend(resolvedProvider.providerId);
     const res = await provider.sendMessage('List the gap questions.', {
       systemPrompt: `Given this client context, list up to 5 short questions whose answers are missing and that you would need to ask the client. For each question name the section its answer belongs to: one of ${SECTION_NAME_LIST}. ${ctx} Return ONLY JSON (no fences): {"questions":[{"text":"...","section":"standing"}]}. No em dashes.`,
       maxTokens: 400,
@@ -168,10 +176,14 @@ export async function buildClientMap(
     ask = parseGapQuestions(res.content);
   }
 
+  // B6: collapse facts that surfaced in more than one section (e.g. the same fact
+  // from a file source AND a CRM source on a merged client) so it shows once.
+  const dedupedSections = dedupeAcrossSections(sections);
+
   return {
     matterId,
-    sections,
-    completeness: deriveCompleteness(sections, ask),
+    sections: dedupedSections,
+    completeness: deriveCompleteness(dedupedSections, ask),
     pendingUpdates: [],
     lastBuiltAt: new Date().toISOString(),
     lastSourceFingerprint: '',

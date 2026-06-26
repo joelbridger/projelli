@@ -48,7 +48,7 @@ export function TrustBar() {
 
   const egressTooltip =
     confidentialityMode === 'local-only'
-      ? 'On this computer only: AI runs on your machine. Nothing leaves your device.'
+      ? 'On this computer only: AI runs on your machine. No AI prompt or file is sent to a cloud AI.'
       : confidentialityMode === 'assured'
         ? 'Assured: requests route through your firm\'s zero-retention proxy. Keepance never sees content.'
         : 'Sent to your AI provider account. Sent straight from your machine to your provider with your own API key. Keepance is not in between. Your provider receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your provider account.';

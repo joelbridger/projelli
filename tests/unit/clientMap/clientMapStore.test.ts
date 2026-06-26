@@ -126,7 +126,7 @@ describe('clientMapStore', () => {
     expect(targetItem?.origin).toBe('user');
   });
 
-  it('setMap auto-applies clean sourced add updates but leaves risky updates pending', () => {
+  it('approve-first: setMap NEVER auto-applies updates — even a clean sourced add stays pending (B5)', () => {
     const m = emptyClientMap('m1');
     const sourcedAdd: ProposedUpdate = {
       id: 'safe-add',
@@ -154,8 +154,10 @@ describe('clientMapStore', () => {
     });
 
     const map = useClientMapStore.getState().getMap('m1')!;
+    // Approve-first: nothing was applied to the map body — both stay pending until
+    // the user approves them.
     expect(map.sections.find((s) => s.key === 'standing')!.items.map((i) => i.text))
-      .toContain('Client wants capital preservation');
-    expect(map.pendingUpdates.map((u) => u.id)).toEqual(['needs-review']);
+      .not.toContain('Client wants capital preservation');
+    expect(map.pendingUpdates.map((u) => u.id)).toEqual(['safe-add', 'needs-review']);
   });
 });

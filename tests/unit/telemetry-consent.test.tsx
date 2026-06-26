@@ -119,6 +119,8 @@ describe('sendEvent', () => {
 
   beforeEach(() => {
     store = mockLocalStorage();
+    // Non-private mode so the fail-closed kill-switch doesn't skip the send.
+    store['keepance:settings'] = JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 });
     fetchCalls = [];
     fetchBodies = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -199,6 +201,8 @@ describe('sendEventOnce', () => {
     store = mockLocalStorage();
     fetchCallCount = 0;
     store['keepance_telemetry_consent'] = 'enabled';
+    // Non-private mode so the fail-closed kill-switch doesn't skip the send.
+    store['keepance:settings'] = JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 });
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       fetchCallCount++;
       return new Response('{}', { status: 200 });

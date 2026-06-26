@@ -1,7 +1,8 @@
 // src/platform/clientMap/customSection.ts
 import { MemoryService } from '@/platform/rag/MemoryService';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
-import { buildProviderForClientMap } from './provider';
+import { buildResolvedProviderForClientMap } from './provider';
+import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { parseItems, itemsFromRaw, aiSectionPrompt } from './aiSection';
 import type { ClientMapSection } from './types';
 
@@ -22,8 +23,12 @@ export async function buildCustomSection(
     items: [],
   };
   if (hits.length === 0) return base;
-  const provider = await buildProviderForClientMap();
-  const res = await provider.sendMessage('Build this section.', {
+  const resolved = await buildResolvedProviderForClientMap();
+  // Race guard (defense-in-depth; the cloud providers also fail-closed centrally):
+  // re-check the mode AFTER the awaits, immediately before the send, so a custom
+  // Client Map section never sends this client's context to a cloud AI in private mode.
+  assertLocalOnlyAllowsSend(resolved.providerId);
+  const res = await resolved.provider.sendMessage('Build this section.', {
     systemPrompt: aiSectionPrompt(title, buildWorkspaceContextBlock(hits)),
     maxTokens: 500,
   });

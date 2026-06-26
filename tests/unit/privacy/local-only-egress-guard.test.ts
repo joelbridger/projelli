@@ -7,18 +7,36 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const h = vi.hoisted(() => ({
-  mode: 'direct' as string,
-  defaultProvider: '',
-  defaultModel: '',
-  // Embedded Keepance Local AI status as local_llm_model_status() would report.
-  localStatus: 'absent' as string,
-  keys: {
-    anthropic: 'sk-ant-test' as string | null,
-    openai: null as string | null,
-    google: null as string | null,
-  },
-}));
+const h = vi.hoisted(() => {
+  let _mode = 'direct';
+  return {
+    // `mode` is a getter/setter: assigning it drives BOTH the mocked
+    // getConfidentialityMode (in-memory path) AND the raw persisted localStorage
+    // value (the fail-closed cloud-send guard reads storage directly, bypassing
+    // the in-memory mock), so the guards under test see a consistent mode.
+    get mode() { return _mode; },
+    set mode(m: string) {
+      _mode = m;
+      try {
+        localStorage.setItem(
+          'keepance:settings',
+          JSON.stringify({ state: { values: { confidentialityMode: m } }, version: 1 }),
+        );
+      } catch {
+        /* localStorage unavailable */
+      }
+    },
+    defaultProvider: '',
+    defaultModel: '',
+    // Embedded Keepance Local AI status as local_llm_model_status() would report.
+    localStatus: 'absent' as string,
+    keys: {
+      anthropic: 'sk-ant-test' as string | null,
+      openai: null as string | null,
+      google: null as string | null,
+    },
+  };
+});
 
 vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
   getConfidentialityMode: () => h.mode,
