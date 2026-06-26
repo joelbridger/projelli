@@ -207,7 +207,13 @@ export function useAsk({
   // mirrors buildResolvedAskProvider's destination decision so the two can't drift.
   useEffect(() => {
     void (async () => {
-      setActiveProvider(await resolveActiveAskProviderId());
+      try {
+        setActiveProvider(await resolveActiveAskProviderId());
+      } catch {
+        // Display-only: a failure resolving the badge NAME must never surface as
+        // an unhandled rejection. Leave the badge at its current/default name —
+        // it degrades gracefully (the send path has its own guards).
+      }
     })();
   }, []);
 

@@ -48,6 +48,9 @@ vi.mock('@/platform/providers/KeychainService', () => ({
     async getKey(provider: string) {
       return keychainKeys[provider as keyof typeof keychainKeys] ?? null;
     }
+    async hasKey(provider: string) {
+      return Boolean(await this.getKey(provider));
+    }
   },
 }));
 
