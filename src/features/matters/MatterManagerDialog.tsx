@@ -452,14 +452,14 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        padding: '2px 8px',
-                        borderRadius: 4,
-                        fontSize: 11,
-                        fontWeight: 600,
+                        padding: '2px var(--kp-space-xs)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: 'var(--kp-font-2xs)',
+                        fontWeight: 'var(--kp-weight-semibold)',
                         letterSpacing: '0.03em',
-                        background: 'rgba(16,185,129,0.09)',
-                        color: '#065f46',
-                        border: '1px solid rgba(16,185,129,0.28)',
+                        background: 'var(--kp-local-bg)',
+                        color: 'var(--kp-local)',
+                        border: '1px solid var(--kp-local-line)',
                         whiteSpace: 'nowrap',
                       }}
                     >

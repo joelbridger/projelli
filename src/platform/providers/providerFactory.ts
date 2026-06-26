@@ -11,6 +11,7 @@ import { ClaudeProvider } from './ClaudeProvider';
 import { OpenAIProvider } from './OpenAIProvider';
 import { GeminiProvider } from './GeminiProvider';
 import { OllamaProvider, OLLAMA_DEFAULT_MODEL } from './OllamaProvider';
+import { KeepanceLocalProvider, KEEPANCE_LOCAL_DEFAULT_MODEL } from './KeepanceLocalProvider';
 import {
   getDefaultModelForTier,
   type Provider as CloudProviderId,
@@ -20,18 +21,28 @@ import type { AssuredRoute } from '@/platform/firm/assuredInference';
 /**
  * The provider ids the chat surfaces use.
  *
- * `'ollama'` is the LOCAL provider — inference runs on the user's own machine
- * (127.0.0.1:11434), nothing leaves the device, and it needs no API key. The
- * other three are cloud providers reached BYOK (the user's own key, direct to
- * the vendor). Keeping them in one union here means every surface (chat,
+ * `'keepance-local'` (the embedded llama.cpp engine) and `'ollama'` (a user-run
+ * Ollama daemon at 127.0.0.1:11434) are the LOCAL providers — inference runs on
+ * the user's own machine, nothing leaves the device, and they need no API key.
+ * The other three are cloud providers reached BYOK (the user's own key, direct
+ * to the vendor). Keeping them in one union here means every surface (chat,
  * redline) constructs the same provider for the same id and they can never
  * drift on which selection is local vs cloud.
  */
-export type ChatProviderId = CloudProviderId | 'ollama'; // 'anthropic' | 'openai' | 'google' | 'ollama'
+export type ChatProviderId = CloudProviderId | 'ollama' | 'keepance-local'; // 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local'
 
-/** True when a provider id denotes a LOCAL (on-machine) model. */
+/** Default model for the embedded Keepance Local AI engine — defined in
+ *  KeepanceLocalProvider and re-exported here so factory callers/tests can
+ *  import it from one place (mirrors OLLAMA_DEFAULT_MODEL). */
+export { KEEPANCE_LOCAL_DEFAULT_MODEL };
+
+/**
+ * True when a provider id denotes a LOCAL (on-machine) model — either the
+ * embedded Keepance Local AI engine (`'keepance-local'`) or a user-run Ollama
+ * daemon (`'ollama'`). Both run inference on the user's machine; nothing leaves.
+ */
 export function isLocalProviderId(provider: ChatProviderId): boolean {
-  return provider === 'ollama';
+  return provider === 'ollama' || provider === 'keepance-local';
 }
 
 export interface CreateProviderOptions {
@@ -73,6 +84,13 @@ export function createProvider(opts: CreateProviderOptions): Provider {
       // Local, keyless. Talks to 127.0.0.1:11434. $0. Never assured-routed.
       const model = opts.model ?? OLLAMA_DEFAULT_MODEL;
       return new OllamaProvider({ model, ...rulesOpt });
+    }
+    case 'keepance-local': {
+      // Embedded llama.cpp engine ("Keepance Local AI"). Local, keyless, $0,
+      // never assured-routed. The Rust side owns the model download + sidecar
+      // lifecycle; the provider streams from the local sidecar endpoint.
+      const model = opts.model ?? KEEPANCE_LOCAL_DEFAULT_MODEL;
+      return new KeepanceLocalProvider({ model, ...rulesOpt });
     }
     case 'openai': {
       const model = opts.model ?? getDefaultModelForTier('openai', 'free');

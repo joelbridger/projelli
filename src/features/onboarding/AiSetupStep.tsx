@@ -50,6 +50,7 @@ import {
   type ProviderId,
 } from '@/features/onboarding/ProviderTutorialSteps';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
+import { useLocalLlmModelStatus } from '@/platform/hooks/useLocalLlmModelStatus';
 import { useSetConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { openExternal } from '@/platform/utils/openExternal';
 import { clearAiSetupDeferred } from '@/features/onboarding/aiSetupState';
@@ -462,6 +463,11 @@ function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
   const setMode = useSetConfidentialityMode();
   const [status, setStatus] = useState<OllamaStatus>({ kind: 'checking' });
   const professionCopy = useProfessionCopy();
+  // The embedded Keepance Local AI engine is the PRIMARY on-device path: if its
+  // model is already downloaded, the user can continue right away — no Ollama
+  // install required. Ollama stays as the alternative below. Downstream provider
+  // selection (Client Map + chat) already prefers Keepance Local AI when ready.
+  const localAiReady = useLocalLlmModelStatus().state === 'ready';
 
   const check = () => {
     setStatus({ kind: 'checking' });
@@ -516,6 +522,21 @@ function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
           change this later in Settings.
         </p>
       </div>
+
+      {/* Keepance Local AI (the embedded engine) — the primary on-device path.
+          When its model is ready the user can continue with no Ollama install. */}
+      {localAiReady && (
+        <div
+          className="rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-foreground"
+          data-testid="local-ai-ready-panel"
+        >
+          <p className="font-medium">Keepance Local AI is installed and ready.</p>
+          <p className="text-muted-foreground mt-1">
+            You can continue now — everything stays on this computer. (Or use your
+            own Ollama model below instead.)
+          </p>
+        </div>
+      )}
 
       {/* Detection result. */}
       <div className="rounded-lg border border-border p-4" data-testid="ollama-status">
@@ -602,7 +623,7 @@ function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
         <Button
           onClick={handleConfirm}
           size="lg"
-          disabled={status.kind !== 'ready'}
+          disabled={!localAiReady && status.kind !== 'ready'}
           data-testid="ai-setup-use-local"
         >
           Use local AI and continue

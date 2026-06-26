@@ -71,6 +71,14 @@ pub fn run() {
             // Option B — visible, resumable first-run download of the e5-small model.
             commands::rag::model_download::model_status,
             commands::rag::model_download::model_ensure,
+            // Keepance Local AI — visible first-run GGUF download and lazy
+            // llama.cpp server sidecar lifecycle.
+            commands::local_llm::model_download::local_llm_model_status,
+            commands::local_llm::model_download::local_llm_model_ensure,
+            commands::local_llm::local_llm_sidecar_start,
+            commands::local_llm::local_llm_sidecar_stop,
+            commands::local_llm::local_llm_sidecar_health,
+            commands::local_llm::local_llm_sidecar_is_running,
             // N2: rag_index_mail_text removed — latent plaintext-over-IPC surface.
             // The real indexing path is index_mail_text_internal (mail/mod.rs).
             commands::watcher::watch_workspace,
@@ -184,6 +192,9 @@ pub fn run() {
             // cancellation flag for the workspace indexer). Required by all
             // `rag_*` commands.
             commands::rag::manage_state(app);
+            // Keepance Local AI sidecar state is empty at startup; the
+            // llama-server process remains lazy until explicitly started.
+            commands::local_llm::manage_state(app);
             // Phase 1 email — manage mail state (active workspace + cancel flag).
             commands::mail::manage_state(app);
             // Plan 1B.4 — manage CRM state (active workspace + sync flag + last report).

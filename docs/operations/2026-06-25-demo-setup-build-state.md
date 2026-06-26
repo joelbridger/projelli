@@ -206,6 +206,58 @@ functional first, THEN a dedicated UI pass** (hold all UI changes until the end)
   `filterHitsByScope` (email/documents are a CLIENT-SIDE filter applied AFTER the top-8). `mail:` paths =
   email chunks. Reset scripts/probes live in `scripts/demo/bench-*.mjs` (probe, ragprobe, ask-clean, etc.).
 
+## QA sweep — every demo run cleanly from scratch (2026-06-25 session 3)
+
+**Verified WORKING (drove each as a presenter, from a clean `reset-loaded`):**
+- LOADED: 26 instant client maps render rich; **Brennan live map build works** (~28s while the
+  cosmetic index ran — faster when idle); **cited document Ask** ("$8,540,000" + allocation, cited);
+  **cited email Ask** both global (content-specific question) and open-client (vague question).
+- BLANK: `reset-blank` → first-run picker; `C:\keepance-demo-blank` opens with the Brennan folder
+  (6 files, instant); New-client creation works.
+- Reset buttons: `reset-loaded` + `reset-blank` both verified bench-local. App stayed up through the
+  whole sweep (the only drops-to-picker were caused by MY in-app `page.reload()` scripts, not the app).
+
+**FIXED (demo data — committed):**
+- ✅ **Doubled client names** ("Brennan, Thomas & Karen - Brennan, Thomas & Karen" everywhere).
+  Root cause: the New-client form has TWO fields — "Client name" + "Client" (org) — and `matterLabel`
+  (`src/platform/rag/matterResolver.ts:91`) renders `"{client} - {name}"`; the seed had `client==name`
+  on all 27 matters. Fix: cleared the org `client` field in `seed-loaded.json` (empty org = correct for
+  advisors). Names now render singly.
+- ✅ **`_README_FAKE_DATA.txt` visible to prospects** in the Documents view. Moved it OUT of the
+  workspace root (to `C:\keepance-demo-northcrest\_README_FAKE_DATA.txt`) — notice preserved, off-screen.
+
+**FIXED (frontend code — committed `b819e737`, built + deployed to the bench dist, verified live):**
+- ✅ **Client hub EMAIL panel** now previews THIS client's connected emails (matched by household name)
+  instead of "No email folders connected" — e.g. Brennan's hub shows "(1) Roth conversion before
+  year-end?". `src/features/matters/MatterHub.tsx`. (There's still no "list mail by matterId" command;
+  this matches on sender. The robust backend follow-up is a `matterId` filter on `mail_list_messages`.)
+- ✅ **Egress indicator** now reads `keepance_default_provider` first (the same value the Ask uses), so
+  the top bar shows "OpenAI" to match the Ask instead of hard-falling-back to "Anthropic".
+  `src/platform/hooks/useActiveEgressProvider.ts`. (Model is still gpt-4o-mini — fine, but a stronger
+  model would impress more; that's a settings change, not code.)
+- ✅ **New-client dialog terminology** — the raw (non-facade) `matter.manager` strings (lockdown,
+  folders, email, MCP) now say "client" not "matter". `src/locales/en.json`. NOTE: the facade strings
+  (scope chips, dialog title) already adapt via `profession=advisor`; only these raw strings leaked
+  "matter". Law-mode would now show "client" for these few strings — the robust fix is to route them
+  through the `useEntityLabel` facade (advisor-reaim's terminology sweep). de/es locale copies unchanged.
+
+**STILL-FLAGGED (data-fixed for the demo, code follow-up optional):**
+- ⚠️ **`matterLabel` doubling** was fixed in DEMO DATA (seed `client=""`). The robust code fix for the
+  broader product: `if (name && client && name !== client) return \`${client} - ${name}\`; return name || client`.
+
+**Bench dist note:** these UX fixes live in the DEPLOYED `C:\keepance\dist` (server-built, scp'd over).
+They survive app restarts (`vite preview` only SERVES dist, never rebuilds). They are ALSO committed to
+`keepance-3.0`. The only way to lose them on the bench is a manual `npm run build` there from stale src —
+so pull `keepance-3.0` before any bench rebuild. To redeploy after a code change: `npm run build` on the
+server → zip `dist/` → scp → expand to `C:\keepance\dist` → restart the app.
+
+**DEMO-OPERATION tips:**
+- **Reset a few minutes before showing.** After any reset the app re-indexes PDFs (banner "Indexing PDFs:
+  X / 301") for several minutes; it's usable during, but it competes for CPU and slowed the live Brennan
+  build to ~28s. Reset early so it's idle when you present.
+- BLANK build-up is multi-step: open `C:\keepance-demo-blank` → Clients → New client (name it) → CHECK
+  the matching folder in "Folders in this client" → it indexes → build the client map → Ask.
+
 ## Git
 - Work on `keepance-3.0` in `~/keepance`. Demo work committed locally; **do NOT push keepance-3.0**
   without confirming with Jameson (it carries another session's 3 strategy-doc commits +

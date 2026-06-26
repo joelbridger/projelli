@@ -21,6 +21,7 @@ const { mockGenerate, mockHasCloudKey } = vi.hoisted(() => ({
 
 // ── Mail commands ─────────────────────────────────────────────────────────────
 vi.mock('@/platform/utils/mail-commands', () => ({
+  mailListMessages: async () => ({ items: [], total: 0 }),
   mailIsConnected: async () => false,
   gmailIsConnected: async () => false,
   mailImapIsConnected: async () => false,

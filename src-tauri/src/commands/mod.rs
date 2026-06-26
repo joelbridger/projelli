@@ -19,6 +19,8 @@ pub mod mail;
 // platform `.mcpb` bundle path.
 pub mod mcp;
 pub mod rag;
+// Keepance Local AI — bundled llama.cpp sidecar plus first-run GGUF download.
+pub mod local_llm;
 // Phase 4 M6 (v1.5 Flag 4) — voice capture & transcription via bundled
 // Parakeet/whisper.cpp sidecar. Frontend press-to-talk hotkey invokes
 // `transcribe_audio(wav_bytes)` with WAV bytes captured via

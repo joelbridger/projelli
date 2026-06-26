@@ -23,6 +23,15 @@ import type { EgressProvider } from '@/platform/privacy/egress';
 export function useActiveEgressProvider(mode: string): EgressProvider {
   return useMemo(() => {
     if (mode === 'local-only') return 'ollama';
+    // Prefer the user's explicitly chosen default provider — the same value the
+    // model picker and the Ask surface use — so every egress indicator agrees
+    // (fixes the trust bar showing a different provider than the Ask).
+    try {
+      const def = localStorage.getItem('keepance_default_provider');
+      if (def === 'anthropic' || def === 'openai' || def === 'google') return def;
+    } catch {
+      // localStorage may be unavailable in some environments; fall through.
+    }
     const order: EgressProvider[] = ['anthropic', 'openai', 'google'];
     for (const p of order) {
       try {

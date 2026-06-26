@@ -490,6 +490,60 @@ export async function modelEnsure(): Promise<string> {
   return invoke<string>('model_ensure');
 }
 
+// --------------------------------------------------------------------
+// Keepance Local AI (embedded llama.cpp engine) — first-run GGUF download
+// and lazy llama-server sidecar lifecycle. Mirrors the e5-small model
+// download pattern above. Rust side: src-tauri/src/commands/local_llm/.
+// --------------------------------------------------------------------
+
+/** Event name for local-LLM download progress (mirror of model_download.rs). */
+export const LOCAL_LLM_MODEL_EVENT = 'local-llm-model-download-progress';
+
+/** Progress payload for the local-AI model download (camelCase via serde). */
+export interface LocalLlmDownloadProgress {
+  state: 'checking' | 'downloading' | 'verifying' | 'ready' | 'error';
+  modelId: string;
+  filename: string;
+  bytesDone: number;
+  bytesTotal: number;
+  message: string | null;
+}
+
+/** Local AI model presence probe: 'ready' | 'absent' | 'downloading'. */
+export async function localLlmModelStatus(): Promise<string> {
+  if (!isTauri()) return 'absent';
+  return invoke<string>('local_llm_model_status');
+}
+
+/** Idempotent: kicks off the visible local-AI model download when absent. */
+export async function localLlmModelEnsure(): Promise<string> {
+  return invoke<string>('local_llm_model_ensure');
+}
+
+/** Start (lazily) the llama-server sidecar and return its local endpoint
+ *  (e.g. http://127.0.0.1:18089). Errors if the model isn't downloaded yet. */
+export async function localLlmSidecarStart(): Promise<string> {
+  return invoke<string>('local_llm_sidecar_start');
+}
+
+/** Stop the llama-server sidecar (no-op if not running). */
+export async function localLlmSidecarStop(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke('local_llm_sidecar_stop');
+}
+
+/** True when the running sidecar answers its health endpoint. */
+export async function localLlmSidecarHealth(): Promise<boolean> {
+  if (!isTauri()) return false;
+  return invoke<boolean>('local_llm_sidecar_health');
+}
+
+/** True when the sidecar process is alive. */
+export async function localLlmSidecarIsRunning(): Promise<boolean> {
+  if (!isTauri()) return false;
+  return invoke<boolean>('local_llm_sidecar_is_running');
+}
+
 /** Start (or replace) the workspace file watcher. Only one watcher is
  *  active at a time. Emits `workspace-file-changed` events that callers
  *  can subscribe to via `@tauri-apps/api/event`'s `listen`. */

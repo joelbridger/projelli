@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Where your client data goes — Keepance Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--ink:#1b2330;--ink-soft:#475063;--muted:#7b8595;--line:#e4e8ee;--navy:#16294b;--navy-soft:#27406b;--accent:#2f6df0;--good:#15803d;--good-bg:#e7f6ec;--warn:#b45309;--warn-bg:#fdf1e1;--bg-soft:#eef1f5;--shadow:0 1px 2px rgba(16,28,51,.04),0 6px 24px rgba(16,28,51,.06)}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.62;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:820px;margin:0 auto;padding:0 22px}
+  a{color:var(--accent)}
+  .hero{background:linear-gradient(160deg,var(--navy),var(--navy-soft));color:#fff;padding:30px 0 26px}
+  .back{display:inline-block;color:#bcc9e4;text-decoration:none;font-size:13px;font-weight:600;margin:0 0 14px}
+  .back:hover{color:#fff}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#aebfdd;font-weight:600;margin:0 0 8px}
+  h1.page{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:clamp(24px,3.6vw,34px);line-height:1.12;margin:0 0 8px}
+  .sub{color:#d7e0f2;font-size:15px;margin:0}
+  main{padding:30px 0 70px}
+  .doc h2{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:23px;margin:34px 0 8px;letter-spacing:-.01em;color:var(--ink)}
+  .doc h3{font-size:17px;margin:24px 0 6px;color:var(--ink)}
+  .doc h4{font-size:14px;margin:18px 0 4px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em}
+  .doc p{margin:0 0 13px;color:var(--ink-soft)}
+  .doc strong{color:var(--ink)}
+  .doc ul,.doc ol{margin:0 0 14px;padding-left:22px}
+  .doc li{margin:0 0 7px;color:var(--ink-soft)}
+  .doc li::marker{color:var(--accent)}
+  .doc a{color:var(--accent);font-weight:500}
+  .doc blockquote{margin:16px 0;padding:14px 18px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;box-shadow:var(--shadow);color:var(--ink);font-weight:500}
+  .doc blockquote p{color:var(--ink);margin:0 0 6px}
+  .doc blockquote p:last-child{margin:0}
+  .doc table{width:100%;border-collapse:collapse;margin:14px 0 20px;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+  .doc th,.doc td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  .doc th{background:var(--navy);color:#fff;font-weight:600;font-size:12.5px;letter-spacing:.02em}
+  .doc tr:last-child td{border-bottom:0}
+  .doc tr:nth-child(even) td{background:#fafbfd}
+  .doc code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:var(--bg-soft);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  .doc pre{background:#0f1b33;color:#e7edf8;border-radius:12px;padding:16px 18px;overflow-x:auto;margin:0 0 16px;font-size:13px;line-height:1.5}
+  .doc pre code{background:none;border:0;padding:0;color:inherit}
+  .doc hr{border:0;border-top:1px solid var(--line);margin:30px 0}
+  .doc em{color:var(--ink)}
+  footer{border-top:1px solid var(--line);padding:20px 0 46px;color:var(--muted);font-size:13px}
+  footer a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header class="hero"><div class="wrap">
+  <a class="back" href="./#sales">&larr; Back to the board</a>
+  <p class="eyebrow">Board &middot; Sales &middot; Trust Packet</p>
+  <h1 class="page">Where your client data goes</h1>
+  <p class="sub">An honest privacy &amp; security sheet for advisors &middot; verified against the code, June 25, 2026</p>
+</div></header>
+<main><div class="wrap"><div class="doc">
+<p><strong>Keepance privacy and security overview, for financial advisors and their compliance teams.</strong></p>
+<p><em>This is a plain-language summary of how Keepance handles data. Every claim below reflects how the app actually works today. We would rather tell you straight than over-promise.</em></p>
+<hr />
+<h2>The short version</h2>
+<p>Keepance runs on your own computer. Your client files, the search index it builds, and the "Client Map" it creates all stay on your machine. Nothing about your clients is stored on a Keepance server. The only time your client information leaves your computer is when you choose to use a cloud AI, and in that case it goes straight from your computer to the AI provider on your own account, not through a Keepance server.</p>
+<p><em>(This sheet describes the two ways a solo or small-firm advisor runs Keepance: fully on your own machine, or with your own AI key.)</em></p>
+<h2>What stays on your computer</h2>
+<ul>
+<li><strong>Your files and notes.</strong> They remain ordinary files in a folder you choose. Keepance does not upload or sync them anywhere.</li>
+<li><strong>The search index.</strong> Keepance reads your documents and builds a private search index on your machine so it can find things fast. That index, and the AI "embeddings" behind it, are created on your computer and stored on your computer.</li>
+<li><strong>The Client Map.</strong> The profile Keepance builds for each client household lives in the app on your machine.</li>
+<li><strong>Your sensitive data is encrypted on your machine.</strong> The optional secure vault, your imported email, the activity log, and the readable text inside the search index are locked with strong, industry-standard encryption (AES-256), with the keys held in your operating system's secure keychain (not in a file someone could copy). Your ordinary working files and the Client Map also stay on your computer; like the rest of your documents they're protected by your device's own security, and you can place anything especially sensitive inside the encrypted vault.</li>
+</ul>
+<h2>The one thing that can leave: the AI</h2>
+<p>This is the part advisors and compliance teams care about most, so here it is clearly. Keepance gives you two ways to run the AI:</p>
+<ol>
+<li>
+<p><strong>Local mode.</strong> The AI runs entirely on your own computer (using a local model). In this mode, <strong>nothing leaves your machine at all.</strong> No internet connection is used for the AI.</p>
+</li>
+<li>
+<p><strong>Bring-your-own-key mode.</strong> You connect your own account with an AI provider (such as Anthropic, OpenAI, or Google) using your own key. When you ask a question, the relevant text is sent <strong>directly from your computer to that provider</strong>, on your account, to get the answer. It does <strong>not</strong> pass through any Keepance server. We never see it.</p>
+</li>
+</ol>
+<p>In bring-your-own-key mode, the AI provider you chose does see the text of your question (this is true of any cloud AI). Because it is your own account, you control that relationship, and most providers offer settings so your data is not used to train their models. If you want zero data to leave your machine, use Local mode.</p>
+<h2>What Keepance (the company) can and cannot see</h2>
+<p><strong>We cannot see:</strong> your client documents, your emails, the questions you ask, the answers you get, your file names, or your clients' names. None of that ever reaches us.</p>
+<p><strong>The only routine connections the app makes to us are:</strong>
+- <strong>A license check</strong> to confirm your subscription. It sends your license key, a machine identifier, and the app version. It contains <strong>no client data</strong>.
+- <strong>A software-update check</strong>, which reads a public release list (hosted on GitHub) to see if a newer version exists. It contains <strong>no client data</strong>.</p>
+<p><strong>Optional and off by default:</strong> basic usage counts and an opt-in diagnostics channel for design partners. Both are turned off unless you choose to turn them on, and neither carries any of your content.</p>
+<h2>Your email connections</h2>
+<p>When you connect Microsoft 365, Gmail, or another mailbox, Keepance talks <strong>directly</strong> to your email provider from your computer. Your email does not route through any Keepance server.</p>
+<h2>For your compliance officer</h2>
+<p>Keepance is designed so that <strong>client data stays under the advisor's control.</strong> Practically, that means:
+- There is no Keepance cloud holding your clients' files, so there is one fewer outside vendor to vet, monitor, and worry about under data-protection rules such as Reg S-P.
+- Data is encrypted at rest, and team collaboration (on the Firm plan) is end-to-end encrypted, meaning even the connection point that passes edits between teammates only ever sees scrambled data and never holds the key.
+- You decide whether AI runs fully on-device or through your own provider account.</p>
+<p>We are happy to complete your firm's vendor or security questionnaire and to walk your compliance team through any of the above.</p>
+<h2>What we don't have yet (so you hear it from us first)</h2>
+<p>We are an early-stage company, and we will not claim certifications we don't have:
+- <strong>We are not SOC 2 certified yet.</strong> We have done the readiness work and can share our security design and roadmap.
+- <strong>We do not yet have a lawyer-reviewed, signed data-processing agreement.</strong> We have a draft in progress that still needs legal review before we can use it, and we are glad to work toward a signed agreement before you onboard if your firm requires one.
+- We can answer security and recordkeeping questions directly while these formal artifacts are in progress.</p>
+<p>We would rather earn your trust with a straight answer than lose it with an exaggerated one.</p>
+<h2>Questions</h2>
+<p>Reach out any time and we will walk you or your compliance team through exactly how your data is handled.</p>
+<hr />
+<p><em>Internal note (STRIP THIS before sending to any customer): claims here were verified against the app's source code on 2026-06-25 and then corrected after an independent Codex over-claim review (see <code>docs/trust/security-overview.md</code> and the data-flow verification in this proof-sprint folder). The scope is deliberately limited to Local mode and bring-your-own-key mode; the Firm-tier managed-AI path is out of scope and must be described separately if it is ever used. Do not add claims about SOC 2, a signed DPA, a penetration test, a formed legal entity, or an audited inference proxy until they are actually true. Per the project's no-em-dash rule for customer-facing copy, this document uses none.</em></p>
+</div></div></main>
+<footer><div class="wrap">
+  Keepance &middot; CEO &rarr; Board reporting line &middot; private, not indexed. &middot; <a href="./#sales">Back to the board</a>
+</div></footer>
+</body>
+</html>
