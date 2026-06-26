@@ -5,7 +5,7 @@
  * copied VERBATIM from App.tsx; only the source of the referenced values
  * changed (they now come from the options object instead of App's local scope).
  */
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { flushAllDirtyTabs, setActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
@@ -20,8 +20,9 @@ import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/Wor
 import { createFSBackend } from '@/platform/fs/BackendFactory';
 import { AuditService } from '@/platform/audit/AuditService';
 import { writeDenyAllMcpSessionScopeFile } from '@/platform/mcp/mcpSessionScope';
-import type { AuditEntry } from '@/platform/types/audit';
-import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
+import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
+import type { AuditEntryRecord, AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
+import { CRM_AUDIT_APPENDED_EVENT } from '@/platform/utils/wealthbox-commands';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { SourceCard } from '@/features/ask/types/research';
 import type { AIChatFile } from '@/platform/types/ai';
@@ -294,6 +295,63 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
       console.error('[App] Failed to open recent project:', err);
     }
   }, [handleWorkspaceSelected]);
+
+  // Listen for audit entries written by the CRM Rust backend and push them
+  // into the live `auditEntries` React state so they appear in the Activity
+  // Log immediately — without waiting for the next workspace re-open.
+  //
+  // Root cause addressed: `append_crm_audit_best_effort` writes correctly to
+  // the SQLCipher DB, but the Activity Log reads from in-memory React state
+  // that is only populated at workspace hydration.  This listener bridges the
+  // gap for the current session.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window)) return;
+
+    let unlisten: (() => void) | null = null;
+    // Guards the race where this effect tears down before `listen()` resolves: if
+    // we've already cleaned up, immediately call the unlisten we get back so the
+    // listener never leaks past the effect's lifetime.
+    let cancelled = false;
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<AuditEntryRecord>(CRM_AUDIT_APPENDED_EVENT, (event) => {
+        const rec = event.payload;
+        let metadata: Record<string, unknown> = {};
+        try {
+          metadata = JSON.parse(rec.payloadJson) as Record<string, unknown>;
+        } catch {
+          // payload is not critical — leave metadata empty
+        }
+        const entry: AuditEntry = {
+          id: rec.id,
+          timestamp: rec.timestamp,
+          action: rec.action as AuditActionType,
+          description: rec.description,
+          model: undefined,
+          inputs: {},
+          outputs: {},
+          userDecision: undefined,
+          metadata,
+        };
+        // Prepend newest-first, but DEDUPE by id: the same entry can arrive both via
+        // this event and via the once-on-open DB read (or a StrictMode double-invoke),
+        // and it must never appear twice in the Activity Log.
+        setAuditEntries((prev) =>
+          prev.some((e) => e.id === entry.id) ? prev : [entry, ...prev],
+        );
+      })
+        .then((fn) => {
+          if (cancelled) fn();
+          else unlisten = fn;
+        })
+        .catch(() => { /* best-effort — non-fatal if listener setup fails */ });
+    }).catch(() => { /* best-effort */ });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [setAuditEntries]);
 
   return { handleWorkspaceSelected, handleOpenRecentProject };
 }

@@ -8,6 +8,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Merge-by-name no longer false-attaches a household to the wrong client (correctness/privacy).**
+  `resolveMatterForHousehold` previously linked a Wealthbox household to the FIRST file-client whose
+  normalized name matched, so when two or more local clients shared the same normalized name (e.g. two
+  "Smith, Bob") a household could be silently attached to the wrong client record. It now collects every
+  eligible name match and links only when there is EXACTLY ONE; an ambiguous match (two or more) falls
+  through to creating a new record instead of guessing. New tests cover the duplicate-normalized-name
+  case (must create, not link), the single-unambiguous-match case, and the case where a same-name matter
+  is already CRM-linked (only the unclaimed one is eligible).
+  File: `src/platform/rag/matterResolver.ts`, `src/platform/rag/matterResolver.crm.test.ts`.
+- **Activity-Log live listener hardened.** The `crm-audit-appended` listener in `useWorkspaceLifecycle.ts`
+  now (a) handles the cancelled-before-`listen()`-resolves race by calling the returned unlisten if the
+  effect has already torn down (no leaked listener), and (b) dedupes the prepend by entry id so a single
+  entry can't appear twice when it arrives via both the event and the once-on-open DB read (or a
+  StrictMode double-invoke).
+  File: `src/app/lifecycle/useWorkspaceLifecycle.ts`.
+- **B-CONN-3 (HIGH): Wealthbox connect/disconnect/sync now appear in the Activity Log immediately.**
+  Root cause: `append_crm_audit_best_effort` wrote correctly to the SQLCipher audit DB, but the
+  Activity Log reads from in-memory React state populated only at workspace hydration — backend
+  writes after hydration were invisible until the next workspace re-open. Two-part fix: (1) Backend
+  now resolves the workspace path via `AuditState` (same path `audit_list` reads from) instead of
+  `CrmState`, eliminating any potential path divergence; `crm_connect` and `crm_disconnect` now
+  accept `AppHandle` so audit writes use the managed state rather than an ad-hoc path. (2) After
+  a successful DB write, the backend emits a `crm-audit-appended` Tauri event carrying the
+  `AuditEntryRecord`. A new `useEffect` in `useWorkspaceLifecycle.ts` listens for this event and
+  prepends the entry to `auditEntries` React state, making it visible in the Activity Log in the
+  current session without a re-open.
+  Files: `src-tauri/src/commands/crm/commands.rs`, `src/platform/utils/wealthbox-commands.ts`,
+  `src/app/lifecycle/useWorkspaceLifecycle.ts`.
+
+- **B-CONN-4 (cosmetic): "Connected to Wealthbox" now shows the firm/account name, not the user's name.**
+  `crm_connect` now parses `accounts[0].name` from the `/me` response (the RIA firm name, e.g.
+  "Northcrest") preferring it over the top-level `name` field (the individual user's name, e.g.
+  "Jameson Daines"). Falls back to the user name when no accounts are present. New test
+  `parse_me_json_prefers_account_name_over_user_name` covers the preference; existing tests
+  updated to use the shared `parse_me_to_info` helper.
+  File: `src-tauri/src/commands/crm/commands.rs`.
+
+- **household name in list DTO now uses the live `name` field (Fix C).**
+  `household_dto_name` previously returned `company_name` only, which is empty on real Wealthbox
+  household contacts. The live API returns the display name (e.g. "Ellison, Robert & Margaret") in
+  the top-level `name` field. Priority order is now: `contact.name` > `company_name` > "Household
+  {id}". New tests: `household_dto_name_prefers_name_field_over_company_name` and
+  `household_dto_name_falls_back_to_company_name_when_name_empty`.
+  File: `src-tauri/src/commands/crm/commands.rs`.
+
+- **B-CONN-5 (HIGH): Wealthbox sync now merges into existing file-clients by name instead of duplicating.**
+  Previously `runSync` matched households only by `crmHouseholdKeys`, so the 27 existing
+  file-clients (which have no CRM keys) were always ignored — a sync of 40 households created
+  40 new matters, duplicating the ~26 whose names matched. Now sync uses name-based matching via
+  `resolveMatterForHousehold` / `normalizeClientName` (`src/platform/rag/matterResolver.ts`): a
+  household that matches an existing file-client by normalised name (lowercase, trimmed, collapsed
+  whitespace, stripped surrounding punctuation) is LINKED to that client (`addCrmHouseholdKey`) not
+  duplicated. A matter that is already linked to a different household is never cross-linked. A
+  `claimedMatterIds` set prevents two households in the same sync batch from both linking to the
+  same matter. Unit tests: `src/platform/rag/matterResolver.crm.test.ts` (17 tests covering
+  reuse/link/create priority, case-insensitive matching, CRM-key guard, and the double-link guard).
+  Files: `src/platform/rag/matterResolver.ts`, `src/features/settings/WealthboxConnect.tsx`.
+
+- **B-CONN-2 (MEDIUM): Import confirm now shows the real household count.**
+  The dialog previously fired before the fetch and showed no number ("Import your Wealthbox
+  households?"). Now `runSync` uses a 2-step flow: (1) fetch `crmListHouseholds()` immediately on
+  "Sync now" click — the click is the user's consent to read the list; (2) show the confirm dialog
+  "Import N household(s) into local encrypted storage on this device?" with the real count; (3) only
+  on confirm does Keepance write anything locally. If the account returns 0 households the user is
+  told so and the flow stops. File: `src/features/settings/WealthboxConnect.tsx`.
+- **DEMO-BLOCKER: Wealthbox household contacts now deserialize correctly (null-field crash).**
+  Household-type contacts from the live Wealthbox API carry only `id`, `type`, `name`,
+  and a handful of shared fields — they omit person-only fields entirely AND send some
+  shared fields (e.g. `background_info`, `email_addresses`, `company_name`) as explicit
+  `null`.  `#[serde(default)]` on the struct handles MISSING keys but does NOT handle a
+  key that is present with a `null` value — serde still tries to deserialize `null` into
+  `String` or `Vec<T>` and fails with "invalid type: null, expected a string/sequence",
+  crashing the sync at the very first household page.  Root cause: present-null into
+  non-Option field.  Fix: added `null_to_default` helper in `model.rs` and applied
+  `#[serde(default, deserialize_with = "null_to_default")]` to every bare `String` and
+  `Vec<…>` field on `WbContact`; `background_information` keeps its `alias = "background_info"`.
+  Added a `household_with_null_fields_and_top_level_name_parses_correctly` test that
+  asserts the exact failure shape (explicit null on `background_info`, `email_addresses`,
+  `company_name`) parses without error and that null fields become empty defaults.
+- **Wealthbox household `name` field now captured (unnamed Client Maps fix).**
+  The live API returns the household display name in a top-level `name` field
+  (e.g. "Ellison, Robert & Margaret"), not in `company_name`.  `WbContact` now has
+  a `pub name: String` field with `null_to_default`.  `render_household_summary` now
+  prefers `name` over `company_name`, falling back to `company_name` then the built-from-members
+  name.  Added `household_summary_prefers_name_field_over_company_name` render test.
+  Files: `src-tauri/src/commands/crm/model.rs`, `src-tauri/src/commands/crm/render.rs`.
+  Verify: `cargo build --lib` clean; `cargo test --lib crm` 48/48 PASS;
+  `cargo test --test crm_fixture_import` 3/3 PASS.
 - **Honest disconnect: never claim the Wealthbox key was removed when it wasn't.** The best-effort token delete can fail (keychain momentarily unavailable), leaving the saved key on the device. The UI now claims a clean disconnect (and flips to the disconnected state) ONLY when `tokenDeleted && ragPurged && crmDbPurged`; if the key could not be removed it shows an honest partial message and stays connected. The backend disconnect audit text now reflects `token_deleted` instead of always saying the key was removed. Files: `src/features/settings/WealthboxConnect.tsx`, `src-tauri/src/commands/crm/commands.rs`.
 - **Wealthbox `background_info` field now syncs (real-data bug found during seeding).** The live Wealthbox API returns the contact background field as `background_info`, but `model.rs` deserialized only `background_information`, so the Background text silently dropped on sync. Added `#[serde(alias = "background_info")]` (reads both names; documented `background_information` stays the primary name, so no fixture/test breaks) plus a guard test. Files: `src-tauri/src/commands/crm/model.rs`.
 - **`crm_disconnect` refactored for testability + best-effort token deletion (pre-merge re-review).**

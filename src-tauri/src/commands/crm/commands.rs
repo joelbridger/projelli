@@ -13,6 +13,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::commands::audit::AuditState;
 use crate::commands::crm::client::WealthboxClient;
 use crate::commands::crm::engine;
 use crate::commands::crm::store::CrmStore;
@@ -169,28 +170,58 @@ pub struct CrmHouseholdDto {
 
 const CRM_SYNC_PROGRESS_EVENT: &str = "crm-sync-progress";
 
+/// Emitted after a durable audit entry is written by the CRM backend so the
+/// frontend can push it into the live Activity-Log React state without waiting
+/// for the next workspace re-open.  Payload: `AuditEntryRecord` (camelCase JSON).
+const CRM_AUDIT_APPENDED_EVENT: &str = "crm-audit-appended";
+
 // ---------------------------------------------------------------------------
 // Durable audit helper
 // ---------------------------------------------------------------------------
 
-/// Append one CRM audit entry to the encrypted audit store at `workspace`.
+/// Append one CRM audit entry to the encrypted audit store and notify the
+/// frontend so it appears in the live Activity-Log view immediately.
 ///
-/// Best-effort: any failure (keychain unavailable, I/O error, spawn panic)
-/// is logged as a `warn!` and **never** propagates to the calling command.
-/// The id is `audit_crm_<nanos>_<4-byte-hex>` (unique per call within the
-/// nanosecond range of the system clock) and the timestamp is RFC 3339.
-async fn append_crm_audit_best_effort(
-    workspace: &std::path::Path,
-    action: &str,
-    description: &str,
-) {
+/// # Workspace resolution
+/// Prefers the `AuditState` workspace (the same path that `audit_list` and
+/// `audit_append` use) so the entry is visible as soon as it is written.
+/// Falls back to the `CrmState` workspace when `AuditState` has not been set
+/// yet (should not happen in normal use — both are set together at workspace
+/// open — but is handled defensively).
+///
+/// # Best-effort contract
+/// Any failure (keychain unavailable, I/O error, spawn panic) is logged as a
+/// `warn!` and **never** propagates to the calling command.  The id is
+/// `audit_crm_<nanos>_<4-byte-hex>` (unique per call within the nanosecond
+/// range of the system clock) and the timestamp is RFC 3339.
+///
+/// # Live Activity-Log update
+/// After a successful DB write the `crm-audit-appended` Tauri event is emitted
+/// with the `AuditEntryRecord` as the payload.  The frontend listener in
+/// `useWorkspaceLifecycle.ts` pushes the record into the `auditEntries` React
+/// state, making the entry visible without a workspace re-open.
+async fn append_crm_audit_best_effort(app: &AppHandle, action: &str, description: &str) {
     use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
 
-    let ws = workspace.to_path_buf();
+    // Resolve workspace: AuditState first (guarantees same DB as audit_list),
+    // then CrmState as a fallback.
+    let ws_opt: Option<std::path::PathBuf> = {
+        let audit_ws = app.state::<AuditState>().workspace.lock().await.clone();
+        if audit_ws.is_some() {
+            audit_ws
+        } else {
+            app.state::<CrmState>().workspace.lock().await.clone()
+        }
+    };
+    let Some(ws) = ws_opt else {
+        log::warn!("crm audit append skipped (non-fatal): no workspace path available");
+        return;
+    };
+
     let action_s = action.to_string();
     let desc_s = description.to_string();
 
-    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<AuditEntryRecord> {
         let store = EncryptedAuditStore::open(&ws)?;
 
         let timestamp = chrono::Utc::now().to_rfc3339();
@@ -216,12 +247,16 @@ async fn append_crm_audit_best_effort(
             payload_json,
         };
         store.append(&rec)?;
-        Ok(())
+        Ok(rec)
     })
     .await;
 
     match result {
-        Ok(Ok(())) => {}
+        Ok(Ok(rec)) => {
+            // Notify the frontend so it can push the entry into the live
+            // `auditEntries` React state without a workspace re-open.
+            let _ = app.emit(CRM_AUDIT_APPENDED_EVENT, &rec);
+        }
         Ok(Err(e)) => log::warn!("crm audit append failed (non-fatal): {e:#}"),
         Err(e) => log::warn!("crm audit spawn failed (non-fatal): {e}"),
     }
@@ -250,11 +285,13 @@ pub async fn crm_set_workspace(
 /// status-only error is returned — the raw response body and the token itself
 /// are **never** included in the error string.
 ///
-/// Audit is skipped gracefully when no workspace has been set yet via
-/// `crm_set_workspace` (the audit store lives inside the workspace directory).
+/// The `name` field in `CrmConnectInfo` is the **firm/account** name from
+/// `accounts[0].name` (e.g. "Northcrest"), falling back to the user's own
+/// `name` field (e.g. "Jameson Daines") when no accounts are present.  This
+/// ensures the UI shows the RIA/firm name rather than the individual user.
 #[tauri::command]
 pub async fn crm_connect(
-    state: State<'_, CrmState>,
+    app: AppHandle,
     token: String,
 ) -> Result<CrmConnectInfo, String> {
     let client = WealthboxClient::new(token.clone());
@@ -270,20 +307,27 @@ pub async fn crm_connect(
     // Store the token only after a confirmed successful validation.
     store_token(&token)?;
 
-    // Emit durable audit — best-effort, skipped if no workspace is set yet.
-    let workspace = state.workspace.lock().await.clone();
-    if let Some(ws) = workspace {
-        append_crm_audit_best_effort(
-            &ws,
-            "wealthbox.connect",
-            "Connected Wealthbox. API key stored locally; data requests go directly \
-             from this device to Wealthbox, never through Keepance servers.",
-        )
-        .await;
-    }
+    // Emit durable audit — best-effort; uses AuditState workspace (same DB
+    // that the Activity Log reads) so the entry appears immediately.
+    append_crm_audit_best_effort(
+        &app,
+        "wealthbox.connect",
+        "Connected Wealthbox. API key stored locally; data requests go directly \
+         from this device to Wealthbox, never through Keepance servers.",
+    )
+    .await;
 
     // Parse account info tolerantly — absent or null fields fall back to "".
-    let name = me.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    // Prefer accounts[0].name (the firm/RIA name) over the top-level `name`
+    // (the individual user's name) so the UI shows the firm, not the person.
+    let firm_name = me
+        .get("accounts")
+        .and_then(|a| a.get(0))
+        .and_then(|acc| acc.get("name"))
+        .and_then(|n| n.as_str())
+        .unwrap_or("");
+    let user_name = me.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    let name = if !firm_name.is_empty() { firm_name } else { user_name }.to_string();
     let plan = me.get("plan").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let email = me.get("email").and_then(|v| v.as_str()).unwrap_or("").to_string();
 
@@ -343,27 +387,11 @@ pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult {
             }
         }
 
-        // Emit durable audit — the description must reflect EXACTLY what
-        // happened (key removal AND data purge). The token delete is best-effort,
-        // so the audit must never claim the key was removed when it was not.
-        let key_part = if result.token_deleted {
-            "removed the API key"
-        } else {
-            "could NOT remove the API key (keychain unavailable)"
-        };
-        let data_part = if result.rag_purged && result.crm_db_purged {
-            "deleted the imported data"
-        } else {
-            "some imported data could not be deleted"
-        };
-        let audit_desc = format!("Disconnected Wealthbox; {key_part}; {data_part}.");
-        append_crm_audit_best_effort(ws, "wealthbox.disconnect", &audit_desc).await;
     } else {
         result.warnings.push(
             "No workspace set; imported Wealthbox data could not be located and was NOT deleted."
                 .to_string(),
         );
-        // Audit skipped gracefully — no workspace path to open the store at.
     }
 
     result
@@ -377,10 +405,31 @@ pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult {
 ///
 /// Thin wrapper over `crm_disconnect_logic`.  Token deletion is best-effort:
 /// a momentarily unavailable keychain no longer blocks the local data purge.
-/// Essentially never returns `Err`.
+/// After the purge, a durable audit entry is written (via `AuditState` so it
+/// appears in the Activity Log immediately) and a `crm-audit-appended` event
+/// is emitted.  Essentially never returns `Err`.
 #[tauri::command]
-pub async fn crm_disconnect(state: State<'_, CrmState>) -> Result<CrmDisconnectResult, String> {
-    Ok(crm_disconnect_logic(&state).await)
+pub async fn crm_disconnect(
+    app: AppHandle,
+    state: State<'_, CrmState>,
+) -> Result<CrmDisconnectResult, String> {
+    let result = crm_disconnect_logic(&state).await;
+
+    // Build an honest audit description from the result flags.
+    let key_part = if result.token_deleted {
+        "removed the API key"
+    } else {
+        "could NOT remove the API key (keychain unavailable)"
+    };
+    let data_part = if result.rag_purged && result.crm_db_purged {
+        "deleted the imported data"
+    } else {
+        "some imported data could not be deleted"
+    };
+    let audit_desc = format!("Disconnected Wealthbox; {key_part}; {data_part}.");
+    append_crm_audit_best_effort(&app, "wealthbox.disconnect", &audit_desc).await;
+
+    Ok(result)
 }
 
 /// Open the workspace RAG table and delete every chunk with source_type = 'crm'.
@@ -491,7 +540,7 @@ pub async fn crm_sync_all(
     let households = dto.households_processed;
     let records = dto.records_indexed;
     append_crm_audit_best_effort(
-        &workspace,
+        &app,
         "wealthbox.sync",
         &format!(
             "Imported {households} Wealthbox households ({records} records) into the local encrypted store."
@@ -527,16 +576,26 @@ pub async fn crm_cancel_sync(state: State<'_, CrmState>) -> Result<(), String> {
 
 /// Derive the display name for a household `WbContact`.
 ///
-/// Returns `company_name` trimmed if non-empty; otherwise `"Household {id}"`.
+/// Priority:
+///   1. `contact.name` trimmed — the top-level `name` field returned by the
+///      live Wealthbox API on household contacts (e.g. "Ellison, Robert &
+///      Margaret"). This is the real household display name.
+///   2. `contact.company_name` trimmed — used by organisation-type households
+///      and older fixtures that set `company_name` instead of `name`.
+///   3. `"Household {id}"` — generic fallback when both are blank.
+///
 /// Factored out of the command so it can be unit-tested without any
 /// Tauri runtime, OS keychain, or network call.
 fn household_dto_name(contact: &crate::commands::crm::model::WbContact) -> String {
-    let trimmed = contact.company_name.trim().to_string();
-    if trimmed.is_empty() {
-        format!("Household {}", contact.id)
-    } else {
-        trimmed
+    let name = contact.name.trim();
+    if !name.is_empty() {
+        return name.to_string();
     }
+    let company = contact.company_name.trim();
+    if !company.is_empty() {
+        return company.to_string();
+    }
+    format!("Household {}", contact.id)
 }
 
 /// Return a slim list of every household in the advisor's Wealthbox account.
@@ -643,22 +702,53 @@ mod tests {
 
     // ── me() JSON → CrmConnectInfo parsing ────────────────────────────────
 
-    /// Parse a full /me fixture and assert all three fields are extracted.
+    /// Helper: apply the same firm-name-over-user-name logic used in crm_connect.
+    fn parse_me_to_info(me: &serde_json::Value) -> CrmConnectInfo {
+        let firm_name = me
+            .get("accounts")
+            .and_then(|a| a.get(0))
+            .and_then(|acc| acc.get("name"))
+            .and_then(|n| n.as_str())
+            .unwrap_or("");
+        let user_name = me.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        let name = if !firm_name.is_empty() { firm_name } else { user_name }.to_string();
+        let plan = me.get("plan").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let email = me.get("email").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        CrmConnectInfo { name, plan, email }
+    }
+
+    /// The real /me shape: `accounts[0].name` carries the firm name;
+    /// top-level `name` is the individual user.  Firm name must be preferred.
     #[test]
-    fn parse_me_json_full_fields() {
+    fn parse_me_json_prefers_account_name_over_user_name() {
         let me = serde_json::json!({
             "id": 42,
-            "name": "Northcrest Advisory",
+            "name": "Jameson Daines",          // user's name — must NOT be shown
+            "plan": "basic",
+            "email": "advisor@northcrest.com",
+            "accounts": [
+                { "id": 1, "name": "Northcrest Advisory" }
+            ]
+        });
+        let info = parse_me_to_info(&me);
+        assert_eq!(info.name, "Northcrest Advisory",
+            "accounts[0].name (firm) must be preferred over top-level name (user)");
+        assert_eq!(info.plan, "basic");
+        assert_eq!(info.email, "advisor@northcrest.com");
+    }
+
+    /// When no accounts array is present, fall back to the user's own name.
+    #[test]
+    fn parse_me_json_falls_back_to_user_name_when_no_accounts() {
+        let me = serde_json::json!({
+            "id": 42,
+            "name": "Northcrest Advisory",  // in this fixture the user IS the firm
             "plan": "professional",
             "email": "advisor@northcrest.com",
         });
-
-        let name = me.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let plan = me.get("plan").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let email = me.get("email").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let info = CrmConnectInfo { name, plan, email };
-
-        assert_eq!(info.name, "Northcrest Advisory");
+        let info = parse_me_to_info(&me);
+        assert_eq!(info.name, "Northcrest Advisory",
+            "user name is used as fallback when accounts is absent");
         assert_eq!(info.plan, "professional");
         assert_eq!(info.email, "advisor@northcrest.com");
     }
@@ -667,14 +757,27 @@ mod tests {
     #[test]
     fn parse_me_json_missing_fields_default_to_empty() {
         let me = serde_json::json!({ "id": 7 });
+        let info = parse_me_to_info(&me);
+        assert_eq!(info.name, "", "missing name + accounts must default to empty string");
+        assert_eq!(info.plan, "", "missing 'plan' must default to empty string");
+        assert_eq!(info.email, "", "missing 'email' must default to empty string");
+    }
 
-        let name = me.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let plan = me.get("plan").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let email = me.get("email").and_then(|v| v.as_str()).unwrap_or("").to_string();
-
-        assert_eq!(name, "", "missing 'name' must default to empty string");
-        assert_eq!(plan, "", "missing 'plan' must default to empty string");
-        assert_eq!(email, "", "missing 'email' must default to empty string");
+    /// Kept for forward-compatibility: a /me that has a full_fields shape
+    /// without the new accounts array still works via fallback.
+    #[test]
+    fn parse_me_json_full_fields() {
+        let me = serde_json::json!({
+            "id": 42,
+            "name": "Northcrest Advisory",
+            "plan": "professional",
+            "email": "advisor@northcrest.com",
+        });
+        let info = parse_me_to_info(&me);
+        // No accounts array → falls back to user name field.
+        assert_eq!(info.name, "Northcrest Advisory");
+        assert_eq!(info.plan, "professional");
+        assert_eq!(info.email, "advisor@northcrest.com");
     }
 
     // ── household_dto_name helper ──────────────────────────────────────────────
@@ -745,20 +848,124 @@ mod tests {
 
     // ── parse_me_json tests (continued) ───────────────────────────────────────
 
-    /// Exact fixture from the task spec: {{"name":"Northcrest","plan":"trial",...}}.
+    /// Trial plan fixture: no accounts array — user name used as fallback.
     #[test]
     fn parse_me_json_trial_plan_fixture() {
         let me = serde_json::json!({
             "name": "Northcrest",
             "plan": "trial",
         });
+        let info = parse_me_to_info(&me);
+        assert_eq!(info.name, "Northcrest");
+        assert_eq!(info.plan, "trial");
+        assert_eq!(info.email, "");
+    }
 
-        let name = me.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let plan = me.get("plan").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let email = me.get("email").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    // ── household_dto_name: Fix C — name field preferred over company_name ────
 
-        assert_eq!(name, "Northcrest");
-        assert_eq!(plan, "trial");
-        assert_eq!(email, "");
+    /// Top-level `name` (set on household contacts by the live API, e.g.
+    /// "Ellison, Robert & Margaret") must be preferred over `company_name`.
+    #[test]
+    fn household_dto_name_prefers_name_field_over_company_name() {
+        use crate::commands::crm::model::WbContact;
+        let c = WbContact {
+            id: 20001,
+            name: "Ellison, Robert & Margaret".to_string(),
+            company_name: "Ellison Family".to_string(), // both set — name wins
+            r#type: "household".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(
+            household_dto_name(&c),
+            "Ellison, Robert & Margaret",
+            "contact.name must be preferred over company_name when both are present"
+        );
+    }
+
+    /// When `name` is empty, `company_name` is the fallback.
+    #[test]
+    fn household_dto_name_falls_back_to_company_name_when_name_empty() {
+        use crate::commands::crm::model::WbContact;
+        let c = WbContact {
+            id: 10001,
+            name: "".to_string(),
+            company_name: "The Andersons".to_string(),
+            r#type: "household".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(
+            household_dto_name(&c),
+            "The Andersons",
+            "company_name is used when name is empty"
+        );
+    }
+
+    // ── Fix A: audit roundtrip — wealthbox.* entry persists and lists ─────────
+
+    /// Verify that the audit-append path (the same code `append_crm_audit_best_effort`
+    /// uses) writes a `wealthbox.*` entry that can be retrieved via `list`.
+    /// Uses `EncryptedAuditStore::open_with_key` to bypass the OS keychain,
+    /// mirroring the pattern in `commands/audit/store.rs` tests.
+    #[test]
+    fn crm_audit_append_writes_wealthbox_entry_to_store() {
+        use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
+        use tempfile::TempDir;
+
+        let dir = TempDir::new().unwrap();
+        let key = [0x42u8; 32]; // deterministic test key, bypasses keychain
+
+        let store = EncryptedAuditStore::open_with_key(dir.path(), &key)
+            .expect("open audit store at temp workspace");
+
+        // Simulate what append_crm_audit_best_effort writes for a connect event.
+        let rec = AuditEntryRecord {
+            id: "audit_crm_test_connect_001".to_string(),
+            timestamp: "2026-06-25T12:00:00Z".to_string(),
+            action: "wealthbox.connect".to_string(),
+            description: "Connected Wealthbox. API key stored locally; data requests go \
+                           directly from this device to Wealthbox, never through Keepance servers."
+                .to_string(),
+            payload_json: r#"{"auditEventType":"wealthbox.connect","source":"crm-backend"}"#
+                .to_string(),
+        };
+        store.append(&rec).expect("append wealthbox.connect entry");
+
+        // Also write a disconnect entry to cover both connect + disconnect audit paths.
+        let rec2 = AuditEntryRecord {
+            id: "audit_crm_test_disconnect_001".to_string(),
+            timestamp: "2026-06-25T12:01:00Z".to_string(),
+            action: "wealthbox.disconnect".to_string(),
+            description: "Disconnected Wealthbox; removed the API key; deleted the imported data."
+                .to_string(),
+            payload_json: r#"{"auditEventType":"wealthbox.disconnect","source":"crm-backend"}"#
+                .to_string(),
+        };
+        store.append(&rec2).expect("append wealthbox.disconnect entry");
+
+        // List all entries and assert both wealthbox.* entries are present.
+        let entries = store.list(None, None).expect("list audit entries");
+        assert_eq!(entries.len(), 2, "two entries must be persisted");
+
+        let connect_entry = entries.iter().find(|e| e.action == "wealthbox.connect");
+        assert!(connect_entry.is_some(), "wealthbox.connect entry must be in the store");
+        assert!(
+            connect_entry.unwrap().action.starts_with("wealthbox."),
+            "action must start with 'wealthbox.'"
+        );
+        assert!(
+            connect_entry.unwrap().description.contains("Wealthbox"),
+            "description must mention Wealthbox"
+        );
+
+        let disconnect_entry = entries.iter().find(|e| e.action == "wealthbox.disconnect");
+        assert!(disconnect_entry.is_some(), "wealthbox.disconnect entry must be in the store");
+
+        // Verify the chain is intact after both appends.
+        use crate::commands::audit::store::AuditChainVerification;
+        assert_eq!(
+            store.verify_chain().unwrap(),
+            AuditChainVerification::Verified { checked: 2 },
+            "hash chain must be valid after two CRM audit appends"
+        );
     }
 }

@@ -15,7 +15,7 @@ import { useCrmSync } from '@/features/crm/useCrmSync';
 import { useCrmStore } from '@/features/crm/crmStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
-import { buildCrmMatterMap } from '@/platform/rag/matterResolver';
+import { buildCrmMatterMap, resolveMatterForHousehold } from '@/platform/rag/matterResolver';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
@@ -36,6 +36,7 @@ export function WealthboxConnect() {
   const [disconnectNote, setDisconnectNote] = useState<string | null>(null);
 
   const createMatter = useMatterStore((s) => s.createMatter);
+  const addCrmHouseholdKey = useMatterStore((s) => s.addCrmHouseholdKey);
 
   // Shared confirm dialog (sync + disconnect flows are mutually exclusive so
   // one instance is sufficient).
@@ -81,44 +82,57 @@ export function WealthboxConnect() {
   async function runSync() {
     setSyncError(null);
     setLastSyncReport(null);
-
-    // Fix #4: confirm BEFORE any Wealthbox API request. The household count
-    // is not known yet — it appears in the sync progress once the backend
-    // starts importing. This keeps the pre-confirm dialog honest.
-    const confirmed = await confirm(
-      'Import your Wealthbox households? Keepance will fetch your household list directly from Wealthbox and create one local, encrypted client record for each.',
-      {
-        title: 'Import Wealthbox households',
-        confirmLabel: 'Import',
-        cancelLabel: 'Cancel',
-      },
-    );
-    if (!confirmed) return;
-
     setSyncing(true);
+
     try {
-      // 1. Fetch after confirm — no network request happens before here.
+      // Step 1: Fetch the household list.
+      // Clicking "Sync now" is the user's consent to read the list from Wealthbox.
+      // No local data is written until the user confirms in Step 2.
       const households = await crmListHouseholds();
 
-      // 2. For each household, find or create a matching matter.
+      if (households.length === 0) {
+        setSyncError('Your Wealthbox account has no households to import.');
+        return;
+      }
+
+      // Step 2: Show the confirm dialog with the real count so the user knows
+      // exactly how many records will be written to local encrypted storage.
+      const count = households.length;
+      const confirmed = await confirm(
+        `Import ${String(count)} household${count === 1 ? '' : 's'} into local encrypted storage on this device? Keepance stores this data locally — it stays on your machine.`,
+        {
+          title: `Import ${String(count)} Wealthbox household${count === 1 ? '' : 's'}`,
+          confirmLabel: 'Import',
+          cancelLabel: 'Cancel',
+        },
+      );
+      if (!confirmed) return;
+
+      // Step 3: Resolve each household to a matter — merge by name so existing
+      // file-clients are not duplicated. `claimedMatterIds` prevents two
+      // households from linking to the same matter in a single sync pass.
       const currentMatters = getMatters();
+      const claimedMatterIds = new Set<string>();
       for (const household of households) {
-        const existing = currentMatters.find((m) =>
-          (m.crmHouseholdKeys ?? []).includes(household.id),
-        );
-        if (!existing) {
+        const resolution = resolveMatterForHousehold(currentMatters, household, claimedMatterIds);
+        if (resolution.action === 'link') {
+          // Merge: attach this Wealthbox household to the matching file-client.
+          addCrmHouseholdKey(resolution.matterId, household.id);
+          claimedMatterIds.add(resolution.matterId);
+        } else if (resolution.action === 'create') {
+          // No matching file-client — create a fresh matter for this household.
           createMatter({
             name: household.name,
             client: household.name,
             crmHouseholdKeys: [household.id],
           });
         }
+        // 'reuse': already linked — buildCrmMatterMap picks it up automatically.
       }
 
-      // 3. Build the map from the now-updated store.
+      // Step 4: Build the household → matter map from the updated store and
+      // kick off the backend sync.
       const map = buildCrmMatterMap(getMatters());
-
-      // 4. Run the sync.
       const report = await crmSyncAll(map);
       setLastSyncReport({ householdsProcessed: report.householdsProcessed, recordsIndexed: report.recordsIndexed });
     } catch (err) {
