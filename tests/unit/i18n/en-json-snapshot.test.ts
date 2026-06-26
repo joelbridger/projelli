@@ -50,7 +50,7 @@ describe('en.json structure snapshot', () => {
         "audio": 1,
         "chat": 12,
         "citation": 3,
-        "common": 27,
+        "common": 41,
         "editor": 14,
         "firm": 143,
         "layout": 40,
@@ -90,7 +90,8 @@ describe('en.json structure snapshot', () => {
     // +2 = privacy.egress.checking.{label,note} (local-status "Checking" badge).
     // +2 = privacy.egress.none.{label,note} (UX-01 "No AI connected" badge).
     // +1 = matter.manager.client-name-helper (UX tidy-up: optional company field helper).
-    expect(flat.length).toBe(925);
+    // +14 = common.ai-setup-help.* (the "I need help setting this up" ticket).
+    expect(flat.length).toBe(939);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

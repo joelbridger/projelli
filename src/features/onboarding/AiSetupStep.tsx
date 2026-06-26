@@ -45,6 +45,7 @@ import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { cn } from '@/lib/utils';
 import { ApiKeyTester } from '@/features/onboarding/ApiKeyTester';
+import { AiSetupHelpLink } from '@/features/onboarding/AiSetupHelpLink';
 import {
   PROVIDER_TUTORIALS,
   type ProviderId,
@@ -421,6 +422,11 @@ function OwnAccountView({ defaultProvider, onSaveKey, onBack, onOpenDataMap }: O
           <HelpCircle className="h-3.5 w-3.5" />
           Where does my data go when I use {PROVIDER_PLAIN_NAME[provider]}?
         </button>
+        <AiSetupHelpLink
+          provider={provider}
+          providerName={PROVIDER_PLAIN_NAME[provider]}
+          context="onboarding · ai-key-step"
+        />
       </div>
 
       <div className="flex items-center justify-between gap-2 pt-4 border-t border-border">

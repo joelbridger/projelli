@@ -14,6 +14,22 @@
       "integrity-altered": "Registro alterado (entrada {{seq}})",
       "integrity-altered__sourceHash": "dfe33a7aceaf60fb2cb8c227525b32eaa7419c4f90d620e222912b9ab7904ea1"
     },
+    "ai-setup-help": {
+      "link": "Necesito ayuda para configurar esto",
+      "title": "Ayuda para conectar tu IA",
+      "description": "¿Te has quedado atascado conectando {{provider}}? Cuéntame qué pasa y te ayudo a terminar.",
+      "message-label": "¿En qué te has quedado atascado?",
+      "message-placeholder": "Cuéntame en qué paso estás, qué error ves y qué has intentado.",
+      "email-label": "Tu correo electrónico",
+      "email-help": "(para poder responderte)",
+      "dont-paste": "No pegues aquí tu clave de API ni tu contraseña.",
+      "email-invalid": "Ese correo electrónico no parece correcto.",
+      "success": "Listo. Te responderé por correo electrónico.",
+      "send-failed": "No se pudo enviar tu mensaje.",
+      "network-error": "Error de red.",
+      "retry-hint": "Puedes reintentarlo o abrir tu aplicación de correo con el mensaje listo para enviar.",
+      "open-email-client": "Abrir la aplicación de correo"
+    },
     "bug-report": {
       "title": "Informar de un error",
       "title__sourceHash": "f75e0bd8ff2369251bc8767de55dd8c0bcb3efd1dbc34041bfca4058f9edf0ef",
