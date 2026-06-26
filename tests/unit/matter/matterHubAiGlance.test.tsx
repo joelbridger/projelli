@@ -12,6 +12,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, waitFor, fireEvent, within } from '@testing-library/react';
 import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useMatterAtAGlanceStore } from '@/platform/matter/matterAtAGlanceStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 
 // Hoist mock functions so vi.mock factories can reference them
 const { mockGenerate, mockHasCloudKey } = vi.hoisted(() => ({
@@ -137,6 +139,9 @@ describe('MatterHub — At a Glance state machine', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetStores();
+    // Default each test to a cloud-capable mode so existing cases are unaffected;
+    // the local-only case below overrides it explicitly.
+    useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
     mockHasCloudKey.mockResolvedValue(true);
     mockGenerate.mockResolvedValue(sampleGlanceResult);
   });
@@ -283,6 +288,30 @@ describe('MatterHub — At a Glance state machine', () => {
     // The AI panel and its tag should not be shown when there is no key
     expect(screen.queryByTestId('hub-ai-glance')).toBeNull();
     expect(screen.queryByTestId('hub-ai-glance-tag')).toBeNull();
+  });
+
+  it('local-only matter with NO cloud key STILL runs the AI glance (embedded model), not the no-key fallback', async () => {
+    // Codex: private mode + embedded Keepance Local AI + no cloud key must get an
+    // AI at-a-glance (it runs on the local model), not be told to "add a key" —
+    // the same local-completeness fix as Workflows / Email / Client Map.
+    useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'local-only');
+    mockHasCloudKey.mockResolvedValue(false);
+    mockGenerate.mockResolvedValue(sampleGlanceResult);
+
+    useMatterStore.getState().createMatter({ name: 'Private Matter', client: 'Client P' });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+
+    // The AI glance generated and rendered despite the missing cloud key.
+    await waitFor(() => {
+      expect(screen.getByTestId('hub-ai-glance-result')).toBeInTheDocument();
+    });
+    expect(mockGenerate).toHaveBeenCalledWith(
+      matter.id,
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(screen.getByText('Lease dispute unresolved')).toBeInTheDocument();
   });
 
   it('real matter without cloud key shows "get started" copy when no folders', async () => {

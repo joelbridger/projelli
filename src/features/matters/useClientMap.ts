@@ -1,5 +1,5 @@
 // src/features/matters/useClientMap.ts
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { buildClientMap } from '@/platform/clientMap/generator';
 import { computeSourceFingerprint, proposeUpdates, mergePendingUpdates } from '@/platform/clientMap/updater';
@@ -7,6 +7,12 @@ import type { ClientMap } from '@/platform/clientMap/types';
 import type { AuditEntry } from '@/platform/types/audit';
 
 export type ClientMapStatus = 'idle' | 'generating' | 'ready' | 'empty' | 'error';
+
+/** Matters whose Client Map build is currently in flight. Shared across all hook
+ *  instances so the auto-build effect and the manual build can't fire two
+ *  concurrent builds for the same matter — a React StrictMode double-invoke (dev)
+ *  or a fast manual click otherwise spends duplicate AI cost + audit entries. */
+const clientMapBuildsInFlight = new Set<string>();
 
 /** A stored map is "ready" if it holds something to show: a section item, a
  *  pending update, or an open gap question (which the Guided Interview works
@@ -38,7 +44,20 @@ function mapHasPreservableState(map: ClientMap | undefined): boolean {
 
 export function useClientMap(
   matterId: string,
-  options?: { onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void },
+  options?: {
+    onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+    /**
+     * When true, automatically build the map the first time a matter is opened
+     * with no map yet (status 'idle'), so a connector-created client — or any
+     * client — shows a populated, cited map with NO manual "Open Client Map"
+     * step. Mirrors the Matter-at-a-Glance auto-run on open. Cheap for
+     * content-less matters (buildClientMap short-circuits before any AI call)
+     * and runs at most once (the result is cached; status leaves 'idle' after
+     * the first build, and a build error lands on 'error', not back on 'idle',
+     * so it never retry-loops).
+     */
+    autoBuild?: boolean;
+  },
 ): {
   status: ClientMapStatus; map: ClientMap | undefined; generate: () => Promise<void>; checkForUpdates: () => Promise<void>;
 } {
@@ -47,13 +66,26 @@ export function useClientMap(
   const onAuditLog = options?.onAuditLog;
   const [status, setStatus] = useState<ClientMapStatus>(mapHasContent(map) ? 'ready' : map ? 'empty' : 'idle');
   const generate = useCallback(async () => {
+    // Dedupe concurrent builds for the same matter (auto-build vs manual click,
+    // StrictMode double-invoke). A build already in flight wins; this call no-ops.
+    if (clientMapBuildsInFlight.has(matterId)) return;
+    clientMapBuildsInFlight.add(matterId);
     setStatus('generating');
     try {
+      // Fingerprint the source BEFORE the build, so the stored fingerprint
+      // reflects the source state the build actually saw. If content arrives
+      // DURING the build (e.g. a Wealthbox sync indexes this client mid-build),
+      // the post-build source differs from this fingerprint, so the next
+      // checkForUpdates detects the change and rebuilds — instead of the old
+      // order, which computed the fingerprint AFTER the build and could store the
+      // NEW fingerprint against an EMPTY map, leaving it permanently stuck empty
+      // (Codex race). Computing before only ever errs toward one extra rebuild,
+      // never toward a missed one.
+      const fp = await computeSourceFingerprint(matterId);
       const built = await buildClientMap(
         matterId,
         onAuditLog ? { onAuditLog } : undefined,
       );
-      const fp = await computeSourceFingerprint(matterId);
 
       const existing = useClientMapStore.getState().getMap(matterId);
 
@@ -82,28 +114,50 @@ export function useClientMap(
       setStatus(mapHasContent(builtMap) ? 'ready' : 'empty');
     } catch {
       setStatus('error');
+    } finally {
+      clientMapBuildsInFlight.delete(matterId);
     }
   }, [matterId, setMap, onAuditLog]);
 
   const checkForUpdates = useCallback(async () => {
-    const current = useClientMapStore.getState().getMap(matterId);
-    if (!current || current.lastBuiltAt === '') return;
+    const before = useClientMapStore.getState().getMap(matterId);
+    if (!before || before.lastBuiltAt === '') return; // nothing built yet — cheap out
     const fp = await computeSourceFingerprint(matterId);
-    if (fp === current.lastSourceFingerprint) return;
-    const fresh = await buildClientMap(
-      matterId,
-      onAuditLog ? { onAuditLog } : undefined,
-    );
-    const dismissed = current.dismissedSignatures ?? [];
-    const proposals = proposeUpdates(matterId, current, fresh, dismissed);
-    // NEVER replace items, and NEVER silently drop a still-pending proposal the
-    // user hasn't reviewed (BUG-104): merge the fresh proposals into the existing
-    // tray by stable signature. Keep current sections; only update the fingerprint.
-    useClientMapStore.getState().setMap(matterId, {
-      ...current,
-      pendingUpdates: mergePendingUpdates(current.pendingUpdates, proposals, dismissed),
-      lastSourceFingerprint: fp,
-    });
+    // Close the duplicate-build TOCTOU (Codex #4). These checks run SYNCHRONOUSLY
+    // after the async fingerprint and before the build, so nothing interleaves
+    // between them:
+    //   (a) if a build is already in flight, no-op — it covers this recovery
+    //       (catches the OVERLAP where the other call is mid-build and has not
+    //       stored its fingerprint yet);
+    //   (b) RE-READ the latest stored map and compare fp against ITS fingerprint,
+    //       NOT the stale pre-await snapshot — catches the harder ordering where a
+    //       concurrent check fully FINISHED (built, stored this exact fp, cleared
+    //       the guard) WHILE we were still fingerprinting. Skip if unchanged.
+    if (clientMapBuildsInFlight.has(matterId)) return;
+    const current = useClientMapStore.getState().getMap(matterId);
+    if (!current || current.lastBuiltAt === '' || fp === current.lastSourceFingerprint) return;
+    clientMapBuildsInFlight.add(matterId);
+    try {
+      const fresh = await buildClientMap(
+        matterId,
+        onAuditLog ? { onAuditLog } : undefined,
+      );
+      // Re-read the latest stored map AFTER the async build — it may have gained
+      // user edits, accepted updates, or pending proposals while we were building.
+      const latest = useClientMapStore.getState().getMap(matterId) ?? current;
+      const dismissed = latest.dismissedSignatures ?? [];
+      const proposals = proposeUpdates(matterId, latest, fresh, dismissed);
+      // NEVER replace items, and NEVER silently drop a still-pending proposal the
+      // user hasn't reviewed (BUG-104): merge the fresh proposals into the existing
+      // tray by stable signature. Keep current sections; only update the fingerprint.
+      useClientMapStore.getState().setMap(matterId, {
+        ...latest,
+        pendingUpdates: mergePendingUpdates(latest.pendingUpdates, proposals, dismissed),
+        lastSourceFingerprint: fp,
+      });
+    } finally {
+      clientMapBuildsInFlight.delete(matterId);
+    }
   }, [matterId, onAuditLog]);
 
   // Transient/terminal states from an in-flight or failed generate win; otherwise
@@ -117,5 +171,20 @@ export function useClientMap(
         : map
           ? 'empty'
           : status;
+
+  // Auto-build on first open (opt-in). 'idle' means no map is stored yet, so this
+  // fires once per matter the first time it is viewed, then never again (the
+  // build moves status off 'idle' and the result is cached). See the autoBuild
+  // option doc above for why this is safe + cheap.
+  const autoBuild = options?.autoBuild ?? false;
+  useEffect(() => {
+    if (autoBuild && resolvedStatus === 'idle') {
+      // Defer out of the synchronous effect body so generate()'s initial
+      // setStatus('generating') doesn't run synchronously inside the effect
+      // (avoids cascading renders — same pattern the at-a-glance auto-run uses).
+      void Promise.resolve().then(() => { void generate(); });
+    }
+  }, [autoBuild, resolvedStatus, generate]);
+
   return { status: resolvedStatus, map, generate, checkForUpdates };
 }

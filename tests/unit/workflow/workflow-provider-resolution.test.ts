@@ -106,6 +106,10 @@ function resolve(input: HelperInput): WorkflowProviderResolution {
     // confidentiality mode; local-only behavior is exercised via makeInput.
     localOnly: false,
     installedOllamaModels: [],
+    // F-503 — these end-to-end cases are not in local-only mode, so the embedded
+    // model is irrelevant here; local-only + embedded behaviour is exercised via
+    // makeInput in the F-503 describe block.
+    localModelReady: false,
   });
 }
 
@@ -128,6 +132,7 @@ function makeInput(
     isTestMode: false,
     localOnly: false,
     installedOllamaModels: [],
+    localModelReady: false,
     ...overrides,
   };
 }
@@ -353,5 +358,70 @@ describe('F-502 — local-only mode', () => {
       ollamaReachable: true, installedOllamaModels: [],
     }));
     expect(r).toEqual({ kind: 'ollama', model: undefined });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F-503 — Embedded Keepance Local AI takes priority over Ollama in private mode
+//
+// The class-of-bug fix: in Local-only mode the workflow engine resolved the
+// local provider to OLLAMA only. On a machine that has the embedded on-device
+// model downloaded but NO Ollama daemon, private-mode workflows failed with
+// "Local AI unreachable". Ask / Chat / Client Map already prefer the embedded
+// model (resolveLocalAskProvider / resolveLocalProviderForClientMap); this
+// extends the SAME resolution to workflows.
+// ---------------------------------------------------------------------------
+
+describe('F-503 — embedded local model preferred in private mode', () => {
+  it('local-only + embedded model ready → keepance-local (even with no Ollama and cloud keys present)', () => {
+    const r = resolveWorkflowProvider(makeInput({
+      pickedProvider: 'claude', pickedModel: 'claude-sonnet-4-6',
+      anthropicKey: 'sk-real',
+      localOnly: true,
+      localModelReady: true,
+      // The reported scenario: embedded model present, Ollama NOT running.
+      ollamaReachable: false, installedOllamaModels: [],
+    }));
+    expect(r).toEqual({ kind: 'keepance-local', model: undefined });
+  });
+
+  it('local-only + embedded ready takes priority over a reachable Ollama (one consistent on-device default)', () => {
+    const r = resolveWorkflowProvider(makeInput({
+      pickedProvider: 'ollama', pickedModel: 'qwen2.5:7b',
+      localOnly: true,
+      localModelReady: true,
+      ollamaReachable: true, installedOllamaModels: ['qwen2.5:7b'],
+    }));
+    expect(r.kind).toBe('keepance-local');
+  });
+
+  it('local-only + embedded NOT ready falls back to a reachable Ollama (unchanged behaviour)', () => {
+    const r = resolveWorkflowProvider(makeInput({
+      pickedProvider: 'claude', localOnly: true,
+      localModelReady: false,
+      ollamaReachable: true, installedOllamaModels: ['llama3.2:3b'],
+    }));
+    expect(r).toEqual({ kind: 'ollama', model: 'llama3.2:3b' });
+  });
+
+  it('local-only + neither embedded nor Ollama available → ollama-unreachable (never cloud)', () => {
+    const r = resolveWorkflowProvider(makeInput({
+      pickedProvider: 'claude', anthropicKey: 'sk-real',
+      localOnly: true,
+      localModelReady: false,
+      ollamaReachable: false,
+    }));
+    expect(r).toEqual({ kind: 'ollama-unreachable' });
+  });
+
+  it('embedded readiness is IGNORED outside local-only mode (a cloud key still wins normally)', () => {
+    // Defensive: localModelReady must not hijack normal cloud resolution. Only
+    // local-only mode (the confidentiality promise) routes to the embedded model.
+    const r = resolveWorkflowProvider(makeInput({
+      pickedProvider: 'claude', anthropicKey: 'sk-real',
+      localOnly: false,
+      localModelReady: true,
+    }));
+    expect(r.kind).toBe('cloud');
   });
 });

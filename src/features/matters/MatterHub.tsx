@@ -36,6 +36,7 @@ import { AddCustomSectionForm } from '@/features/matters/AddCustomSectionForm';
 import { ClientMapTemplates } from '@/features/matters/ClientMapTemplates';
 import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
+import { useCrmStore } from '@/features/crm/crmStore';
 import { answerQuestion, flagForClient } from '@/platform/clientMap/guidedInterview';
 import { dispatchOpenSource } from '@/platform/clientMap/openSource';
 import type { SourceRef } from '@/platform/clientMap/types';
@@ -82,10 +83,14 @@ const LABEL_YOUR_ANSWER_PROMPT = 'Your answer to:';
 export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
   // ── Client Map wiring ────────────────────────────────────────────────────
   // Declare client map hook at component top — must not be inside a condition.
-  const clientMap = useClientMap(
-    matterId,
-    onAuditLog ? { onAuditLog } : undefined,
-  );
+  // autoBuild: a client's Client Map builds automatically the first time the
+  // matter is opened (no manual "Open Client Map" step), so connector-created
+  // clients a Wealthbox sync added show a populated, cited map — mirroring the
+  // at-a-glance auto-run. The sample matter is excluded (its content is canned).
+  const clientMap = useClientMap(matterId, {
+    ...(onAuditLog ? { onAuditLog } : {}),
+    autoBuild: matterId !== SAMPLE_MATTER_ID,
+  });
   const { checkForUpdates } = clientMap;
   const matters = useMatters();
   const matter = matters.find((m) => m.id === matterId) ?? null;
@@ -183,7 +188,12 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
     (async () => {
       const hasKey = await hasCloudKeyForGlance();
       if (abort.signal.aborted) return;
-      if (!hasKey || !isMemoryEnabled()) {
+      // A cloud key is only required when NOT in Local-only mode. In private mode
+      // the glance runs on the embedded Keepance Local AI (or Ollama) — same
+      // local-completeness fix as Workflows/Email/Client Map — so a cloud-keyless
+      // private-mode user with the embedded model still gets an AI at-a-glance
+      // instead of being told to "add a key" (Codex). Memory is always required.
+      if ((!isLocalOnlyMode() && !hasKey) || !isMemoryEnabled()) {
         setGlanceStatus('no-key');
         return;
       }
@@ -212,12 +222,31 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
     };
   }, [matterId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When the Client Map becomes ready, check for updates from new source material.
+  // Once a map exists, re-check for new source material. Covers BOTH a populated
+  // map ('ready') AND one that was built empty ('empty') — the latter recovers a
+  // map built before its content was indexed (e.g. a client opened before its
+  // Wealthbox household synced): when the source fingerprint later changes,
+  // checkForUpdates rebuilds and routes the new facts through the approve-first
+  // tray. checkForUpdates no-ops when the fingerprint is unchanged, so an empty
+  // matter with still no content costs nothing.
   useEffect(() => {
-    if (clientMap.status === 'ready') {
+    if (clientMap.status === 'ready' || clientMap.status === 'empty') {
       void checkForUpdates();
     }
   }, [clientMap.status, checkForUpdates]);
+
+  // Live recovery: when a Wealthbox sync FINISHES while this client is already
+  // open, re-check for the freshly-indexed CRM source material so an empty/stale
+  // Client Map populates in place rather than only on the next reopen.
+  // checkForUpdates() no-ops when the source fingerprint is unchanged, so firing
+  // on every completion is safe. The effect re-runs only when the sync status
+  // transitions (e.g. syncing -> done), so it fires once per completed sync.
+  const crmSyncStatus = useCrmStore((s) => s.progress?.status);
+  useEffect(() => {
+    if (crmSyncStatus === 'done') {
+      void checkForUpdates();
+    }
+  }, [crmSyncStatus, checkForUpdates]);
 
   const handleGlanceRefresh = useCallback(() => {
     glanceAbortRef.current?.abort();

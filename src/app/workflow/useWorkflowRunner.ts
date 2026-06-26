@@ -27,6 +27,8 @@ import { createClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { createOpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { createGeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider, detectOllama, OLLAMA_DEFAULT_MODEL } from '@/platform/providers/OllamaProvider';
+import { KeepanceLocalProvider } from '@/platform/providers/KeepanceLocalProvider';
+import { isEmbeddedLocalModelReady } from '@/platform/providers/resolveLocalProvider';
 import { modeRestrictsToLocal } from '@/platform/privacy/egress';
 import { assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
@@ -217,9 +219,18 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       // what the template/global default says, so it needs reachability plus
       // the installed tag list.
       const localOnly = modeRestrictsToLocal(getConfidentialityMode());
+      // F-503 — in private mode prefer the embedded Keepance Local AI when its
+      // model is downloaded + ready (it needs no separate Ollama daemon), the
+      // same on-device default Ask / Chat / Client Map use. Probe it first; only
+      // probe Ollama if the embedded model isn't ready, so a machine with the
+      // embedded model but no Ollama still runs private-mode workflows.
+      let localModelReady = false;
+      if (localOnly) {
+        localModelReady = await isEmbeddedLocalModelReady();
+      }
       let ollamaReachable = false;
       let installedOllamaModels: string[] = [];
-      if (pickedProvider === 'ollama' || localOnly) {
+      if ((pickedProvider === 'ollama' || localOnly) && !localModelReady) {
         const ollamaStatus = await detectOllama();
         ollamaReachable = ollamaStatus.reachable;
         installedOllamaModels = ollamaStatus.models;
@@ -236,6 +247,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         isTestMode,
         localOnly,
         installedOllamaModels,
+        localModelReady,
       });
 
       // Handle the two early-return blocking cases BEFORE creating the folder
@@ -325,7 +337,17 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       // Provider assignment — construct the concrete Provider instance from
       // the resolution result. All blocking cases already returned above.
       let provider;
-      if (providerResolution.kind === 'ollama') {
+      if (providerResolution.kind === 'keepance-local') {
+        // F-503 — embedded Keepance Local AI (private mode). Fully on-device,
+        // zero cost, zero network egress. The model id is the provider's own
+        // default; only AI Rules are threaded in.
+        provider = new KeepanceLocalProvider({
+          ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
+        });
+        console.log(
+          `Using embedded Keepance Local AI for workflow generation [source=${resolution.source}]`
+        );
+      } else if (providerResolution.kind === 'ollama') {
         // F-107 — Ollama branch. Reachability confirmed above; construct the
         // local provider. Zero cost, zero network egress.
         provider = new OllamaProvider({
@@ -389,7 +411,9 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
               : providerResolution.provider
           : providerResolution.kind === 'ollama'
             ? 'ollama'
-            : 'mock';
+            : providerResolution.kind === 'keepance-local'
+              ? 'keepance-local'
+              : 'mock';
       const getWorkflowAuditScope = (): AuditScope => {
         const scope = getActiveScope();
         return scope.kind === 'matter'
