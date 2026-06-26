@@ -16,10 +16,10 @@
 //!
 //! # Error policy
 //! Non-success HTTP status codes produce a status-only error
-//! (`"Wealthbox request failed (HTTP N)"`) — the raw response body is
-//! `log::warn!`'d locally but **never returned to the caller**.  Response bodies
-//! may contain advisor PII and must not propagate to the UI or logs visible to
-//! third parties.
+//! (`"Wealthbox request failed (HTTP N)"`).  Only the HTTP status code and the
+//! request endpoint path are logged — **the raw response body is never logged
+//! or returned**.  Response bodies may contain advisor/client PII and must never
+//! propagate to logs or the UI.
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -130,8 +130,9 @@ impl WealthboxClient {
     /// params, returning the parsed JSON body.
     ///
     /// Applies the ~1 rps gate and 429/Retry-After capped backoff.
-    /// Non-success status codes are logged locally and surfaced as a
-    /// status-only error — the raw body is **never returned**.
+    /// Non-success status codes surface a status-only error; only the HTTP
+    /// status and endpoint path are logged — the raw body is **never logged
+    /// or returned** (it may contain advisor/client PII).
     pub async fn get_json(
         &self,
         path: &str,
@@ -165,8 +166,8 @@ impl WealthboxClient {
             let status = resp.status();
             let body = resp.text().await.context("read Wealthbox response body")?;
             if !status.is_success() {
-                // Log body locally (may contain PII) but never return it.
-                log::warn!("Wealthbox request failed (HTTP {}): {}", status, body);
+                // Status + endpoint only — body is NEVER logged (may contain advisor/client PII).
+                log::warn!("Wealthbox request failed: HTTP {} at {}", status, path);
                 anyhow::bail!("Wealthbox request failed (HTTP {})", status);
             }
             return serde_json::from_str(&body).context("parse Wealthbox JSON response");
@@ -396,14 +397,13 @@ impl WealthboxClient {
             .categories
             .entry(category_type.to_string())
             .or_default();
-        if let Some(arr) = items.as_array() {
-            for item in arr {
-                if let (Some(cid), Some(name)) = (
-                    item.get("id").and_then(|v| v.as_i64()),
-                    item.get("name").and_then(|v| v.as_str()),
-                ) {
-                    map.insert(cid, name.to_string());
-                }
+        // Wealthbox wraps the array: {"categories":[...]}
+        for item in wb_array_from(&items, "categories") {
+            if let (Some(cid), Some(name)) = (
+                item.get("id").and_then(|v| v.as_i64()),
+                item.get("name").and_then(|v| v.as_str()),
+            ) {
+                map.insert(cid, name.to_string());
             }
         }
         cache.categories_loaded.insert(category_type.to_string());
@@ -428,14 +428,13 @@ impl WealthboxClient {
         // Slow path: fetch (lock released across the await).
         let items = self.get_json("/users", &[]).await?;
         let mut cache = self.label_cache.lock().await;
-        if let Some(arr) = items.as_array() {
-            for item in arr {
-                if let (Some(uid), Some(name)) = (
-                    item.get("id").and_then(|v| v.as_i64()),
-                    item.get("name").and_then(|v| v.as_str()),
-                ) {
-                    cache.users.insert(uid, name.to_string());
-                }
+        // Wealthbox wraps the array: {"users":[...]}
+        for item in wb_array_from(&items, "users") {
+            if let (Some(uid), Some(name)) = (
+                item.get("id").and_then(|v| v.as_i64()),
+                item.get("name").and_then(|v| v.as_str()),
+            ) {
+                cache.users.insert(uid, name.to_string());
             }
         }
         cache.users_loaded = true;
@@ -456,19 +455,37 @@ impl WealthboxClient {
         // Slow path: fetch (lock released across the await).
         let items = self.get_json("/teams", &[]).await?;
         let mut cache = self.label_cache.lock().await;
-        if let Some(arr) = items.as_array() {
-            for item in arr {
-                if let (Some(tid), Some(name)) = (
-                    item.get("id").and_then(|v| v.as_i64()),
-                    item.get("name").and_then(|v| v.as_str()),
-                ) {
-                    cache.teams.insert(tid, name.to_string());
-                }
+        // Wealthbox wraps the array: {"teams":[...]}
+        for item in wb_array_from(&items, "teams") {
+            if let (Some(tid), Some(name)) = (
+                item.get("id").and_then(|v| v.as_i64()),
+                item.get("name").and_then(|v| v.as_str()),
+            ) {
+                cache.teams.insert(tid, name.to_string());
             }
         }
         cache.teams_loaded = true;
         Ok(cache.teams.get(&id).cloned())
     }
+}
+
+// ---------------------------------------------------------------------------
+// Array extraction helper
+// ---------------------------------------------------------------------------
+
+/// Extract the items array from a Wealthbox collection response.
+///
+/// Every Wealthbox list endpoint wraps its array in a named object:
+/// `{"users":[...]}`, `{"teams":[...]}`, `{"categories":[...]}`.
+/// Treating the response as a top-level array would silently produce an empty
+/// list; this helper pulls the named key out and returns an owned `Vec`.
+/// Returns an empty `Vec` when the key is absent so callers never see stale
+/// data from a shape mismatch.
+fn wb_array_from(body: &serde_json::Value, key: &str) -> Vec<serde_json::Value> {
+    body.get(key)
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default()
 }
 
 // ---------------------------------------------------------------------------
@@ -531,5 +548,35 @@ mod tests {
     fn retry_delay_header_wins_over_attempt_count() {
         // Explicit header beats the fallback formula at any attempt index.
         assert_eq!(retry_delay(Some("10"), 5), Duration::from_secs(10));
+    }
+
+    // ── wb_array_from: Fix 3 regression tests ────────────────────────────────
+
+    /// Parsing a `{"users":[{"id":1,"name":"Jane Advisor"}]}` response extracts
+    /// the array under the "users" key — the id-to-name mapping a resolver
+    /// would then store as 1 → "Jane Advisor".
+    #[test]
+    fn wb_array_from_extracts_named_key() {
+        let body = serde_json::json!({"users": [{"id": 1, "name": "Jane Advisor"}]});
+        let arr = wb_array_from(&body, "users");
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["id"].as_i64(), Some(1));
+        assert_eq!(arr[0]["name"].as_str(), Some("Jane Advisor"));
+    }
+
+    /// A flat top-level array (wrong shape — the old bug) and a missing key
+    /// both return empty; the cache stays clean instead of permanently empty.
+    #[test]
+    fn wb_array_from_returns_empty_for_absent_or_flat_shape() {
+        // Flat array — old code tried items.as_array() on the full response,
+        // which only works when the response IS a top-level array.  Wealthbox
+        // wraps, so this shape never appears in production, but the helper must
+        // not panic on it.
+        let flat = serde_json::json!([{"id": 1}]);
+        assert!(wb_array_from(&flat, "users").is_empty(), "flat array → empty");
+
+        // Wrong key — e.g. asking for "users" on a {"teams":[...]} body.
+        let body = serde_json::json!({"teams": [{"id": 2, "name": "Team A"}]});
+        assert!(wb_array_from(&body, "users").is_empty(), "absent key → empty");
     }
 }

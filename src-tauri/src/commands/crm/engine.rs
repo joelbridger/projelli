@@ -181,15 +181,27 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
     Ok(report)
 }
 
-/// Walk `linked_to`, return the grouping key of the first entry whose id maps
-/// to a known contact.  Returns `None` if no entry resolves.
+/// Walk `linked_to`, return the grouping key of the first **contact-typed**
+/// entry whose id maps to a known contact.  Returns `None` if no such entry
+/// resolves.
+///
+/// The `r#type` check is mandatory for correctness: a note/task/event can
+/// also be linked to a project or opportunity, and if a project's numeric id
+/// happens to collide with a contact's id the record would be silently
+/// mis-filed into the wrong household — a confidentiality bug.  Only entries
+/// with `r#type == "Contact"` (case-insensitive) are eligible for lookup.
 fn resolve_grouping_key(
     linked_to: &[WbLink],
     contact_to_group: &HashMap<i64, String>,
 ) -> Option<String> {
     for link in linked_to {
-        if let Some(gk) = contact_to_group.get(&link.id) {
-            return Some(gk.clone());
+        // Guard: only contact-typed links may resolve a household grouping key.
+        // Non-contact links (Project, Opportunity, …) are ignored even when
+        // their numeric id happens to match a known contact id.
+        if link.r#type.eq_ignore_ascii_case("contact") {
+            if let Some(gk) = contact_to_group.get(&link.id) {
+                return Some(gk.clone());
+            }
         }
     }
     None
@@ -718,6 +730,72 @@ mod tests {
         // The orphan note must not be present in the store.
         let row = store.get_object("note:99999").unwrap();
         assert!(row.is_none(), "unlinked note must not be written to the store");
+    }
+
+    // ── Test: non-contact linked_to with colliding id is NOT filed ───────────
+    //
+    // A note whose only linked_to entry carries r#type="Project" (or any
+    // non-contact type) with an id that numerically matches a known contact id
+    // must NOT be filed under that contact's household.  It must be counted in
+    // skipped_unlinked instead.  This is Fix 2 (P1 correctness/privacy).
+
+    struct FakeWithProjectLinkedNote;
+
+    #[async_trait]
+    impl CrmSource for FakeWithProjectLinkedNote {
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<WbContact>> {
+            // Contact id 10001 (the household) is registered in contact_to_group.
+            Ok(vec![fixture_household()])
+        }
+        async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> {
+            let note = WbNote {
+                id: 77777,
+                created_at: "2026-01-01".to_string(),
+                updated_at: "2026-01-01".to_string(),
+                content: "Note linked to a project, NOT a contact".to_string(),
+                linked_to: vec![WbLink {
+                    // Same numeric id as the household contact — must NOT match
+                    // because the link type is "Project", not "Contact".
+                    id: 10001,
+                    r#type: "Project".to_string(),
+                    name: "Some Pipeline Project".to_string(),
+                }],
+            };
+            Ok(vec![note])
+        }
+        async fn list_tasks(&self) -> anyhow::Result<Vec<WbTask>> {
+            Ok(vec![])
+        }
+        async fn list_events(&self) -> anyhow::Result<Vec<WbEvent>> {
+            Ok(vec![])
+        }
+    }
+
+    #[tokio::test]
+    async fn non_contact_linked_to_with_colliding_id_is_skipped() {
+        let (_d, store) = crm_store();
+        let source = FakeWithProjectLinkedNote;
+
+        let report = ingest(&source, &store).await.expect("ingest");
+
+        // The note must be skipped, not stored.
+        assert_eq!(
+            report.skipped_unlinked, 1,
+            "note linked via 'Project' type (not 'Contact') must be counted as skipped_unlinked"
+        );
+        assert_eq!(report.notes, 0, "no notes should be stored");
+
+        // The note must not appear in the store under any household.
+        let row = store.get_object("note:77777").unwrap();
+        assert!(
+            row.is_none(),
+            "project-linked note with colliding id must not be written to the store"
+        );
+
+        // The household contact itself is still ingested normally.
+        assert_eq!(report.contacts, 1);
+        let hh_row = store.get_object("contact:10001").unwrap();
+        assert!(hh_row.is_some(), "household contact should still be stored");
     }
 
     // ── (Ignored) Full backfill → apply_index integration test ───────────────
