@@ -23,7 +23,7 @@ import { useAIChatStore } from '@/platform/state/aiChatStore';
 import type { ChatMessage } from '@/platform/types/ai';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
-import { resolveEgress } from '@/platform/privacy/egress';
+import { resolveEgress, type ConfidentialityMode } from '@/platform/privacy/egress';
 import { getConfidentialityMode, useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import type { AskScope, AskTurn } from './askHelpers';
 import {
@@ -120,13 +120,28 @@ export function useAsk({
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLInputElement>(null);
-  // Fix #8 / B-PRIV-1: the provider the egress banner names. `null` means
-  // "destination not yet known" — the EgressIndicator renders a neutral
-  // "checking" badge (data-leaves=false) for null rather than guessing, so the
-  // banner can never show a CONCRETE (and possibly stale) destination while the
-  // real one is still being resolved. It starts null and is blanked back to null
-  // on every confidentiality-mode change (see the resolver effect below).
-  const [activeProvider, setActiveProvider] = useState<string | null>(null);
+  // Fix #8 / B-PRIV-1: the provider the egress banner names, TAGGED with the
+  // confidentiality mode it was resolved UNDER. `null` means "destination not
+  // yet known". We tag the mode so the displayed value (derived synchronously in
+  // render below) can fall back to "checking" the instant the mode changes —
+  // BEFORE the resolver effect runs — closing the one-frame window where a
+  // provider resolved under the OLD mode would otherwise paint under the NEW mode
+  // (e.g. a local provider painting "nothing leaves" while the mode is already
+  // Direct). The EgressIndicator renders a neutral "checking" badge
+  // (data-leaves=false) for null rather than guessing a destination.
+  const [activeProvider, setActiveProvider] =
+    useState<{ provider: string; mode: ConfidentialityMode } | null>(null);
+
+  // Derived SYNCHRONOUSLY in render: the badge shows a concrete destination only
+  // when we have a resolved provider AND it was resolved under the CURRENT mode.
+  // Any mismatch (or unresolved) => null => the EgressIndicator's neutral
+  // "checking" state. Because this is computed in render, it flips to "checking"
+  // on the very render the mode changes, before any effect fires — so the banner
+  // can never display a provider resolved under a different mode, even for a frame.
+  const displayedProvider: string | null =
+    activeProvider && activeProvider.mode === confidentialityMode
+      ? activeProvider.provider
+      : null;
 
   // Recent sessions: sessions keyed "ask-*", scoped to the current workspace.
   const recentSessions = buildRecentAskSessions(sessions, rootPath, {
@@ -235,7 +250,7 @@ export function useAsk({
     setActiveProvider(null);
     void resolveActiveAskProviderId()
       .then((resolved) => {
-        if (!cancelled) setActiveProvider(resolved);
+        if (!cancelled) setActiveProvider({ provider: resolved, mode: confidentialityMode });
       })
       .catch(() => {
         // The resolver almost never throws (it has internal fallbacks), but if it
@@ -243,7 +258,7 @@ export function useAsk({
         // CONSERVATIVE cloud identity: in Local-only mode resolveEgress still forces
         // "nothing leaves"; in cloud modes this over-warns ("data leaves"), which is
         // the safe direction for a privacy indicator — it can never UNDER-claim egress.
-        if (!cancelled) setActiveProvider('anthropic');
+        if (!cancelled) setActiveProvider({ provider: 'anthropic', mode: confidentialityMode });
       });
     return () => { cancelled = true; };
   }, [confidentialityMode]);
@@ -501,7 +516,9 @@ export function useAsk({
       // "checking" (null) at click time, or the effective provider changed for a
       // reason the mode-keyed effect doesn't watch (e.g. a cloud key added
       // mid-session). The banner can never be sent-to-cloud-while-showing-local.
-      flushSync(() => { setActiveProvider(resolvedProvider.providerId); });
+      flushSync(() => {
+        setActiveProvider({ provider: resolvedProvider.providerId, mode: getConfidentialityMode() });
+      });
 
       const emitSuccessfulEgress = () => {
         if (!providerAudit) return;
@@ -695,7 +712,7 @@ export function useAsk({
     errorMsg,
     status,
     savingIdx,
-    activeProvider,
+    displayedProvider,
     confidentialityMode,
     bottomRef,
     composerInputRef,

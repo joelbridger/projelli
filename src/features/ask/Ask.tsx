@@ -60,7 +60,7 @@ export function Ask(props: UseAskProps) {
     errorMsg,
     status,
     savingIdx,
-    activeProvider,
+    displayedProvider,
     confidentialityMode,
     bottomRef,
     composerInputRef,
@@ -156,7 +156,7 @@ export function Ask(props: UseAskProps) {
 
       {/* Egress indicator — where this search's AI request goes. */}
       <div style={{ padding: 'var(--kp-space-xs) var(--kp-gutter)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-        <EgressIndicator provider={activeProvider} mode={confidentialityMode} variant="full" />
+        <EgressIndicator provider={displayedProvider} mode={confidentialityMode} variant="full" />
       </div>
 
       {/* Recent sessions chips */}

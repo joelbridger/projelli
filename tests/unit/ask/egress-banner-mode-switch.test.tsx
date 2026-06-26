@@ -28,7 +28,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Ask } from '@/features/ask/Ask';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
+import {
+  CONFIDENTIALITY_MODE_SETTING_KEY,
+  resolveEgress,
+  isLocalProvider,
+} from '@/platform/privacy/egress';
 import type { ConfidentialityMode } from '@/platform/privacy/egress';
 
 // Control object for the REAL resolver's dependencies + the send spy. Driven
@@ -115,6 +119,16 @@ vi.mock('@/platform/providers/KeychainService', () => ({
 vi.mock('@/platform/utils/tauri-commands', async (orig) => {
   const actual = await orig<typeof import('@/platform/utils/tauri-commands')>();
   return { ...actual, localLlmModelStatus: vi.fn(async () => h.localStatus) };
+});
+
+// Spy on the REAL resolveEgress (wrap the real impl — behaviour unchanged) so we
+// can assert the indicator is never even ASKED to render a local provider under
+// Direct mode, not even for the one pre-effect frame. EgressIndicator returns its
+// neutral "checking" badge for a null provider BEFORE calling resolveEgress, so a
+// recorded {local provider, direct} call can only come from a stale render.
+vi.mock('@/platform/privacy/egress', async (orig) => {
+  const actual = await orig<typeof import('@/platform/privacy/egress')>();
+  return { ...actual, resolveEgress: vi.fn(actual.resolveEgress) };
 });
 
 // Keep the REAL resolveActiveAskProviderId (what drives the badge). Override only
@@ -209,6 +223,44 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
       expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe('local');
     });
     expect(screen.getByTestId('egress-indicator').getAttribute('data-data-leaves')).toBe('false');
+  });
+
+  it('ONE-FRAME GUARANTEE: switching Local-only → Direct never renders a local provider under Direct mode, even before the async effect runs', async () => {
+    // Start from a fully RESOLVED local badge.
+    h.localStatus = 'ready'; // local-only resolves to keepance-local
+    h.keys.openai = true;
+    setMode('local-only');
+    render(<Ask />);
+    await waitFor(() => {
+      expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe('local');
+    });
+
+    // Hold the re-resolution so the badge can ONLY move off "local" via the
+    // synchronous, mode-tagged render derivation — not via the async effect.
+    let release: (v: unknown) => void = () => undefined;
+    h.resolverHold = new Promise((r) => { release = r; });
+    vi.mocked(resolveEgress).mockClear();
+
+    try {
+      // Flip to Direct. act() flushes the render AND the (now-held) effect.
+      setMode('direct');
+
+      // The user-visible banner must no longer claim a local destination.
+      expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).not.toBe(
+        'local',
+      );
+
+      // The load-bearing check: the indicator must NEVER have been asked to render
+      // a LOCAL provider while the mode is Direct — not even for the single
+      // pre-effect frame. Without the mode-tagged synchronous derivation, the
+      // stale {keepance-local, direct} render fires before the effect blanks it.
+      const lyingCall = vi.mocked(resolveEgress).mock.calls.find(
+        ([arg]) => arg.mode === 'direct' && isLocalProvider(arg.provider),
+      );
+      expect(lyingCall).toBeUndefined();
+    } finally {
+      release('done');
+    }
   });
 
   it('SEND-TIME GUARANTEE: the banner shows the real cloud destination before the network call — even when the badge was still "checking" at click time', async () => {
