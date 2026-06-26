@@ -102,7 +102,11 @@ import {
   isLocalOnlyMode,
   LocalOnlyEgressError,
 } from '@/platform/privacy/localOnlyGuard';
-import { buildProviderAsync, buildResolvedAskProvider } from '@/features/ask/askHelpers';
+import {
+  buildProviderAsync,
+  buildResolvedAskProvider,
+  resolveActiveAskProviderId,
+} from '@/features/ask/askHelpers';
 
 describe('localOnlyGuard (A1)', () => {
   beforeEach(() => {
@@ -208,5 +212,42 @@ describe('Ask buildProviderAsync honours local-only (A1)', () => {
 
     expect(provider.kind).toBe('openai');
     expect(provider.model).toBe('gpt-4o');
+  });
+});
+
+// The pre-send egress badge derives its NAME from resolveActiveAskProviderId,
+// which must name the SAME engine the send will use (no construction / no gate).
+describe('resolveActiveAskProviderId names the real send engine (pre-send badge)', () => {
+  beforeEach(() => {
+    h.mode = 'direct';
+    h.defaultProvider = '';
+    h.defaultModel = '';
+    h.localStatus = 'absent';
+    h.keys = { anthropic: 'sk-ant-test', openai: null, google: null };
+    localStorage.clear();
+  });
+
+  it('names the embedded model in local-only mode when ready (not a generic Ollama)', async () => {
+    h.mode = 'local-only';
+    h.localStatus = 'ready';
+    expect(await resolveActiveAskProviderId()).toBe('keepance-local');
+  });
+
+  it('names Ollama in local-only mode only when the embedded model is absent', async () => {
+    h.mode = 'local-only';
+    h.localStatus = 'absent';
+    expect(await resolveActiveAskProviderId()).toBe('ollama');
+  });
+
+  it('names the cloud provider when a key exists and not local-only', async () => {
+    h.mode = 'direct';
+    expect(await resolveActiveAskProviderId()).toBe('anthropic');
+  });
+
+  it('names the embedded model on a personal install with no cloud key when ready', async () => {
+    h.mode = 'direct';
+    h.keys = { anthropic: null, openai: null, google: null };
+    h.localStatus = 'ready';
+    expect(await resolveActiveAskProviderId()).toBe('keepance-local');
   });
 });
