@@ -316,23 +316,37 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     import('@tauri-apps/api/event').then(({ listen }) => {
       listen<AuditEntryRecord>(CRM_AUDIT_APPENDED_EVENT, (event) => {
         const rec = event.payload;
-        let metadata: Record<string, unknown> = {};
+        // payloadJson is a full AuditEntry (the same shape the encrypted store
+        // persists). Parse it and trust the record's summary columns for the indexed
+        // fields — mirrors AuditService.recordToEntry. Always end with a metadata
+        // OBJECT so the Activity Log's `metadata['scope']` read can never hit undefined.
+        let entry: AuditEntry;
         try {
-          metadata = JSON.parse(rec.payloadJson) as Record<string, unknown>;
+          const parsed = JSON.parse(rec.payloadJson) as Partial<AuditEntry>;
+          entry = {
+            ...(parsed as AuditEntry),
+            id: rec.id,
+            timestamp: rec.timestamp,
+            action: rec.action as AuditActionType,
+            description: rec.description,
+            metadata:
+              parsed.metadata && typeof parsed.metadata === 'object'
+                ? parsed.metadata
+                : {},
+          };
         } catch {
-          // payload is not critical — leave metadata empty
+          entry = {
+            id: rec.id,
+            timestamp: rec.timestamp,
+            action: rec.action as AuditActionType,
+            description: rec.description,
+            model: undefined,
+            inputs: {},
+            outputs: {},
+            userDecision: undefined,
+            metadata: {},
+          };
         }
-        const entry: AuditEntry = {
-          id: rec.id,
-          timestamp: rec.timestamp,
-          action: rec.action as AuditActionType,
-          description: rec.description,
-          model: undefined,
-          inputs: {},
-          outputs: {},
-          userDecision: undefined,
-          metadata,
-        };
         // Prepend newest-first, but DEDUPE by id: the same entry can arrive both via
         // this event and via the once-on-open DB read (or a StrictMode double-invoke),
         // and it must never appear twice in the Activity Log.

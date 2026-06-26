@@ -200,6 +200,35 @@ const CRM_AUDIT_APPENDED_EVENT: &str = "crm-audit-appended";
 /// with the `AuditEntryRecord` as the payload.  The frontend listener in
 /// `useWorkspaceLifecycle.ts` pushes the record into the `auditEntries` React
 /// state, making the entry visible without a workspace re-open.
+/// Build the `payload_json` for a CRM audit entry as a FULL camelCase `AuditEntry`
+/// shape.
+///
+/// The frontend persists each entry by serialising the whole `AuditEntry` into
+/// `payloadJson` and reconstructs it on load with `JSON.parse(payloadJson) as
+/// AuditEntry` (`recordToEntry`). A thin payload with no `metadata` key therefore
+/// yields `entry.metadata === undefined`, and the Activity Log white-screens the
+/// entire app when `getAuditEntryMatterScope` reads `metadata['scope']` unguarded.
+/// So every CRM entry carries a real `metadata` object. CRM connect/sync/disconnect
+/// are workspace-wide rather than tied to one matter, so the scope is `allMatters`.
+fn crm_audit_payload_json(id: &str, timestamp: &str, action: &str, description: &str) -> String {
+    serde_json::json!({
+        "id": id,
+        "timestamp": timestamp,
+        "action": action,
+        "description": description,
+        "model": serde_json::Value::Null,
+        "inputs": {},
+        "outputs": {},
+        "userDecision": serde_json::Value::Null,
+        "metadata": {
+            "auditEventType": action,
+            "source": "crm-backend",
+            "scope": { "kind": "allMatters" },
+        },
+    })
+    .to_string()
+}
+
 async fn append_crm_audit_best_effort(app: &AppHandle, action: &str, description: &str) {
     use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
 
@@ -233,11 +262,7 @@ async fn append_crm_audit_best_effort(app: &AppHandle, action: &str, description
         rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut rng_bytes);
         let id = format!("audit_crm_{}_{}", nanos, hex::encode(rng_bytes));
 
-        let payload_json = serde_json::json!({
-            "auditEventType": action_s,
-            "source": "crm-backend",
-        })
-        .to_string();
+        let payload_json = crm_audit_payload_json(&id, &timestamp, &action_s, &desc_s);
 
         let rec = AuditEntryRecord {
             id,
@@ -451,9 +476,10 @@ async fn purge_crm_rag_chunks(ws: &std::path::Path) -> anyhow::Result<()> {
 ///
 /// The `is_syncing` flag is always cleared on exit (RAII guard covers panics).
 ///
+/// Cancellation: `crm_cancel_sync` sets the cancel flag, which `engine::backfill`
+/// polls between households — a Stop bails cleanly and emits `{ status: "cancelled" }`.
+///
 /// TODO(progress): finer per-household progress events in a later iteration.
-/// TODO(cancel): thread the cancel flag into `engine::backfill` once the
-///   engine supports mid-run cancellation.
 #[tauri::command]
 pub async fn crm_sync_all(
     app: AppHandle,
@@ -502,9 +528,12 @@ pub async fn crm_sync_all(
         e.to_string()
     })?;
 
-    // Run the full backfill (fetch → ingest → index).
+    // Run the full backfill (fetch → ingest → index). The cancel flag is polled
+    // between households so the UI's Stop button interrupts a long sync.
     let client = WealthboxClient::new(token);
-    let report = match engine::backfill(&client, &store, &workspace, &matter_hashmap).await {
+    let report = match engine::backfill(&client, &store, &workspace, &matter_hashmap, &state.cancel)
+        .await
+    {
         Ok(r) => r,
         Err(e) => {
             let _ = app.emit(CRM_SYNC_PROGRESS_EVENT, serde_json::json!({ "status": "error" }));
@@ -523,30 +552,35 @@ pub async fn crm_sync_all(
         ingest_skipped_unlinked: report.ingest.skipped_unlinked,
     };
 
-    // Emit the done event with summary counts.
+    // Emit the terminal event. A cancelled run gets its own status so the UI
+    // un-sticks from "Syncing…" and shows it was stopped (not a clean finish);
+    // both `done` and `cancelled` are terminal states the UI handles.
+    let households = dto.households_processed;
+    let records = dto.records_indexed;
     let _ = app.emit(
         CRM_SYNC_PROGRESS_EVENT,
         serde_json::json!({
-            "status": "done",
-            "households": dto.households_processed,
-            "records": dto.records_indexed,
+            "status": if report.cancelled { "cancelled" } else { "done" },
+            "households": households,
+            "records": records,
         }),
     );
 
     // Persist the last report in state so `crm_sync_status` can return it.
     *state.last_report.lock().await = Some(dto.clone());
 
-    // Emit durable audit — records the confirmed import counts.
-    let households = dto.households_processed;
-    let records = dto.records_indexed;
-    append_crm_audit_best_effort(
-        &app,
-        "wealthbox.sync",
-        &format!(
+    // Emit durable audit — records what was actually imported (honest about a
+    // cancelled, partial run).
+    let audit_desc = if report.cancelled {
+        format!(
+            "Wealthbox sync stopped early — imported {households} households ({records} records) before cancellation."
+        )
+    } else {
+        format!(
             "Imported {households} Wealthbox households ({records} records) into the local encrypted store."
-        ),
-    )
-    .await;
+        )
+    };
+    append_crm_audit_best_effort(&app, "wealthbox.sync", &audit_desc).await;
 
     Ok(dto)
 }
@@ -559,11 +593,10 @@ pub async fn crm_sync_status(state: State<'_, CrmState>) -> Result<CrmSyncStatus
     Ok(CrmSyncStatusDto { is_syncing, last_report })
 }
 
-/// Set the cancel flag. Best-effort — the backfill engine does not yet poll it.
-///
-/// TODO(cancel): once `engine::backfill` accepts a cancel signal, wire it here
-///   so a long sync can be interrupted mid-run without waiting for the current
-///   household to finish indexing.
+/// Set the cancel flag. `engine::backfill` polls it between households, so a
+/// long sync stops cleanly at the next household boundary (those already
+/// processed stay indexed). Releasing the UI is driven by the terminal
+/// `{ status: "cancelled" }` event `crm_sync_all` emits when it observes the flag.
 #[tauri::command]
 pub async fn crm_cancel_sync(state: State<'_, CrmState>) -> Result<(), String> {
     state.cancel.store(true, Ordering::SeqCst);
@@ -898,6 +931,38 @@ mod tests {
             "The Andersons",
             "company_name is used when name is empty"
         );
+    }
+
+    // ── Audit payload shape: full AuditEntry with a metadata object ───────────
+
+    /// The CRM audit payload must be a full camelCase `AuditEntry` with a real
+    /// `metadata` object (scope = allMatters). A thin payload (no `metadata` key)
+    /// makes `entry.metadata` undefined on load and white-screens the Activity Log
+    /// when `getAuditEntryMatterScope` reads `metadata['scope']`.
+    #[test]
+    fn crm_audit_payload_json_carries_metadata_object_with_scope() {
+        let payload = crm_audit_payload_json(
+            "audit_crm_1_abcd",
+            "2026-06-26T00:00:00Z",
+            "wealthbox.connect",
+            "Connected to Wealthbox.",
+        );
+        let v: serde_json::Value = serde_json::from_str(&payload).expect("valid json");
+
+        // Full entry shape so the frontend's recordToEntry yields a complete AuditEntry.
+        assert_eq!(v["id"], "audit_crm_1_abcd");
+        assert_eq!(v["action"], "wealthbox.connect");
+        assert!(v["inputs"].is_object());
+        assert!(v["outputs"].is_object());
+
+        // metadata MUST be an object — this is the white-screen guard.
+        assert!(v["metadata"].is_object(), "metadata must be an object, never undefined");
+        assert_eq!(v["metadata"]["source"], "crm-backend");
+        assert_eq!(v["metadata"]["auditEventType"], "wealthbox.connect");
+
+        // scope is the allMatters object shape getAuditEntryMatterScope reads.
+        assert!(v["metadata"]["scope"].is_object(), "scope must be an object");
+        assert_eq!(v["metadata"]["scope"]["kind"], "allMatters");
     }
 
     // ── Fix A: audit roundtrip — wealthbox.* entry persists and lists ─────────

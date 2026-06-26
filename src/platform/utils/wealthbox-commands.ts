@@ -59,7 +59,7 @@ export interface CrmSyncReport {
 
 // ── Sync progress event payload ──────────────────────────────────────────────
 
-export type CrmSyncEventStatus = 'syncing' | 'done' | 'error';
+export type CrmSyncEventStatus = 'syncing' | 'done' | 'error' | 'cancelled';
 
 /** Payload carried on the `crm-sync-progress` Tauri event. */
 export interface CrmSyncProgress {

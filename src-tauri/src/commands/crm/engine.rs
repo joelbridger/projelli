@@ -74,6 +74,9 @@ pub struct SyncReport {
     pub records_indexed: u32,
     /// Counts from the preceding ingest phase.
     pub ingest: IngestReport,
+    /// True when the run stopped early because the cancel flag was set. The
+    /// households processed before the stop are still fully indexed.
+    pub cancelled: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -119,8 +122,12 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
         let store_id = format!("contact:{}", c.id);
         let json = serde_json::to_string(c)?;
         let hash = content_hash(&json);
+        // Store the kind canonicalised to lowercase. The live Wealthbox API returns
+        // CAPITALISED contact types ("Household"/"Person"/"Organization"/"Trust") while
+        // the whole index pipeline matches on lowercase — without this every contact
+        // falls through `plan_household_index`'s `_ => skip` arm and NOTHING is embedded.
         // WbContact has no updated_at field; use "" (content_hash drives change detection).
-        store.upsert_object(&store_id, &c.r#type, &gk, "", &hash, &json)?;
+        store.upsert_object(&store_id, &c.r#type.to_ascii_lowercase(), &gk, "", &hash, &json)?;
         report.contacts += 1;
     }
 
@@ -246,7 +253,10 @@ pub fn plan_household_index(
     let mut events: Vec<WbEvent> = Vec::new();
 
     for row in &rows {
-        match row.kind.as_str() {
+        // Match on a lowercased kind. `ingest` already normalises on store, but
+        // normalise here too so any row stored before that fix (capitalised live
+        // value) still indexes instead of being skipped.
+        match row.kind.to_ascii_lowercase().as_str() {
             "household" => {
                 hh_contact = Some(serde_json::from_str(&row.json)?);
             }
@@ -331,23 +341,85 @@ pub fn plan_household_index(
 // 4. apply_index  (model-gated)
 // ---------------------------------------------------------------------------
 
-/// Embed and write each [`CrmIndexItem`] to the RAG index.
+/// Embed and write a household's [`CrmIndexItem`]s to the RAG index, reusing an
+/// already-open LanceDB table and master key.
 ///
-/// Calls `index_crm_text_internal` (which runs the embedding model) for every
-/// item and sums the indexed chunk counts.  This is the only function in the
-/// engine that requires the embedding model to be loaded.
+/// This is the performance-critical hot path. The previous version called
+/// `index_crm_text_internal` per item, which **opened the LanceDB connection and
+/// scanned the table on every single record** — hundreds of opens per sync, each
+/// contending with the document re-index for the single-writer table. Here the
+/// table is opened once by the caller ([`backfill`]) and passed in; all of a
+/// household's chunks are embedded in one batched call and written in one
+/// `table.add` per matter (one household == one matter in practice).
+///
+/// Requires the embedding model to be loaded (model-gated).
 #[allow(dead_code)]
-pub async fn apply_index(workspace: &Path, items: &[CrmIndexItem]) -> anyhow::Result<u32> {
-    let mut total = 0u32;
+pub async fn apply_index(
+    table: &lancedb::Table,
+    key: &[u8; 32],
+    items: &[CrmIndexItem],
+) -> anyhow::Result<u32> {
+    use anyhow::Context;
+    use std::collections::HashMap;
+
+    if items.is_empty() {
+        return Ok(0);
+    }
+
+    // 1. Delete any stale chunks for each source id first (idempotent re-index).
     for item in items {
-        let n = crate::commands::crm::index_crm_text_internal(
-            workspace,
-            &item.source_id,
-            &item.text,
-            &item.matter_id,
+        crate::commands::rag::store::delete_path(table, &item.source_id, key)
+            .await
+            .context("delete stale crm chunks")?;
+    }
+
+    // 2. Chunk every non-empty item, grouped by matter id. One household maps to
+    //    one matter, but we group defensively so `build_batch_crm` (which takes a
+    //    single matter id) always gets a uniform batch.
+    let mut by_matter: HashMap<String, Vec<crate::commands::rag::chunker::Chunk>> = HashMap::new();
+    for item in items {
+        if item.text.trim().is_empty() {
+            continue;
+        }
+        let chunks = crate::commands::rag::chunker::chunk_text(&item.source_id, &item.text);
+        if chunks.is_empty() {
+            continue;
+        }
+        by_matter.entry(item.matter_id.clone()).or_default().extend(chunks);
+    }
+    if by_matter.is_empty() {
+        return Ok(0);
+    }
+
+    // 3. For each matter group: embed all its chunks in one batched model call
+    //    and write them in a single `table.add` (was one add per item).
+    let mut total = 0u32;
+    for (matter_id, chunks) in by_matter {
+        let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+        let vectors = crate::commands::rag::embedder::embed_documents_batched(&texts, None)
+            .await
+            .context("embed crm chunks")?
+            .unwrap_or_default();
+        let rows: Vec<(crate::commands::rag::chunker::Chunk, Vec<f32>)> =
+            chunks.into_iter().zip(vectors).collect();
+        if rows.is_empty() {
+            continue;
+        }
+        let batch = crate::commands::rag::store::build_batch_crm(
+            &rows,
+            key,
+            &matter_id,
+            crate::commands::rag::store::PRIVILEGE_NONE,
         )
-        .await?;
-        total += n;
+        .context("build crm batch")?;
+        let schema = batch.schema();
+        use arrow_array::RecordBatchIterator;
+        table
+            .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+            .execute()
+            .await
+            .context("add crm chunks to lancedb")?;
+        total += rows.len() as u32;
     }
     Ok(total)
 }
@@ -363,24 +435,53 @@ pub async fn apply_index(workspace: &Path, items: &[CrmIndexItem]) -> anyhow::Re
 /// `matter_map` is supplied by the frontend in Plan 1C once it creates one
 /// Matter per household.  Only households present in the map are indexed —
 /// ingest still stores *all* contacts so the store is a complete snapshot.
+///
+/// `cancel` is polled between households so a long sync can be stopped from the
+/// UI without waiting for all of them; households already processed stay indexed
+/// and `SyncReport::cancelled` is set.
 #[allow(dead_code)]
 pub async fn backfill(
     source: &dyn CrmSource,
     store: &CrmStore,
     workspace: &Path,
     matter_map: &HashMap<String, String>,
+    cancel: &std::sync::atomic::AtomicBool,
 ) -> anyhow::Result<SyncReport> {
+    use std::sync::atomic::Ordering;
+
     let mut report = SyncReport::default();
 
     // Phase 1: ingest everything into the store.
     report.ingest = ingest(source, store).await?;
 
+    if matter_map.is_empty() {
+        return Ok(report);
+    }
+
+    // Open the RAG connection + table + master key ONCE for the whole sync. This
+    // was previously done per record inside `index_crm_text_internal`; opening the
+    // table scans LanceDB, so per-record opens were the dominant cost and the main
+    // source of contention with the document re-index.
+    let key = crate::commands::rag::crypto::get_or_create_master_key()?;
+    let conn = crate::commands::rag::store::open_connection(workspace).await?;
+    let table = crate::commands::rag::store::open_or_create_table(&conn).await?;
+
     // Phase 2: index each household that has a matter.
     for (grouping_key, matter_id) in matter_map {
+        // Cooperative cancellation: stop cleanly between households so the UI's
+        // Stop button takes effect without waiting for the whole batch.
+        if cancel.load(Ordering::SeqCst) {
+            report.cancelled = true;
+            break;
+        }
+
         let items = plan_household_index(store, grouping_key, matter_id)?;
-        let n = apply_index(workspace, &items).await?;
-        report.records_indexed += n;
         report.households_processed += 1;
+
+        // Skip all RAG work for a household with nothing to embed.
+        if !items.is_empty() {
+            report.records_indexed += apply_index(&table, &key, &items).await?;
+        }
 
         // Stable render hash: SHA-256 over all source_ids + texts in plan order.
         // Stored so a future delta pass can skip re-indexing unchanged households.
@@ -679,6 +780,109 @@ mod tests {
             hh_item.text.contains("(self-reported)"),
             "household summary should label financials '(self-reported)'; text:\n{}",
             hh_item.text
+        );
+    }
+
+    // ── Test: live CAPITALIZED contact kinds still index (Blocker B regression) ─
+
+    /// The live Wealthbox API returns CAPITALISED contact types ("Household",
+    /// "Person", …) while the index pipeline matches lowercase. Before the
+    /// normalisation fix this made `plan_household_index` skip every contact
+    /// ("unknown kind") so nothing was searchable. This source mirrors the live
+    /// capitalisation; the fixtures elsewhere use lowercase, which is exactly why
+    /// the bug slipped through — same class as the deserialize blocker.
+    struct CapitalizedKindSource;
+
+    #[async_trait]
+    impl CrmSource for CapitalizedKindSource {
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<WbContact>> {
+            Ok(vec![
+                WbContact {
+                    id: 20001,
+                    r#type: "Household".to_string(), // live capitalisation
+                    company_name: "The Bishops".to_string(),
+                    contact_type: "Client".to_string(),
+                    status: "Active".to_string(),
+                    ..Default::default()
+                },
+                WbContact {
+                    id: 20002,
+                    r#type: "Person".to_string(), // live capitalisation
+                    first_name: "Grace".to_string(),
+                    last_name: "Bishop".to_string(),
+                    contact_type: "Client".to_string(),
+                    status: "Active".to_string(),
+                    household: Some(WbHouseholdRef {
+                        id: 20001,
+                        name: "The Bishops".to_string(),
+                        title: "Head".to_string(),
+                        members: vec![],
+                    }),
+                    ..Default::default()
+                },
+            ])
+        }
+        async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> {
+            Ok(vec![])
+        }
+        async fn list_tasks(&self) -> anyhow::Result<Vec<WbTask>> {
+            Ok(vec![])
+        }
+        async fn list_events(&self) -> anyhow::Result<Vec<WbEvent>> {
+            Ok(vec![])
+        }
+    }
+
+    #[tokio::test]
+    async fn capitalized_live_kinds_are_normalized_and_indexed() {
+        let (_d, store) = crm_store();
+        ingest(&CapitalizedKindSource, &store).await.expect("ingest");
+
+        // Stored kinds are canonicalised to lowercase on ingest.
+        let hh = store.get_object("contact:20001").unwrap().expect("household row");
+        assert_eq!(hh.kind, "household", "kind must be lowercased on store");
+        let person = store.get_object("contact:20002").unwrap().expect("person row");
+        assert_eq!(person.kind, "person", "kind must be lowercased on store");
+
+        // plan_household_index produces the household summary + the member contact
+        // record — NOT skipped as "unknown kind". This is the whole connector value.
+        let items = plan_household_index(&store, "20001", "matter-bishop").expect("plan");
+        let source_ids: Vec<&str> = items.iter().map(|i| i.source_id.as_str()).collect();
+        assert!(
+            source_ids.contains(&"crm:household:20001"),
+            "expected household summary from a live 'Household' contact; got {:?}",
+            source_ids
+        );
+        assert!(
+            source_ids.contains(&"crm:contact:20002"),
+            "expected member record from a live 'Person' contact; got {:?}",
+            source_ids
+        );
+    }
+
+    /// Defense-in-depth: a row stored with a CAPITALISED kind (e.g. by an older
+    /// build, before on-store normalisation) must still index because
+    /// `plan_household_index` lowercases when matching.
+    #[tokio::test]
+    async fn plan_household_index_matches_kind_case_insensitively() {
+        let (_d, store) = crm_store();
+        let json = serde_json::to_string(&WbContact {
+            id: 21000,
+            r#type: "Person".to_string(),
+            first_name: "Owen".to_string(),
+            last_name: "Reed".to_string(),
+            ..Default::default()
+        })
+        .unwrap();
+        // Bypass ingest's normalisation to simulate already-stored legacy data.
+        store
+            .upsert_object("contact:21000", "Person", "21000", "", "h", &json)
+            .unwrap();
+
+        let items = plan_household_index(&store, "21000", "matter-reed").expect("plan");
+        assert!(
+            items.iter().any(|i| i.source_id == "crm:contact:21000"),
+            "a stored capitalised 'Person' kind must still index, not be skipped"
         );
     }
 

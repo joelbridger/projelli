@@ -8,6 +8,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **🔴 CRM content is now actually indexed/searchable (Blocker B).** The ingest engine stored each
+  contact with `kind = c.r#type` = the RAW live-API value, which is CAPITALISED
+  ("Household"/"Person"/"Organization"/"Trust"), while `plan_household_index` matched lowercase — so
+  every contact fell through the `_ => skip ("unknown kind")` arm and ZERO CRM content was embedded
+  into RAG (Client Map + cited CRM Ask produced nothing). Now the kind is canonicalised to lowercase
+  on store AND matched case-insensitively (defense-in-depth for any already-stored capitalised rows).
+  New regression tests built from the LIVE capitalised shape (`capitalized_live_kinds_are_normalized_and_indexed`,
+  `plan_household_index_matches_kind_case_insensitively`).
+  File: `src-tauri/src/commands/crm/engine.rs`.
+- **🔴 Activity Log no longer white-screens the app — CRM audit entries carry a `metadata` object (Blocker A, data half).**
+  The round-1 audit-visibility fix emitted entries whose persisted payload was a thin
+  `{auditEventType, source}` with no `metadata` key. The frontend reconstructs entries with
+  `JSON.parse(payloadJson) as AuditEntry`, so `entry.metadata` was `undefined` and the Activity Log
+  crashed when `getAuditEntryMatterScope` read `metadata['scope']`. The backend now writes a full
+  camelCase `AuditEntry`-shaped payload with a real `metadata` object (`scope: { kind: "allMatters" }`,
+  since CRM connect/sync/disconnect are workspace-wide), via a pure, unit-tested
+  `crm_audit_payload_json` helper. The live event listener parses the same full shape and always ends
+  with a metadata object.
+  Files: `src-tauri/src/commands/crm/commands.rs`, `src/app/lifecycle/useWorkspaceLifecycle.ts`.
+- **Sync Stop/cancel now aborts mid-run (B-SYNC-1).** `engine::backfill` polls the cancel flag
+  between households and bails cleanly (households already processed stay indexed); `crm_sync_all`
+  emits a terminal `{ status: "cancelled" }` event so the UI releases from "Syncing…" instead of
+  sticking with Disconnect disabled. `WealthboxConnect` treats `cancelled` as terminal and shows
+  "Sync stopped."
+  Files: `src-tauri/src/commands/crm/engine.rs`, `src-tauri/src/commands/crm/commands.rs`,
+  `src/features/settings/WealthboxConnect.tsx`, `src/platform/utils/wealthbox-commands.ts`.
+- **Sync is much faster (B-SYNC-2).** The RAG connection + table + master key are now opened ONCE per
+  sync and reused, instead of per record inside `index_crm_text_internal` (opening the table scans
+  LanceDB — the dominant cost and the main contention with the document re-index). A household's chunks
+  are embedded in one batched call and written in one `table.add` per matter, and households with no
+  index items skip RAG work entirely.
+  File: `src-tauri/src/commands/crm/engine.rs`.
 - **Merge-by-name no longer false-attaches a household to the wrong client (correctness/privacy).**
   `resolveMatterForHousehold` previously linked a Wealthbox household to the FIRST file-client whose
   normalized name matched, so when two or more local clients shared the same normalized name (e.g. two
