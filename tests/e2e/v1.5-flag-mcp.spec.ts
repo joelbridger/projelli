@@ -25,6 +25,9 @@ async function openAccountConnections(page: import('@playwright/test').Page) {
   await hardClick(page.getByTestId('account-identity'));
   await expect(page.getByTestId('account-window')).toBeVisible();
   await hardClick(page.getByTestId('account-tab-connections'));
+  // The MCP panel now lives behind a collapsed "Developer tools" disclosure so
+  // advisors don't see this power-user plumbing by default. Open it first.
+  await hardClick(page.getByTestId('connections-developer-tools-trigger'));
   await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
 }
 
@@ -32,6 +35,23 @@ test.describe('v1.5 Flag 2 — MCP server', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
+  });
+
+  test('MCP panel is tucked behind a collapsed Developer tools disclosure by default', async ({
+    page,
+  }) => {
+    await hardClick(page.getByTestId('account-identity'));
+    await expect(page.getByTestId('account-window')).toBeVisible();
+    await hardClick(page.getByTestId('account-tab-connections'));
+
+    // The disclosure trigger is present, but the MCP panel inside it is NOT
+    // rendered until the user expands it — advisors shouldn't see it by default.
+    await expect(page.getByTestId('connections-developer-tools-trigger')).toBeVisible();
+    await expect(page.getByTestId('mcp-settings-section')).toHaveCount(0);
+
+    // Expanding the disclosure reveals the MCP panel.
+    await hardClick(page.getByTestId('connections-developer-tools-trigger'));
+    await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
   });
 
   test('Account → Connections shows the MCP settings section', async ({ page }) => {

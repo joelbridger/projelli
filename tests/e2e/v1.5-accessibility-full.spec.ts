@@ -128,6 +128,8 @@ test.describe('v1.5 accessibility sweep — critical + serious zero-tolerance', 
     await hardClick(page.getByTestId('account-identity'));
     await expect(page.getByTestId('account-window')).toBeVisible();
     await hardClick(page.getByTestId('account-tab-connections'));
+    // MCP now sits behind a collapsed "Developer tools" disclosure — expand it.
+    await hardClick(page.getByTestId('connections-developer-tools-trigger'));
     await expect(page.getByTestId('mcp-settings-section')).toBeVisible();
     await expect(page.getByTestId('ollama-settings-section')).toBeVisible();
 

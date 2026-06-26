@@ -325,6 +325,12 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                 }}
                 placeholder={t('matter.manager.client-name-placeholder')}
               />
+              <p
+                className="text-xs text-muted-foreground"
+                data-testid="matter-new-client-helper"
+              >
+                {t('matter.manager.client-name-helper')}
+              </p>
             </div>
           </div>
           <label

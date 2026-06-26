@@ -58,7 +58,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 105,
+        "matter": 106,
         "media": 77,
         "memory": 6,
         "model-download": 9,
@@ -89,7 +89,8 @@ describe('en.json structure snapshot', () => {
     // +17 = Keepance Local AI: local-ai-download (9) + local-ai-settings (8).
     // +2 = privacy.egress.checking.{label,note} (local-status "Checking" badge).
     // +2 = privacy.egress.none.{label,note} (UX-01 "No AI connected" badge).
-    expect(flat.length).toBe(924);
+    // +1 = matter.manager.client-name-helper (UX tidy-up: optional company field helper).
+    expect(flat.length).toBe(925);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

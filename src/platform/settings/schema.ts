@@ -572,6 +572,22 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     action: { label: 'Check now', actionId: 'updater-check-now' },
   },
 
+  // ── Advanced: AI assistant developer view ─────────────────────────────
+  {
+    // Off by default. When off, the AI assistant hides the per-message
+    // token, cost ($), and "context used of total" meters so it reads like
+    // an assistant, not a developer console. Power users who want to watch
+    // token spend can turn it on here. The underlying cost accounting still
+    // runs either way; this only controls whether the meters are shown.
+    key: 'showAiCostMeters',
+    category: 'advanced',
+    label: 'Show AI cost and usage meters',
+    description:
+      'Show the per-message token count, running cost, and context-usage meter in the AI assistant. Off by default for a cleaner assistant.',
+    type: 'toggle',
+    defaultValue: false,
+  },
+
   // ── Help: Setup / Onboarding ──────────────────────────────────────────
   {
     key: 'viewApiKeyTutorial',

@@ -7,6 +7,8 @@
  *   projectedCost   - estimated cost of next send (from provider pricing)
  *   modelLabel      - short model name for display ("Sonnet", "gpt-4o", etc.)
  *   onCompressClick - called when user clicks [Compress]
+ *   showMeters      - when false, hide the token/cost/usage text (advisor
+ *                     default) but KEEP the manual Compress action reachable.
  */
 
 import { useTranslation } from 'react-i18next';
@@ -21,6 +23,12 @@ export interface ContextMeterBarProps {
   modelLabel: string;
   onCompressClick: () => void;
   className?: string;
+  /**
+   * When false, the token/cost/usage meters are hidden (the advisor default,
+   * since they read like a developer console) but the manual Compress action
+   * stays reachable. Defaults to true.
+   */
+  showMeters?: boolean;
 }
 
 export function ContextMeterBar({
@@ -30,11 +38,16 @@ export function ContextMeterBar({
   modelLabel,
   onCompressClick,
   className,
+  showMeters = true,
 }: ContextMeterBarProps) {
   const { t } = useTranslation();
   const pct = limitTokens > 0 ? Math.min(usedTokens / limitTokens, 1) : 0;
   const isNearLimit = pct >= 0.8;
   const showCompress = pct >= 0.5;
+
+  // Nothing to render: meters are hidden AND there's no Compress affordance to
+  // show. Returning null avoids an empty bar taking up vertical space.
+  if (!showMeters && !showCompress) return null;
 
   const usedLabel = formatContextSize(usedTokens);
   const limitLabel = formatContextSize(limitTokens);
@@ -48,29 +61,35 @@ export function ContextMeterBar({
       )}
       data-testid="context-meter-bar"
     >
-      {/* Utilization text */}
-      <span data-testid="context-meter-usage">
-        Context: {usedLabel} of {limitLabel}
-      </span>
-
-      {/* Cost preview — only shown when we have a projection */}
-      {costLabel && (
+      {/* Meters — utilization, cost preview, 80% warning. Hidden when
+          showMeters is false; the Compress button below stays reachable. */}
+      {showMeters && (
         <>
-          <span aria-hidden className="text-muted-foreground/40">{'·'}</span>
-          <span data-testid="context-meter-cost">
-            {t('chat.context-meter.next-msg', { cost: costLabel, model: modelLabel })}
+          {/* Utilization text */}
+          <span data-testid="context-meter-usage">
+            Context: {usedLabel} of {limitLabel}
           </span>
-        </>
-      )}
 
-      {/* 80% warning chip */}
-      {isNearLimit && (
-        <span
-          data-testid="context-meter-warning"
-          className="rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 font-medium"
-        >
-          Context {Math.round(pct * 100)}% full
-        </span>
+          {/* Cost preview — only shown when we have a projection */}
+          {costLabel && (
+            <>
+              <span aria-hidden className="text-muted-foreground/40">{'·'}</span>
+              <span data-testid="context-meter-cost">
+                {t('chat.context-meter.next-msg', { cost: costLabel, model: modelLabel })}
+              </span>
+            </>
+          )}
+
+          {/* 80% warning chip */}
+          {isNearLimit && (
+            <span
+              data-testid="context-meter-warning"
+              className="rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 font-medium"
+            >
+              Context {Math.round(pct * 100)}% full
+            </span>
+          )}
+        </>
       )}
 
       {/* Compress button — spacer pushes it right */}

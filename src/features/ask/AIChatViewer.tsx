@@ -311,6 +311,10 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const { getSetting } = useSettingsStore();
   const chatContextTokenLimit = (getSetting('chatContextTokenLimit') as number | undefined) ?? 200_000;
   const keepRecentTurns = (getSetting('keepRecentTurns') as number | undefined) ?? 6;
+  // Off by default: the per-message cost chip and context-usage meter make the
+  // assistant read like a developer console, so advisors don't see them unless
+  // they opt in via Settings → Advanced → "Show AI cost and usage meters".
+  const showAiCostMeters = getSetting<boolean | undefined>('showAiCostMeters') ?? false;
 
   // Initialize session on mount if it doesn't exist
   useEffect(() => {
@@ -1354,18 +1358,25 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           </div>
         )}
         {/* Q3 — real-time cost chip, anchored bottom-right of the chat pane
-             just above the input. Hover reveals today's provider breakdown. */}
-        <div className="flex justify-end mb-2">
-          <ChatCostChip chatId={chatId} />
-        </div>
-        {/* Stream A4 — context meter bar: utilization, cost preview, 80% warning, Compress */}
+             just above the input. Hover reveals today's provider breakdown.
+             Hidden unless the user opts into developer cost meters. */}
+        {showAiCostMeters && (
+          <div className="flex justify-end mb-2">
+            <ChatCostChip chatId={chatId} />
+          </div>
+        )}
+        {/* Stream A4 — context meter bar. The token / cost / "Context: N of 200K"
+            meters are hidden unless the user opts in (showAiCostMeters), but the
+            manual Compress action stays reachable for everyone, so this always
+            renders and only the meter visuals are gated (showMeters). */}
         {(() => {
           // Simple 4-chars-per-token heuristic for meter display.
           const historyChars = messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0);
           const usedTokens = Math.round((historyChars + inputValue.length) / 4);
           const metadata = chatData.provider ? undefined : undefined; // cost lookup deferred
           void metadata;
-          const costPerInputToken = (() => {
+          // Only price the next message when the cost meters are actually shown.
+          const costPerInputToken = showAiCostMeters ? (() => {
             try {
               if (!chatData.provider || !chatData.model) return null;
               if (chatData.provider === 'anthropic') {
@@ -1384,7 +1395,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               // ignore metadata errors for cost preview
             }
             return null;
-          })();
+          })() : null;
           const projectedCost = costPerInputToken != null
             ? costPerInputToken * usedTokens
             : null;
@@ -1398,6 +1409,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               projectedCost={projectedCost}
               modelLabel={modelLabel}
               onCompressClick={handleManualCompress}
+              showMeters={showAiCostMeters}
               className="mb-2"
             />
           );
