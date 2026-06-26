@@ -11,9 +11,9 @@ export function useCrmSync(): void {
   const setProgress = useCrmStore((s) => s.setProgress);
   useEffect(() => {
     if (!isTauri()) return;
-    const un = listen<CrmSyncProgress>(CRM_SYNC_EVENT, (e) => setProgress(e.payload));
+    const un = listen<CrmSyncProgress>(CRM_SYNC_EVENT, (e) => { setProgress(e.payload); });
     return () => {
-      un.then((f) => f());
+      void un.then((f) => { f(); });
     };
   }, [setProgress]);
 }

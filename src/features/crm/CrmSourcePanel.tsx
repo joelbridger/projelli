@@ -27,10 +27,10 @@ export function CrmSourcePanel() {
       const detail = (e as CustomEvent<{ sourceId?: string; snippet?: string } | null>).detail;
       const sourceId = detail?.sourceId;
       if (!sourceId) return;
-      setSource({ sourceId, snippet: detail?.snippet });
+      setSource({ sourceId, snippet: detail.snippet });
     };
     window.addEventListener(OPEN_CRM_EVENT, handler);
-    return () => window.removeEventListener(OPEN_CRM_EVENT, handler);
+    return () => { window.removeEventListener(OPEN_CRM_EVENT, handler); };
   }, []);
 
   if (!source) return null;
@@ -59,7 +59,7 @@ export function CrmSourcePanel() {
         <button
           type="button"
           aria-label="Close"
-          onClick={() => setSource(null)}
+          onClick={() => { setSource(null); }}
           className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
         >
           <X className="h-4 w-4" />

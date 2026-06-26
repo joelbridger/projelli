@@ -14,5 +14,5 @@ interface CrmState {
 
 export const useCrmStore = create<CrmState>((set) => ({
   progress: null,
-  setProgress: (p) => set({ progress: p }),
+  setProgress: (p) => { set({ progress: p }); },
 }));
