@@ -64,7 +64,7 @@ describe('en.json structure snapshot', () => {
         "model-download": 9,
         "onboarding": 65,
         "plugins": 4,
-        "privacy": 13,
+        "privacy": 15,
         "quick-open": 1,
         "research": 11,
         "search": 6,
@@ -88,7 +88,8 @@ describe('en.json structure snapshot', () => {
     // plural keys (memory.ready-with-skips_one + _other) + 1 PDF progress key.
     // +17 = Keepance Local AI: local-ai-download (9) + local-ai-settings (8).
     // +2 = privacy.egress.checking.{label,note} (local-status "Checking" badge).
-    expect(flat.length).toBe(922);
+    // +2 = privacy.egress.none.{label,note} (UX-01 "No AI connected" badge).
+    expect(flat.length).toBe(924);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
