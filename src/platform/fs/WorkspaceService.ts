@@ -441,13 +441,20 @@ export class WorkspaceService {
    * List directory recursively
    */
   private async listRecursive(path: string): Promise<FileNode[]> {
-    // path here is already a relative path from backend.list()
-    const items = await this.backend!.list(path);
+    // path here is already a relative path from backend.list().
+    // Keepance's internal config folder is never shown anywhere in the tree
+    // (so every fileTree consumer — not just FileTree/FileGridView — is covered).
+    const items = (await this.backend!.list(path)).filter(
+      (i) => i.name !== '.keepance',
+    );
 
     for (const item of items) {
       if (item.type === 'folder') {
-        // Don't recurse into .trash
-        if (item.name === '.trash') {
+        // Don't recurse into .trash (Trash UI) or any other dot-directory (e.g.
+        // .git, .vscode): they can be enormous and aren't useful in the tree.
+        // They still appear as (unexpanded) folders so "Show Hidden Files" can
+        // reveal them; we just don't walk their contents.
+        if (item.name.startsWith('.')) {
           item.children = [];
           continue;
         }

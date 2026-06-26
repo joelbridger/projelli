@@ -36,6 +36,7 @@ describe('TauriFSBackend.list — desktop dotfile visibility', () => {
         return [
           { name: '.gitignore', isDirectory: false, isFile: true },
           { name: '.keepance', isDirectory: true, isFile: false },
+          { name: '.git', isDirectory: true, isFile: false },
           { name: '.trash', isDirectory: true, isFile: false },
           { name: 'docs', isDirectory: true, isFile: false },
           { name: 'README.md', isDirectory: false, isFile: true },
@@ -53,11 +54,16 @@ describe('TauriFSBackend.list — desktop dotfile visibility', () => {
     expect(names).toContain('.gitignore');
     expect(names).toContain('README.md');
     expect(names).toContain('docs');
-    // .trash keeps its existing handling (still returned).
+    // dot-directories still appear (unexpanded) and .trash keeps its handling.
+    expect(names).toContain('.git');
     expect(names).toContain('.trash');
-    // Keepance's internal config folder is never listed...
+    // Keepance's internal config folder is never listed.
     expect(names).not.toContain('.keepance');
-    // ...and is never recursed into (no directory read for its path).
+    // Perf guard: ordinary directories ARE walked, dot-directories (.git/.trash)
+    // and .keepance are NOT — a huge .git must not slow workspace load.
+    expect(readDir).toHaveBeenCalledWith('/ws/docs');
+    expect(readDir).not.toHaveBeenCalledWith('/ws/.git');
+    expect(readDir).not.toHaveBeenCalledWith('/ws/.trash');
     expect(readDir).not.toHaveBeenCalledWith('/ws/.keepance');
   });
 });
