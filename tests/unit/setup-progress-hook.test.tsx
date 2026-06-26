@@ -9,7 +9,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SetupProgress } from '@/platform/utils/setup-progress-commands';
-import { EMPTY_SETUP_PROGRESS } from '@/platform/utils/setup-progress-commands';
+import { EMPTY_SETUP_PROGRESS, deriveOverall } from '@/platform/utils/setup-progress-commands';
 
 // --- module-scoped test state driven into the mocks ---
 let isTauriShouldReturn = true;
@@ -48,6 +48,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 import { useSetupProgress, computeClientMapProgress } from '@/platform/hooks/useSetupProgress';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
 import type { ClientMap } from '@/platform/clientMap/types';
 
@@ -98,6 +99,58 @@ describe('computeClientMapProgress', () => {
   });
 });
 
+describe('deriveOverall', () => {
+  it('is empty for a fresh snapshot', () => {
+    expect(deriveOverall(makeSnapshot())).toBe('empty');
+  });
+
+  it('is ready with a cloud key and nothing in flight', () => {
+    expect(
+      deriveOverall(
+        makeSnapshot({
+          ai: { ...EMPTY_SETUP_PROGRESS.ai, mode: 'cloud', state: 'ready', cloudKeyPresent: true },
+        }),
+      ),
+    ).toBe('ready');
+  });
+
+  it('is inProgress when the local model is downloading even with a cloud key', () => {
+    expect(
+      deriveOverall(
+        makeSnapshot({
+          ai: {
+            ...EMPTY_SETUP_PROGRESS.ai,
+            mode: 'cloud',
+            state: 'ready',
+            cloudKeyPresent: true,
+            localLlm: { state: 'downloading', percent: 50 },
+          },
+        }),
+      ),
+    ).toBe('inProgress');
+  });
+
+  it('is inProgress while Client Maps are building', () => {
+    expect(
+      deriveOverall(makeSnapshot({ clientMap: { total: 3, built: 1, building: 1, pending: 1 } })),
+    ).toBe('inProgress');
+  });
+
+  it('is partial after file indexing finishes with nothing else', () => {
+    expect(
+      deriveOverall(
+        makeSnapshot({ fileIndex: { indexing: false, processed: 312, total: 312, percent: 100 } }),
+      ),
+    ).toBe('partial');
+  });
+
+  it('is partial when clients exist but no AI brain', () => {
+    expect(
+      deriveOverall(makeSnapshot({ clientMap: { total: 2, built: 0, building: 0, pending: 2 } })),
+    ).toBe('partial');
+  });
+});
+
 describe('useSetupProgress', () => {
   beforeEach(() => {
     isTauriShouldReturn = true;
@@ -110,10 +163,25 @@ describe('useSetupProgress', () => {
 
   afterEach(() => {
     capturedListener = null;
+    useMatterStore.setState({ matters: [] });
+  });
+
+  it('recomputes overall after overlaying Client Map counts (empty -> partial)', async () => {
+    // Backend snapshot is stale ("empty") — it hasn't seen the maps yet. The
+    // hook overlays the frontend Client Map counts AND recomputes overall, so it
+    // must NOT return the stale "empty" alongside a non-zero clientMap.
+    snapshotToReturn = makeSnapshot({ overall: 'empty' });
+    useMatterStore.setState({ matters: [matter('a')] }); // one real client
+    const { result } = renderHook(() => useSetupProgress());
+
+    await waitFor(() => expect(result.current).not.toBeNull());
+    expect(result.current?.clientMap.total).toBe(1);
+    expect(result.current?.overall).toBe('partial');
   });
 
   it('fetches the backend snapshot on mount', async () => {
     snapshotToReturn = makeSnapshot({
+      ai: { ...EMPTY_SETUP_PROGRESS.ai, mode: 'cloud', state: 'ready', cloudKeyPresent: true },
       crm: { connected: true, syncing: false, householdsProcessed: 40, recordsIndexed: 1200 },
       overall: 'ready',
     });
@@ -147,12 +215,16 @@ describe('useSetupProgress', () => {
     const { result } = renderHook(() => useSetupProgress());
     await waitFor(() => expect(result.current).not.toBeNull());
     await waitFor(() => expect(capturedListener).not.toBeNull());
+    expect(result.current?.overall).toBe('empty');
 
-    // The next fetch returns a different snapshot.
-    snapshotToReturn = makeSnapshot({ overall: 'inProgress' });
+    // The next fetch returns a genuinely different (consistent) snapshot.
+    snapshotToReturn = makeSnapshot({
+      email: { connected: true, accounts: [], syncing: true, messagesImported: 5 },
+    });
     capturedListener?.();
 
     await waitFor(() => expect(result.current?.overall).toBe('inProgress'));
+    expect(result.current?.email.messagesImported).toBe(5);
     expect(getCallCount).toBeGreaterThanOrEqual(2);
   });
 

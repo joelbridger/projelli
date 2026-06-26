@@ -287,6 +287,9 @@ pub(crate) fn file_index_progress(
 /// source (idle) is "partial"; else "empty".
 pub(crate) fn compute_overall(s: &SetupProgress) -> OverallState {
     let in_progress = s.ai.state == ModelState::Downloading
+        // A cloud key makes `ai.state` "ready", so a still-downloading local
+        // model must be checked explicitly or it would be hidden behind "ready".
+        || s.ai.local_llm.state == ModelState::Downloading
         || s.ai.search_model.state == ModelState::Downloading
         || s.email.syncing
         || s.crm.syncing
@@ -300,7 +303,11 @@ pub(crate) fn compute_overall(s: &SetupProgress) -> OverallState {
         || s.ai.search_model.state != ModelState::None
         || s.email.connected
         || s.crm.connected
-        || s.client_map.total > 0;
+        || s.client_map.total > 0
+        // A finished indexing run leaves processed/total > 0 (the run flag is off
+        // but files were indexed) — that is real setup.
+        || s.file_index.processed.unwrap_or(0) > 0
+        || s.file_index.total.unwrap_or(0) > 0;
 
     if in_progress {
         OverallState::InProgress
@@ -877,6 +884,33 @@ mod tests {
         raw.file_total = Some(20);
         let s = assemble(raw);
         assert_eq!(s.overall, OverallState::InProgress);
+    }
+
+    #[test]
+    fn overall_in_progress_when_cloud_key_and_local_downloading() {
+        // HIGH (Codex): a cloud key makes the chat brain ready, but the local
+        // model still downloading must keep overall = inProgress, not ready.
+        let mut raw = empty_raw();
+        raw.cloud_key_present = true;
+        raw.local_status = "downloading".into();
+        raw.local_part_bytes = Some(50);
+        raw.local_total_bytes = 100;
+        let s = assemble(raw);
+        assert_eq!(s.ai.state, ModelState::Ready); // headline brain is usable (cloud)
+        assert_eq!(s.ai.local_llm.state, ModelState::Downloading);
+        assert_eq!(s.overall, OverallState::InProgress); // ...but a download is running
+    }
+
+    #[test]
+    fn overall_partial_after_file_indexing_finishes() {
+        // MEDIUM (Codex): files indexed (run finished) with nothing else must be
+        // "partial", not "empty".
+        let mut raw = empty_raw();
+        raw.file_indexing = false;
+        raw.file_processed = Some(312);
+        raw.file_total = Some(312);
+        let s = assemble(raw);
+        assert_eq!(s.overall, OverallState::Partial);
     }
 
     #[test]

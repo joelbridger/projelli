@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import {
   SETUP_PROGRESS_CHANGED_EVENT,
+  deriveOverall,
   getSetupProgress,
   reportClientMap,
   type ClientMapProgress,
@@ -110,9 +111,12 @@ export function useSetupProgress(): SetupProgress | null {
   }, [clientMap.total, clientMap.built, clientMap.building]);
 
   // Overlay the live frontend Client Map onto the backend snapshot so the UI is
-  // instant and always reflects the stores.
-  return useMemo(
-    () => (snapshot ? { ...snapshot, clientMap } : null),
-    [snapshot, clientMap],
-  );
+  // instant and always reflects the stores, then recompute `overall` so it stays
+  // consistent with the overlaid counts (the backend snapshot's `overall` may
+  // predate the latest Client Map state until a round-trip lands).
+  return useMemo(() => {
+    if (!snapshot) return null;
+    const merged = { ...snapshot, clientMap };
+    return { ...merged, overall: deriveOverall(merged) };
+  }, [snapshot, clientMap]);
 }

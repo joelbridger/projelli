@@ -109,6 +109,41 @@ export const EMPTY_SETUP_PROGRESS: SetupProgress = {
   overall: 'empty',
 };
 
+/**
+ * Derive the coarse `overall` headline from a snapshot's fields. Mirrors the
+ * Rust `compute_overall` in setup_progress/mod.rs exactly — the frontend needs
+ * its own copy so that after overlaying the live Client Map counts (which the
+ * backend snapshot may not yet reflect) `overall` stays consistent with the
+ * fields, without waiting for a backend round-trip. Keep the two in lockstep.
+ */
+export function deriveOverall(s: SetupProgress): OverallState {
+  const inProgress =
+    s.ai.state === 'downloading' ||
+    // A cloud key makes `ai.state` "ready", so a still-downloading local model
+    // must be checked explicitly or it would be hidden behind "ready".
+    s.ai.localLlm.state === 'downloading' ||
+    s.ai.searchModel.state === 'downloading' ||
+    s.email.syncing ||
+    s.crm.syncing ||
+    s.fileIndex.indexing ||
+    s.clientMap.building > 0;
+
+  const anyConfigured =
+    s.ai.cloudKeyPresent ||
+    s.ai.localLlm.state !== 'none' ||
+    s.ai.searchModel.state !== 'none' ||
+    s.email.connected ||
+    s.crm.connected ||
+    s.clientMap.total > 0 ||
+    (s.fileIndex.processed ?? 0) > 0 ||
+    (s.fileIndex.total ?? 0) > 0;
+
+  if (inProgress) return 'inProgress';
+  if (s.ai.state === 'ready') return 'ready';
+  if (anyConfigured) return 'partial';
+  return 'empty';
+}
+
 /** Read a fresh unified setup-progress snapshot from the native backend. */
 export async function getSetupProgress(): Promise<SetupProgress> {
   if (!isTauri()) return EMPTY_SETUP_PROGRESS;
