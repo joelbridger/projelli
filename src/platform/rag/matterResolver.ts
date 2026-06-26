@@ -204,6 +204,92 @@ export function buildCrmMatterMap(matters: Matter[]): CrmMatterMapEntry[] {
   return out;
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Household -> matter resolution (merge-by-name, no duplicates)
+//
+// When a Wealthbox sync runs, we need to decide what to do with each
+// household: reuse an already-linked matter, merge (link) into an
+// existing file-client whose name matches, or create a brand-new matter.
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Normalise a client name for fuzzy comparison: lowercase, trim, collapse
+ * internal whitespace to a single space, strip surrounding punctuation/quotes.
+ * Internal punctuation (commas, ampersands, etc.) is preserved so "Smith, Bob"
+ * and "smith, bob" compare equal while their internal structure is intact.
+ */
+export function normalizeClientName(s: string): string {
+  // 1. Lowercase + trim leading/trailing whitespace.
+  let n = s.toLowerCase().trim();
+  // 2. Collapse any internal whitespace runs to a single space.
+  n = n.replace(/\s+/g, ' ');
+  // 3. Strip surrounding characters that are not letters, digits, or whitespace
+  //    (catches leading/trailing quotes, periods, parentheses, etc.).
+  n = n.replace(/^[^a-z0-9\s]+|[^a-z0-9\s]+$/g, '').trim();
+  return n;
+}
+
+/** The outcome of resolving one Wealthbox household against the matter list. */
+export interface HouseholdResolution {
+  /** The existing matter's id; empty string for `'create'` (no matter exists yet). */
+  matterId: string;
+  /** How the household should be handled. */
+  action: 'reuse' | 'link' | 'create';
+  /** The resolved name: the existing matter name for 'reuse'/'link'; `household.name` for 'create'. */
+  name: string;
+}
+
+/**
+ * Decide how to handle a Wealthbox household during a sync, in priority order:
+ *
+ *   1. **reuse** — a matter is already linked to this household via `crmHouseholdKeys`.
+ *      No change needed; the map will pick it up automatically.
+ *
+ *   2. **link** — a matter whose `name` or `client` matches `normalizeClientName(household.name)`
+ *      AND that matter has NO existing `crmHouseholdKeys` (pure file-client, not already
+ *      linked to a different household). The caller should call `addCrmHouseholdKey` and
+ *      add `matterId` to `claimedMatterIds` to prevent a second household from linking to
+ *      the same matter in the same sync batch.
+ *
+ *   3. **create** — no match was found; the caller should call `createMatter`.
+ *
+ * `claimedMatterIds` is an optional set of matter ids already claimed for `link` in the
+ * current sync batch. Passing it prevents two households from both linking to the same
+ * matter when their names happen to be identical. The function is pure: same inputs always
+ * produce the same output.
+ */
+export function resolveMatterForHousehold(
+  matters: Matter[],
+  household: { id: string; name: string },
+  claimedMatterIds: ReadonlySet<string> = new Set(),
+): HouseholdResolution {
+  // Priority 1: already linked by household key.
+  for (const matter of matters) {
+    if ((matter.crmHouseholdKeys ?? []).includes(household.id)) {
+      return { matterId: matter.id, action: 'reuse', name: matter.name };
+    }
+  }
+
+  // Priority 2: name-based merge into an existing file-client.
+  const normalizedHouseholdName = normalizeClientName(household.name);
+  if (normalizedHouseholdName) {
+    for (const matter of matters) {
+      // Skip matters that already have a CRM key (don't cross-link to a different household).
+      if ((matter.crmHouseholdKeys ?? []).length > 0) continue;
+      // Skip matters already claimed for linking in this sync batch.
+      if (claimedMatterIds.has(matter.id)) continue;
+      const nameMatch = normalizeClientName(matter.name) === normalizedHouseholdName;
+      const clientMatch = normalizeClientName(matter.client) === normalizedHouseholdName;
+      if (nameMatch || clientMatch) {
+        return { matterId: matter.id, action: 'link', name: matter.name };
+      }
+    }
+  }
+
+  // Priority 3: no match — create a new matter.
+  return { matterId: '', action: 'create', name: household.name };
+}
+
 /**
  * Resolve which matter a given mail folder (provider/account/folder) belongs to,
  * mirroring the backend `resolve_mail_matter`: a folder-level mapping wins over

@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **B-CONN-5 (HIGH): Wealthbox sync now merges into existing file-clients by name instead of duplicating.**
+  Previously `runSync` matched households only by `crmHouseholdKeys`, so the 27 existing
+  file-clients (which have no CRM keys) were always ignored — a sync of 40 households created
+  40 new matters, duplicating the ~26 whose names matched. Now sync uses name-based matching via
+  `resolveMatterForHousehold` / `normalizeClientName` (`src/platform/rag/matterResolver.ts`): a
+  household that matches an existing file-client by normalised name (lowercase, trimmed, collapsed
+  whitespace, stripped surrounding punctuation) is LINKED to that client (`addCrmHouseholdKey`) not
+  duplicated. A matter that is already linked to a different household is never cross-linked. A
+  `claimedMatterIds` set prevents two households in the same sync batch from both linking to the
+  same matter. Unit tests: `src/platform/rag/matterResolver.crm.test.ts` (17 tests covering
+  reuse/link/create priority, case-insensitive matching, CRM-key guard, and the double-link guard).
+  Files: `src/platform/rag/matterResolver.ts`, `src/features/settings/WealthboxConnect.tsx`.
+
+- **B-CONN-2 (MEDIUM): Import confirm now shows the real household count.**
+  The dialog previously fired before the fetch and showed no number ("Import your Wealthbox
+  households?"). Now `runSync` uses a 2-step flow: (1) fetch `crmListHouseholds()` immediately on
+  "Sync now" click — the click is the user's consent to read the list; (2) show the confirm dialog
+  "Import N household(s) into local encrypted storage on this device?" with the real count; (3) only
+  on confirm does Keepance write anything locally. If the account returns 0 households the user is
+  told so and the flow stops. File: `src/features/settings/WealthboxConnect.tsx`.
 - **DEMO-BLOCKER: Wealthbox household contacts now deserialize correctly (null-field crash).**
   Household-type contacts from the live Wealthbox API carry only `id`, `type`, `name`,
   and a handful of shared fields — they omit person-only fields entirely AND send some
