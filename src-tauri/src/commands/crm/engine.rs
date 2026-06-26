@@ -798,26 +798,158 @@ mod tests {
         assert!(hh_row.is_some(), "household contact should still be stored");
     }
 
-    // ── (Ignored) Full backfill → apply_index integration test ───────────────
+    // ── Model-gated headless integration test ────────────────────────────────
     //
-    // Requires the e5-small embedding model (set REQUIRE_RAG_MODEL=1 to run).
-    // Kept ignored so the default suite stays fully offline and fast.
+    // Proves the full ingest → plan → embed → store → retrieve chain end-to-end
+    // WITHOUT the OS keychain.  The real app reads the RAG encryption key from
+    // the OS keychain at runtime; that path is not available on a headless CI
+    // server.  This test uses a LITERAL key ([0x5Au8;32]) everywhere instead,
+    // bypassing apply_index (which calls index_crm_text_internal → keychain) and
+    // instead driving the RAG store layer directly — the same approach used in
+    // tests/crm_fixture_import.rs and tests/rag_matter_scope.rs.  The keychain
+    // path itself is exercised on a real machine via the full user-test playbook.
+    //
+    // Requires the e5-small embedding model.  Self-skips when the model is absent
+    // (normal CI behaviour).  Panics loudly when REQUIRE_RAG_MODEL=1 and the
+    // model is missing so nightly runs surface the gap instead of silently passing.
+
+    /// Returns true when the e5-small model cache is provisioned.
+    fn model_is_provisioned() -> bool {
+        use crate::commands::rag::embedder::resolve_cache_dir;
+        use crate::commands::rag::model_download::model_files_cached;
+        model_files_cached(&resolve_cache_dir())
+    }
+
+    /// Skip a model-dependent test when the e5-small cache is absent.
+    macro_rules! skip_without_model {
+        () => {
+            if !model_is_provisioned() {
+                if std::env::var("REQUIRE_RAG_MODEL")
+                    .ok()
+                    .filter(|v| !v.is_empty())
+                    .is_some()
+                {
+                    panic!(
+                        "REQUIRE_RAG_MODEL set but e5-small cache missing — \
+                         refusing to silently skip RAG tests"
+                    );
+                }
+                eprintln!(
+                    "SKIP {}: e5-small model cache not provisioned \
+                     (expected on CI; runs locally/nightly)",
+                    module_path!()
+                );
+                return;
+            }
+        };
+    }
 
     #[tokio::test]
     #[ignore]
     async fn backfill_full_integration_requires_embedding_model() {
-        let dir = TempDir::new().unwrap();
-        let key = [0x33u8; 32];
-        let store = CrmStore::open_with_key(dir.path(), &key).unwrap();
+        use arrow_array::RecordBatchIterator;
+        use crate::commands::rag::store::{self, PRIVILEGE_NONE};
+        use crate::commands::rag::chunker::chunk_text;
+        use crate::commands::rag::embedder::embed_documents_batched;
+        use crate::commands::mail::crypto::decrypt_with_key;
 
-        let mut matter_map = HashMap::new();
-        matter_map.insert("10001".to_string(), "matter-integration".to_string());
+        skip_without_model!();
 
-        let report = backfill(&FakeCrmSource, &store, dir.path(), &matter_map)
+        // Literal RAG encryption key — no OS keychain needed on a headless server.
+        // The real app reads this key from the OS keychain; that path is verified
+        // on a real machine via the full user-test playbook.  Here we use a fixed
+        // test key identical to the one in tests/crm_fixture_import.rs.
+        const VEC_KEY: [u8; 32] = [0x5Au8; 32];
+
+        // ── 1. Ingest ────────────────────────────────────────────────────────────
+        let ws = TempDir::new().unwrap();
+        let crm_key = [0x33u8; 32];
+        let store = CrmStore::open_with_key(ws.path(), &crm_key).unwrap();
+
+        ingest(&FakeCrmSource, &store).await.expect("ingest");
+
+        // ── 2. Plan ──────────────────────────────────────────────────────────────
+        let items = plan_household_index(&store, "10001", "matter-integration")
+            .expect("plan_household_index");
+        assert!(!items.is_empty(), "plan must produce at least one item for the Anderson household");
+
+        // ── 3. Open RAG store directly (bypass apply_index's keychain path) ──────
+        let conn = crate::commands::rag::store::open_connection(ws.path())
             .await
-            .expect("backfill");
+            .expect("open rag connection");
+        let table = crate::commands::rag::store::open_or_create_table(&conn)
+            .await
+            .expect("open or create rag table");
 
-        assert_eq!(report.households_processed, 1);
-        assert!(report.records_indexed > 0, "expected at least one indexed chunk");
+        // ── 4. Embed + write each plan item with the LITERAL key ─────────────────
+        let mut total_chunks = 0usize;
+        for item in &items {
+            let chunks = chunk_text(&item.source_id, &item.text);
+            if chunks.is_empty() {
+                continue;
+            }
+            let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+            let vectors = embed_documents_batched(&texts, None)
+                .await
+                .expect("embed_documents_batched")
+                .unwrap_or_default();
+            if vectors.is_empty() {
+                continue;
+            }
+            let rows: Vec<_> = chunks.into_iter().zip(vectors).collect();
+            let batch = store::build_batch_crm(&rows, &VEC_KEY, &item.matter_id, PRIVILEGE_NONE)
+                .expect("build_batch_crm");
+            let schema = batch.schema();
+            table
+                .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+                .execute()
+                .await
+                .expect("table add");
+            total_chunks += rows.len();
+        }
+        assert!(total_chunks > 0, "expected at least one chunk written to the RAG store");
+
+        // ── 5. Retrieve — prove the chain end-to-end ─────────────────────────────
+        let query_texts = vec!["Anderson household net worth assets".to_string()];
+        let query_vecs = embed_documents_batched(&query_texts, None)
+            .await
+            .expect("embed query")
+            .unwrap_or_default();
+        assert!(!query_vecs.is_empty(), "embed must return at least one vector");
+        let qv = &query_vecs[0];
+
+        let hits = store::nearest(&table, qv, 8, Some("matter-integration"), false, &[])
+            .await
+            .expect("nearest");
+        assert!(!hits.is_empty(), "RAG search must return at least one hit");
+
+        // Decrypt the path of the first hit and confirm it is a CRM source.
+        let top = &hits[0];
+        let path_enc = top
+            .path_enc
+            .as_deref()
+            .expect("crm hit must carry path_enc");
+        let blob = hex::decode(path_enc).expect("path_enc must be hex");
+        let plain_path = String::from_utf8(
+            decrypt_with_key(&blob, &VEC_KEY).expect("decrypt path_enc"),
+        )
+        .expect("path_enc must be UTF-8");
+
+        assert!(
+            plain_path.starts_with("crm:household:10001")
+                || plain_path.starts_with("crm:contact:")
+                || plain_path.starts_with("crm:"),
+            "retrieved source path must be a CRM path; got: {plain_path:?}"
+        );
+        assert_eq!(
+            top.source_type.as_deref(),
+            Some("crm"),
+            "source_type must be 'crm'"
+        );
+        assert_eq!(
+            top.matter_id.as_deref(),
+            Some("matter-integration"),
+            "matter_id must match the indexed matter"
+        );
     }
 }
