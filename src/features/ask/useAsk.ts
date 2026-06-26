@@ -691,8 +691,15 @@ export function useAsk({
         });
       }
       const raw = err instanceof Error ? err.message : '';
-      // Fix #4: map raw provider error strings to plain-language user copy.
-      setErrorMsg(friendlyErrorMessage(raw));
+      // Fix #4 / UX-29: plain-language copy that is mode- and stage-aware.
+      // `providerCallStarted === false` means the failure was in the file-search
+      // stage (not the AI/key), so the message must not blame a key.
+      setErrorMsg(
+        friendlyErrorMessage(raw, {
+          mode: getConfidentialityMode(),
+          reachedProvider: providerCallStarted,
+        }),
+      );
       setStreamingTurn(null);
       setStatus('error');
       // BUG-002: restore the typed question so the user can retry without

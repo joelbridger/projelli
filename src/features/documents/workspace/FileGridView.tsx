@@ -5,6 +5,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/platform/types/workspace';
+import { visibleNodes } from '@/features/documents/workspace/hiddenNodes';
 import {
   Folder,
   ChevronRight,
@@ -31,20 +32,19 @@ export function FileGridView({
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const [dragOverBreadcrumbIndex, setDragOverBreadcrumbIndex] = useState<number | null>(null);
 
-  // Get current folder contents
-  const currentContents = useMemo(() => {
-    let nodes = fileTree;
-    for (const segment of currentPath) {
+  // Get current folder contents, with internal dot-prefixed entries (e.g. the
+  // .keepance config folder) hidden from the grid (UX-21). Recursive navigation
+  // (no in-place reassignment) keeps the memo compiler-optimizable.
+  const visibleContents = useMemo(() => {
+    const navigate = (nodes: FileNode[], path: string[]): FileNode[] => {
+      if (path.length === 0) return nodes;
+      const [segment, ...rest] = path;
       const folder = nodes.find(
-        (n) => n.name === segment && n.type === 'folder'
+        (n) => n.name === segment && n.type === 'folder',
       );
-      if (folder?.children) {
-        nodes = folder.children;
-      } else {
-        return [];
-      }
-    }
-    return nodes;
+      return folder?.children ? navigate(folder.children, rest) : [];
+    };
+    return visibleNodes(navigate(fileTree, currentPath));
   }, [fileTree, currentPath]);
 
   // Navigate into a folder
@@ -214,7 +214,7 @@ export function FileGridView({
 
       {/* Grid View */}
       <div className="flex-1 overflow-auto p-6">
-        {currentContents.length === 0 ? (
+        {visibleContents.length === 0 ? (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             <div className="text-center">
               <Folder className="h-16 w-16 mx-auto mb-4 opacity-50" />
@@ -224,7 +224,7 @@ export function FileGridView({
           </div>
         ) : (
           <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-2 sm:gap-3">
-            {currentContents.map((node) => (
+            {visibleContents.map((node) => (
               <div
                 key={node.path}
                 data-testid={`grid-item-${node.name}`}

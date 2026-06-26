@@ -88,7 +88,9 @@ export function useActiveEgressProvider(mode: string): EgressProvider {
   );
 
   useEffect(() => {
-    const update = () => setProvider(resolveActiveEgressProvider(mode));
+    const update = () => {
+      setProvider(resolveActiveEgressProvider(mode));
+    };
     // Re-resolve immediately for the current mode, then on any config change.
     update();
     window.addEventListener(EGRESS_CONFIG_CHANGE_EVENT, update);

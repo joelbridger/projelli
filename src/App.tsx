@@ -1371,8 +1371,10 @@ This file contains rules and guidelines for AI assistants in this workspace.
       {/* The hero Trust Bar (elevated egress + matter scope). */}
       <TrustBar />
 
-      {/* Main content area */}
-      <div id="main-content" className="flex-1 flex overflow-hidden">
+      {/* Main content area — a real <main> landmark and a focus target so the
+          "Skip to main content" link moves keyboard focus here, not just scrolls
+          (acc-06). tabIndex={-1} makes the non-interactive region focusable. */}
+      <main id="main-content" tabIndex={-1} className="flex-1 flex overflow-hidden">
         {/* Sidebar with file tree, workflows, research, and settings */}
         <AppShellNav
           activeTab={sidebarActiveTab}
@@ -1448,7 +1450,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
           handleSettingsRestartOnboarding={handleSettingsRestartOnboarding}
           activeMatter={activeMatter}
         />
-      </div>
+      </main>
 
       {/* Status bar. showFileContext=true only on the Documents/editor surface
           (files tab) so the breadcrumb never shows stale editor context when

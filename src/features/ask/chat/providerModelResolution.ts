@@ -192,6 +192,14 @@ export function resolveModelForProvider(
   if (preferredModel && models.some((m) => m.id === preferredModel)) {
     return preferredModel;
   }
+  // Prefer the curated per-provider default when it is actually available, before
+  // the provider's first listed model (UX-39): the live list can put a weak/dated
+  // model first (OpenAI returns gpt-3.5-turbo ahead of gpt-4o-mini), which would
+  // otherwise become a new chat's default and produce visibly worse answers.
+  const curated = FALLBACK_MODEL[provider];
+  if (curated && models.some((m) => m.id === curated)) {
+    return curated;
+  }
   const first = models[0];
   if (first) return first.id;
   return FALLBACK_MODEL[provider] ?? '';

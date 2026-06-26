@@ -167,6 +167,16 @@
   nav[aria-label="Primary"] button:focus-visible {
     outline-color: rgba(255, 255, 255, 0.85);
   }
+  /* Keyboard focus ring on text inputs/selects (acc-02). The Ask/Search composer
+     and other inline-styled fields suppressed the default outline, leaving the
+     product's most-used control with no visible focus indicator. Advisors skew
+     older, so an obvious focus ring matters more than usual. */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--kp-accent, #1f74c4);
+    outline-offset: 2px;
+  }
 }
 
 /* =====================================================================

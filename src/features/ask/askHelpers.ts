@@ -310,16 +310,38 @@ export async function buildProviderAsync(): Promise<Provider> {
 
 /**
  * Maps raw provider error messages to plain-language user-facing text.
- * Fix #4: prevents leaking "401 Unauthorized" / quota strings into the UI.
+ *
+ * UX-29: the message must be mode- and stage-aware. The catch-all used to say
+ * "check your key" for ANY unmatched error — even when the provider returned
+ * 200 OK (the real cause was the local search index) and even in Local-only
+ * mode where there is no key. Now:
+ *   - "key" is mentioned ONLY for a genuine auth (401) error, and never in
+ *     Local-only mode;
+ *   - a failure before the AI was reached is named as a search/index issue;
+ *   - Local-only failures reassure the user nothing left their machine;
+ *   - every fallback offers "search by keyword instead".
+ *
+ * @param raw   The raw provider/error string.
+ * @param opts  mode: the confidentiality mode; reachedProvider: whether the
+ *              provider call actually started (false => the failure was in the
+ *              file-search/index stage, not the AI/key).
  */
 /* eslint-disable keepance-i18n/no-hardcoded-string */
-export function friendlyErrorMessage(raw: string): string {
+export function friendlyErrorMessage(
+  raw: string,
+  opts?: { mode?: string; reachedProvider?: boolean },
+): string {
   const lower = raw.toLowerCase();
+  const localOnly = opts?.mode === 'local-only';
+
+  // Genuine auth — the ONLY branch that mentions a key, and never in Local-only
+  // (there is no key to check there).
   if (
-    lower.includes('401') ||
-    lower.includes('unauthorized') ||
-    lower.includes('invalid_api_key') ||
-    lower.includes('authentication')
+    !localOnly &&
+    (lower.includes('401') ||
+      lower.includes('unauthorized') ||
+      lower.includes('invalid_api_key') ||
+      lower.includes('authentication'))
   ) {
     return 'Your AI key was rejected. Check it in Settings.';
   }
@@ -329,7 +351,9 @@ export function friendlyErrorMessage(raw: string): string {
     lower.includes('rate') ||
     lower.includes('overloaded')
   ) {
-    return 'Your AI provider is over its usage limit right now. Wait a moment and try again.';
+    return localOnly
+      ? 'Your local AI is busy right now. Wait a moment and try again.'
+      : 'Your AI provider is over its usage limit right now. Wait a moment and try again.';
   }
   if (
     lower.includes('context_length') ||
@@ -338,7 +362,18 @@ export function friendlyErrorMessage(raw: string): string {
   ) {
     return 'That question is too long for this model. Try a shorter one.';
   }
-  return "I couldn't reach your AI provider. Try again, or check your key in Settings.";
+
+  // The AI was never reached: the failure was in searching your files, not the
+  // AI or a key. (Covers the "provider returned 200 but the local index wasn't
+  // ready" case, where retrieval throws before the provider call.)
+  if (opts?.reachedProvider === false) {
+    return "I couldn't search your files yet. Your private search may still be setting up. Try again in a moment, or search by keyword instead.";
+  }
+
+  // Generic AI failure (the provider was reached, or stage is unknown).
+  return localOnly
+    ? "The local AI couldn't answer, and your data stayed on your machine. Make sure your private AI finished setting up, then try again. You can also search by keyword instead."
+    : "I couldn't get an answer from your AI. Try again in a moment, or search by keyword instead.";
 }
 /* eslint-enable keepance-i18n/no-hardcoded-string */
 

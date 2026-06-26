@@ -4,6 +4,7 @@
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FileNode } from '@/platform/types/workspace';
+import { visibleNodes } from '@/features/documents/workspace/hiddenNodes';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import {
   ChevronRight,
@@ -550,7 +551,7 @@ export function FileTree({
               {t('workspace.file-tree.drop-to-root')}
             </div>
           )}
-          {fileTree.map((node) => (
+          {visibleNodes(fileTree).map((node) => (
             <FileTreeItem
               key={node.id}
               node={node}
@@ -998,7 +999,7 @@ function FileTreeItem({
       {/* Children (if folder and expanded) */}
       {isFolder && isExpanded && node.children && (
         <div role="group">
-          {node.children.map((child) => (
+          {visibleNodes(node.children).map((child) => (
             <FileTreeItem
               key={child.id}
               node={child}

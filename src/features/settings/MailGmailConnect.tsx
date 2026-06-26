@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { gmailConnect, gmailIsConnected, gmailDisconnect, mailSyncAll, mailCancelSync } from '@/platform/utils/mail-commands';
+import { gmailConnect, gmailIsConnected, gmailDisconnect, mailSyncAll, mailCancelSync, isDesktopOnlyMailError } from '@/platform/utils/mail-commands';
 import { useMailSync } from '@/features/email/useMailSync';
 import { useMailStore } from '@/features/email/mailStore';
 import { getMatters } from '@/platform/matter/matterStore';
@@ -91,11 +91,19 @@ export function MailGmailConnect() {
           </p>
           {/* eslint-enable keepance-i18n/no-hardcoded-string */}
 
-          {connectError && (
-            <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-800">
-              <p className="text-red-700 font-medium">Something went wrong: {connectError}</p>
-            </div>
-          )}
+          {connectError &&
+            (isDesktopOnlyMailError(connectError) ? (
+              /* Expected limitation in the web preview — a calm info note, not a
+                 red alarm (UX-22). */
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+                <p>Email connects in the Keepance desktop app.</p>
+              </div>
+            ) : (
+              <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-800">
+                <p className="text-red-700 font-medium">Something went wrong: {connectError}</p>
+              </div>
+            ))}
 
           <button
             type="button"

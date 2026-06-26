@@ -193,14 +193,17 @@ describe('Ask', () => {
     expect(screen.getByText(/what are the upcoming deadlines/i)).toBeDefined();
   });
 
-  it('clicking an example chip fills the input without submitting', () => {
+  it('clicking an example chip RUNS the search (does not just fill the input) — UX-28', async () => {
     render(<Ask />);
     const chip = screen.getByText(/summarize this matter/i);
     fireEvent.click(chip);
-    const input = screen.getByRole('textbox') as HTMLInputElement;
-    expect(input.value).toBe('Summarize this matter');
-    // initSession should only have been called once (on mount), not again for a submit
-    expect(mockInitSession).toHaveBeenCalledTimes(1);
+    // The chip now submits the search: handleAsk sets the in-flight streaming
+    // turn synchronously, so the empty state (and its chips) is replaced. If the
+    // chip had merely filled the input (the old bug), the empty state would
+    // remain on screen.
+    await waitFor(() => {
+      expect(screen.queryByText(/what do you want to find/i)).toBeNull();
+    });
   });
 
   it('submitting question does not throw (smoke test)', () => {

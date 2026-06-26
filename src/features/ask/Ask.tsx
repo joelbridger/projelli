@@ -256,11 +256,11 @@ export function Ask(props: UseAskProps) {
                         key={example}
                         size="md"
                         onClick={() => {
-                          if (activeMatter?.id === SAMPLE_MATTER_ID) {
-                            void handleAsk(example);
-                          } else {
-                            setQuestion(example);
-                          }
+                          // UX-28: a suggestion chip RUNS the search on click
+                          // (it used to only fill the box for non-sample matters,
+                          // which read as broken). Sample + real matters now behave
+                          // the same.
+                          void handleAsk(example);
                         }}
                       >
                         {example}
@@ -374,9 +374,11 @@ export function Ask(props: UseAskProps) {
             <SampleBridgeCallout />
           )}
 
-          {/* Error */}
+          {/* Error — announced to assistive tech (acc-04 / UX-29). */}
           {status === 'error' && errorMsg && (
             <div
+              role="status"
+              aria-live="polite"
               style={{
                 display: 'flex',
                 gap: 8,

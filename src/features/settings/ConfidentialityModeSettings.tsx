@@ -226,6 +226,7 @@ export function ConfidentialityModeSettings() {
             type="button"
             role="switch"
             aria-checked={privileged.active}
+            aria-label="Network lockdown"
             data-testid="privileged-matter-mode-switch"
             disabled={privileged.forced}
             onClick={() => {
