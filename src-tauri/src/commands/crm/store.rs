@@ -344,6 +344,20 @@ impl CrmStore {
         )?;
         Ok(())
     }
+
+    /// Delete every locally-imported Wealthbox object by removing the encrypted
+    /// CRM database file. The file is recreated empty the next time `open` is
+    /// called. Invoked by `crm_disconnect` so a disconnected workspace retains no
+    /// residual CRM data on disk.
+    #[allow(dead_code)]
+    pub fn purge(workspace_root: &Path) -> Result<()> {
+        let p = Self::db_path(workspace_root);
+        if p.exists() {
+            std::fs::remove_file(&p)
+                .with_context(|| format!("failed to remove crm db {}", p.display()))?;
+        }
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------------------

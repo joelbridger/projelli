@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Wealthbox disconnect now purges all imported data (HIGH privacy fix).** `crm_disconnect` previously only deleted the API key; imported Wealthbox objects and RAG index chunks remained on disk. Now disconnect deletes the token AND purges both stores best-effort: all `source_type='crm'` chunks are removed from the LanceDB RAG index, and the encrypted CRM object database file is deleted. If either purge step fails it is logged as a warning and the token is still deleted — the account is always disconnected.
+  - `src-tauri/src/commands/rag/store.rs`: new `delete_source_type(table, source_type)` function (parallel to `delete_matter`).
+  - `src-tauri/src/commands/crm/store.rs`: new `CrmStore::purge(workspace_root)` static method — removes `crm-enc.db`.
+  - `src-tauri/src/commands/crm/commands.rs`: `crm_disconnect` now takes `State<'_, CrmState>` (Tauri injects it automatically), calls `purge_crm_rag_chunks` + `CrmStore::purge` best-effort, logs warnings via `log::warn!` on partial failure.
+  - `src-tauri/tests/crm_fixture_import.rs`: new `delete_source_type_removes_all_crm_chunks` integration test (indexes two CRM chunks, calls `delete_source_type("crm")`, asserts all are gone).
+  - Tests: `cargo test --test crm_fixture_import` → 2 passed, 0 failed; `cargo build --lib` → no errors, no warnings.
+
+### Changed
+- **Wealthbox live smoke test: redact PII from /me print (MEDIUM privacy fix).** `tests/wealthbox_live_smoke.rs` previously printed the full `/me` API response (account name, email, plan — real PII when run against a live token). Now prints only field-presence booleans and array counts: `name_set=true, plan_set=true, accounts=0`. The test intent (confirming the API call succeeds) is unchanged.
+  - File: `src-tauri/tests/wealthbox_live_smoke.rs`
+
 ### Added
 - **Wealthbox connector: privacy Data Map entry, audit events, import confirmation, honest disconnect.**
   - `src/platform/privacy/ui/DataMapDialog.tsx`: added a Wealthbox row to `DATA_MAP_ROWS` (after the email row) documenting that the API key lives in the OS keychain, requests go device-to-Wealthbox directly (never through Keepance servers), and disconnecting purges imported data. Uses the `Users` lucide icon.

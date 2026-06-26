@@ -108,3 +108,63 @@ async fn fixture_crm_chunk_round_trips_encrypted_and_is_retrievable() {
         "decrypted hit text should contain content from the fixture brief; got: {decrypted:?}"
     );
 }
+
+/// `delete_source_type("crm")` removes all crm chunks from the RAG store.
+///
+/// Indexes two CRM chunks under the same matter, calls `delete_source_type`,
+/// then confirms neither survives a vector search in that matter scope.
+#[tokio::test]
+async fn delete_source_type_removes_all_crm_chunks() {
+    use keepance_lib::commands::rag::embedder::EMBEDDING_DIM;
+    use keepance_lib::commands::rag::store;
+
+    let workspace = tempfile::tempdir().expect("workspace tempdir");
+    let conn = store::open_connection(workspace.path())
+        .await
+        .expect("open vector store");
+    let table = store::open_or_create_table(&conn)
+        .await
+        .expect("open chunks table");
+
+    // Index two distinct CRM entries (source_type = "crm" for both).
+    index_crm_entry(&table, "crm:household:2001", FIXTURE_BRIEF, CRM_MATTER).await;
+    index_crm_entry(&table, "crm:household:2002", FIXTURE_BRIEF, CRM_MATTER).await;
+
+    // Confirm chunks are present before the delete.
+    let hits_before = store::nearest(
+        &table,
+        &vec![0.1f32; EMBEDDING_DIM],
+        20,
+        Some(CRM_MATTER),
+        false,
+        &[],
+    )
+    .await
+    .expect("nearest before delete_source_type");
+    assert!(
+        hits_before.iter().any(|h| h.source_type.as_deref() == Some("crm")),
+        "at least one crm chunk should be present before delete_source_type"
+    );
+
+    // Purge all crm chunks.
+    store::delete_source_type(&table, "crm")
+        .await
+        .expect("delete_source_type(\"crm\") should succeed");
+
+    // Confirm no crm chunks remain.
+    let hits_after = store::nearest(
+        &table,
+        &vec![0.1f32; EMBEDDING_DIM],
+        20,
+        Some(CRM_MATTER),
+        false,
+        &[],
+    )
+    .await
+    .expect("nearest after delete_source_type");
+    assert!(
+        !hits_after.iter().any(|h| h.source_type.as_deref() == Some("crm")),
+        "no crm chunks should survive delete_source_type; got {} hits",
+        hits_after.len()
+    );
+}

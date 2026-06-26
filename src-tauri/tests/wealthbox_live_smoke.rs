@@ -33,9 +33,12 @@ async fn wealthbox_live_smoke() {
         .me()
         .await
         .expect("GET /me should succeed with a valid token");
+    // Print only field-presence + counts — never the raw body (contains PII).
+    let name_set = me.get("name").and_then(|v| v.as_str()).map(|s| !s.is_empty()).unwrap_or(false);
+    let plan_set = me.get("plan").and_then(|v| v.as_str()).map(|s| !s.is_empty()).unwrap_or(false);
+    let account_count = me.get("accounts").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
     println!(
-        "[smoke] /me response:\n{}",
-        serde_json::to_string_pretty(&me).unwrap_or_else(|_| "<not JSON>".into())
+        "[smoke] /me: name_set={name_set}, plan_set={plan_set}, accounts={account_count}"
     );
 
     // --- contacts: full page loop to observe count + paging ---

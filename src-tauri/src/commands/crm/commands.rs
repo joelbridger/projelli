@@ -201,11 +201,41 @@ pub async fn crm_is_connected() -> Result<bool, String> {
     Ok(read_token().is_some())
 }
 
-/// Remove the stored Wealthbox API token from the OS keychain.
-/// Idempotent — succeeds even if the token was never stored.
+/// Remove the stored Wealthbox API token from the OS keychain and purge all
+/// locally-imported Wealthbox data from this device (RAG chunks + encrypted
+/// CRM object store). Idempotent — succeeds even if the token was never stored
+/// or no data was ever synced.
+///
+/// Purge steps are best-effort: if one fails a warning is logged and the
+/// remaining steps still run, but the token is ALWAYS deleted first so the
+/// account is definitively disconnected regardless.
 #[tauri::command]
-pub async fn crm_disconnect() -> Result<(), String> {
-    delete_token()
+pub async fn crm_disconnect(state: State<'_, CrmState>) -> Result<(), String> {
+    // Always delete the token first — the definitive disconnect action.
+    delete_token()?;
+
+    // Best-effort purge of all locally-imported Wealthbox data.
+    let workspace = state.workspace.lock().await.clone();
+    if let Some(ws) = workspace {
+        // Purge RAG chunks whose source_type = 'crm'.
+        if let Err(e) = purge_crm_rag_chunks(&ws).await {
+            log::warn!("crm_disconnect: rag purge failed (non-fatal): {e:#}");
+        }
+        // Purge the encrypted CRM object store.
+        if let Err(e) = CrmStore::purge(&ws) {
+            log::warn!("crm_disconnect: crm db purge failed (non-fatal): {e:#}");
+        }
+    }
+
+    Ok(())
+}
+
+/// Open the workspace RAG table and delete every chunk with source_type = 'crm'.
+/// Extracted as a helper so the two awaits stay out of the command body.
+async fn purge_crm_rag_chunks(ws: &std::path::Path) -> anyhow::Result<()> {
+    let conn = crate::commands::rag::store::open_connection(ws).await?;
+    let table = crate::commands::rag::store::open_or_create_table(&conn).await?;
+    crate::commands::rag::store::delete_source_type(&table, "crm").await
 }
 
 /// Run a full backfill sync: fetch all Wealthbox objects, store them locally,

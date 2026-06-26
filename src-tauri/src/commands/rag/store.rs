@@ -955,6 +955,17 @@ pub async fn delete_matter(table: &Table, matter_id: &str) -> Result<()> {
     Ok(())
 }
 
+/// Delete every chunk with the given source_type (e.g. "crm"). Used to purge
+/// an external connector's imported data when the user disconnects it.
+pub async fn delete_source_type(table: &Table, source_type: &str) -> Result<()> {
+    let predicate = format!("source_type = '{}'", sql_escape(source_type));
+    table
+        .delete(&predicate)
+        .await
+        .with_context(|| format!("delete failed for source_type {}", source_type))?;
+    Ok(())
+}
+
 /// WS-PRIV — re-tag the privilege of every already-indexed chunk for `path`
 /// IN PLACE, without re-embedding. Used when the user toggles a source's
 /// privilege: the chunk text + vectors are unchanged, only the `privilege`
