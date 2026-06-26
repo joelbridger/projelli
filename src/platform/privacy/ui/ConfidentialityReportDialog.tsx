@@ -18,6 +18,7 @@ import {
   DialogDescription,
 } from '@/ui/dialog';
 import { Button } from '@/ui/button';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
 export interface ConfidentialityReportDialogProps {
   open: boolean;
@@ -45,6 +46,7 @@ function modeLabel(mode: string): string {
 }
 
 export function ConfidentialityReportDialog({ open, onOpenChange, report }: ConfidentialityReportDialogProps) {
+  const entityLabel = useEntityLabel();
   const handlePrint = useCallback(() => {
     const node = document.getElementById(PRINTABLE_ID);
     if (!node) {
@@ -170,7 +172,7 @@ export function ConfidentialityReportDialog({ open, onOpenChange, report }: Conf
               Confidentiality Report
             </h1>
             <p className="sub text-sm text-muted-foreground mb-1">
-              Matter: <strong>{report.matterName}</strong>
+              {entityLabel.One}: <strong>{report.matterName}</strong>
             </p>
             <p className="sub text-sm text-muted-foreground mb-4">
               Generated: {generatedDate} &bull; {report.totalCalls} AI {report.totalCalls === 1 ? 'call' : 'calls'} recorded
@@ -203,7 +205,7 @@ export function ConfidentialityReportDialog({ open, onOpenChange, report }: Conf
             {/* Per-call table */}
             {report.totalCalls > 0 ? (
               <div>
-                <h2 className="text-sm font-semibold mb-2">All AI calls for this matter</h2>
+                <h2 className="text-sm font-semibold mb-2">All AI calls for this {entityLabel.one}</h2>
                 <div className="overflow-x-auto">
                   <table
                     className="w-full text-xs border-collapse"
@@ -243,12 +245,12 @@ export function ConfidentialityReportDialog({ open, onOpenChange, report }: Conf
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground italic">No AI calls have been recorded for this matter yet.</p>
+              <p className="text-sm text-muted-foreground italic">No AI calls have been recorded for this {entityLabel.one} yet.</p>
             )}
 
             {/* Footer note */}
             <div className="foot mt-6 text-xs text-muted-foreground border-t border-border pt-4 leading-relaxed">
-              This report reflects the architecture-level data flow recorded by Keepance. It is based on audit log entries from your local machine. Keepance holds no copies of your prompts. For questions about your AI provider's data handling, refer to their published data processing policies. This report does not constitute legal advice and does not certify compliance with any specific regulation.
+              This report reflects the architecture-level data flow recorded by Keepance. It is based on audit log entries from your local machine. Keepance holds no copies of your prompts. For questions about your AI provider's data handling, refer to their published data processing policies. This report is not professional or compliance advice and does not certify compliance with any specific regulation.
             </div>
           </div>
         </div>

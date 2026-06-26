@@ -101,6 +101,22 @@ export interface ProfessionCopy {
    * Cost sentence for the cloud AI path card.
    */
   estimatedCostDesc: string;
+  /**
+   * Short noun for "the kind of work you do", used in AI-setup badges.
+   * e.g. "legal work", "client work". Each vertical sees its own term.
+   */
+  clientWorkNoun: string;
+  /**
+   * The demanding work a stronger cloud model helps with, used in the
+   * "local models are less capable for X" caveat.
+   * e.g. "legal drafting and analysis", "in-depth financial analysis and drafting".
+   */
+  complexWorkDesc: string;
+  /**
+   * How to refer to the user's professional peers ("most X use their own key").
+   * e.g. "attorneys", "advisors".
+   */
+  peerNoun: string;
 }
 
 const COPY: Record<Profession, ProfessionCopy> = {
@@ -112,6 +128,9 @@ const COPY: Record<Profession, ProfessionCopy> = {
     practiceNoun: 'practice',
     soloOrTeamDesc: 'Keepance works just as well for a solo practitioner as it does for a full firm.',
     estimatedCostDesc: 'Most solo practitioners spend about $2 to $5 a month, billed by your AI provider, not us.',
+    clientWorkNoun: 'legal work',
+    complexWorkDesc: 'legal drafting and analysis',
+    peerNoun: 'attorneys',
   },
   tax: {
     confidentialityTerm: 'client and return confidentiality',
@@ -121,6 +140,9 @@ const COPY: Record<Profession, ProfessionCopy> = {
     practiceNoun: 'practice',
     soloOrTeamDesc: 'Keepance works just as well for a solo practice as it does for an accounting firm.',
     estimatedCostDesc: 'Most tax practitioners spend about $2 to $5 a month, billed by your AI provider, not us.',
+    clientWorkNoun: 'tax work',
+    complexWorkDesc: 'tax research and analysis',
+    peerNoun: 'tax professionals',
   },
   consulting: {
     confidentialityTerm: 'engagement confidentiality',
@@ -130,6 +152,9 @@ const COPY: Record<Profession, ProfessionCopy> = {
     practiceNoun: 'practice',
     soloOrTeamDesc: 'Keepance works just as well on your own as it does for a consulting team.',
     estimatedCostDesc: 'Most consultants spend about $2 to $5 a month, billed by your AI provider, not us.',
+    clientWorkNoun: 'consulting work',
+    complexWorkDesc: 'analysis and deliverables',
+    peerNoun: 'consultants',
   },
   advisor: {
     confidentialityTerm: 'client confidentiality',
@@ -139,6 +164,9 @@ const COPY: Record<Profession, ProfessionCopy> = {
     practiceNoun: 'practice',
     soloOrTeamDesc: 'Keepance works just as well for a solo advisor as it does for a full advisory team.',
     estimatedCostDesc: 'Most advisors spend about $2 to $5 a month, billed by your AI provider, not us.',
+    clientWorkNoun: 'client work',
+    complexWorkDesc: 'in-depth financial analysis and drafting',
+    peerNoun: 'advisors',
   },
   other: {
     confidentialityTerm: 'client confidentiality',
@@ -148,6 +176,9 @@ const COPY: Record<Profession, ProfessionCopy> = {
     practiceNoun: 'work',
     soloOrTeamDesc: 'Keepance works just as well on your own as it does for a team.',
     estimatedCostDesc: 'Most users spend about $2 to $5 a month, billed by your AI provider, not us.',
+    clientWorkNoun: 'client work',
+    complexWorkDesc: 'in-depth analysis and drafting',
+    peerNoun: 'professionals',
   },
 };
 

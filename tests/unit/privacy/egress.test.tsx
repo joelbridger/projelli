@@ -112,9 +112,15 @@ describe('resolveEgress (the single source of truth)', () => {
     expect(info.note).not.toMatch(/Ollama/);
   });
 
-  it('Ollama local note still names Ollama (no regression)', () => {
+  it('Ollama-backed local note never surfaces "Ollama" in the always-visible trust badge', () => {
     const info = resolveEgress({ provider: 'ollama', mode: 'direct' });
-    expect(info.note).toMatch(/\(Ollama\)/);
+    // The trust badge is always on screen for a non-technical advisor: it must
+    // read as a private on-device model, never name the developer tool "Ollama"
+    // (UX-05 — that jargon belongs only in the advanced bring-your-own-runtime panel).
+    expect(info.note).not.toMatch(/Ollama/);
+    expect(info.note).toMatch(/private model on your own computer/i);
+    // The internal provider id is unchanged — only the rendered copy adapts.
+    expect(info.provider).toBe('ollama');
   });
 
   it('both local providers are recognised as local; cloud is not', () => {

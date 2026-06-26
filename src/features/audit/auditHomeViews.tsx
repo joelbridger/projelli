@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import { asRecord, type AuditMatterScopeOption } from '@/features/audit/audit-export';
+import { getEntityLabel } from '@/platform/hooks/useEntityLabel';
 import {
   Button,
   FilterPanel,
@@ -474,6 +475,7 @@ export function AuditFilterPanel({
   activeFilterCount,
   onReset,
 }: AuditFilterPanelProps) {
+  const entityLabel = getEntityLabel();
   const categories: CategoryFilter[] = ['all', 'file', 'ai', 'workflow', 'privilege', 'firm', 'system'];
 
   const inputStyle: React.CSSProperties = {
@@ -558,9 +560,9 @@ export function AuditFilterPanel({
             onChange={(e) => { onMatterChange(e.target.value); }}
             data-testid="audit-home-filter-matter"
             style={{ ...inputStyle, minWidth: 180, paddingRight: 24 }}
-            aria-label="Filter by matter"
+            aria-label={`Filter by ${entityLabel.one}`}
           >
-            <option value="">All matters</option>
+            <option value="">{`All ${entityLabel.other}`}</option>
             {availableMatterScopes.map((scope) => (
               <option key={scope.matterId} value={scope.matterId}>{scope.label}</option>
             ))}

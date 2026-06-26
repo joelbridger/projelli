@@ -76,7 +76,7 @@ export function MailGmailConnect() {
 
   return (
     <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
-      <h3 className="text-sm font-semibold text-slate-900">Gmail (native)</h3>
+      <h3 className="text-sm font-semibold text-slate-900">Gmail</h3>
       <p className="mt-1 text-sm text-slate-600">
         Signs in with your Google account directly. Your email stays on this device and never
         leaves your machine. Requires the Keepance desktop app.
@@ -84,10 +84,12 @@ export function MailGmailConnect() {
 
       {!connected && (
         <div className="mt-3 space-y-3">
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
           <p className="text-xs text-slate-500">
-            A browser window will open to sign in to Google. You may see an "unverified app"
-            notice (this is expected while in testing). Choose Continue.
+            A browser window will open to sign in to Google. Google will ask you to confirm
+            access to Keepance. This is normal. Choose Continue.
           </p>
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
 
           {connectError && (
             <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-800">

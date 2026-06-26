@@ -498,8 +498,8 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                       size="icon"
                       className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-accent"
                       onClick={() => { setMatterArchived(m.id, true); }}
-                      aria-label={t('matter.manager.archive')}
-                      title={t('matter.manager.archive')}
+                      aria-label={`Archive ${entityLabel.one}`}
+                      title={`Archive ${entityLabel.one}`}
                     >
                       <Archive className="h-4 w-4" />
                     </Button>
@@ -516,14 +516,14 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                         // disk.)
                         const message =
                           m.id === SAMPLE_MATTER_ID
-                            ? 'This removes the sample matter, and the demo questions will stop working. Continue?'
-                            : `Remove the matter "${m.name || m.client || 'this matter'}"? Your files stay on your computer, but this matter's folder and email mappings, notes, and saved state are cleared. This can't be undone.`;
+                            ? `This removes the sample ${entityLabel.one}, and the demo questions will stop working. Continue?`
+                            : `Remove the ${entityLabel.one} "${m.name || m.client || `this ${entityLabel.one}`}"? Your files stay on your computer, but this ${entityLabel.one}'s folder and email mappings, notes, and saved state are cleared. This can't be undone.`;
                         const confirmed = window.confirm(message);
                         if (!confirmed) return;
                         deleteMatter(m.id);
                       }}
-                      aria-label={t('matter.manager.delete')}
-                      title={t('matter.manager.delete')}
+                      aria-label={`Delete ${entityLabel.one}`}
+                      title={`Delete ${entityLabel.one}`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

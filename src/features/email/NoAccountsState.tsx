@@ -1,5 +1,6 @@
 import { Mail } from 'lucide-react';
 import { Button, EmptyState } from '@/ui/kp';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
 // ── No-accounts empty state ────────────────────────────────────────────────
 
@@ -8,13 +9,14 @@ export interface NoAccountsStateProps {
 }
 
 export function NoAccountsState({ onOpenSettings }: NoAccountsStateProps) {
+  const entityLabel = useEntityLabel();
   return (
     /* eslint-disable keepance-i18n/no-hardcoded-string */
     <div data-testid="no-accounts-state">
       <EmptyState
         icon={Mail}
         title="No email connected"
-        body="Connect your email to search across it, file messages to a matter, and cite them in answers. It is imported to your machine, not our servers."
+        body={`Connect your email to search across it, file messages to a ${entityLabel.one}, and cite them in answers. It is imported to your machine, not our servers.`}
         actions={
           onOpenSettings ? (
             <Button variant="primary" size="md" onClick={onOpenSettings}>

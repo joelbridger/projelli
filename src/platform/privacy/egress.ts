@@ -175,7 +175,10 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
       destination: 'local',
       severity: 'safe',
       label: 'On your machine. No cloud AI',
-      note: `This runs on a local model (${providerDisplayName(localProvider)}). No AI prompt or file is sent to a cloud AI.`,
+      // Always-visible trust badge: name the engine in plain language
+      // ("Keepance Local AI"), never the developer tool ("Ollama") — the brand
+      // name only belongs in the advanced bring-your-own-runtime panel.
+      note: 'This runs on Keepance Local AI, a private model on your own computer. No AI prompt or file is sent to a cloud AI.',
       dataLeaves: false,
       provider: localProvider,
     };

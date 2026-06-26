@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { getEntityLabel } from '@/platform/hooks/useEntityLabel';
 import {
   History,
   FilePlus,
@@ -272,9 +273,10 @@ export function getScopeLabel(entry: AuditEntry): string | null {
     if (mode === 'assured') return 'Assured';
   }
   if (entry.action === 'scope_active' || entry.action === 'retrieval_executed') {
+    const entityLabel = getEntityLabel();
     const scope = meta['scope'] as { kind?: string; matterName?: string } | undefined;
-    if (scope?.kind === 'allMatters') return 'All matters';
-    if (scope?.kind === 'matter') return scope.matterName ?? 'Matter';
+    if (scope?.kind === 'allMatters') return `All ${entityLabel.other}`;
+    if (scope?.kind === 'matter') return scope.matterName ?? entityLabel.One;
   }
   return null;
 }

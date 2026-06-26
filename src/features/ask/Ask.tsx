@@ -240,7 +240,7 @@ export function Ask(props: UseAskProps) {
                 body={
                   activeMatter?.id === SAMPLE_MATTER_ID
                     ? `This is a sample ${entityLabel.one}. Click a question below and see a cited answer. Click any citation to read the exact passage.`
-                    : 'Every answer cites the document and locator. Click any chip to read the exact passage.'
+                    : 'Every answer shows the exact document and page it came from. Click any chip to read the passage.'
                 }
                 actions={
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--kp-space-xs)', justifyContent: 'center', maxWidth: 480 }}>
