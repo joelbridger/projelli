@@ -232,4 +232,74 @@ describe('useClientMap — autoBuild on open (connector-created clients)', () =>
     // Two generate() calls, ONE actual build (the StrictMode / fast-click guard).
     expect(buildMock).toHaveBeenCalledTimes(1);
   });
+
+  // Codex race #3 — content arriving DURING the build must not leave an empty map
+  // stuck. generate() fingerprints the source BEFORE building, so an empty build
+  // stores the PRE-build fingerprint; a later check then sees the new content's
+  // fingerprint differ and recovers (instead of storing the new fingerprint
+  // against the empty map and skipping forever).
+  it('Codex race #3: an empty build stores the pre-build fingerprint so mid-build content recovers', async () => {
+    let contentArrived = false;
+    // The fingerprint reflects the CURRENT source: 'fp-empty' until content lands.
+    computeFingerprintMock.mockImplementation(async () =>
+      contentArrived ? 'fp-content' : 'fp-empty',
+    );
+    // The first build sees nothing, but content lands WHILE it runs.
+    buildMock.mockImplementationOnce(async () => {
+      contentArrived = true;
+      return { ...emptyClientMap('mR'), lastBuiltAt: 't' };
+    });
+
+    const { result } = renderHook(() => useClientMap('mR'));
+    await act(async () => { await result.current.generate(); });
+
+    // Crucial: the stored fingerprint is the PRE-build one, NOT the post-build
+    // 'fp-content' — otherwise the next check would think nothing changed.
+    const stored = useClientMapStore.getState().getMap('mR');
+    expect(stored?.lastSourceFingerprint).toBe('fp-empty');
+    expect(result.current.status).toBe('empty');
+
+    // Recovery: the now-indexed content rebuilds on the next check (fp differs).
+    const withContent = { ...emptyClientMap('mR'), lastBuiltAt: 't2' };
+    withContent.sections[0]!.items = [
+      { id: 'a', text: 'Carter household', origin: 'ai', isAssumption: false, sources: [], updatedAt: 't2' },
+    ];
+    buildMock.mockResolvedValue(withContent);
+    proposeUpdatesMock.mockReturnValue([
+      { id: 'p1', sectionKey: 'story', op: 'add', reason: 'r', createdAt: 't2',
+        draft: { id: 'a', text: 'Carter household', origin: 'ai', isAssumption: false, sources: [], updatedAt: 't2' } },
+    ]);
+    await act(async () => { await result.current.checkForUpdates(); });
+    expect(
+      (useClientMapStore.getState().getMap('mR')?.pendingUpdates.length ?? 0),
+    ).toBeGreaterThan(0); // no longer stuck empty
+  });
+
+  // Codex #4 — two checkForUpdates() firing together (MatterHub runs one on status
+  // change and one on CRM-sync completion) must build only once.
+  it('Codex #4: concurrent checkForUpdates build the map only once (shared in-flight guard)', async () => {
+    const seeded = { ...emptyClientMap('mU'), lastBuiltAt: 't', lastSourceFingerprint: 'fp-old' };
+    seeded.sections[0]!.items = [
+      { id: 'x', text: 'existing fact', origin: 'ai', isAssumption: false, sources: [], updatedAt: 't' },
+    ];
+    useClientMapStore.getState().setMap('mU', seeded);
+    computeFingerprintMock.mockResolvedValue('fp-new'); // changed → both want to rebuild
+    proposeUpdatesMock.mockReturnValue([]);
+
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    buildMock.mockImplementation(async () => {
+      await gate;
+      return { ...emptyClientMap('mU'), lastBuiltAt: 't2' };
+    });
+
+    const { result } = renderHook(() => useClientMap('mU'));
+    await act(async () => {
+      const p1 = result.current.checkForUpdates();
+      const p2 = result.current.checkForUpdates(); // in flight → must no-op
+      release();
+      await Promise.all([p1, p2]);
+    });
+    expect(buildMock).toHaveBeenCalledTimes(1);
+  });
 });

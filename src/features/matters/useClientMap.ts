@@ -72,11 +72,20 @@ export function useClientMap(
     clientMapBuildsInFlight.add(matterId);
     setStatus('generating');
     try {
+      // Fingerprint the source BEFORE the build, so the stored fingerprint
+      // reflects the source state the build actually saw. If content arrives
+      // DURING the build (e.g. a Wealthbox sync indexes this client mid-build),
+      // the post-build source differs from this fingerprint, so the next
+      // checkForUpdates detects the change and rebuilds — instead of the old
+      // order, which computed the fingerprint AFTER the build and could store the
+      // NEW fingerprint against an EMPTY map, leaving it permanently stuck empty
+      // (Codex race). Computing before only ever errs toward one extra rebuild,
+      // never toward a missed one.
+      const fp = await computeSourceFingerprint(matterId);
       const built = await buildClientMap(
         matterId,
         onAuditLog ? { onAuditLog } : undefined,
       );
-      const fp = await computeSourceFingerprint(matterId);
 
       const existing = useClientMapStore.getState().getMap(matterId);
 
@@ -115,20 +124,34 @@ export function useClientMap(
     if (!current || current.lastBuiltAt === '') return;
     const fp = await computeSourceFingerprint(matterId);
     if (fp === current.lastSourceFingerprint) return;
-    const fresh = await buildClientMap(
-      matterId,
-      onAuditLog ? { onAuditLog } : undefined,
-    );
-    const dismissed = current.dismissedSignatures ?? [];
-    const proposals = proposeUpdates(matterId, current, fresh, dismissed);
-    // NEVER replace items, and NEVER silently drop a still-pending proposal the
-    // user hasn't reviewed (BUG-104): merge the fresh proposals into the existing
-    // tray by stable signature. Keep current sections; only update the fingerprint.
-    useClientMapStore.getState().setMap(matterId, {
-      ...current,
-      pendingUpdates: mergePendingUpdates(current.pendingUpdates, proposals, dismissed),
-      lastSourceFingerprint: fp,
-    });
+    // Dedupe with EVERY build path (auto-build, manual build, and a second
+    // update-check fired by another effect — MatterHub runs one on status change
+    // and one on CRM-sync completion). Without this, two effects firing together
+    // both spend AI rebuilding the same matter (Codex). The winner's rebuild
+    // covers the recovery; the loser no-ops.
+    if (clientMapBuildsInFlight.has(matterId)) return;
+    clientMapBuildsInFlight.add(matterId);
+    try {
+      const fresh = await buildClientMap(
+        matterId,
+        onAuditLog ? { onAuditLog } : undefined,
+      );
+      // Re-read the latest stored map AFTER the async build — it may have gained
+      // user edits, accepted updates, or pending proposals while we were building.
+      const latest = useClientMapStore.getState().getMap(matterId) ?? current;
+      const dismissed = latest.dismissedSignatures ?? [];
+      const proposals = proposeUpdates(matterId, latest, fresh, dismissed);
+      // NEVER replace items, and NEVER silently drop a still-pending proposal the
+      // user hasn't reviewed (BUG-104): merge the fresh proposals into the existing
+      // tray by stable signature. Keep current sections; only update the fingerprint.
+      useClientMapStore.getState().setMap(matterId, {
+        ...latest,
+        pendingUpdates: mergePendingUpdates(latest.pendingUpdates, proposals, dismissed),
+        lastSourceFingerprint: fp,
+      });
+    } finally {
+      clientMapBuildsInFlight.delete(matterId);
+    }
   }, [matterId, onAuditLog]);
 
   // Transient/terminal states from an in-flight or failed generate win; otherwise

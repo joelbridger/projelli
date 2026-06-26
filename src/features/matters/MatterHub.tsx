@@ -188,7 +188,12 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
     (async () => {
       const hasKey = await hasCloudKeyForGlance();
       if (abort.signal.aborted) return;
-      if (!hasKey || !isMemoryEnabled()) {
+      // A cloud key is only required when NOT in Local-only mode. In private mode
+      // the glance runs on the embedded Keepance Local AI (or Ollama) — same
+      // local-completeness fix as Workflows/Email/Client Map — so a cloud-keyless
+      // private-mode user with the embedded model still gets an AI at-a-glance
+      // instead of being told to "add a key" (Codex). Memory is always required.
+      if ((!isLocalOnlyMode() && !hasKey) || !isMemoryEnabled()) {
         setGlanceStatus('no-key');
         return;
       }

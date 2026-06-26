@@ -106,6 +106,10 @@ function resolve(input: HelperInput): WorkflowProviderResolution {
     // confidentiality mode; local-only behavior is exercised via makeInput.
     localOnly: false,
     installedOllamaModels: [],
+    // F-503 — these end-to-end cases are not in local-only mode, so the embedded
+    // model is irrelevant here; local-only + embedded behaviour is exercised via
+    // makeInput in the F-503 describe block.
+    localModelReady: false,
   });
 }
 
