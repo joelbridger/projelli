@@ -7,8 +7,10 @@
 //! object-level sync engine.
 
 pub mod client;
+pub mod engine;
 pub mod model;
 pub mod render;
+pub mod source;
 pub mod store;
 
 use std::path::{Path, PathBuf};
