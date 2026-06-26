@@ -27,6 +27,7 @@ import {
   resolveCloudSettingsDefaults,
   resolvePreferredCloudProvider,
   type CloudProviderKeyValues,
+  type CloudProviderKeyPresence,
 } from '@/platform/providers/resolvePreferredCloudProvider';
 import { getInvalidProviders, getVerifiedProviders } from '@/platform/providers/keyVerification';
 import {
@@ -179,14 +180,42 @@ async function resolveLocalAskProvider(): Promise<ResolvedAskProvider> {
 }
 
 /**
+ * The cloud provider (+ model) the Ask send would prefer for the given key
+ * PRESENCE, honouring the user's SELECTED default provider/model and the
+ * verified/invalid sets. Shared by buildResolvedAskProvider (the real send) and
+ * resolveActiveAskProviderId (the pre-send display badge) so the two can never
+ * disagree on WHICH cloud provider is chosen — e.g. keys for Anthropic+OpenAI
+ * with default=OpenAI must resolve to OpenAI in BOTH.
+ */
+function resolveAskCloudResolution(availableKeys: CloudProviderKeyPresence) {
+  const settings = useSettingsStore.getState();
+  return resolvePreferredCloudProvider({
+    availableKeys,
+    settings: resolveCloudSettingsDefaults(
+      settings.getSetting('defaultProvider'),
+      settings.getSetting('defaultModel'),
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem(PROFESSION_PROVIDER_STORAGE_KEY)
+        : null,
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem(PROFESSION_MODEL_STORAGE_KEY)
+        : null,
+    ),
+    verifiedProviders: getVerifiedProviders(),
+    invalidProviders: getInvalidProviders(),
+  });
+}
+
+/**
  * The providerId the NEXT Ask / Search send will use — for DISPLAY only (the
  * pre-send egress badge). No provider construction and no confidentiality-gate
  * side effects, so it is safe to call from a render effect. Mirrors
  * buildResolvedAskProvider's destination decision so the badge never names a
  * different engine than the send will actually use:
- *   - Local-only mode      -> the local engine (embedded-when-ready, else Ollama);
- *   - else a valid cloud key (anthropic > openai > google) -> that provider;
- *   - else (no cloud key)  -> the local engine (embedded-when-ready, else Ollama).
+ *   - Local-only mode     -> the local engine (embedded-when-ready, else Ollama);
+ *   - else the cloud provider the send would pick (via resolveAskCloudResolution,
+ *     honouring the user's selected default), when a key for it is present;
+ *   - else (no cloud key) -> the local engine (embedded-when-ready, else Ollama).
  */
 export async function resolveActiveAskProviderId(): Promise<
   ResolvedAskProvider['providerId']
@@ -200,10 +229,16 @@ export async function resolveActiveAskProviderId(): Promise<
     return 'ollama';
   };
   if (isLocalOnlyMode()) return await localId();
+  // Read key PRESENCE read-only (hasKey, NOT getKey) — getKey stamps the key's
+  // 'last used' metadata, an unwanted mutation from a display-only badge effect.
   const kc = new KeychainService();
-  if ((await kc.getKey('anthropic'))?.trim()) return 'anthropic';
-  if ((await kc.getKey('openai'))?.trim()) return 'openai';
-  if ((await kc.getKey('google'))?.trim()) return 'google';
+  const availableKeys: CloudProviderKeyPresence = {
+    anthropic: await kc.hasKey('anthropic'),
+    openai: await kc.hasKey('openai'),
+    google: await kc.hasKey('google'),
+  };
+  const resolved = resolveAskCloudResolution(availableKeys);
+  if (resolved) return resolved.provider;
   return await localId();
 }
 
@@ -228,22 +263,9 @@ export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
     openai: (await kc.getKey('openai'))?.trim(),
     google: (await kc.getKey('google'))?.trim(),
   };
-  const settings = useSettingsStore.getState();
-  const resolved = resolvePreferredCloudProvider({
-    availableKeys: cloudKeyPresenceFromValues(cloudKeys),
-    settings: resolveCloudSettingsDefaults(
-      settings.getSetting('defaultProvider'),
-      settings.getSetting('defaultModel'),
-      typeof localStorage !== 'undefined'
-        ? localStorage.getItem(PROFESSION_PROVIDER_STORAGE_KEY)
-        : null,
-      typeof localStorage !== 'undefined'
-        ? localStorage.getItem(PROFESSION_MODEL_STORAGE_KEY)
-        : null,
-    ),
-    verifiedProviders: getVerifiedProviders(),
-    invalidProviders: getInvalidProviders(),
-  });
+  // Same cloud-selection path the pre-send badge uses (resolveAskCloudResolution),
+  // so the badge name and the actual send can never disagree.
+  const resolved = resolveAskCloudResolution(cloudKeyPresenceFromValues(cloudKeys));
 
   if (resolved) {
     const apiKey = cloudKeys[resolved.provider];

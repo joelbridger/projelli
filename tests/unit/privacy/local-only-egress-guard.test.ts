@@ -93,6 +93,10 @@ vi.mock('@/platform/providers/KeychainService', () => ({
     return {
       getKey: (p: string) =>
         Promise.resolve(h.keys[p as keyof typeof h.keys] ?? null),
+      // Read-only presence check — the pre-send badge uses this (never getKey)
+      // so it can't stamp 'last used' from a display-only effect.
+      hasKey: (p: string) =>
+        Promise.resolve(Boolean(h.keys[p as keyof typeof h.keys]?.trim())),
     };
   }),
 }));
@@ -242,6 +246,15 @@ describe('resolveActiveAskProviderId names the real send engine (pre-send badge)
   it('names the cloud provider when a key exists and not local-only', async () => {
     h.mode = 'direct';
     expect(await resolveActiveAskProviderId()).toBe('anthropic');
+  });
+
+  it('names the SELECTED default cloud provider, not just the first key (anthropic+openai, default=openai)', async () => {
+    // Codex catch: the badge must route through the same resolvePreferredCloudProvider
+    // path as the send, so the user's chosen default wins over fixed key order.
+    h.mode = 'direct';
+    h.defaultProvider = 'openai';
+    h.keys = { anthropic: 'sk-ant-test', openai: 'sk-openai-test', google: null };
+    expect(await resolveActiveAskProviderId()).toBe('openai');
   });
 
   it('names the embedded model on a personal install with no cloud key when ready', async () => {
