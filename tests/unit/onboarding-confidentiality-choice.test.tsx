@@ -171,7 +171,7 @@ describe('ConfidentialityChoiceStep — renders the informed choice screen', () 
 
     const card = screen.getByTestId('confidentiality-choice-local');
     expect(card.textContent).toMatch(/Local-only/i);
-    expect(card.textContent).toMatch(/Nothing leaves this computer, ever/i);
+    expect(card.textContent).toMatch(/No AI prompt or file is ever sent to a cloud AI/i);
   });
 
   it('option B card reads "Cloud" with the bring your own key description', () => {

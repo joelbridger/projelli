@@ -93,6 +93,9 @@ export interface CreateMatterInput {
   mailFolderPaths?: string[];
   /** Wealthbox household IDs to link at creation time. */
   crmHouseholdKeys?: string[];
+  /** Mark this matter's display name/client as CRM-derived (e.g. created purely
+   *  from a Wealthbox household), so a Wealthbox disconnect can scrub it. */
+  createdFromCrm?: boolean;
   /** Mark the matter privileged at creation time (defaults to false). */
   privileged?: boolean;
   /** Explicitly grant external AI tools (MCP) access at creation time. Defaults to false. */
@@ -310,6 +313,7 @@ export const useMatterStore = create<MatterState>()(
           privileged: input.privileged ?? false,
           mcpAccessGranted: input.mcpAccessGranted ?? false,
           createdAt: new Date().toISOString(),
+          ...(input.createdFromCrm ? { createdFromCrm: true } : {}),
           ...(input.firmMatterId !== undefined ? { firmMatterId: input.firmMatterId } : {}),
           ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
           ...(input.role !== undefined ? { role: input.role } : {}),

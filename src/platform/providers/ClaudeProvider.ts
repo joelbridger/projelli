@@ -16,6 +16,7 @@ import type {
 import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
+import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
 import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInference';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
@@ -248,6 +249,8 @@ export class ClaudeProvider implements Provider {
     prompt: string,
     options?: SendOptions
   ): Promise<ProviderResponse> {
+    // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
+    assertCloudSendAllowed('anthropic');
     const messages: ClaudeMessage[] = [
       { role: 'user', content: this.buildUserContent(prompt, options?.attachmentBytes) },
     ];
@@ -392,6 +395,8 @@ export class ClaudeProvider implements Provider {
     prompt: string,
     options: StreamOptions
   ): Promise<ProviderResponse> {
+    // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
+    assertCloudSendAllowed('anthropic');
     const { onChunk, signal, ...sendOpts } = options;
 
     const messages: ClaudeMessage[] = [
@@ -516,6 +521,8 @@ export class ClaudeProvider implements Provider {
     prompt: string,
     options: StructuredOutputOptions
   ): Promise<T> {
+    // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
+    assertCloudSendAllowed('anthropic');
     // Build a prompt that requests JSON output
     const structuredPrompt = `${prompt}
 

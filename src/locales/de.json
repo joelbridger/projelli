@@ -1621,8 +1621,8 @@
   "privacy": {
     "egress": {
       "local": {
-        "label": "On your machine. Nothing leaves",
-        "note": "This runs on a local model ({{provider}}). No prompt or file is sent over the network."
+        "label": "On your machine — no cloud AI",
+        "note": "This runs on a local model ({{provider}}). No AI prompt or file is sent to a cloud AI."
       },
       "direct": {
         "label": "Direct to {{provider}} (your account)",

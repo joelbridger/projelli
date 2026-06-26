@@ -18,6 +18,7 @@ import {
   ConfidentialityChoiceRequiredError,
   assertLocalOnlyAllowsExternal,
   LocalOnlyExternalError,
+  isLocalOnlyModeFailClosed,
 } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useTranslation } from 'react-i18next';
@@ -152,7 +153,9 @@ export function RunOnAllButton({
     setIsRunning(false);
 
     // Fire-and-forget contradiction analysis if the caller gave us a provider.
-    if (analysisProvider) {
+    // SECOND cloud call after the fan-out awaits — skip entirely in private mode
+    // so the comparison outputs are never sent to a cloud AI for analysis.
+    if (analysisProvider && !isLocalOnlyModeFailClosed()) {
       const outputs = out
         .filter((r) => !r.error && r.content)
         .map((r) => ({ source: r.label, text: r.content }));

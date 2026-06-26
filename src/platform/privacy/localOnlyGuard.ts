@@ -25,23 +25,24 @@ import {
 } from '@/platform/privacy/resolvePersonalEgressDefault';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useFirmStore } from '@/platform/firm/firmStore';
+// The fail-closed cloud-send primitives live in a provider-free module so the
+// provider classes can import them without a circular dependency. Re-exported
+// here so existing import sites keep resolving them from `localOnlyGuard`.
+import {
+  LocalOnlyEgressError,
+  isLocalOnlyModeFailClosed,
+  assertCloudSendAllowed,
+} from '@/platform/privacy/cloudSendGuard';
 
-/** True when Local-only confidentiality mode is in effect (global or matter-forced). */
+export { LocalOnlyEgressError, isLocalOnlyModeFailClosed, assertCloudSendAllowed };
+
+/** True when Local-only confidentiality mode is in effect (global or matter-forced).
+ *  NON-fail-closed: reflects the current in-memory setting (schema-defaulted to
+ *  'direct' before hydration). Use for UI display / skip decisions where a
+ *  transient default is harmless. Privacy ENFORCEMENT must use
+ *  `isLocalOnlyModeFailClosed()` / the assert* guards below. */
 export function isLocalOnlyMode(): boolean {
   return getConfidentialityMode() === 'local-only';
-}
-
-/** Thrown when a cloud AI send is attempted while Local-only mode is on. The
- *  chat/ask UI surfaces the message so the user knows why the send was blocked. */
-export class LocalOnlyEgressError extends Error {
-  constructor(provider: string) {
-    super(
-      `Local-only mode is on, so nothing can be sent to a cloud AI provider. ` +
-        `This chat is set to "${provider}". Switch it to a local model, or turn off ` +
-        `Local-only mode in the Privacy Center, to send.`,
-    );
-    this.name = 'LocalOnlyEgressError';
-  }
 }
 
 /**
@@ -51,19 +52,24 @@ export class LocalOnlyEgressError extends Error {
  * while the indicator says "nothing leaves".
  */
 export function assertLocalOnlyAllowsSend(provider: string): void {
-  if (isLocalOnlyMode() && !isLocalProviderId(provider as ChatProviderId)) {
+  if (isLocalOnlyModeFailClosed() && !isLocalProviderId(provider as ChatProviderId)) {
     throw new LocalOnlyEgressError(provider);
   }
 }
 
 /**
- * Thrown when an EXTERNAL (off-device) operation is attempted while Local-only
- * mode is on. Distinct from `LocalOnlyEgressError` (which is about routing an AI
- * provider send): this covers operations that have NO on-device equivalent and
- * must simply not run in Local-only — connector syncs (Wealthbox, mail), model
- * downloads / model-list refresh (sends API keys), telemetry, diagnostics, and
- * fan-out runs that issue cloud calls. The UI surfaces the message so the user
- * knows why the action is disabled.
+ * Thrown when an EXTERNAL (off-device) operation that this guard protects is
+ * attempted while Local-only mode is on. Distinct from `LocalOnlyEgressError`
+ * (which is about routing an AI provider send).
+ *
+ * SCOPE (per the product rule): private mode means YOUR DATA is never sent to a
+ * cloud AI. User-authorized CONNECTORS (Wealthbox sync, email sync) and fetching
+ * the local model are NOT blocked — they pull the user's own data in / fetch
+ * model weights and send nothing to a cloud AI, so this guard is deliberately
+ * NOT wired into those paths. It protects off-device chatter that is NOT a
+ * connector and NOT user data — e.g. the cloud model-list refresh (sends the API
+ * key), telemetry/diagnostics, cloud key validation, and cloud fan-out. The UI
+ * surfaces the message so the user knows why the action is disabled.
  */
 export class LocalOnlyExternalError extends Error {
   constructor(op: string) {
@@ -89,7 +95,7 @@ export class LocalOnlyExternalError extends Error {
  * is the last-line enforcement that makes the kill-switch airtight.
  */
 export function assertLocalOnlyAllowsExternal(op: string): void {
-  if (isLocalOnlyMode()) {
+  if (isLocalOnlyModeFailClosed()) {
     throw new LocalOnlyExternalError(op);
   }
 }

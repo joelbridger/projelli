@@ -212,7 +212,7 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
     });
     expect(screen.getByTestId('egress-indicator').getAttribute('data-data-leaves')).toBe('false');
     expect(screen.getByTestId('egress-indicator-note').textContent).toMatch(
-      /no prompt or file is sent over the network/i,
+      /no AI prompt or file is sent to a cloud AI/i,
     );
 
     // User switches to Cloud (direct) mode in Settings — same search session.
@@ -226,7 +226,7 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
     const cloudEl = screen.getByTestId('egress-indicator');
     expect(cloudEl.getAttribute('data-data-leaves')).toBe('true');
     const cloudNote = screen.getByTestId('egress-indicator-note').textContent ?? '';
-    expect(cloudNote).not.toMatch(/no prompt or file is sent over the network/i);
+    expect(cloudNote).not.toMatch(/no AI prompt or file is sent to a cloud AI/i);
     expect(cloudNote).toMatch(/receives the prompt/i);
   });
 

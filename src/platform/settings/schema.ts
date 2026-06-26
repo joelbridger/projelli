@@ -303,7 +303,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'ai-privacy',
     label: 'Confidentiality mode',
     description:
-      "Controls where AI requests are allowed to go. Local-only keeps everything on your machine (local models only). Direct (the default) sends prompts straight from your machine to your chosen provider with your own key. Assured routes through your firm's zero-retention proxy once your firm admin sets a managed key.",
+      "Controls where AI requests are allowed to go. Local-only never sends your prompts or files to a cloud AI (local models only). Direct (the default) sends prompts straight from your machine to your chosen provider with your own key. Assured routes through your firm's zero-retention proxy once your firm admin sets a managed key.",
     type: 'select',
     defaultValue: 'direct',
     options: [
