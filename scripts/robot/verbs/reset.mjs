@@ -1,31 +1,48 @@
 // scripts/robot/verbs/reset.mjs
 // Verb: reset_to_seed — bring the Legion bench to a clean, fully-seeded state.
 //
-// Two modes:
+// Three modes:
 //   'fast' (default) — in-page only: purge residue keys + inject seed + location.reload().
-//                      No app kill. Use when the app is healthy and you just need
-//                      a clean slate between test runs.
+//                      No app kill. KEEPS the existing index. Use when the app is
+//                      healthy and you just need a clean slate between test runs.
 //   'full'           — kill app -> delete .keepance vector index -> restart ->
-//                      wait for ports -> reconnect -> inject seed.
-//                      Use before a fresh demo or after a hard test failure.
+//                      wait for ports -> reconnect -> inject seed. NOTE: leaves the
+//                      index DELETED (ask/isolation can't retrieve until re-indexed).
+//   'snapshot'       — kill app -> RESTORE the frozen, fully-indexed workspace from
+//                      its archive (no re-import / no re-embed) -> restart -> wait ->
+//                      reconnect -> inject seed. The fast path to a clean world that
+//                      can immediately Ask. Requires a golden archive built once via
+//                      `node scripts/robot/build-snapshot.mjs`; refuses to wipe the
+//                      live workspace if no valid archive exists.
 //
-// In both modes matters are read from the repo on the SERVER (not from the bench)
+// In all modes matters are read from the repo on the SERVER (not from the bench)
 // and injected via page.evaluate(), matching legion-seed.mjs's exact localStorage shapes.
 //
-// Returns: { ok, mode, removed, remaining, seeded }
+// Returns: { ok, mode, removed, remaining, seeded, restored? }
 //   ok       — boolean; false if post-seed verification fails (profession≠'advisor' or
-//              mattersCount≠26)
+//              mattersCount≠26) or (snapshot) if the restore failed
 //   mode     — the mode that ran
 //   removed  — array of localStorage keys that were removed as residue
 //   remaining — number of localStorage keys after purge (before seed keys added)
 //   seeded   — { profession, mattersCount, settings } from the live app after seed
+//   restored — (snapshot only) the snapshot.ps1 restore result packet
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { reconnect } from '../connection.mjs';
-import { scpTo, killApp, deleteIndex, restartApp, waitForPorts } from '../bench.mjs';
+import {
+  scpTo,
+  killApp,
+  deleteIndex,
+  restartApp,
+  waitForPorts,
+  scpSnapshotPs,
+  snapshotStatus,
+  assertSnapshotRestorable,
+  restoreSnapshot,
+} from '../bench.mjs';
 
 // ---------------------------------------------------------------------------
 // Exported constants
@@ -202,5 +219,55 @@ export async function resetToSeed(page, { mode = 'fast' } = {}) {
     return { ok, mode, removed, remaining, seeded };
   }
 
-  throw new Error(`Unknown reset mode: ${mode}. Use 'fast' or 'full'.`);
+  if (mode === 'snapshot') {
+    // 0. Pre-flight the guard while the app is still up: FAIL before we kill
+    //    anything if there is no usable golden archive to put back.
+    scpSnapshotPs();
+    const preStatus = snapshotStatus();
+    assertSnapshotRestorable(preStatus); // throws -> caller's runVerb records ok:false
+
+    // 1. Kill the app to release the LanceDB / WebView2 file locks.
+    killApp();
+
+    // 2. Restore the frozen workspace (extract -> verify -> atomic swap). The
+    //    bench-side script re-guards and only swaps after verifying the extract.
+    //    Wrap so a thrown re-guard (e.g. a transient SSH miss) becomes a clean
+    //    failure return rather than an unhandled throw after the app was killed.
+    let restored;
+    try {
+      restored = restoreSnapshot();
+    } catch (e) {
+      restored = { ok: false, error: String(e.message || e) };
+    }
+    if (!restored || restored.ok !== true) {
+      return {
+        ok: false, mode, restored, removed: [], remaining: 0,
+        seeded: { error: `snapshot restore failed: ${(restored && restored.error) || 'unknown'}` },
+      };
+    }
+
+    // 3. Restart -> wait for ports -> reconnect to the fresh app.
+    restartApp();
+    const portsReady = await waitForPorts();
+    if (!portsReady) {
+      return {
+        ok: false, mode, restored, removed: [], remaining: 0,
+        seeded: { error: 'ports did not come up after restart' },
+      };
+    }
+    const freshPage = await reconnect();
+
+    // 4. Seed localStorage (matters/profession/settings) + reload so the freshly
+    //    started app's Zustand stores rehydrate from the seeded storage.
+    const { removed, remaining } = await applyPurgeAndSeed(freshPage, matters);
+    await freshPage.evaluate(() => location.reload());
+    await sleep(4000);
+
+    // 5. Verify.
+    const seeded = await readSeededState(freshPage);
+    const ok = seeded.profession === 'advisor' && seeded.mattersCount === 26;
+    return { ok, mode, restored, removed, remaining, seeded };
+  }
+
+  throw new Error(`Unknown reset mode: ${mode}. Use 'fast', 'full', or 'snapshot'.`);
 }

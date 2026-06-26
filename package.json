@@ -38,7 +38,9 @@
     "test:desktop": "bash tests/desktop/run.sh",
     "robot:test": "vitest run --config scripts/robot/vitest.config.mjs",
     "robot:daemon": "node scripts/robot/server.mjs",
-    "robot:smoke": "node scripts/robot/smoke.mjs"
+    "robot:smoke": "node scripts/robot/smoke.mjs",
+    "robot:build-snapshot": "node scripts/robot/build-snapshot.mjs",
+    "robot:record-ask": "node scripts/robot/record-ask-fixture.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.0",

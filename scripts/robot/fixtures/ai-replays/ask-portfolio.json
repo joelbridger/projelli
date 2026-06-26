@@ -1,0 +1,59 @@
+{
+  "model": "gpt-4o-mini",
+  "wireFormat": "openai",
+  "recordedAt": "2026-06-26T22:10:52.260Z",
+  "question": "What is the total portfolio value for this household?",
+  "matterId": "matter_nc_hollings_family",
+  "note": "Answer text recorded from the app chat store against the FROZEN snapshot, so the {N} citation markers map to the same retrieved sources on replay.",
+  "answerText": "The total portfolio value for the Hollings Family household is $50,200,000 {1}.",
+  "chunks": [
+    {
+      "delayMs": 0,
+      "text": "The "
+    },
+    {
+      "delayMs": 6,
+      "text": "total "
+    },
+    {
+      "delayMs": 6,
+      "text": "portfolio "
+    },
+    {
+      "delayMs": 6,
+      "text": "value "
+    },
+    {
+      "delayMs": 6,
+      "text": "for "
+    },
+    {
+      "delayMs": 6,
+      "text": "the "
+    },
+    {
+      "delayMs": 6,
+      "text": "Hollings "
+    },
+    {
+      "delayMs": 6,
+      "text": "Family "
+    },
+    {
+      "delayMs": 6,
+      "text": "household "
+    },
+    {
+      "delayMs": 6,
+      "text": "is "
+    },
+    {
+      "delayMs": 6,
+      "text": "$50,200,000 "
+    },
+    {
+      "delayMs": 6,
+      "text": "{1}."
+    }
+  ]
+}

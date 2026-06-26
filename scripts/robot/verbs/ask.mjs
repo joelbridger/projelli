@@ -1,4 +1,5 @@
 import { installAIReplay } from '../fixtures/aiReplay.mjs';
+import { installEgressGuard, egressVerdict } from '../fixtures/egressGuard.mjs';
 
 const ATT = '[data-testid="ask-cited-attestation"]';
 const WARN = '[data-testid="ask-uncited-warning"]';
@@ -13,6 +14,12 @@ const CHIP = '[data-testid^="ask-citation-chip-"]';
  * previous turn — this snapshots before-counts and requires the new turn to add a
  * cited attestation AND at least one new citation chip.
  *
+ * When `deterministic:true`, the model call is served by the recorded `replay`
+ * fixture and an egress guard asserts NOTHING reached a live provider (and that
+ * the fixture was actually used). The verdict lands in `out.egress` and is folded
+ * into `out.ok`, so a deterministic run that leaks to live AI — or never uses the
+ * fixture — fails loudly instead of silently spending money / going flaky.
+ *
  * @param {import('playwright').Page} page
  * @param {{ question?: string, deterministic?: boolean, replay?: string, matterId?: string }} args
  */
@@ -24,6 +31,7 @@ export async function askQuestion(page, args = {}) {
 
   const out = {
     ok: false,
+    deterministic,
     settled: false,
     newCitedAttestation: false,
     newCitationChips: 0,
@@ -31,12 +39,22 @@ export async function askQuestion(page, args = {}) {
     uncitedBefore: 0, uncitedAfter: 0,
     chipsBefore: 0, chipsAfter: 0,
     lastAnswer: null,
+    egress: null,
   };
 
   const count = (sel) => page.$$eval(sel, (els) => els.length).catch(() => 0);
 
+  // In deterministic mode the egress guard is installed FIRST (tripwire) and the
+  // replay AFTER, so the replay wins for the URLs it covers and the guard fires
+  // only on real egress. Hold both controllers to assert after the run.
+  let guard = null;
+  let replayCtl = null;
+
   try {
-    if (deterministic) await installAIReplay(page, replay);
+    if (deterministic) {
+      guard = await installEgressGuard(page);
+      replayCtl = await installAIReplay(page, replay);
+    }
 
     // Self-navigate to a client's Ask if no ask input is on the current screen.
     if (!(await page.$('[data-testid="ask-composer-input"]')) && !(await page.$('[data-testid="hub-ask-input"]'))) {
@@ -100,8 +118,19 @@ export async function askQuestion(page, args = {}) {
       })
       .catch(() => null);
 
+    // Egress assertion (deterministic only): the fixture must have served the
+    // model call (served >= 1) AND nothing may have reached a live provider.
+    if (deterministic) {
+      out.egress = egressVerdict({
+        served: replayCtl ? replayCtl.served : 0,
+        violations: guard ? guard.violations : [],
+      });
+    }
+
     // The NEW turn must be cited: a new attestation AND at least one new chip.
-    out.ok = out.settled && out.newCitedAttestation && out.newCitationChips >= 1;
+    // In deterministic mode it must ALSO be provably air-gapped from live AI.
+    const citedOk = out.settled && out.newCitedAttestation && out.newCitationChips >= 1;
+    out.ok = citedOk && (!deterministic || (out.egress && out.egress.ok));
   } catch (e) {
     out.err = String(e.message || e);
   }
