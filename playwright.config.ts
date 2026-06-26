@@ -25,7 +25,12 @@ const E2E_BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:5173';
 // CI quarantine: specs with CI-environment-sensitive failures (state / onboarding /
 // demo-mode / visual differences that only appear when process.env.CI is set). They
 // are excluded from the CI gate (E2E_CI_QUARANTINE=1) so it stays a trustworthy green
-// hard-gate, and tracked for stabilization (docs/quality). They STILL run locally.
+// hard-gate. They STILL run locally.
+//
+// OWNED + DATED: every spec below has an owner + a fix-or-delete-by date in
+// docs/quality/e2e-flaky-quarantine.md — a quarantine with no deadline rots into a
+// graveyard. Adding a spec here REQUIRES adding a row there in the same change; by
+// its date a spec must be fixed (and removed here), deleted, or re-dated with a reason.
 const CI_QUARANTINE = [
   '**/workflows-panel.spec.ts',
   '**/web-demo.spec.ts',
