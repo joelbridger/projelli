@@ -16,6 +16,7 @@ import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
 import { KeepanceLocalProvider } from '@/platform/providers/KeepanceLocalProvider';
 import { localLlmModelStatus } from '@/platform/utils/tauri-commands';
+import { mailGetMessage } from '@/platform/utils/mail-commands';
 import { KeychainService } from '@/platform/providers/KeychainService';
 import { assertCloudGenerationAllowed, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import type { Provider } from '@/platform/providers/Provider';
@@ -26,6 +27,7 @@ import {
   resolveCloudSettingsDefaults,
   resolvePreferredCloudProvider,
   type CloudProviderKeyValues,
+  type CloudProviderKeyPresence,
 } from '@/platform/providers/resolvePreferredCloudProvider';
 import { getInvalidProviders, getVerifiedProviders } from '@/platform/providers/keyVerification';
 import {
@@ -177,6 +179,69 @@ async function resolveLocalAskProvider(): Promise<ResolvedAskProvider> {
   };
 }
 
+/**
+ * The cloud provider (+ model) the Ask send would prefer for the given key
+ * PRESENCE, honouring the user's SELECTED default provider/model and the
+ * verified/invalid sets. Shared by buildResolvedAskProvider (the real send) and
+ * resolveActiveAskProviderId (the pre-send display badge) so the two can never
+ * disagree on WHICH cloud provider is chosen — e.g. keys for Anthropic+OpenAI
+ * with default=OpenAI must resolve to OpenAI in BOTH.
+ */
+function resolveAskCloudResolution(availableKeys: CloudProviderKeyPresence) {
+  const settings = useSettingsStore.getState();
+  return resolvePreferredCloudProvider({
+    availableKeys,
+    settings: resolveCloudSettingsDefaults(
+      settings.getSetting('defaultProvider'),
+      settings.getSetting('defaultModel'),
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem(PROFESSION_PROVIDER_STORAGE_KEY)
+        : null,
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem(PROFESSION_MODEL_STORAGE_KEY)
+        : null,
+    ),
+    verifiedProviders: getVerifiedProviders(),
+    invalidProviders: getInvalidProviders(),
+  });
+}
+
+/**
+ * The providerId the NEXT Ask / Search send will use — for DISPLAY only (the
+ * pre-send egress badge). No provider construction and no confidentiality-gate
+ * side effects, so it is safe to call from a render effect. Mirrors
+ * buildResolvedAskProvider's destination decision so the badge never names a
+ * different engine than the send will actually use:
+ *   - Local-only mode     -> the local engine (embedded-when-ready, else Ollama);
+ *   - else the cloud provider the send would pick (via resolveAskCloudResolution,
+ *     honouring the user's selected default), when a key for it is present;
+ *   - else (no cloud key) -> the local engine (embedded-when-ready, else Ollama).
+ */
+export async function resolveActiveAskProviderId(): Promise<
+  ResolvedAskProvider['providerId']
+> {
+  const localId = async (): Promise<'keepance-local' | 'ollama'> => {
+    try {
+      if ((await localLlmModelStatus()) === 'ready') return 'keepance-local';
+    } catch {
+      // Desktop-only command unavailable or probe failed — fall back to Ollama.
+    }
+    return 'ollama';
+  };
+  if (isLocalOnlyMode()) return await localId();
+  // Read key PRESENCE read-only (hasKey, NOT getKey) — getKey stamps the key's
+  // 'last used' metadata, an unwanted mutation from a display-only badge effect.
+  const kc = new KeychainService();
+  const availableKeys: CloudProviderKeyPresence = {
+    anthropic: await kc.hasKey('anthropic'),
+    openai: await kc.hasKey('openai'),
+    google: await kc.hasKey('google'),
+  };
+  const resolved = resolveAskCloudResolution(availableKeys);
+  if (resolved) return resolved.provider;
+  return await localId();
+}
+
 export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
   // Local-only ENFORCEMENT (privacy): Ask has no per-chat provider — it picks by
   // key presence below — so in Local-only mode it would otherwise build a cloud
@@ -198,22 +263,9 @@ export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
     openai: (await kc.getKey('openai'))?.trim(),
     google: (await kc.getKey('google'))?.trim(),
   };
-  const settings = useSettingsStore.getState();
-  const resolved = resolvePreferredCloudProvider({
-    availableKeys: cloudKeyPresenceFromValues(cloudKeys),
-    settings: resolveCloudSettingsDefaults(
-      settings.getSetting('defaultProvider'),
-      settings.getSetting('defaultModel'),
-      typeof localStorage !== 'undefined'
-        ? localStorage.getItem(PROFESSION_PROVIDER_STORAGE_KEY)
-        : null,
-      typeof localStorage !== 'undefined'
-        ? localStorage.getItem(PROFESSION_MODEL_STORAGE_KEY)
-        : null,
-    ),
-    verifiedProviders: getVerifiedProviders(),
-    invalidProviders: getInvalidProviders(),
-  });
+  // Same cloud-selection path the pre-send badge uses (resolveAskCloudResolution),
+  // so the badge name and the actual send can never disagree.
+  const resolved = resolveAskCloudResolution(cloudKeyPresenceFromValues(cloudKeys));
 
   if (resolved) {
     const apiKey = cloudKeys[resolved.provider];
@@ -622,6 +674,46 @@ function citationFromHit(
     ...(hit.id !== undefined ? { id: hit.id } : {}),
     ...(hit.matterId !== undefined ? { matterId: hit.matterId } : {}),
   };
+}
+
+/**
+ * Resolve each email citation's raw `mail:<id>` label to the message SUBJECT for
+ * display (the Verified source panel + citation chips). Display-only: the `path`
+ * (`mail:<id>`) is left untouched, so citation verification and navigation are
+ * unaffected. Desktop-only (mailGetMessage); off-desktop or on any failure the
+ * original label is kept. One lookup per distinct message id serves repeats.
+ */
+export async function resolveEmailCitationLabels(
+  citations: AnswerCitation[],
+): Promise<AnswerCitation[]> {
+  const ids = [
+    ...new Set(
+      citations
+        .map((c) => c.path)
+        .filter((p): p is string => !!p && p.startsWith('mail:'))
+        .map((p) => p.slice('mail:'.length)),
+    ),
+  ];
+  if (ids.length === 0) return citations;
+
+  const subjectById = new Map<string, string>();
+  await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const subject = (await mailGetMessage(id)).subject.trim();
+        if (subject) subjectById.set(id, subject);
+      } catch {
+        // Desktop-only / message not found — keep the raw label.
+      }
+    }),
+  );
+  if (subjectById.size === 0) return citations;
+
+  return citations.map((c) => {
+    if (!c.path?.startsWith('mail:')) return c;
+    const subject = subjectById.get(c.path.slice('mail:'.length));
+    return subject ? { ...c, label: subject } : c;
+  });
 }
 
 /**
