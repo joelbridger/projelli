@@ -302,4 +302,41 @@ describe('useClientMap — autoBuild on open (connector-created clients)', () =>
     });
     expect(buildMock).toHaveBeenCalledTimes(1);
   });
+
+  // Codex #4 (HARD ordering) — call A completes FULLY (builds + stores fp + clears
+  // the guard) BEFORE call B's slower fingerprint resolves. B must compare its fp
+  // against the LATEST stored fingerprint (which A just wrote), not its own stale
+  // pre-await snapshot, and therefore NOT build again. This is the TOCTOU the
+  // guard alone does not close.
+  it('Codex #4 (hard): a second check whose fingerprint resolves after the first fully completes does not build again', async () => {
+    const seeded = { ...emptyClientMap('mU2'), lastBuiltAt: 't', lastSourceFingerprint: 'fp-old' };
+    seeded.sections[0]!.items = [
+      { id: 'x', text: 'existing fact', origin: 'ai', isAssumption: false, sources: [], updatedAt: 't' },
+    ];
+    useClientMapStore.getState().setMap('mU2', seeded);
+
+    // A's fingerprint resolves immediately; B's (the 2nd call) waits on a gate, so
+    // A finishes its whole build BEFORE B's fingerprint returns.
+    let releaseB!: () => void;
+    const bGate = new Promise<void>((r) => { releaseB = r; });
+    let fpCall = 0;
+    computeFingerprintMock.mockImplementation(async () => {
+      fpCall += 1;
+      if (fpCall >= 2) { await bGate; }
+      return 'fp-new';
+    });
+    buildMock.mockResolvedValue({ ...emptyClientMap('mU2'), lastBuiltAt: 't2' });
+    proposeUpdatesMock.mockReturnValue([]);
+
+    const { result } = renderHook(() => useClientMap('mU2'));
+    await act(async () => {
+      const pA = result.current.checkForUpdates();
+      const pB = result.current.checkForUpdates();
+      await pA;        // A fully completes: builds, stores 'fp-new', clears the guard
+      releaseB();      // now B's fingerprint resolves to 'fp-new'
+      await pB;        // B re-reads current ('fp-new' stored by A) → unchanged → no build
+    });
+    // Only A built; B saw the already-current fingerprint and skipped.
+    expect(buildMock).toHaveBeenCalledTimes(1);
+  });
 });

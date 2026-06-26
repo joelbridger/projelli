@@ -120,16 +120,22 @@ export function useClientMap(
   }, [matterId, setMap, onAuditLog]);
 
   const checkForUpdates = useCallback(async () => {
-    const current = useClientMapStore.getState().getMap(matterId);
-    if (!current || current.lastBuiltAt === '') return;
+    const before = useClientMapStore.getState().getMap(matterId);
+    if (!before || before.lastBuiltAt === '') return; // nothing built yet — cheap out
     const fp = await computeSourceFingerprint(matterId);
-    if (fp === current.lastSourceFingerprint) return;
-    // Dedupe with EVERY build path (auto-build, manual build, and a second
-    // update-check fired by another effect — MatterHub runs one on status change
-    // and one on CRM-sync completion). Without this, two effects firing together
-    // both spend AI rebuilding the same matter (Codex). The winner's rebuild
-    // covers the recovery; the loser no-ops.
+    // Close the duplicate-build TOCTOU (Codex #4). These checks run SYNCHRONOUSLY
+    // after the async fingerprint and before the build, so nothing interleaves
+    // between them:
+    //   (a) if a build is already in flight, no-op — it covers this recovery
+    //       (catches the OVERLAP where the other call is mid-build and has not
+    //       stored its fingerprint yet);
+    //   (b) RE-READ the latest stored map and compare fp against ITS fingerprint,
+    //       NOT the stale pre-await snapshot — catches the harder ordering where a
+    //       concurrent check fully FINISHED (built, stored this exact fp, cleared
+    //       the guard) WHILE we were still fingerprinting. Skip if unchanged.
     if (clientMapBuildsInFlight.has(matterId)) return;
+    const current = useClientMapStore.getState().getMap(matterId);
+    if (!current || current.lastBuiltAt === '' || fp === current.lastSourceFingerprint) return;
     clientMapBuildsInFlight.add(matterId);
     try {
       const fresh = await buildClientMap(
