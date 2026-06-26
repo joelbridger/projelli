@@ -71,10 +71,22 @@ the committed placeholder. Commit it.
 npm run robot:smoke
 ```
 
-Default now = `snapshot` reset + fixture-replayed Ask + egress guard. Expect:
+Default = `snapshot` reset + fixture-replayed Ask + egress guard. Expect:
 `[PASS] ask ... — egress: served>=1 leaks=0` and a new cited attestation. No live
 AI spend. If `egress` shows `leaks>0` or `served=0`, the run FAILS loudly (that's
 the guardrail working — investigate; do not "make it green").
+
+> **⚠ Deterministic AI requires a DEV build of the app.** The replay + egress
+> guard work by intercepting the webview's `fetch` with Playwright `page.route`.
+> That only works when the app runs in **dev mode** (`tauri dev` / `vite dev`,
+> `import.meta.env.DEV === true`) — then AI goes out via webview fetch. On a
+> **PRODUCTION build** (the bench's current `vite preview` + packaged `keepance.exe`
+> launched by `run-preview.bat`), the Tauri app routes AI through the **Rust HTTP
+> plugin**, which `page.route` cannot see — so the fixture is never used and the
+> guard correctly refuses to pass (`served=0`). The smoke detects this and
+> automatically falls back to the LIVE model with a warning. To actually exercise
+> the deterministic path, run the bench in dev mode; otherwise use the live smoke
+> below as the bench's AI check.
 
 ## Step 5 — keep a weekly live-model drift run
 

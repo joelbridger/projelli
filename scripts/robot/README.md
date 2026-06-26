@@ -114,6 +114,14 @@ Why the wire format matters: the Northcrest Ask path uses the **OpenAI** provide
 `choices[0].finish_reason`, skips `data:[DONE]`), so the fixture must be OpenAI frames —
 the proxy now emits them when `wireFormat:'openai'`.
 
+**Requires a DEV build.** The replay + egress guard intercept the webview's `fetch`
+via `page.route`. That only works in **dev mode** (`tauri dev` / `vite dev`), where
+AI goes out via webview fetch. On a **production build** (`vite preview` + a packaged
+binary), the Tauri app routes AI through the Rust HTTP plugin, which `page.route`
+can't see — the fixture is never used and the guard correctly fails (`served=0`).
+`smoke.mjs` detects a production build and auto-falls-back to the live model with a
+warning; run the bench in dev mode to exercise the deterministic path.
+
 ## Known limitations / notes
 
 - **`reset({mode:'full'})` wipes the index** (no re-index verb); use `snapshot` (restores

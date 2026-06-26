@@ -29,16 +29,15 @@ import { askQuestion } from './verbs/ask.mjs';
 import { verifyIsolation } from './verbs/isolation.mjs';
 import { closeAllReplayServers } from './fixtures/aiReplay.mjs';
 
-const DETERMINISTIC = !process.env.ROBOT_SMOKE_LIVE_AI;
+// AI mode is mutable: a build-mode probe (below) may force it to LIVE if the
+// bench is a PRODUCTION build, where the AI call goes through the Tauri Rust HTTP
+// plugin and page.route (the deterministic replay + egress guard) cannot see it.
+const ai = { deterministic: !process.env.ROBOT_SMOKE_LIVE_AI };
 const RESET_MODE = process.env.ROBOT_SMOKE_FULL
   ? 'full'
   : process.env.ROBOT_SMOKE_FAST
     ? 'fast'
-    : DETERMINISTIC
-      ? 'snapshot'
-      : 'fast';
-
-console.log(`[smoke] reset=${RESET_MODE} ai=${DETERMINISTIC ? 'deterministic (fixture + egress guard)' : 'LIVE model'}`);
+    : 'snapshot';
 
 const steps = [
   ['reset', (p) => resetToSeed(p, { mode: RESET_MODE })],
@@ -46,7 +45,7 @@ const steps = [
   ['sweep', (p) => runSurfaceSweep(p, {})],
   ['ask', (p) => askQuestion(p, {
     question: 'What is the total portfolio value for this household?',
-    deterministic: DETERMINISTIC, // fixture-replayed + egress-guarded by default
+    deterministic: ai.deterministic, // fixture-replayed + egress-guarded when possible
   })],
   ['isolation', (p) => verifyIsolation(p, {})],
 ];
@@ -57,6 +56,23 @@ try {
   await ensureTunnel();
   let page = await getPage();
   attachConsoleAndNetwork(page);
+
+  // Build-mode probe: deterministic interception only works on a DEV build (the
+  // app uses webview fetch). On a PRODUCTION build (vite preview + packaged
+  // binary) the app routes AI through Rust — page.route can't intercept it — so a
+  // deterministic run would never use the fixture. Fall back to LIVE with a loud
+  // warning rather than failing confusingly.
+  if (ai.deterministic) {
+    const build = await page.evaluate(() => ({
+      hasViteClient: !!document.querySelector('script[src*="@vite/client"]'),
+      hasTauri: !!window.__TAURI__,
+    })).catch(() => ({ hasViteClient: true, hasTauri: false }));
+    if (build.hasTauri && !build.hasViteClient) {
+      ai.deterministic = false;
+      console.log('[smoke] ⚠ PRODUCTION build detected (Tauri, no vite dev client): AI goes through Rust, which page.route cannot intercept. Falling back to LIVE model. Run the bench in dev mode (tauri dev) for deterministic AI.');
+    }
+  }
+  console.log(`[smoke] reset=${RESET_MODE} ai=${ai.deterministic ? 'deterministic (fixture + egress guard)' : 'LIVE model'}`);
   for (const [name, fn] of steps) {
     page = await getPage(); // refresh in case a prior step (full reset) reconnected
     const packet = await runVerb(name, () => fn(page));
