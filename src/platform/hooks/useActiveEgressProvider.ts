@@ -24,7 +24,7 @@
  * tabs, so the badge updates the moment a key is added or removed mid-session.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NO_AI_PROVIDER, type EgressProvider } from '@/platform/privacy/egress';
 import { KeychainService } from '@/platform/providers/KeychainService';
 import {
@@ -98,6 +98,7 @@ export async function resolveActiveEgressProvider(mode: string): Promise<EgressP
 }
 
 export function useActiveEgressProvider(mode: string): EgressProvider {
+  const requestIdRef = useRef(0);
   const [provider, setProvider] = useState<EgressProvider>(() =>
     resolveActiveEgressProviderSync(mode),
   );
@@ -105,12 +106,15 @@ export function useActiveEgressProvider(mode: string): EgressProvider {
   useEffect(() => {
     let cancelled = false;
     const update = () => {
+      // Tag this resolution so a slower earlier async check can't overwrite the
+      // badge with stale state after a newer change (e.g. rapid key add/remove).
+      const requestId = ++requestIdRef.current;
       // Instant, flicker-free best-effort from the metadata mirror...
       setProvider(resolveActiveEgressProviderSync(mode));
       // ...then correct it with the authoritative key-presence check (keychain
       // on desktop), so the badge matches exactly what Ask would send with.
       void resolveActiveEgressProvider(mode).then((p) => {
-        if (!cancelled) setProvider(p);
+        if (!cancelled && requestId === requestIdRef.current) setProvider(p);
       });
     };
     update();
