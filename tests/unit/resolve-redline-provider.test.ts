@@ -75,4 +75,27 @@ describe('resolveRedlineProvider (BUG-009)', () => {
       }),
     ).toBe('ollama');
   });
+
+  it('F-503: prefers the embedded Keepance Local AI in Local-only when its model is ready', () => {
+    // The reported machine shape: embedded model downloaded, no Ollama daemon.
+    expect(
+      resolveRedlineProvider({
+        localOnly: true,
+        egressProvider: 'ollama',
+        apiKeys: [key('openai', true)],
+        localModelReady: true,
+      }),
+    ).toBe('keepance-local');
+  });
+
+  it('F-503: falls back to ollama in Local-only when the embedded model is NOT ready', () => {
+    expect(
+      resolveRedlineProvider({
+        localOnly: true,
+        egressProvider: 'ollama',
+        apiKeys: [],
+        localModelReady: false,
+      }),
+    ).toBe('ollama');
+  });
 });

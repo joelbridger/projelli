@@ -79,6 +79,7 @@ import { resolveRedlineProvider } from './resolveRedlineProvider';
 import { resolveInlineEditProvider } from './resolveInlineEditProvider';
 import { modeRestrictsToLocal } from '@/platform/privacy/egress';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
+import { useLocalLlmModelStatus } from '@/platform/hooks/useLocalLlmModelStatus';
 import { isAudioFile, getFileExtension, shouldVersionFile, isDiskVersioned } from './mainPanelHelpers';
 import { DocLoadingFallback, DocLegacyFallback } from './MainPanelDocFallbacks';
 
@@ -317,6 +318,11 @@ export function MainPanel({
   const confidentialityMode = useConfidentialityMode();
   const redlineLocalOnly = modeRestrictsToLocal(confidentialityMode);
   const activeEgressProvider = useActiveEgressProvider(confidentialityMode) as ChatProviderId;
+  // F-503 — in Local-only mode prefer the embedded Keepance Local AI for the
+  // redline / inline edit when its model is downloaded + ready (it needs no
+  // separate Ollama daemon), the same on-device default Ask / Chat / Client Map
+  // / workflows use. Off-desktop the hook stays 'idle', so this is false there.
+  const redlineLocalModelReady = useLocalLlmModelStatus().state === 'ready';
   // Resolve the redline provider reactively from the user's actual keys so the
   // button is never dead when a usable key exists (a key added this session, or
   // a stale higher-priority key masking a valid one). Prefers the trust-bar
@@ -328,12 +334,16 @@ export function MainPanel({
         localOnly: redlineLocalOnly,
         egressProvider: activeEgressProvider,
         apiKeys,
+        localModelReady: redlineLocalModelReady,
       }),
-    [redlineLocalOnly, activeEgressProvider, apiKeys],
+    [redlineLocalOnly, activeEgressProvider, apiKeys, redlineLocalModelReady],
   );
   const [redlineOllamaModel, setRedlineOllamaModel] = useState<string | undefined>(undefined);
   useEffect(() => {
-    if (!redlineLocalOnly) {
+    // Only discover an Ollama model when the redline actually resolved to Ollama.
+    // For the embedded Keepance Local AI ('keepance-local') the model id is the
+    // provider's own default, so we leave redlineOllamaModel undefined.
+    if (!redlineLocalOnly || redlineProvider !== 'ollama') {
       setRedlineOllamaModel(undefined);
       return;
     }
@@ -345,7 +355,7 @@ export function MainPanel({
     return () => {
       cancelled = true;
     };
-  }, [redlineLocalOnly]);
+  }, [redlineLocalOnly, redlineProvider]);
 
   // UX-04 onboarding: has the user dismissed the API key setup card in this
   // session? Reset to the live sessionStorage value each mount so a page
