@@ -83,10 +83,15 @@ the guardrail working — investigate; do not "make it green").
 > **PRODUCTION build** (the bench's current `vite preview` + packaged `keepance.exe`
 > launched by `run-preview.bat`), the Tauri app routes AI through the **Rust HTTP
 > plugin**, which `page.route` cannot see — so the fixture is never used and the
-> guard correctly refuses to pass (`served=0`). The smoke detects this and
-> automatically falls back to the LIVE model with a warning. To actually exercise
-> the deterministic path, run the bench in dev mode; otherwise use the live smoke
-> below as the bench's AI check.
+> guard correctly refuses to pass (`served=0`).
+>
+> **The smoke FAILS CLOSED here** — it refuses to run rather than silently using
+> the live model. To proceed you must EITHER run the bench in dev mode (to exercise
+> the deterministic path), OR opt into the live model explicitly:
+>
+> ```bash
+> ROBOT_SMOKE_LIVE_AI=1 npm run robot:smoke   # live model, no fixture/guard (weekly drift)
+> ```
 
 ## Step 5 — keep a weekly live-model drift run
 

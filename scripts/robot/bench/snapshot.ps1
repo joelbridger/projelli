@@ -1,9 +1,9 @@
 <#
-  robot-snapshot.ps1 — bench-side frozen-workspace snapshot tool.
+  robot-snapshot.ps1 - bench-side frozen-workspace snapshot tool.
 
   Archives a FULLY-INDEXED Keepance workspace (documents + the hidden .keepance
   folder: LanceDB vector index + SQLCipher audit/mail stores) into one .tar, and
-  restores it back over the canonical workspace path in seconds — so tests stop
+  restores it back over the canonical workspace path in seconds - so tests stop
   re-importing and re-embedding hundreds of files every run.
 
   Actions:
@@ -29,14 +29,33 @@ param(
   [ValidateSet('Status', 'Archive', 'Restore')]
   [string]$Action = 'Status',
   [string]$Archive = 'C:\keepance-snapshots\northcrest-golden.tar',
-  [string]$WsRoot = 'C:\keepance-demo-northcrest\Northcrest Wealth Partners'
+  [string]$WsRoot = 'C:\keepance-demo-northcrest\Northcrest Wealth Partners',
+  # DANGEROUS escape hatch: allow archive/restore against a non-canonical -WsRoot.
+  # The normal robot flow NEVER sets this. Without it, the destructive restore is
+  # hard-locked to the canonical bench workspace so it can't clobber data elsewhere.
+  [switch]$AllowNonCanonical
 )
 
 $ErrorActionPreference = 'Stop'
 
+# The ONLY workspace the robot flow is ever allowed to archive/restore.
+$CanonicalWsRoot = 'C:\keepance-demo-northcrest\Northcrest Wealth Partners'
+
 function Emit($obj) {
   # The Node side scans upward for the last line starting with '{'.
   Write-Output ($obj | ConvertTo-Json -Compress -Depth 6)
+}
+
+function Normalize-Path($p) { return ([string]$p).TrimEnd('\', '/').ToLowerInvariant() }
+
+# HARD-REFUSE any -WsRoot that isn't the canonical bench path (unless explicitly
+# overridden). Called before any destructive op. Exits the process on refusal.
+function Assert-CanonicalWsRoot {
+  if ($AllowNonCanonical) { return }
+  if ((Normalize-Path $WsRoot) -ne (Normalize-Path $CanonicalWsRoot)) {
+    Emit @{ ok = $false; error = "refusing: -WsRoot '$WsRoot' is not the canonical bench workspace ('$CanonicalWsRoot'). Pass -AllowNonCanonical to override (DANGEROUS - can clobber data outside the bench sandbox)." }
+    exit 1
+  }
 }
 
 # Parent dir + leaf name of the workspace (leaf usually contains a space).
@@ -80,6 +99,7 @@ try {
   }
 
   if ($Action -eq 'Archive') {
+    Assert-CanonicalWsRoot
     if (-not (Test-Path -LiteralPath $WsRoot)) {
       Emit @{ ok = $false; error = "workspace not found: $WsRoot" }; exit 1
     }
@@ -88,46 +108,72 @@ try {
       Emit @{ ok = $false; error = "refusing to archive: workspace is not indexed (missing $vectors)" }; exit 1
     }
     if (-not (Test-Path -LiteralPath $snapDir)) { New-Item -ItemType Directory -Force -Path $snapDir | Out-Null }
-    if (Test-Path -LiteralPath $Archive) { Remove-Item -LiteralPath $Archive -Force }
 
-    Write-Host "archiving '$WsRoot' -> '$Archive'"
+    # Tar to a TEMP file first; only atomically replace the existing good archive
+    # AFTER the new tar is created + validated, so a failed tar can't destroy the
+    # only restore point.
+    $tmpArchive = "$Archive.building.tar"
+    if (Test-Path -LiteralPath $tmpArchive) { Remove-Item -LiteralPath $tmpArchive -Force }
+
+    Write-Host "archiving '$WsRoot' -> '$tmpArchive'"
     # cd into the parent and archive the relative leaf so member paths stay relative.
-    & tar.exe -C $wsParent -cf $Archive $wsLeaf
-    if ($LASTEXITCODE -ne 0) { Emit @{ ok = $false; error = "tar create failed (exit $LASTEXITCODE)" }; exit 1 }
+    & tar.exe -C $wsParent -cf $tmpArchive $wsLeaf
+    if ($LASTEXITCODE -ne 0) { Remove-Item -LiteralPath $tmpArchive -Force -EA SilentlyContinue; Emit @{ ok = $false; error = "tar create failed (exit $LASTEXITCODE) - existing archive untouched" }; exit 1 }
+
+    $bytes = Get-FileSize $tmpArchive
+    if ($bytes -le 0) { Remove-Item -LiteralPath $tmpArchive -Force -EA SilentlyContinue; Emit @{ ok = $false; error = 'archive is empty after tar - existing archive untouched' }; exit 1 }
+    $sha = (Get-FileHash -LiteralPath $tmpArchive -Algorithm SHA256).Hash
+
+    # Atomic-ish replace: the validated temp tar becomes the canonical archive.
+    if (Test-Path -LiteralPath $Archive) { Remove-Item -LiteralPath $Archive -Force }
+    Move-Item -LiteralPath $tmpArchive -Destination $Archive -Force
 
     $bytes = Get-FileSize $Archive
-    if ($bytes -le 0) { Emit @{ ok = $false; error = 'archive is empty after tar' }; exit 1 }
-    $sha = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash
     Emit @{ ok = $true; archive = $Archive; archiveBytes = $bytes; sha256 = $sha; wsRoot = $WsRoot }
     exit 0
   }
 
   if ($Action -eq 'Restore') {
-    # --- Guard FIRST: never touch the live workspace without a usable archive ---
+    # --- HARD LOCK: restore is destructive - only ever to the canonical bench path. ---
+    Assert-CanonicalWsRoot
+
+    # --- Guard: never touch the live workspace without a usable archive ---
     if (-not (Test-Path -LiteralPath $Archive)) {
       Emit @{ ok = $false; error = "refusing to restore: archive not found: $Archive" }; exit 1
     }
-    if ((Get-FileSize $Archive) -le 0) {
+    $archiveBytes = Get-FileSize $Archive
+    if ($archiveBytes -le 0) {
       Emit @{ ok = $false; error = 'refusing to restore: archive is empty (0 bytes)' }; exit 1
     }
 
-    # --- Integrity: if a manifest is present, the archive MUST match its sha256
-    #     (catches truncation / corruption / a swapped-in wrong file). A present-
-    #     but-unparseable manifest is treated as suspicious and REFUSED (fail-closed). ---
+    # --- Integrity: REQUIRE a complete, matching manifest (fail-closed). The
+    #     manifest must exist, parse, and carry sha256 + workspacePath + archiveBytes,
+    #     all matching the archive on disk and the target path. Any missing field,
+    #     hash/size mismatch, or path mismatch => refuse (no destructive action). ---
     $manifestPath = [regex]::Replace($Archive, '(?i)\.tar$', '.manifest.json')
     if ($manifestPath -eq $Archive) { $manifestPath = "$Archive.manifest.json" }
-    if (Test-Path -LiteralPath $manifestPath) {
-      $m = $null
-      try { $m = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json } catch { $m = $null }
-      if (-not $m) {
-        Emit @{ ok = $false; error = "refusing to restore: manifest present but unreadable ($manifestPath)" }; exit 1
+    if (-not (Test-Path -LiteralPath $manifestPath)) {
+      Emit @{ ok = $false; error = "refusing to restore: manifest not found ($manifestPath)" }; exit 1
+    }
+    $m = $null
+    try { $m = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json } catch { $m = $null }
+    if (-not $m) {
+      Emit @{ ok = $false; error = "refusing to restore: manifest present but unreadable ($manifestPath)" }; exit 1
+    }
+    foreach ($field in @('sha256', 'workspacePath', 'archiveBytes')) {
+      if ($null -eq $m.$field -or "$($m.$field)" -eq '') {
+        Emit @{ ok = $false; error = "refusing to restore: manifest missing required field '$field'" }; exit 1
       }
-      if ($m.sha256) {
-        $actual = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash
-        if ($actual -ne $m.sha256) {
-          Emit @{ ok = $false; error = "refusing to restore: archive sha256 mismatch vs manifest (corrupt/wrong archive)"; expected = $m.sha256; actual = $actual }; exit 1
-        }
-      }
+    }
+    $actualSha = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash
+    if ($actualSha -ne $m.sha256) {
+      Emit @{ ok = $false; error = "refusing to restore: archive sha256 mismatch vs manifest (corrupt/wrong archive)"; expected = $m.sha256; actual = $actualSha }; exit 1
+    }
+    if ([int64]$m.archiveBytes -ne [int64]$archiveBytes) {
+      Emit @{ ok = $false; error = "refusing to restore: archive size mismatch vs manifest"; expected = [int64]$m.archiveBytes; actual = [int64]$archiveBytes }; exit 1
+    }
+    if ((Normalize-Path $m.workspacePath) -ne (Normalize-Path $WsRoot)) {
+      Emit @{ ok = $false; error = "refusing to restore: manifest workspacePath ('$($m.workspacePath)') != target -WsRoot ('$WsRoot')" }; exit 1
     }
 
     # --- Extract into a temp dir; verify BEFORE any destructive change ---
@@ -156,7 +202,7 @@ try {
     #     backup path (never clobber a prior backup), and on a failed staged move
     #     clear any partial $WsRoot before rolling back so the backup REPLACES it
     #     rather than landing inside it. If rollback itself fails, keep the backup
-    #     and report it loudly — never silently lose the workspace. ---
+    #     and report it loudly - never silently lose the workspace. ---
     if (-not (Test-Path -LiteralPath $wsParent)) { New-Item -ItemType Directory -Force -Path $wsParent | Out-Null }
     $hadOriginal = Test-Path -LiteralPath $WsRoot
     $backup = "$WsRoot.bak-restore-$([guid]::NewGuid().ToString('n'))"

@@ -119,8 +119,9 @@ via `page.route`. That only works in **dev mode** (`tauri dev` / `vite dev`), wh
 AI goes out via webview fetch. On a **production build** (`vite preview` + a packaged
 binary), the Tauri app routes AI through the Rust HTTP plugin, which `page.route`
 can't see — the fixture is never used and the guard correctly fails (`served=0`).
-`smoke.mjs` detects a production build and auto-falls-back to the live model with a
-warning; run the bench in dev mode to exercise the deterministic path.
+`smoke.mjs` **fails closed** when it detects a production build: it refuses to run
+rather than silently using live AI. Run the bench in dev mode to exercise the
+deterministic path, or opt into live explicitly with `ROBOT_SMOKE_LIVE_AI=1`.
 
 ## Known limitations / notes
 
