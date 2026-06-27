@@ -33,7 +33,11 @@ import { manualUpdateCheck } from '@/platform/updater/UpdateManager';
 import { openExternal } from '@/platform/utils/openExternal';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
-import { GuidedOnboarding } from '@/features/onboarding/GuidedOnboarding';
+// FirstRunOverlay picks GuidedOnboarding (default) or the flag-gated
+// OnboardingV2 (prototype-matched, wired to real setup) by the onboardingV2
+// flag. Keeping the branch in FirstRunOverlay keeps this entry file's edit to a
+// single component-name swap.
+import { FirstRunOverlay } from '@/features/onboarding/FirstRunOverlay';
 import {
   createKeychainService,
   migrateLocalStorageApiKeysToKeychain,
@@ -1176,7 +1180,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
   // `keepance_onboarding_complete`; on skip we set the same flag so first-run
   // never re-prompts. The Feature Tour then auto-shows as it does today.
   const firstRunOverlay = showFirstRun ? (
-    <GuidedOnboarding
+    <FirstRunOverlay
       onSaveKey={handleSaveOnboardingApiKey}
       {...(workspaceServiceRef.current
         ? { workspace: workspaceServiceRef.current }
