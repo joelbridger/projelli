@@ -1,7 +1,11 @@
 use arrow_array::RecordBatchIterator;
+use keepance_lib::commands::connector::{
+    index_external_text_internal, index_external_text_with_key_internal,
+};
 use keepance_lib::commands::rag::chunker::chunk_text;
-use keepance_lib::commands::rag::embedder::EMBEDDING_DIM;
+use keepance_lib::commands::rag::embedder::{embed_query, EMBEDDING_DIM};
 use keepance_lib::commands::rag::store::{self, PRIVILEGE_NONE};
+use std::path::Path;
 
 const VEC_KEY: [u8; 32] = [0x5Au8; 32];
 const ESIGN_MATTER: &str = "matter-northcrest-advisory";
@@ -57,6 +61,19 @@ fn decrypted_hit_path(hit: &store::StoredHit) -> String {
     .expect("path_enc should decrypt to UTF-8")
 }
 
+fn decrypted_hit_path_with_key(hit: &store::StoredHit, key: &[u8; 32]) -> String {
+    let path_enc = hit
+        .path_enc
+        .as_deref()
+        .expect("external hit should carry path_enc");
+    let blob = hex::decode(path_enc).expect("path_enc should be hex");
+    String::from_utf8(
+        keepance_lib::commands::mail::crypto::decrypt_with_key(&blob, key)
+            .expect("decrypt path_enc"),
+    )
+    .expect("path_enc should decrypt to UTF-8")
+}
+
 fn decrypted_hit_text(hit: &store::StoredHit) -> String {
     let blob = hex::decode(&hit.text).expect("external hit text should be hex ciphertext");
     String::from_utf8(
@@ -64,6 +81,27 @@ fn decrypted_hit_text(hit: &store::StoredHit) -> String {
             .expect("decrypt hit text"),
     )
     .expect("hit text should decrypt to UTF-8")
+}
+
+async fn retrieved_source_ids(
+    workspace: &Path,
+    key: &[u8; 32],
+    matter_id: &str,
+    query: &str,
+) -> Vec<String> {
+    let conn = store::open_connection(workspace)
+        .await
+        .expect("open vector store");
+    let table = store::open_or_create_table(&conn)
+        .await
+        .expect("open chunks table");
+    let query_vec = embed_query(query).await.expect("embed query");
+    store::nearest(&table, &query_vec, 50, Some(matter_id), false, &[])
+        .await
+        .expect("vector search")
+        .iter()
+        .map(|hit| decrypted_hit_path_with_key(hit, key))
+        .collect()
 }
 
 #[tokio::test]
@@ -111,5 +149,149 @@ async fn fixture_esign_chunk_round_trips_encrypted_and_is_retrievable() {
     assert!(
         decrypted.contains("DocuSign") || decrypted.contains("Advisory Agreement"),
         "decrypted hit text should contain content from the fixture brief; got: {decrypted:?}"
+    );
+}
+
+#[tokio::test]
+async fn reindexing_external_source_with_whitespace_text_deletes_stale_chunks() {
+    let workspace = tempfile::tempdir().expect("workspace tempdir");
+    let source_id = "esign:envelope:empty-resync-target";
+    let control_source_id = "esign:envelope:empty-resync-control";
+    let target_text = "\
+DocuSign envelope: Advisory Agreement - empty resync target.
+Recipients: Robert Thompson and Linda Thompson.
+Key terms: discretionary authority, household billing, and electronic delivery consent.
+";
+    let control_text = "\
+DocuSign envelope: Investment Policy Statement - empty resync control.
+Recipients: Amelia Rivera and Northcrest Advisory.
+Key terms: IPS acknowledgment, allocation drift review, and next-meeting preparation.
+";
+
+    let first_count = index_external_text_with_key_internal(
+        workspace.path(),
+        source_id,
+        target_text,
+        ESIGN_MATTER,
+        "esign",
+        &VEC_KEY,
+    )
+    .await
+    .expect("initial external index should succeed");
+    assert!(
+        first_count > 0,
+        "initial index should write at least one chunk"
+    );
+
+    index_external_text_with_key_internal(
+        workspace.path(),
+        control_source_id,
+        control_text,
+        ESIGN_MATTER,
+        "esign",
+        &VEC_KEY,
+    )
+    .await
+    .expect("control external index should succeed");
+
+    let before = retrieved_source_ids(
+        workspace.path(),
+        &VEC_KEY,
+        ESIGN_MATTER,
+        "Thompson household advisory agreement electronic delivery",
+    )
+    .await;
+    assert!(
+        before.iter().any(|id| id == source_id),
+        "target source should be retrievable before the empty re-sync; got: {before:?}"
+    );
+
+    let empty_count = index_external_text_with_key_internal(
+        workspace.path(),
+        source_id,
+        " \n\t  ",
+        ESIGN_MATTER,
+        "esign",
+        &VEC_KEY,
+    )
+    .await
+    .expect("empty external re-index should succeed");
+    assert_eq!(empty_count, 0, "whitespace text should write zero chunks");
+
+    let after = retrieved_source_ids(
+        workspace.path(),
+        &VEC_KEY,
+        ESIGN_MATTER,
+        "Thompson household advisory agreement electronic delivery",
+    )
+    .await;
+    assert!(
+        !after.iter().any(|id| id == source_id),
+        "empty re-sync must remove stale chunks for the target source; got: {after:?}"
+    );
+    assert!(
+        after.iter().any(|id| id == control_source_id),
+        "empty re-sync must not delete unrelated external sources; got: {after:?}"
+    );
+}
+
+#[tokio::test]
+async fn invalid_external_source_type_errors_without_deleting_existing_chunks() {
+    let workspace = tempfile::tempdir().expect("workspace tempdir");
+    let source_id = "esign:envelope:invalid-source-type-target";
+    let source_text = "\
+DocuSign envelope: Advisory Agreement - invalid type safety target.
+Recipients: Sarah Chen and Robert Thompson.
+Key terms: signed advisory agreement, billing consent, and custodian delivery preference.
+";
+
+    index_external_text_with_key_internal(
+        workspace.path(),
+        source_id,
+        source_text,
+        ESIGN_MATTER,
+        "esign",
+        &VEC_KEY,
+    )
+    .await
+    .expect("initial external index should succeed");
+
+    let before = retrieved_source_ids(
+        workspace.path(),
+        &VEC_KEY,
+        ESIGN_MATTER,
+        "Sarah Chen signed advisory agreement billing consent",
+    )
+    .await;
+    assert!(
+        before.iter().any(|id| id == source_id),
+        "source should be retrievable before invalid source_type attempt; got: {before:?}"
+    );
+
+    let err = index_external_text_internal(
+        workspace.path(),
+        source_id,
+        "This replacement text must not be indexed or trigger a delete.",
+        ESIGN_MATTER,
+        "docusign",
+    )
+    .await
+    .expect_err("invalid source_type should fail");
+    assert!(
+        err.to_string().contains("validate external connector source_type")
+            || format!("{err:#}").contains("invalid external source_type"),
+        "error should identify invalid source_type validation; got: {err:#}"
+    );
+
+    let after = retrieved_source_ids(
+        workspace.path(),
+        &VEC_KEY,
+        ESIGN_MATTER,
+        "Sarah Chen signed advisory agreement billing consent",
+    )
+    .await;
+    assert!(
+        after.iter().any(|id| id == source_id),
+        "invalid source_type must not delete the source's existing chunks; got: {after:?}"
     );
 }
