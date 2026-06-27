@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 
 use crate::commands::crm::model::{
     CrmContact, CrmEmailAddress, CrmHouseholdMember, CrmHouseholdRef, CrmPhoneNumber,
-    CrmStreetAddress,
+    CrmRecordProvider, CrmStreetAddress,
 };
 use crate::commands::crm::source::CrmSource;
 
@@ -512,6 +512,7 @@ pub fn normalize_salesforce_records(
                 .push(CrmHouseholdMember {
                     id: stable_numeric_id(&format!("{}:{}", contact.id, rel.account_id)),
                     external_id: namespaced_contact_key(&contact.id, &rel.account_id),
+                    source_provider: CrmRecordProvider::Salesforce,
                     first_name: contact.first_name.clone(),
                     last_name: contact.last_name.clone(),
                     title: rel.roles.clone(),
@@ -572,6 +573,7 @@ fn account_to_crm_household(account: &SalesforceAccount) -> CrmContact {
     CrmContact {
         id: stable_numeric_id(&account.id),
         external_id: namespaced_account_key(&account.id),
+        source_provider: CrmRecordProvider::Salesforce,
         r#type: "household".to_string(),
         name: account.name.clone(),
         company_name: account.name.clone(),
@@ -598,6 +600,7 @@ fn contact_to_crm_contact(
     CrmContact {
         id: stable_numeric_id(&format!("{}:{}", contact.id, account.id)),
         external_id: namespaced_contact_key(&contact.id, &account.id),
+        source_provider: CrmRecordProvider::Salesforce,
         r#type: "person".to_string(),
         prefix: contact.salutation.clone(),
         first_name: contact.first_name.clone(),
@@ -629,6 +632,7 @@ fn contact_to_crm_contact(
         household: Some(CrmHouseholdRef {
             id: stable_numeric_id(&account.id),
             external_id: namespaced_account_key(&account.id),
+            source_provider: CrmRecordProvider::Salesforce,
             name: account.name.clone(),
             title: if rel.roles.trim().is_empty() {
                 "Member".to_string()

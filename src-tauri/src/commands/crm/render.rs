@@ -550,6 +550,7 @@ mod tests {
                 name: "The Andersons".to_string(),
                 title: "Head".to_string(),
                 members: vec![],
+                ..Default::default()
             }),
             tags: vec![CrmTag {
                 id: 1,
@@ -592,6 +593,7 @@ mod tests {
                 name: "The Andersons".to_string(),
                 title: "Spouse".to_string(),
                 members: vec![],
+                ..Default::default()
             }),
             ..Default::default()
         }

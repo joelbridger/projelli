@@ -17,12 +17,7 @@ Next review: Q3 2026. Open action: consolidate inherited IRA from Linda's mother
 into the existing rollover IRA before year-end to simplify RMD tracking.\
 ";
 
-async fn index_crm_entry(
-    table: &lancedb::Table,
-    source_id: &str,
-    text: &str,
-    matter_id: &str,
-) {
+async fn index_crm_entry(table: &lancedb::Table, source_id: &str, text: &str, matter_id: &str) {
     let chunks = chunk_text(source_id, text);
     assert!(
         !chunks.is_empty(),
@@ -43,7 +38,10 @@ async fn index_crm_entry(
 }
 
 fn decrypted_hit_path(hit: &store::StoredHit) -> String {
-    let path_enc = hit.path_enc.as_deref().expect("crm hit should carry path_enc");
+    let path_enc = hit
+        .path_enc
+        .as_deref()
+        .expect("crm hit should carry path_enc");
     let blob = hex::decode(path_enc).expect("path_enc should be hex");
     String::from_utf8(
         keepance_lib::commands::mail::crypto::decrypt_with_key(&blob, &VEC_KEY)
@@ -142,7 +140,9 @@ async fn delete_source_type_removes_all_crm_chunks() {
     .await
     .expect("nearest before delete_source_type");
     assert!(
-        hits_before.iter().any(|h| h.source_type.as_deref() == Some("crm")),
+        hits_before
+            .iter()
+            .any(|h| h.source_type.as_deref() == Some("crm")),
         "at least one crm chunk should be present before delete_source_type"
     );
 
@@ -163,7 +163,9 @@ async fn delete_source_type_removes_all_crm_chunks() {
     .await
     .expect("nearest after delete_source_type");
     assert!(
-        !hits_after.iter().any(|h| h.source_type.as_deref() == Some("crm")),
+        !hits_after
+            .iter()
+            .any(|h| h.source_type.as_deref() == Some("crm")),
         "no crm chunks should survive delete_source_type; got {} hits",
         hits_after.len()
     );
@@ -189,14 +191,14 @@ async fn delete_source_type_removes_all_crm_chunks() {
 /// 7. Asserts the RAG store has zero `source_type='crm'` chunks.
 #[tokio::test]
 async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
-    use std::sync::Arc;
-    use std::sync::atomic::AtomicBool;
     use arrow_array::RecordBatchIterator;
-    use keepance_lib::commands::crm::commands::{CrmState, crm_disconnect_logic};
+    use keepance_lib::commands::crm::commands::{crm_disconnect_logic, CrmState};
     use keepance_lib::commands::crm::store::CrmStore;
     use keepance_lib::commands::rag::chunker::chunk_text;
     use keepance_lib::commands::rag::embedder::EMBEDDING_DIM;
     use keepance_lib::commands::rag::store::{self, build_batch_crm, PRIVILEGE_NONE};
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
 
     const E2E_MATTER: &str = "matter-e2e-purge";
     // Deterministic literal key for the CRM store — bypasses the OS keychain.
@@ -240,23 +242,32 @@ async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
 
         // Confirm rows are present before the disconnect call.
         let hids = crm.list_household_ids().expect("list_household_ids");
-        assert_eq!(hids.len(), 1, "one household id must exist before disconnect");
+        assert_eq!(
+            hids.len(),
+            1,
+            "one household id must exist before disconnect"
+        );
     } // CrmStore dropped — connection closed.
 
     // ── 3: Seed RAG chunks with source_type='crm' ────────────────────────────
-    let conn = store::open_connection(&ws).await.expect("open vector store");
+    let conn = store::open_connection(&ws)
+        .await
+        .expect("open vector store");
     let table = store::open_or_create_table(&conn)
         .await
         .expect("open chunks table");
 
     let chunks = chunk_text("crm:household:7001", FIXTURE_BRIEF);
-    assert!(!chunks.is_empty(), "fixture must produce at least one chunk");
+    assert!(
+        !chunks.is_empty(),
+        "fixture must produce at least one chunk"
+    );
     let rows: Vec<_> = chunks
         .into_iter()
         .map(|c| (c, vec![0.2f32; EMBEDDING_DIM]))
         .collect();
-    let batch = build_batch_crm(&rows, &VEC_KEY, E2E_MATTER, PRIVILEGE_NONE)
-        .expect("build crm batch");
+    let batch =
+        build_batch_crm(&rows, &VEC_KEY, E2E_MATTER, PRIVILEGE_NONE).expect("build crm batch");
     let schema = batch.schema();
     table
         .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
@@ -276,7 +287,9 @@ async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
     .await
     .expect("nearest before disconnect");
     assert!(
-        hits_before.iter().any(|h| h.source_type.as_deref() == Some("crm")),
+        hits_before
+            .iter()
+            .any(|h| h.source_type.as_deref() == Some("crm")),
         "at least one crm rag chunk must exist before disconnect"
     );
 
@@ -285,7 +298,19 @@ async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
     // store and the CRM DB, and emits the durable audit — exactly what the
     // Tauri `crm_disconnect` command calls.  A wiring regression (e.g. the
     // workspace not being read, or a purge step not being called) is caught here.
+    // The headless test runner has no OS keychain, so the production key loader
+    // reads this test-only override and opens the same DB key seeded above.
+    std::env::set_var(
+        "KEEPANCE_HEADLESS_TEST_CRM_MASTER_KEY_HEX",
+        hex::encode(CRM_KEY),
+    );
+    std::env::set_var(
+        "KEEPANCE_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX",
+        hex::encode(VEC_KEY),
+    );
     let result = crm_disconnect_logic(&state).await;
+    std::env::remove_var("KEEPANCE_HEADLESS_TEST_CRM_MASTER_KEY_HEX");
+    std::env::remove_var("KEEPANCE_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX");
 
     // ── 5: Assert purge flags ─────────────────────────────────────────────────
     // token_deleted may be false in a headless CI environment with no usable
@@ -317,7 +342,9 @@ async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
     // Re-open the connection + table after disconnect so we get a fresh view of
     // the Lance file — the disconnect logic opens its own internal connection
     // when it deletes, so querying the old handle would see a stale snapshot.
-    let conn2 = store::open_connection(&ws).await.expect("reopen vector store after disconnect");
+    let conn2 = store::open_connection(&ws)
+        .await
+        .expect("reopen vector store after disconnect");
     let table2 = store::open_or_create_table(&conn2)
         .await
         .expect("reopen chunks table after disconnect");

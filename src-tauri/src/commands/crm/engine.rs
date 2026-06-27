@@ -25,7 +25,9 @@ use std::path::Path;
 
 use sha2::{Digest, Sha256};
 
-use crate::commands::crm::model::{CrmContact, CrmEvent, CrmLink, CrmNote, CrmTask};
+use crate::commands::crm::model::{
+    CrmContact, CrmEvent, CrmLink, CrmNote, CrmRecordProvider, CrmTask,
+};
 use crate::commands::crm::render::{
     render_contact, render_event, render_household_summary, render_note, render_task,
 };
@@ -308,19 +310,41 @@ pub fn plan_household_index(
         // value) still indexes instead of being skipped.
         match row.kind.to_ascii_lowercase().as_str() {
             "household" => {
-                hh_contact = Some(serde_json::from_str(&row.json)?);
+                let mut contact: CrmContact = serde_json::from_str(&row.json)?;
+                apply_contact_provider(&mut contact, provider_for_store_id(&row.id));
+                hh_contact = Some(contact);
             }
             "person" | "organization" | "trust" => {
-                member_contacts.push(serde_json::from_str(&row.json)?);
+                let mut contact: CrmContact = serde_json::from_str(&row.json)?;
+                apply_contact_provider(&mut contact, provider_for_store_id(&row.id));
+                member_contacts.push(contact);
             }
             "note" => {
-                notes.push(serde_json::from_str(&row.json)?);
+                let mut note: CrmNote = serde_json::from_str(&row.json)?;
+                apply_linked_object_provider(
+                    &mut note.source_provider,
+                    &mut note.linked_to,
+                    &row.id,
+                );
+                notes.push(note);
             }
             "task" => {
-                tasks.push(serde_json::from_str(&row.json)?);
+                let mut task: CrmTask = serde_json::from_str(&row.json)?;
+                apply_linked_object_provider(
+                    &mut task.source_provider,
+                    &mut task.linked_to,
+                    &row.id,
+                );
+                tasks.push(task);
             }
             "event" => {
-                events.push(serde_json::from_str(&row.json)?);
+                let mut event: CrmEvent = serde_json::from_str(&row.json)?;
+                apply_linked_object_provider(
+                    &mut event.source_provider,
+                    &mut event.linked_to,
+                    &row.id,
+                );
+                events.push(event);
             }
             other => {
                 log::warn!(
@@ -385,6 +409,42 @@ pub fn plan_household_index(
     }
 
     Ok(items)
+}
+
+fn provider_for_store_id(store_id: &str) -> CrmRecordProvider {
+    let rest = store_id
+        .split_once(':')
+        .map(|(_, rest)| rest)
+        .unwrap_or(store_id);
+    if rest.starts_with("sfdc:") {
+        CrmRecordProvider::Salesforce
+    } else if rest.starts_with("redtail:") {
+        CrmRecordProvider::Redtail
+    } else {
+        CrmRecordProvider::Wealthbox
+    }
+}
+
+fn apply_contact_provider(contact: &mut CrmContact, provider: CrmRecordProvider) {
+    contact.source_provider = provider;
+    if let Some(household) = contact.household.as_mut() {
+        household.source_provider = provider;
+        for member in &mut household.members {
+            member.source_provider = provider;
+        }
+    }
+}
+
+fn apply_linked_object_provider(
+    source_provider: &mut CrmRecordProvider,
+    linked_to: &mut [CrmLink],
+    store_id: &str,
+) {
+    let provider = provider_for_store_id(store_id);
+    *source_provider = provider;
+    for link in linked_to {
+        link.source_provider = provider;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -734,6 +794,7 @@ mod tests {
                 name: "The Andersons".to_string(),
                 title: "Head".to_string(),
                 members: vec![],
+                ..Default::default()
             }),
             ..Default::default()
         }
@@ -754,6 +815,7 @@ mod tests {
                 name: "The Andersons".to_string(),
                 title: "Spouse".to_string(),
                 members: vec![],
+                ..Default::default()
             }),
             ..Default::default()
         }
@@ -773,7 +835,9 @@ mod tests {
                 external_id: String::new(),
                 r#type: "contact".to_string(),
                 name: "Robert Anderson".to_string(),
+                ..Default::default()
             }],
+            ..Default::default()
         }
     }
 
@@ -792,7 +856,9 @@ mod tests {
                 external_id: String::new(),
                 r#type: "contact".to_string(),
                 name: "The Andersons".to_string(),
+                ..Default::default()
             }],
+            ..Default::default()
         }
     }
 
@@ -813,7 +879,9 @@ mod tests {
                 external_id: String::new(),
                 r#type: "contact".to_string(),
                 name: "The Andersons".to_string(),
+                ..Default::default()
             }],
+            ..Default::default()
         }
     }
 
@@ -869,10 +937,7 @@ mod tests {
             "contact:sfdc:003CC0000000002AAA",
             "salesforce"
         ));
-        assert!(object_belongs_to_provider(
-            "contact:redtail:123",
-            "redtail"
-        ));
+        assert!(object_belongs_to_provider("contact:redtail:123", "redtail"));
         assert!(!object_belongs_to_provider(
             "contact:redtail:123",
             "wealthbox"
@@ -1041,12 +1106,8 @@ mod tests {
             "contact row should include Salesforce namespace and household account id"
         );
 
-        let items = plan_household_index(
-            &store,
-            "sfdc:001HH0000000001AAA",
-            "matter-anderson",
-        )
-        .expect("plan salesforce household");
+        let items = plan_household_index(&store, "sfdc:001HH0000000001AAA", "matter-anderson")
+            .expect("plan salesforce household");
         assert!(items.iter().all(|i| i.matter_id == "matter-anderson"));
         assert!(items
             .iter()
@@ -1061,13 +1122,17 @@ mod tests {
     async fn salesforce_ingest_does_not_tombstone_existing_wealthbox_rows() {
         let (_d, store) = crm_store();
 
-        ingest(&FakeCrmSource, &store).await.expect("ingest wealthbox");
-        assert!(store
-            .get_object("contact:10001")
-            .expect("get wealthbox household")
-            .expect("wealthbox household exists")
-            .deleted
-            == false);
+        ingest(&FakeCrmSource, &store)
+            .await
+            .expect("ingest wealthbox");
+        assert!(
+            store
+                .get_object("contact:10001")
+                .expect("get wealthbox household")
+                .expect("wealthbox household exists")
+                .deleted
+                == false
+        );
 
         ingest(&SalesforceFixtureSource, &store)
             .await
@@ -1191,6 +1256,7 @@ mod tests {
                         name: "The Bishops".to_string(),
                         title: "Head".to_string(),
                         members: vec![],
+                        ..Default::default()
                     }),
                     ..Default::default()
                 },
@@ -1206,6 +1272,7 @@ mod tests {
                         name: "The Bishops".to_string(),
                         title: "Entity".to_string(),
                         members: vec![],
+                        ..Default::default()
                     }),
                     ..Default::default()
                 },
@@ -1221,6 +1288,7 @@ mod tests {
                         name: "The Bishops".to_string(),
                         title: "Entity".to_string(),
                         members: vec![],
+                        ..Default::default()
                     }),
                     ..Default::default()
                 },
@@ -1346,6 +1414,7 @@ mod tests {
                         name: "The Bishops".to_string(),
                         title: "Head".to_string(),
                         members: vec![],
+                        ..Default::default()
                     }),
                     ..Default::default()
                 },
@@ -1361,6 +1430,7 @@ mod tests {
                         name: "The Bishops".to_string(),
                         title: "Entity".to_string(),
                         members: vec![],
+                        ..Default::default()
                     }),
                     ..Default::default()
                 },
@@ -1521,6 +1591,7 @@ mod tests {
                 updated_at: "2026-01-01".to_string(),
                 content: "Orphan note — no linked contact".to_string(),
                 linked_to: vec![], // empty → cannot resolve a grouping key
+                ..Default::default()
             };
             Ok(vec![fixture_note(), orphan])
         }
@@ -1584,7 +1655,9 @@ mod tests {
                     external_id: String::new(),
                     r#type: "Project".to_string(),
                     name: "Some Pipeline Project".to_string(),
+                    ..Default::default()
                 }],
+                ..Default::default()
             };
             Ok(vec![note])
         }
@@ -1799,6 +1872,7 @@ mod tests {
                         name: "Alpha".to_string(),
                         title: "Head".to_string(),
                         members: vec![],
+                        ..Default::default()
                     }),
                     ..Default::default()
                 },
@@ -1823,6 +1897,7 @@ mod tests {
                         name: "Beta".to_string(),
                         title: "Head".to_string(),
                         members: vec![],
+                        ..Default::default()
                     }),
                     ..Default::default()
                 },
