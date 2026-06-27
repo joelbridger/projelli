@@ -164,6 +164,14 @@ pub fn run() {
             commands::crm::commands::crm_sync_status,
             commands::crm::commands::crm_cancel_sync,
             commands::crm::commands::crm_list_households,
+            // Calendly connector — read-only scheduled events + invitee Q&A.
+            commands::calendly::commands::calendly_set_workspace,
+            commands::calendly::commands::calendly_connect,
+            commands::calendly::commands::calendly_is_connected,
+            commands::calendly::commands::calendly_disconnect,
+            commands::calendly::commands::calendly_sync_all,
+            commands::calendly::commands::calendly_sync_status,
+            commands::calendly::commands::calendly_cancel_sync,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
             // Wave 3b encrypted vault — per-workspace AES-256-GCM at-rest encryption.
@@ -204,6 +212,8 @@ pub fn run() {
             commands::mail::manage_state(app);
             // Plan 1B.4 — manage CRM state (active workspace + sync flag + last report).
             commands::crm::commands::manage_state(app);
+            // Calendly connector — manage workspace, single-flight sync, and progress.
+            commands::calendly::commands::manage_state(app);
             // Keepance 3.0 — manage encrypted audit-store state (active workspace).
             commands::audit::manage_state(app);
             // Onboarding/setup progress — register the aggregator state + the

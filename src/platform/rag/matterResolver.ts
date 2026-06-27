@@ -232,6 +232,10 @@ export interface MeetingMatterMapEntry {
   matterId: string;
 }
 
+export function normalizeMeetingKey(key: string): string {
+  return key.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
 function buildConnectorMatterMap<T extends { matterId: string }>(
   matters: Matter[],
   getKeys: (matter: Matter) => string[] | undefined,
@@ -267,11 +271,18 @@ export function buildEsignMatterMap(matters: Matter[]): EsignMatterMapEntry[] {
 }
 
 export function buildMeetingMatterMap(matters: Matter[]): MeetingMatterMapEntry[] {
-  return buildConnectorMatterMap(
-    matters,
-    (m) => m.meetingKeys,
-    (meetingKey, matterId) => ({ meetingKey, matterId }),
-  );
+  const out: MeetingMatterMapEntry[] = [];
+  const claimed = new Set<string>();
+  for (const m of matters) {
+    if (m.id === UNASSIGNED_MATTER_ID) continue;
+    for (const key of m.meetingKeys ?? []) {
+      const meetingKey = normalizeMeetingKey(key);
+      if (!meetingKey || claimed.has(meetingKey)) continue;
+      claimed.add(meetingKey);
+      out.push({ meetingKey, matterId: m.id });
+    }
+  }
+  return out;
 }
 
 // ─────────────────────────────────────────────────────────────────────

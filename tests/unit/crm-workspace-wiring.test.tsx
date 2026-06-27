@@ -38,6 +38,12 @@ const crmMocks = vi.hoisted(() => ({
 
 vi.mock('@/platform/utils/wealthbox-commands', () => crmMocks);
 
+const calendlyMocks = vi.hoisted(() => ({
+  calendlySetWorkspace: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/platform/utils/calendly-commands', () => calendlyMocks);
+
 // tauri-commands: watchWorkspace + model status helpers used inside the
 // per-workspace lifecycle. Return resolved values so the IIFE completes.
 const tauriCmdMocks = vi.hoisted(() => ({
@@ -121,6 +127,7 @@ describe('useMemoryWiring — CRM workspace wiring', () => {
       expect(memMocks.setWorkspace).toHaveBeenCalledWith(root);
       expect(mailMocks.mailSetWorkspace).toHaveBeenCalledWith(root);
       expect(crmMocks.crmSetWorkspace).toHaveBeenCalledWith(root);
+      expect(calendlyMocks.calendlySetWorkspace).toHaveBeenCalledWith(root);
     });
   });
 

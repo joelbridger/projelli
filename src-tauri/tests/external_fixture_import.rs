@@ -153,6 +153,43 @@ async fn fixture_esign_chunk_round_trips_encrypted_and_is_retrievable() {
 }
 
 #[tokio::test]
+async fn fixture_calendly_meeting_round_trips_as_encrypted_meeting_chunk() {
+    let workspace = tempfile::tempdir().expect("workspace tempdir");
+    let source_id = "calendly:event:evt-roundtrip";
+    let text = "\
+Calendly meeting: Initial consult
+Start time: 2026-07-01T14:00:00Z
+Invitees:
+- Amelia Rivera <amelia@example.com>
+  Intake Q&A - What should we discuss?: Draft complaint and deadline.
+";
+
+    let count = index_external_text_with_key_internal(
+        workspace.path(),
+        source_id,
+        text,
+        ESIGN_MATTER,
+        "meeting",
+        &VEC_KEY,
+    )
+    .await
+    .expect("meeting index should succeed");
+    assert!(count > 0, "meeting fixture should write at least one chunk");
+
+    let ids = retrieved_source_ids(
+        workspace.path(),
+        &VEC_KEY,
+        ESIGN_MATTER,
+        "Amelia Rivera draft complaint deadline Calendly",
+    )
+    .await;
+    assert!(
+        ids.iter().any(|id| id == source_id),
+        "retrieval should surface the calendly meeting chunk; got: {ids:?}"
+    );
+}
+
+#[tokio::test]
 async fn reindexing_external_source_with_whitespace_text_deletes_stale_chunks() {
     let workspace = tempfile::tempdir().expect("workspace tempdir");
     let source_id = "esign:envelope:empty-resync-target";

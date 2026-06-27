@@ -12,6 +12,8 @@ pub mod keychain;
 pub mod audit;
 // Wealthbox CRM connector (Phase 1A) — CRM RAG ingestion bridge.
 pub mod crm;
+// Calendly connector — read-only scheduled events + invitee intake into meeting RAG.
+pub mod calendly;
 // Shared additive connector foundation — generic external RAG ingestion bridge.
 pub mod connector;
 // M365 email-import (Task 1+) — pure-Rust Graph JSON parsing, local index, sync.
