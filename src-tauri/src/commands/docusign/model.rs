@@ -28,12 +28,12 @@ impl DocusignEnvironment {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, PartialEq)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "snake_case")]
 pub struct DocusignAccountInfo {
     pub account_id: String,
     pub base_uri: String,
     pub account_name: String,
-    pub is_default: String,
+    pub is_default: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, PartialEq)]
@@ -164,7 +164,11 @@ pub struct DocusignEnvelope {
     pub folder_name: String,
     pub sender: Option<DocusignUser>,
     pub recipients: Option<DocusignRecipients>,
-    #[serde(default, alias = "envelopeDocuments", deserialize_with = "null_to_default")]
+    #[serde(
+        default,
+        alias = "envelopeDocuments",
+        deserialize_with = "null_to_default"
+    )]
     pub documents: Vec<DocusignDocument>,
     pub custom_fields: Option<DocusignCustomFields>,
 }

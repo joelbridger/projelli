@@ -55,6 +55,7 @@ import {
   type WorkspaceChangeEvent,
 } from '@/platform/utils/tauri-commands';
 import { mailSetWorkspace } from '@/platform/utils/mail-commands';
+import { docusignSetWorkspace } from '@/platform/utils/docusign-commands';
 import { crmSetWorkspace } from '@/platform/utils/wealthbox-commands';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/platform/types/workspace';
@@ -537,6 +538,13 @@ export function useMemoryWiring(
           await crmSetWorkspace(rootPath);
         } catch (err) {
           console.warn('crmSetWorkspace failed; continuing workspace setup:', err);
+        }
+        // Best-effort: DocuSign sync/list/disconnect commands also need the
+        // active workspace path before they can read/write local connector data.
+        try {
+          await docusignSetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('docusignSetWorkspace failed; continuing workspace setup:', err);
         }
         await watchWorkspace(rootPath);
 

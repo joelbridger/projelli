@@ -57,12 +57,7 @@ impl DocusignOAuth {
         self.environment
     }
 
-    pub fn build_auth_url(
-        &self,
-        redirect_uri: &str,
-        code_challenge: &str,
-        state: &str,
-    ) -> String {
+    pub fn build_auth_url(&self, redirect_uri: &str, code_challenge: &str, state: &str) -> String {
         build_auth_url(
             &self.oauth_base,
             &self.client_id,
@@ -202,7 +197,7 @@ pub fn parse_token_response(
 pub fn pick_account(accounts: Vec<DocusignAccountInfo>) -> anyhow::Result<DocusignAccountInfo> {
     accounts
         .iter()
-        .find(|account| account.is_default.eq_ignore_ascii_case("true"))
+        .find(|account| account.is_default)
         .cloned()
         .or_else(|| accounts.into_iter().next())
         .ok_or_else(|| anyhow::anyhow!("DocuSign userinfo returned no accounts"))
@@ -281,13 +276,13 @@ mod tests {
             account_id: "a1".into(),
             account_name: "First".into(),
             base_uri: "https://demo.docusign.net".into(),
-            is_default: "false".into(),
+            is_default: false,
         };
         let default = DocusignAccountInfo {
             account_id: "a2".into(),
             account_name: "Default".into(),
             base_uri: "https://demo.docusign.net".into(),
-            is_default: "true".into(),
+            is_default: true,
         };
         assert_eq!(
             pick_account(vec![first.clone(), default.clone()])
@@ -296,5 +291,50 @@ mod tests {
             "a2"
         );
         assert_eq!(pick_account(vec![first]).unwrap().account_id, "a1");
+    }
+
+    #[test]
+    fn userinfo_accounts_deserialize_real_snake_case_shape_and_pick_default() {
+        #[derive(serde::Deserialize, Default)]
+        #[serde(default)]
+        struct UserInfo {
+            accounts: Vec<DocusignAccountInfo>,
+        }
+
+        let payload = r#"{
+            "sub": "00000000-0000-0000-0000-000000000000",
+            "name": "Advisor User",
+            "email": "advisor@example.com",
+            "accounts": [
+                {
+                    "account_id": "acct-non-default",
+                    "account_name": "Non Default Account",
+                    "base_uri": "https://demo.docusign.net",
+                    "is_default": false,
+                    "organization": {
+                        "organization_id": "org-1",
+                        "links": []
+                    }
+                },
+                {
+                    "account_id": "acct-default",
+                    "account_name": "Default Account",
+                    "base_uri": "https://na4.docusign.net",
+                    "is_default": true,
+                    "organization": {
+                        "organization_id": "org-2",
+                        "links": []
+                    }
+                }
+            ]
+        }"#;
+
+        let info: UserInfo = serde_json::from_str(payload).unwrap();
+        let selected = pick_account(info.accounts).unwrap();
+
+        assert_eq!(selected.account_id, "acct-default");
+        assert_eq!(selected.account_name, "Default Account");
+        assert_eq!(selected.base_uri, "https://na4.docusign.net");
+        assert!(selected.is_default);
     }
 }

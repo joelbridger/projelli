@@ -7,14 +7,15 @@
 //! 4. index them as encrypted `esign` chunks via the shared connector bridge.
 
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::path::Path;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use sha2::{Digest, Sha256};
 
 use crate::commands::docusign::model::{
-    DocusignAuditEvent, DocusignEnvelope, DocusignNeedsAssignment,
-    EsignMatterMapEntry,
+    DocusignAuditEvent, DocusignEnvelope, DocusignNeedsAssignment, EsignMatterMapEntry,
 };
 use crate::commands::docusign::render::{
     envelope_source_id, event_source_id, render_document_metadata, render_envelope, render_event,
@@ -27,6 +28,7 @@ const REPOLL_SECONDS: i64 = 15 * 60;
 #[derive(Debug, Clone)]
 pub struct DocusignIndexItem {
     pub source_id: String,
+    pub mark_source_id: String,
     pub text: String,
     pub matter_id: String,
 }
@@ -75,8 +77,10 @@ pub async fn ingest_window(
             .list_envelopes(from_date, to_date, start_position.as_deref())
             .await?;
         let next_start = page.next_start_position();
+        let mut page_fully_processed = true;
         for mut envelope in page.envelopes {
             if cancel.load(Ordering::SeqCst) {
+                page_fully_processed = false;
                 break;
             }
             report.envelopes_fetched += 1;
@@ -127,6 +131,10 @@ pub async fn ingest_window(
                     report.audit_events += 1;
                 }
             }
+        }
+
+        if !page_fully_processed {
+            break;
         }
 
         if let Some(next) = next_start {
@@ -278,13 +286,17 @@ fn normalize_key(value: &str) -> String {
         .join(" ")
 }
 
-pub fn plan_unindexed(store: &DocusignStore, account_id: &str) -> anyhow::Result<Vec<DocusignIndexItem>> {
+pub fn plan_unindexed(
+    store: &DocusignStore,
+    account_id: &str,
+) -> anyhow::Result<Vec<DocusignIndexItem>> {
     let mut out = Vec::new();
     for row in store.list_unindexed_envelopes()? {
         let envelope: DocusignEnvelope = serde_json::from_str(&row.json)?;
         let (source_id, text) = render_envelope(account_id, &envelope);
         out.push(DocusignIndexItem {
             source_id,
+            mark_source_id: row.source_id.clone(),
             text,
             matter_id: row.matter_id.clone(),
         });
@@ -293,6 +305,7 @@ pub fn plan_unindexed(store: &DocusignStore, account_id: &str) -> anyhow::Result
                 render_document_metadata(account_id, &envelope.envelope_id, doc);
             out.push(DocusignIndexItem {
                 source_id,
+                mark_source_id: row.source_id.clone(),
                 text,
                 matter_id: row.matter_id.clone(),
             });
@@ -302,6 +315,7 @@ pub fn plan_unindexed(store: &DocusignStore, account_id: &str) -> anyhow::Result
         let event: DocusignAuditEvent = serde_json::from_str(&row.json)?;
         let (source_id, text) = render_event(account_id, &row.envelope_id, &event);
         out.push(DocusignIndexItem {
+            mark_source_id: source_id.clone(),
             source_id,
             text,
             matter_id: row.matter_id.clone(),
@@ -310,26 +324,52 @@ pub fn plan_unindexed(store: &DocusignStore, account_id: &str) -> anyhow::Result
     Ok(out)
 }
 
+type IndexOneFuture<'a> = Pin<Box<dyn Future<Output = anyhow::Result<u32>> + Send + 'a>>;
+
+async fn apply_index_items<F>(
+    store: &DocusignStore,
+    items: &[DocusignIndexItem],
+    mut index_one: F,
+) -> anyhow::Result<u32>
+where
+    F: for<'a> FnMut(&'a DocusignIndexItem) -> IndexOneFuture<'a> + Send,
+{
+    let mut count = 0;
+    let mut index = 0;
+    while index < items.len() {
+        let mark_source_id = items[index].mark_source_id.clone();
+        while index < items.len() && items[index].mark_source_id == mark_source_id {
+            count += index_one(&items[index]).await?;
+            index += 1;
+        }
+        store.mark_indexed(&mark_source_id)?;
+    }
+    Ok(count)
+}
+
 pub async fn apply_index_with_key(
     workspace: &Path,
     store: &DocusignStore,
     items: &[DocusignIndexItem],
     key: &[u8; 32],
 ) -> anyhow::Result<u32> {
-    let mut count = 0;
-    for item in items {
-        count += crate::commands::connector::index_external_text_with_key_internal(
-            workspace,
-            &item.source_id,
-            &item.text,
-            &item.matter_id,
-            "esign",
-            key,
-        )
-        .await?;
-        store.mark_indexed(&item.source_id)?;
-    }
-    Ok(count)
+    let workspace = workspace.to_path_buf();
+    let key = *key;
+    apply_index_items(store, items, move |item| {
+        let workspace = workspace.clone();
+        Box::pin(async move {
+            crate::commands::connector::index_external_text_with_key_internal(
+                &workspace,
+                &item.source_id,
+                &item.text,
+                &item.matter_id,
+                "esign",
+                &key,
+            )
+            .await
+        })
+    })
+    .await
 }
 
 pub async fn sync_window_with_key(
@@ -372,11 +412,13 @@ mod tests {
     };
     use crate::commands::docusign::store::DocusignStore;
     use async_trait::async_trait;
+    use std::sync::Arc;
     use tempfile::TempDir;
 
     struct FakeEsignSource {
         pages: HashMap<Option<String>, DocusignEnvelopePage>,
         audit: Vec<DocusignAuditEvent>,
+        cancel_on_recipients: Option<Arc<AtomicBool>>,
     }
 
     #[async_trait]
@@ -404,10 +446,25 @@ mod tests {
         }
 
         async fn list_recipients(&self, _envelope_id: &str) -> anyhow::Result<DocusignRecipients> {
-            Ok(DocusignRecipients::default())
+            if let Some(cancel) = &self.cancel_on_recipients {
+                cancel.store(true, Ordering::SeqCst);
+            }
+            Ok(DocusignRecipients {
+                signers: vec![DocusignRecipient {
+                    recipient_id: "1".into(),
+                    name: "Bob Smith".into(),
+                    email: "bob@example.com".into(),
+                    status: "completed".into(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            })
         }
 
-        async fn list_documents(&self, _envelope_id: &str) -> anyhow::Result<Vec<DocusignDocument>> {
+        async fn list_documents(
+            &self,
+            _envelope_id: &str,
+        ) -> anyhow::Result<Vec<DocusignDocument>> {
             Ok(vec![])
         }
 
@@ -462,7 +519,11 @@ mod tests {
         pages.insert(
             None,
             DocusignEnvelopePage {
-                envelopes: vec![envelope("env-1", "Bob Smith advisory agreement", "bob@example.com")],
+                envelopes: vec![envelope(
+                    "env-1",
+                    "Bob Smith advisory agreement",
+                    "bob@example.com",
+                )],
                 next_uri: "/v2.1/accounts/a/envelopes?start_position=1000".into(),
                 ..Default::default()
             },
@@ -470,7 +531,11 @@ mod tests {
         pages.insert(
             Some("1000".into()),
             DocusignEnvelopePage {
-                envelopes: vec![envelope("env-2", "Unknown agreement", "unknown@example.com")],
+                envelopes: vec![envelope(
+                    "env-2",
+                    "Unknown agreement",
+                    "unknown@example.com",
+                )],
                 ..Default::default()
             },
         );
@@ -485,6 +550,36 @@ mod tests {
                 authentication_method: "email".into(),
                 ..Default::default()
             }],
+            cancel_on_recipients: None,
+        }
+    }
+
+    fn source_with_cancel_after_first_envelope(cancel: Arc<AtomicBool>) -> FakeEsignSource {
+        let mut first = envelope("env-1", "Bob Smith advisory agreement", "bob@example.com");
+        first.recipients = None;
+        let mut second = envelope("env-2", "Bob Smith investment policy", "bob@example.com");
+        second.recipients = None;
+
+        let mut pages = HashMap::new();
+        pages.insert(
+            None,
+            DocusignEnvelopePage {
+                envelopes: vec![first, second],
+                next_uri: "/v2.1/accounts/a/envelopes?start_position=1000".into(),
+                ..Default::default()
+            },
+        );
+        pages.insert(
+            Some("1000".into()),
+            DocusignEnvelopePage {
+                envelopes: vec![envelope("env-3", "Next page", "bob@example.com")],
+                ..Default::default()
+            },
+        );
+        FakeEsignSource {
+            pages,
+            audit: vec![],
+            cancel_on_recipients: Some(cancel),
         }
     }
 
@@ -523,10 +618,19 @@ mod tests {
         .await
         .unwrap();
 
-        let row = store.get_envelope("docusign:acct-1:env-1").unwrap().unwrap();
+        let row = store
+            .get_envelope("docusign:acct-1:env-1")
+            .unwrap()
+            .unwrap();
         assert_eq!(row.matter_id, "matter-bob");
-        let unassigned = store.get_envelope("docusign:acct-1:env-2").unwrap().unwrap();
-        assert_eq!(unassigned.matter_id, crate::commands::rag::store::UNASSIGNED_MATTER);
+        let unassigned = store
+            .get_envelope("docusign:acct-1:env-2")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            unassigned.matter_id,
+            crate::commands::rag::store::UNASSIGNED_MATTER
+        );
         assert!(unassigned.needs_assignment);
         assert_eq!(report.needs_assignment.len(), 1);
     }
@@ -553,7 +657,9 @@ mod tests {
         assert_eq!(first.envelopes_changed, 2);
         let items = plan_unindexed(&store, "acct-1").unwrap();
         assert!(
-            items.iter().any(|i| i.source_id == "docusign:acct-1:env-1:event:evt-1"),
+            items
+                .iter()
+                .any(|i| i.source_id == "docusign:acct-1:env-1:event:evt-1"),
             "audit events must become event records"
         );
         for item in &items {
@@ -595,6 +701,114 @@ mod tests {
                 .as_deref(),
             Some("")
         );
-        assert!(store.get_envelope("docusign:acct-1:env-2").unwrap().is_some());
+        assert!(store
+            .get_envelope("docusign:acct-1:env-2")
+            .unwrap()
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn cancelled_mid_page_does_not_advance_cursor_past_unprocessed_envelopes() {
+        let (_dir, store) = store();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let map = vec![EsignMatterMapEntry {
+            esign_key: "bob@example.com".into(),
+            matter_id: "matter-bob".into(),
+        }];
+
+        let report = ingest_window(
+            &source_with_cancel_after_first_envelope(cancel.clone()),
+            &store,
+            "acct-1",
+            "2026-01-01",
+            Some("2026-02-01"),
+            &map,
+            cancel.as_ref(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(report.envelopes_fetched, 1);
+        assert!(store
+            .get_envelope("docusign:acct-1:env-1")
+            .unwrap()
+            .is_some());
+        assert!(store
+            .get_envelope("docusign:acct-1:env-2")
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            store
+                .get_cursor("completed:2026-01-01:2026-02-01")
+                .unwrap()
+                .as_deref(),
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn envelope_is_not_marked_indexed_until_all_document_items_succeed() {
+        let (_dir, store) = store();
+        let mut envelope = envelope("env-1", "Bob Smith advisory agreement", "bob@example.com");
+        envelope.documents = vec![
+            DocusignDocument {
+                document_id: "1".into(),
+                name: "Signed agreement.pdf".into(),
+                r#type: "content".into(),
+                ..Default::default()
+            },
+            DocusignDocument {
+                document_id: "2".into(),
+                name: "Certificate of completion.pdf".into(),
+                r#type: "summary".into(),
+                ..Default::default()
+            },
+        ];
+        let json = serde_json::to_string(&envelope).unwrap();
+        let source_id = envelope_source_id("acct-1", &envelope.envelope_id);
+        store
+            .upsert_envelope(
+                &source_id,
+                &envelope.envelope_id,
+                "matter-bob",
+                &envelope.email_subject,
+                &envelope.completed_date_time,
+                &content_hash(&json),
+                &json,
+                false,
+                "",
+            )
+            .unwrap();
+
+        let items = plan_unindexed(&store, "acct-1").unwrap();
+        assert_eq!(items.len(), 3);
+        assert!(items.iter().all(|item| item.mark_source_id == source_id));
+
+        let mut attempts = 0;
+        let err = apply_index_items(&store, &items, |_item| {
+            attempts += 1;
+            let attempt = attempts;
+            Box::pin(async move {
+                if attempt == 2 {
+                    anyhow::bail!("document metadata index failed");
+                }
+                Ok(1)
+            })
+        })
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("document metadata index failed"));
+
+        let retry_items = plan_unindexed(&store, "acct-1").unwrap();
+        assert_eq!(
+            retry_items.len(),
+            3,
+            "retry must reprocess the envelope and both document metadata records"
+        );
+
+        apply_index_items(&store, &retry_items, |_item| Box::pin(async { Ok(1) }))
+            .await
+            .unwrap();
+        assert!(store.list_unindexed_envelopes().unwrap().is_empty());
     }
 }
