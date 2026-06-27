@@ -21,6 +21,8 @@ import { MailConnect } from '@/features/settings/MailConnect';
 import { MailImapConnect } from '@/features/settings/MailImapConnect';
 import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
 import { WealthboxConnect } from '@/features/settings/WealthboxConnect';
+import { SalesforceConnect } from '@/features/settings/SalesforceConnect';
+import { RedtailConnect } from '@/features/settings/RedtailConnect';
 import { McpSettingsSection } from '@/features/settings/McpSettingsSection';
 import { OllamaSettingsSection } from '@/features/settings/OllamaSettingsSection';
 import {
@@ -302,6 +304,8 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                 <MailImapConnect />
                 <MailGmailConnect />
                 <WealthboxConnect />
+                <SalesforceConnect />
+                <RedtailConnect />
                 <OllamaSettingsSection />
                 {/* Developer tools — connecting Keepance to outside AI clients
                     (Claude Desktop, Cursor) via MCP. This is power-user

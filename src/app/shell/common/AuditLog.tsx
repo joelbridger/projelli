@@ -106,6 +106,9 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   'wealthbox.connect': Users2,
   'wealthbox.sync': Users2,
   'wealthbox.disconnect': Users2,
+  'salesforce.connect': Users2,
+  'salesforce.sync': Users2,
+  'salesforce.disconnect': Users2,
 };
 
 const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -147,6 +150,9 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   'wealthbox.connect': 'Wealthbox Connected',
   'wealthbox.sync': 'Wealthbox Synced',
   'wealthbox.disconnect': 'Wealthbox Disconnected',
+  'salesforce.connect': 'Salesforce Connected',
+  'salesforce.sync': 'Salesforce Synced',
+  'salesforce.disconnect': 'Salesforce Disconnected',
 };
 
 const ACTION_COLORS: Record<AuditActionType, string> = {
@@ -188,6 +194,9 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   'wealthbox.connect': 'text-emerald-600 dark:text-emerald-400',
   'wealthbox.sync': 'text-sky-600 dark:text-sky-400',
   'wealthbox.disconnect': 'text-orange-600 dark:text-orange-400',
+  'salesforce.connect': 'text-emerald-600 dark:text-emerald-400',
+  'salesforce.sync': 'text-sky-600 dark:text-sky-400',
+  'salesforce.disconnect': 'text-orange-600 dark:text-orange-400',
 };
 
 export function AuditLog({

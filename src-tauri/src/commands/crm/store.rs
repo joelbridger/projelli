@@ -28,6 +28,19 @@ const KEY_LEN: usize = 32;
 /// Mirrors `mail::crypto::get_or_create_master_key` exactly — same algorithm,
 /// separate keychain entry so this DB has its own independent key.
 fn crm_master_key() -> Result<[u8; KEY_LEN]> {
+    if let Ok(hex) = std::env::var("KEEPANCE_HEADLESS_TEST_CRM_MASTER_KEY_HEX") {
+        let bytes = hex::decode(hex.trim()).context("decode headless test crm master key hex")?;
+        if bytes.len() != KEY_LEN {
+            anyhow::bail!(
+                "headless test crm master key has wrong length: {}",
+                bytes.len()
+            );
+        }
+        let mut k = [0u8; KEY_LEN];
+        k.copy_from_slice(&bytes);
+        return Ok(k);
+    }
+
     let entry = keyring::Entry::new(CRM_KEYCHAIN_SERVICE, CRM_KEYCHAIN_KEY)
         .context("crm keychain entry")?;
     match entry.get_password() {
@@ -91,13 +104,13 @@ impl CrmStore {
         if let Some(parent) = p.parent() {
             std::fs::create_dir_all(parent).ok();
         }
-        let conn = Connection::open(&p)
-            .with_context(|| format!("open crm enc db {}", p.display()))?;
+        let conn =
+            Connection::open(&p).with_context(|| format!("open crm enc db {}", p.display()))?;
 
         // SQLCipher: key must be set before any DDL.
         // Raw-hex form bypasses passphrase KDF overhead.
         let hex_key = hex::encode(key);
-        conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";" , hex_key))?;
+        conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_key))?;
 
         // Two concurrent writers (sync loop + indexer) need a wait instead of
         // an immediate "database is locked" failure.
@@ -211,9 +224,7 @@ impl CrmStore {
     #[allow(dead_code)]
     pub fn list_object_ids(&self, kind: &str) -> Result<Vec<String>> {
         let c = self.conn.lock().unwrap();
-        let mut stmt = c.prepare(
-            "SELECT id FROM crm_objects WHERE kind = ?1 AND deleted = 0",
-        )?;
+        let mut stmt = c.prepare("SELECT id FROM crm_objects WHERE kind = ?1 AND deleted = 0")?;
         let rows = stmt
             .query_map([kind], |r| r.get::<_, String>(0))?
             .collect::<rusqlite::Result<Vec<String>>>()?;
@@ -233,14 +244,156 @@ impl CrmStore {
         Ok(rows)
     }
 
+    /// Return every non-deleted object whose store id carries a provider marker in the
+    /// id payload, e.g. `contact:sfdc:003...`. This is used for provider-scoped
+    /// disconnect so removing Salesforce cannot remove Wealthbox rows.
+    #[allow(dead_code)]
+    pub fn list_objects_by_provider_marker(&self, marker: &str) -> Result<Vec<CrmObjectRow>> {
+        self.list_objects_by_provider_marker_inner(marker, false)
+    }
+
+    /// Return every object whose store id carries a provider marker, including
+    /// tombstoned rows. Disconnect uses this path so stale RAG chunks from rows
+    /// that disappeared in an earlier sync are purged before the DB rows are
+    /// hard-deleted.
+    #[allow(dead_code)]
+    pub fn list_objects_by_provider_marker_including_deleted(
+        &self,
+        marker: &str,
+    ) -> Result<Vec<CrmObjectRow>> {
+        self.list_objects_by_provider_marker_inner(marker, true)
+    }
+
+    fn list_objects_by_provider_marker_inner(
+        &self,
+        marker: &str,
+        include_deleted: bool,
+    ) -> Result<Vec<CrmObjectRow>> {
+        let marker = marker.trim();
+        if marker.is_empty() || marker.contains('%') || marker.contains('_') {
+            anyhow::bail!("invalid CRM provider marker");
+        }
+        let c = self.conn.lock().unwrap();
+        let like = format!("{marker}%");
+        let sql = if include_deleted {
+            "SELECT id, kind, household_id, updated_at, content_hash, json, deleted
+             FROM crm_objects
+             WHERE substr(id, instr(id, ':') + 1) LIKE ?1"
+        } else {
+            "SELECT id, kind, household_id, updated_at, content_hash, json, deleted
+             FROM crm_objects
+             WHERE substr(id, instr(id, ':') + 1) LIKE ?1 AND deleted = 0"
+        };
+        let mut stmt = c.prepare(sql)?;
+        let rows = stmt
+            .query_map([like], row_to_crm_object)?
+            .collect::<rusqlite::Result<Vec<CrmObjectRow>>>()?;
+        Ok(rows)
+    }
+
+    /// Return every legacy Wealthbox row, including tombstoned rows. Wealthbox
+    /// owns the original unprefixed id space (`contact:10002`, `note:456`).
+    #[allow(dead_code)]
+    pub fn list_legacy_wealthbox_objects_including_deleted(&self) -> Result<Vec<CrmObjectRow>> {
+        let c = self.conn.lock().unwrap();
+        let mut stmt = c.prepare(
+            "SELECT id, kind, household_id, updated_at, content_hash, json, deleted
+             FROM crm_objects
+             WHERE instr(id, ':') = 0
+                OR (
+                    substr(id, instr(id, ':') + 1) NOT LIKE 'sfdc:%'
+                    AND substr(id, instr(id, ':') + 1) NOT LIKE 'redtail:%'
+                )",
+        )?;
+        let rows = stmt
+            .query_map([], row_to_crm_object)?
+            .collect::<rusqlite::Result<Vec<CrmObjectRow>>>()?;
+        Ok(rows)
+    }
+
+    /// Hard-delete every CRM object whose store id carries the given provider
+    /// marker. Render-state rows for affected households are also removed so a
+    /// later sync recomputes the matter plan from the remaining provider rows.
+    #[allow(dead_code)]
+    pub fn purge_objects_by_provider_marker(&self, marker: &str) -> Result<usize> {
+        let marker = marker.trim();
+        if marker.is_empty() || marker.contains('%') || marker.contains('_') {
+            anyhow::bail!("invalid CRM provider marker");
+        }
+        let c = self.conn.lock().unwrap();
+        let like = format!("{marker}%");
+
+        let mut stmt = c.prepare(
+            "SELECT DISTINCT household_id FROM crm_objects
+             WHERE substr(id, instr(id, ':') + 1) LIKE ?1 AND household_id != ''",
+        )?;
+        let household_ids = stmt
+            .query_map([like.as_str()], |r| r.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<String>>>()?;
+        drop(stmt);
+
+        for household_id in household_ids {
+            c.execute(
+                "DELETE FROM crm_render_state WHERE household_id = ?1",
+                [household_id],
+            )?;
+        }
+
+        let deleted = c.execute(
+            "DELETE FROM crm_objects WHERE substr(id, instr(id, ':') + 1) LIKE ?1",
+            [like],
+        )?;
+        Ok(deleted)
+    }
+
+    /// Hard-delete every legacy Wealthbox object while preserving provider-prefixed
+    /// rows such as Salesforce (`sfdc:`) and Redtail (`redtail:`).
+    #[allow(dead_code)]
+    pub fn purge_legacy_wealthbox_objects(&self) -> Result<usize> {
+        let c = self.conn.lock().unwrap();
+        let legacy_predicate = "instr(id, ':') = 0
+            OR (
+                substr(id, instr(id, ':') + 1) NOT LIKE 'sfdc:%'
+                AND substr(id, instr(id, ':') + 1) NOT LIKE 'redtail:%'
+            )";
+
+        let mut stmt = c.prepare(&format!(
+            "SELECT DISTINCT household_id FROM crm_objects
+             WHERE ({legacy_predicate}) AND household_id != ''"
+        ))?;
+        let household_ids = stmt
+            .query_map([], |r| r.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<String>>>()?;
+        drop(stmt);
+
+        for household_id in household_ids {
+            c.execute(
+                "DELETE FROM crm_render_state WHERE household_id = ?1",
+                [household_id],
+            )?;
+        }
+
+        let deleted = c.execute(
+            &format!("DELETE FROM crm_objects WHERE {legacy_predicate}"),
+            [],
+        )?;
+        Ok(deleted)
+    }
+
+    #[allow(dead_code)]
+    pub fn has_any_objects_including_deleted(&self) -> Result<bool> {
+        let c = self.conn.lock().unwrap();
+        let count = c.query_row("SELECT COUNT(*) FROM crm_objects", [], |r| {
+            r.get::<_, i64>(0)
+        })?;
+        Ok(count > 0)
+    }
+
     /// Soft-delete an object (sets `deleted = 1`).
     #[allow(dead_code)]
     pub fn tombstone_object(&self, id: &str) -> Result<()> {
         let c = self.conn.lock().unwrap();
-        c.execute(
-            "UPDATE crm_objects SET deleted = 1 WHERE id = ?1",
-            [id],
-        )?;
+        c.execute("UPDATE crm_objects SET deleted = 1 WHERE id = ?1", [id])?;
         Ok(())
     }
 
@@ -313,10 +466,7 @@ impl CrmStore {
 
     /// Retrieve the render/index state for a household, or `None` if absent.
     #[allow(dead_code)]
-    pub fn get_render_state(
-        &self,
-        household_id: &str,
-    ) -> Result<Option<(String, bool)>> {
+    pub fn get_render_state(&self, household_id: &str) -> Result<Option<(String, bool)>> {
         let c = self.conn.lock().unwrap();
         Ok(c.query_row(
             "SELECT render_hash, indexed FROM crm_render_state
@@ -340,10 +490,10 @@ impl CrmStore {
     pub fn get_meta(&self, key: &str) -> Result<Option<String>> {
         use rusqlite::OptionalExtension;
         let c = self.conn.lock().unwrap();
-        Ok(c.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| {
-            r.get(0)
-        })
-        .optional()?)
+        Ok(
+            c.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0))
+                .optional()?,
+        )
     }
 
     /// Set (upsert) one meta value.  Idempotent; last-writer-wins.
@@ -466,7 +616,10 @@ mod tests {
         }
         assert!(base.exists(), "db file should exist before purge");
         for suffix in ["-wal", "-shm", "-journal"] {
-            assert!(sidecar(&base, suffix).exists(), "sidecar {suffix} should exist before purge");
+            assert!(
+                sidecar(&base, suffix).exists(),
+                "sidecar {suffix} should exist before purge"
+            );
         }
 
         CrmStore::purge(dir.path()).expect("purge");
@@ -596,6 +749,244 @@ mod tests {
         assert!(row.deleted);
     }
 
+    #[test]
+    fn provider_marker_purge_removes_only_salesforce_rows() {
+        let (_d, s) = crm_store();
+
+        s.upsert_object(
+            "contact:10002",
+            "person",
+            "10001",
+            "",
+            "hash-wb",
+            r#"{"id":10002}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA",
+            "person",
+            "sfdc:001HH0000000001AAA",
+            "",
+            "hash-sf-contact",
+            r#"{"external_id":"sfdc:003CC0000000002AAA:acct:001HH0000000001AAA"}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "contact:sfdc:001HH0000000001AAA",
+            "household",
+            "sfdc:001HH0000000001AAA",
+            "",
+            "hash-sf-household",
+            r#"{"external_id":"sfdc:001HH0000000001AAA"}"#,
+        )
+        .unwrap();
+        s.set_render_state("sfdc:001HH0000000001AAA", "stale", true)
+            .unwrap();
+
+        let salesforce_rows = s.list_objects_by_provider_marker("sfdc:").unwrap();
+        assert_eq!(salesforce_rows.len(), 2);
+
+        let deleted = s.purge_objects_by_provider_marker("sfdc:").unwrap();
+        assert_eq!(deleted, 2);
+
+        assert!(
+            s.get_object("contact:10002").unwrap().is_some(),
+            "Wealthbox row must survive Salesforce purge"
+        );
+        assert!(
+            s.get_object("contact:sfdc:001HH0000000001AAA")
+                .unwrap()
+                .is_none(),
+            "Salesforce household row must be gone"
+        );
+        assert_eq!(
+            s.get_render_state("sfdc:001HH0000000001AAA").unwrap(),
+            None,
+            "provider purge must clear stale render state for that household"
+        );
+    }
+
+    #[test]
+    fn legacy_wealthbox_purge_removes_live_and_tombstoned_rows_only() {
+        let (_d, s) = crm_store();
+
+        s.upsert_object(
+            "contact:10002",
+            "person",
+            "10001",
+            "",
+            "hash-wb-live",
+            r#"{"id":10002}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "note:20002",
+            "note",
+            "10001",
+            "",
+            "hash-wb-tombstoned",
+            r#"{"id":20002}"#,
+        )
+        .unwrap();
+        s.tombstone_object("note:20002").unwrap();
+        s.upsert_object(
+            "contact:sfdc:001HH0000000001AAA",
+            "household",
+            "sfdc:001HH0000000001AAA",
+            "",
+            "hash-sf",
+            r#"{"external_id":"sfdc:001HH0000000001AAA"}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "contact:redtail:family:7",
+            "household",
+            "redtail:family:7",
+            "",
+            "hash-redtail-family",
+            r#"{"external_id":"redtail:family:7"}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "note:redtail:note:2",
+            "note",
+            "redtail:family:7",
+            "",
+            "hash-redtail-note",
+            r#"{"external_id":"redtail:note:2"}"#,
+        )
+        .unwrap();
+        s.set_render_state("10001", "stale", true).unwrap();
+
+        let wealthbox_rows = s.list_legacy_wealthbox_objects_including_deleted().unwrap();
+        assert_eq!(wealthbox_rows.len(), 2);
+
+        let deleted = s.purge_legacy_wealthbox_objects().unwrap();
+        assert_eq!(deleted, 2);
+
+        assert!(s.get_object("contact:10002").unwrap().is_none());
+        assert!(s.get_object("note:20002").unwrap().is_none());
+        assert!(
+            s.get_object("contact:sfdc:001HH0000000001AAA")
+                .unwrap()
+                .is_some(),
+            "Salesforce row must survive Wealthbox purge"
+        );
+        assert!(
+            s.get_object("contact:redtail:family:7").unwrap().is_some(),
+            "Redtail row must survive Wealthbox purge"
+        );
+        assert_eq!(
+            s.get_render_state("10001").unwrap(),
+            None,
+            "legacy Wealthbox purge must clear stale render state for that household"
+        );
+        assert!(s.has_any_objects_including_deleted().unwrap());
+    }
+
+    #[test]
+    fn provider_marker_purge_removes_only_redtail_rows() {
+        let (_d, s) = crm_store();
+
+        s.upsert_object(
+            "contact:10002",
+            "person",
+            "10001",
+            "",
+            "hash-wb",
+            r#"{"id":10002}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "contact:sfdc:001HH0000000001AAA",
+            "household",
+            "sfdc:001HH0000000001AAA",
+            "",
+            "hash-sf",
+            r#"{"external_id":"sfdc:001HH0000000001AAA"}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "contact:redtail:family:7",
+            "household",
+            "redtail:family:7",
+            "",
+            "hash-redtail-family",
+            r#"{"external_id":"redtail:family:7"}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "note:redtail:note:2",
+            "note",
+            "redtail:family:7",
+            "",
+            "hash-redtail-note",
+            r#"{"external_id":"redtail:note:2"}"#,
+        )
+        .unwrap();
+        s.set_render_state("redtail:family:7", "stale", true)
+            .unwrap();
+
+        let redtail_rows = s.list_objects_by_provider_marker("redtail:").unwrap();
+        assert_eq!(redtail_rows.len(), 2);
+
+        let deleted = s.purge_objects_by_provider_marker("redtail:").unwrap();
+        assert_eq!(deleted, 2);
+
+        assert!(
+            s.get_object("contact:10002").unwrap().is_some(),
+            "Wealthbox row must survive Redtail purge"
+        );
+        assert!(
+            s.get_object("contact:sfdc:001HH0000000001AAA")
+                .unwrap()
+                .is_some(),
+            "Salesforce row must survive Redtail purge"
+        );
+        assert!(
+            s.get_object("contact:redtail:family:7").unwrap().is_none(),
+            "Redtail household row must be gone"
+        );
+        assert_eq!(
+            s.get_render_state("redtail:family:7").unwrap(),
+            None,
+            "provider purge must clear stale render state for that household"
+        );
+    }
+
+    #[test]
+    fn provider_marker_list_including_deleted_returns_tombstoned_salesforce_rows() {
+        let (_d, s) = crm_store();
+
+        s.upsert_object(
+            "contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA",
+            "person",
+            "sfdc:001HH0000000001AAA",
+            "",
+            "hash-sf-contact",
+            r#"{"external_id":"sfdc:003CC0000000002AAA:acct:001HH0000000001AAA"}"#,
+        )
+        .unwrap();
+        s.tombstone_object("contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA")
+            .unwrap();
+
+        assert!(
+            s.list_objects_by_provider_marker("sfdc:")
+                .unwrap()
+                .is_empty(),
+            "the live provider-marker list should still hide tombstoned rows"
+        );
+
+        let all = s
+            .list_objects_by_provider_marker_including_deleted("sfdc:")
+            .unwrap();
+        assert_eq!(all.len(), 1);
+        assert!(
+            all[0].deleted,
+            "disconnect needs tombstoned provider rows so their stale RAG chunks can be deleted"
+        );
+    }
+
     // -----------------------------------------------------------------------
     // Cursor round-trip
     // -----------------------------------------------------------------------
@@ -656,10 +1047,7 @@ mod tests {
 
         assert_eq!(s.get_meta("sync_state").unwrap(), None);
         s.set_meta("sync_state", "idle").unwrap();
-        assert_eq!(
-            s.get_meta("sync_state").unwrap().as_deref(),
-            Some("idle")
-        );
+        assert_eq!(s.get_meta("sync_state").unwrap().as_deref(), Some("idle"));
         // Last-writer-wins.
         s.set_meta("sync_state", "running").unwrap();
         assert_eq!(
@@ -695,8 +1083,9 @@ mod tests {
         let db_path = CrmStore::db_path(dir.path());
         let raw = Connection::open(&db_path).expect("open file");
         // A SELECT without a key should fail (file is encrypted).
-        let result =
-            raw.query_row("SELECT count(*) FROM crm_objects", [], |r| r.get::<_, i64>(0));
+        let result = raw.query_row("SELECT count(*) FROM crm_objects", [], |r| {
+            r.get::<_, i64>(0)
+        });
         assert!(
             result.is_err(),
             "plain rusqlite connection must not be able to read SQLCipher DB"
