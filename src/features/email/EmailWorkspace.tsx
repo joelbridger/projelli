@@ -640,7 +640,7 @@ export function EmailWorkspace({
             size="md"
             variant="filled"
             options={[
-              { value: 'matter' as const, label: 'This matter' },
+              { value: 'matter' as const, label: 'This client' },
               { value: 'all' as const, label: 'All email' },
             ]}
             value={scopeAllEmail ? 'all' : 'matter'}

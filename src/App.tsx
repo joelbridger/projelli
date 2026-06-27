@@ -21,6 +21,8 @@ import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
 import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelector';
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
+import { SettingsGearButton } from '@/app/shell/layout/SettingsGearButton';
+import { isNewNavEnabled, useNewNav } from '@/platform/flags/newNav';
 import { TrustBar } from '@/app/shell/layout/TrustBar';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
@@ -211,8 +213,12 @@ function App() {
   const templatesMarketplaceServiceRef = useRef<MarketplaceService | null>(null);
   const templatesMetadataReaderRef = useRef<TemplateMetadataReader | null>(null);
 
-  // Sidebar state
-  const [sidebarActiveTab, setSidebarActiveTab] = useState<AppSurface>('files');
+  // Sidebar state. newNav lands on the Client Map (matter-centric home); the
+  // legacy shell keeps its Documents-first default so nothing changes flag-off.
+  const newNav = useNewNav();
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<AppSurface>(
+    isNewNavEnabled() ? 'matters' : 'files',
+  );
   // Per-matter UI memory (matterUiStore): subscribe to the active matter so we
   // can save + restore each matter's last working surface and focused document.
   const activeMatterId = useMatterStore((s) => s.activeMatterId);
@@ -1329,22 +1335,33 @@ This file contains rules and guidelines for AI assistants in this workspace.
               <Moon data-testid="theme-icon-dark" className="h-4 w-4" />
             )}
           </Button>
-          <Button
-            data-testid="settings-gear"
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => {
-              // Fix 5: no-op when Settings tab is already the active surface.
-              if (sidebarActiveTab !== 'settings') {
-                setShowSettingsModal(true);
-              }
-            }}
-            title="Settings (Ctrl+,)"
-            aria-label="Open settings"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
+          {newNav ? (
+            // newNav: the gear opens the full-page Settings screen, which nests
+            // Privacy Center + Activity Log as sections (see AppSurfaceRouter).
+            // The egress badge stays in the TrustBar; Email + Documents stay
+            // reachable from the Client Map's per-client quick actions.
+            <SettingsGearButton
+              active={sidebarActiveTab === 'settings'}
+              onOpenSettings={() => { setSidebarActiveTab('settings'); }}
+            />
+          ) : (
+            <Button
+              data-testid="settings-gear"
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => {
+                // Fix 5: no-op when Settings tab is already the active surface.
+                if (sidebarActiveTab !== 'settings') {
+                  setShowSettingsModal(true);
+                }
+              }}
+              title="Settings (Ctrl+,)"
+              aria-label="Open settings"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             data-testid="command-palette-button"
             variant="ghost"
@@ -1398,6 +1415,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
         {/* Main editor panel, or a full-page reimagined surface (matters/Ask/Email). */}
         <AppSurfaceRouter
+          newNav={newNav}
           sidebarActiveTab={sidebarActiveTab}
           askPrefill={askPrefill}
           setAskPrefill={setAskPrefill}

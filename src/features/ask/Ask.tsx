@@ -36,6 +36,7 @@ import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { useAsk, type UseAskProps } from './useAsk';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useNewNav } from '@/platform/flags/newNav';
 
 /* -------------------------------------------------------------------------- */
 /* Main component                                                               */
@@ -44,6 +45,10 @@ import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 export function Ask(props: UseAskProps) {
   const { onSaveToDocument } = props;
   const entityLabel = useEntityLabel();
+  // newNav renames this surface "Search" -> "Ask" (the 3-tab IA's "Ask" tab).
+  // Flag-OFF keeps "Search" (its rail tab is "Search"), byte-for-byte.
+  const newNav = useNewNav();
+  const askVerb = newNav ? 'Ask' : 'Search';
   const {
     activeMatter,
     isSampleMatterActive,
@@ -100,16 +105,20 @@ export function Ask(props: UseAskProps) {
       >
         <SurfaceHeader
           Icon={Sparkles}
-          title="Search"
-          description="Find anything across your work. Every answer cites its source."
+          title={newNav ? 'Ask' : 'Search'}
+          description={
+            newNav
+              ? 'Ask anything across your work. Every answer cites its source.'
+              : 'Find anything across your work. Every answer cites its source.'
+          }
         />
       </div>
 
-      {/* Toolbar: New search (button) -> scope (filters) -> search field + submit */}
+      {/* Toolbar: New question/search (button) -> scope (filters) -> field + submit */}
       <SurfaceToolbar>
         {turns.length > 0 && (
           <Button variant="secondary" size="md" iconLeft={Plus} onClick={handleNewAsk}>
-            New search
+            {newNav ? 'New question' : 'New search'}
           </Button>
         )}
         <ScopeToggle
@@ -126,15 +135,15 @@ export function Ask(props: UseAskProps) {
           onKeyDown={handleKeyDown}
           placeholder={
             askScope === 'email'
-              ? 'Search your imported email…'
+              ? (newNav ? 'Ask about your imported email…' : 'Search your imported email…')
               : askScope === 'documents'
-                ? 'Search across your documents…'
+                ? (newNav ? 'Ask across your documents…' : 'Search across your documents…')
                 : activeMatter
-                  ? `Search ${matterLabel(activeMatter)}…`
-                  : `Search across all ${entityLabel.other}…`
+                  ? `${askVerb} ${matterLabel(activeMatter)}…`
+                  : `${askVerb} across all ${entityLabel.other}…`
           }
           disabled={isBusy}
-          aria-label={`Search this ${entityLabel.one}`}
+          aria-label={`${askVerb} this ${entityLabel.one}`}
           data-testid="ask-composer-input"
           size="md"
           style={{ flex: 1, minWidth: 240 }}
@@ -149,7 +158,7 @@ export function Ask(props: UseAskProps) {
           aria-label={status === 'retrieving' ? 'Searching your documents' : status === 'answering' ? 'Answering' : undefined}
         >
           <span role={isBusy ? 'status' : undefined}>
-            {status === 'retrieving' ? 'Searching…' : status === 'answering' ? 'Answering…' : 'Search'}
+            {status === 'retrieving' ? 'Searching…' : status === 'answering' ? 'Answering…' : askVerb}
           </span>
         </Button>
       </SurfaceToolbar>
