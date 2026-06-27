@@ -164,6 +164,18 @@ pub fn run() {
             commands::crm::commands::crm_sync_status,
             commands::crm::commands::crm_cancel_sync,
             commands::crm::commands::crm_list_households,
+            // OneDrive / SharePoint document connector (read-only Graph import).
+            commands::onedrive::commands::onedrive_set_workspace,
+            commands::onedrive::commands::onedrive_connect,
+            commands::onedrive::commands::onedrive_begin_login,
+            commands::onedrive::commands::onedrive_poll_login,
+            commands::onedrive::commands::onedrive_is_connected,
+            commands::onedrive::commands::onedrive_disconnect,
+            commands::onedrive::commands::onedrive_list_drives,
+            commands::onedrive::commands::onedrive_list_folders,
+            commands::onedrive::commands::onedrive_sync,
+            commands::onedrive::commands::onedrive_cancel,
+            commands::onedrive::commands::onedrive_status,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
             // Wave 3b encrypted vault — per-workspace AES-256-GCM at-rest encryption.
@@ -204,6 +216,8 @@ pub fn run() {
             commands::mail::manage_state(app);
             // Plan 1B.4 — manage CRM state (active workspace + sync flag + last report).
             commands::crm::commands::manage_state(app);
+            // OneDrive / SharePoint connector state.
+            commands::onedrive::commands::manage_state(app);
             // Keepance 3.0 — manage encrypted audit-store state (active workspace).
             commands::audit::manage_state(app);
             // Onboarding/setup progress — register the aggregator state + the

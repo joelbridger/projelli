@@ -145,6 +145,38 @@ describe('additive connector matter-map shells', () => {
       { folderKey: 'folder-2', matterId: 'm2' },
     ]);
   });
+
+  it('orders OneDrive folder mappings by longest cloud path first', () => {
+    const matters: Matter[] = [
+      matter('parent', [], {
+        onedriveFolderKeys: ['m365/default/drive-a:/clients/acme'],
+      }),
+      matter('child', [], {
+        onedriveFolderKeys: ['m365/default/drive-a:/clients/acme/pleadings'],
+      }),
+    ];
+
+    expect(buildOneDriveMatterMap(matters)).toEqual([
+      { folderKey: 'm365/default/drive-a:/clients/acme/pleadings', matterId: 'child' },
+      { folderKey: 'm365/default/drive-a:/clients/acme', matterId: 'parent' },
+    ]);
+  });
+
+  it('keeps same-named OneDrive folders separate by drive id', () => {
+    const matters: Matter[] = [
+      matter('drive-a-matter', [], {
+        onedriveFolderKeys: ['m365/default/drive-a:/clients/acme'],
+      }),
+      matter('drive-b-matter', [], {
+        onedriveFolderKeys: ['m365/default/drive-b:/clients/acme'],
+      }),
+    ];
+
+    expect(buildOneDriveMatterMap(matters)).toEqual([
+      { folderKey: 'm365/default/drive-a:/clients/acme', matterId: 'drive-a-matter' },
+      { folderKey: 'm365/default/drive-b:/clients/acme', matterId: 'drive-b-matter' },
+    ]);
+  });
 });
 
 // ---------------------------------------------------------------------------

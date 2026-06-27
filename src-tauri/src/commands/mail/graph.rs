@@ -55,6 +55,30 @@ impl GraphClient {
         anyhow::bail!("graph: throttled past retry budget")
     }
 
+    /// GET an absolute Graph URL and return raw response bytes. Used for
+    /// OneDrive/SharePoint file downloads. Mirrors `get_json`'s retry and
+    /// status-only error policy; raw bodies are never logged or surfaced.
+    pub async fn get_bytes(&self, url: &str) -> anyhow::Result<Vec<u8>> {
+        for attempt in 0..8u32 {
+            let resp = self.http.get(url)
+                .bearer_auth(&self.token)
+                .send().await?;
+            if resp.status().as_u16() == 429 {
+                let ra = resp.headers().get("Retry-After").and_then(|v| v.to_str().ok()).map(String::from);
+                tokio::time::sleep(retry_delay(ra.as_deref(), attempt)).await;
+                continue;
+            }
+            let status = resp.status();
+            if status.as_u16() == 410 { return Err(anyhow::Error::new(DeltaGone)); }
+            if !status.is_success() {
+                log::warn!("graph byte request failed (HTTP {})", status);
+                anyhow::bail!("Microsoft Graph request failed (HTTP {})", status);
+            }
+            return Ok(resp.bytes().await?.to_vec());
+        }
+        anyhow::bail!("graph: throttled past retry budget")
+    }
+
     /// Start a delta round for a folder (no cursor) or resume from a saved
     /// next/delta link. Returns the absolute URL to GET first.
     pub fn delta_start_url(&self, folder_id: &str) -> String {

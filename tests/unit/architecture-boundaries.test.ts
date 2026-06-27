@@ -46,6 +46,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'settings->crm',        // Wealthbox connect panel uses the crm sync hook/store
   'settings->dictation',  // voice-output settings
   'settings->email',      // mail-account settings
+  'settings->onedrive',   // OneDrive document connector settings
   'settings->onboarding', // settings can relaunch onboarding flows
   'settings->workflows',  // settings hosts the templates marketplace tab
 ]);

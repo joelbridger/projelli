@@ -255,7 +255,12 @@ export function buildOneDriveMatterMap(matters: Matter[]): OneDriveMatterMapEntr
     matters,
     (m) => m.onedriveFolderKeys,
     (folderKey, matterId) => ({ folderKey, matterId }),
-  );
+  ).sort((a, b) => oneDriveFolderPathLength(b.folderKey) - oneDriveFolderPathLength(a.folderKey));
+}
+
+function oneDriveFolderPathLength(folderKey: string): number {
+  const colon = folderKey.lastIndexOf(':');
+  return colon >= 0 ? folderKey.slice(colon + 1).length : folderKey.length;
 }
 
 export function buildEsignMatterMap(matters: Matter[]): EsignMatterMapEntry[] {

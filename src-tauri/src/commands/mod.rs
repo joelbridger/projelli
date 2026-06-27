@@ -16,6 +16,8 @@ pub mod crm;
 pub mod connector;
 // M365 email-import (Task 1+) — pure-Rust Graph JSON parsing, local index, sync.
 pub mod mail;
+// Read-only OneDrive / SharePoint document connector.
+pub mod onedrive;
 // Phase 4 M4 (v1.5 Flag 2) — host-side bridge for the Keepance MCP sidecar:
 // list pending write approvals, record the user's decision, resolve the
 // platform `.mcpb` bundle path.
