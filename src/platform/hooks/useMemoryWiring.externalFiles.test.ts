@@ -20,6 +20,10 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   mailSetWorkspace: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@/platform/utils/onedrive-commands', () => ({
+  oneDriveSetWorkspace: vi.fn().mockResolvedValue(undefined),
+}));
+
 import {
   buildWorkspaceAbsolutePath,
   indexWorkspacePdfs,

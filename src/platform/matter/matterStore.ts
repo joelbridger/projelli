@@ -43,7 +43,11 @@ import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import type { Matter, MatterScope } from '@/platform/types/matter';
 import type { AuditEntry } from '@/platform/types/audit';
-import { resolveMatterId, findMatter, normalize as normalizeMatterPath } from '@/platform/rag/matterResolver';
+import {
+  resolveMatterId,
+  findMatter,
+  normalize as normalizeMatterPath,
+} from '@/platform/rag/matterResolver';
 import { ragDeleteMatter } from '@/platform/utils/tauri-commands';
 import { mailClearMatterFilings } from '@/platform/utils/mail-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
@@ -64,7 +68,10 @@ export const SAMPLE_MATTER_ID = 'matter_sample_garcia_v_meridian';
 /** Generate a stable matter id. Uses crypto.randomUUID when available. */
 function newMatterId(): string {
   try {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    if (
+      typeof crypto !== 'undefined' &&
+      typeof crypto.randomUUID === 'function'
+    ) {
       return `matter_${crypto.randomUUID()}`;
     }
   } catch {
@@ -138,6 +145,9 @@ interface MatterState {
   // Wealthbox CRM household mapping.
   addCrmHouseholdKey: (id: string, householdId: string) => void;
   removeCrmHouseholdKey: (id: string, householdId: string) => void;
+
+  // OneDrive / SharePoint folder mapping.
+  addOneDriveFolderKey: (id: string, folderKey: string) => void;
   /**
    * Remove every trace of Wealthbox from local matters after a disconnect:
    *   - pure-CRM matters (no user files/mail) are deleted;
@@ -168,7 +178,11 @@ interface MatterState {
   // Firm linkage (Task 3) — link a local matter to a firm backend matter.
   linkFirmMatter: (
     id: string,
-    linkage: { firmMatterId: string; orgId: string; role: 'owner' | 'editor' | 'viewer' },
+    linkage: {
+      firmMatterId: string;
+      orgId: string;
+      role: 'owner' | 'editor' | 'viewer';
+    }
   ) => void;
   /** Unlink a matter from the firm backend (keep local files intact). */
   unlinkFirmMatter: (id: string) => void;
@@ -237,31 +251,38 @@ type MatterAuditEmitter = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
  */
 let activeMatterAuditEmitter: MatterAuditEmitter | null = null;
 
-export function setMatterAuditEmitter(emitter: MatterAuditEmitter | null): void {
+export function setMatterAuditEmitter(
+  emitter: MatterAuditEmitter | null
+): void {
   activeMatterAuditEmitter = emitter;
 }
 
 function auditMatterMcpAccess(matter: Matter, granted: boolean): void {
-  activeMatterAuditEmitter?.(auditEventToEntry({
-    type: granted ? 'mcp_matter_access_granted' : 'mcp_matter_access_revoked',
-    timestamp: new Date().toISOString(),
-    payload: {
-      matterId: matter.id,
-      matterName: matter.name || matter.client || matter.id,
-      detail: granted
-        ? 'external AI tools can read this matter through MCP'
-        : 'external AI tools can no longer read this matter through MCP',
-    },
-  }));
+  activeMatterAuditEmitter?.(
+    auditEventToEntry({
+      type: granted ? 'mcp_matter_access_granted' : 'mcp_matter_access_revoked',
+      timestamp: new Date().toISOString(),
+      payload: {
+        matterId: matter.id,
+        matterName: matter.name || matter.client || matter.id,
+        detail: granted
+          ? 'external AI tools can read this matter through MCP'
+          : 'external AI tools can no longer read this matter through MCP',
+      },
+    })
+  );
 }
 
 function readLegacyEnvelope(
-  key: string,
+  key: string
 ): { state?: Record<string, unknown>; version?: number } | null {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
-    return JSON.parse(raw) as { state?: Record<string, unknown>; version?: number };
+    return JSON.parse(raw) as {
+      state?: Record<string, unknown>;
+      version?: number;
+    };
   } catch {
     return null;
   }
@@ -283,9 +304,17 @@ const multiKeyMatterStorage: PersistStorage<PersistedMatterState> = {
     if (!matters && !ui && !glance) return null; // fresh user — use store defaults
     const state: PersistedMatterState = {
       matters: (matters?.state?.['matters'] as Matter[] | undefined) ?? [],
-      activeMatterId: (matters?.state?.['activeMatterId'] as string | null | undefined) ?? null,
-      snapshots: (ui?.state?.['snapshots'] as Record<string, MatterUiSnapshot> | undefined) ?? {},
-      cache: (glance?.state?.['cache'] as Record<string, MatterAtAGlanceEntry> | undefined) ?? {},
+      activeMatterId:
+        (matters?.state?.['activeMatterId'] as string | null | undefined) ??
+        null,
+      snapshots:
+        (ui?.state?.['snapshots'] as
+          | Record<string, MatterUiSnapshot>
+          | undefined) ?? {},
+      cache:
+        (glance?.state?.['cache'] as
+          | Record<string, MatterAtAGlanceEntry>
+          | undefined) ?? {},
     };
     // Return the matters key's stored version so `persist` runs the matters
     // migration (v1→v4) when an older user hydrates. The ui/glance slices have
@@ -299,17 +328,20 @@ const multiKeyMatterStorage: PersistStorage<PersistedMatterState> = {
       localStorage.setItem(
         MATTERS_KEY,
         JSON.stringify({
-          state: { matters: state.matters, activeMatterId: state.activeMatterId },
+          state: {
+            matters: state.matters,
+            activeMatterId: state.activeMatterId,
+          },
           version,
-        }),
+        })
       );
       localStorage.setItem(
         UI_KEY,
-        JSON.stringify({ state: { snapshots: state.snapshots }, version: 0 }),
+        JSON.stringify({ state: { snapshots: state.snapshots }, version: 0 })
       );
       localStorage.setItem(
         GLANCE_KEY,
-        JSON.stringify({ state: { cache: state.cache }, version: 0 }),
+        JSON.stringify({ state: { cache: state.cache }, version: 0 })
       );
     } catch {
       /* localStorage may be unavailable (strict privacy mode) */
@@ -338,16 +370,28 @@ export const useMatterStore = create<MatterState>()(
           name: input.name.trim(),
           client: input.client.trim(),
           folderPaths: dedupeFolderPaths(input.folderPaths ?? []),
-          mailFolderPaths: Array.from(new Set((input.mailFolderPaths ?? []).filter(Boolean))),
-          crmHouseholdKeys: Array.from(new Set((input.crmHouseholdKeys ?? []).filter(Boolean))),
-          onedriveFolderKeys: Array.from(new Set((input.onedriveFolderKeys ?? []).filter(Boolean))),
-          esignKeys: Array.from(new Set((input.esignKeys ?? []).filter(Boolean))),
-          meetingKeys: Array.from(new Set((input.meetingKeys ?? []).filter(Boolean))),
+          mailFolderPaths: Array.from(
+            new Set((input.mailFolderPaths ?? []).filter(Boolean))
+          ),
+          crmHouseholdKeys: Array.from(
+            new Set((input.crmHouseholdKeys ?? []).filter(Boolean))
+          ),
+          onedriveFolderKeys: Array.from(
+            new Set((input.onedriveFolderKeys ?? []).filter(Boolean))
+          ),
+          esignKeys: Array.from(
+            new Set((input.esignKeys ?? []).filter(Boolean))
+          ),
+          meetingKeys: Array.from(
+            new Set((input.meetingKeys ?? []).filter(Boolean))
+          ),
           privileged: input.privileged ?? false,
           mcpAccessGranted: input.mcpAccessGranted ?? false,
           createdAt: new Date().toISOString(),
           ...(input.createdFromCrm ? { createdFromCrm: true } : {}),
-          ...(input.firmMatterId !== undefined ? { firmMatterId: input.firmMatterId } : {}),
+          ...(input.firmMatterId !== undefined
+            ? { firmMatterId: input.firmMatterId }
+            : {}),
           ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
           ...(input.role !== undefined ? { role: input.role } : {}),
           ...(input.shared !== undefined ? { shared: input.shared } : {}),
@@ -363,10 +407,14 @@ export const useMatterStore = create<MatterState>()(
             m.id === id
               ? {
                   ...m,
-                  ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
-                  ...(patch.client !== undefined ? { client: patch.client.trim() } : {}),
+                  ...(patch.name !== undefined
+                    ? { name: patch.name.trim() }
+                    : {}),
+                  ...(patch.client !== undefined
+                    ? { client: patch.client.trim() }
+                    : {}),
                 }
-              : m,
+              : m
           ),
         }));
       },
@@ -418,10 +466,16 @@ export const useMatterStore = create<MatterState>()(
         //      never cross into another (legal invariant; Codex review #1).
         // To make content truly disappear the user deletes the files themselves.
         void ragDeleteMatter(id).catch((err: unknown) => {
-          console.warn('[matterStore] rag purge for deleted matter failed:', err);
+          console.warn(
+            '[matterStore] rag purge for deleted matter failed:',
+            err
+          );
         });
         void mailClearMatterFilings(id).catch((err: unknown) => {
-          console.warn('[matterStore] mail filing purge for deleted matter failed:', err);
+          console.warn(
+            '[matterStore] mail filing purge for deleted matter failed:',
+            err
+          );
         });
       },
 
@@ -429,7 +483,7 @@ export const useMatterStore = create<MatterState>()(
         const normalized = dedupeFolderPaths(folderPaths);
         set((state) => ({
           matters: state.matters.map((m) =>
-            m.id === id ? { ...m, folderPaths: normalized } : m,
+            m.id === id ? { ...m, folderPaths: normalized } : m
           ),
         }));
       },
@@ -440,7 +494,10 @@ export const useMatterStore = create<MatterState>()(
         set((state) => ({
           matters: state.matters.map((m) => {
             if (m.id !== id) return m;
-            return { ...m, folderPaths: dedupeFolderPaths([...m.folderPaths, norm]) };
+            return {
+              ...m,
+              folderPaths: dedupeFolderPaths([...m.folderPaths, norm]),
+            };
           }),
         }));
       },
@@ -450,8 +507,13 @@ export const useMatterStore = create<MatterState>()(
         set((state) => ({
           matters: state.matters.map((m) =>
             m.id === id
-              ? { ...m, folderPaths: m.folderPaths.filter((f) => normalizeMatterPath(f) !== norm) }
-              : m,
+              ? {
+                  ...m,
+                  folderPaths: m.folderPaths.filter(
+                    (f) => normalizeMatterPath(f) !== norm
+                  ),
+                }
+              : m
           ),
         }));
       },
@@ -474,8 +536,13 @@ export const useMatterStore = create<MatterState>()(
         set((state) => ({
           matters: state.matters.map((m) =>
             m.id === id
-              ? { ...m, mailFolderPaths: (m.mailFolderPaths ?? []).filter((k) => k !== key) }
-              : m,
+              ? {
+                  ...m,
+                  mailFolderPaths: (m.mailFolderPaths ?? []).filter(
+                    (k) => k !== key
+                  ),
+                }
+              : m
           ),
         }));
       },
@@ -509,9 +576,36 @@ export const useMatterStore = create<MatterState>()(
         set((state) => ({
           matters: state.matters.map((m) =>
             m.id === id
-              ? { ...m, crmHouseholdKeys: (m.crmHouseholdKeys ?? []).filter((k) => k !== key) }
-              : m,
+              ? {
+                  ...m,
+                  crmHouseholdKeys: (m.crmHouseholdKeys ?? []).filter(
+                    (k) => k !== key
+                  ),
+                }
+              : m
           ),
+        }));
+      },
+
+      addOneDriveFolderKey: (id, folderKey) => {
+        const key = folderKey.trim();
+        if (!key) return;
+        set((state) => ({
+          matters: state.matters.map((m) => {
+            if (m.id === id) {
+              const existing = m.onedriveFolderKeys ?? [];
+              return existing.includes(key)
+                ? m
+                : { ...m, onedriveFolderKeys: [...existing, key] };
+            }
+            // A OneDrive folder belongs to exactly ONE matter. Move the key off
+            // any old matter so the backend never indexes one cloud folder under
+            // two client boundaries at once.
+            const others = m.onedriveFolderKeys ?? [];
+            return others.includes(key)
+              ? { ...m, onedriveFolderKeys: others.filter((k) => k !== key) }
+              : m;
+          }),
         }));
       },
 
@@ -525,7 +619,8 @@ export const useMatterStore = create<MatterState>()(
           const keys = m.crmHouseholdKeys ?? [];
           if (keys.length === 0) continue;
           affected.push(m.id);
-          const hasContent = m.folderPaths.length > 0 || (m.mailFolderPaths ?? []).length > 0;
+          const hasContent =
+            m.folderPaths.length > 0 || (m.mailFolderPaths ?? []).length > 0;
           if (!hasContent) {
             toDelete.push(m.id);
           } else if (m.createdFromCrm) {
@@ -545,9 +640,11 @@ export const useMatterStore = create<MatterState>()(
             matters: state.matters.map((m) => {
               if (scrubSet.has(m.id)) {
                 const firstFolder = m.folderPaths[0];
-                const base = (firstFolder
-                  ? firstFolder.split(/[\\/]/).filter(Boolean).pop() ?? ''
-                  : '').trim();
+                const base = (
+                  firstFolder
+                    ? (firstFolder.split(/[\\/]/).filter(Boolean).pop() ?? '')
+                    : ''
+                ).trim();
                 const scrubbedName = base || 'Untitled client';
                 return {
                   ...m,
@@ -577,7 +674,7 @@ export const useMatterStore = create<MatterState>()(
       setMatterPrivileged: (id, privileged) => {
         set((state) => ({
           matters: state.matters.map((m) =>
-            m.id === id ? { ...m, privileged } : m,
+            m.id === id ? { ...m, privileged } : m
           ),
         }));
       },
@@ -587,7 +684,7 @@ export const useMatterStore = create<MatterState>()(
         if (!matter || !!matter.mcpAccessGranted === granted) return;
         set((state) => ({
           matters: state.matters.map((m) =>
-            m.id === id ? { ...m, mcpAccessGranted: granted } : m,
+            m.id === id ? { ...m, mcpAccessGranted: granted } : m
           ),
         }));
         auditMatterMcpAccess(matter, granted);
@@ -596,7 +693,7 @@ export const useMatterStore = create<MatterState>()(
       setMatterArchived: (id, archived) => {
         set((state) => ({
           matters: state.matters.map((m) =>
-            m.id === id ? { ...m, archived } : m,
+            m.id === id ? { ...m, archived } : m
           ),
           // Don't leave the active scope pointing at a just-archived matter —
           // fall back to the explicit all-matters scope (same as deleteMatter).
@@ -635,9 +732,7 @@ export const useMatterStore = create<MatterState>()(
       linkFirmMatter: (id, { firmMatterId, orgId, role }) => {
         set((state) => ({
           matters: state.matters.map((m) =>
-            m.id === id
-              ? { ...m, firmMatterId, orgId, role, shared: true }
-              : m,
+            m.id === id ? { ...m, firmMatterId, orgId, role, shared: true } : m
           ),
         }));
       },
@@ -655,16 +750,16 @@ export const useMatterStore = create<MatterState>()(
 
       setMatterRole: (id, role) => {
         set((state) => ({
-          matters: state.matters.map((m) =>
-            m.id === id ? { ...m, role } : m,
-          ),
+          matters: state.matters.map((m) => (m.id === id ? { ...m, role } : m)),
         }));
       },
 
       // ── UI slice ────────────────────────────────────────────────────────
       snapshots: {},
       saveSnapshot: (matterId, snapshot) => {
-        set((state) => ({ snapshots: { ...state.snapshots, [matterId]: snapshot } }));
+        set((state) => ({
+          snapshots: { ...state.snapshots, [matterId]: snapshot },
+        }));
       },
       getSnapshot: (matterId) => get().snapshots[matterId],
       clearSnapshot: (matterId) => {
@@ -738,7 +833,8 @@ export const useMatterStore = create<MatterState>()(
       // the snapshots/cache slices pass through untouched.
       migrate: (persisted, version) => {
         const state = persisted as Partial<PersistedMatterState> | undefined;
-        if (!state || !Array.isArray(state.matters)) return state as PersistedMatterState;
+        if (!state || !Array.isArray(state.matters))
+          return state as PersistedMatterState;
         if (version < 2) {
           state.matters = state.matters.map((m) => ({
             ...m,
@@ -801,8 +897,8 @@ export const useMatterStore = create<MatterState>()(
         snapshots: state.snapshots,
         cache: state.cache,
       }),
-    },
-  ),
+    }
+  )
 );
 
 // ─────────────────────────────────────────────────────────────────────
@@ -886,7 +982,7 @@ export function getOrCreateSampleMatter(workspaceRoot: string): Matter {
  */
 export function resolveActiveMatter(
   matters: Matter[],
-  activeMatterId: string | null,
+  activeMatterId: string | null
 ): Matter | null {
   const m = findMatter(activeMatterId, matters);
   return m && !m.archived ? m : null;
@@ -911,7 +1007,9 @@ export function useMatters(): Matter[] {
 /** Subscribe to the non-archived matters — the day-to-day list the matter
  *  manager and chat scope picker show by default. */
 export function useActiveMatters(): Matter[] {
-  return useMatterStore(useShallow((s) => s.matters.filter((m) => !m.archived)));
+  return useMatterStore(
+    useShallow((s) => s.matters.filter((m) => !m.archived))
+  );
 }
 
 /** Subscribe to the archived matters (for a "show archived" / restore view). */
@@ -932,7 +1030,7 @@ export function useActiveMatter(): Matter | null {
   return useMatterStore(
     // Archived/stale active ids resolve to null so AI/search paths that read
     // this hook (Quick Ask, Email Ask) never scope to a hidden matter.
-    useShallow((s) => resolveActiveMatter(s.matters, s.activeMatterId)),
+    useShallow((s) => resolveActiveMatter(s.matters, s.activeMatterId))
   );
 }
 
@@ -941,7 +1039,9 @@ export function useActiveMatter(): Matter | null {
  * auto-on behaviour of Privileged Matter Mode.
  */
 export function useActiveMatterPrivileged(): boolean {
-  return useMatterStore((s) => !!resolveActiveMatter(s.matters, s.activeMatterId)?.privileged);
+  return useMatterStore(
+    (s) => !!resolveActiveMatter(s.matters, s.activeMatterId)?.privileged
+  );
 }
 
 /**
@@ -953,6 +1053,6 @@ export function useActiveScope(): MatterScope {
     useShallow((s): MatterScope => {
       const m = resolveActiveMatter(s.matters, s.activeMatterId);
       return m ? { kind: 'matter', matterId: m.id } : { kind: 'allMatters' };
-    }),
+    })
   );
 }

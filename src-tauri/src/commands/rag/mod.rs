@@ -226,6 +226,104 @@ const WORKSPACE_FILE_INDEX_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 /// payload. The UI shows the first N and relies on the counts for the total.
 const MAX_REPORTED_SKIPPED_PATHS: usize = 100;
 
+/// Result of indexing bytes downloaded by an external document connector.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DownloadedDocumentIndexOutcome {
+    Indexed(u32),
+    PendingPdf,
+    Unsupported,
+    Cancelled,
+}
+
+/// Additive helper for document connectors that download bytes from an external
+/// system and need to index them through the same encrypted, matter-scoped RAG
+/// path as local files.
+///
+/// PDF is deliberately not handled here because the current PDF text extractor
+/// is renderer-side (`src/lib/pdf-extract.ts`). The connector stores PDF
+/// metadata as pending and can index it once a Rust-side PDF text path exists.
+#[allow(clippy::too_many_arguments)]
+pub async fn index_downloaded_document_bytes(
+    table: &lancedb::Table,
+    source_id: &str,
+    filename: &str,
+    bytes: &[u8],
+    matter_id: &str,
+    privilege: &str,
+    key: &[u8; 32],
+    cancel: Option<&AtomicBool>,
+) -> anyhow::Result<DownloadedDocumentIndexOutcome> {
+    use anyhow::Context;
+
+    if let Some(flag) = cancel {
+        if flag.load(Ordering::SeqCst) {
+            return Ok(DownloadedDocumentIndexOutcome::Cancelled);
+        }
+    }
+
+    let lower = filename.to_ascii_lowercase();
+    let ext = lower.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("");
+    let text = match ext {
+        "docx" => keepance_docx::parse_docx_bytes(bytes)
+            .map(|doc| keepance_docx::extract_paragraph_texts(&doc).join("\n\n"))
+            .map_err(anyhow::Error::from)
+            .context("extract downloaded docx")?,
+        "xlsx" => office::extract_xlsx_sections(bytes)
+            .context("extract downloaded xlsx")?
+            .into_iter()
+            .map(|s| format!("Sheet {} - {}\n{}", s.number, s.label, s.text))
+            .collect::<Vec<_>>()
+            .join("\n\n"),
+        "pptx" => office::extract_pptx_sections(bytes)
+            .context("extract downloaded pptx")?
+            .into_iter()
+            .map(|s| format!("Slide {} - {}\n{}", s.number, s.label, s.text))
+            .collect::<Vec<_>>()
+            .join("\n\n"),
+        "rtf" => office::extract_rtf_text(bytes).context("extract downloaded rtf")?,
+        "txt" | "text" | "md" | "markdown" => String::from_utf8(bytes.to_vec())
+            .map_err(|_| anyhow::anyhow!("downloaded text document is not valid UTF-8"))?,
+        "pdf" => return Ok(DownloadedDocumentIndexOutcome::PendingPdf),
+        _ => return Ok(DownloadedDocumentIndexOutcome::Unsupported),
+    };
+
+    store::delete_path(table, source_id, key)
+        .await
+        .context("delete stale downloaded-document chunks")?;
+
+    if text.trim().is_empty() {
+        return Ok(DownloadedDocumentIndexOutcome::Indexed(0));
+    }
+
+    let chunks = chunker::chunk_text(source_id, &text);
+    if chunks.is_empty() {
+        return Ok(DownloadedDocumentIndexOutcome::Indexed(0));
+    }
+    let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+    let Some(vectors) = embedder::embed_documents_batched(&texts, cancel)
+        .await
+        .context("embed downloaded document chunks")?
+    else {
+        return Ok(DownloadedDocumentIndexOutcome::Cancelled);
+    };
+    let rows: Vec<(chunker::Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
+    if rows.is_empty() {
+        return Ok(DownloadedDocumentIndexOutcome::Indexed(0));
+    }
+
+    let batch = store::build_batch_external(&rows, key, matter_id, privilege, "onedrive")
+        .context("build downloaded document batch")?;
+    let schema = batch.schema();
+    use arrow_array::RecordBatchIterator;
+    table
+        .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+        .execute()
+        .await
+        .context("add downloaded document chunks to lancedb")?;
+
+    Ok(DownloadedDocumentIndexOutcome::Indexed(rows.len() as u32))
+}
+
 /// BUG-099: bound the skipped-path list that rides a terminal progress event.
 fn cap_skipped_paths(paths: &[String]) -> Vec<String> {
     paths
@@ -2682,6 +2780,33 @@ mod tests {
         // VG-2: the OCR disclosure crosses IPC camel-cased.
         assert!(s.contains("\"extraction\":\"ocr\""), "got {}", s);
         assert!(s.contains("\"extractionConfidence\":48.5"), "got {}", s);
+    }
+
+    #[tokio::test]
+    async fn downloaded_document_cancel_returns_cancelled_not_indexed_zero() {
+        let workspace = tempfile::tempdir().expect("workspace tempdir");
+        let conn = store::open_connection(workspace.path())
+            .await
+            .expect("open vector store");
+        let table = store::open_or_create_table(&conn)
+            .await
+            .expect("open chunks table");
+        let cancel = AtomicBool::new(true);
+
+        let outcome = index_downloaded_document_bytes(
+            &table,
+            "onedrive:drive:item",
+            "memo.txt",
+            b"this should not be embedded",
+            "matter-a",
+            store::PRIVILEGE_NONE,
+            &[0x23; 32],
+            Some(&cancel),
+        )
+        .await
+        .expect("cancelled index returns cleanly");
+
+        assert_eq!(outcome, DownloadedDocumentIndexOutcome::Cancelled);
     }
 
     #[test]

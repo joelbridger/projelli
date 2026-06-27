@@ -274,7 +274,116 @@ export function buildOneDriveMatterMap(
     matters,
     (m) => m.onedriveFolderKeys,
     (folderKey, matterId) => ({ folderKey, matterId })
+  ).sort(
+    (a, b) =>
+      oneDriveFolderPathLength(b.folderKey) -
+      oneDriveFolderPathLength(a.folderKey)
   );
+}
+
+function oneDriveFolderPathLength(folderKey: string): number {
+  const colon = folderKey.lastIndexOf(':');
+  return colon >= 0 ? folderKey.slice(colon + 1).length : folderKey.length;
+}
+
+export interface OneDriveFolderIdentity {
+  driveId: string;
+  siteId?: string | null;
+  name: string;
+  path: string;
+}
+
+export interface OneDriveFolderResolution {
+  matterId: string;
+  action: 'reuse' | 'link' | 'unassigned';
+  name: string;
+}
+
+function normalizeOneDriveCloudPath(path: string): string {
+  let normalized = path.replace(/\\/g, '/');
+  const rootMarker = normalized.indexOf('root:');
+  if (rootMarker >= 0)
+    normalized = normalized.slice(rootMarker + 'root:'.length);
+  while (normalized.includes('//'))
+    normalized = normalized.replace(/\/\//g, '/');
+  normalized = normalized.trim().replace(/\/+$/, '').toLowerCase();
+  if (!normalized) return '/';
+  return normalized.startsWith('/') ? normalized : `/${normalized}`;
+}
+
+export function buildOneDriveFolderKey(
+  folder: Pick<OneDriveFolderIdentity, 'driveId' | 'siteId' | 'path'>
+): string {
+  const path = normalizeOneDriveCloudPath(folder.path);
+  const siteId = folder.siteId?.trim();
+  return siteId
+    ? `m365/default/${siteId}/${folder.driveId}:${path}`
+    : `m365/default/${folder.driveId}:${path}`;
+}
+
+function oneDriveFolderLeafName(folder: OneDriveFolderIdentity): string {
+  const path = folder.path.replace(/\\/g, '/').replace(/\/+$/, '');
+  const withoutRoot = path.includes('root:')
+    ? path.slice(path.indexOf('root:') + 'root:'.length)
+    : path;
+  const leaf = withoutRoot.split('/').filter(Boolean).pop()?.trim();
+  return leaf || folder.name.trim();
+}
+
+export function isTopLevelOneDriveClientFolder(
+  folder: Pick<OneDriveFolderIdentity, 'path'>
+): boolean {
+  const path = normalizeOneDriveCloudPath(folder.path);
+  const segments = path.split('/').filter(Boolean);
+  return segments.length === 2 && segments[0] === 'clients';
+}
+
+/**
+ * Resolve a OneDrive / SharePoint folder against existing matters.
+ *
+ * This mirrors `resolveMatterForHousehold`, except OneDrive never creates a
+ * matter from a folder. If the folder name is ambiguous or already claimed, the
+ * safe answer is to leave it unassigned.
+ */
+export function resolveMatterForOneDriveFolder(
+  matters: Matter[],
+  folder: OneDriveFolderIdentity,
+  claimedMatterIds: ReadonlySet<string> = new Set()
+): OneDriveFolderResolution {
+  const folderKey = buildOneDriveFolderKey(folder);
+
+  // Priority 1: already linked by OneDrive folder key.
+  for (const matter of matters) {
+    if ((matter.onedriveFolderKeys ?? []).includes(folderKey)) {
+      return { matterId: matter.id, action: 'reuse', name: matter.name };
+    }
+  }
+
+  // Priority 2: unambiguous name-based link to an existing matter. Judge
+  // ambiguity over ALL matters before filtering out already-linked / claimed
+  // ones, exactly like the Wealthbox matcher.
+  const folderName = oneDriveFolderLeafName(folder);
+  const normalizedFolderName = normalizeClientName(folderName);
+  if (normalizedFolderName) {
+    const matches = matters.filter(
+      (m) =>
+        normalizeClientName(m.name) === normalizedFolderName ||
+        normalizeClientName(m.client) === normalizedFolderName
+    );
+    if (matches.length === 1) {
+      const match = matches[0];
+      if (
+        match &&
+        (match.onedriveFolderKeys ?? []).length === 0 &&
+        !claimedMatterIds.has(match.id)
+      ) {
+        return { matterId: match.id, action: 'link', name: match.name };
+      }
+    }
+  }
+
+  // Priority 3: no clear match. Do not create a matter from a cloud folder.
+  return { matterId: '', action: 'unassigned', name: folderName };
 }
 
 export function buildEsignMatterMap(matters: Matter[]): EsignMatterMapEntry[] {

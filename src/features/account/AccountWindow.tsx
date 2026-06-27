@@ -21,6 +21,7 @@ import { MailConnect } from '@/features/settings/MailConnect';
 import { MailImapConnect } from '@/features/settings/MailImapConnect';
 import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
 import { WealthboxConnect } from '@/features/settings/WealthboxConnect';
+import { OneDriveConnect } from '@/features/settings/OneDriveConnect';
 import { SalesforceConnect } from '@/features/settings/SalesforceConnect';
 import { RedtailConnect } from '@/features/settings/RedtailConnect';
 import { McpSettingsSection } from '@/features/settings/McpSettingsSection';
@@ -303,6 +304,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                 <MailConnect />
                 <MailImapConnect />
                 <MailGmailConnect />
+                <OneDriveConnect />
                 <WealthboxConnect />
                 <SalesforceConnect />
                 <RedtailConnect />

@@ -167,6 +167,111 @@ describe('additive connector matter-map shells', () => {
       { folderKey: 'folder-2', matterId: 'm2' },
     ]);
   });
+
+  it('orders OneDrive folder mappings by longest cloud path first', () => {
+    const matters: Matter[] = [
+      matter('parent', [], {
+        onedriveFolderKeys: ['m365/default/drive-a:/clients/acme'],
+      }),
+      matter('child', [], {
+        onedriveFolderKeys: ['m365/default/drive-a:/clients/acme/pleadings'],
+      }),
+    ];
+
+    expect(buildOneDriveMatterMap(matters)).toEqual([
+      {
+        folderKey: 'm365/default/drive-a:/clients/acme/pleadings',
+        matterId: 'child',
+      },
+      { folderKey: 'm365/default/drive-a:/clients/acme', matterId: 'parent' },
+    ]);
+  });
+
+  it('keeps same-named OneDrive folders separate by drive id', () => {
+    const matters: Matter[] = [
+      matter('drive-a-matter', [], {
+        onedriveFolderKeys: ['m365/default/drive-a:/clients/acme'],
+      }),
+      matter('drive-b-matter', [], {
+        onedriveFolderKeys: ['m365/default/drive-b:/clients/acme'],
+      }),
+    ];
+
+    expect(buildOneDriveMatterMap(matters)).toEqual([
+      {
+        folderKey: 'm365/default/drive-a:/clients/acme',
+        matterId: 'drive-a-matter',
+      },
+      {
+        folderKey: 'm365/default/drive-b:/clients/acme',
+        matterId: 'drive-b-matter',
+      },
+    ]);
+  });
+});
+
+describe('addOneDriveFolderKey', () => {
+  beforeEach(resetStore);
+
+  it('adds a OneDrive folder key to an existing matter', () => {
+    const { createMatter, addOneDriveFolderKey } = useMatterStore.getState();
+    const m = createMatter({ name: 'Patel, Priya', client: 'Patel, Priya' });
+
+    addOneDriveFolderKey(m.id, 'm365/default/drive-a:/clients/patel, priya');
+
+    const updated = useMatterStore
+      .getState()
+      .matters.find((x) => x.id === m.id);
+    expect(updated?.onedriveFolderKeys).toEqual([
+      'm365/default/drive-a:/clients/patel, priya',
+    ]);
+  });
+
+  it('deduplicates repeated OneDrive folder keys on the same matter', () => {
+    const { createMatter, addOneDriveFolderKey } = useMatterStore.getState();
+    const m = createMatter({ name: 'Patel, Priya', client: 'Patel, Priya' });
+
+    addOneDriveFolderKey(m.id, 'm365/default/drive-a:/clients/patel, priya');
+    addOneDriveFolderKey(m.id, 'm365/default/drive-a:/clients/patel, priya');
+
+    const updated = useMatterStore
+      .getState()
+      .matters.find((x) => x.id === m.id);
+    expect(updated?.onedriveFolderKeys).toEqual([
+      'm365/default/drive-a:/clients/patel, priya',
+    ]);
+  });
+
+  it('moves a OneDrive folder key off every other matter when added to a new one', () => {
+    const { createMatter, addOneDriveFolderKey } = useMatterStore.getState();
+    const key = 'm365/default/drive-a:/clients/webb, marcus & tanya';
+    const a = createMatter({
+      name: 'A',
+      client: 'A',
+      onedriveFolderKeys: [key],
+    });
+    const b = createMatter({ name: 'B', client: 'B' });
+
+    addOneDriveFolderKey(b.id, key);
+
+    const matters = useMatterStore.getState().matters;
+    expect(matters.find((x) => x.id === a.id)?.onedriveFolderKeys).toEqual([]);
+    expect(matters.find((x) => x.id === b.id)?.onedriveFolderKeys).toEqual([
+      key,
+    ]);
+  });
+
+  it('does nothing for a blank OneDrive folder key', () => {
+    const { createMatter, addOneDriveFolderKey } = useMatterStore.getState();
+    const m = createMatter({ name: 'Patel, Priya', client: 'Patel, Priya' });
+
+    addOneDriveFolderKey(m.id, '');
+
+    const updated = useMatterStore
+      .getState()
+      .matters.find((x) => x.id === m.id);
+    expect(updated?.onedriveFolderKeys).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------

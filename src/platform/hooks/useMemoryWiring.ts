@@ -56,6 +56,7 @@ import {
 } from '@/platform/utils/tauri-commands';
 import { mailSetWorkspace } from '@/platform/utils/mail-commands';
 import { crmSetWorkspace } from '@/platform/utils/wealthbox-commands';
+import { oneDriveSetWorkspace } from '@/platform/utils/onedrive-commands';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/platform/types/workspace';
 import { usePdfIndexProgressStore } from '@/platform/rag/pdfIndexProgressStore';
@@ -537,6 +538,11 @@ export function useMemoryWiring(
           await crmSetWorkspace(rootPath);
         } catch (err) {
           console.warn('crmSetWorkspace failed; continuing workspace setup:', err);
+        }
+        try {
+          await oneDriveSetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('oneDriveSetWorkspace failed; continuing workspace setup:', err);
         }
         await watchWorkspace(rootPath);
 
