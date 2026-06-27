@@ -462,7 +462,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
               value={askQ}
               onChange={(v: string) => { setAskQ(v); }}
               onClear={() => { setAskQ(''); }}
-              placeholder={`Search this ${entityLabel.one}...`}
+              placeholder={newNav ? `Ask this ${entityLabel.one}...` : `Search this ${entityLabel.one}...`}
               onKeyDown={handleAskKeyDown}
             />
           </div>
@@ -473,7 +473,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
             size="sm"
             onClick={handleAskSubmit}
           >
-            Search
+            {newNav ? 'Ask' : 'Search'}
           </Button>
         </div>
 

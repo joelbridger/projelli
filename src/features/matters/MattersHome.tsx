@@ -250,6 +250,9 @@ type MatterSurface = 'search' | 'files' | 'email';
 
 function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onArchive }: MatterRowProps) {
   const { t } = useTranslation();
+  const newNav = useNewNav();
+  // newNav renames the search surface "Ask"; keep this quick-action consistent.
+  const askActionLabel = newNav ? 'Ask' : 'Search';
   const label = matterLabel(matter);
   const folderCount = matter.folderPaths.length;
   const [hovered, setHovered] = useState(false);
@@ -399,11 +402,11 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
           variant="secondary"
           size="sm"
           data-testid={`matter-launch-ask-${matter.id}`}
-          aria-label={`Search ${label}`}
+          aria-label={`${askActionLabel} ${label}`}
           iconLeft={MessageSquare}
           onClick={(e) => { launchSurface('search', e); }}
         >
-          Search
+          {askActionLabel}
         </Button>
         <Button
           variant="secondary"
