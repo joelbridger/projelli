@@ -210,6 +210,71 @@ export function buildCrmMatterMap(matters: Matter[]): CrmMatterMapEntry[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// External connector -> matter mapping slots
+//
+// These are intentionally simple shells for Foundation Part A. Each connector
+// branch owns the real provider-specific matching rule; the shared foundation
+// only flattens the matter store's persisted keys into backend-friendly shapes.
+// ─────────────────────────────────────────────────────────────────────
+
+export interface OneDriveMatterMapEntry {
+  folderKey: string;
+  matterId: string;
+}
+
+export interface EsignMatterMapEntry {
+  esignKey: string;
+  matterId: string;
+}
+
+export interface MeetingMatterMapEntry {
+  meetingKey: string;
+  matterId: string;
+}
+
+function buildConnectorMatterMap<T extends { matterId: string }>(
+  matters: Matter[],
+  getKeys: (matter: Matter) => string[] | undefined,
+  toEntry: (key: string, matterId: string) => T,
+): T[] {
+  const out: T[] = [];
+  const claimed = new Set<string>();
+  for (const m of matters) {
+    if (m.id === UNASSIGNED_MATTER_ID) continue;
+    for (const key of getKeys(m) ?? []) {
+      if (!key || claimed.has(key)) continue;
+      claimed.add(key);
+      out.push(toEntry(key, m.id));
+    }
+  }
+  return out;
+}
+
+export function buildOneDriveMatterMap(matters: Matter[]): OneDriveMatterMapEntry[] {
+  return buildConnectorMatterMap(
+    matters,
+    (m) => m.onedriveFolderKeys,
+    (folderKey, matterId) => ({ folderKey, matterId }),
+  );
+}
+
+export function buildEsignMatterMap(matters: Matter[]): EsignMatterMapEntry[] {
+  return buildConnectorMatterMap(
+    matters,
+    (m) => m.esignKeys,
+    (esignKey, matterId) => ({ esignKey, matterId }),
+  );
+}
+
+export function buildMeetingMatterMap(matters: Matter[]): MeetingMatterMapEntry[] {
+  return buildConnectorMatterMap(
+    matters,
+    (m) => m.meetingKeys,
+    (meetingKey, matterId) => ({ meetingKey, matterId }),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Household -> matter resolution (merge-by-name, no duplicates)
 //
 // When a Wealthbox sync runs, we need to decide what to do with each

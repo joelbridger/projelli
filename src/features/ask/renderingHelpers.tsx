@@ -157,6 +157,9 @@ export function citationDisplayLabel(
     if (sourceType === 'xlsx') return `${basename} sheet ${String(pageNumber)}${suffix}`;
     if (sourceType === 'pptx') return `${basename} slide ${String(pageNumber)}${suffix}`;
   }
+  if (sourceType === 'onedrive') return `OneDrive - ${basename}${suffix}`;
+  if (sourceType === 'esign') return `DocuSign - ${basename}${suffix}`;
+  if (sourceType === 'meeting') return `Calendly - ${basename}${suffix}`;
   return `${basename} §${String(paragraphIndex)}${suffix}`;
 }
 

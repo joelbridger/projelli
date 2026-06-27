@@ -40,6 +40,19 @@ describe('clientMap/types', () => {
     expect(ref.ref).toBe('mail:msg-123');
   });
 
+  it('maps additive connector RagHits to connector SourceRefs', () => {
+    const base: RagHit = {
+      path: 'connector-source',
+      chunkText: 'Connector evidence.',
+      score: 0.8,
+      paragraphIndex: 0,
+    };
+
+    expect(sourceRefFromRagHit({ ...base, sourceId: 'onedrive:item:1', sourceType: 'onedrive' }).kind).toBe('onedrive');
+    expect(sourceRefFromRagHit({ ...base, sourceId: 'esign:envelope:1', sourceType: 'esign' }).kind).toBe('esign');
+    expect(sourceRefFromRagHit({ ...base, sourceId: 'meeting:event:1', sourceType: 'meeting' }).kind).toBe('meeting');
+  });
+
   it('omits unknown or invalid page locators instead of rendering p. 0', () => {
     const base: RagHit = {
       path: '/Clients/Acme/notes.txt',

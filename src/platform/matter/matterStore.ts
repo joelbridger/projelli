@@ -93,6 +93,12 @@ export interface CreateMatterInput {
   mailFolderPaths?: string[];
   /** Wealthbox household IDs to link at creation time. */
   crmHouseholdKeys?: string[];
+  /** OneDrive / SharePoint folder ids to link at creation time. */
+  onedriveFolderKeys?: string[];
+  /** E-signature record keys to link at creation time. */
+  esignKeys?: string[];
+  /** Meeting record keys to link at creation time. */
+  meetingKeys?: string[];
   /** Mark this matter's display name/client as CRM-derived (e.g. created purely
    *  from a Wealthbox household), so a Wealthbox disconnect can scrub it. */
   createdFromCrm?: boolean;
@@ -207,7 +213,7 @@ interface PersistedMatterState {
 const MATTERS_KEY = 'keepance:matters';
 const UI_KEY = 'keepance:matter-ui-snapshots';
 const GLANCE_KEY = 'keepance:matter-at-a-glance';
-const MATTERS_VERSION = 6;
+const MATTERS_VERSION = 7;
 
 type MatterAuditEmitter = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 
@@ -321,6 +327,9 @@ export const useMatterStore = create<MatterState>()(
           folderPaths: dedupeFolderPaths(input.folderPaths ?? []),
           mailFolderPaths: Array.from(new Set((input.mailFolderPaths ?? []).filter(Boolean))),
           crmHouseholdKeys: Array.from(new Set((input.crmHouseholdKeys ?? []).filter(Boolean))),
+          onedriveFolderKeys: Array.from(new Set((input.onedriveFolderKeys ?? []).filter(Boolean))),
+          esignKeys: Array.from(new Set((input.esignKeys ?? []).filter(Boolean))),
+          meetingKeys: Array.from(new Set((input.meetingKeys ?? []).filter(Boolean))),
           privileged: input.privileged ?? false,
           mcpAccessGranted: input.mcpAccessGranted ?? false,
           createdAt: new Date().toISOString(),
@@ -688,9 +697,11 @@ export const useMatterStore = create<MatterState>()(
       // `privileged` flag. v3 -> v4: matters gained firm linkage fields
       // (firmMatterId, orgId, role, shared). v4 -> v5: matters gained the
       // explicit MCP access grant. v5 -> v6: matters gained `crmHouseholdKeys`
-      // for the Wealthbox connector. Backfill defaults so older persisted matters
-      // parse cleanly (missing values are tolerated by readers, but normalising
-      // here keeps the shape consistent). Only the `matters` slice is versioned;
+      // for the Wealthbox connector. v6 -> v7: matters gained additive external
+      // connector slots (`onedriveFolderKeys`, `esignKeys`, `meetingKeys`).
+      // Backfill defaults so older persisted matters parse cleanly (missing
+      // values are tolerated by readers, but normalising here keeps the shape
+      // consistent). Only the `matters` slice is versioned;
       // the snapshots/cache slices pass through untouched.
       migrate: (persisted, version) => {
         const state = persisted as Partial<PersistedMatterState> | undefined;
@@ -733,6 +744,16 @@ export const useMatterStore = create<MatterState>()(
           state.matters = state.matters.map((m) => ({
             ...m,
             crmHouseholdKeys: m.crmHouseholdKeys ?? [],
+          }));
+        }
+        if (version < 7) {
+          // v6 -> v7: additive connector mapping slots. These are empty until
+          // each connector branch provides its real mapping UI/rules.
+          state.matters = state.matters.map((m) => ({
+            ...m,
+            onedriveFolderKeys: m.onedriveFolderKeys ?? [],
+            esignKeys: m.esignKeys ?? [],
+            meetingKeys: m.meetingKeys ?? [],
           }));
         }
         return state as PersistedMatterState;
