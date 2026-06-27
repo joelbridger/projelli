@@ -1,8 +1,9 @@
-//! Normalised data models for Wealthbox CRM objects.
+//! Normalised data models for CRM provider objects.
 //!
 //! All structs derive `Default` and carry `#[serde(default)]` so missing or
-//! null fields are tolerated gracefully — the Wealthbox API omits empty arrays
-//! and optional fields entirely rather than sending `null`.
+//! null fields are tolerated gracefully. Wealthbox is the first provider and
+//! its API omits empty arrays and optional fields entirely rather than sending
+//! `null`.
 //!
 //! Sensitive government-ID fields (passport_number, green_card_number,
 //! drivers_license) are deliberately **omitted** per the privacy design (§5.5):
@@ -41,10 +42,10 @@ where
 // Household reference (embedded inside a person contact)
 // ---------------------------------------------------------------------------
 
-/// A member of a Wealthbox household, as embedded in `WbHouseholdRef.members`.
+/// A member of a Wealthbox household, as embedded in `CrmHouseholdRef.members`.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
-pub struct WbHouseholdMember {
+pub struct CrmHouseholdMember {
     pub id: i64,
     pub first_name: String,
     pub last_name: String,
@@ -59,12 +60,12 @@ pub struct WbHouseholdMember {
 /// Tells us which household the contact belongs to and lists all members.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
-pub struct WbHouseholdRef {
+pub struct CrmHouseholdRef {
     pub id: i64,
     pub name: String,
     /// This contact's role within the household (e.g. "Head", "Spouse").
     pub title: String,
-    pub members: Vec<WbHouseholdMember>,
+    pub members: Vec<CrmHouseholdMember>,
 }
 
 // ---------------------------------------------------------------------------
@@ -73,7 +74,7 @@ pub struct WbHouseholdRef {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
-pub struct WbStreetAddress {
+pub struct CrmStreetAddress {
     pub address: String,
     pub city: String,
     pub state: String,
@@ -85,7 +86,7 @@ pub struct WbStreetAddress {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
-pub struct WbEmailAddress {
+pub struct CrmEmailAddress {
     pub address: String,
     /// Kind label (e.g. "Personal", "Work").
     pub kind: String,
@@ -94,7 +95,7 @@ pub struct WbEmailAddress {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
-pub struct WbPhoneNumber {
+pub struct CrmPhoneNumber {
     pub address: String,
     /// Kind label (e.g. "Cell", "Office").
     pub kind: String,
@@ -109,7 +110,7 @@ pub struct WbPhoneNumber {
 /// that a note, task, or event is linked to.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
-pub struct WbLink {
+pub struct CrmLink {
     pub id: i64,
     #[serde(rename = "type")]
     pub r#type: String,
@@ -119,7 +120,7 @@ pub struct WbLink {
 /// A tag attached to a contact.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
-pub struct WbTag {
+pub struct CrmTag {
     pub id: i64,
     pub name: String,
 }
@@ -128,7 +129,7 @@ pub struct WbTag {
 // Contact
 // ---------------------------------------------------------------------------
 
-/// A Wealthbox contact — `type` ∈ `person | household | organization | trust`.
+/// A normalized CRM contact — `type` ∈ `person | household | organization | trust`.
 ///
 /// Captures the client-knowledge core used by the dossier / Client Map.
 /// Sensitive government-ID fields are intentionally absent (§5.5).
@@ -142,7 +143,7 @@ pub struct WbTag {
 /// omit person-only fields.  `Option<…>` fields already tolerate null.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
-pub struct WbContact {
+pub struct CrmContact {
     pub id: i64,
     #[serde(rename = "type", default, deserialize_with = "null_to_default")]
     pub r#type: String,
@@ -189,7 +190,11 @@ pub struct WbContact {
     // BOTH names so the real Background text actually syncs (it was silently
     // dropping before). `background_information` stays the primary name so
     // existing fixtures/tests are unaffected.
-    #[serde(default, alias = "background_info", deserialize_with = "null_to_default")]
+    #[serde(
+        default,
+        alias = "background_info",
+        deserialize_with = "null_to_default"
+    )]
     pub background_information: String,
     #[serde(default, deserialize_with = "null_to_default")]
     pub important_information: String,
@@ -224,22 +229,22 @@ pub struct WbContact {
 
     // ── arrays ───────────────────────────────────────────────────────────────
     #[serde(default, deserialize_with = "null_to_default")]
-    pub street_addresses: Vec<WbStreetAddress>,
+    pub street_addresses: Vec<CrmStreetAddress>,
     #[serde(default, deserialize_with = "null_to_default")]
-    pub email_addresses: Vec<WbEmailAddress>,
+    pub email_addresses: Vec<CrmEmailAddress>,
     #[serde(default, deserialize_with = "null_to_default")]
-    pub phone_numbers: Vec<WbPhoneNumber>,
+    pub phone_numbers: Vec<CrmPhoneNumber>,
 
     // ── nested ───────────────────────────────────────────────────────────────
     /// Populated on person/trust/org contacts; `None` on household contacts.
-    pub household: Option<WbHouseholdRef>,
+    pub household: Option<CrmHouseholdRef>,
     #[serde(default, deserialize_with = "null_to_default")]
-    pub tags: Vec<WbTag>,
+    pub tags: Vec<CrmTag>,
     #[serde(default, deserialize_with = "null_to_default")]
     pub contact_roles: Vec<serde_json::Value>,
 }
 
-impl WbContact {
+impl CrmContact {
     /// Returns the id of the household this contact belongs to.
     ///
     /// - For a contact whose `type` is `"household"`, returns the contact's own id.
@@ -258,35 +263,35 @@ impl WbContact {
 // Notes, Tasks, Events
 // ---------------------------------------------------------------------------
 
-/// A Wealthbox note.  The REST API returns these under the JSON key
+/// A normalized CRM note. Wealthbox returns these under the JSON key
 /// `"status_updates"` — not `"notes"`.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
-pub struct WbNote {
+pub struct CrmNote {
     pub id: i64,
     pub created_at: String,
     pub updated_at: String,
     pub content: String,
-    pub linked_to: Vec<WbLink>,
+    pub linked_to: Vec<CrmLink>,
 }
 
-/// A Wealthbox task.
+/// A normalized CRM task.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
-pub struct WbTask {
+pub struct CrmTask {
     pub id: i64,
     pub name: String,
     pub due_date: Option<String>,
     pub complete: bool,
     pub priority: String,
     pub description: String,
-    pub linked_to: Vec<WbLink>,
+    pub linked_to: Vec<CrmLink>,
 }
 
-/// A Wealthbox calendar event.
+/// A normalized CRM calendar event.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
-pub struct WbEvent {
+pub struct CrmEvent {
     pub id: i64,
     pub title: String,
     pub starts_at: String,
@@ -294,7 +299,7 @@ pub struct WbEvent {
     pub all_day: bool,
     pub location: String,
     pub description: String,
-    pub linked_to: Vec<WbLink>,
+    pub linked_to: Vec<CrmLink>,
 }
 
 // ---------------------------------------------------------------------------
@@ -310,13 +315,15 @@ mod tests {
         // The live Wealthbox API returns this field as `background_info`, not the
         // documented `background_information`. The serde alias must accept it so
         // the real Background text is not silently dropped on sync.
-        let json = r#"{ "id": 42, "type": "person", "background_info": "Loyal client; prefers email." }"#;
-        let c: WbContact = serde_json::from_str(json).expect("parse contact with background_info");
+        let json =
+            r#"{ "id": 42, "type": "person", "background_info": "Loyal client; prefers email." }"#;
+        let c: CrmContact = serde_json::from_str(json).expect("parse contact with background_info");
         assert_eq!(c.background_information, "Loyal client; prefers email.");
 
         // The documented primary name must still parse (no fixture/test breakage).
         let json2 = r#"{ "id": 43, "type": "person", "background_information": "Primary name still works." }"#;
-        let c2: WbContact = serde_json::from_str(json2).expect("parse with background_information");
+        let c2: CrmContact =
+            serde_json::from_str(json2).expect("parse with background_information");
         assert_eq!(c2.background_information, "Primary name still works.");
     }
 
@@ -434,7 +441,7 @@ mod tests {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    fn parse_contacts() -> Vec<WbContact> {
+    fn parse_contacts() -> Vec<CrmContact> {
         let v: serde_json::Value = serde_json::from_str(CONTACTS_FIXTURE).unwrap();
         serde_json::from_value(v["contacts"].clone()).unwrap()
     }
@@ -482,7 +489,7 @@ mod tests {
 
     #[test]
     fn household_id_helper_for_orphan_person_returns_none() {
-        let p = WbContact {
+        let p = CrmContact {
             id: 42,
             r#type: "person".to_string(),
             household: None,
@@ -528,7 +535,10 @@ mod tests {
         assert!(person.street_addresses[0].principal);
 
         assert_eq!(person.email_addresses.len(), 1);
-        assert_eq!(person.email_addresses[0].address, "robert@andersonfamily.com");
+        assert_eq!(
+            person.email_addresses[0].address,
+            "robert@andersonfamily.com"
+        );
         assert!(person.email_addresses[0].principal);
 
         assert_eq!(person.phone_numbers.len(), 1);
@@ -542,7 +552,7 @@ mod tests {
     fn parses_notes_from_status_updates_key() {
         let v: serde_json::Value = serde_json::from_str(NOTES_FIXTURE).unwrap();
         // Must use "status_updates" — not "notes" — as the JSON key.
-        let notes: Vec<WbNote> = serde_json::from_value(v["status_updates"].clone()).unwrap();
+        let notes: Vec<CrmNote> = serde_json::from_value(v["status_updates"].clone()).unwrap();
         assert_eq!(notes.len(), 1);
         let note = &notes[0];
         assert_eq!(note.id, 30001);
@@ -557,7 +567,7 @@ mod tests {
     #[test]
     fn parses_tasks_fixture() {
         let v: serde_json::Value = serde_json::from_str(TASKS_FIXTURE).unwrap();
-        let tasks: Vec<WbTask> = serde_json::from_value(v["tasks"].clone()).unwrap();
+        let tasks: Vec<CrmTask> = serde_json::from_value(v["tasks"].clone()).unwrap();
         assert_eq!(tasks.len(), 1);
         let task = &tasks[0];
         assert_eq!(task.id, 40001);
@@ -574,7 +584,7 @@ mod tests {
     #[test]
     fn parses_events_fixture() {
         let v: serde_json::Value = serde_json::from_str(EVENTS_FIXTURE).unwrap();
-        let events: Vec<WbEvent> = serde_json::from_value(v["events"].clone()).unwrap();
+        let events: Vec<CrmEvent> = serde_json::from_value(v["events"].clone()).unwrap();
         assert_eq!(events.len(), 1);
         let event = &events[0];
         assert_eq!(event.id, 50001);
@@ -590,7 +600,7 @@ mod tests {
     fn tolerates_minimal_contact_with_missing_optional_fields() {
         // The API omits empty/null fields — serde(default) must handle this.
         let json = r#"{ "id": 7, "type": "person", "first_name": "Alice" }"#;
-        let c: WbContact = serde_json::from_str(json).unwrap();
+        let c: CrmContact = serde_json::from_str(json).unwrap();
         assert_eq!(c.id, 7);
         assert_eq!(c.first_name, "Alice");
         assert_eq!(c.last_name, "");
@@ -633,23 +643,31 @@ mod tests {
             "members": []
         }"#;
 
-        let c: WbContact = serde_json::from_str(json)
+        let c: CrmContact = serde_json::from_str(json)
             .expect("household contact with explicit null fields must parse without error");
 
         // Type and top-level name field are captured.
         assert_eq!(c.r#type, "household");
-        assert_eq!(c.name, "Ellison, Robert & Margaret",
-            "top-level `name` field must be captured on household contacts");
+        assert_eq!(
+            c.name, "Ellison, Robert & Margaret",
+            "top-level `name` field must be captured on household contacts"
+        );
 
         // Explicit nulls on bare String fields become empty strings.
-        assert_eq!(c.background_information, "",
-            "null background_info must deserialize to empty string, not error");
-        assert_eq!(c.company_name, "",
-            "null company_name must deserialize to empty string, not error");
+        assert_eq!(
+            c.background_information, "",
+            "null background_info must deserialize to empty string, not error"
+        );
+        assert_eq!(
+            c.company_name, "",
+            "null company_name must deserialize to empty string, not error"
+        );
 
         // Explicit null on a Vec field becomes an empty vec.
-        assert!(c.email_addresses.is_empty(),
-            "null email_addresses must deserialize to empty vec, not error");
+        assert!(
+            c.email_addresses.is_empty(),
+            "null email_addresses must deserialize to empty vec, not error"
+        );
 
         // household_id() for a household-type contact returns its own id.
         assert_eq!(c.household_id(), Some(20001));

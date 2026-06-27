@@ -25,7 +25,7 @@ use std::path::Path;
 
 use sha2::{Digest, Sha256};
 
-use crate::commands::crm::model::{WbContact, WbEvent, WbLink, WbNote, WbTask};
+use crate::commands::crm::model::{CrmContact, CrmEvent, CrmLink, CrmNote, CrmTask};
 use crate::commands::crm::render::{
     render_contact, render_event, render_household_summary, render_note, render_task,
 };
@@ -137,8 +137,15 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
         // CAPITALISED contact types ("Household"/"Person"/"Organization"/"Trust") while
         // the whole index pipeline matches on lowercase — without this every contact
         // falls through `plan_household_index`'s `_ => skip` arm and NOTHING is embedded.
-        // WbContact has no updated_at field; use "" (content_hash drives change detection).
-        store.upsert_object(&store_id, &c.r#type.to_ascii_lowercase(), &gk, "", &hash, &json)?;
+        // CrmContact has no updated_at field; use "" (content_hash drives change detection).
+        store.upsert_object(
+            &store_id,
+            &c.r#type.to_ascii_lowercase(),
+            &gk,
+            "",
+            &hash,
+            &json,
+        )?;
         report.contacts += 1;
     }
 
@@ -170,7 +177,7 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
                 seen.insert(store_id.clone());
                 let json = serde_json::to_string(t)?;
                 let hash = content_hash(&json);
-                // WbTask has no updated_at; use "" (content_hash drives change detection).
+                // CrmTask has no updated_at; use "" (content_hash drives change detection).
                 store.upsert_object(&store_id, "task", &gk, "", &hash, &json)?;
                 report.tasks += 1;
             }
@@ -189,7 +196,7 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
                 seen.insert(store_id.clone());
                 let json = serde_json::to_string(e)?;
                 let hash = content_hash(&json);
-                // WbEvent has no updated_at; use "" (content_hash drives change detection).
+                // CrmEvent has no updated_at; use "" (content_hash drives change detection).
                 store.upsert_object(&store_id, "event", &gk, "", &hash, &json)?;
                 report.events += 1;
             }
@@ -227,7 +234,7 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
 /// mis-filed into the wrong household — a confidentiality bug.  Only entries
 /// with `r#type == "Contact"` (case-insensitive) are eligible for lookup.
 fn resolve_grouping_key(
-    linked_to: &[WbLink],
+    linked_to: &[CrmLink],
     contact_to_group: &HashMap<i64, String>,
 ) -> Option<String> {
     for link in linked_to {
@@ -275,11 +282,11 @@ pub fn plan_household_index(
     let mut items: Vec<CrmIndexItem> = Vec::new();
 
     // Partition rows by kind.
-    let mut hh_contact: Option<WbContact> = None;
-    let mut member_contacts: Vec<WbContact> = Vec::new();
-    let mut notes: Vec<WbNote> = Vec::new();
-    let mut tasks: Vec<WbTask> = Vec::new();
-    let mut events: Vec<WbEvent> = Vec::new();
+    let mut hh_contact: Option<CrmContact> = None;
+    let mut member_contacts: Vec<CrmContact> = Vec::new();
+    let mut notes: Vec<CrmNote> = Vec::new();
+    let mut tasks: Vec<CrmTask> = Vec::new();
+    let mut events: Vec<CrmEvent> = Vec::new();
 
     for row in &rows {
         // Match on a lowercased kind. `ingest` already normalises on store, but
@@ -412,7 +419,10 @@ pub async fn apply_index(
         if chunks.is_empty() {
             continue;
         }
-        by_matter.entry(item.matter_id.clone()).or_default().extend(chunks);
+        by_matter
+            .entry(item.matter_id.clone())
+            .or_default()
+            .extend(chunks);
     }
     if by_matter.is_empty() {
         return Ok(0);
@@ -653,7 +663,9 @@ pub async fn backfill(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::crm::model::{WbContact, WbEvent, WbHouseholdRef, WbLink, WbNote, WbTask};
+    use crate::commands::crm::model::{
+        CrmContact, CrmEvent, CrmHouseholdRef, CrmLink, CrmNote, CrmTask,
+    };
     use crate::commands::crm::store::CrmStore;
     use async_trait::async_trait;
     use tempfile::TempDir;
@@ -665,8 +677,8 @@ mod tests {
     /// head, one task and one event linked to the household.
     struct FakeCrmSource;
 
-    fn fixture_household() -> WbContact {
-        WbContact {
+    fn fixture_household() -> CrmContact {
+        CrmContact {
             id: 10001,
             r#type: "household".to_string(),
             company_name: "The Andersons".to_string(),
@@ -676,8 +688,8 @@ mod tests {
         }
     }
 
-    fn fixture_head() -> WbContact {
-        WbContact {
+    fn fixture_head() -> CrmContact {
+        CrmContact {
             id: 10002,
             r#type: "person".to_string(),
             first_name: "Robert".to_string(),
@@ -691,7 +703,7 @@ mod tests {
             investment_objective: "Growth".to_string(),
             assets: Some(serde_json::json!(4_200_000_i64)),
             liabilities: Some(serde_json::json!(850_000_i64)),
-            household: Some(WbHouseholdRef {
+            household: Some(CrmHouseholdRef {
                 id: 10001,
                 name: "The Andersons".to_string(),
                 title: "Head".to_string(),
@@ -701,8 +713,8 @@ mod tests {
         }
     }
 
-    fn fixture_spouse() -> WbContact {
-        WbContact {
+    fn fixture_spouse() -> CrmContact {
+        CrmContact {
             id: 10003,
             r#type: "person".to_string(),
             first_name: "Linda".to_string(),
@@ -710,7 +722,7 @@ mod tests {
             birth_date: Some("1968-09-20".to_string()),
             contact_type: "Client".to_string(),
             status: "Active".to_string(),
-            household: Some(WbHouseholdRef {
+            household: Some(CrmHouseholdRef {
                 id: 10001,
                 name: "The Andersons".to_string(),
                 title: "Spouse".to_string(),
@@ -720,15 +732,15 @@ mod tests {
         }
     }
 
-    fn fixture_note() -> WbNote {
-        WbNote {
+    fn fixture_note() -> CrmNote {
+        CrmNote {
             id: 30001,
             created_at: "2026-03-10 09:15 AM -0500".to_string(),
             updated_at: "2026-03-10 09:15 AM -0500".to_string(),
             content: "Reviewed Q1 portfolio allocations with Robert. Discussed rebalancing RSUs."
                 .to_string(),
             // Linked to the head person — resolves via contact_to_group to household "10001".
-            linked_to: vec![WbLink {
+            linked_to: vec![CrmLink {
                 id: 10002,
                 r#type: "contact".to_string(),
                 name: "Robert Anderson".to_string(),
@@ -736,8 +748,8 @@ mod tests {
         }
     }
 
-    fn fixture_task() -> WbTask {
-        WbTask {
+    fn fixture_task() -> CrmTask {
+        CrmTask {
             id: 40001,
             name: "Consolidate inherited IRA".to_string(),
             due_date: Some("2026-12-31".to_string()),
@@ -745,7 +757,7 @@ mod tests {
             priority: "High".to_string(),
             description: "Roll Linda's inherited IRA from her mother before year-end.".to_string(),
             // Linked directly to the household contact — grouping key is "10001".
-            linked_to: vec![WbLink {
+            linked_to: vec![CrmLink {
                 id: 10001,
                 r#type: "contact".to_string(),
                 name: "The Andersons".to_string(),
@@ -753,8 +765,8 @@ mod tests {
         }
     }
 
-    fn fixture_event() -> WbEvent {
-        WbEvent {
+    fn fixture_event() -> CrmEvent {
+        CrmEvent {
             id: 50001,
             title: "Annual Review — Andersons".to_string(),
             starts_at: "2026-07-15 10:00 AM -0600".to_string(),
@@ -764,7 +776,7 @@ mod tests {
             description: "Comprehensive annual review including tax-loss harvest discussion."
                 .to_string(),
             // Linked directly to the household contact.
-            linked_to: vec![WbLink {
+            linked_to: vec![CrmLink {
                 id: 10001,
                 r#type: "contact".to_string(),
                 name: "The Andersons".to_string(),
@@ -774,16 +786,16 @@ mod tests {
 
     #[async_trait]
     impl CrmSource for FakeCrmSource {
-        async fn list_all_contacts(&self) -> anyhow::Result<Vec<WbContact>> {
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<CrmContact>> {
             Ok(vec![fixture_household(), fixture_head(), fixture_spouse()])
         }
-        async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> {
+        async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
             Ok(vec![fixture_note()])
         }
-        async fn list_tasks(&self) -> anyhow::Result<Vec<WbTask>> {
+        async fn list_tasks(&self) -> anyhow::Result<Vec<CrmTask>> {
             Ok(vec![fixture_task()])
         }
-        async fn list_events(&self) -> anyhow::Result<Vec<WbEvent>> {
+        async fn list_events(&self) -> anyhow::Result<Vec<CrmEvent>> {
             Ok(vec![fixture_event()])
         }
     }
@@ -805,7 +817,10 @@ mod tests {
         let report = ingest(&source, &store).await.expect("ingest");
 
         // Report counts: household + head + spouse = 3 contacts; 1 note, 1 task, 1 event.
-        assert_eq!(report.contacts, 3, "expected 3 contacts (household + head + spouse)");
+        assert_eq!(
+            report.contacts, 3,
+            "expected 3 contacts (household + head + spouse)"
+        );
         assert_eq!(report.notes, 1, "expected 1 note");
         assert_eq!(report.tasks, 1, "expected 1 task");
         assert_eq!(report.events, 1, "expected 1 event");
@@ -942,9 +957,9 @@ mod tests {
 
     #[async_trait]
     impl CrmSource for CapitalizedKindSource {
-        async fn list_all_contacts(&self) -> anyhow::Result<Vec<WbContact>> {
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<CrmContact>> {
             Ok(vec![
-                WbContact {
+                CrmContact {
                     id: 20001,
                     r#type: "Household".to_string(), // live capitalisation
                     company_name: "The Bishops".to_string(),
@@ -952,14 +967,14 @@ mod tests {
                     status: "Active".to_string(),
                     ..Default::default()
                 },
-                WbContact {
+                CrmContact {
                     id: 20002,
                     r#type: "Person".to_string(), // live capitalisation
                     first_name: "Grace".to_string(),
                     last_name: "Bishop".to_string(),
                     contact_type: "Client".to_string(),
                     status: "Active".to_string(),
-                    household: Some(WbHouseholdRef {
+                    household: Some(CrmHouseholdRef {
                         id: 20001,
                         name: "The Bishops".to_string(),
                         title: "Head".to_string(),
@@ -967,13 +982,13 @@ mod tests {
                     }),
                     ..Default::default()
                 },
-                WbContact {
+                CrmContact {
                     id: 20003,
                     r#type: "Organization".to_string(), // live capitalisation
                     company_name: "Bishop Holdings LLC".to_string(),
                     contact_type: "Client".to_string(),
                     status: "Active".to_string(),
-                    household: Some(WbHouseholdRef {
+                    household: Some(CrmHouseholdRef {
                         id: 20001,
                         name: "The Bishops".to_string(),
                         title: "Entity".to_string(),
@@ -981,13 +996,13 @@ mod tests {
                     }),
                     ..Default::default()
                 },
-                WbContact {
+                CrmContact {
                     id: 20004,
                     r#type: "Trust".to_string(), // live capitalisation
                     company_name: "Bishop Family Trust".to_string(),
                     contact_type: "Client".to_string(),
                     status: "Active".to_string(),
-                    household: Some(WbHouseholdRef {
+                    household: Some(CrmHouseholdRef {
                         id: 20001,
                         name: "The Bishops".to_string(),
                         title: "Entity".to_string(),
@@ -997,13 +1012,13 @@ mod tests {
                 },
             ])
         }
-        async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> {
+        async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
             Ok(vec![])
         }
-        async fn list_tasks(&self) -> anyhow::Result<Vec<WbTask>> {
+        async fn list_tasks(&self) -> anyhow::Result<Vec<CrmTask>> {
             Ok(vec![])
         }
-        async fn list_events(&self) -> anyhow::Result<Vec<WbEvent>> {
+        async fn list_events(&self) -> anyhow::Result<Vec<CrmEvent>> {
             Ok(vec![])
         }
     }
@@ -1011,17 +1026,31 @@ mod tests {
     #[tokio::test]
     async fn capitalized_live_kinds_are_normalized_and_indexed() {
         let (_d, store) = crm_store();
-        ingest(&CapitalizedKindSource, &store).await.expect("ingest");
+        ingest(&CapitalizedKindSource, &store)
+            .await
+            .expect("ingest");
 
         // Stored kinds are canonicalised to lowercase on ingest — for ALL FOUR
         // live contact types (Household / Person / Organization / Trust).
-        let hh = store.get_object("contact:20001").unwrap().expect("household row");
+        let hh = store
+            .get_object("contact:20001")
+            .unwrap()
+            .expect("household row");
         assert_eq!(hh.kind, "household", "kind must be lowercased on store");
-        let person = store.get_object("contact:20002").unwrap().expect("person row");
+        let person = store
+            .get_object("contact:20002")
+            .unwrap()
+            .expect("person row");
         assert_eq!(person.kind, "person", "kind must be lowercased on store");
-        let org = store.get_object("contact:20003").unwrap().expect("organization row");
+        let org = store
+            .get_object("contact:20003")
+            .unwrap()
+            .expect("organization row");
         assert_eq!(org.kind, "organization", "kind must be lowercased on store");
-        let trust = store.get_object("contact:20004").unwrap().expect("trust row");
+        let trust = store
+            .get_object("contact:20004")
+            .unwrap()
+            .expect("trust row");
         assert_eq!(trust.kind, "trust", "kind must be lowercased on store");
 
         // plan_household_index produces the household summary + a record for EVERY
@@ -1033,7 +1062,11 @@ mod tests {
             "expected household summary from a live 'Household' contact; got {:?}",
             source_ids
         );
-        for sid in ["crm:contact:20002", "crm:contact:20003", "crm:contact:20004"] {
+        for sid in [
+            "crm:contact:20002",
+            "crm:contact:20003",
+            "crm:contact:20004",
+        ] {
             assert!(
                 source_ids.contains(&sid),
                 "expected member record {sid} (Person/Organization/Trust); got {:?}",
@@ -1048,7 +1081,7 @@ mod tests {
     #[tokio::test]
     async fn plan_household_index_matches_kind_case_insensitively() {
         let (_d, store) = crm_store();
-        let json = serde_json::to_string(&WbContact {
+        let json = serde_json::to_string(&CrmContact {
             id: 21000,
             r#type: "Person".to_string(),
             first_name: "Owen".to_string(),
@@ -1076,9 +1109,9 @@ mod tests {
 
     #[async_trait]
     impl CrmSource for BishopsMinusTrust {
-        async fn list_all_contacts(&self) -> anyhow::Result<Vec<WbContact>> {
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<CrmContact>> {
             Ok(vec![
-                WbContact {
+                CrmContact {
                     id: 20001,
                     r#type: "Household".to_string(),
                     company_name: "The Bishops".to_string(),
@@ -1086,14 +1119,14 @@ mod tests {
                     status: "Active".to_string(),
                     ..Default::default()
                 },
-                WbContact {
+                CrmContact {
                     id: 20002,
                     r#type: "Person".to_string(),
                     first_name: "Grace".to_string(),
                     last_name: "Bishop".to_string(),
                     contact_type: "Client".to_string(),
                     status: "Active".to_string(),
-                    household: Some(WbHouseholdRef {
+                    household: Some(CrmHouseholdRef {
                         id: 20001,
                         name: "The Bishops".to_string(),
                         title: "Head".to_string(),
@@ -1101,13 +1134,13 @@ mod tests {
                     }),
                     ..Default::default()
                 },
-                WbContact {
+                CrmContact {
                     id: 20003,
                     r#type: "Organization".to_string(),
                     company_name: "Bishop Holdings LLC".to_string(),
                     contact_type: "Client".to_string(),
                     status: "Active".to_string(),
-                    household: Some(WbHouseholdRef {
+                    household: Some(CrmHouseholdRef {
                         id: 20001,
                         name: "The Bishops".to_string(),
                         title: "Entity".to_string(),
@@ -1118,13 +1151,13 @@ mod tests {
                 // 20004 (Trust) removed upstream.
             ])
         }
-        async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> {
+        async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
             Ok(vec![])
         }
-        async fn list_tasks(&self) -> anyhow::Result<Vec<WbTask>> {
+        async fn list_tasks(&self) -> anyhow::Result<Vec<CrmTask>> {
             Ok(vec![])
         }
-        async fn list_events(&self) -> anyhow::Result<Vec<WbEvent>> {
+        async fn list_events(&self) -> anyhow::Result<Vec<CrmEvent>> {
             Ok(vec![])
         }
     }
@@ -1134,8 +1167,13 @@ mod tests {
         let (_d, store) = crm_store();
 
         // First sync: household + person(20002) + org(20003) + trust(20004).
-        let r1 = ingest(&CapitalizedKindSource, &store).await.expect("ingest 1");
-        assert_eq!(r1.removed_tombstoned, 0, "nothing is removed on a first sync");
+        let r1 = ingest(&CapitalizedKindSource, &store)
+            .await
+            .expect("ingest 1");
+        assert_eq!(
+            r1.removed_tombstoned, 0,
+            "nothing is removed on a first sync"
+        );
         let before = plan_household_index(&store, "20001", "m").expect("plan 1");
         assert!(
             before.iter().any(|i| i.source_id == "crm:contact:20004"),
@@ -1144,7 +1182,10 @@ mod tests {
 
         // Second sync: the same household but the TRUST (20004) is gone from Wealthbox.
         let r2 = ingest(&BishopsMinusTrust, &store).await.expect("ingest 2");
-        assert_eq!(r2.removed_tombstoned, 1, "the removed trust is tombstoned exactly once");
+        assert_eq!(
+            r2.removed_tombstoned, 1,
+            "the removed trust is tombstoned exactly once"
+        );
         let after = plan_household_index(&store, "20001", "m").expect("plan 2");
         assert!(
             !after.iter().any(|i| i.source_id == "crm:contact:20004"),
@@ -1156,8 +1197,13 @@ mod tests {
         );
 
         // Re-appearance self-heals: the trust returns, upsert resets deleted=0.
-        let r3 = ingest(&CapitalizedKindSource, &store).await.expect("ingest 3");
-        assert_eq!(r3.removed_tombstoned, 0, "nothing removed when the trust returns");
+        let r3 = ingest(&CapitalizedKindSource, &store)
+            .await
+            .expect("ingest 3");
+        assert_eq!(
+            r3.removed_tombstoned, 0,
+            "nothing removed when the trust returns"
+        );
         let again = plan_household_index(&store, "20001", "m").expect("plan 3");
         assert!(
             again.iter().any(|i| i.source_id == "crm:contact:20004"),
@@ -1171,16 +1217,16 @@ mod tests {
     struct LinkedNoteSource;
     #[async_trait]
     impl CrmSource for LinkedNoteSource {
-        async fn list_all_contacts(&self) -> anyhow::Result<Vec<WbContact>> {
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<CrmContact>> {
             Ok(vec![fixture_household(), fixture_head()])
         }
-        async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> {
+        async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
             Ok(vec![fixture_note()])
         }
-        async fn list_tasks(&self) -> anyhow::Result<Vec<WbTask>> {
+        async fn list_tasks(&self) -> anyhow::Result<Vec<CrmTask>> {
             Ok(vec![])
         }
-        async fn list_events(&self) -> anyhow::Result<Vec<WbEvent>> {
+        async fn list_events(&self) -> anyhow::Result<Vec<CrmEvent>> {
             Ok(vec![])
         }
     }
@@ -1190,18 +1236,18 @@ mod tests {
     struct UnlinkedNoteSource;
     #[async_trait]
     impl CrmSource for UnlinkedNoteSource {
-        async fn list_all_contacts(&self) -> anyhow::Result<Vec<WbContact>> {
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<CrmContact>> {
             Ok(vec![fixture_household(), fixture_head()])
         }
-        async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> {
+        async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
             let mut n = fixture_note();
             n.linked_to = vec![]; // unlinked now — cannot resolve a household
             Ok(vec![n])
         }
-        async fn list_tasks(&self) -> anyhow::Result<Vec<WbTask>> {
+        async fn list_tasks(&self) -> anyhow::Result<Vec<CrmTask>> {
             Ok(vec![])
         }
-        async fn list_events(&self) -> anyhow::Result<Vec<WbEvent>> {
+        async fn list_events(&self) -> anyhow::Result<Vec<CrmEvent>> {
             Ok(vec![])
         }
     }
@@ -1211,7 +1257,9 @@ mod tests {
         let (_d, store) = crm_store();
 
         // First sync: the note is linked to the head and filed under the household.
-        ingest(&LinkedNoteSource, &store).await.expect("ingest linked");
+        ingest(&LinkedNoteSource, &store)
+            .await
+            .expect("ingest linked");
         let before = plan_household_index(&store, "10001", "m").expect("plan 1");
         assert!(
             before.iter().any(|i| i.source_id == "crm:note:30001"),
@@ -1219,8 +1267,13 @@ mod tests {
         );
 
         // Re-sync: the note is now UNLINKED upstream — skipped, not re-filed.
-        let r2 = ingest(&UnlinkedNoteSource, &store).await.expect("ingest unlinked");
-        assert_eq!(r2.skipped_unlinked, 1, "the now-unlinkable note is counted as skipped");
+        let r2 = ingest(&UnlinkedNoteSource, &store)
+            .await
+            .expect("ingest unlinked");
+        assert_eq!(
+            r2.skipped_unlinked, 1,
+            "the now-unlinkable note is counted as skipped"
+        );
         assert_eq!(
             r2.removed_tombstoned, 1,
             "a previously-filed object that becomes unlinkable is tombstoned, not left stale"
@@ -1241,11 +1294,11 @@ mod tests {
 
     #[async_trait]
     impl CrmSource for FakeWithUnlinkedNote {
-        async fn list_all_contacts(&self) -> anyhow::Result<Vec<WbContact>> {
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<CrmContact>> {
             Ok(vec![fixture_household(), fixture_head()])
         }
-        async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> {
-            let orphan = WbNote {
+        async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
+            let orphan = CrmNote {
                 id: 99999,
                 created_at: "2026-01-01".to_string(),
                 updated_at: "2026-01-01".to_string(),
@@ -1254,10 +1307,10 @@ mod tests {
             };
             Ok(vec![fixture_note(), orphan])
         }
-        async fn list_tasks(&self) -> anyhow::Result<Vec<WbTask>> {
+        async fn list_tasks(&self) -> anyhow::Result<Vec<CrmTask>> {
             Ok(vec![])
         }
-        async fn list_events(&self) -> anyhow::Result<Vec<WbEvent>> {
+        async fn list_events(&self) -> anyhow::Result<Vec<CrmEvent>> {
             Ok(vec![])
         }
     }
@@ -1279,7 +1332,10 @@ mod tests {
 
         // The orphan note must not be present in the store.
         let row = store.get_object("note:99999").unwrap();
-        assert!(row.is_none(), "unlinked note must not be written to the store");
+        assert!(
+            row.is_none(),
+            "unlinked note must not be written to the store"
+        );
     }
 
     // ── Test: non-contact linked_to with colliding id is NOT filed ───────────
@@ -1293,17 +1349,17 @@ mod tests {
 
     #[async_trait]
     impl CrmSource for FakeWithProjectLinkedNote {
-        async fn list_all_contacts(&self) -> anyhow::Result<Vec<WbContact>> {
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<CrmContact>> {
             // Contact id 10001 (the household) is registered in contact_to_group.
             Ok(vec![fixture_household()])
         }
-        async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> {
-            let note = WbNote {
+        async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
+            let note = CrmNote {
                 id: 77777,
                 created_at: "2026-01-01".to_string(),
                 updated_at: "2026-01-01".to_string(),
                 content: "Note linked to a project, NOT a contact".to_string(),
-                linked_to: vec![WbLink {
+                linked_to: vec![CrmLink {
                     // Same numeric id as the household contact — must NOT match
                     // because the link type is "Project", not "Contact".
                     id: 10001,
@@ -1313,10 +1369,10 @@ mod tests {
             };
             Ok(vec![note])
         }
-        async fn list_tasks(&self) -> anyhow::Result<Vec<WbTask>> {
+        async fn list_tasks(&self) -> anyhow::Result<Vec<CrmTask>> {
             Ok(vec![])
         }
-        async fn list_events(&self) -> anyhow::Result<Vec<WbEvent>> {
+        async fn list_events(&self) -> anyhow::Result<Vec<CrmEvent>> {
             Ok(vec![])
         }
     }
@@ -1398,9 +1454,9 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn backfill_full_integration_requires_embedding_model() {
-        use crate::commands::rag::store;
-        use crate::commands::rag::embedder::embed_documents_batched;
         use crate::commands::mail::crypto::decrypt_with_key;
+        use crate::commands::rag::embedder::embed_documents_batched;
+        use crate::commands::rag::store;
 
         skip_without_model!();
 
@@ -1421,9 +1477,17 @@ mod tests {
                 .collect();
         let cancel = std::sync::atomic::AtomicBool::new(false);
         let progress = std::sync::atomic::AtomicU32::new(0);
-        let report = backfill(&FakeCrmSource, &store, ws.path(), &matter_map, &cancel, &VEC_KEY, &progress)
-            .await
-            .expect("backfill");
+        let report = backfill(
+            &FakeCrmSource,
+            &store,
+            ws.path(),
+            &matter_map,
+            &cancel,
+            &VEC_KEY,
+            &progress,
+        )
+        .await
+        .expect("backfill");
         assert!(
             report.records_indexed > 0,
             "backfill must embed + store at least one CRM chunk for the Anderson household"
@@ -1449,7 +1513,10 @@ mod tests {
             .await
             .expect("embed query")
             .unwrap_or_default();
-        assert!(!query_vecs.is_empty(), "embed must return at least one vector");
+        assert!(
+            !query_vecs.is_empty(),
+            "embed must return at least one vector"
+        );
         let qv = &query_vecs[0];
 
         let hits = store::nearest(&table, qv, 8, Some("matter-integration"), false, &[])
@@ -1464,10 +1531,9 @@ mod tests {
             .as_deref()
             .expect("crm hit must carry path_enc");
         let blob = hex::decode(path_enc).expect("path_enc must be hex");
-        let plain_path = String::from_utf8(
-            decrypt_with_key(&blob, &VEC_KEY).expect("decrypt path_enc"),
-        )
-        .expect("path_enc must be UTF-8");
+        let plain_path =
+            String::from_utf8(decrypt_with_key(&blob, &VEC_KEY).expect("decrypt path_enc"))
+                .expect("path_enc must be UTF-8");
 
         assert!(
             plain_path.starts_with("crm:household:10001")
@@ -1491,19 +1557,65 @@ mod tests {
     struct TwoHouseholdsSource;
     #[async_trait]
     impl CrmSource for TwoHouseholdsSource {
-        async fn list_all_contacts(&self) -> anyhow::Result<Vec<WbContact>> {
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<CrmContact>> {
             Ok(vec![
-                WbContact { id: 30001, r#type: "Household".to_string(), company_name: "Alpha".to_string(), contact_type: "Client".to_string(), status: "Active".to_string(), ..Default::default() },
-                WbContact { id: 30002, r#type: "Person".to_string(), first_name: "Ann".to_string(), last_name: "Alpha".to_string(), contact_type: "Client".to_string(), status: "Active".to_string(),
-                    household: Some(WbHouseholdRef { id: 30001, name: "Alpha".to_string(), title: "Head".to_string(), members: vec![] }), ..Default::default() },
-                WbContact { id: 30003, r#type: "Household".to_string(), company_name: "Beta".to_string(), contact_type: "Client".to_string(), status: "Active".to_string(), ..Default::default() },
-                WbContact { id: 30004, r#type: "Person".to_string(), first_name: "Ben".to_string(), last_name: "Beta".to_string(), contact_type: "Client".to_string(), status: "Active".to_string(),
-                    household: Some(WbHouseholdRef { id: 30003, name: "Beta".to_string(), title: "Head".to_string(), members: vec![] }), ..Default::default() },
+                CrmContact {
+                    id: 30001,
+                    r#type: "Household".to_string(),
+                    company_name: "Alpha".to_string(),
+                    contact_type: "Client".to_string(),
+                    status: "Active".to_string(),
+                    ..Default::default()
+                },
+                CrmContact {
+                    id: 30002,
+                    r#type: "Person".to_string(),
+                    first_name: "Ann".to_string(),
+                    last_name: "Alpha".to_string(),
+                    contact_type: "Client".to_string(),
+                    status: "Active".to_string(),
+                    household: Some(CrmHouseholdRef {
+                        id: 30001,
+                        name: "Alpha".to_string(),
+                        title: "Head".to_string(),
+                        members: vec![],
+                    }),
+                    ..Default::default()
+                },
+                CrmContact {
+                    id: 30003,
+                    r#type: "Household".to_string(),
+                    company_name: "Beta".to_string(),
+                    contact_type: "Client".to_string(),
+                    status: "Active".to_string(),
+                    ..Default::default()
+                },
+                CrmContact {
+                    id: 30004,
+                    r#type: "Person".to_string(),
+                    first_name: "Ben".to_string(),
+                    last_name: "Beta".to_string(),
+                    contact_type: "Client".to_string(),
+                    status: "Active".to_string(),
+                    household: Some(CrmHouseholdRef {
+                        id: 30003,
+                        name: "Beta".to_string(),
+                        title: "Head".to_string(),
+                        members: vec![],
+                    }),
+                    ..Default::default()
+                },
             ])
         }
-        async fn list_notes(&self) -> anyhow::Result<Vec<WbNote>> { Ok(vec![]) }
-        async fn list_tasks(&self) -> anyhow::Result<Vec<WbTask>> { Ok(vec![]) }
-        async fn list_events(&self) -> anyhow::Result<Vec<WbEvent>> { Ok(vec![]) }
+        async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
+            Ok(vec![])
+        }
+        async fn list_tasks(&self) -> anyhow::Result<Vec<CrmTask>> {
+            Ok(vec![])
+        }
+        async fn list_events(&self) -> anyhow::Result<Vec<CrmEvent>> {
+            Ok(vec![])
+        }
     }
 
     /// BUG-A (model-gated): two distinct households mapped to the SAME matter must
@@ -1513,9 +1625,9 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn backfill_two_households_one_matter_keeps_both() {
-        use crate::commands::rag::store;
-        use crate::commands::rag::embedder::embed_documents_batched;
         use crate::commands::mail::crypto::decrypt_with_key;
+        use crate::commands::rag::embedder::embed_documents_batched;
+        use crate::commands::rag::store;
         skip_without_model!();
 
         const VEC_KEY: [u8; 32] = [0x5Au8; 32];
@@ -1529,9 +1641,17 @@ mod tests {
         .collect();
         let cancel = std::sync::atomic::AtomicBool::new(false);
         let progress = std::sync::atomic::AtomicU32::new(0);
-        backfill(&TwoHouseholdsSource, &store_db, ws.path(), &matter_map, &cancel, &VEC_KEY, &progress)
-            .await
-            .expect("backfill");
+        backfill(
+            &TwoHouseholdsSource,
+            &store_db,
+            ws.path(),
+            &matter_map,
+            &cancel,
+            &VEC_KEY,
+            &progress,
+        )
+        .await
+        .expect("backfill");
 
         let conn = store::open_connection(ws.path()).await.unwrap();
         let table = store::open_or_create_table(&conn).await.unwrap();
@@ -1553,7 +1673,9 @@ mod tests {
             })
             .collect();
         assert!(
-            paths.iter().any(|p| p.contains(":30001") || p.contains(":30002")),
+            paths
+                .iter()
+                .any(|p| p.contains(":30001") || p.contains(":30002")),
             "Alpha household must be indexed; got {paths:?}"
         );
         assert!(
@@ -1567,8 +1689,8 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn backfill_relink_household_no_orphan_under_old_matter() {
-        use crate::commands::rag::store;
         use crate::commands::rag::embedder::embed_documents_batched;
+        use crate::commands::rag::store;
         skip_without_model!();
 
         const VEC_KEY: [u8; 32] = [0x5Au8; 32];
@@ -1579,17 +1701,37 @@ mod tests {
 
         // Sync 1: household 10001 under matter-A.
         let map_a: std::collections::HashMap<String, String> =
-            [("10001".to_string(), "matter-A".to_string())].into_iter().collect();
-        backfill(&FakeCrmSource, &store_db, ws.path(), &map_a, &cancel, &VEC_KEY, &progress)
-            .await
-            .expect("sync A");
+            [("10001".to_string(), "matter-A".to_string())]
+                .into_iter()
+                .collect();
+        backfill(
+            &FakeCrmSource,
+            &store_db,
+            ws.path(),
+            &map_a,
+            &cancel,
+            &VEC_KEY,
+            &progress,
+        )
+        .await
+        .expect("sync A");
 
         // Sync 2: the SAME household re-linked to matter-B (A absent from the map).
         let map_b: std::collections::HashMap<String, String> =
-            [("10001".to_string(), "matter-B".to_string())].into_iter().collect();
-        backfill(&FakeCrmSource, &store_db, ws.path(), &map_b, &cancel, &VEC_KEY, &progress)
-            .await
-            .expect("sync B");
+            [("10001".to_string(), "matter-B".to_string())]
+                .into_iter()
+                .collect();
+        backfill(
+            &FakeCrmSource,
+            &store_db,
+            ws.path(),
+            &map_b,
+            &cancel,
+            &VEC_KEY,
+            &progress,
+        )
+        .await
+        .expect("sync B");
 
         let conn = store::open_connection(ws.path()).await.unwrap();
         let table = store::open_or_create_table(&conn).await.unwrap();
@@ -1601,7 +1743,10 @@ mod tests {
         let under_b = store::nearest(&table, &q[0], 50, Some("matter-B"), false, &[])
             .await
             .unwrap();
-        assert!(!under_b.is_empty(), "household must be retrievable under the new matter-B");
+        assert!(
+            !under_b.is_empty(),
+            "household must be retrievable under the new matter-B"
+        );
 
         let under_a = store::nearest(&table, &q[0], 50, Some("matter-A"), false, &[])
             .await
@@ -1637,10 +1782,20 @@ mod tests {
 
         // Sync household 10001 under matter-A (real backfill → CRM chunks exist).
         let map: std::collections::HashMap<String, String> =
-            [("10001".to_string(), "matter-A".to_string())].into_iter().collect();
-        backfill(&FakeCrmSource, &store_db, ws.path(), &map, &cancel, &VEC_KEY, &progress)
-            .await
-            .expect("sync A");
+            [("10001".to_string(), "matter-A".to_string())]
+                .into_iter()
+                .collect();
+        backfill(
+            &FakeCrmSource,
+            &store_db,
+            ws.path(),
+            &map,
+            &cancel,
+            &VEC_KEY,
+            &progress,
+        )
+        .await
+        .expect("sync A");
 
         // Add a FILE chunk under matter-A (a merged household) to prove preservation.
         let conn = store::open_connection(ws.path()).await.unwrap();
@@ -1657,8 +1812,15 @@ mod tests {
                 },
                 vec![0.10f32; EMBEDDING_DIM],
             )];
-            let batch = store::build_batch(&rows, SourceType::Text, "matter-A", PRIVILEGE_NONE, None, &VEC_KEY)
-                .expect("file batch");
+            let batch = store::build_batch(
+                &rows,
+                SourceType::Text,
+                "matter-A",
+                PRIVILEGE_NONE,
+                None,
+                &VEC_KEY,
+            )
+            .expect("file batch");
             let schema = batch.schema();
             table
                 .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
@@ -1667,15 +1829,26 @@ mod tests {
                 .expect("add file chunk");
         }
         assert!(
-            store::list_crm_matters(&table).await.unwrap().contains("matter-A"),
+            store::list_crm_matters(&table)
+                .await
+                .unwrap()
+                .contains("matter-A"),
             "CRM must exist under matter-A before the empty-map sync"
         );
 
         // Re-sync with an EMPTY map → must purge ALL CRM, preserve the file chunk.
         let empty: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-        backfill(&FakeCrmSource, &store_db, ws.path(), &empty, &cancel, &VEC_KEY, &progress)
-            .await
-            .expect("empty-map sync");
+        backfill(
+            &FakeCrmSource,
+            &store_db,
+            ws.path(),
+            &empty,
+            &cancel,
+            &VEC_KEY,
+            &progress,
+        )
+        .await
+        .expect("empty-map sync");
 
         let conn2 = store::open_connection(ws.path()).await.unwrap();
         let table2 = store::open_or_create_table(&conn2).await.unwrap();

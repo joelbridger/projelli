@@ -507,7 +507,7 @@ pub async fn get_setup_progress(
     let email_syncing = mail_state.is_syncing.load(Ordering::SeqCst);
 
     // ---- Wealthbox CRM (fully readable from CrmState) ----
-    let crm_connected = crate::commands::crm::commands::crm_is_connected()
+    let crm_connected = crate::commands::crm::commands::crm_is_connected(None)
         .await
         .unwrap_or(false);
     let crm_syncing = crm_state.is_syncing.load(Ordering::SeqCst);

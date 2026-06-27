@@ -14,44 +14,11 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::audit::AuditState;
-use crate::commands::crm::client::WealthboxClient;
 use crate::commands::crm::engine;
+use crate::commands::crm::provider::{
+    client_for, delete_token, read_token, store_token, validate_token, CrmProvider,
+};
 use crate::commands::crm::store::CrmStore;
-
-// ---------------------------------------------------------------------------
-// Keychain constants + private helpers
-// ---------------------------------------------------------------------------
-
-const KEYCHAIN_SERVICE: &str = "keepance-wealthbox";
-const KEYCHAIN_TOKEN_KEY: &str = "api-token";
-
-/// Write the Wealthbox API token to the OS keychain.
-fn store_token(token: &str) -> Result<(), String> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_TOKEN_KEY)
-        .map_err(|e| e.to_string())?
-        .set_password(token)
-        .map_err(|e| e.to_string())
-}
-
-/// Read the stored Wealthbox API token from the OS keychain, or `None` if absent.
-fn read_token() -> Option<String> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_TOKEN_KEY)
-        .ok()?
-        .get_password()
-        .ok()
-}
-
-/// Delete the Wealthbox API token from the OS keychain.
-/// A missing entry (`NoEntry`) is treated as success (idempotent).
-fn delete_token() -> Result<(), String> {
-    match keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_TOKEN_KEY)
-        .map_err(|e| e.to_string())?
-        .delete_credential()
-    {
-        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
-    }
-}
 
 // ---------------------------------------------------------------------------
 // CrmState + manage_state + RAII guard
@@ -307,7 +274,9 @@ async fn append_crm_audit_best_effort(app: &AppHandle, action: &str, description
 pub async fn crm_set_workspace(
     state: State<'_, CrmState>,
     path: String,
+    provider: Option<String>,
 ) -> Result<(), String> {
+    let _provider = CrmProvider::from_optional(provider.as_deref())?;
     *state.workspace.lock().await = Some(PathBuf::from(path));
     Ok(())
 }
@@ -328,51 +297,49 @@ pub async fn crm_set_workspace(
 pub async fn crm_connect(
     app: AppHandle,
     token: String,
+    provider: Option<String>,
 ) -> Result<CrmConnectInfo, String> {
-    let client = WealthboxClient::new(token.clone());
+    let provider = CrmProvider::from_optional(provider.as_deref())?;
 
     // Validate: call /me and check the response is a success. Any network
     // error or non-2xx status surfaces a clean message; raw body is never
     // surfaced (it may contain advisor/firm PII).
-    let me = client
-        .me()
-        .await
-        .map_err(|_| "Could not connect to Wealthbox: invalid token or network error".to_string())?;
+    let info = validate_token(provider, &token).await.map_err(|_| {
+        format!(
+            "Could not connect to {}: invalid token or network error",
+            provider.display_name()
+        )
+    })?;
 
     // Store the token only after a confirmed successful validation.
-    store_token(&token)?;
+    store_token(provider, &token)?;
 
     // Emit durable audit — best-effort; uses AuditState workspace (same DB
     // that the Activity Log reads) so the entry appears immediately.
     append_crm_audit_best_effort(
         &app,
-        "wealthbox.connect",
-        "Connected Wealthbox. API key stored locally; data requests go directly \
-         from this device to Wealthbox, never through Keepance servers.",
+        &provider.audit_action("connect"),
+        &format!(
+            "Connected {}. API key stored locally; data requests go directly \
+             from this device to {}, never through Keepance servers.",
+            provider.display_name(),
+            provider.display_name()
+        ),
     )
     .await;
 
-    // Parse account info tolerantly — absent or null fields fall back to "".
-    // Prefer accounts[0].name (the firm/RIA name) over the top-level `name`
-    // (the individual user's name) so the UI shows the firm, not the person.
-    let firm_name = me
-        .get("accounts")
-        .and_then(|a| a.get(0))
-        .and_then(|acc| acc.get("name"))
-        .and_then(|n| n.as_str())
-        .unwrap_or("");
-    let user_name = me.get("name").and_then(|v| v.as_str()).unwrap_or("");
-    let name = if !firm_name.is_empty() { firm_name } else { user_name }.to_string();
-    let plan = me.get("plan").and_then(|v| v.as_str()).unwrap_or("").to_string();
-    let email = me.get("email").and_then(|v| v.as_str()).unwrap_or("").to_string();
-
-    Ok(CrmConnectInfo { name, plan, email })
+    Ok(CrmConnectInfo {
+        name: info.name,
+        plan: info.plan,
+        email: info.email,
+    })
 }
 
 /// Returns `true` if a Wealthbox API token is present in the OS keychain.
 #[tauri::command]
-pub async fn crm_is_connected() -> Result<bool, String> {
-    Ok(read_token().is_some())
+pub async fn crm_is_connected(provider: Option<String>) -> Result<bool, String> {
+    let provider = CrmProvider::from_optional(provider.as_deref())?;
+    Ok(read_token(provider).is_some())
 }
 
 /// Core disconnect logic — extracted for testability so integration tests can
@@ -389,6 +356,13 @@ pub async fn crm_is_connected() -> Result<bool, String> {
 /// or the purge helpers not being called) is caught by tests that call this
 /// function and assert on the purge flags + the data being gone.
 pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult {
+    crm_disconnect_logic_for_provider(state, CrmProvider::default()).await
+}
+
+async fn crm_disconnect_logic_for_provider(
+    state: &CrmState,
+    provider: CrmProvider,
+) -> CrmDisconnectResult {
     let mut result = CrmDisconnectResult::default();
 
     // P3 — stop any in-flight sync and CLAIM the single-flight slot BEFORE purging, so
@@ -448,14 +422,18 @@ pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult {
         Ok(()) => result.rag_purged = true,
         Err(e) => {
             log::warn!("crm_disconnect: rag purge failed (non-fatal): {e:#}");
-            result.warnings.push(format!("Search-index (RAG) purge failed: {e}"));
+            result
+                .warnings
+                .push(format!("Search-index (RAG) purge failed: {e}"));
         }
     }
     match CrmStore::purge(&ws) {
         Ok(()) => result.crm_db_purged = true,
         Err(e) => {
             log::warn!("crm_disconnect: crm db purge failed (non-fatal): {e:#}");
-            result.warnings.push(format!("CRM database purge failed: {e}"));
+            result
+                .warnings
+                .push(format!("CRM database purge failed: {e}"));
         }
     }
 
@@ -464,7 +442,7 @@ pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult {
     // encryption key (P4), now that there is nothing left to decrypt. If a purge failed,
     // KEEP the token + connected state and flag `data_remains` so the UI can retry.
     if result.rag_purged && result.crm_db_purged {
-        match delete_token() {
+        match delete_token(provider) {
             Ok(()) => result.token_deleted = true,
             Err(e) => {
                 log::warn!("crm_disconnect: token deletion failed (non-fatal): {e}");
@@ -507,8 +485,10 @@ pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult {
 pub async fn crm_disconnect(
     app: AppHandle,
     state: State<'_, CrmState>,
+    provider: Option<String>,
 ) -> Result<CrmDisconnectResult, String> {
-    let result = crm_disconnect_logic(&state).await;
+    let provider = CrmProvider::from_optional(provider.as_deref())?;
+    let result = crm_disconnect_logic_for_provider(&state, provider).await;
 
     // Build an honest audit description from the result flags.
     let key_part = if result.token_deleted {
@@ -523,8 +503,11 @@ pub async fn crm_disconnect(
     } else {
         "deleted the imported data"
     };
-    let audit_desc = format!("Disconnected Wealthbox; {key_part}; {data_part}.");
-    append_crm_audit_best_effort(&app, "wealthbox.disconnect", &audit_desc).await;
+    let audit_desc = format!(
+        "Disconnected {}; {key_part}; {data_part}.",
+        provider.display_name()
+    );
+    append_crm_audit_best_effort(&app, &provider.audit_action("disconnect"), &audit_desc).await;
 
     Ok(result)
 }
@@ -557,7 +540,10 @@ pub async fn crm_sync_all(
     app: AppHandle,
     state: State<'_, CrmState>,
     matter_map: Vec<CrmMatterMapEntry>,
+    provider: Option<String>,
 ) -> Result<CrmSyncReportDto, String> {
+    let provider = CrmProvider::from_optional(provider.as_deref())?;
+
     // Atomically claim the sync slot; reject if a sync is already running.
     if state
         .is_syncing
@@ -574,7 +560,12 @@ pub async fn crm_sync_all(
     state.progress_households.store(0, Ordering::SeqCst);
 
     // Read the stored token (error if not connected).
-    let token = read_token().ok_or("Wealthbox not connected — call crm_connect first")?;
+    let token = read_token(provider).ok_or_else(|| {
+        format!(
+            "{} not connected — call crm_connect first",
+            provider.display_name()
+        )
+    })?;
 
     // Read the active workspace (error if not set).
     let workspace = state
@@ -585,7 +576,10 @@ pub async fn crm_sync_all(
         .ok_or("workspace not set — call crm_set_workspace first")?;
 
     // Emit the start event.
-    let _ = app.emit(CRM_SYNC_PROGRESS_EVENT, serde_json::json!({ "status": "syncing" }));
+    let _ = app.emit(
+        CRM_SYNC_PROGRESS_EVENT,
+        serde_json::json!({ "status": "syncing" }),
+    );
 
     // Convert the Vec<CrmMatterMapEntry> → HashMap<String,String> for the engine.
     let matter_hashmap: HashMap<String, String> = matter_map
@@ -595,7 +589,10 @@ pub async fn crm_sync_all(
 
     // Open (or create) the encrypted CRM store.
     let store = CrmStore::open(&workspace).map_err(|e| {
-        let _ = app.emit(CRM_SYNC_PROGRESS_EVENT, serde_json::json!({ "status": "error" }));
+        let _ = app.emit(
+            CRM_SYNC_PROGRESS_EVENT,
+            serde_json::json!({ "status": "error" }),
+        );
         // Never include raw Wealthbox data in errors; store-open errors are
         // local filesystem / keychain issues, safe to surface as-is.
         e.to_string()
@@ -604,7 +601,10 @@ pub async fn crm_sync_all(
     // Read the RAG/vector master key from the OS keychain and hand it to the engine
     // (the engine stays keychain-free so it can be driven in tests with a literal key).
     let rag_key = crate::commands::rag::crypto::get_or_create_master_key().map_err(|e| {
-        let _ = app.emit(CRM_SYNC_PROGRESS_EVENT, serde_json::json!({ "status": "error" }));
+        let _ = app.emit(
+            CRM_SYNC_PROGRESS_EVENT,
+            serde_json::json!({ "status": "error" }),
+        );
         e.to_string()
     })?;
 
@@ -631,9 +631,9 @@ pub async fn crm_sync_all(
 
     // Run the full backfill (fetch → ingest → index). The cancel flag is polled
     // between matters so the UI's Stop button interrupts a long sync.
-    let client = WealthboxClient::new(token);
+    let client = client_for(provider, token);
     let backfill_result = engine::backfill(
-        &client,
+        client.as_ref(),
         &store,
         &workspace,
         &matter_hashmap,
@@ -647,7 +647,10 @@ pub async fn crm_sync_all(
     let report = match backfill_result {
         Ok(r) => r,
         Err(e) => {
-            let _ = app.emit(CRM_SYNC_PROGRESS_EVENT, serde_json::json!({ "status": "error" }));
+            let _ = app.emit(
+                CRM_SYNC_PROGRESS_EVENT,
+                serde_json::json!({ "status": "error" }),
+            );
             return Err(e.to_string());
         }
     };
@@ -691,14 +694,18 @@ pub async fn crm_sync_all(
             "Imported {households} Wealthbox households ({records} records) into the local encrypted store."
         )
     };
-    append_crm_audit_best_effort(&app, "wealthbox.sync", &audit_desc).await;
+    append_crm_audit_best_effort(&app, &provider.audit_action("sync"), &audit_desc).await;
 
     Ok(dto)
 }
 
 /// Return the current sync state (running or idle) and the last completed report.
 #[tauri::command]
-pub async fn crm_sync_status(state: State<'_, CrmState>) -> Result<CrmSyncStatusDto, String> {
+pub async fn crm_sync_status(
+    state: State<'_, CrmState>,
+    provider: Option<String>,
+) -> Result<CrmSyncStatusDto, String> {
+    let _provider = CrmProvider::from_optional(provider.as_deref())?;
     let is_syncing = state.is_syncing.load(Ordering::SeqCst);
     if is_syncing {
         // Live, in-progress count so a watching poller sees steady movement rather than
@@ -715,7 +722,10 @@ pub async fn crm_sync_status(state: State<'_, CrmState>) -> Result<CrmSyncStatus
         });
     }
     let last_report = state.last_report.lock().await.clone();
-    Ok(CrmSyncStatusDto { is_syncing, last_report })
+    Ok(CrmSyncStatusDto {
+        is_syncing,
+        last_report,
+    })
 }
 
 /// Set the cancel flag. `engine::backfill` polls it between households, so a
@@ -723,7 +733,11 @@ pub async fn crm_sync_status(state: State<'_, CrmState>) -> Result<CrmSyncStatus
 /// processed stay indexed). Releasing the UI is driven by the terminal
 /// `{ status: "cancelled" }` event `crm_sync_all` emits when it observes the flag.
 #[tauri::command]
-pub async fn crm_cancel_sync(state: State<'_, CrmState>) -> Result<(), String> {
+pub async fn crm_cancel_sync(
+    state: State<'_, CrmState>,
+    provider: Option<String>,
+) -> Result<(), String> {
+    let _provider = CrmProvider::from_optional(provider.as_deref())?;
     state.cancel.store(true, Ordering::SeqCst);
     Ok(())
 }
@@ -732,7 +746,7 @@ pub async fn crm_cancel_sync(state: State<'_, CrmState>) -> Result<(), String> {
 // crm_list_households helpers + command
 // ---------------------------------------------------------------------------
 
-/// Derive the display name for a household `WbContact`.
+/// Derive the display name for a household `CrmContact`.
 ///
 /// Priority:
 ///   1. `contact.name` trimmed — the top-level `name` field returned by the
@@ -744,7 +758,7 @@ pub async fn crm_cancel_sync(state: State<'_, CrmState>) -> Result<(), String> {
 ///
 /// Factored out of the command so it can be unit-tested without any
 /// Tauri runtime, OS keychain, or network call.
-fn household_dto_name(contact: &crate::commands::crm::model::WbContact) -> String {
+fn household_dto_name(contact: &crate::commands::crm::model::CrmContact) -> String {
     let name = contact.name.trim();
     if !name.is_empty() {
         return name.to_string();
@@ -760,14 +774,15 @@ fn household_dto_name(contact: &crate::commands::crm::model::WbContact) -> Strin
 ///
 /// Reads the stored token (returns `"not connected"` if absent) → builds
 /// `WealthboxClient` → calls `list_households()` (paged, ~1 rps gated) →
-/// maps each `WbContact` to `CrmHouseholdDto { id, name }`.
+/// maps each `CrmContact` to `CrmHouseholdDto { id, name }`.
 ///
 /// **Token and raw API body are never logged or returned** per the module
 /// security contract.
 #[tauri::command]
-pub async fn crm_list_households() -> Result<Vec<CrmHouseholdDto>, String> {
-    let token = read_token().ok_or_else(|| "not connected".to_string())?;
-    let client = WealthboxClient::new(token);
+pub async fn crm_list_households(provider: Option<String>) -> Result<Vec<CrmHouseholdDto>, String> {
+    let provider = CrmProvider::from_optional(provider.as_deref())?;
+    let token = read_token(provider).ok_or_else(|| "not connected".to_string())?;
+    let client = client_for(provider, token);
     let contacts = client.list_households().await.map_err(|e| e.to_string())?;
     let dtos = contacts
         .iter()
@@ -807,8 +822,14 @@ mod tests {
         let state = test_state(false);
         let result = crm_disconnect_logic(&state).await;
 
-        assert!(result.data_remains, "data_remains must be true when the purge can't run");
-        assert!(!result.token_deleted, "the API token must be KEPT when data couldn't be purged");
+        assert!(
+            result.data_remains,
+            "data_remains must be true when the purge can't run"
+        );
+        assert!(
+            !result.token_deleted,
+            "the API token must be KEPT when data couldn't be purged"
+        );
         assert!(!result.rag_purged && !result.crm_db_purged);
         assert!(
             result.warnings.iter().any(|w| w.contains("No workspace")),
@@ -816,7 +837,10 @@ mod tests {
             result.warnings
         );
         // The single-flight slot claimed during the attempt is released again.
-        assert!(!state.is_syncing.load(Ordering::SeqCst), "the claimed slot must be released");
+        assert!(
+            !state.is_syncing.load(Ordering::SeqCst),
+            "the claimed slot must be released"
+        );
     }
 
     /// DISCONNECT P3: a disconnect signals cancel and WAITS for an in-flight sync to
@@ -852,8 +876,14 @@ mod tests {
             "must NOT be the deferred path; got {:?}",
             result.warnings
         );
-        assert!(state.cancel.load(Ordering::SeqCst), "disconnect must signal cancel");
-        assert!(!state.is_syncing.load(Ordering::SeqCst), "the claimed slot must be released");
+        assert!(
+            state.cancel.load(Ordering::SeqCst),
+            "disconnect must signal cancel"
+        );
+        assert!(
+            !state.is_syncing.load(Ordering::SeqCst),
+            "the claimed slot must be released"
+        );
     }
 
     // ── Vec<CrmMatterMapEntry> → HashMap conversion ────────────────────────
@@ -876,7 +906,11 @@ mod tests {
             .map(|e| (e.household_id.clone(), e.matter_id.clone()))
             .collect();
 
-        assert_eq!(map.len(), 2, "two distinct households must produce two entries");
+        assert_eq!(
+            map.len(),
+            2,
+            "two distinct households must produce two entries"
+        );
         assert_eq!(
             map.get("10001").map(String::as_str),
             Some("matter-alpha"),
@@ -897,8 +931,10 @@ mod tests {
     #[test]
     fn matter_map_empty_vec_produces_empty_hashmap() {
         let entries: Vec<CrmMatterMapEntry> = vec![];
-        let map: HashMap<String, String> =
-            entries.iter().map(|e| (e.household_id.clone(), e.matter_id.clone())).collect();
+        let map: HashMap<String, String> = entries
+            .iter()
+            .map(|e| (e.household_id.clone(), e.matter_id.clone()))
+            .collect();
         assert!(map.is_empty(), "an empty Vec must produce an empty HashMap");
     }
 
@@ -917,8 +953,10 @@ mod tests {
                 matter_id: "matter-second".to_string(),
             },
         ];
-        let map: HashMap<String, String> =
-            entries.iter().map(|e| (e.household_id.clone(), e.matter_id.clone())).collect();
+        let map: HashMap<String, String> = entries
+            .iter()
+            .map(|e| (e.household_id.clone(), e.matter_id.clone()))
+            .collect();
         assert_eq!(map.len(), 1, "duplicate household ids must be de-duped");
         assert_eq!(
             map.get("10001").map(String::as_str),
@@ -931,17 +969,12 @@ mod tests {
 
     /// Helper: apply the same firm-name-over-user-name logic used in crm_connect.
     fn parse_me_to_info(me: &serde_json::Value) -> CrmConnectInfo {
-        let firm_name = me
-            .get("accounts")
-            .and_then(|a| a.get(0))
-            .and_then(|acc| acc.get("name"))
-            .and_then(|n| n.as_str())
-            .unwrap_or("");
-        let user_name = me.get("name").and_then(|v| v.as_str()).unwrap_or("");
-        let name = if !firm_name.is_empty() { firm_name } else { user_name }.to_string();
-        let plan = me.get("plan").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let email = me.get("email").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        CrmConnectInfo { name, plan, email }
+        let info = crate::commands::crm::provider::parse_wealthbox_me_to_info(me);
+        CrmConnectInfo {
+            name: info.name,
+            plan: info.plan,
+            email: info.email,
+        }
     }
 
     /// The real /me shape: `accounts[0].name` carries the firm name;
@@ -958,8 +991,10 @@ mod tests {
             ]
         });
         let info = parse_me_to_info(&me);
-        assert_eq!(info.name, "Northcrest Advisory",
-            "accounts[0].name (firm) must be preferred over top-level name (user)");
+        assert_eq!(
+            info.name, "Northcrest Advisory",
+            "accounts[0].name (firm) must be preferred over top-level name (user)"
+        );
         assert_eq!(info.plan, "basic");
         assert_eq!(info.email, "advisor@northcrest.com");
     }
@@ -974,8 +1009,10 @@ mod tests {
             "email": "advisor@northcrest.com",
         });
         let info = parse_me_to_info(&me);
-        assert_eq!(info.name, "Northcrest Advisory",
-            "user name is used as fallback when accounts is absent");
+        assert_eq!(
+            info.name, "Northcrest Advisory",
+            "user name is used as fallback when accounts is absent"
+        );
         assert_eq!(info.plan, "professional");
         assert_eq!(info.email, "advisor@northcrest.com");
     }
@@ -985,9 +1022,15 @@ mod tests {
     fn parse_me_json_missing_fields_default_to_empty() {
         let me = serde_json::json!({ "id": 7 });
         let info = parse_me_to_info(&me);
-        assert_eq!(info.name, "", "missing name + accounts must default to empty string");
+        assert_eq!(
+            info.name, "",
+            "missing name + accounts must default to empty string"
+        );
         assert_eq!(info.plan, "", "missing 'plan' must default to empty string");
-        assert_eq!(info.email, "", "missing 'email' must default to empty string");
+        assert_eq!(
+            info.email, "",
+            "missing 'email' must default to empty string"
+        );
     }
 
     /// Kept for forward-compatibility: a /me that has a full_fields shape
@@ -1011,8 +1054,8 @@ mod tests {
 
     #[test]
     fn household_dto_name_uses_company_name_when_present() {
-        use crate::commands::crm::model::WbContact;
-        let c = WbContact {
+        use crate::commands::crm::model::CrmContact;
+        let c = CrmContact {
             id: 10001,
             company_name: "The Andersons".to_string(),
             r#type: "household".to_string(),
@@ -1027,8 +1070,8 @@ mod tests {
 
     #[test]
     fn household_dto_name_trims_surrounding_whitespace() {
-        use crate::commands::crm::model::WbContact;
-        let c = WbContact {
+        use crate::commands::crm::model::CrmContact;
+        let c = CrmContact {
             id: 10001,
             company_name: "  The Andersons  ".to_string(),
             r#type: "household".to_string(),
@@ -1043,8 +1086,8 @@ mod tests {
 
     #[test]
     fn household_dto_name_falls_back_for_empty_company_name() {
-        use crate::commands::crm::model::WbContact;
-        let c = WbContact {
+        use crate::commands::crm::model::CrmContact;
+        let c = CrmContact {
             id: 42,
             company_name: "".to_string(),
             r#type: "household".to_string(),
@@ -1059,8 +1102,8 @@ mod tests {
 
     #[test]
     fn household_dto_name_falls_back_for_whitespace_only_company_name() {
-        use crate::commands::crm::model::WbContact;
-        let c = WbContact {
+        use crate::commands::crm::model::CrmContact;
+        let c = CrmContact {
             id: 99,
             company_name: "   ".to_string(),
             r#type: "household".to_string(),
@@ -1094,8 +1137,8 @@ mod tests {
     /// "Ellison, Robert & Margaret") must be preferred over `company_name`.
     #[test]
     fn household_dto_name_prefers_name_field_over_company_name() {
-        use crate::commands::crm::model::WbContact;
-        let c = WbContact {
+        use crate::commands::crm::model::CrmContact;
+        let c = CrmContact {
             id: 20001,
             name: "Ellison, Robert & Margaret".to_string(),
             company_name: "Ellison Family".to_string(), // both set — name wins
@@ -1112,8 +1155,8 @@ mod tests {
     /// When `name` is empty, `company_name` is the fallback.
     #[test]
     fn household_dto_name_falls_back_to_company_name_when_name_empty() {
-        use crate::commands::crm::model::WbContact;
-        let c = WbContact {
+        use crate::commands::crm::model::CrmContact;
+        let c = CrmContact {
             id: 10001,
             name: "".to_string(),
             company_name: "The Andersons".to_string(),
@@ -1150,12 +1193,18 @@ mod tests {
         assert!(v["outputs"].is_object());
 
         // metadata MUST be an object — this is the white-screen guard.
-        assert!(v["metadata"].is_object(), "metadata must be an object, never undefined");
+        assert!(
+            v["metadata"].is_object(),
+            "metadata must be an object, never undefined"
+        );
         assert_eq!(v["metadata"]["source"], "crm-backend");
         assert_eq!(v["metadata"]["auditEventType"], "wealthbox.connect");
 
         // scope is the allMatters object shape getAuditEntryMatterScope reads.
-        assert!(v["metadata"]["scope"].is_object(), "scope must be an object");
+        assert!(
+            v["metadata"]["scope"].is_object(),
+            "scope must be an object"
+        );
         assert_eq!(v["metadata"]["scope"]["kind"], "allMatters");
     }
 
@@ -1199,14 +1248,19 @@ mod tests {
             payload_json: r#"{"auditEventType":"wealthbox.disconnect","source":"crm-backend"}"#
                 .to_string(),
         };
-        store.append(&rec2).expect("append wealthbox.disconnect entry");
+        store
+            .append(&rec2)
+            .expect("append wealthbox.disconnect entry");
 
         // List all entries and assert both wealthbox.* entries are present.
         let entries = store.list(None, None).expect("list audit entries");
         assert_eq!(entries.len(), 2, "two entries must be persisted");
 
         let connect_entry = entries.iter().find(|e| e.action == "wealthbox.connect");
-        assert!(connect_entry.is_some(), "wealthbox.connect entry must be in the store");
+        assert!(
+            connect_entry.is_some(),
+            "wealthbox.connect entry must be in the store"
+        );
         assert!(
             connect_entry.unwrap().action.starts_with("wealthbox."),
             "action must start with 'wealthbox.'"
@@ -1217,7 +1271,10 @@ mod tests {
         );
 
         let disconnect_entry = entries.iter().find(|e| e.action == "wealthbox.disconnect");
-        assert!(disconnect_entry.is_some(), "wealthbox.disconnect entry must be in the store");
+        assert!(
+            disconnect_entry.is_some(),
+            "wealthbox.disconnect entry must be in the store"
+        );
 
         // Verify the chain is intact after both appends.
         use crate::commands::audit::store::AuditChainVerification;

@@ -8,6 +8,8 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { CrmMatterMapEntry } from '@/platform/rag/matterResolver';
 
+export type CrmProvider = 'wealthbox';
+
 // ── CRM event constant ──────────────────────────────────────────────────────
 
 /** Tauri event name emitted by `crm_sync_all` during a household sync. */
@@ -80,9 +82,9 @@ export interface CrmSyncProgress {
 // ── Command wrappers ─────────────────────────────────────────────────────────
 
 /** Set the workspace path for the CRM store. No-op outside Tauri. */
-export async function crmSetWorkspace(path: string): Promise<void> {
+export async function crmSetWorkspace(path: string, provider?: CrmProvider): Promise<void> {
   if (!isTauri()) return;
-  await invoke('crm_set_workspace', { path });
+  await invoke('crm_set_workspace', provider ? { path, provider } : { path });
 }
 
 /**
@@ -91,15 +93,17 @@ export async function crmSetWorkspace(path: string): Promise<void> {
  *
  * Only available in the desktop app. Callers should catch and display the error.
  */
-export async function crmConnect(token: string): Promise<CrmConnectInfo> {
+export async function crmConnect(token: string, provider?: CrmProvider): Promise<CrmConnectInfo> {
   if (!isTauri()) throw new Error('Wealthbox connect is only available in the desktop app.');
-  return invoke<CrmConnectInfo>('crm_connect', { token });
+  return invoke<CrmConnectInfo>('crm_connect', provider ? { token, provider } : { token });
 }
 
 /** True when a Wealthbox API token is stored in the keychain. */
-export async function crmIsConnected(): Promise<boolean> {
+export async function crmIsConnected(provider?: CrmProvider): Promise<boolean> {
   if (!isTauri()) return false;
-  return invoke<boolean>('crm_is_connected');
+  return provider
+    ? invoke<boolean>('crm_is_connected', { provider })
+    : invoke<boolean>('crm_is_connected');
 }
 
 /**
@@ -111,20 +115,24 @@ export async function crmIsConnected(): Promise<boolean> {
  * Idempotent — safe to call even when not connected. In non-Tauri
  * environments returns a "nothing done" result rather than throwing.
  */
-export async function crmDisconnect(): Promise<CrmDisconnectResult> {
+export async function crmDisconnect(provider?: CrmProvider): Promise<CrmDisconnectResult> {
   if (!isTauri()) {
     return { tokenDeleted: false, ragPurged: false, crmDbPurged: false, dataRemains: true, warnings: [] };
   }
-  return invoke<CrmDisconnectResult>('crm_disconnect');
+  return provider
+    ? invoke<CrmDisconnectResult>('crm_disconnect', { provider })
+    : invoke<CrmDisconnectResult>('crm_disconnect');
 }
 
 /**
  * Fetch the full list of households this Wealthbox login can see. Returns an
  * empty array outside Tauri.
  */
-export async function crmListHouseholds(): Promise<CrmHouseholdDto[]> {
+export async function crmListHouseholds(provider?: CrmProvider): Promise<CrmHouseholdDto[]> {
   if (!isTauri()) return [];
-  return invoke<CrmHouseholdDto[]>('crm_list_households');
+  return provider
+    ? invoke<CrmHouseholdDto[]>('crm_list_households', { provider })
+    : invoke<CrmHouseholdDto[]>('crm_list_households');
 }
 
 /**
@@ -136,19 +144,25 @@ export async function crmListHouseholds(): Promise<CrmHouseholdDto[]> {
  *
  * Only available in the desktop app.
  */
-export async function crmSyncAll(matterMap: CrmMatterMapEntry[]): Promise<CrmSyncReport> {
+export async function crmSyncAll(matterMap: CrmMatterMapEntry[], provider?: CrmProvider): Promise<CrmSyncReport> {
   if (!isTauri()) throw new Error('Wealthbox sync is only available in the desktop app.');
-  return invoke<CrmSyncReport>('crm_sync_all', { matterMap });
+  return invoke<CrmSyncReport>('crm_sync_all', provider ? { matterMap, provider } : { matterMap });
 }
 
 /** Poll the current sync state without subscribing to events. */
-export async function crmSyncStatus(): Promise<{ isSyncing: boolean; lastReport: CrmSyncReport | null }> {
+export async function crmSyncStatus(provider?: CrmProvider): Promise<{ isSyncing: boolean; lastReport: CrmSyncReport | null }> {
   if (!isTauri()) return { isSyncing: false, lastReport: null };
-  return invoke<{ isSyncing: boolean; lastReport: CrmSyncReport | null }>('crm_sync_status');
+  return provider
+    ? invoke<{ isSyncing: boolean; lastReport: CrmSyncReport | null }>('crm_sync_status', { provider })
+    : invoke<{ isSyncing: boolean; lastReport: CrmSyncReport | null }>('crm_sync_status');
 }
 
 /** Request cancellation of any in-flight CRM sync. No-op outside Tauri. */
-export async function crmCancelSync(): Promise<void> {
+export async function crmCancelSync(provider?: CrmProvider): Promise<void> {
   if (!isTauri()) return;
-  await invoke('crm_cancel_sync');
+  if (provider) {
+    await invoke('crm_cancel_sync', { provider });
+  } else {
+    await invoke('crm_cancel_sync');
+  }
 }
