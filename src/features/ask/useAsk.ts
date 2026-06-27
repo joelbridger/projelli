@@ -25,7 +25,11 @@ import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress, isLocalProvider, type ConfidentialityMode } from '@/platform/privacy/egress';
 import { getConfidentialityMode, useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
-import { assertLocalOnlyAllowsSend, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import {
+  assertLocalOnlyAllowsSend,
+  isConfidentialityChoiceRequiredError,
+  isLocalOnlyMode,
+} from '@/platform/privacy/localOnlyGuard';
 import type { AskFailureStage, AskScope, AskTurn } from './askHelpers';
 import {
   NO_EVIDENCE_DECLINE,
@@ -694,11 +698,13 @@ export function useAsk({
       // `providerCallStarted === false` means the failure was in the file-search
       // stage (not the AI/key), so the message must not blame a key.
       setErrorMsg(
-        friendlyErrorMessage(raw, {
-          mode: getConfidentialityMode(),
-          reachedProvider: providerCallStarted,
-          failedStage,
-        }),
+        isConfidentialityChoiceRequiredError(err)
+          ? err.message
+          : friendlyErrorMessage(raw, {
+              mode: getConfidentialityMode(),
+              reachedProvider: providerCallStarted,
+              failedStage,
+            }),
       );
       setStreamingTurn(null);
       setStatus('error');

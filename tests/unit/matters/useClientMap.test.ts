@@ -118,4 +118,41 @@ describe('useClientMap', () => {
 
     consoleErrorSpy.mockRestore();
   });
+
+  it('checkForUpdates logs and surfaces a confidentiality-choice error', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const initial = {
+      ...emptyClientMap('m5'),
+      lastBuiltAt: '2026-01-01T00:00:00.000Z',
+      lastSourceFingerprint: 'fp-old',
+      pendingUpdates: [],
+    };
+    initial.sections[0]!.items.push({
+      id: 'existing-item',
+      text: 'Keep me',
+      origin: 'user',
+      isAssumption: false,
+      sources: [],
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useClientMapStore.getState().setMap('m5', initial);
+
+    const choiceError = new ConfidentialityChoiceRequiredError();
+    choiceError.message = 'Open Settings > Privacy and choose how cloud AI requests should work.';
+    computeFingerprintMock.mockResolvedValue('fp-new');
+    buildMock.mockRejectedValue(choiceError);
+
+    const { result } = renderHook(() => useClientMap('m5'));
+    await act(async () => { await result.current.checkForUpdates(); });
+
+    await waitFor(() => expect(result.current.status).toBe('error'));
+    expect(result.current.errorMessage).toMatch(/Settings.*Privacy|Privacy.*choose/i);
+    expect(result.current.errorMessage).not.toMatch(/Before sending to a cloud AI/i);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/Client Map update check failed/i),
+      expect.any(ConfidentialityChoiceRequiredError),
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
 });

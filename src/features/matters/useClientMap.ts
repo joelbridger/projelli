@@ -129,24 +129,26 @@ export function useClientMap(
   }, [matterId, setMap, onAuditLog]);
 
   const checkForUpdates = useCallback(async () => {
-    const before = useClientMapStore.getState().getMap(matterId);
-    if (!before || before.lastBuiltAt === '') return; // nothing built yet — cheap out
-    const fp = await computeSourceFingerprint(matterId);
-    // Close the duplicate-build TOCTOU (Codex #4). These checks run SYNCHRONOUSLY
-    // after the async fingerprint and before the build, so nothing interleaves
-    // between them:
-    //   (a) if a build is already in flight, no-op — it covers this recovery
-    //       (catches the OVERLAP where the other call is mid-build and has not
-    //       stored its fingerprint yet);
-    //   (b) RE-READ the latest stored map and compare fp against ITS fingerprint,
-    //       NOT the stale pre-await snapshot — catches the harder ordering where a
-    //       concurrent check fully FINISHED (built, stored this exact fp, cleared
-    //       the guard) WHILE we were still fingerprinting. Skip if unchanged.
-    if (clientMapBuildsInFlight.has(matterId)) return;
-    const current = useClientMapStore.getState().getMap(matterId);
-    if (!current || current.lastBuiltAt === '' || fp === current.lastSourceFingerprint) return;
-    clientMapBuildsInFlight.add(matterId);
+    let claimedBuild = false;
     try {
+      const before = useClientMapStore.getState().getMap(matterId);
+      if (!before || before.lastBuiltAt === '') return; // nothing built yet — cheap out
+      const fp = await computeSourceFingerprint(matterId);
+      // Close the duplicate-build TOCTOU (Codex #4). These checks run SYNCHRONOUSLY
+      // after the async fingerprint and before the build, so nothing interleaves
+      // between them:
+      //   (a) if a build is already in flight, no-op — it covers this recovery
+      //       (catches the OVERLAP where the other call is mid-build and has not
+      //       stored its fingerprint yet);
+      //   (b) RE-READ the latest stored map and compare fp against ITS fingerprint,
+      //       NOT the stale pre-await snapshot — catches the harder ordering where a
+      //       concurrent check fully FINISHED (built, stored this exact fp, cleared
+      //       the guard) WHILE we were still fingerprinting. Skip if unchanged.
+      if (clientMapBuildsInFlight.has(matterId)) return;
+      const current = useClientMapStore.getState().getMap(matterId);
+      if (!current || current.lastBuiltAt === '' || fp === current.lastSourceFingerprint) return;
+      clientMapBuildsInFlight.add(matterId);
+      claimedBuild = true;
       const fresh = await buildClientMap(
         matterId,
         onAuditLog ? { onAuditLog } : undefined,
@@ -164,8 +166,18 @@ export function useClientMap(
         pendingUpdates: mergePendingUpdates(latest.pendingUpdates, proposals, dismissed),
         lastSourceFingerprint: fp,
       });
+    } catch (error) {
+      console.error('Client Map update check failed', error);
+      setErrorMessage(
+        isConfidentialityChoiceRequiredError(error)
+          ? error.message
+          : 'Could not check for client map updates. Try again in a moment.',
+      );
+      setStatus('error');
     } finally {
-      clientMapBuildsInFlight.delete(matterId);
+      if (claimedBuild) {
+        clientMapBuildsInFlight.delete(matterId);
+      }
     }
   }, [matterId, onAuditLog]);
 

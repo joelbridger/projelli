@@ -93,7 +93,9 @@ describe('Ask confidentiality-choice error handling', () => {
     h.retrieve.mockResolvedValue([
       { path: '/client.md', chunkText: 'Client has a Roth conversion window.', score: 0.9, paragraphIndex: 0 },
     ]);
-    h.buildResolvedAskProvider.mockRejectedValue(new ConfidentialityChoiceRequiredError());
+    const choiceError = new ConfidentialityChoiceRequiredError();
+    choiceError.message = 'Open Settings > Privacy and choose how cloud AI requests should work.';
+    h.buildResolvedAskProvider.mockRejectedValue(choiceError);
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
@@ -101,7 +103,7 @@ describe('Ask confidentiality-choice error handling', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it('surfaces the confidentiality action, not a file-search failure, and logs the raw error', async () => {
+  it('surfaces the confidentiality action by error type, not English message text, and logs the raw error', async () => {
     const { result } = renderHook(() => useAsk({}));
 
     act(() => {
@@ -113,6 +115,7 @@ describe('Ask confidentiality-choice error handling', () => {
 
     await waitFor(() => expect(result.current.status).toBe('error'));
     expect(result.current.errorMsg).toMatch(/Settings.*Privacy|Privacy.*choose/i);
+    expect(result.current.errorMsg).not.toMatch(/Before sending to a cloud AI/i);
     expect(result.current.errorMsg).not.toMatch(/couldn't search your files/i);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       expect.stringMatching(/Ask failed/i),

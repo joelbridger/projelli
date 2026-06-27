@@ -322,13 +322,6 @@ export function friendlyErrorMessage(
   const lower = raw.toLowerCase();
   const localOnly = opts?.mode === 'local-only';
 
-  if (
-    lower.includes('confidentialitychoicerequirederror') ||
-    lower.includes('before sending to a cloud ai')
-  ) {
-    return raw;
-  }
-
   // Genuine auth — the ONLY branch that mentions a key. Never in Local-only
   // (there is no key to check there), and never when the AI was not even reached
   // (reachedProvider === false => the failure was in the file-search stage, so an
