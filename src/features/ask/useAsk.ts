@@ -25,8 +25,12 @@ import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress, isLocalProvider, type ConfidentialityMode } from '@/platform/privacy/egress';
 import { getConfidentialityMode, useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
-import { assertLocalOnlyAllowsSend, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
-import type { AskScope, AskTurn } from './askHelpers';
+import {
+  assertLocalOnlyAllowsSend,
+  isConfidentialityChoiceRequiredError,
+  isLocalOnlyMode,
+} from '@/platform/privacy/localOnlyGuard';
+import type { AskFailureStage, AskScope, AskTurn } from './askHelpers';
 import {
   NO_EVIDENCE_DECLINE,
   buildAskSystemPrompt,
@@ -341,6 +345,7 @@ export function useAsk({
         }
       | null = null;
     let providerCallStarted = false;
+    let failedStage: AskFailureStage = 'setup';
 
     try {
       /* Demo branch: sample matter + no cloud key + matching question */
@@ -408,7 +413,9 @@ export function useAsk({
       let hits: RagHit[] = [];
       const memoryEnabled = isMemoryEnabled();
       if (memoryEnabled) {
+        failedStage = 'retrieval';
         const rawHits = await MemoryService.retrieve(q, DEFAULT_WORKSPACE_TOP_K, retrievalScope, false);
+        failedStage = 'post-retrieval';
         // Apply client-side type filter for Email/Documents scopes.
         hits = filterHitsByScope(rawHits, askScope);
         const auditScope = buildAuditScope(retrievalScope);
@@ -467,6 +474,7 @@ export function useAsk({
 
       /* Step 2: call the AI provider */
       setStatus('answering');
+      failedStage = 'provider-resolution';
 
       const workspaceBlock = hits.length > 0 ? buildWorkspaceContextBlock(hits) : '';
 
@@ -579,6 +587,7 @@ export function useAsk({
       };
 
       if (typeof provider.sendMessageStreaming === 'function') {
+        failedStage = 'provider-send';
         providerCallStarted = true;
         const streamResp = await provider.sendMessageStreaming(q, {
           systemPrompt,
@@ -593,6 +602,7 @@ export function useAsk({
         emitSuccessfulEgress();
         emitModelCall(answerText.length, streamResp.usage, streamResp.cost);
       } else {
+        failedStage = 'provider-send';
         providerCallStarted = true;
         const resp = await provider.sendMessage(q, { systemPrompt });
         answerText = resp.content;
@@ -610,6 +620,7 @@ export function useAsk({
        */
       const expectedMatterId: string | null =
         activeMatter && askScope !== 'all-matters' ? activeMatter.id : null;
+      failedStage = 'post-processing';
       const { answer: rewritten, citations: boundCitations, sources } = bindAnswerCitations(answerText, hits, expectedMatterId);
       // Cosmetic: name email citations by their subject line instead of the raw
       // `mail:<id>` message-id (display-only; path/verification untouched).
@@ -645,6 +656,7 @@ export function useAsk({
       setStatus('done');
     } catch (err) {
       if (abort.signal.aborted) return;
+      console.error('Ask failed', err);
       if (providerCallStarted && providerAudit) {
         const egress = resolveEgress({
           provider: providerAudit.providerId,
@@ -686,10 +698,13 @@ export function useAsk({
       // `providerCallStarted === false` means the failure was in the file-search
       // stage (not the AI/key), so the message must not blame a key.
       setErrorMsg(
-        friendlyErrorMessage(raw, {
-          mode: getConfidentialityMode(),
-          reachedProvider: providerCallStarted,
-        }),
+        isConfidentialityChoiceRequiredError(err)
+          ? err.message
+          : friendlyErrorMessage(raw, {
+              mode: getConfidentialityMode(),
+              reachedProvider: providerCallStarted,
+              failedStage,
+            }),
       );
       setStreamingTurn(null);
       setStatus('error');

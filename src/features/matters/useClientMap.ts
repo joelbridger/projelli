@@ -5,6 +5,7 @@ import { buildClientMap } from '@/platform/clientMap/generator';
 import { computeSourceFingerprint, proposeUpdates, mergePendingUpdates } from '@/platform/clientMap/updater';
 import type { ClientMap } from '@/platform/clientMap/types';
 import type { AuditEntry } from '@/platform/types/audit';
+import { isConfidentialityChoiceRequiredError } from '@/platform/privacy/localOnlyGuard';
 
 export type ClientMapStatus = 'idle' | 'generating' | 'ready' | 'empty' | 'error';
 
@@ -59,18 +60,20 @@ export function useClientMap(
     autoBuild?: boolean;
   },
 ): {
-  status: ClientMapStatus; map: ClientMap | undefined; generate: () => Promise<void>; checkForUpdates: () => Promise<void>;
+  status: ClientMapStatus; errorMessage: string | null; map: ClientMap | undefined; generate: () => Promise<void>; checkForUpdates: () => Promise<void>;
 } {
   const map = useClientMapStore((s) => s.maps[matterId]);
   const setMap = useClientMapStore((s) => s.setMap);
   const onAuditLog = options?.onAuditLog;
   const [status, setStatus] = useState<ClientMapStatus>(mapHasContent(map) ? 'ready' : map ? 'empty' : 'idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const generate = useCallback(async () => {
     // Dedupe concurrent builds for the same matter (auto-build vs manual click,
     // StrictMode double-invoke). A build already in flight wins; this call no-ops.
     if (clientMapBuildsInFlight.has(matterId)) return;
     clientMapBuildsInFlight.add(matterId);
     setStatus('generating');
+    setErrorMessage(null);
     try {
       // Fingerprint the source BEFORE the build, so the stored fingerprint
       // reflects the source state the build actually saw. If content arrives
@@ -112,7 +115,13 @@ export function useClientMap(
       const builtMap = { ...built, lastSourceFingerprint: fp };
       setMap(matterId, builtMap);
       setStatus(mapHasContent(builtMap) ? 'ready' : 'empty');
-    } catch {
+    } catch (error) {
+      console.error('Client Map build failed', error);
+      setErrorMessage(
+        isConfidentialityChoiceRequiredError(error)
+          ? error.message
+          : 'Could not build client map. Check your AI connection and try again.',
+      );
       setStatus('error');
     } finally {
       clientMapBuildsInFlight.delete(matterId);
@@ -120,24 +129,26 @@ export function useClientMap(
   }, [matterId, setMap, onAuditLog]);
 
   const checkForUpdates = useCallback(async () => {
-    const before = useClientMapStore.getState().getMap(matterId);
-    if (!before || before.lastBuiltAt === '') return; // nothing built yet — cheap out
-    const fp = await computeSourceFingerprint(matterId);
-    // Close the duplicate-build TOCTOU (Codex #4). These checks run SYNCHRONOUSLY
-    // after the async fingerprint and before the build, so nothing interleaves
-    // between them:
-    //   (a) if a build is already in flight, no-op — it covers this recovery
-    //       (catches the OVERLAP where the other call is mid-build and has not
-    //       stored its fingerprint yet);
-    //   (b) RE-READ the latest stored map and compare fp against ITS fingerprint,
-    //       NOT the stale pre-await snapshot — catches the harder ordering where a
-    //       concurrent check fully FINISHED (built, stored this exact fp, cleared
-    //       the guard) WHILE we were still fingerprinting. Skip if unchanged.
-    if (clientMapBuildsInFlight.has(matterId)) return;
-    const current = useClientMapStore.getState().getMap(matterId);
-    if (!current || current.lastBuiltAt === '' || fp === current.lastSourceFingerprint) return;
-    clientMapBuildsInFlight.add(matterId);
+    let claimedBuild = false;
     try {
+      const before = useClientMapStore.getState().getMap(matterId);
+      if (!before || before.lastBuiltAt === '') return; // nothing built yet — cheap out
+      const fp = await computeSourceFingerprint(matterId);
+      // Close the duplicate-build TOCTOU (Codex #4). These checks run SYNCHRONOUSLY
+      // after the async fingerprint and before the build, so nothing interleaves
+      // between them:
+      //   (a) if a build is already in flight, no-op — it covers this recovery
+      //       (catches the OVERLAP where the other call is mid-build and has not
+      //       stored its fingerprint yet);
+      //   (b) RE-READ the latest stored map and compare fp against ITS fingerprint,
+      //       NOT the stale pre-await snapshot — catches the harder ordering where a
+      //       concurrent check fully FINISHED (built, stored this exact fp, cleared
+      //       the guard) WHILE we were still fingerprinting. Skip if unchanged.
+      if (clientMapBuildsInFlight.has(matterId)) return;
+      const current = useClientMapStore.getState().getMap(matterId);
+      if (!current || current.lastBuiltAt === '' || fp === current.lastSourceFingerprint) return;
+      clientMapBuildsInFlight.add(matterId);
+      claimedBuild = true;
       const fresh = await buildClientMap(
         matterId,
         onAuditLog ? { onAuditLog } : undefined,
@@ -155,8 +166,18 @@ export function useClientMap(
         pendingUpdates: mergePendingUpdates(latest.pendingUpdates, proposals, dismissed),
         lastSourceFingerprint: fp,
       });
+    } catch (error) {
+      console.error('Client Map update check failed', error);
+      setErrorMessage(
+        isConfidentialityChoiceRequiredError(error)
+          ? error.message
+          : 'Could not check for client map updates. Try again in a moment.',
+      );
+      setStatus('error');
     } finally {
-      clientMapBuildsInFlight.delete(matterId);
+      if (claimedBuild) {
+        clientMapBuildsInFlight.delete(matterId);
+      }
     }
   }, [matterId, onAuditLog]);
 
@@ -186,5 +207,5 @@ export function useClientMap(
     }
   }, [autoBuild, resolvedStatus, generate]);
 
-  return { status: resolvedStatus, map, generate, checkForUpdates };
+  return { status: resolvedStatus, errorMessage, map, generate, checkForUpdates };
 }

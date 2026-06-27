@@ -1044,7 +1044,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
                   style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
                 >
                   {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                  Could not build client map. Check your AI connection and try again.
+                  {clientMap.errorMessage ?? 'Could not build client map. Check your AI connection and try again.'}
                   {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                 </div>
               )}
