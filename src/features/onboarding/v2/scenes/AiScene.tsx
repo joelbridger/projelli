@@ -1,0 +1,360 @@
+/* eslint-disable keepance-i18n/no-hardcoded-string */
+/**
+ * AiScene — "1. Connect your AI".
+ *
+ * Prototype two-card layout (cloud BYOK vs local AI), wired to the REAL setup
+ * primitives, not a mockup:
+ *   - Cloud "Connect" live-validates the key (validateApiKeyLive) then persists
+ *     it via onSaveKey -> KeychainService.setKey, and clears the deferred flag.
+ *   - "Try Local AI" really starts the ~2.5 GB local-model download
+ *     (useLocalLlmModelStatus().start) and switches to local-only mode.
+ *   - "I need help setting this up" opens the real redacted help-ticket dialog
+ *     (AiSetupHelpLink).
+ *
+ * The "What is this?" and "Tell me more" modals carry the verbatim prototype
+ * explainer copy.
+ */
+
+import { useState } from 'react';
+import { Check, Info, X } from 'lucide-react';
+
+import { openExternal } from '@/platform/utils/openExternal';
+import type { KeyProvider } from '@/platform/providers/KeychainService';
+import { validateApiKeyLive } from '@/platform/providers/apiKeyValidation';
+import { useRecordConfidentialityChoice } from '@/platform/hooks/useConfidentialityMode';
+import { useLocalLlmModelStatus } from '@/platform/hooks/useLocalLlmModelStatus';
+
+import { PROVIDER_TUTORIALS, type ProviderId } from '../../ProviderTutorialSteps';
+import { AiSetupHelpLink } from '../../AiSetupHelpLink';
+import { clearAiSetupDeferred } from '../../aiSetupState';
+import { ApiKeyTester } from '../../ApiKeyTester';
+import { ONB_COPY } from '../copy';
+
+const PROVIDERS: { id: ProviderId; label: string }[] = [
+  { id: 'openai', label: 'OpenAI' },
+  { id: 'anthropic', label: 'Anthropic' },
+  { id: 'google', label: 'Google' },
+];
+
+export interface AiSceneProps {
+  onSaveKey: (provider: KeyProvider, key: string) => void | Promise<void>;
+  /** Advance to the next scene (used by the "Try Local AI" shortcut). */
+  onAdvance: () => void;
+  /** Called once the user makes a real AI choice (cloud key saved or local
+   *  started) so the orchestrator knows AI setup was NOT skipped. */
+  onAiResolved?: () => void;
+}
+
+export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
+  const C = ONB_COPY.ai;
+  const [provider, setProvider] = useState<ProviderId>('anthropic');
+  const [keyText, setKeyText] = useState('');
+  const [connecting, setConnecting] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [payOpen, setPayOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+
+  const recordChoice = useRecordConfidentialityChoice();
+  const localLlm = useLocalLlmModelStatus();
+  const localBusy = localLlm.state === 'downloading' || localLlm.state === 'checking';
+  const localReady = localLlm.state === 'ready';
+
+  const tutorial = PROVIDER_TUTORIALS[provider];
+  const providerLabel = PROVIDERS.find((p) => p.id === provider)?.label ?? 'your provider';
+
+  function changeProvider(id: ProviderId) {
+    setProvider(id);
+    setKeyText('');
+    setError(null);
+    setConnected(false);
+  }
+
+  async function handleConnect() {
+    const key = keyText.trim();
+    if (!key) {
+      setError('Paste your key first.');
+      return;
+    }
+    // Commit the cloud BYOK choice BEFORE validating. Two reasons:
+    //  1. On a fresh install the default is local-only fail-closed, which makes
+    //     validateApiKeyLive short-circuit to 'network' (skipping the real
+    //     format + provider check) — so without this the Connect button would
+    //     "accept" any non-empty string. Recording 'direct' (mode + choiceMade)
+    //     turns off the fail-closed guard so the key is genuinely validated.
+    //  2. choiceMade is what unlocks cloud generation post-onboarding
+    //     (resolveEffectiveEgress gates cloud on it). Saving a key without it
+    //     leaves the provider connected but unusable.
+    recordChoice('direct');
+    setConnecting(true);
+    setError(null);
+    // Bound the live check so a hung provider can't spin "Connecting..." forever
+    // (mirrors ApiKeyWizard's 15s guard).
+    const ac = new AbortController();
+    const timeout = setTimeout(() => { ac.abort(); }, 15_000);
+    try {
+      const result = await validateApiKeyLive(provider, key, ac.signal);
+      if (result.outcome === 'malformed' || result.outcome === 'rejected') {
+        setError(result.message);
+        return;
+      }
+      // 'ok' or 'network' (couldn't reach provider, but the key looks valid) — save it.
+      await onSaveKey(provider, key);
+      clearAiSetupDeferred();
+      setConnected(true);
+      onAiResolved?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save your key.');
+    } finally {
+      clearTimeout(timeout);
+      setConnecting(false);
+    }
+  }
+
+  function handleTryLocal() {
+    // Start the real download (no-op off-desktop), record the local-only choice
+    // (mode + choiceMade, same as GuidedOnboarding), then advance.
+    localLlm.start();
+    recordChoice('local-only');
+    clearAiSetupDeferred();
+    onAiResolved?.();
+    onAdvance();
+  }
+
+  return (
+    <div className="flex w-full flex-col items-center" data-testid="onboarding-v2-ai">
+      <h1 className="text-3xl font-extrabold tracking-[-0.01em] text-[#0a2540] md:text-4xl">
+        {C.headline}
+      </h1>
+
+      <div className="mt-10 grid w-full max-w-[1120px] grid-cols-1 gap-6 text-left lg:grid-cols-2">
+        {/* ---- Card 1: Cloud BYOK ---- */}
+        <div
+          className={`rounded-[22px] border-2 bg-white p-7 transition-shadow ${
+            connected ? 'border-[#1fa971]' : 'border-[#0a2540]/10'
+          }`}
+          data-testid="ai-card-cloud"
+        >
+          <h2 className="text-xl font-bold text-[#0a2540]">{C.cloud.title}</h2>
+          <ul className="mt-4 space-y-2.5">
+            {C.cloud.bullets.map((b, i) => (
+              <li key={b} className="flex items-start gap-2.5 text-sm text-[#0a2540]">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#5dc6ff]" strokeWidth={3} aria-hidden="true" />
+                <span>
+                  {b}
+                  {i === C.cloud.bullets.length - 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => { setPayOpen(true); }}
+                      className="ml-2 font-semibold text-[#1f74c4] underline-offset-2 hover:underline"
+                      data-testid="ai-what-is-this"
+                    >
+                      {C.cloud.whatLink}
+                    </button>
+                  ) : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-6 text-xs font-bold tracking-[0.08em] text-[#5b6b80]">
+            {C.cloud.pickLabel}
+          </div>
+          <div className="mt-3 inline-flex rounded-full bg-[#f5f7fb] p-1" role="group" aria-label="Choose a provider">
+            {PROVIDERS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => { changeProvider(p.id); }}
+                aria-pressed={provider === p.id}
+                data-testid={`ai-provider-${p.id}`}
+                className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
+                  provider === p.id ? 'bg-[#1f74c4] text-white' : 'text-[#5b6b80] hover:text-[#0a2540]'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Numbered steps */}
+          <ol className="mt-5 space-y-3">
+            <li className="flex items-start gap-3">
+              <StepBadge n={1} />
+              <span className="text-sm text-[#0a2540]">
+                Open the{' '}
+                <button
+                  type="button"
+                  onClick={() => void openExternal(tutorial.consoleUrl)}
+                  className="font-semibold text-[#1f74c4] underline underline-offset-2"
+                  data-testid="ai-open-console"
+                >
+                  {providerLabel} API keys page
+                </button>{' '}
+                and sign in.
+              </span>
+            </li>
+            <li className="flex items-start gap-3">
+              <StepBadge n={2} />
+              <span className="text-sm text-[#0a2540]">Create a free key.</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <StepBadge n={3} />
+              <span className="text-sm text-[#0a2540]">Paste it below.</span>
+            </li>
+          </ol>
+
+          {/* Key input + Connect */}
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <input
+              type="password"
+              value={keyText}
+              onChange={(e) => {
+                setKeyText(e.target.value);
+                setConnected(false);
+                setError(null);
+              }}
+              placeholder={`Paste your ${providerLabel} key`}
+              data-testid="ai-key-input"
+              className="flex-1 rounded-xl border border-[#0a2540]/15 bg-[#f5f7fb] px-4 py-3 text-sm outline-none focus:border-[#1f74c4]"
+            />
+            <button
+              type="button"
+              onClick={() => void handleConnect()}
+              disabled={connecting || keyText.trim().length === 0}
+              data-testid="ai-connect"
+              className="rounded-xl bg-[#1f74c4] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px disabled:opacity-50"
+            >
+              {connecting ? 'Connecting...' : connected ? 'Connected' : C.cloud.connect}
+            </button>
+          </div>
+
+          {keyText.trim().length > 0 && !connected ? (
+            <div className="mt-2">
+              <ApiKeyTester provider={provider} apiKey={keyText} />
+            </div>
+          ) : null}
+
+          {connected ? (
+            <div
+              className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-[#1fa971]"
+              data-testid="ai-connected"
+            >
+              <Check className="h-4 w-4" strokeWidth={3} /> Connected. You can continue.
+            </div>
+          ) : null}
+          {error ? (
+            <div className="mt-2 text-sm text-red-600" data-testid="ai-error" role="alert">
+              {error}
+            </div>
+          ) : null}
+
+          <div className="mt-3">
+            <AiSetupHelpLink
+              provider={provider}
+              providerName={providerLabel}
+              context="onboarding · ai-key-step-v2"
+            />
+          </div>
+        </div>
+
+        {/* ---- Card 2: Local AI ---- */}
+        <div className="rounded-[22px] border-2 border-[#0a2540]/10 bg-white p-7" data-testid="ai-card-local">
+          <h2 className="text-xl font-bold text-[#0a2540]">{C.local.title}</h2>
+          <ul className="mt-4 space-y-2.5">
+            {C.local.bullets.map((b) => (
+              <li key={b} className="flex items-start gap-2.5 text-sm text-[#0a2540]">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#5dc6ff]" strokeWidth={3} aria-hidden="true" />
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+
+          <button
+            type="button"
+            onClick={() => { setLocalOpen(true); }}
+            className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#1f74c4] hover:underline"
+            data-testid="ai-tell-me-more"
+          >
+            <Info className="h-4 w-4" aria-hidden="true" />
+            {C.local.moreLink}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleTryLocal}
+            disabled={localBusy}
+            data-testid="ai-try-local"
+            className="mt-5 w-full rounded-xl bg-[#1f74c4] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px disabled:opacity-60"
+          >
+            {localReady ? 'Local AI ready, continue' : localBusy ? 'Starting download...' : C.local.tryLocal}
+          </button>
+          <div className="mt-2 text-center text-xs text-[#8a93a3]">{C.local.switchNote}</div>
+        </div>
+      </div>
+
+      {payOpen ? (
+        <OnbModal title={C.payModal.title} body={C.payModal.body} cta={C.payModal.got} onClose={() => { setPayOpen(false); }} testId="ai-pay-modal" />
+      ) : null}
+      {localOpen ? (
+        <OnbModal title={C.localModal.title} body={C.localModal.body} cta={C.localModal.got} onClose={() => { setLocalOpen(false); }} testId="ai-local-modal" />
+      ) : null}
+    </div>
+  );
+}
+
+function StepBadge({ n }: { n: number }) {
+  return (
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1f74c4] text-xs font-bold text-white">
+      {n}
+    </span>
+  );
+}
+
+function OnbModal({
+  title,
+  body,
+  cta,
+  onClose,
+  testId,
+}: {
+  title: string;
+  body: string;
+  cta: string;
+  onClose: () => void;
+  testId: string;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0a2540]/45 p-6"
+      onClick={onClose}
+      data-testid={testId}
+    >
+      <div
+        className="relative max-w-[640px] rounded-[22px] bg-white p-8 text-left shadow-[0_30px_80px_rgba(10,37,64,0.32)]"
+        onClick={(e) => { e.stopPropagation(); }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-5 top-5 text-[#9aa4b4] hover:text-[#0a2540]"
+        >
+          <X className="h-6 w-6" />
+        </button>
+        <h3 className="text-2xl font-extrabold text-[#0a2540]">{title}</h3>
+        <p className="mt-3 text-base leading-relaxed text-[#0a2540]/80">{body}</p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-6 rounded-full bg-[#1f74c4] px-7 py-2.5 text-sm font-bold text-white"
+        >
+          {cta}
+        </button>
+      </div>
+    </div>
+  );
+}
