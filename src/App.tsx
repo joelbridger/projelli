@@ -106,6 +106,7 @@ import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { useUndoToast } from '@/app/shell/common/UndoToast';
 import { CrmSourcePanel } from '@/features/crm/CrmSourcePanel';
 import { OneDriveSourcePanel } from '@/features/onedrive/OneDriveSourcePanel';
+import { DocusignSourcePanel } from '@/features/docusign/DocusignSourcePanel';
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
@@ -1538,6 +1539,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
           dispatched when a `crm:` source link is clicked in a Client Map. */}
       <CrmSourcePanel />
       <OneDriveSourcePanel />
+      <DocusignSourcePanel />
     </div>
   );
 }

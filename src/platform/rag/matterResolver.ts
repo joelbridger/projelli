@@ -244,6 +244,21 @@ export interface EsignMatterMapEntry {
   matterId: string;
 }
 
+export interface EsignEnvelopeCandidate {
+  subject?: string;
+  senderEmail?: string;
+  senderName?: string;
+  recipientEmails?: string[];
+  recipientNames?: string[];
+  customFields?: Array<{ name?: string; value?: string }>;
+}
+
+export interface EsignEnvelopeResolution {
+  matterId: string;
+  needsAssignment: boolean;
+  reason: string;
+}
+
 export interface MeetingMatterMapEntry {
   meetingKey: string;
   matterId: string;
@@ -387,11 +402,24 @@ export function resolveMatterForOneDriveFolder(
 }
 
 export function buildEsignMatterMap(matters: Matter[]): EsignMatterMapEntry[] {
-  return buildConnectorMatterMap(
-    matters,
-    (m) => m.esignKeys,
-    (esignKey, matterId) => ({ esignKey, matterId })
-  );
+  const out: EsignMatterMapEntry[] = [];
+  for (const matter of matters) {
+    if (matter.id === UNASSIGNED_MATTER_ID) continue;
+    const seenForMatter = new Set<string>();
+    const keys = [
+      ...(matter.esignKeys ?? []),
+      matter.client,
+      matter.name,
+    ];
+    for (const rawKey of keys) {
+      const key = rawKey.trim();
+      const normalized = normalizeEsignKey(key);
+      if (!key || !normalized || seenForMatter.has(normalized)) continue;
+      seenForMatter.add(normalized);
+      out.push({ esignKey: key, matterId: matter.id });
+    }
+  }
+  return out;
 }
 
 export function buildMeetingMatterMap(
@@ -402,6 +430,77 @@ export function buildMeetingMatterMap(
     (m) => m.meetingKeys,
     (meetingKey, matterId) => ({ meetingKey, matterId })
   );
+}
+
+function normalizeEsignKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[<>"',;]/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function addExactEsignMatches(
+  keyMap: Map<string, string[]>,
+  matches: Set<string>,
+  value: string | undefined,
+): void {
+  const key = normalizeEsignKey(value ?? '');
+  const found = keyMap.get(key);
+  if (!found) return;
+  for (const matterId of found) matches.add(matterId);
+}
+
+function addFuzzyEsignMatches(
+  keyMap: Map<string, string[]>,
+  matches: Set<string>,
+  value: string | undefined,
+): void {
+  const haystack = normalizeEsignKey(value ?? '');
+  if (!haystack) return;
+  for (const [key, matterIds] of keyMap) {
+    if (key.length < 4) continue;
+    if (haystack.includes(key) || key.includes(haystack)) {
+      for (const matterId of matterIds) matches.add(matterId);
+    }
+  }
+}
+
+export function resolveEsignMatterForEnvelope(
+  matters: Matter[],
+  envelope: EsignEnvelopeCandidate,
+): EsignEnvelopeResolution {
+  const map = buildEsignMatterMap(matters);
+  const keyMap = new Map<string, string[]>();
+  for (const entry of map) {
+    const key = normalizeEsignKey(entry.esignKey);
+    if (!key) continue;
+    keyMap.set(key, [...(keyMap.get(key) ?? []), entry.matterId]);
+  }
+
+  const matches = new Set<string>();
+  for (const email of envelope.recipientEmails ?? []) addExactEsignMatches(keyMap, matches, email);
+  if (matches.size === 0) addExactEsignMatches(keyMap, matches, envelope.senderEmail);
+  if (matches.size === 0) {
+    for (const name of envelope.recipientNames ?? []) addFuzzyEsignMatches(keyMap, matches, name);
+    addFuzzyEsignMatches(keyMap, matches, envelope.senderName);
+  }
+  if (matches.size === 0) {
+    addFuzzyEsignMatches(keyMap, matches, envelope.subject);
+    for (const field of envelope.customFields ?? []) {
+      addFuzzyEsignMatches(keyMap, matches, field.name);
+      addFuzzyEsignMatches(keyMap, matches, field.value);
+    }
+  }
+
+  if (matches.size === 1) {
+    return { matterId: [...matches][0]!, needsAssignment: false, reason: '' };
+  }
+  return {
+    matterId: UNASSIGNED_MATTER_ID,
+    needsAssignment: true,
+    reason: matches.size === 0 ? 'no matter matched this DocuSign envelope' : 'multiple matters matched this DocuSign envelope',
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────

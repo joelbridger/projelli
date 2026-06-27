@@ -1,15 +1,18 @@
 /**
- * CRM workspace-wiring regression test.
+ * Connector workspace-wiring regression test.
  *
  * Verifies that when a workspace opens, useMemoryWiring calls
- * crmSetWorkspace(rootPath) alongside MemoryService.setWorkspace and
- * mailSetWorkspace — the three backends that must know the workspace path
- * before any command that reads/writes from it can succeed.
+ * connector setWorkspace commands alongside MemoryService.setWorkspace and
+ * mailSetWorkspace — the backends that must know the workspace path before
+ * any command that reads/writes from it can succeed.
  *
  * Regression for: crmSetWorkspace had no caller in the workspace lifecycle,
  * so crm_sync_all always returned "workspace not set" and crm_disconnect
  * could not purge CRM data (the e2e tests masked this by setting the
  * workspace directly in test setup).
+ *
+ * Same regression class for DocuSign: docusign_sync returned "workspace not
+ * set" because only the unit test called docusignSetWorkspace.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -37,6 +40,12 @@ const crmMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/platform/utils/wealthbox-commands', () => crmMocks);
+
+const docusignMocks = vi.hoisted(() => ({
+  docusignSetWorkspace: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/platform/utils/docusign-commands', () => docusignMocks);
 
 // tauri-commands: watchWorkspace + model status helpers used inside the
 // per-workspace lifecycle. Return resolved values so the IIFE completes.
@@ -97,7 +106,7 @@ function Harness({ root }: { root: string }) {
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
-describe('useMemoryWiring — CRM workspace wiring', () => {
+describe('useMemoryWiring — connector workspace wiring', () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
@@ -112,19 +121,29 @@ describe('useMemoryWiring — CRM workspace wiring', () => {
     });
   });
 
-  it('calls crmSetWorkspace alongside MemoryService.setWorkspace and mailSetWorkspace', async () => {
+  it('calls docusignSetWorkspace when a workspace opens', async () => {
     const root = '/home/user/Northcrest';
     render(<Harness root={root} />);
 
-    // All three workspace-awareness calls must fire for every workspace open.
+    await waitFor(() => {
+      expect(docusignMocks.docusignSetWorkspace).toHaveBeenCalledWith(root);
+    });
+  });
+
+  it('calls connector setWorkspace commands alongside MemoryService.setWorkspace and mailSetWorkspace', async () => {
+    const root = '/home/user/Northcrest';
+    render(<Harness root={root} />);
+
+    // All workspace-awareness calls must fire for every workspace open.
     await waitFor(() => {
       expect(memMocks.setWorkspace).toHaveBeenCalledWith(root);
       expect(mailMocks.mailSetWorkspace).toHaveBeenCalledWith(root);
       expect(crmMocks.crmSetWorkspace).toHaveBeenCalledWith(root);
+      expect(docusignMocks.docusignSetWorkspace).toHaveBeenCalledWith(root);
     });
   });
 
-  it('calls crmSetWorkspace with the new path when the workspace changes', async () => {
+  it('calls connector setWorkspace commands with the new path when the workspace changes', async () => {
     const root1 = '/home/user/ClientA';
     const root2 = '/home/user/ClientB';
 
@@ -132,6 +151,7 @@ describe('useMemoryWiring — CRM workspace wiring', () => {
 
     await waitFor(() => {
       expect(crmMocks.crmSetWorkspace).toHaveBeenCalledWith(root1);
+      expect(docusignMocks.docusignSetWorkspace).toHaveBeenCalledWith(root1);
     });
 
     vi.clearAllMocks();
@@ -139,6 +159,7 @@ describe('useMemoryWiring — CRM workspace wiring', () => {
 
     await waitFor(() => {
       expect(crmMocks.crmSetWorkspace).toHaveBeenCalledWith(root2);
+      expect(docusignMocks.docusignSetWorkspace).toHaveBeenCalledWith(root2);
     });
   });
 
@@ -146,6 +167,18 @@ describe('useMemoryWiring — CRM workspace wiring', () => {
     // The CRM connector is optional; if its setup throws, file-watching and
     // memory indexing must still be wired for the user.
     crmMocks.crmSetWorkspace.mockRejectedValueOnce(new Error('crm backend unavailable'));
+    const root = '/home/user/Northcrest';
+    render(<Harness root={root} />);
+
+    await waitFor(() => {
+      expect(tauriCmdMocks.watchWorkspace).toHaveBeenCalledWith(root);
+    });
+  });
+
+  it('a docusignSetWorkspace failure does not break the rest of workspace wiring', async () => {
+    // The DocuSign connector is optional; if its setup throws, file-watching
+    // and memory indexing must still be wired for the user.
+    docusignMocks.docusignSetWorkspace.mockRejectedValueOnce(new Error('docusign backend unavailable'));
     const root = '/home/user/Northcrest';
     render(<Harness root={root} />);
 

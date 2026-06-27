@@ -177,6 +177,15 @@ pub fn run() {
             commands::onedrive::commands::onedrive_sync,
             commands::onedrive::commands::onedrive_cancel,
             commands::onedrive::commands::onedrive_status,
+            // Read-only DocuSign connector — completed envelopes + signing timeline.
+            commands::docusign::commands::docusign_set_workspace,
+            commands::docusign::commands::docusign_connect,
+            commands::docusign::commands::docusign_is_connected,
+            commands::docusign::commands::docusign_disconnect,
+            commands::docusign::commands::docusign_sync,
+            commands::docusign::commands::docusign_cancel_sync,
+            commands::docusign::commands::docusign_sync_status,
+            commands::docusign::commands::docusign_list_unassigned,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
             // Wave 3b encrypted vault — per-workspace AES-256-GCM at-rest encryption.
@@ -219,6 +228,8 @@ pub fn run() {
             commands::crm::commands::manage_state(app);
             // OneDrive / SharePoint connector state.
             commands::onedrive::commands::manage_state(app);
+            // Read-only DocuSign connector state.
+            commands::docusign::commands::manage_state(app);
             // Keepance 3.0 — manage encrypted audit-store state (active workspace).
             commands::audit::manage_state(app);
             // Onboarding/setup progress — register the aggregator state + the
