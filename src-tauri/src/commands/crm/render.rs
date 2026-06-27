@@ -88,7 +88,7 @@ fn build_full_name(prefix: &str, first: &str, middle: &str, last: &str, suffix: 
 /// Returns `("crm:contact:<id>", text)`.
 #[allow(dead_code)]
 pub fn render_contact(c: &CrmContact) -> (String, String) {
-    let source_id = format!("crm:contact:{}", c.id);
+    let source_id = format!("crm:contact:{}", c.crm_key());
     let full_name = build_full_name(
         &c.prefix,
         &c.first_name,
@@ -241,7 +241,7 @@ pub fn render_contact(c: &CrmContact) -> (String, String) {
 /// Returns `("crm:note:<id>", text)`.
 #[allow(dead_code)]
 pub fn render_note(n: &CrmNote) -> (String, String) {
-    let source_id = format!("crm:note:{}", n.id);
+    let source_id = format!("crm:note:{}", n.crm_key());
 
     // Prefer created_at; fall back to updated_at when created_at is blank.
     let date = if !n.created_at.trim().is_empty() {
@@ -265,7 +265,7 @@ pub fn render_note(n: &CrmNote) -> (String, String) {
 /// Returns `("crm:task:<id>", text)`.
 #[allow(dead_code)]
 pub fn render_task(t: &CrmTask) -> (String, String) {
-    let source_id = format!("crm:task:{}", t.id);
+    let source_id = format!("crm:task:{}", t.crm_key());
     let mut text = String::new();
 
     let header = if !t.name.trim().is_empty() {
@@ -290,7 +290,7 @@ pub fn render_task(t: &CrmTask) -> (String, String) {
 /// Returns `("crm:event:<id>", text)`.
 #[allow(dead_code)]
 pub fn render_event(e: &CrmEvent) -> (String, String) {
-    let source_id = format!("crm:event:{}", e.id);
+    let source_id = format!("crm:event:{}", e.crm_key());
     let mut text = String::new();
 
     let header = if !e.title.trim().is_empty() {
@@ -327,7 +327,7 @@ pub fn render_household_summary(
     household: &CrmContact,
     members: &[CrmContact],
 ) -> (String, String) {
-    let source_id = format!("crm:household:{}", household.id);
+    let source_id = format!("crm:household:{}", household.crm_key());
     let mut text = String::new();
 
     // Household name priority:
@@ -546,6 +546,7 @@ mod tests {
             cpa: Some(20002),
             household: Some(CrmHouseholdRef {
                 id: 10001,
+                external_id: String::new(),
                 name: "The Andersons".to_string(),
                 title: "Head".to_string(),
                 members: vec![],
@@ -587,6 +588,7 @@ mod tests {
             status: "Active".to_string(),
             household: Some(CrmHouseholdRef {
                 id: 10001,
+                external_id: String::new(),
                 name: "The Andersons".to_string(),
                 title: "Spouse".to_string(),
                 members: vec![],

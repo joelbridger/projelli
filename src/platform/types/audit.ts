@@ -52,7 +52,10 @@ export type AuditActionType =
   // Wealthbox CRM connector lifecycle events.
   | 'wealthbox.connect'
   | 'wealthbox.sync'
-  | 'wealthbox.disconnect';
+  | 'wealthbox.disconnect'
+  | 'salesforce.connect'
+  | 'salesforce.sync'
+  | 'salesforce.disconnect';
 
 /**
  * The verdict from citation verification (mirrors `CitationVerdict.verdict`

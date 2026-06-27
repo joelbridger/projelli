@@ -12,6 +12,7 @@ pub mod engine;
 pub mod model;
 pub mod provider;
 pub mod render;
+pub mod salesforce;
 pub mod source;
 pub mod store;
 

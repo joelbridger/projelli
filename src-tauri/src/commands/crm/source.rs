@@ -18,6 +18,13 @@ use crate::commands::crm::model::{CrmContact, CrmEvent, CrmNote, CrmTask};
 /// fully offline (no network, no keychain, no rate gate).
 #[async_trait]
 pub trait CrmSource: Send + Sync {
+    /// Stable provider id used to keep one CRM provider's snapshot-diff
+    /// tombstones from hiding another provider's rows in the shared local CRM
+    /// store.
+    fn provider_id(&self) -> &'static str {
+        "wealthbox"
+    }
+
     /// Return ALL contacts regardless of type (person, household, organization,
     /// trust).  Used by the backfill engine to build the contact→household map.
     async fn list_all_contacts(&self) -> anyhow::Result<Vec<CrmContact>>;

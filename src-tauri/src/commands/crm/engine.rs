@@ -110,6 +110,7 @@ pub fn content_hash(json: &str) -> String {
 #[allow(dead_code)]
 pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<IngestReport> {
     let mut report = IngestReport::default();
+    let provider_id = source.provider_id();
 
     // Every store id we FILED this sync: contacts always; a note/task/event only when
     // its link resolves to a household. The deletion diff at the end tombstones any
@@ -121,15 +122,16 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
     let contacts = source.list_all_contacts().await?;
 
     // Build contact_id → grouping_key lookup used by note/task/event resolution.
-    let mut contact_to_group: HashMap<i64, String> = HashMap::with_capacity(contacts.len());
+    let mut contact_to_group: HashMap<String, String> = HashMap::with_capacity(contacts.len());
     for c in &contacts {
-        let gk = c.household_id().unwrap_or(c.id).to_string();
-        contact_to_group.insert(c.id, gk);
+        let gk = c.household_key().unwrap_or_else(|| c.crm_key());
+        contact_to_group.insert(c.crm_key(), gk);
     }
 
     for c in &contacts {
-        let gk = contact_to_group[&c.id].clone();
-        let store_id = format!("contact:{}", c.id);
+        let c_key = c.crm_key();
+        let gk = contact_to_group[&c_key].clone();
+        let store_id = format!("contact:{}", c_key);
         seen.insert(store_id.clone());
         let json = serde_json::to_string(c)?;
         let hash = content_hash(&json);
@@ -154,7 +156,7 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
     for n in &notes {
         match resolve_grouping_key(&n.linked_to, &contact_to_group) {
             Some(gk) => {
-                let store_id = format!("note:{}", n.id);
+                let store_id = format!("note:{}", n.crm_key());
                 seen.insert(store_id.clone());
                 let json = serde_json::to_string(n)?;
                 let hash = content_hash(&json);
@@ -173,7 +175,7 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
     for t in &tasks {
         match resolve_grouping_key(&t.linked_to, &contact_to_group) {
             Some(gk) => {
-                let store_id = format!("task:{}", t.id);
+                let store_id = format!("task:{}", t.crm_key());
                 seen.insert(store_id.clone());
                 let json = serde_json::to_string(t)?;
                 let hash = content_hash(&json);
@@ -192,7 +194,7 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
     for e in &events {
         match resolve_grouping_key(&e.linked_to, &contact_to_group) {
             Some(gk) => {
-                let store_id = format!("event:{}", e.id);
+                let store_id = format!("event:{}", e.crm_key());
                 seen.insert(store_id.clone());
                 let json = serde_json::to_string(e)?;
                 let hash = content_hash(&json);
@@ -215,13 +217,27 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
     // `upsert_object` resets deleted = 0, so an object that re-appears (or is re-linked)
     // un-tombstones itself automatically.
     for existing in store.list_all_object_ids()? {
-        if !seen.contains(&existing) {
+        if object_belongs_to_provider(&existing, provider_id) && !seen.contains(&existing) {
             store.tombstone_object(&existing)?;
             report.removed_tombstoned += 1;
         }
     }
 
     Ok(report)
+}
+
+fn object_belongs_to_provider(store_id: &str, provider_id: &str) -> bool {
+    match provider_id {
+        "salesforce" => store_id
+            .split_once(':')
+            .map(|(_, rest)| rest.starts_with("sfdc:"))
+            .unwrap_or(false),
+        "wealthbox" => store_id
+            .split_once(':')
+            .map(|(_, rest)| !rest.starts_with("sfdc:"))
+            .unwrap_or(true),
+        _ => true,
+    }
 }
 
 /// Walk `linked_to`, return the grouping key of the first **contact-typed**
@@ -235,14 +251,14 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
 /// with `r#type == "Contact"` (case-insensitive) are eligible for lookup.
 fn resolve_grouping_key(
     linked_to: &[CrmLink],
-    contact_to_group: &HashMap<i64, String>,
+    contact_to_group: &HashMap<String, String>,
 ) -> Option<String> {
     for link in linked_to {
         // Guard: only contact-typed links may resolve a household grouping key.
         // Non-contact links (Project, Opportunity, …) are ignored even when
         // their numeric id happens to match a known contact id.
         if link.r#type.eq_ignore_ascii_case("contact") {
-            if let Some(gk) = contact_to_group.get(&link.id) {
+            if let Some(gk) = contact_to_group.get(&link.crm_key()) {
                 return Some(gk.clone());
             }
         }
@@ -666,6 +682,10 @@ mod tests {
     use crate::commands::crm::model::{
         CrmContact, CrmEvent, CrmHouseholdRef, CrmLink, CrmNote, CrmTask,
     };
+    use crate::commands::crm::salesforce::{
+        normalize_salesforce_records, SalesforceAccount, SalesforceAccountContactRelation,
+        SalesforceContact,
+    };
     use crate::commands::crm::store::CrmStore;
     use async_trait::async_trait;
     use tempfile::TempDir;
@@ -705,6 +725,7 @@ mod tests {
             liabilities: Some(serde_json::json!(850_000_i64)),
             household: Some(CrmHouseholdRef {
                 id: 10001,
+                external_id: String::new(),
                 name: "The Andersons".to_string(),
                 title: "Head".to_string(),
                 members: vec![],
@@ -724,6 +745,7 @@ mod tests {
             status: "Active".to_string(),
             household: Some(CrmHouseholdRef {
                 id: 10001,
+                external_id: String::new(),
                 name: "The Andersons".to_string(),
                 title: "Spouse".to_string(),
                 members: vec![],
@@ -735,6 +757,7 @@ mod tests {
     fn fixture_note() -> CrmNote {
         CrmNote {
             id: 30001,
+            external_id: String::new(),
             created_at: "2026-03-10 09:15 AM -0500".to_string(),
             updated_at: "2026-03-10 09:15 AM -0500".to_string(),
             content: "Reviewed Q1 portfolio allocations with Robert. Discussed rebalancing RSUs."
@@ -742,6 +765,7 @@ mod tests {
             // Linked to the head person — resolves via contact_to_group to household "10001".
             linked_to: vec![CrmLink {
                 id: 10002,
+                external_id: String::new(),
                 r#type: "contact".to_string(),
                 name: "Robert Anderson".to_string(),
             }],
@@ -751,6 +775,7 @@ mod tests {
     fn fixture_task() -> CrmTask {
         CrmTask {
             id: 40001,
+            external_id: String::new(),
             name: "Consolidate inherited IRA".to_string(),
             due_date: Some("2026-12-31".to_string()),
             complete: false,
@@ -759,6 +784,7 @@ mod tests {
             // Linked directly to the household contact — grouping key is "10001".
             linked_to: vec![CrmLink {
                 id: 10001,
+                external_id: String::new(),
                 r#type: "contact".to_string(),
                 name: "The Andersons".to_string(),
             }],
@@ -768,6 +794,7 @@ mod tests {
     fn fixture_event() -> CrmEvent {
         CrmEvent {
             id: 50001,
+            external_id: String::new(),
             title: "Annual Review — Andersons".to_string(),
             starts_at: "2026-07-15 10:00 AM -0600".to_string(),
             ends_at: "2026-07-15 11:00 AM -0600".to_string(),
@@ -778,6 +805,7 @@ mod tests {
             // Linked directly to the household contact.
             linked_to: vec![CrmLink {
                 id: 10001,
+                external_id: String::new(),
                 r#type: "contact".to_string(),
                 name: "The Andersons".to_string(),
             }],
@@ -875,6 +903,141 @@ mod tests {
             .unwrap()
             .expect("event row missing");
         assert_eq!(event.household_id, "10001");
+    }
+
+    struct SalesforceFixtureSource;
+
+    #[async_trait]
+    impl CrmSource for SalesforceFixtureSource {
+        fn provider_id(&self) -> &'static str {
+            "salesforce"
+        }
+
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<CrmContact>> {
+            Ok(normalize_salesforce_records(
+                vec![SalesforceAccount {
+                    id: "001HH0000000001AAA".to_string(),
+                    name: "Anderson Household".to_string(),
+                    phone: String::new(),
+                    billing_street: String::new(),
+                    billing_city: "Denver".to_string(),
+                    billing_state: "CO".to_string(),
+                    billing_postal_code: String::new(),
+                }],
+                vec![SalesforceAccountContactRelation {
+                    account_id: "001HH0000000001AAA".to_string(),
+                    contact_id: "003CC0000000002AAA".to_string(),
+                    roles: "Client;Head".to_string(),
+                    active: true,
+                    primary_group: true,
+                    primary_member: true,
+                    include_in_group: true,
+                }],
+                vec![SalesforceContact {
+                    id: "003CC0000000002AAA".to_string(),
+                    account_id: "001IND000000003AAA".to_string(),
+                    first_name: "Robert".to_string(),
+                    middle_name: String::new(),
+                    last_name: "Anderson".to_string(),
+                    salutation: String::new(),
+                    suffix: String::new(),
+                    email: "robert@example.com".to_string(),
+                    phone: String::new(),
+                    mobile_phone: String::new(),
+                    home_phone: String::new(),
+                    title: String::new(),
+                    birthdate: None,
+                    mailing_street: String::new(),
+                    mailing_city: String::new(),
+                    mailing_state: String::new(),
+                    mailing_postal_code: String::new(),
+                    description: "Salesforce note-like background text.".to_string(),
+                    last_modified_date: "2026-06-27T00:00:00.000+0000".to_string(),
+                }],
+            ))
+        }
+
+        async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
+            Ok(Vec::new())
+        }
+
+        async fn list_tasks(&self) -> anyhow::Result<Vec<CrmTask>> {
+            Ok(Vec::new())
+        }
+
+        async fn list_events(&self) -> anyhow::Result<Vec<CrmEvent>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[tokio::test]
+    async fn salesforce_records_group_by_namespaced_household_key_and_plan_per_matter_chunks() {
+        let (_d, store) = crm_store();
+        let source = SalesforceFixtureSource;
+
+        let report = ingest(&source, &store).await.expect("ingest salesforce");
+
+        assert_eq!(report.contacts, 2, "household account + one contact");
+        let rows = store
+            .list_objects_by_household("sfdc:001HH0000000001AAA")
+            .expect("list salesforce household objects");
+        assert_eq!(rows.len(), 2);
+        assert!(
+            rows.iter()
+                .any(|r| r.id == "contact:sfdc:001HH0000000001AAA"),
+            "household row should use provider-namespaced source id"
+        );
+        assert!(
+            rows.iter()
+                .any(|r| r.id == "contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA"),
+            "contact row should include Salesforce namespace and household account id"
+        );
+
+        let items = plan_household_index(
+            &store,
+            "sfdc:001HH0000000001AAA",
+            "matter-anderson",
+        )
+        .expect("plan salesforce household");
+        assert!(items.iter().all(|i| i.matter_id == "matter-anderson"));
+        assert!(items
+            .iter()
+            .any(|i| i.source_id == "crm:household:sfdc:001HH0000000001AAA"));
+        assert!(items.iter().any(|i| {
+            i.source_id == "crm:contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA"
+                && i.text.contains("Robert Anderson")
+        }));
+    }
+
+    #[tokio::test]
+    async fn salesforce_ingest_does_not_tombstone_existing_wealthbox_rows() {
+        let (_d, store) = crm_store();
+
+        ingest(&FakeCrmSource, &store).await.expect("ingest wealthbox");
+        assert!(store
+            .get_object("contact:10001")
+            .expect("get wealthbox household")
+            .expect("wealthbox household exists")
+            .deleted
+            == false);
+
+        ingest(&SalesforceFixtureSource, &store)
+            .await
+            .expect("ingest salesforce");
+
+        let wealthbox_household = store
+            .get_object("contact:10001")
+            .expect("get wealthbox household after salesforce")
+            .expect("wealthbox household still exists");
+        assert!(
+            !wealthbox_household.deleted,
+            "a Salesforce snapshot must not tombstone Wealthbox rows"
+        );
+        let salesforce_household = store
+            .get_object("contact:sfdc:001HH0000000001AAA")
+            .expect("get salesforce household")
+            .expect("salesforce household exists");
+        assert!(!salesforce_household.deleted);
     }
 
     // ── Test: plan_household_index ────────────────────────────────────────────
@@ -976,6 +1139,7 @@ mod tests {
                     status: "Active".to_string(),
                     household: Some(CrmHouseholdRef {
                         id: 20001,
+                        external_id: String::new(),
                         name: "The Bishops".to_string(),
                         title: "Head".to_string(),
                         members: vec![],
@@ -990,6 +1154,7 @@ mod tests {
                     status: "Active".to_string(),
                     household: Some(CrmHouseholdRef {
                         id: 20001,
+                        external_id: String::new(),
                         name: "The Bishops".to_string(),
                         title: "Entity".to_string(),
                         members: vec![],
@@ -1004,6 +1169,7 @@ mod tests {
                     status: "Active".to_string(),
                     household: Some(CrmHouseholdRef {
                         id: 20001,
+                        external_id: String::new(),
                         name: "The Bishops".to_string(),
                         title: "Entity".to_string(),
                         members: vec![],
@@ -1128,6 +1294,7 @@ mod tests {
                     status: "Active".to_string(),
                     household: Some(CrmHouseholdRef {
                         id: 20001,
+                        external_id: String::new(),
                         name: "The Bishops".to_string(),
                         title: "Head".to_string(),
                         members: vec![],
@@ -1142,6 +1309,7 @@ mod tests {
                     status: "Active".to_string(),
                     household: Some(CrmHouseholdRef {
                         id: 20001,
+                        external_id: String::new(),
                         name: "The Bishops".to_string(),
                         title: "Entity".to_string(),
                         members: vec![],
@@ -1300,6 +1468,7 @@ mod tests {
         async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
             let orphan = CrmNote {
                 id: 99999,
+                external_id: String::new(),
                 created_at: "2026-01-01".to_string(),
                 updated_at: "2026-01-01".to_string(),
                 content: "Orphan note — no linked contact".to_string(),
@@ -1356,6 +1525,7 @@ mod tests {
         async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
             let note = CrmNote {
                 id: 77777,
+                external_id: String::new(),
                 created_at: "2026-01-01".to_string(),
                 updated_at: "2026-01-01".to_string(),
                 content: "Note linked to a project, NOT a contact".to_string(),
@@ -1363,6 +1533,7 @@ mod tests {
                     // Same numeric id as the household contact — must NOT match
                     // because the link type is "Project", not "Contact".
                     id: 10001,
+                    external_id: String::new(),
                     r#type: "Project".to_string(),
                     name: "Some Pipeline Project".to_string(),
                 }],
@@ -1576,6 +1747,7 @@ mod tests {
                     status: "Active".to_string(),
                     household: Some(CrmHouseholdRef {
                         id: 30001,
+                        external_id: String::new(),
                         name: "Alpha".to_string(),
                         title: "Head".to_string(),
                         members: vec![],
@@ -1599,6 +1771,7 @@ mod tests {
                     status: "Active".to_string(),
                     household: Some(CrmHouseholdRef {
                         id: 30003,
+                        external_id: String::new(),
                         name: "Beta".to_string(),
                         title: "Head".to_string(),
                         members: vec![],

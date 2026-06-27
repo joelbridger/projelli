@@ -5,6 +5,7 @@
 //! engine/store/render code stays provider-neutral.
 
 use crate::commands::crm::client::WealthboxClient;
+use crate::commands::crm::salesforce::{SalesforceClient, SalesforceTokenSet};
 use crate::commands::crm::source::CrmSource;
 
 const KEYCHAIN_TOKEN_KEY: &str = "api-token";
@@ -13,6 +14,7 @@ const LEGACY_WEALTHBOX_SERVICE: &str = "keepance-wealthbox";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CrmProvider {
     Wealthbox,
+    Salesforce,
 }
 
 impl CrmProvider {
@@ -24,6 +26,7 @@ impl CrmProvider {
             .as_str()
         {
             "" | "wealthbox" => Ok(Self::Wealthbox),
+            "salesforce" | "sfdc" => Ok(Self::Salesforce),
             other => Err(format!("unsupported CRM provider: {other}")),
         }
     }
@@ -31,12 +34,14 @@ impl CrmProvider {
     pub fn id(self) -> &'static str {
         match self {
             Self::Wealthbox => "wealthbox",
+            Self::Salesforce => "salesforce",
         }
     }
 
     pub fn display_name(self) -> &'static str {
         match self {
             Self::Wealthbox => "Wealthbox",
+            Self::Salesforce => "Salesforce",
         }
     }
 
@@ -51,6 +56,7 @@ impl CrmProvider {
     fn legacy_keychain_service(self) -> Option<&'static str> {
         match self {
             Self::Wealthbox => Some(LEGACY_WEALTHBOX_SERVICE),
+            Self::Salesforce => None,
         }
     }
 }
@@ -68,9 +74,10 @@ pub struct CrmProviderAccountInfo {
     pub email: String,
 }
 
-pub fn client_for(provider: CrmProvider, token: String) -> Box<dyn CrmSource> {
+pub fn client_for(provider: CrmProvider, token: String) -> anyhow::Result<Box<dyn CrmSource>> {
     match provider {
-        CrmProvider::Wealthbox => Box::new(WealthboxClient::new(token)),
+        CrmProvider::Wealthbox => Ok(Box::new(WealthboxClient::new(token))),
+        CrmProvider::Salesforce => Ok(Box::new(SalesforceClient::new(token)?)),
     }
 }
 
@@ -83,6 +90,16 @@ pub async fn validate_token(
             let client = WealthboxClient::new(token.to_string());
             let me = client.me().await?;
             Ok(parse_wealthbox_me_to_info(&me))
+        }
+        CrmProvider::Salesforce => {
+            let _: SalesforceTokenSet = serde_json::from_str(token)?;
+            let client = SalesforceClient::new(token.to_string())?;
+            let info = client.identity().await?;
+            Ok(CrmProviderAccountInfo {
+                name: info.name,
+                plan: String::new(),
+                email: info.email,
+            })
         }
     }
 }
@@ -187,6 +204,10 @@ mod tests {
             CrmProvider::Wealthbox
         );
         assert_eq!(
+            CrmProvider::from_optional(Some("Salesforce")).unwrap(),
+            CrmProvider::Salesforce
+        );
+        assert_eq!(
             CrmProvider::from_optional(Some("Wealthbox")).unwrap(),
             CrmProvider::Wealthbox
         );
@@ -196,6 +217,15 @@ mod tests {
     fn unknown_provider_is_rejected() {
         let err = CrmProvider::from_optional(Some("redtail")).unwrap_err();
         assert!(err.contains("unsupported CRM provider"));
+    }
+
+    #[test]
+    fn salesforce_uses_provider_scoped_keychain_slot() {
+        assert_eq!(
+            CrmProvider::Salesforce.keychain_service(),
+            "keepance-crm-salesforce"
+        );
+        assert_eq!(CrmProvider::Salesforce.legacy_keychain_service(), None);
     }
 
     #[test]

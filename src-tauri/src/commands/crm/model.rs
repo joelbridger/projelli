@@ -47,6 +47,8 @@ where
 #[serde(default)]
 pub struct CrmHouseholdMember {
     pub id: i64,
+    #[serde(default, deserialize_with = "null_to_default")]
+    pub external_id: String,
     pub first_name: String,
     pub last_name: String,
     /// Household title role: Head, Spouse, Partner, Child, Grandchild, etc.
@@ -62,10 +64,22 @@ pub struct CrmHouseholdMember {
 #[serde(default)]
 pub struct CrmHouseholdRef {
     pub id: i64,
+    #[serde(default, deserialize_with = "null_to_default")]
+    pub external_id: String,
     pub name: String,
     /// This contact's role within the household (e.g. "Head", "Spouse").
     pub title: String,
     pub members: Vec<CrmHouseholdMember>,
+}
+
+impl CrmHouseholdRef {
+    pub fn crm_key(&self) -> String {
+        if self.external_id.trim().is_empty() {
+            self.id.to_string()
+        } else {
+            self.external_id.trim().to_string()
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -112,9 +126,21 @@ pub struct CrmPhoneNumber {
 #[serde(default)]
 pub struct CrmLink {
     pub id: i64,
+    #[serde(default, deserialize_with = "null_to_default")]
+    pub external_id: String,
     #[serde(rename = "type")]
     pub r#type: String,
     pub name: String,
+}
+
+impl CrmLink {
+    pub fn crm_key(&self) -> String {
+        if self.external_id.trim().is_empty() {
+            self.id.to_string()
+        } else {
+            self.external_id.trim().to_string()
+        }
+    }
 }
 
 /// A tag attached to a contact.
@@ -145,6 +171,8 @@ pub struct CrmTag {
 #[serde(default)]
 pub struct CrmContact {
     pub id: i64,
+    #[serde(default, deserialize_with = "null_to_default")]
+    pub external_id: String,
     #[serde(rename = "type", default, deserialize_with = "null_to_default")]
     pub r#type: String,
 
@@ -245,6 +273,20 @@ pub struct CrmContact {
 }
 
 impl CrmContact {
+    /// Provider-safe CRM id used in the local store and RAG source ids.
+    ///
+    /// Wealthbox keeps the historical numeric id (for example `10001`).
+    /// Providers with global string ids, such as Salesforce, set
+    /// `external_id` to a namespaced value such as `sfdc:001...` so their rows
+    /// can never collide with Wealthbox rows.
+    pub fn crm_key(&self) -> String {
+        if self.external_id.trim().is_empty() {
+            self.id.to_string()
+        } else {
+            self.external_id.trim().to_string()
+        }
+    }
+
     /// Returns the id of the household this contact belongs to.
     ///
     /// - For a contact whose `type` is `"household"`, returns the contact's own id.
@@ -255,6 +297,14 @@ impl CrmContact {
             Some(self.id)
         } else {
             self.household.as_ref().map(|h| h.id)
+        }
+    }
+
+    pub fn household_key(&self) -> Option<String> {
+        if self.r#type.eq_ignore_ascii_case("household") {
+            Some(self.crm_key())
+        } else {
+            self.household.as_ref().map(|h| h.crm_key())
         }
     }
 }
@@ -269,10 +319,22 @@ impl CrmContact {
 #[serde(default)]
 pub struct CrmNote {
     pub id: i64,
+    #[serde(default, deserialize_with = "null_to_default")]
+    pub external_id: String,
     pub created_at: String,
     pub updated_at: String,
     pub content: String,
     pub linked_to: Vec<CrmLink>,
+}
+
+impl CrmNote {
+    pub fn crm_key(&self) -> String {
+        if self.external_id.trim().is_empty() {
+            self.id.to_string()
+        } else {
+            self.external_id.trim().to_string()
+        }
+    }
 }
 
 /// A normalized CRM task.
@@ -280,6 +342,8 @@ pub struct CrmNote {
 #[serde(default)]
 pub struct CrmTask {
     pub id: i64,
+    #[serde(default, deserialize_with = "null_to_default")]
+    pub external_id: String,
     pub name: String,
     pub due_date: Option<String>,
     pub complete: bool,
@@ -288,11 +352,23 @@ pub struct CrmTask {
     pub linked_to: Vec<CrmLink>,
 }
 
+impl CrmTask {
+    pub fn crm_key(&self) -> String {
+        if self.external_id.trim().is_empty() {
+            self.id.to_string()
+        } else {
+            self.external_id.trim().to_string()
+        }
+    }
+}
+
 /// A normalized CRM calendar event.
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
 pub struct CrmEvent {
     pub id: i64,
+    #[serde(default, deserialize_with = "null_to_default")]
+    pub external_id: String,
     pub title: String,
     pub starts_at: String,
     pub ends_at: String,
@@ -300,6 +376,16 @@ pub struct CrmEvent {
     pub location: String,
     pub description: String,
     pub linked_to: Vec<CrmLink>,
+}
+
+impl CrmEvent {
+    pub fn crm_key(&self) -> String {
+        if self.external_id.trim().is_empty() {
+            self.id.to_string()
+        } else {
+            self.external_id.trim().to_string()
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

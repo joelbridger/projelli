@@ -18,6 +18,10 @@ use crate::commands::crm::engine;
 use crate::commands::crm::provider::{
     client_for, delete_token, read_token, store_token, validate_token, CrmProvider,
 };
+use crate::commands::crm::salesforce::{
+    build_salesforce_auth_url, exchange_salesforce_code, salesforce_client_id, SalesforceClient,
+    SALESFORCE_TOKEN_ENDPOINT,
+};
 use crate::commands::crm::store::CrmStore;
 
 // ---------------------------------------------------------------------------
@@ -335,6 +339,82 @@ pub async fn crm_connect(
     })
 }
 
+/// Run the provider's browser-based OAuth flow and store its refresh token in
+/// the provider-scoped CRM keychain slot.
+///
+/// Salesforce is the first CRM provider that needs OAuth instead of a pasted
+/// API key. Wealthbox still uses `crm_connect(token, provider='wealthbox')`.
+#[tauri::command]
+pub async fn crm_oauth_connect(
+    app: AppHandle,
+    provider: Option<String>,
+) -> Result<CrmConnectInfo, String> {
+    let provider = CrmProvider::from_optional(provider.as_deref())?;
+    if provider != CrmProvider::Salesforce {
+        return Err(format!(
+            "{} uses the API-key connect path, not OAuth.",
+            provider.display_name()
+        ));
+    }
+
+    let client_id = salesforce_client_id()
+        .ok_or_else(|| "KEEPANCE_SALESFORCE_CLIENT_ID is not configured".to_string())?;
+    let (verifier, challenge) = crate::commands::mail::gmail::oauth::gen_pkce();
+    let state_token = crate::commands::mail::gmail::oauth::gen_state();
+    let (listener, redirect_uri) =
+        crate::commands::mail::gmail::oauth::bind_loopback_host("localhost")
+            .await
+            .map_err(|e| e.to_string())?;
+    let url = build_salesforce_auth_url(&client_id, &redirect_uri, &challenge, &state_token);
+    crate::commands::mail::gmail::oauth::open_browser(&url);
+    let code = crate::commands::mail::gmail::oauth::await_redirect_code(
+        listener,
+        &state_token,
+        std::time::Duration::from_secs(300),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    let tokens = exchange_salesforce_code(
+        &client_id,
+        &code,
+        &verifier,
+        &redirect_uri,
+        SALESFORCE_TOKEN_ENDPOINT,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    let stored = serde_json::to_string(&tokens).map_err(|e| e.to_string())?;
+    store_token(provider, &stored)?;
+
+    let info = SalesforceClient::new_with_token_endpoint(
+        stored,
+        client_id,
+        SALESFORCE_TOKEN_ENDPOINT.to_string(),
+    )
+    .map_err(|e| e.to_string())?
+    .identity()
+    .await
+    .map_err(|e| e.to_string())?;
+
+    append_crm_audit_best_effort(
+        &app,
+        &provider.audit_action("connect"),
+        &format!(
+            "Connected {}. OAuth refresh token stored locally; data requests go directly \
+             from this device to {}, never through Keepance servers.",
+            provider.display_name(),
+            provider.display_name()
+        ),
+    )
+    .await;
+
+    Ok(CrmConnectInfo {
+        name: info.name,
+        plan: String::new(),
+        email: info.email,
+    })
+}
+
 /// Returns `true` if a Wealthbox API token is present in the OS keychain.
 #[tauri::command]
 pub async fn crm_is_connected(provider: Option<String>) -> Result<bool, String> {
@@ -393,11 +473,11 @@ async fn crm_disconnect_logic_for_provider(
         // A sync wouldn't stop in time. Refuse to purge — it would race inserts against
         // the delete and could lock the DB — and KEEP the token + connected state.
         result.data_remains = true;
-        result.warnings.push(
-            "A Wealthbox sync is still running; disconnect was deferred. Stop the sync and try \
-             disconnecting again."
-                .to_string(),
-        );
+        result.warnings.push(format!(
+            "A {} sync is still running; disconnect was deferred. Stop the sync and try \
+             disconnecting again.",
+            provider.display_name()
+        ));
         return result;
     }
     // We hold `is_syncing` for the whole purge; the guard releases it on every exit path,
@@ -408,33 +488,50 @@ async fn crm_disconnect_logic_for_provider(
     // state so the user can finish deleting once a workspace is open.
     let Some(ws) = state.workspace.lock().await.clone() else {
         result.data_remains = true;
-        result.warnings.push(
-            "No workspace is open, so the imported Wealthbox data could not be located and was NOT \
+        result.warnings.push(format!(
+            "No workspace is open, so the imported {} data could not be located and was NOT \
              deleted. Your API key was kept — open the workspace and disconnect again to finish \
-             deleting."
-                .to_string(),
-        );
+             deleting.",
+            provider.display_name()
+        ));
         return result;
     };
 
-    // Purge RAG chunks (source_type='crm'), then the encrypted CRM database + sidecars.
-    match purge_crm_rag_chunks(&ws).await {
-        Ok(()) => result.rag_purged = true,
-        Err(e) => {
-            log::warn!("crm_disconnect: rag purge failed (non-fatal): {e:#}");
-            result
-                .warnings
-                .push(format!("Search-index (RAG) purge failed: {e}"));
+    match provider {
+        CrmProvider::Wealthbox => {
+            // Wealthbox was the original CRM provider; its historical disconnect
+            // contract is a full CRM purge for the current workspace.
+            match purge_crm_rag_chunks(&ws).await {
+                Ok(()) => result.rag_purged = true,
+                Err(e) => {
+                    log::warn!("crm_disconnect: rag purge failed (non-fatal): {e:#}");
+                    result
+                        .warnings
+                        .push(format!("Search-index (RAG) purge failed: {e}"));
+                }
+            }
+            match CrmStore::purge(&ws) {
+                Ok(()) => result.crm_db_purged = true,
+                Err(e) => {
+                    log::warn!("crm_disconnect: crm db purge failed (non-fatal): {e:#}");
+                    result
+                        .warnings
+                        .push(format!("CRM database purge failed: {e}"));
+                }
+            }
         }
-    }
-    match CrmStore::purge(&ws) {
-        Ok(()) => result.crm_db_purged = true,
-        Err(e) => {
-            log::warn!("crm_disconnect: crm db purge failed (non-fatal): {e:#}");
-            result
-                .warnings
-                .push(format!("CRM database purge failed: {e}"));
-        }
+        CrmProvider::Salesforce => match purge_salesforce_crm_data(&ws).await {
+            Ok(()) => {
+                result.rag_purged = true;
+                result.crm_db_purged = true;
+            }
+            Err(e) => {
+                log::warn!("crm_disconnect: salesforce purge failed (non-fatal): {e:#}");
+                result.warnings.push(format!(
+                    "Salesforce imported-data purge failed: {e}"
+                ));
+            }
+        },
     }
 
     // P2 — remove the API token (= become "disconnected") ONLY AFTER both purges succeed,
@@ -452,19 +549,21 @@ async fn crm_disconnect_logic_for_provider(
                 ));
             }
         }
-        if let Err(e) = CrmStore::delete_master_key() {
-            log::warn!("crm_disconnect: crm db key deletion failed (non-fatal): {e:#}");
-            result.warnings.push(format!(
-                "The CRM database encryption key could not be removed from the keychain: {e}"
-            ));
+        if provider == CrmProvider::Wealthbox {
+            if let Err(e) = CrmStore::delete_master_key() {
+                log::warn!("crm_disconnect: crm db key deletion failed (non-fatal): {e:#}");
+                result.warnings.push(format!(
+                    "The CRM database encryption key could not be removed from the keychain: {e}"
+                ));
+            }
         }
     } else {
         result.data_remains = true;
-        result.warnings.push(
-            "Some imported Wealthbox data could not be deleted; your API key was kept so you can \
-             try disconnecting again to finish deleting."
-                .to_string(),
-        );
+        result.warnings.push(format!(
+            "Some imported {} data could not be deleted; your API key was kept so you can \
+             try disconnecting again to finish deleting.",
+            provider.display_name()
+        ));
     }
 
     result
@@ -518,6 +617,37 @@ async fn purge_crm_rag_chunks(ws: &std::path::Path) -> anyhow::Result<()> {
     let conn = crate::commands::rag::store::open_connection(ws).await?;
     let table = crate::commands::rag::store::open_or_create_table(&conn).await?;
     crate::commands::rag::store::delete_source_type(&table, "crm").await
+}
+
+async fn purge_salesforce_crm_data(ws: &std::path::Path) -> anyhow::Result<()> {
+    const SALESFORCE_MARKER: &str = "sfdc:";
+
+    let store = CrmStore::open(ws)?;
+    let rows = store.list_objects_by_provider_marker(SALESFORCE_MARKER)?;
+    let source_ids: Vec<String> = rows.iter().filter_map(crm_source_id_for_row).collect();
+
+    let key = crate::commands::rag::crypto::get_or_create_master_key()?;
+    let conn = crate::commands::rag::store::open_connection(ws).await?;
+    let table = crate::commands::rag::store::open_or_create_table(&conn).await?;
+    for source_id in source_ids {
+        crate::commands::rag::store::delete_path(&table, &source_id, &key).await?;
+    }
+
+    store.purge_objects_by_provider_marker(SALESFORCE_MARKER)?;
+    Ok(())
+}
+
+fn crm_source_id_for_row(row: &crate::commands::crm::store::CrmObjectRow) -> Option<String> {
+    let (_, crm_key) = row.id.split_once(':')?;
+    let kind = match row.kind.to_ascii_lowercase().as_str() {
+        "household" => "household",
+        "person" | "organization" | "trust" | "contact" => "contact",
+        "note" => "note",
+        "task" => "task",
+        "event" => "event",
+        _ => return None,
+    };
+    Some(format!("crm:{kind}:{crm_key}"))
 }
 
 /// Run a full backfill sync: fetch all Wealthbox objects, store them locally,
@@ -631,7 +761,7 @@ pub async fn crm_sync_all(
 
     // Run the full backfill (fetch → ingest → index). The cancel flag is polled
     // between matters so the UI's Stop button interrupts a long sync.
-    let client = client_for(provider, token);
+    let client = client_for(provider, token).map_err(|e| e.to_string())?;
     let backfill_result = engine::backfill(
         client.as_ref(),
         &store,
@@ -687,11 +817,13 @@ pub async fn crm_sync_all(
     // cancelled, partial run).
     let audit_desc = if report.cancelled {
         format!(
-            "Wealthbox sync stopped early — imported {households} households ({records} records) before cancellation."
+            "{} sync stopped early — imported {households} households ({records} records) before cancellation.",
+            provider.display_name()
         )
     } else {
         format!(
-            "Imported {households} Wealthbox households ({records} records) into the local encrypted store."
+            "Imported {households} {} households ({records} records) into the local encrypted store.",
+            provider.display_name()
         )
     };
     append_crm_audit_best_effort(&app, &provider.audit_action("sync"), &audit_desc).await;
@@ -782,12 +914,12 @@ fn household_dto_name(contact: &crate::commands::crm::model::CrmContact) -> Stri
 pub async fn crm_list_households(provider: Option<String>) -> Result<Vec<CrmHouseholdDto>, String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
     let token = read_token(provider).ok_or_else(|| "not connected".to_string())?;
-    let client = client_for(provider, token);
+    let client = client_for(provider, token).map_err(|e| e.to_string())?;
     let contacts = client.list_households().await.map_err(|e| e.to_string())?;
     let dtos = contacts
         .iter()
         .map(|c| CrmHouseholdDto {
-            id: c.id.to_string(),
+            id: c.crm_key(),
             name: household_dto_name(c),
         })
         .collect();
@@ -883,6 +1015,37 @@ mod tests {
         assert!(
             !state.is_syncing.load(Ordering::SeqCst),
             "the claimed slot must be released"
+        );
+    }
+
+    #[test]
+    fn crm_source_id_for_salesforce_rows_uses_provider_namespaced_key() {
+        let household = crate::commands::crm::store::CrmObjectRow {
+            id: "contact:sfdc:001HH0000000001AAA".to_string(),
+            kind: "household".to_string(),
+            household_id: "sfdc:001HH0000000001AAA".to_string(),
+            updated_at: String::new(),
+            content_hash: "hash".to_string(),
+            json: "{}".to_string(),
+            deleted: false,
+        };
+        let contact = crate::commands::crm::store::CrmObjectRow {
+            id: "contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA".to_string(),
+            kind: "person".to_string(),
+            household_id: "sfdc:001HH0000000001AAA".to_string(),
+            updated_at: String::new(),
+            content_hash: "hash".to_string(),
+            json: "{}".to_string(),
+            deleted: false,
+        };
+
+        assert_eq!(
+            crm_source_id_for_row(&household).as_deref(),
+            Some("crm:household:sfdc:001HH0000000001AAA")
+        );
+        assert_eq!(
+            crm_source_id_for_row(&contact).as_deref(),
+            Some("crm:contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA")
         );
     }
 

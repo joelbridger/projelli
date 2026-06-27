@@ -8,7 +8,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { CrmMatterMapEntry } from '@/platform/rag/matterResolver';
 
-export type CrmProvider = 'wealthbox';
+export type CrmProvider = 'wealthbox' | 'salesforce';
 
 // ── CRM event constant ──────────────────────────────────────────────────────
 
@@ -96,6 +96,12 @@ export async function crmSetWorkspace(path: string, provider?: CrmProvider): Pro
 export async function crmConnect(token: string, provider?: CrmProvider): Promise<CrmConnectInfo> {
   if (!isTauri()) throw new Error('Wealthbox connect is only available in the desktop app.');
   return invoke<CrmConnectInfo>('crm_connect', provider ? { token, provider } : { token });
+}
+
+/** Run a provider browser OAuth flow. Salesforce uses this path. */
+export async function crmOAuthConnect(provider: CrmProvider): Promise<CrmConnectInfo> {
+  if (!isTauri()) throw new Error('CRM OAuth connect is only available in the desktop app.');
+  return invoke<CrmConnectInfo>('crm_oauth_connect', { provider });
 }
 
 /** True when a Wealthbox API token is stored in the keychain. */

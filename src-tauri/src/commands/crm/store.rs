@@ -233,6 +233,60 @@ impl CrmStore {
         Ok(rows)
     }
 
+    /// Return every live object whose store id carries a provider marker in the
+    /// id payload, e.g. `contact:sfdc:003...`. This is used for provider-scoped
+    /// disconnect so removing Salesforce cannot remove Wealthbox rows.
+    #[allow(dead_code)]
+    pub fn list_objects_by_provider_marker(&self, marker: &str) -> Result<Vec<CrmObjectRow>> {
+        let marker = marker.trim();
+        if marker.is_empty() || marker.contains('%') || marker.contains('_') {
+            anyhow::bail!("invalid CRM provider marker");
+        }
+        let c = self.conn.lock().unwrap();
+        let like = format!("%:{marker}%");
+        let mut stmt = c.prepare(
+            "SELECT id, kind, household_id, updated_at, content_hash, json, deleted
+             FROM crm_objects
+             WHERE id LIKE ?1 AND deleted = 0",
+        )?;
+        let rows = stmt
+            .query_map([like], row_to_crm_object)?
+            .collect::<rusqlite::Result<Vec<CrmObjectRow>>>()?;
+        Ok(rows)
+    }
+
+    /// Hard-delete every CRM object whose store id carries the given provider
+    /// marker. Render-state rows for affected households are also removed so a
+    /// later sync recomputes the matter plan from the remaining provider rows.
+    #[allow(dead_code)]
+    pub fn purge_objects_by_provider_marker(&self, marker: &str) -> Result<usize> {
+        let marker = marker.trim();
+        if marker.is_empty() || marker.contains('%') || marker.contains('_') {
+            anyhow::bail!("invalid CRM provider marker");
+        }
+        let c = self.conn.lock().unwrap();
+        let like = format!("%:{marker}%");
+
+        let mut stmt = c.prepare(
+            "SELECT DISTINCT household_id FROM crm_objects
+             WHERE id LIKE ?1 AND household_id != ''",
+        )?;
+        let household_ids = stmt
+            .query_map([like.as_str()], |r| r.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<String>>>()?;
+        drop(stmt);
+
+        for household_id in household_ids {
+            c.execute(
+                "DELETE FROM crm_render_state WHERE household_id = ?1",
+                [household_id],
+            )?;
+        }
+
+        let deleted = c.execute("DELETE FROM crm_objects WHERE id LIKE ?1", [like])?;
+        Ok(deleted)
+    }
+
     /// Soft-delete an object (sets `deleted = 1`).
     #[allow(dead_code)]
     pub fn tombstone_object(&self, id: &str) -> Result<()> {
@@ -594,6 +648,63 @@ mod tests {
         // get_object still finds it (deleted flag = true).
         let row = s.get_object("contact:10").unwrap().expect("still findable");
         assert!(row.deleted);
+    }
+
+    #[test]
+    fn provider_marker_purge_removes_only_salesforce_rows() {
+        let (_d, s) = crm_store();
+
+        s.upsert_object(
+            "contact:10002",
+            "person",
+            "10001",
+            "",
+            "hash-wb",
+            r#"{"id":10002}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA",
+            "person",
+            "sfdc:001HH0000000001AAA",
+            "",
+            "hash-sf-contact",
+            r#"{"external_id":"sfdc:003CC0000000002AAA:acct:001HH0000000001AAA"}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "contact:sfdc:001HH0000000001AAA",
+            "household",
+            "sfdc:001HH0000000001AAA",
+            "",
+            "hash-sf-household",
+            r#"{"external_id":"sfdc:001HH0000000001AAA"}"#,
+        )
+        .unwrap();
+        s.set_render_state("sfdc:001HH0000000001AAA", "stale", true)
+            .unwrap();
+
+        let salesforce_rows = s.list_objects_by_provider_marker("sfdc:").unwrap();
+        assert_eq!(salesforce_rows.len(), 2);
+
+        let deleted = s.purge_objects_by_provider_marker("sfdc:").unwrap();
+        assert_eq!(deleted, 2);
+
+        assert!(
+            s.get_object("contact:10002").unwrap().is_some(),
+            "Wealthbox row must survive Salesforce purge"
+        );
+        assert!(
+            s.get_object("contact:sfdc:001HH0000000001AAA")
+                .unwrap()
+                .is_none(),
+            "Salesforce household row must be gone"
+        );
+        assert_eq!(
+            s.get_render_state("sfdc:001HH0000000001AAA").unwrap(),
+            None,
+            "provider purge must clear stale render state for that household"
+        );
     }
 
     // -----------------------------------------------------------------------
