@@ -191,6 +191,11 @@ pub const EXTERNAL_SOURCE_TYPE_ALLOWLIST: &[&str] = &[
     "onedrive",
     "esign",
     "meeting",
+    "box",
+    "jotform",
+    "sharefile",
+    "zocks",
+    "addepar",
 ];
 
 pub fn validate_external_source_type(source_type: &str) -> Result<&str> {
@@ -3579,6 +3584,37 @@ mod tests {
             build_batch_external(&rows, &TEST_KEY, "matter-acme", PRIVILEGE_NONE, "unknown")
                 .is_err(),
             "unknown connector source_type must be rejected"
+        );
+    }
+
+    #[test]
+    fn build_batch_external_accepts_new_connector_source_kinds() {
+        use arrow_array::cast::AsArray;
+        let plaintext = "Box folder document for the Acme matter.";
+        let rows = vec![(
+            Chunk {
+                path: "box:folder:file-123".into(),
+                paragraph_index: 0,
+                text: plaintext.to_string(),
+                start_offset: 0,
+                end_offset: plaintext.len(),
+                locator: None,
+            },
+            vec![0.1f32; EMBEDDING_DIM],
+        )];
+
+        let batch = build_batch_external(&rows, &TEST_KEY, "matter-acme", PRIVILEGE_NONE, "box")
+            .expect("box should be accepted as an external source kind");
+        let st_col = batch
+            .column_by_name("source_type")
+            .expect("st col")
+            .as_string::<i32>();
+        assert_eq!(st_col.value(0), "box");
+
+        assert!(
+            build_batch_external(&rows, &TEST_KEY, "matter-acme", PRIVILEGE_NONE, "not-real")
+                .is_err(),
+            "unknown connector source_type must still be rejected"
         );
     }
 

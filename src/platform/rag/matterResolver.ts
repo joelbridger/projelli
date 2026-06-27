@@ -271,8 +271,33 @@ export interface OneDriveMatterMapEntry {
   matterId: string;
 }
 
+export interface BoxMatterMapEntry {
+  folderKey: string;
+  matterId: string;
+}
+
 export interface EsignMatterMapEntry {
   esignKey: string;
+  matterId: string;
+}
+
+export interface JotformMatterMapEntry {
+  jotformKey: string;
+  matterId: string;
+}
+
+export interface SharefileMatterMapEntry {
+  folderKey: string;
+  matterId: string;
+}
+
+export interface ZocksMatterMapEntry {
+  zocksKey: string;
+  matterId: string;
+}
+
+export interface AddeparMatterMapEntry {
+  addeparKey: string;
   matterId: string;
 }
 
@@ -329,6 +354,52 @@ export function buildOneDriveMatterMap(
     (a, b) =>
       oneDriveFolderPathLength(b.folderKey) -
       oneDriveFolderPathLength(a.folderKey)
+  );
+}
+
+export function buildBoxMatterMap(matters: Matter[]): BoxMatterMapEntry[] {
+  return buildConnectorMatterMap(
+    matters,
+    (m) => m.boxFolderKeys,
+    (folderKey, matterId) => ({ folderKey, matterId })
+  );
+}
+
+export function buildJotformMatterMap(
+  matters: Matter[]
+): JotformMatterMapEntry[] {
+  return buildConnectorMatterMap(
+    matters,
+    (m) => m.jotformKeys,
+    (jotformKey, matterId) => ({ jotformKey, matterId })
+  );
+}
+
+export function buildSharefileMatterMap(
+  matters: Matter[]
+): SharefileMatterMapEntry[] {
+  return buildConnectorMatterMap(
+    matters,
+    (m) => m.sharefileFolderKeys,
+    (folderKey, matterId) => ({ folderKey, matterId })
+  );
+}
+
+export function buildZocksMatterMap(matters: Matter[]): ZocksMatterMapEntry[] {
+  return buildConnectorMatterMap(
+    matters,
+    (m) => m.zocksKeys,
+    (zocksKey, matterId) => ({ zocksKey, matterId })
+  );
+}
+
+export function buildAddeparMatterMap(
+  matters: Matter[]
+): AddeparMatterMapEntry[] {
+  return buildConnectorMatterMap(
+    matters,
+    (m) => m.addeparKeys,
+    (addeparKey, matterId) => ({ addeparKey, matterId })
   );
 }
 

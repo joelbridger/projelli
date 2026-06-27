@@ -34,6 +34,11 @@ export const OPEN_CRM_EVENT = 'keepance:open-crm';
 export const OPEN_ONEDRIVE_EVENT = 'keepance:open-onedrive';
 export const OPEN_ESIGN_EVENT = 'keepance:open-esign';
 export const OPEN_MEETING_EVENT = 'keepance:open-meeting';
+export const OPEN_BOX_EVENT = 'keepance:open-box';
+export const OPEN_JOTFORM_EVENT = 'keepance:open-jotform';
+export const OPEN_SHAREFILE_EVENT = 'keepance:open-sharefile';
+export const OPEN_ZOCKS_EVENT = 'keepance:open-zocks';
+export const OPEN_ADDEPAR_EVENT = 'keepance:open-addepar';
 export const MATTER_LAUNCH_EVENT = 'keepance:matter-launch';
 
 /** The document-source payload carried on a `keepance:matter-launch` event. */
@@ -68,6 +73,26 @@ export function dispatchOpenSource(matterId: string, ref: SourceRef): void {
   }
   if (ref.kind === 'meeting') {
     window.dispatchEvent(new CustomEvent(OPEN_MEETING_EVENT, { detail: { sourceId: ref.ref } }));
+    return;
+  }
+  if (ref.kind === 'box') {
+    window.dispatchEvent(new CustomEvent(OPEN_BOX_EVENT, { detail: { sourceId: ref.ref } }));
+    return;
+  }
+  if (ref.kind === 'jotform') {
+    window.dispatchEvent(new CustomEvent(OPEN_JOTFORM_EVENT, { detail: { sourceId: ref.ref } }));
+    return;
+  }
+  if (ref.kind === 'sharefile') {
+    window.dispatchEvent(new CustomEvent(OPEN_SHAREFILE_EVENT, { detail: { sourceId: ref.ref } }));
+    return;
+  }
+  if (ref.kind === 'zocks') {
+    window.dispatchEvent(new CustomEvent(OPEN_ZOCKS_EVENT, { detail: { sourceId: ref.ref } }));
+    return;
+  }
+  if (ref.kind === 'addepar') {
+    window.dispatchEvent(new CustomEvent(OPEN_ADDEPAR_EVENT, { detail: { sourceId: ref.ref } }));
     return;
   }
   const source: MatterLaunchSource = { kind: 'document', ref: ref.ref };

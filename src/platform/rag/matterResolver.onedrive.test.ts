@@ -8,7 +8,12 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  buildAddeparMatterMap,
+  buildBoxMatterMap,
+  buildJotformMatterMap,
   buildOneDriveFolderKey,
+  buildSharefileMatterMap,
+  buildZocksMatterMap,
   resolveMatterForOneDriveFolder,
 } from './matterResolver';
 import type { Matter } from '@/platform/types/matter';
@@ -75,6 +80,54 @@ describe('buildOneDriveFolderKey', () => {
         path: 'root:/Clients/Acme',
       })
     ).toBe('m365/default/site-1/drive-a:/clients/acme');
+  });
+});
+
+describe('new connector matter-map shells', () => {
+  it('flattens new connector fields and skips duplicate or blank keys', () => {
+    const matters: Matter[] = [
+      makeMatter({
+        id: 'matter-a',
+        name: 'Acme',
+        client: 'Acme',
+        boxFolderKeys: ['box-folder-a', ''],
+        jotformKeys: ['form-a'],
+        sharefileFolderKeys: ['sf-folder-a'],
+        zocksKeys: ['zocks-a'],
+        addeparKeys: ['addepar-a'],
+      }),
+      makeMatter({
+        id: 'matter-b',
+        name: 'Beta',
+        client: 'Beta',
+        boxFolderKeys: ['box-folder-a', 'box-folder-b'],
+        jotformKeys: ['form-a', 'form-b'],
+        sharefileFolderKeys: ['sf-folder-a', 'sf-folder-b'],
+        zocksKeys: ['zocks-a', 'zocks-b'],
+        addeparKeys: ['addepar-a', 'addepar-b'],
+      }),
+    ];
+
+    expect(buildBoxMatterMap(matters)).toEqual([
+      { folderKey: 'box-folder-a', matterId: 'matter-a' },
+      { folderKey: 'box-folder-b', matterId: 'matter-b' },
+    ]);
+    expect(buildJotformMatterMap(matters)).toEqual([
+      { jotformKey: 'form-a', matterId: 'matter-a' },
+      { jotformKey: 'form-b', matterId: 'matter-b' },
+    ]);
+    expect(buildSharefileMatterMap(matters)).toEqual([
+      { folderKey: 'sf-folder-a', matterId: 'matter-a' },
+      { folderKey: 'sf-folder-b', matterId: 'matter-b' },
+    ]);
+    expect(buildZocksMatterMap(matters)).toEqual([
+      { zocksKey: 'zocks-a', matterId: 'matter-a' },
+      { zocksKey: 'zocks-b', matterId: 'matter-b' },
+    ]);
+    expect(buildAddeparMatterMap(matters)).toEqual([
+      { addeparKey: 'addepar-a', matterId: 'matter-a' },
+      { addeparKey: 'addepar-b', matterId: 'matter-b' },
+    ]);
   });
 });
 
