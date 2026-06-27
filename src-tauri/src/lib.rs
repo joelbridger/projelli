@@ -186,6 +186,14 @@ pub fn run() {
             commands::docusign::commands::docusign_cancel_sync,
             commands::docusign::commands::docusign_sync_status,
             commands::docusign::commands::docusign_list_unassigned,
+            // Calendly connector — read-only scheduled events + invitee Q&A.
+            commands::calendly::commands::calendly_set_workspace,
+            commands::calendly::commands::calendly_connect,
+            commands::calendly::commands::calendly_is_connected,
+            commands::calendly::commands::calendly_disconnect,
+            commands::calendly::commands::calendly_sync_all,
+            commands::calendly::commands::calendly_sync_status,
+            commands::calendly::commands::calendly_cancel_sync,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
             // Wave 3b encrypted vault — per-workspace AES-256-GCM at-rest encryption.
@@ -230,6 +238,8 @@ pub fn run() {
             commands::onedrive::commands::manage_state(app);
             // Read-only DocuSign connector state.
             commands::docusign::commands::manage_state(app);
+            // Calendly connector — manage workspace, single-flight sync, and progress.
+            commands::calendly::commands::manage_state(app);
             // Keepance 3.0 — manage encrypted audit-store state (active workspace).
             commands::audit::manage_state(app);
             // Onboarding/setup progress — register the aggregator state + the

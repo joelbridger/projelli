@@ -107,6 +107,7 @@ import { useUndoToast } from '@/app/shell/common/UndoToast';
 import { CrmSourcePanel } from '@/features/crm/CrmSourcePanel';
 import { OneDriveSourcePanel } from '@/features/onedrive/OneDriveSourcePanel';
 import { DocusignSourcePanel } from '@/features/docusign/DocusignSourcePanel';
+import { MeetingSourcePanel } from '@/features/calendly/MeetingSourcePanel';
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
@@ -1540,6 +1541,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
       <CrmSourcePanel />
       <OneDriveSourcePanel />
       <DocusignSourcePanel />
+      <MeetingSourcePanel />
     </div>
   );
 }

@@ -43,6 +43,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'onboarding->settings', // onboarding hands off to settings sections
   'privacy->firm',        // Privacy Center hosts the vault enable/disable control
   'settings->ask',        // AI/model settings touch Ask config
+  'settings->calendly',   // Calendly connect panel uses the calendly sync hook/store
   'settings->crm',        // Wealthbox connect panel uses the crm sync hook/store
   'settings->dictation',  // voice-output settings
   'settings->email',      // mail-account settings

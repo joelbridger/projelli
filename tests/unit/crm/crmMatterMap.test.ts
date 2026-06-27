@@ -158,6 +158,29 @@ describe('additive connector matter-map shells', () => {
     ]);
   });
 
+  it('normalizes meeting keys so emails and names match Calendly invitees', () => {
+    const matters: Matter[] = [
+      matter('m1', [], { meetingKeys: [' Amelia@Example.COM ', ' Amelia   Rivera '] }),
+    ];
+
+    expect(buildMeetingMatterMap(matters)).toEqual([
+      { meetingKey: 'amelia@example.com', matterId: 'm1' },
+      { meetingKey: 'amelia rivera', matterId: 'm1' },
+    ]);
+  });
+
+  it('dedupes normalized meeting keys so the first client wins', () => {
+    const matters: Matter[] = [
+      matter('m1', [], { meetingKeys: [' Amelia@Example.COM ', ' Amelia   Rivera '] }),
+      matter('m2', [], { meetingKeys: ['amelia@example.com', 'amelia rivera'] }),
+    ];
+
+    expect(buildMeetingMatterMap(matters)).toEqual([
+      { meetingKey: 'amelia@example.com', matterId: 'm1' },
+      { meetingKey: 'amelia rivera', matterId: 'm1' },
+    ]);
+  });
+
   it('skips blanks, duplicates, and the unassigned sentinel', () => {
     const matters: Matter[] = [
       matter(UNASSIGNED_MATTER_ID, [], { onedriveFolderKeys: ['ignored'] }),

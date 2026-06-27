@@ -14,6 +14,8 @@ pub mod audit;
 pub mod crm;
 // Read-only DocuSign connector — completed envelopes + signing audit trail.
 pub mod docusign;
+// Calendly connector — read-only scheduled events + invitee intake into meeting RAG.
+pub mod calendly;
 // Shared additive connector foundation — generic external RAG ingestion bridge.
 pub mod connector;
 // M365 email-import (Task 1+) — pure-Rust Graph JSON parsing, local index, sync.

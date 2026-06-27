@@ -46,6 +46,11 @@ const docusignMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/platform/utils/docusign-commands', () => docusignMocks);
+const calendlyMocks = vi.hoisted(() => ({
+  calendlySetWorkspace: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/platform/utils/calendly-commands', () => calendlyMocks);
 
 // tauri-commands: watchWorkspace + model status helpers used inside the
 // per-workspace lifecycle. Return resolved values so the IIFE completes.
@@ -140,6 +145,7 @@ describe('useMemoryWiring — connector workspace wiring', () => {
       expect(mailMocks.mailSetWorkspace).toHaveBeenCalledWith(root);
       expect(crmMocks.crmSetWorkspace).toHaveBeenCalledWith(root);
       expect(docusignMocks.docusignSetWorkspace).toHaveBeenCalledWith(root);
+      expect(calendlyMocks.calendlySetWorkspace).toHaveBeenCalledWith(root);
     });
   });
 

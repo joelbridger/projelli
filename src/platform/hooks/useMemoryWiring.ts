@@ -58,6 +58,7 @@ import { mailSetWorkspace } from '@/platform/utils/mail-commands';
 import { docusignSetWorkspace } from '@/platform/utils/docusign-commands';
 import { crmSetWorkspace } from '@/platform/utils/wealthbox-commands';
 import { oneDriveSetWorkspace } from '@/platform/utils/onedrive-commands';
+import { calendlySetWorkspace } from '@/platform/utils/calendly-commands';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/platform/types/workspace';
 import { usePdfIndexProgressStore } from '@/platform/rag/pdfIndexProgressStore';
@@ -550,6 +551,9 @@ export function useMemoryWiring(
           await docusignSetWorkspace(rootPath);
         } catch (err) {
           console.warn('docusignSetWorkspace failed; continuing workspace setup:', err);
+          await calendlySetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('calendlySetWorkspace failed; continuing workspace setup:', err);
         }
         await watchWorkspace(rootPath);
 
