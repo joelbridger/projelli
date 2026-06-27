@@ -227,16 +227,14 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
 }
 
 fn object_belongs_to_provider(store_id: &str, provider_id: &str) -> bool {
+    let Some((_, rest)) = store_id.split_once(':') else {
+        return provider_id == "wealthbox";
+    };
     match provider_id {
-        "salesforce" => store_id
-            .split_once(':')
-            .map(|(_, rest)| rest.starts_with("sfdc:"))
-            .unwrap_or(false),
-        "wealthbox" => store_id
-            .split_once(':')
-            .map(|(_, rest)| !rest.starts_with("sfdc:"))
-            .unwrap_or(true),
-        _ => true,
+        "salesforce" => rest.starts_with("sfdc:"),
+        "redtail" => rest.starts_with("redtail:"),
+        "wealthbox" => !rest.starts_with("sfdc:") && !rest.starts_with("redtail:"),
+        _ => false,
     }
 }
 
@@ -516,6 +514,7 @@ pub async fn backfill(
     use std::sync::atomic::Ordering;
 
     let mut report = SyncReport::default();
+    let provider_id = source.provider_id();
 
     // Phase 1: ingest everything into the store.
     report.ingest = ingest(source, store).await?;
@@ -532,7 +531,9 @@ pub async fn backfill(
     // (a) skip the stale-chunk delete for a matter that has none yet — a first sync's
     // deletes are all no-ops, and skipping them removes their commit + compaction churn
     // (the perf cost), and (b) find orphaned matters to purge below.
-    let indexed_matters = crate::commands::rag::store::list_crm_matters(&table).await?;
+    let indexed_matters =
+        crate::commands::rag::store::list_crm_matters_for_provider(&table, provider_id, rag_key)
+            .await?;
 
     // Group the household→matter map BY MATTER. A matter can own several households,
     // and the old per-household loop deleted the matter's CRM chunks once PER household
@@ -571,9 +572,11 @@ pub async fn backfill(
             // Mark BEFORE the write: a delete that succeeds but errors elsewhere must
             // still trigger the final optimize, or a partial write bloats the index.
             did_write = true;
-            crate::commands::rag::store::delete_crm_for_matters(
+            crate::commands::rag::store::delete_crm_for_matters_for_provider(
                 &table,
                 std::slice::from_ref(orphan),
+                provider_id,
+                rag_key,
             )
             .await?;
         }
@@ -640,9 +643,11 @@ pub async fn backfill(
             // then render-state write fails) still triggers the finally-style optimize.
             if already_indexed {
                 did_write = true;
-                crate::commands::rag::store::delete_crm_for_matters(
+                crate::commands::rag::store::delete_crm_for_matters_for_provider(
                     &table,
                     std::slice::from_ref(matter_id),
+                    provider_id,
+                    rag_key,
                 )
                 .await?;
             }
@@ -828,11 +833,54 @@ mod tests {
         }
     }
 
+    struct EmptySalesforceSource;
+
+    #[async_trait]
+    impl CrmSource for EmptySalesforceSource {
+        fn provider_id(&self) -> &'static str {
+            "salesforce"
+        }
+
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<CrmContact>> {
+            Ok(Vec::new())
+        }
+        async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
+            Ok(Vec::new())
+        }
+        async fn list_tasks(&self) -> anyhow::Result<Vec<CrmTask>> {
+            Ok(Vec::new())
+        }
+        async fn list_events(&self) -> anyhow::Result<Vec<CrmEvent>> {
+            Ok(Vec::new())
+        }
+    }
+
     fn crm_store() -> (TempDir, CrmStore) {
         let dir = TempDir::new().unwrap();
         let key = [0x33u8; 32];
         let s = CrmStore::open_with_key(dir.path(), &key).expect("crm store open");
         (dir, s)
+    }
+
+    #[test]
+    fn object_provider_detection_keeps_legacy_wealthbox_unprefixed() {
+        assert!(object_belongs_to_provider("contact:10002", "wealthbox"));
+        assert!(object_belongs_to_provider(
+            "contact:sfdc:003CC0000000002AAA",
+            "salesforce"
+        ));
+        assert!(object_belongs_to_provider(
+            "contact:redtail:123",
+            "redtail"
+        ));
+        assert!(!object_belongs_to_provider(
+            "contact:redtail:123",
+            "wealthbox"
+        ));
+        assert!(!object_belongs_to_provider(
+            "contact:sfdc:003CC0000000002AAA",
+            "wealthbox"
+        ));
     }
 
     // ── Test: ingest ──────────────────────────────────────────────────────────
@@ -1931,6 +1979,125 @@ mod tests {
         assert_eq!(
             a_crm, 0,
             "a re-linked household must leave NO orphaned CRM chunks under the old matter-A"
+        );
+    }
+
+    /// Provider-scoped orphan cleanup: an empty Salesforce sync must purge only
+    /// Salesforce CRM chunks. The legacy unprefixed Wealthbox chunks in the same
+    /// matter are a different provider and must survive.
+    #[tokio::test]
+    async fn backfill_salesforce_empty_map_purges_only_salesforce_crm_chunks() {
+        use crate::commands::mail::crypto::decrypt_with_key;
+        use crate::commands::rag::chunker::{chunk_text, Chunk};
+        use crate::commands::rag::embedder::EMBEDDING_DIM;
+        use crate::commands::rag::store::{self, PRIVILEGE_NONE};
+        use arrow_array::RecordBatchIterator;
+
+        const VEC_KEY: [u8; 32] = [0x5Au8; 32];
+        let ws = TempDir::new().unwrap();
+        let store_db = CrmStore::open_with_key(ws.path(), &[0x33u8; 32]).unwrap();
+        let cancel = std::sync::atomic::AtomicBool::new(false);
+        let progress = std::sync::atomic::AtomicU32::new(0);
+        let matter = "matter-coexist";
+
+        let conn = store::open_connection(ws.path()).await.unwrap();
+        let table = store::open_or_create_table(&conn).await.unwrap();
+        let source_ids = [
+            "crm:household:10001",
+            "crm:contact:10002",
+            "crm:household:sfdc:001HH0000000001AAA",
+            "crm:contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA",
+        ];
+        let mut rows: Vec<(Chunk, Vec<f32>)> = Vec::new();
+        for source_id in source_ids {
+            for chunk in chunk_text(source_id, &format!("CRM fixture for {source_id}")) {
+                rows.push((chunk, vec![0.10f32; EMBEDDING_DIM]));
+            }
+        }
+        let batch = store::build_batch_crm(&rows, &VEC_KEY, matter, PRIVILEGE_NONE)
+            .expect("build mixed-provider crm batch");
+        let schema = batch.schema();
+        table
+            .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+            .execute()
+            .await
+            .expect("add mixed-provider crm chunks");
+
+        assert!(
+            store::list_crm_matters_for_provider(&table, "salesforce", &VEC_KEY)
+                .await
+                .unwrap()
+                .contains(matter),
+            "Salesforce chunks must exist before the empty Salesforce sync"
+        );
+        assert!(
+            store::list_crm_matters_for_provider(&table, "wealthbox", &VEC_KEY)
+                .await
+                .unwrap()
+                .contains(matter),
+            "Wealthbox chunks must exist before the empty Salesforce sync"
+        );
+
+        let empty: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+        backfill(
+            &EmptySalesforceSource,
+            &store_db,
+            ws.path(),
+            &empty,
+            &cancel,
+            &VEC_KEY,
+            &progress,
+        )
+        .await
+        .expect("empty Salesforce sync");
+
+        let conn2 = store::open_connection(ws.path()).await.unwrap();
+        let table2 = store::open_or_create_table(&conn2).await.unwrap();
+        assert!(
+            !store::list_crm_matters_for_provider(&table2, "salesforce", &VEC_KEY)
+                .await
+                .unwrap()
+                .contains(matter),
+            "empty Salesforce sync must purge Salesforce orphan chunks"
+        );
+        assert!(
+            store::list_crm_matters_for_provider(&table2, "wealthbox", &VEC_KEY)
+                .await
+                .unwrap()
+                .contains(matter),
+            "empty Salesforce sync must not purge Wealthbox chunks"
+        );
+
+        let hits = store::nearest(
+            &table2,
+            &vec![0.10f32; EMBEDDING_DIM],
+            20,
+            Some(matter),
+            false,
+            &[],
+        )
+        .await
+        .unwrap();
+        let paths: Vec<String> = hits
+            .iter()
+            .map(|hit| {
+                let enc = hit.path_enc.as_deref().expect("crm hit has path_enc");
+                let blob = hex::decode(enc).expect("path_enc hex");
+                String::from_utf8(decrypt_with_key(&blob, &VEC_KEY).expect("decrypt path_enc"))
+                    .expect("utf8 path")
+            })
+            .collect();
+        assert!(
+            paths.iter().any(|p| p == "crm:household:10001"),
+            "Wealthbox household chunk must survive; got {paths:?}"
+        );
+        assert!(
+            paths.iter().any(|p| p == "crm:contact:10002"),
+            "Wealthbox contact chunk must survive; got {paths:?}"
+        );
+        assert!(
+            !paths.iter().any(|p| p.contains("sfdc:")),
+            "Salesforce chunks must be gone; got {paths:?}"
         );
     }
 
