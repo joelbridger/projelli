@@ -545,12 +545,15 @@ export function useMemoryWiring(
           await oneDriveSetWorkspace(rootPath);
         } catch (err) {
           console.warn('oneDriveSetWorkspace failed; continuing workspace setup:', err);
+        }
         // Best-effort: DocuSign sync/list/disconnect commands also need the
         // active workspace path before they can read/write local connector data.
         try {
           await docusignSetWorkspace(rootPath);
         } catch (err) {
           console.warn('docusignSetWorkspace failed; continuing workspace setup:', err);
+        }
+        try {
           await calendlySetWorkspace(rootPath);
         } catch (err) {
           console.warn('calendlySetWorkspace failed; continuing workspace setup:', err);
