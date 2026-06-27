@@ -11,7 +11,12 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { buildCrmMatterMap } from '@/platform/rag/matterResolver';
+import {
+  buildCrmMatterMap,
+  buildEsignMatterMap,
+  buildMeetingMatterMap,
+  buildOneDriveMatterMap,
+} from '@/platform/rag/matterResolver';
 import { UNASSIGNED_MATTER_ID, type Matter } from '@/platform/types/matter';
 import { useMatterStore } from '@/platform/matter/matterStore';
 
@@ -96,6 +101,49 @@ describe('buildCrmMatterMap', () => {
     // A matter loaded from storage before v6 will have the field missing.
     const preMigration = matter('m1', undefined as unknown as string[]);
     expect(buildCrmMatterMap([preMigration])).toEqual([]);
+  });
+});
+
+describe('additive connector matter-map shells', () => {
+  it('flattens OneDrive, e-signature, and meeting keys', () => {
+    const matters: Matter[] = [
+      matter('m1', [], {
+        onedriveFolderKeys: ['drive-folder-1'],
+        esignKeys: ['envelope-1'],
+        meetingKeys: ['event-1'],
+      }),
+      matter('m2', [], {
+        onedriveFolderKeys: ['drive-folder-2'],
+        esignKeys: ['envelope-2'],
+        meetingKeys: ['event-2'],
+      }),
+    ];
+
+    expect(buildOneDriveMatterMap(matters)).toEqual([
+      { folderKey: 'drive-folder-1', matterId: 'm1' },
+      { folderKey: 'drive-folder-2', matterId: 'm2' },
+    ]);
+    expect(buildEsignMatterMap(matters)).toEqual([
+      { esignKey: 'envelope-1', matterId: 'm1' },
+      { esignKey: 'envelope-2', matterId: 'm2' },
+    ]);
+    expect(buildMeetingMatterMap(matters)).toEqual([
+      { meetingKey: 'event-1', matterId: 'm1' },
+      { meetingKey: 'event-2', matterId: 'm2' },
+    ]);
+  });
+
+  it('skips blanks, duplicates, and the unassigned sentinel', () => {
+    const matters: Matter[] = [
+      matter(UNASSIGNED_MATTER_ID, [], { onedriveFolderKeys: ['ignored'] }),
+      matter('m1', [], { onedriveFolderKeys: ['', 'folder-dup'] }),
+      matter('m2', [], { onedriveFolderKeys: ['folder-dup', 'folder-2'] }),
+    ];
+
+    expect(buildOneDriveMatterMap(matters)).toEqual([
+      { folderKey: 'folder-dup', matterId: 'm1' },
+      { folderKey: 'folder-2', matterId: 'm2' },
+    ]);
   });
 });
 
@@ -185,10 +233,10 @@ describe('addCrmHouseholdKey / removeCrmHouseholdKey', () => {
 });
 
 // ---------------------------------------------------------------------------
-// matterStore migration: version < 6 backfills crmHouseholdKeys
+// matterStore migration: version < 7 backfills connector key arrays
 // ---------------------------------------------------------------------------
 
-describe('matterStore migration v5 -> v6', () => {
+describe('matterStore migration v5 -> v7', () => {
   beforeEach(() => {
     localStorage.clear();
     useMatterStore.setState({ matters: [], activeMatterId: null });
@@ -224,5 +272,8 @@ describe('matterStore migration v5 -> v6', () => {
     expect(m).toBeDefined();
     // After migration the field must be an empty array, never undefined.
     expect(m?.crmHouseholdKeys).toEqual([]);
+    expect(m?.onedriveFolderKeys).toEqual([]);
+    expect(m?.esignKeys).toEqual([]);
+    expect(m?.meetingKeys).toEqual([]);
   });
 });

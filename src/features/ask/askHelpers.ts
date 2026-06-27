@@ -123,6 +123,9 @@ export function sourceLocator(s: WorkspaceSource): string {
     if (s.sourceType === 'xlsx') return `${base} sheet ${String(s.pageNumber)}`;
     if (s.sourceType === 'pptx') return `${base} slide ${String(s.pageNumber)}`;
   }
+  if (s.sourceType === 'onedrive') return `OneDrive - ${citationBasename(s.path)}`;
+  if (s.sourceType === 'esign') return `DocuSign - ${citationBasename(s.path)}`;
+  if (s.sourceType === 'meeting') return `Calendly - ${citationBasename(s.path)}`;
   return `${citationBasename(s.path)} §${String(s.paragraphIndex)}`;
 }
 

@@ -57,6 +57,23 @@ export interface Matter {
    */
   crmHouseholdKeys?: string[];
   /**
+   * OneDrive / SharePoint folder ids whose files belong to this matter.
+   * Per-connector mapping rules are added by the connector module; this shared
+   * slot lets the matter store persist those links without another schema edit.
+   */
+  onedriveFolderKeys?: string[];
+  /**
+   * E-signature record keys whose envelopes / agreements belong to this matter.
+   * The first implementation targets DocuSign, but the persisted field is
+   * connector-neutral.
+   */
+  esignKeys?: string[];
+  /**
+   * Meeting record keys whose scheduled events belong to this matter. The first
+   * implementation targets Calendly, but the persisted field is connector-neutral.
+   */
+  meetingKeys?: string[];
+  /**
    * True when this matter's DISPLAY identity (name/client) originated from a CRM
    * connector (e.g. a Wealthbox household), as opposed to user-entered or
    * file-derived. Used at disconnect time to scrub Wealthbox-derived names: a

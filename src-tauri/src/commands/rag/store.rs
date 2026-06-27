@@ -166,6 +166,36 @@ pub const PRIVILEGE_ATTORNEY_CLIENT: &str = "attorney-client";
 /// Privilege status: attorney work product. Excluded from retrieval by default.
 pub const PRIVILEGE_WORK_PRODUCT: &str = "work-product";
 
+/// External connector source kinds accepted by `build_batch_external`.
+///
+/// This keeps connector-owned string source types explicit without widening the
+/// typed `SourceType` enum that drives file extraction.
+pub const EXTERNAL_SOURCE_TYPE_ALLOWLIST: &[&str] = &[
+    "text",
+    "pdf",
+    "mail",
+    "docx",
+    "rtf",
+    "xlsx",
+    "pptx",
+    "transcript",
+    "crm",
+    "onedrive",
+    "esign",
+    "meeting",
+];
+
+pub fn validate_external_source_type(source_type: &str) -> Result<&str> {
+    if EXTERNAL_SOURCE_TYPE_ALLOWLIST.contains(&source_type) {
+        return Ok(source_type);
+    }
+    anyhow::bail!(
+        "invalid external source_type {:?} (expected one of: {})",
+        source_type,
+        EXTERNAL_SOURCE_TYPE_ALLOWLIST.join(", ")
+    )
+}
+
 /// Validate a privilege value before it is interpolated into a SQL `only_if`
 /// filter or written to a row. Defence-in-depth, parallel to `validate_matter_id`:
 /// only the three known, fixed values are accepted, so a degenerate or crafted
@@ -810,6 +840,111 @@ pub fn build_batch_crm(
         ],
     )
     .context("RecordBatch::try_new failed for crm chunks batch")
+}
+
+/// Build a RecordBatch for external connector chunks. Mirrors `build_batch_crm`
+/// exactly — the `text` column holds hex-encoded AES-256-GCM ciphertext,
+/// `source_type` is written from the allowlisted parameter, and
+/// `encrypted = true`.
+///
+/// This is the additive connector foundation for OneDrive, e-signature,
+/// meetings, and future external record kinds. The typed `SourceType` enum
+/// stays closed for file extraction; connector modules use this string path.
+pub fn build_batch_external(
+    rows: &[(Chunk, Vec<f32>)],
+    key: &[u8; 32],
+    matter_id: &str,
+    privilege: &str,
+    source_type: &str,
+) -> Result<RecordBatch> {
+    use crate::commands::mail::crypto::encrypt_with_key;
+
+    let source_type = validate_external_source_type(source_type)?;
+    let schema = build_schema();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+
+    let ids: Vec<String> = rows
+        .iter()
+        .map(|(c, _)| chunk_id(&c.path, c.paragraph_index))
+        .collect();
+    let para_idx: Vec<u32> = rows.iter().map(|(c, _)| c.paragraph_index).collect();
+    let timestamps = vec![now; rows.len()];
+
+    // Encrypt each chunk's text; store as hex string in the text column.
+    // S2: Propagate encrypt errors — silently storing empty with encrypted=true
+    // would produce a permanently-unrecoverable chunk.
+    let mut encrypted_texts: Vec<String> = Vec::with_capacity(rows.len());
+    for (c, _) in rows.iter() {
+        let blob = encrypt_with_key(c.text.as_bytes(), key)
+            .map_err(|e| anyhow::anyhow!("encrypt external chunk {}: {e}", c.path))?;
+        encrypted_texts.push(hex::encode(&blob));
+    }
+
+    // VG-6e: same tokenization as build_batch_crm — external connector keys
+    // are re-identification surfaces, so they get the same token + path_enc pair.
+    let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
+    let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
+    for (c, _) in rows.iter() {
+        path_tokens.push(super::crypto::path_token(key, &c.path));
+        let blob = encrypt_with_key(c.path.as_bytes(), key)
+            .map_err(|e| anyhow::anyhow!("encrypt external chunk path {}: {e}", c.path))?;
+        path_encs.push(hex::encode(&blob));
+    }
+
+    let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
+        rows.iter()
+            .map(|(_, v)| Some(v.iter().copied().map(Some).collect::<Vec<_>>())),
+        EMBEDDING_DIM as i32,
+    );
+
+    let id_arr = StringArray::from_iter_values(ids.iter().map(|s| s.as_str()));
+    let path_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
+    // WS-B/C: matter_id (one value, all rows) + source_id (== path = external
+    // connector source id — VG-6e: both columns hold the token).
+    let matter_arr = StringArray::from(vec![matter_id; rows.len()]);
+    let src_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
+    let penc_arr = StringArray::from_iter_values(path_encs.iter().map(|s| s.as_str()));
+    let pi_arr = UInt32Array::from(para_idx);
+    let text_arr = StringArray::from_iter_values(encrypted_texts.iter().map(|s| s.as_str()));
+    let ts_arr = Int64Array::from(timestamps);
+    let st_arr = StringArray::from(vec![source_type; rows.len()]);
+    let pn_arr = UInt32Array::from(vec![0u32; rows.len()]);
+    // G4: encrypted = true — the text column holds ciphertext, not plaintext.
+    let enc_arr = arrow_array::BooleanArray::from(vec![true; rows.len()]);
+    // WS-PRIV: validate + write the privilege value to every external row.
+    let privilege = validate_privilege(privilege)?;
+    let priv_arr = StringArray::from(vec![privilege; rows.len()]);
+    // VG-2: external connector rows are not OCR-extracted here — extraction columns stay null.
+    let ext_arr = StringArray::from(vec![None::<&str>; rows.len()]);
+    let conf_arr = arrow_array::Float32Array::from(vec![None::<f32>; rows.len()]);
+    // VG-3c: external connector rows never carry a page:line locator here.
+    let loc_arr = StringArray::from(vec![None::<&str>; rows.len()]);
+
+    RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(id_arr),
+            Arc::new(path_arr),
+            Arc::new(matter_arr),
+            Arc::new(src_arr),
+            Arc::new(pi_arr),
+            Arc::new(text_arr),
+            Arc::new(vectors),
+            Arc::new(ts_arr),
+            Arc::new(st_arr),
+            Arc::new(pn_arr),
+            Arc::new(enc_arr),
+            Arc::new(priv_arr),
+            Arc::new(ext_arr),
+            Arc::new(conf_arr),
+            Arc::new(loc_arr),
+            Arc::new(penc_arr),
+        ],
+    )
+    .context("RecordBatch::try_new failed for external connector chunks batch")
 }
 
 /// Replace all rows for `path` with the new `rows`. Idempotent re-index.
@@ -2244,6 +2379,16 @@ mod tests {
     }
 
     #[test]
+    fn validate_external_source_type_accepts_only_known_values() {
+        for source_type in EXTERNAL_SOURCE_TYPE_ALLOWLIST {
+            assert!(validate_external_source_type(source_type).is_ok());
+        }
+        assert!(validate_external_source_type("").is_err());
+        assert!(validate_external_source_type("docusign").is_err());
+        assert!(validate_external_source_type("esign' OR '1'='1").is_err());
+    }
+
+    #[test]
     fn build_batch_writes_privilege_value() {
         use arrow_array::cast::AsArray;
         let rows = vec![(
@@ -3009,6 +3154,44 @@ mod tests {
             String::from_utf8(recovered).expect("utf8"),
             plaintext,
             "decrypted ciphertext must equal original plaintext"
+        );
+    }
+
+    #[test]
+    fn build_batch_external_esign_source_stores_ciphertext_and_kind() {
+        use arrow_array::cast::AsArray;
+        let plaintext = "DocuSign envelope completed by Robert Thompson.";
+        let rows = vec![(
+            Chunk {
+                path: "esign:envelope:env-123".into(),
+                paragraph_index: 0,
+                text: plaintext.to_string(),
+                start_offset: 0,
+                end_offset: plaintext.len(),
+                locator: None,
+            },
+            vec![0.1f32; EMBEDDING_DIM],
+        )];
+        let batch = build_batch_external(&rows, &TEST_KEY, "matter-acme", PRIVILEGE_NONE, "esign")
+            .expect("build external batch");
+
+        let st_col = batch.column_by_name("source_type").expect("st col").as_string::<i32>();
+        assert_eq!(st_col.value(0), "esign");
+
+        let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
+        assert!(
+            !text_col.value(0).contains(plaintext),
+            "external text column must contain ciphertext, not plaintext"
+        );
+        assert_eq!(decrypt_text_col(&batch, 0, &TEST_KEY), plaintext);
+
+        let enc_col = batch.column_by_name("encrypted").expect("enc col").as_boolean();
+        assert!(enc_col.value(0), "external rows must have encrypted=true");
+
+        assert!(
+            build_batch_external(&rows, &TEST_KEY, "matter-acme", PRIVILEGE_NONE, "unknown")
+                .is_err(),
+            "unknown connector source_type must be rejected"
         );
     }
 

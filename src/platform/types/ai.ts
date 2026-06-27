@@ -151,7 +151,7 @@ export interface WorkspaceSource {
   paragraphIndex: number;
   /** A3: 'text' | 'pdf'; G4 adds 'mail'; VG-2b adds the office formats;
    *  VG-3c adds certified deposition transcripts; Phase 1A adds 'crm'. */
-  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf' | 'transcript' | 'crm';
+  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf' | 'transcript' | 'crm' | 'onedrive' | 'esign' | 'meeting';
   /** A3: 1-based page number for PDF chunks; VG-2b reuses it for the REAL
    *  1-based sheet/slide number on xlsx/pptx chunks; VG-3c reuses it for a
    *  transcript chunk's start page. Absent on pre-A3 rows. */

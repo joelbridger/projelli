@@ -39,7 +39,7 @@ export interface RetrievedChunk {
   sourceId?: string;
   /** VG-2b widens the union with the office formats; VG-3c with certified
    *  transcripts; Phase 1A adds 'crm' (mirrors `RagHit`). */
-  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf' | 'transcript' | 'crm';
+  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf' | 'transcript' | 'crm' | 'onedrive' | 'esign' | 'meeting';
   pageNumber?: number;
   /** VG-3c: page:line locator for certified transcript chunks
    *  (`"startPage:startLine-endPage:endLine"`, mirrors `RagHit`); finder
@@ -217,6 +217,15 @@ function sourceLocator(c: RetrievedChunk): string {
   }
   if (c.sourceType === 'mail') {
     return `${base} (email)`;
+  }
+  if (c.sourceType === 'onedrive') {
+    return `OneDrive - ${base}`;
+  }
+  if (c.sourceType === 'esign') {
+    return `DocuSign - ${base}`;
+  }
+  if (c.sourceType === 'meeting') {
+    return `Calendly - ${base}`;
   }
   return `${base} paragraph ${String(c.paragraphIndex)}${suffix}`;
 }
