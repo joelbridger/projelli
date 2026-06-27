@@ -16,6 +16,7 @@ import {
   buildEsignMatterMap,
   buildMeetingMatterMap,
   buildOneDriveMatterMap,
+  resolveEsignMatterForEnvelope,
 } from '@/platform/rag/matterResolver';
 import { UNASSIGNED_MATTER_ID, type Matter } from '@/platform/types/matter';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -125,7 +126,9 @@ describe('additive connector matter-map shells', () => {
     ]);
     expect(buildEsignMatterMap(matters)).toEqual([
       { esignKey: 'envelope-1', matterId: 'm1' },
+      { esignKey: 'm1', matterId: 'm1' },
       { esignKey: 'envelope-2', matterId: 'm2' },
+      { esignKey: 'm2', matterId: 'm2' },
     ]);
     expect(buildMeetingMatterMap(matters)).toEqual([
       { meetingKey: 'event-1', matterId: 'm1' },
@@ -144,6 +147,59 @@ describe('additive connector matter-map shells', () => {
       { folderKey: 'folder-dup', matterId: 'm1' },
       { folderKey: 'folder-2', matterId: 'm2' },
     ]);
+  });
+});
+
+describe('buildEsignMatterMap and resolveEsignMatterForEnvelope', () => {
+  it('matches recipient email exactly first', () => {
+    const matters = [
+      matter('m1', [], { name: 'Smith Household', client: 'Smith', esignKeys: ['bob@example.com'] }),
+      matter('m2', [], { name: 'Jones Household', client: 'Jones', esignKeys: ['advisor@example.com'] }),
+    ];
+    expect(resolveEsignMatterForEnvelope(matters, {
+      recipientEmails: ['bob@example.com'],
+      senderEmail: 'advisor@example.com',
+      subject: 'Jones agreement',
+    })).toEqual({ matterId: 'm1', needsAssignment: false, reason: '' });
+  });
+
+  it('falls back to sender email, fuzzy name, and subject/custom fields', () => {
+    const matters = [
+      matter('m1', [], { name: 'Smith Household', client: 'Smith' }),
+      matter('m2', [], { name: 'Garcia Family', client: 'Garcia' }),
+    ];
+    expect(resolveEsignMatterForEnvelope(matters, {
+      senderEmail: 'garcia@example.com',
+      senderName: 'Maria Garcia',
+      subject: 'Service agreement',
+    }).matterId).toBe('m2');
+    expect(resolveEsignMatterForEnvelope(matters, {
+      subject: 'Smith Household advisory agreement',
+    }).matterId).toBe('m1');
+    expect(resolveEsignMatterForEnvelope(matters, {
+      customFields: [{ name: 'client', value: 'Garcia' }],
+    }).matterId).toBe('m2');
+  });
+
+  it('marks ambiguous and unmatched envelopes as unassigned', () => {
+    const matters = [
+      matter('m1', [], { name: 'Acme', client: 'Acme', esignKeys: ['shared@example.com'] }),
+      matter('m2', [], { name: 'Acme', client: 'Acme', esignKeys: ['shared@example.com'] }),
+    ];
+    expect(resolveEsignMatterForEnvelope(matters, {
+      recipientEmails: ['shared@example.com'],
+    })).toEqual({
+      matterId: UNASSIGNED_MATTER_ID,
+      needsAssignment: true,
+      reason: 'multiple matters matched this DocuSign envelope',
+    });
+    expect(resolveEsignMatterForEnvelope(matters, {
+      recipientEmails: ['nobody@example.com'],
+    })).toEqual({
+      matterId: UNASSIGNED_MATTER_ID,
+      needsAssignment: true,
+      reason: 'no matter matched this DocuSign envelope',
+    });
   });
 });
 
