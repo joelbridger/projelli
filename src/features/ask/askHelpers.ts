@@ -46,6 +46,13 @@ import {
  * - 'documents'    restrict to non-mail chunks (files, PDFs, transcripts, etc.)
  */
 export type AskScope = 'this-matter' | 'all-matters' | 'email' | 'documents';
+export type AskFailureStage =
+  | 'setup'
+  | 'retrieval'
+  | 'post-retrieval'
+  | 'provider-resolution'
+  | 'provider-send'
+  | 'post-processing';
 
 export interface AnswerCitation {
   /** 1-based chip number as it appears in the answer text {n}. */
@@ -310,10 +317,17 @@ export async function buildProviderAsync(): Promise<Provider> {
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 export function friendlyErrorMessage(
   raw: string,
-  opts?: { mode?: string; reachedProvider?: boolean },
+  opts?: { mode?: string; reachedProvider?: boolean; failedStage?: AskFailureStage },
 ): string {
   const lower = raw.toLowerCase();
   const localOnly = opts?.mode === 'local-only';
+
+  if (
+    lower.includes('confidentialitychoicerequirederror') ||
+    lower.includes('before sending to a cloud ai')
+  ) {
+    return raw;
+  }
 
   // Genuine auth — the ONLY branch that mentions a key. Never in Local-only
   // (there is no key to check there), and never when the AI was not even reached
@@ -350,7 +364,10 @@ export function friendlyErrorMessage(
   // The AI was never reached: the failure was in searching your files, not the
   // AI or a key. (Covers the "provider returned 200 but the local index wasn't
   // ready" case, where retrieval throws before the provider call.)
-  if (opts?.reachedProvider === false) {
+  if (
+    opts?.failedStage === 'retrieval' ||
+    (opts?.failedStage === undefined && opts?.reachedProvider === false)
+  ) {
     return "I couldn't search your files yet. Your private search may still be setting up. Try again in a moment, or search by keyword instead.";
   }
 

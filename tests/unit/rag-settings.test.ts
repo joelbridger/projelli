@@ -71,6 +71,30 @@ describe('MemoryService toggle', () => {
     expect(hits[0]?.chunkText).toBe('hello');
   });
 
+  it('returns backend hits unchanged for an all-matters scope', async () => {
+    setMemoryEnabledReader(() => true);
+    const backendHits = Array.from({ length: 5 }, (_, i) => ({
+      path: `/matter/source-${i}.md`,
+      chunkText: `hit ${i}`,
+      score: 1 - i * 0.1,
+      paragraphIndex: i,
+      id: `hit-${i}`,
+      sourceId: `/matter/source-${i}.md`,
+    }));
+    (tauri.ragRetrieve as ReturnType<typeof vi.fn>).mockResolvedValueOnce(backendHits);
+
+    const hits = await MemoryService.retrieve('client facts', 5, { kind: 'allMatters' });
+
+    expect(tauri.ragRetrieve).toHaveBeenCalledWith(
+      'client facts',
+      5,
+      { kind: 'allMatters' },
+      false,
+      undefined,
+    );
+    expect(hits).toEqual(backendHits);
+  });
+
   it('forwards an explicit matter scope to the Tauri command', async () => {
     setMemoryEnabledReader(() => true);
     (tauri.ragRetrieve as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
@@ -82,6 +106,31 @@ describe('MemoryService toggle', () => {
       false,
       undefined,
     );
+  });
+
+  it('returns backend hits unchanged for an explicit matter scope', async () => {
+    setMemoryEnabledReader(() => true);
+    const backendHits = Array.from({ length: 5 }, (_, i) => ({
+      path: `/matter-1/source-${i}.md`,
+      chunkText: `matter hit ${i}`,
+      score: 1 - i * 0.1,
+      paragraphIndex: i,
+      id: `matter-hit-${i}`,
+      sourceId: `/matter-1/source-${i}.md`,
+      matterId: 'm-1',
+    }));
+    (tauri.ragRetrieve as ReturnType<typeof vi.fn>).mockResolvedValueOnce(backendHits);
+
+    const hits = await MemoryService.retrieve('client facts', 5, { kind: 'matter', matterId: 'm-1' });
+
+    expect(tauri.ragRetrieve).toHaveBeenCalledWith(
+      'client facts',
+      5,
+      { kind: 'matter', matterId: 'm-1' },
+      false,
+      undefined,
+    );
+    expect(hits).toEqual(backendHits);
   });
 
   it('short-circuits retrieve with [] when disabled (no Tauri call)', async () => {

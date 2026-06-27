@@ -116,6 +116,15 @@ export class ConfidentialityChoiceRequiredError extends Error {
   }
 }
 
+export function isConfidentialityChoiceRequiredError(
+  error: unknown,
+): error is ConfidentialityChoiceRequiredError {
+  return (
+    error instanceof ConfidentialityChoiceRequiredError ||
+    (error instanceof Error && error.name === 'ConfidentialityChoiceRequiredError')
+  );
+}
+
 /**
  * Fail-closed guard for CLOUD GENERATION paths on personal installs.
  *

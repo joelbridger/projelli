@@ -20,6 +20,7 @@ import { useClientMap } from '@/features/matters/useClientMap';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
 import type { ProposedUpdate } from '@/platform/clientMap/types';
+import { ConfidentialityChoiceRequiredError } from '@/platform/privacy/localOnlyGuard';
 
 beforeEach(() => {
   useClientMapStore.setState({ maps: {} });
@@ -97,5 +98,24 @@ describe('useClientMap', () => {
     expect(buildMock).not.toHaveBeenCalled();
     // pendingUpdates stays empty
     expect(useClientMapStore.getState().getMap('m3')?.pendingUpdates).toEqual([]);
+  });
+
+  it('logs and surfaces the confidentiality-choice action instead of the generic AI-connection error', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    computeFingerprintMock.mockResolvedValue('fp-initial');
+    buildMock.mockRejectedValue(new ConfidentialityChoiceRequiredError());
+
+    const { result } = renderHook(() => useClientMap('m4'));
+    await act(async () => { await result.current.generate(); });
+
+    await waitFor(() => expect(result.current.status).toBe('error'));
+    expect(result.current.errorMessage).toMatch(/Settings.*Privacy|Privacy.*choose/i);
+    expect(result.current.errorMessage).not.toMatch(/AI connection/i);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/Client Map build failed/i),
+      expect.any(ConfidentialityChoiceRequiredError),
+    );
+
+    consoleErrorSpy.mockRestore();
   });
 });

@@ -5,6 +5,7 @@ import { buildClientMap } from '@/platform/clientMap/generator';
 import { computeSourceFingerprint, proposeUpdates, mergePendingUpdates } from '@/platform/clientMap/updater';
 import type { ClientMap } from '@/platform/clientMap/types';
 import type { AuditEntry } from '@/platform/types/audit';
+import { isConfidentialityChoiceRequiredError } from '@/platform/privacy/localOnlyGuard';
 
 export type ClientMapStatus = 'idle' | 'generating' | 'ready' | 'empty' | 'error';
 
@@ -59,18 +60,20 @@ export function useClientMap(
     autoBuild?: boolean;
   },
 ): {
-  status: ClientMapStatus; map: ClientMap | undefined; generate: () => Promise<void>; checkForUpdates: () => Promise<void>;
+  status: ClientMapStatus; errorMessage: string | null; map: ClientMap | undefined; generate: () => Promise<void>; checkForUpdates: () => Promise<void>;
 } {
   const map = useClientMapStore((s) => s.maps[matterId]);
   const setMap = useClientMapStore((s) => s.setMap);
   const onAuditLog = options?.onAuditLog;
   const [status, setStatus] = useState<ClientMapStatus>(mapHasContent(map) ? 'ready' : map ? 'empty' : 'idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const generate = useCallback(async () => {
     // Dedupe concurrent builds for the same matter (auto-build vs manual click,
     // StrictMode double-invoke). A build already in flight wins; this call no-ops.
     if (clientMapBuildsInFlight.has(matterId)) return;
     clientMapBuildsInFlight.add(matterId);
     setStatus('generating');
+    setErrorMessage(null);
     try {
       // Fingerprint the source BEFORE the build, so the stored fingerprint
       // reflects the source state the build actually saw. If content arrives
@@ -112,7 +115,13 @@ export function useClientMap(
       const builtMap = { ...built, lastSourceFingerprint: fp };
       setMap(matterId, builtMap);
       setStatus(mapHasContent(builtMap) ? 'ready' : 'empty');
-    } catch {
+    } catch (error) {
+      console.error('Client Map build failed', error);
+      setErrorMessage(
+        isConfidentialityChoiceRequiredError(error)
+          ? error.message
+          : 'Could not build client map. Check your AI connection and try again.',
+      );
       setStatus('error');
     } finally {
       clientMapBuildsInFlight.delete(matterId);
@@ -186,5 +195,5 @@ export function useClientMap(
     }
   }, [autoBuild, resolvedStatus, generate]);
 
-  return { status: resolvedStatus, map, generate, checkForUpdates };
+  return { status: resolvedStatus, errorMessage, map, generate, checkForUpdates };
 }
