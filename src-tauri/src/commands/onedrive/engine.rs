@@ -62,7 +62,7 @@ pub fn resolve_matter_for_item(item: &DriveItem, matter_map: &[OneDriveMatterMap
         };
         if parts.account != DEFAULT_ACCOUNT
             || parts.drive_id != drive_id
-            || parts.site_id.as_deref() != site_id.as_deref()
+            || !site_ids_match_for_item(site_id.as_deref(), parts.site_id.as_deref())
         {
             continue;
         }
@@ -75,6 +75,13 @@ pub fn resolve_matter_for_item(item: &DriveItem, matter_map: &[OneDriveMatterMap
     }
     best.map(|(matter_id, _)| matter_id.to_string())
         .unwrap_or_else(|| UNASSIGNED_MATTER.to_string())
+}
+
+fn site_ids_match_for_item(item_site_id: Option<&str>, folder_site_id: Option<&str>) -> bool {
+    match item_site_id {
+        Some(site_id) => folder_site_id == Some(site_id),
+        None => true,
+    }
 }
 
 fn path_prefix_matches(path: &str, folder: &str) -> bool {
@@ -137,14 +144,17 @@ pub async fn sync_documents(
             .as_ref()
             .map(|row| !row.indexed && !row.pending_pdf)
             .unwrap_or(false);
-        if existing.as_ref().map(|row| {
-            row.remote_signature == remote_signature
-                && row.indexed
-                && row.matter_id == matter_id
-                && row.parent_path == parent_path
-                && row.drive_id == key.drive_id
-                && row.site_id == key.site_id
-        }).unwrap_or(false)
+        if existing
+            .as_ref()
+            .map(|row| {
+                row.remote_signature == remote_signature
+                    && row.indexed
+                    && row.matter_id == matter_id
+                    && row.parent_path == parent_path
+                    && row.drive_id == key.drive_id
+                    && row.site_id == key.site_id
+            })
+            .unwrap_or(false)
         {
             report.skipped_unchanged += 1;
             continue;
@@ -441,6 +451,42 @@ mod tests {
             },
         ];
         assert_eq!(resolve_matter_for_item(&item, &map), "matter-child");
+    }
+
+    #[test]
+    fn sharepoint_child_delta_without_site_id_matches_by_drive_and_path_only() {
+        let item = file_item(
+            "sp-child",
+            "memo.txt",
+            "drive-sp",
+            "/drive/root:/Clients/Acme/Pleadings",
+            "a",
+        );
+        assert_eq!(item.site_id(), None);
+
+        let map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(
+                DEFAULT_ACCOUNT,
+                Some("site-123"),
+                "drive-sp",
+                "/clients/acme",
+            ),
+            matter_id: "matter-sharepoint".into(),
+        }];
+
+        assert_eq!(resolve_matter_for_item(&item, &map), "matter-sharepoint");
+
+        let different_drive_item = file_item(
+            "sp-other-child",
+            "memo.txt",
+            "drive-other",
+            "/drive/root:/Clients/Acme/Pleadings",
+            "a",
+        );
+        assert_eq!(
+            resolve_matter_for_item(&different_drive_item, &map),
+            UNASSIGNED_MATTER
+        );
     }
 
     #[tokio::test]

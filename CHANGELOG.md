@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **OneDrive / SharePoint matter mapping for child delta items.** SharePoint files whose Graph delta payload omits `parentReference.siteId` now still resolve to the selected matter when the site-qualified folder key has the same globally unique drive id and matching folder path. Different drive ids still do not match, preserving matter isolation.
 - **OneDrive / SharePoint connector correctness hardening.** Fixed four sync/indexing bugs found by independent review: unchanged files are now re-indexed when their resolved matter or parent folder assignment changes, mapped non-default drives are synced with separate per-drive cursors, cancelled downloaded-document embedding no longer marks an item as indexed or advances the cursor, and SharePoint folder keys now carry the site id so selected SharePoint folders match during indexing. Regression coverage added for matter remaps, non-default drive sync, cancelled indexing retry behavior, and SharePoint folder-key construction.
 
 ### Added
