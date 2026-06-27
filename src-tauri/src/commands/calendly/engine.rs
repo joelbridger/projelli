@@ -1,8 +1,10 @@
 //! Calendly sync engine: fetch, store, render, and index meetings.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+#[cfg(test)]
+use std::sync::{Mutex, OnceLock};
 
 use sha2::{Digest, Sha256};
 
@@ -128,20 +130,38 @@ pub async fn apply_index_with_key(
         if cancel.load(Ordering::SeqCst) {
             return Ok((records, true));
         }
-        let written = crate::commands::connector::index_external_text_with_key_internal(
-            workspace,
-            &item.source_id,
-            &item.text,
-            &item.matter_id,
-            "meeting",
-            rag_key,
-        )
-        .await?;
+        let written = index_calendly_item_with_key(workspace, item, rag_key).await?;
+        if cancel.load(Ordering::SeqCst) {
+            return Ok((records, true));
+        }
         store.mark_indexed(&item.store_id, &item.content_hash, &item.matter_id)?;
         records += written;
         progress.fetch_add(1, Ordering::SeqCst);
     }
     Ok((records, false))
+}
+
+async fn index_calendly_item_with_key(
+    workspace: &Path,
+    item: &CalendlyIndexItem,
+    rag_key: &[u8; 32],
+) -> anyhow::Result<u32> {
+    #[cfg(test)]
+    {
+        if let Some(indexer) = test_indexer_slot().lock().unwrap().as_ref() {
+            return indexer(workspace, item, rag_key);
+        }
+    }
+
+    crate::commands::connector::index_external_text_with_key_internal(
+        workspace,
+        &item.source_id,
+        &item.text,
+        &item.matter_id,
+        "meeting",
+        rag_key,
+    )
+    .await
 }
 
 pub async fn backfill(
@@ -175,35 +195,78 @@ pub fn resolve_meeting_matter(
     bundle: &CalendlyEventWithInvitees,
     matter_map: &HashMap<String, String>,
 ) -> String {
-    let mut keys = meeting_match_keys(bundle);
-    keys.insert(bundle.event.uuid().to_ascii_lowercase());
-    for key in keys {
-        if let Some(matter_id) = matter_map.get(&key) {
-            if !matter_id.trim().is_empty() {
-                return matter_id.clone();
-            }
+    let mut matches = BTreeSet::new();
+
+    if let Some(matter_id) = mapped_matter(matter_map, &bundle.event.uuid().to_ascii_lowercase()) {
+        matches.insert(matter_id);
+    }
+
+    for invitee in stable_invitees(bundle) {
+        let email = invitee.email.trim().to_ascii_lowercase();
+        if let Some(matter_id) = mapped_matter(matter_map, &email) {
+            matches.insert(matter_id);
+            continue;
+        }
+
+        let name = normalize_name(&invitee.name);
+        if let Some(matter_id) = mapped_matter(matter_map, &name) {
+            matches.insert(matter_id);
         }
     }
-    UNASSIGNED_MATTER.to_string()
+
+    if matches.len() == 1 {
+        matches.into_iter().next().unwrap()
+    } else {
+        UNASSIGNED_MATTER.to_string()
+    }
 }
 
-pub fn meeting_match_keys(bundle: &CalendlyEventWithInvitees) -> HashSet<String> {
-    let mut keys = HashSet::new();
-    for invitee in &bundle.invitees {
+fn mapped_matter(matter_map: &HashMap<String, String>, key: &str) -> Option<String> {
+    if key.trim().is_empty() {
+        return None;
+    }
+    matter_map
+        .get(key)
+        .map(|matter_id| matter_id.trim())
+        .filter(|matter_id| !matter_id.is_empty())
+        .map(str::to_string)
+}
+
+pub fn meeting_match_keys(bundle: &CalendlyEventWithInvitees) -> Vec<String> {
+    let mut keys = Vec::new();
+    for invitee in stable_invitees(bundle) {
         add_invitee_keys(&mut keys, invitee);
     }
     keys
 }
 
-fn add_invitee_keys(keys: &mut HashSet<String>, invitee: &CalendlyInvitee) {
+fn add_invitee_keys(keys: &mut Vec<String>, invitee: &CalendlyInvitee) {
     let email = invitee.email.trim().to_ascii_lowercase();
     if !email.is_empty() {
-        keys.insert(email);
+        push_unique(keys, email);
     }
     let name = normalize_name(&invitee.name);
     if !name.is_empty() {
-        keys.insert(name);
+        push_unique(keys, name);
     }
+}
+
+fn push_unique(keys: &mut Vec<String>, key: String) {
+    if !keys.contains(&key) {
+        keys.push(key);
+    }
+}
+
+fn stable_invitees(bundle: &CalendlyEventWithInvitees) -> Vec<&CalendlyInvitee> {
+    let mut invitees = bundle.invitees.iter().collect::<Vec<_>>();
+    invitees.sort_by_key(|invitee| {
+        (
+            invitee.email.trim().to_ascii_lowercase(),
+            normalize_name(&invitee.name),
+            invitee.uri.trim().to_ascii_lowercase(),
+        )
+    });
+    invitees
 }
 
 pub fn normalize_name(name: &str) -> String {
@@ -211,6 +274,32 @@ pub fn normalize_name(name: &str) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+#[cfg(test)]
+type TestIndexer =
+    Box<dyn Fn(&Path, &CalendlyIndexItem, &[u8; 32]) -> anyhow::Result<u32> + Send + Sync>;
+
+#[cfg(test)]
+fn test_indexer_slot() -> &'static Mutex<Option<TestIndexer>> {
+    static SLOT: OnceLock<Mutex<Option<TestIndexer>>> = OnceLock::new();
+    SLOT.get_or_init(|| Mutex::new(None))
+}
+
+#[cfg(test)]
+struct TestIndexerGuard;
+
+#[cfg(test)]
+impl Drop for TestIndexerGuard {
+    fn drop(&mut self) {
+        *test_indexer_slot().lock().unwrap() = None;
+    }
+}
+
+#[cfg(test)]
+fn set_test_indexer(indexer: TestIndexer) -> TestIndexerGuard {
+    *test_indexer_slot().lock().unwrap() = Some(indexer);
+    TestIndexerGuard
 }
 
 #[cfg(test)]
@@ -287,6 +376,13 @@ mod tests {
                 answer: "Draft complaint and deadline.".into(),
             }],
             ..Default::default()
+        }
+    }
+
+    fn bundle(uuid: &str, invitees: Vec<CalendlyInvitee>) -> CalendlyEventWithInvitees {
+        CalendlyEventWithInvitees {
+            event: event(uuid, "Client meeting"),
+            invitees,
         }
     }
 
@@ -375,6 +471,60 @@ mod tests {
                 && i.text.contains("Draft complaint and deadline.")));
     }
 
+    #[test]
+    fn meeting_matter_conflict_across_invitees_is_unassigned_and_stable() {
+        let meeting = bundle(
+            "evt-conflict",
+            vec![
+                invitee("Beta Client", "beta@example.com"),
+                invitee("Alpha Client", "alpha@example.com"),
+            ],
+        );
+        let map = HashMap::from([
+            ("alpha@example.com".to_string(), "matter-alpha".to_string()),
+            ("beta@example.com".to_string(), "matter-beta".to_string()),
+        ]);
+
+        for _ in 0..100 {
+            assert_eq!(resolve_meeting_matter(&meeting, &map), UNASSIGNED_MATTER);
+        }
+    }
+
+    #[test]
+    fn meeting_matter_email_match_wins_over_same_invitee_name_match() {
+        let meeting = bundle(
+            "evt-email-wins",
+            vec![invitee("Beta Client", "alpha@example.com")],
+        );
+        let map = HashMap::from([
+            ("alpha@example.com".to_string(), "matter-alpha".to_string()),
+            ("beta client".to_string(), "matter-beta".to_string()),
+        ]);
+
+        assert_eq!(resolve_meeting_matter(&meeting, &map), "matter-alpha");
+    }
+
+    #[test]
+    fn meeting_match_keys_are_stable_and_email_before_name_per_invitee() {
+        let meeting = bundle(
+            "evt-stable-keys",
+            vec![
+                invitee("Beta Client", "beta@example.com"),
+                invitee("Alpha Client", "alpha@example.com"),
+            ],
+        );
+
+        let expected = vec![
+            "alpha@example.com".to_string(),
+            "alpha client".to_string(),
+            "beta@example.com".to_string(),
+            "beta client".to_string(),
+        ];
+        for _ in 0..100 {
+            assert_eq!(meeting_match_keys(&meeting), expected);
+        }
+    }
+
     #[tokio::test]
     async fn cancel_before_apply_does_not_mark_indexed_or_advance_progress() {
         let dir = tempfile::tempdir().unwrap();
@@ -396,6 +546,57 @@ mod tests {
             plan_meeting_index(&store, &HashMap::new()).unwrap().len(),
             2
         );
+    }
+
+    #[tokio::test]
+    async fn cancel_after_index_returns_does_not_mark_indexed_or_advance_progress() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CalendlyStore::open_with_key(dir.path(), &STORE_KEY).unwrap();
+        let meeting = bundle(
+            "evt-cancel-after-index",
+            vec![invitee("Amelia Rivera", "amelia@example.com")],
+        );
+        let json = serde_json::to_string(&meeting).unwrap();
+        let hash = content_hash(&json);
+        store
+            .upsert_event(
+                "event:evt-cancel-after-index",
+                "evt-cancel-after-index",
+                &meeting.event.uri,
+                &hash,
+                &json,
+            )
+            .unwrap();
+        let items = plan_meeting_index(&store, &HashMap::new()).unwrap();
+        assert_eq!(items.len(), 1);
+
+        let cancel = std::sync::Arc::new(AtomicBool::new(false));
+        let cancel_for_indexer = cancel.clone();
+        let _guard = set_test_indexer(Box::new(move |_workspace, item, _rag_key| {
+            assert_eq!(item.source_id, "calendly:event:evt-cancel-after-index");
+            cancel_for_indexer.store(true, Ordering::SeqCst);
+            Ok(1)
+        }));
+
+        let progress = AtomicU32::new(0);
+        let (records, cancelled) =
+            apply_index_with_key(&store, dir.path(), &items, &cancel, &[0x5A; 32], &progress)
+                .await
+                .unwrap();
+
+        assert_eq!(records, 0);
+        assert!(cancelled);
+        assert_eq!(progress.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            plan_meeting_index(&store, &HashMap::new()).unwrap().len(),
+            1,
+            "cancelled meeting must retry on the next sync"
+        );
+        let row = store
+            .get_event("event:evt-cancel-after-index")
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.indexed_hash, "");
     }
 
     #[tokio::test]

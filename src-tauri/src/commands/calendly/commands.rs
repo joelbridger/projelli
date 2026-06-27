@@ -176,10 +176,7 @@ pub async fn calendly_sync_all(
         CALENDLY_SYNC_PROGRESS_EVENT,
         serde_json::json!({ "status": "syncing" }),
     );
-    let map: HashMap<String, String> = matter_map
-        .iter()
-        .map(|e| (engine::normalize_name(&e.meeting_key), e.matter_id.clone()))
-        .collect();
+    let map = build_matter_map(&matter_map);
     let store = CalendlyStore::open(&workspace).map_err(|e| {
         let _ = app.emit(
             CALENDLY_SYNC_PROGRESS_EVENT,
@@ -355,4 +352,53 @@ async fn purge_calendly_rag_chunks(ws: &std::path::Path) -> anyhow::Result<()> {
         crate::commands::rag::store::delete_path(&table, &source_id, &key).await?;
     }
     Ok(())
+}
+
+fn build_matter_map(entries: &[CalendlyMatterMapEntry]) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    for entry in entries {
+        let key = engine::normalize_name(&entry.meeting_key);
+        if key.is_empty() {
+            continue;
+        }
+        map.entry(key).or_insert_with(|| entry.matter_id.clone());
+    }
+    map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn calendly_matter_map_duplicate_keys_keep_first_matter() {
+        let entries = vec![
+            CalendlyMatterMapEntry {
+                meeting_key: " Amelia@Example.COM ".to_string(),
+                matter_id: "matter-first".to_string(),
+            },
+            CalendlyMatterMapEntry {
+                meeting_key: "amelia@example.com".to_string(),
+                matter_id: "matter-second".to_string(),
+            },
+        ];
+
+        let map = build_matter_map(&entries);
+
+        assert_eq!(map.len(), 1);
+        assert_eq!(
+            map.get("amelia@example.com").map(String::as_str),
+            Some("matter-first")
+        );
+    }
+
+    #[test]
+    fn calendly_matter_map_skips_blank_keys() {
+        let entries = vec![CalendlyMatterMapEntry {
+            meeting_key: "   ".to_string(),
+            matter_id: "matter-blank".to_string(),
+        }];
+
+        assert!(build_matter_map(&entries).is_empty());
+    }
 }
