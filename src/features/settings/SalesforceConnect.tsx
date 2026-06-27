@@ -39,7 +39,7 @@ function scrubSalesforceFromMatters() {
     if (
       matter.createdFromCrm &&
       nonSalesforceKeys.length === 0 &&
-      (matter.folderPaths ?? []).length === 0
+      matter.folderPaths.length === 0
     ) {
       deleteMatter(matter.id);
     } else {
@@ -207,8 +207,7 @@ export function SalesforceConnect() {
     }
     try {
       const result: CrmDisconnectResult = await crmDisconnect(PROVIDER);
-      const remains =
-        result.dataRemains ?? !(result.ragPurged && result.crmDbPurged);
+      const remains = result.dataRemains;
       if (!remains && result.tokenDeleted) {
         scrubSalesforceFromMatters();
         setConnected(false);

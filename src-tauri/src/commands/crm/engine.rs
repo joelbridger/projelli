@@ -16,17 +16,17 @@
 //! - For member persons/orgs/trusts with a nested household ref: that ref's id.
 //! - For unhouseholded contacts: the contact's own id (they are their own group).
 //!
-//! Notes, tasks, and events inherit the grouping key of the **first
-//! `linked_to` entry** whose id resolves to a known contact.  Objects with no
-//! resolvable link are skipped and counted in [`IngestReport::skipped_unlinked`].
+//! Notes, tasks, and events inherit every distinct grouping key from their
+//! contact links. Objects with no resolvable link are skipped and counted in
+//! [`IngestReport::skipped_unlinked`].
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use sha2::{Digest, Sha256};
 
 use crate::commands::crm::model::{
-    CrmContact, CrmEvent, CrmLink, CrmNote, CrmRecordProvider, CrmTask, crm_key_belongs_to_provider,
+    crm_key_belongs_to_provider, CrmContact, CrmEvent, CrmLink, CrmNote, CrmRecordProvider, CrmTask,
 };
 use crate::commands::crm::render::{
     render_contact, render_event, render_household_summary, render_note, render_task,
@@ -117,9 +117,9 @@ pub(crate) fn provider_scoped_matter_map(
 /// count summary.
 ///
 /// Contacts are grouped by household id (see module-level doc for the grouping
-/// key rules).  Notes/tasks/events inherit the grouping key of the first
-/// `linked_to` entry whose id matches a fetched contact.  Unresolvable objects
-/// are skipped and tallied in [`IngestReport::skipped_unlinked`].
+/// key rules).  Notes/tasks/events inherit every distinct grouping key from
+/// their fetched contact links. Unresolvable objects are skipped and tallied in
+/// [`IngestReport::skipped_unlinked`].
 #[allow(dead_code)]
 pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<IngestReport> {
     let mut report = IngestReport::default();
@@ -129,7 +129,7 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
     // its link resolves to a household. The deletion diff at the end tombstones any
     // previously-stored object that is NOT filed now — i.e. removed from Wealthbox OR
     // newly unlinkable — so neither can leave a stale chunk behind on re-sync.
-    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut seen: HashSet<String> = HashSet::new();
 
     // ── 1. Contacts ──────────────────────────────────────────────────────────
     let contacts = source.list_all_contacts().await?;
@@ -167,18 +167,20 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
     // ── 2. Notes ─────────────────────────────────────────────────────────────
     let notes = source.list_notes().await?;
     for n in &notes {
-        match resolve_grouping_key(&n.linked_to, &contact_to_group) {
-            Some(gk) => {
-                let store_id = format!("note:{}", n.crm_key());
+        let grouping_keys = resolve_grouping_keys(&n.linked_to, &contact_to_group);
+        if grouping_keys.is_empty() {
+            // TODO(1B.3c): surface unlinked objects to an operator log
+            report.skipped_unlinked += 1;
+        } else {
+            let grouping_count = grouping_keys.len();
+            let crm_key = n.crm_key();
+            let json = serde_json::to_string(n)?;
+            let hash = content_hash(&json);
+            for gk in grouping_keys {
+                let store_id = linked_object_store_id("note", &crm_key, &gk, grouping_count);
                 seen.insert(store_id.clone());
-                let json = serde_json::to_string(n)?;
-                let hash = content_hash(&json);
                 store.upsert_object(&store_id, "note", &gk, &n.updated_at, &hash, &json)?;
                 report.notes += 1;
-            }
-            None => {
-                // TODO(1B.3c): surface unlinked objects to an operator log
-                report.skipped_unlinked += 1;
             }
         }
     }
@@ -186,18 +188,20 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
     // ── 3. Tasks ─────────────────────────────────────────────────────────────
     let tasks = source.list_tasks().await?;
     for t in &tasks {
-        match resolve_grouping_key(&t.linked_to, &contact_to_group) {
-            Some(gk) => {
-                let store_id = format!("task:{}", t.crm_key());
+        let grouping_keys = resolve_grouping_keys(&t.linked_to, &contact_to_group);
+        if grouping_keys.is_empty() {
+            report.skipped_unlinked += 1;
+        } else {
+            let grouping_count = grouping_keys.len();
+            let crm_key = t.crm_key();
+            let json = serde_json::to_string(t)?;
+            let hash = content_hash(&json);
+            for gk in grouping_keys {
+                let store_id = linked_object_store_id("task", &crm_key, &gk, grouping_count);
                 seen.insert(store_id.clone());
-                let json = serde_json::to_string(t)?;
-                let hash = content_hash(&json);
                 // CrmTask has no updated_at; use "" (content_hash drives change detection).
                 store.upsert_object(&store_id, "task", &gk, "", &hash, &json)?;
                 report.tasks += 1;
-            }
-            None => {
-                report.skipped_unlinked += 1;
             }
         }
     }
@@ -205,18 +209,20 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
     // ── 4. Events ────────────────────────────────────────────────────────────
     let events = source.list_events().await?;
     for e in &events {
-        match resolve_grouping_key(&e.linked_to, &contact_to_group) {
-            Some(gk) => {
-                let store_id = format!("event:{}", e.crm_key());
+        let grouping_keys = resolve_grouping_keys(&e.linked_to, &contact_to_group);
+        if grouping_keys.is_empty() {
+            report.skipped_unlinked += 1;
+        } else {
+            let grouping_count = grouping_keys.len();
+            let crm_key = e.crm_key();
+            let json = serde_json::to_string(e)?;
+            let hash = content_hash(&json);
+            for gk in grouping_keys {
+                let store_id = linked_object_store_id("event", &crm_key, &gk, grouping_count);
                 seen.insert(store_id.clone());
-                let json = serde_json::to_string(e)?;
-                let hash = content_hash(&json);
                 // CrmEvent has no updated_at; use "" (content_hash drives change detection).
                 store.upsert_object(&store_id, "event", &gk, "", &hash, &json)?;
                 report.events += 1;
-            }
-            None => {
-                report.skipped_unlinked += 1;
             }
         }
     }
@@ -251,30 +257,46 @@ fn object_belongs_to_provider(store_id: &str, provider_id: &str) -> bool {
     }
 }
 
-/// Walk `linked_to`, return the grouping key of the first **contact-typed**
-/// entry whose id maps to a known contact.  Returns `None` if no such entry
-/// resolves.
+/// Walk `linked_to`, returning every distinct grouping key from **contact-typed**
+/// entries whose ids map to known contacts.
 ///
 /// The `r#type` check is mandatory for correctness: a note/task/event can
 /// also be linked to a project or opportunity, and if a project's numeric id
 /// happens to collide with a contact's id the record would be silently
 /// mis-filed into the wrong household — a confidentiality bug.  Only entries
 /// with `r#type == "Contact"` (case-insensitive) are eligible for lookup.
-fn resolve_grouping_key(
+fn resolve_grouping_keys(
     linked_to: &[CrmLink],
     contact_to_group: &HashMap<String, String>,
-) -> Option<String> {
+) -> Vec<String> {
+    let mut grouping_keys = Vec::new();
+    let mut seen = HashSet::new();
     for link in linked_to {
         // Guard: only contact-typed links may resolve a household grouping key.
         // Non-contact links (Project, Opportunity, …) are ignored even when
         // their numeric id happens to match a known contact id.
         if link.r#type.eq_ignore_ascii_case("contact") {
             if let Some(gk) = contact_to_group.get(&link.crm_key()) {
-                return Some(gk.clone());
+                if seen.insert(gk.clone()) {
+                    grouping_keys.push(gk.clone());
+                }
             }
         }
     }
-    None
+    grouping_keys
+}
+
+fn linked_object_store_id(
+    kind: &str,
+    crm_key: &str,
+    grouping_key: &str,
+    grouping_count: usize,
+) -> String {
+    if grouping_count <= 1 {
+        format!("{kind}:{crm_key}")
+    } else {
+        format!("{kind}:{crm_key}@{grouping_key}")
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -760,8 +782,8 @@ mod tests {
         CrmContact, CrmEvent, CrmHouseholdRef, CrmLink, CrmNote, CrmTask,
     };
     use crate::commands::crm::salesforce::{
-        SalesforceAccount, SalesforceAccountContactRelation, SalesforceContact,
-        normalize_salesforce_records,
+        normalize_salesforce_records, SalesforceAccount, SalesforceAccountContactRelation,
+        SalesforceContact,
     };
     use crate::commands::crm::store::CrmStore;
     use async_trait::async_trait;
@@ -1218,6 +1240,133 @@ mod tests {
         }
     }
 
+    struct RedtailSharedLinkedObjectSource;
+
+    #[async_trait]
+    impl CrmSource for RedtailSharedLinkedObjectSource {
+        fn provider_id(&self) -> &'static str {
+            "redtail"
+        }
+
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<CrmContact>> {
+            Ok(vec![
+                CrmContact {
+                    id: 7001,
+                    external_id: "redtail:family:7".to_string(),
+                    source_provider: CrmRecordProvider::Redtail,
+                    r#type: "household".to_string(),
+                    name: "The Anderson Family".to_string(),
+                    company_name: "The Anderson Family".to_string(),
+                    contact_type: "Family".to_string(),
+                    ..Default::default()
+                },
+                CrmContact {
+                    id: 7066,
+                    external_id: "redtail:contact:66".to_string(),
+                    source_provider: CrmRecordProvider::Redtail,
+                    r#type: "person".to_string(),
+                    first_name: "Robert".to_string(),
+                    last_name: "Anderson".to_string(),
+                    household: Some(CrmHouseholdRef {
+                        id: 7001,
+                        external_id: "redtail:family:7".to_string(),
+                        source_provider: CrmRecordProvider::Redtail,
+                        name: "The Anderson Family".to_string(),
+                        title: "Head of household".to_string(),
+                        members: Vec::new(),
+                    }),
+                    ..Default::default()
+                },
+                CrmContact {
+                    id: 8001,
+                    external_id: "redtail:family:8".to_string(),
+                    source_provider: CrmRecordProvider::Redtail,
+                    r#type: "household".to_string(),
+                    name: "The Bennett Family".to_string(),
+                    company_name: "The Bennett Family".to_string(),
+                    contact_type: "Family".to_string(),
+                    ..Default::default()
+                },
+                CrmContact {
+                    id: 8077,
+                    external_id: "redtail:contact:77".to_string(),
+                    source_provider: CrmRecordProvider::Redtail,
+                    r#type: "person".to_string(),
+                    first_name: "Marisol".to_string(),
+                    last_name: "Bennett".to_string(),
+                    household: Some(CrmHouseholdRef {
+                        id: 8001,
+                        external_id: "redtail:family:8".to_string(),
+                        source_provider: CrmRecordProvider::Redtail,
+                        name: "The Bennett Family".to_string(),
+                        title: "Head of household".to_string(),
+                        members: Vec::new(),
+                    }),
+                    ..Default::default()
+                },
+            ])
+        }
+
+        async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
+            Ok(vec![CrmNote {
+                id: 9002,
+                external_id: "redtail:note:2".to_string(),
+                source_provider: CrmRecordProvider::Redtail,
+                created_at: "2026-06-01T12:00:00Z".to_string(),
+                updated_at: "2026-06-01T12:00:00Z".to_string(),
+                content: "Shared planning note for two families.".to_string(),
+                linked_to: vec![
+                    CrmLink {
+                        id: 7066,
+                        external_id: "redtail:contact:66".to_string(),
+                        source_provider: CrmRecordProvider::Redtail,
+                        r#type: "contact".to_string(),
+                        name: "Robert Anderson".to_string(),
+                    },
+                    CrmLink {
+                        id: 8077,
+                        external_id: "redtail:contact:77".to_string(),
+                        source_provider: CrmRecordProvider::Redtail,
+                        r#type: "contact".to_string(),
+                        name: "Marisol Bennett".to_string(),
+                    },
+                ],
+            }])
+        }
+
+        async fn list_tasks(&self) -> anyhow::Result<Vec<CrmTask>> {
+            Ok(Vec::new())
+        }
+
+        async fn list_events(&self) -> anyhow::Result<Vec<CrmEvent>> {
+            Ok(vec![CrmEvent {
+                id: 9010,
+                external_id: "redtail:activity:10".to_string(),
+                source_provider: CrmRecordProvider::Redtail,
+                title: "Shared review".to_string(),
+                starts_at: "2026-07-15T10:00:00Z".to_string(),
+                description: "Shared annual review for two families.".to_string(),
+                linked_to: vec![
+                    CrmLink {
+                        id: 7066,
+                        external_id: "redtail:contact:66".to_string(),
+                        source_provider: CrmRecordProvider::Redtail,
+                        r#type: "contact".to_string(),
+                        name: "Robert Anderson".to_string(),
+                    },
+                    CrmLink {
+                        id: 8077,
+                        external_id: "redtail:contact:77".to_string(),
+                        source_provider: CrmRecordProvider::Redtail,
+                        r#type: "contact".to_string(),
+                        name: "Marisol Bennett".to_string(),
+                    },
+                ],
+                ..Default::default()
+            }])
+        }
+    }
+
     #[tokio::test]
     async fn salesforce_records_group_by_namespaced_household_key_and_plan_per_matter_chunks() {
         let (_d, store) = crm_store();
@@ -1244,11 +1393,9 @@ mod tests {
         let items = plan_household_index(&store, "sfdc:001HH0000000001AAA", "matter-anderson")
             .expect("plan salesforce household");
         assert!(items.iter().all(|i| i.matter_id == "matter-anderson"));
-        assert!(
-            items
-                .iter()
-                .any(|i| i.source_id == "crm:household:sfdc:001HH0000000001AAA")
-        );
+        assert!(items
+            .iter()
+            .any(|i| i.source_id == "crm:household:sfdc:001HH0000000001AAA"));
         assert!(items.iter().any(|i| {
             i.source_id == "crm:contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA"
                 && i.text.contains("Robert Anderson")
@@ -1317,18 +1464,103 @@ mod tests {
         let items = plan_household_index(&store, "redtail:family:7", "matter-anderson")
             .expect("plan redtail household");
         assert!(items.iter().all(|i| i.matter_id == "matter-anderson"));
-        assert!(
-            items
-                .iter()
-                .any(|i| i.source_id == "crm:household:redtail:family:7")
-        );
+        assert!(items
+            .iter()
+            .any(|i| i.source_id == "crm:household:redtail:family:7"));
         assert!(items.iter().any(|i| {
             i.source_id == "crm:note:redtail:note:2" && i.text.contains("Reviewed Q1 allocations")
         }));
+        assert!(items
+            .iter()
+            .any(|i| i.source_id == "crm:event:redtail:activity:10"));
+    }
+
+    #[tokio::test]
+    async fn redtail_shared_notes_and_activities_file_under_all_linked_families() {
+        let (_d, store) = crm_store();
+
+        let report = ingest(&RedtailSharedLinkedObjectSource, &store)
+            .await
+            .expect("ingest redtail shared records");
+
+        assert_eq!(report.contacts, 4, "two families + two contacts");
+        assert_eq!(
+            report.notes, 2,
+            "one shared Redtail note is filed under both linked families"
+        );
+        assert_eq!(
+            report.events, 2,
+            "one shared Redtail activity is filed under both linked families"
+        );
+
+        let family_7_rows = store
+            .list_objects_by_household("redtail:family:7")
+            .expect("list family 7 rows");
+        let family_8_rows = store
+            .list_objects_by_household("redtail:family:8")
+            .expect("list family 8 rows");
+
         assert!(
-            items
+            family_7_rows
                 .iter()
-                .any(|i| i.source_id == "crm:event:redtail:activity:10")
+                .any(|r| r.id == "note:redtail:note:2@redtail:family:7"),
+            "shared note must be stored under family 7"
+        );
+        assert!(
+            family_8_rows
+                .iter()
+                .any(|r| r.id == "note:redtail:note:2@redtail:family:8"),
+            "shared note must be stored under family 8"
+        );
+        assert!(
+            family_7_rows
+                .iter()
+                .any(|r| r.id == "event:redtail:activity:10@redtail:family:7"),
+            "shared activity must be stored under family 7"
+        );
+        assert!(
+            family_8_rows
+                .iter()
+                .any(|r| r.id == "event:redtail:activity:10@redtail:family:8"),
+            "shared activity must be stored under family 8"
+        );
+
+        let family_7_items = plan_household_index(&store, "redtail:family:7", "matter-anderson")
+            .expect("plan family 7");
+        let family_8_items = plan_household_index(&store, "redtail:family:8", "matter-bennett")
+            .expect("plan family 8");
+
+        assert!(
+            family_7_items.iter().any(|i| {
+                i.matter_id == "matter-anderson"
+                    && i.source_id == "crm:note:redtail:note:2"
+                    && i.text.contains("Shared planning note")
+            }),
+            "family 7 matter must index the shared note"
+        );
+        assert!(
+            family_8_items.iter().any(|i| {
+                i.matter_id == "matter-bennett"
+                    && i.source_id == "crm:note:redtail:note:2"
+                    && i.text.contains("Shared planning note")
+            }),
+            "family 8 matter must index the shared note"
+        );
+        assert!(
+            family_7_items.iter().any(|i| {
+                i.matter_id == "matter-anderson"
+                    && i.source_id == "crm:event:redtail:activity:10"
+                    && i.text.contains("Shared annual review")
+            }),
+            "family 7 matter must index the shared activity"
+        );
+        assert!(
+            family_8_items.iter().any(|i| {
+                i.matter_id == "matter-bennett"
+                    && i.source_id == "crm:event:redtail:activity:10"
+                    && i.text.contains("Shared annual review")
+            }),
+            "family 8 matter must index the shared activity"
         );
     }
 
@@ -2276,7 +2508,7 @@ mod tests {
     #[tokio::test]
     async fn backfill_salesforce_empty_map_purges_only_salesforce_crm_chunks() {
         use crate::commands::mail::crypto::decrypt_with_key;
-        use crate::commands::rag::chunker::{Chunk, chunk_text};
+        use crate::commands::rag::chunker::{chunk_text, Chunk};
         use crate::commands::rag::embedder::EMBEDDING_DIM;
         use crate::commands::rag::store::{self, PRIVILEGE_NONE};
         use arrow_array::RecordBatchIterator;
@@ -2397,8 +2629,8 @@ mod tests {
     #[ignore]
     async fn backfill_empty_map_purges_crm_preserving_files() {
         use crate::commands::rag::chunker::Chunk;
-        use crate::commands::rag::embedder::{EMBEDDING_DIM, embed_documents_batched};
-        use crate::commands::rag::store::{self, PRIVILEGE_NONE, SourceType};
+        use crate::commands::rag::embedder::{embed_documents_batched, EMBEDDING_DIM};
+        use crate::commands::rag::store::{self, SourceType, PRIVILEGE_NONE};
         use arrow_array::RecordBatchIterator;
         skip_without_model!();
 

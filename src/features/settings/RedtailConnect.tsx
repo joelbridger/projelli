@@ -15,7 +15,11 @@ import { useCrmSync } from '@/features/crm/useCrmSync';
 import { useCrmStore } from '@/features/crm/crmStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
-import { buildCrmMatterMap, resolveMatterForHousehold } from '@/platform/rag/matterResolver';
+import {
+  buildCrmMatterMap,
+  filterCrmMatterMapForProvider,
+  resolveMatterForHousehold,
+} from '@/platform/rag/matterResolver';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
@@ -32,7 +36,7 @@ function scrubRedtailFromMatters() {
     const nonRedtailKeys = (matter.crmHouseholdKeys ?? []).filter((key) =>
       !key.startsWith(REDTAIL_KEY_PREFIX),
     );
-    if (matter.createdFromCrm && nonRedtailKeys.length === 0 && (matter.folderPaths ?? []).length === 0) {
+    if (matter.createdFromCrm && nonRedtailKeys.length === 0 && matter.folderPaths.length === 0) {
       deleteMatter(matter.id);
     } else {
       for (const key of redtailKeys) removeCrmHouseholdKey(matter.id, key);
@@ -143,7 +147,7 @@ export function RedtailConnect() {
         }
       }
 
-      const map = buildCrmMatterMap(getMatters());
+      const map = filterCrmMatterMapForProvider(buildCrmMatterMap(getMatters()), PROVIDER);
       const report = await crmSyncAll(map, PROVIDER);
       setLastSyncReport({
         householdsProcessed: report.householdsProcessed,
@@ -177,7 +181,7 @@ export function RedtailConnect() {
     try { await crmCancelSync(PROVIDER); } catch { /* best-effort */ }
     try {
       const result: CrmDisconnectResult = await crmDisconnect(PROVIDER);
-      const remains = result.dataRemains ?? !(result.ragPurged && result.crmDbPurged);
+      const remains = result.dataRemains;
       if (!remains && result.tokenDeleted) {
         scrubRedtailFromMatters();
         setConnected(false);

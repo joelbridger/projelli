@@ -372,11 +372,18 @@ impl CrmSource for RedtailClient {
     }
 
     async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
-        let mut notes_by_id = HashMap::new();
+        let mut notes_by_id: HashMap<String, CrmNote> = HashMap::new();
         for contact_id in self.contact_ids().await? {
             for raw in self.list_contact_notes(contact_id).await? {
                 if let Some(note) = note_to_crm(&raw, contact_id) {
-                    notes_by_id.entry(note.crm_key()).or_insert(note);
+                    match notes_by_id.entry(note.crm_key()) {
+                        std::collections::hash_map::Entry::Occupied(mut entry) => {
+                            merge_crm_links(&mut entry.get_mut().linked_to, note.linked_to);
+                        }
+                        std::collections::hash_map::Entry::Vacant(entry) => {
+                            entry.insert(note);
+                        }
+                    }
                 }
             }
         }
@@ -388,11 +395,18 @@ impl CrmSource for RedtailClient {
     }
 
     async fn list_events(&self) -> anyhow::Result<Vec<CrmEvent>> {
-        let mut events_by_id = HashMap::new();
+        let mut events_by_id: HashMap<String, CrmEvent> = HashMap::new();
         for contact_id in self.contact_ids().await? {
             for raw in self.list_contact_activities(contact_id).await? {
                 if let Some(event) = activity_to_event(&raw, contact_id) {
-                    events_by_id.entry(event.crm_key()).or_insert(event);
+                    match events_by_id.entry(event.crm_key()) {
+                        std::collections::hash_map::Entry::Occupied(mut entry) => {
+                            merge_crm_links(&mut entry.get_mut().linked_to, event.linked_to);
+                        }
+                        std::collections::hash_map::Entry::Vacant(entry) => {
+                            entry.insert(event);
+                        }
+                    }
                 }
             }
         }
@@ -659,6 +673,15 @@ fn linked_contacts(raw: &Value) -> Vec<CrmLink> {
         }
     }
     links
+}
+
+fn merge_crm_links(existing: &mut Vec<CrmLink>, incoming: Vec<CrmLink>) {
+    let mut seen: HashSet<String> = existing.iter().map(|link| link.crm_key()).collect();
+    for link in incoming {
+        if seen.insert(link.crm_key()) {
+            existing.push(link);
+        }
+    }
 }
 
 fn contact_link(contact_id: i64, name: &str) -> CrmLink {
@@ -1047,5 +1070,84 @@ mod tests {
         let events = client.list_events().await.expect("events");
         assert_eq!(events[0].crm_key(), "redtail:activity:10");
         assert_eq!(events[0].linked_to[0].crm_key(), "redtail:contact:66");
+    }
+
+    #[tokio::test]
+    async fn shared_notes_and_activities_merge_all_redtail_contact_links() {
+        let server = MockServer::start().await;
+        let userkey_header = build_userkey_auth_header("api-key", "USERKEY-123");
+
+        Mock::given(method("GET"))
+            .and(path("/contacts"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "contacts": [
+                    { "id": 66, "type": "Individual", "first_name": "Robert", "last_name": "Anderson" },
+                    { "id": 77, "type": "Individual", "first_name": "Marisol", "last_name": "Bennett" }
+                ],
+                "meta": { "total_pages": 1 }
+            })))
+            .mount(&server)
+            .await;
+
+        for contact_id in [66, 77] {
+            Mock::given(method("GET"))
+                .and(path(format!("/contacts/{contact_id}/notes/")))
+                .and(header("Authorization", userkey_header.as_str()))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "notes": [{
+                        "id": 2,
+                        "body": "Shared planning note.",
+                        "created_at": "2026-06-01T12:00:00Z",
+                        "updated_at": "2026-06-01T12:00:00Z"
+                    }],
+                    "meta": { "total_pages": 1 }
+                })))
+                .mount(&server)
+                .await;
+
+            Mock::given(method("GET"))
+                .and(path(format!("/contacts/{contact_id}/activities")))
+                .and(header("Authorization", userkey_header.as_str()))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "activities": [{
+                        "id": 10,
+                        "title": "Shared review",
+                        "starts_at": "2026-07-15T10:00:00Z",
+                        "description": "Shared household review."
+                    }],
+                    "meta": { "total_pages": 1 }
+                })))
+                .mount(&server)
+                .await;
+        }
+
+        let client = RedtailClient::new_with_base(
+            "api-key".to_string(),
+            "USERKEY-123".to_string(),
+            server.uri(),
+        );
+
+        let notes = client.list_notes().await.expect("notes");
+        assert_eq!(notes.len(), 1, "same Redtail note id should dedupe");
+        let note_links: HashSet<String> = notes[0].linked_to.iter().map(|l| l.crm_key()).collect();
+        assert_eq!(
+            note_links,
+            HashSet::from([
+                "redtail:contact:66".to_string(),
+                "redtail:contact:77".to_string()
+            ])
+        );
+
+        let events = client.list_events().await.expect("events");
+        assert_eq!(events.len(), 1, "same Redtail activity id should dedupe");
+        let event_links: HashSet<String> =
+            events[0].linked_to.iter().map(|l| l.crm_key()).collect();
+        assert_eq!(
+            event_links,
+            HashSet::from([
+                "redtail:contact:66".to_string(),
+                "redtail:contact:77".to_string()
+            ])
+        );
     }
 }
