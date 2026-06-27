@@ -26,9 +26,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context;
 
-use crate::commands::crm::model::{
-    WbContact, WbEvent, WbNote, WbTask, DEFAULT_PER_PAGE,
-};
+use crate::commands::crm::model::{CrmContact, CrmEvent, CrmNote, CrmTask, DEFAULT_PER_PAGE};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -246,7 +244,7 @@ impl WealthboxClient {
         &self,
         updated_since: Option<&str>,
         contact_type: Option<&str>,
-    ) -> anyhow::Result<Vec<WbContact>> {
+    ) -> anyhow::Result<Vec<CrmContact>> {
         let mut query: Vec<(&str, String)> = Vec::new();
         if let Some(ts) = updated_since {
             query.push(("updated_since", ts.to_string()));
@@ -257,13 +255,13 @@ impl WealthboxClient {
         let items = self.list_all("/contacts", "contacts", &query).await?;
         items
             .into_iter()
-            .map(|v| serde_json::from_value(v).context("deserialize WbContact"))
+            .map(|v| serde_json::from_value(v).context("deserialize CrmContact"))
             .collect()
     }
 
     /// List all household contacts (`type=household`).
     #[allow(dead_code)]
-    pub async fn list_households(&self) -> anyhow::Result<Vec<WbContact>> {
+    pub async fn list_households(&self) -> anyhow::Result<Vec<CrmContact>> {
         self.list_contacts(None, Some("household")).await
     }
 
@@ -274,21 +272,16 @@ impl WealthboxClient {
     ///
     /// TODO(live-probe): confirm updated_since format + max per_page against a real token.
     #[allow(dead_code)]
-    pub async fn list_notes(
-        &self,
-        updated_since: Option<&str>,
-    ) -> anyhow::Result<Vec<WbNote>> {
+    pub async fn list_notes(&self, updated_since: Option<&str>) -> anyhow::Result<Vec<CrmNote>> {
         let mut query: Vec<(&str, String)> = Vec::new();
         if let Some(ts) = updated_since {
             query.push(("updated_since", ts.to_string()));
         }
         // Key is "status_updates" — this is a known Wealthbox API quirk.
-        let items = self
-            .list_all("/notes", "status_updates", &query)
-            .await?;
+        let items = self.list_all("/notes", "status_updates", &query).await?;
         items
             .into_iter()
-            .map(|v| serde_json::from_value(v).context("deserialize WbNote"))
+            .map(|v| serde_json::from_value(v).context("deserialize CrmNote"))
             .collect()
     }
 
@@ -296,10 +289,7 @@ impl WealthboxClient {
     ///
     /// TODO(live-probe): confirm updated_since format + max per_page against a real token.
     #[allow(dead_code)]
-    pub async fn list_tasks(
-        &self,
-        updated_since: Option<&str>,
-    ) -> anyhow::Result<Vec<WbTask>> {
+    pub async fn list_tasks(&self, updated_since: Option<&str>) -> anyhow::Result<Vec<CrmTask>> {
         let mut query: Vec<(&str, String)> = Vec::new();
         if let Some(ts) = updated_since {
             query.push(("updated_since", ts.to_string()));
@@ -307,7 +297,7 @@ impl WealthboxClient {
         let items = self.list_all("/tasks", "tasks", &query).await?;
         items
             .into_iter()
-            .map(|v| serde_json::from_value(v).context("deserialize WbTask"))
+            .map(|v| serde_json::from_value(v).context("deserialize CrmTask"))
             .collect()
     }
 
@@ -315,10 +305,7 @@ impl WealthboxClient {
     ///
     /// TODO(live-probe): confirm updated_since format + max per_page against a real token.
     #[allow(dead_code)]
-    pub async fn list_events(
-        &self,
-        updated_since: Option<&str>,
-    ) -> anyhow::Result<Vec<WbEvent>> {
+    pub async fn list_events(&self, updated_since: Option<&str>) -> anyhow::Result<Vec<CrmEvent>> {
         let mut query: Vec<(&str, String)> = Vec::new();
         if let Some(ts) = updated_since {
             query.push(("updated_since", ts.to_string()));
@@ -326,7 +313,7 @@ impl WealthboxClient {
         let items = self.list_all("/events", "events", &query).await?;
         items
             .into_iter()
-            .map(|v| serde_json::from_value(v).context("deserialize WbEvent"))
+            .map(|v| serde_json::from_value(v).context("deserialize CrmEvent"))
             .collect()
     }
 
@@ -573,10 +560,16 @@ mod tests {
         // wraps, so this shape never appears in production, but the helper must
         // not panic on it.
         let flat = serde_json::json!([{"id": 1}]);
-        assert!(wb_array_from(&flat, "users").is_empty(), "flat array → empty");
+        assert!(
+            wb_array_from(&flat, "users").is_empty(),
+            "flat array → empty"
+        );
 
         // Wrong key — e.g. asking for "users" on a {"teams":[...]} body.
         let body = serde_json::json!({"teams": [{"id": 2, "name": "Team A"}]});
-        assert!(wb_array_from(&body, "users").is_empty(), "absent key → empty");
+        assert!(
+            wb_array_from(&body, "users").is_empty(),
+            "absent key → empty"
+        );
     }
 }

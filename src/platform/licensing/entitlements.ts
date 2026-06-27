@@ -524,7 +524,7 @@ export function entitlementMessage(e: Entitlement): { headline: string; body: st
     case 'subscription-lapsed':
       return {
         headline: 'Your subscription has lapsed.',
-        body: 'You can still open, edit, and export every document, email, and matter you have. The AI features and updates are paused until you resubscribe. Nothing is ever held hostage.',
+        body: 'You can still open, edit, and export every document, email, and client you have. The AI features and updates are paused until you resubscribe. Nothing is ever held hostage.',
       };
     case 'trial-active':
       return {

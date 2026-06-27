@@ -1,4 +1,4 @@
-//! CRM text renderer — turns normalised Wealthbox model structs into the
+//! CRM text renderer — turns normalised CRM model structs into the
 //! readable text that the RAG engine indexes.
 //!
 //! All functions are pure (no network, no disk) and return a
@@ -8,7 +8,7 @@
 //! The engine (Plan 1B.4) calls these and passes the resulting text to
 //! `index_crm_text_internal` for embedding + storage.
 
-use crate::commands::crm::model::{WbContact, WbEvent, WbNote, WbTask};
+use crate::commands::crm::model::{CrmContact, CrmEvent, CrmNote, CrmRecordProvider, CrmTask};
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -67,6 +67,14 @@ fn append_json_val(buf: &mut String, label: &str, v: &Option<serde_json::Value>)
     }
 }
 
+fn provider_label(provider: CrmRecordProvider) -> &'static str {
+    match provider {
+        CrmRecordProvider::Wealthbox => "Wealthbox",
+        CrmRecordProvider::Salesforce => "Salesforce",
+        CrmRecordProvider::Redtail => "Redtail",
+    }
+}
+
 /// Build a display name from individual name parts, joining only those that
 /// are non-empty.
 fn build_full_name(prefix: &str, first: &str, middle: &str, last: &str, suffix: &str) -> String {
@@ -87,10 +95,14 @@ fn build_full_name(prefix: &str, first: &str, middle: &str, last: &str, suffix: 
 ///
 /// Returns `("crm:contact:<id>", text)`.
 #[allow(dead_code)]
-pub fn render_contact(c: &WbContact) -> (String, String) {
-    let source_id = format!("crm:contact:{}", c.id);
+pub fn render_contact(c: &CrmContact) -> (String, String) {
+    let source_id = format!("crm:contact:{}", c.crm_key());
     let full_name = build_full_name(
-        &c.prefix, &c.first_name, &c.middle_name, &c.last_name, &c.suffix,
+        &c.prefix,
+        &c.first_name,
+        &c.middle_name,
+        &c.last_name,
+        &c.suffix,
     );
 
     let mut text = String::new();
@@ -103,7 +115,11 @@ pub fn render_contact(c: &WbContact) -> (String, String) {
     } else {
         format!("(id {})", c.id)
     };
-    text.push_str(&format!("Wealthbox contact: {}\n", display_name));
+    text.push_str(&format!(
+        "{} contact: {}\n",
+        provider_label(c.source_provider),
+        display_name
+    ));
 
     // Identity extras
     append_line(&mut text, "Nickname", &c.nickname);
@@ -143,7 +159,11 @@ pub fn render_contact(c: &WbContact) -> (String, String) {
         append_json_val(&mut text, "  Assets", &c.assets);
         append_json_val(&mut text, "  Non-liquid assets", &c.non_liquid_assets);
         append_json_val(&mut text, "  Liabilities", &c.liabilities);
-        append_json_val(&mut text, "  Adjusted gross income", &c.adjusted_gross_income);
+        append_json_val(
+            &mut text,
+            "  Adjusted gross income",
+            &c.adjusted_gross_income,
+        );
         append_json_val(&mut text, "  Tax bracket", &c.tax_bracket);
         append_json_val(&mut text, "  Tax year", &c.tax_year);
     }
@@ -232,8 +252,8 @@ pub fn render_contact(c: &WbContact) -> (String, String) {
 ///
 /// Returns `("crm:note:<id>", text)`.
 #[allow(dead_code)]
-pub fn render_note(n: &WbNote) -> (String, String) {
-    let source_id = format!("crm:note:{}", n.id);
+pub fn render_note(n: &CrmNote) -> (String, String) {
+    let source_id = format!("crm:note:{}", n.crm_key());
 
     // Prefer created_at; fall back to updated_at when created_at is blank.
     let date = if !n.created_at.trim().is_empty() {
@@ -243,7 +263,11 @@ pub fn render_note(n: &WbNote) -> (String, String) {
     };
 
     let mut text = String::new();
-    text.push_str(&format!("Wealthbox note ({}):\n", date));
+    text.push_str(&format!(
+        "{} note ({}):\n",
+        provider_label(n.source_provider),
+        date
+    ));
     if !n.content.trim().is_empty() {
         text.push_str(n.content.trim());
         text.push('\n');
@@ -256,14 +280,18 @@ pub fn render_note(n: &WbNote) -> (String, String) {
 ///
 /// Returns `("crm:task:<id>", text)`.
 #[allow(dead_code)]
-pub fn render_task(t: &WbTask) -> (String, String) {
-    let source_id = format!("crm:task:{}", t.id);
+pub fn render_task(t: &CrmTask) -> (String, String) {
+    let source_id = format!("crm:task:{}", t.crm_key());
     let mut text = String::new();
 
     let header = if !t.name.trim().is_empty() {
-        format!("Wealthbox task: {}\n", t.name.trim())
+        format!(
+            "{} task: {}\n",
+            provider_label(t.source_provider),
+            t.name.trim()
+        )
     } else {
-        format!("Wealthbox task (id {})\n", t.id)
+        format!("{} task (id {})\n", provider_label(t.source_provider), t.id)
     };
     text.push_str(&header);
 
@@ -281,14 +309,22 @@ pub fn render_task(t: &WbTask) -> (String, String) {
 ///
 /// Returns `("crm:event:<id>", text)`.
 #[allow(dead_code)]
-pub fn render_event(e: &WbEvent) -> (String, String) {
-    let source_id = format!("crm:event:{}", e.id);
+pub fn render_event(e: &CrmEvent) -> (String, String) {
+    let source_id = format!("crm:event:{}", e.crm_key());
     let mut text = String::new();
 
     let header = if !e.title.trim().is_empty() {
-        format!("Wealthbox event: {}\n", e.title.trim())
+        format!(
+            "{} event: {}\n",
+            provider_label(e.source_provider),
+            e.title.trim()
+        )
     } else {
-        format!("Wealthbox event (id {})\n", e.id)
+        format!(
+            "{} event (id {})\n",
+            provider_label(e.source_provider),
+            e.id
+        )
     };
     text.push_str(&header);
 
@@ -309,14 +345,17 @@ pub fn render_event(e: &WbEvent) -> (String, String) {
 /// Render a concise household summary for the Client Map's story / standing
 /// sections.
 ///
-/// `household` must be the household-type `WbContact` (its `id` is used as
+/// `household` must be the household-type `CrmContact` (its `id` is used as
 /// the household id).  `members` are the full per-person contacts that belong
 /// to this household (already fetched from the CRM store).
 ///
 /// Returns `("crm:household:<id>", text)`.
 #[allow(dead_code)]
-pub fn render_household_summary(household: &WbContact, members: &[WbContact]) -> (String, String) {
-    let source_id = format!("crm:household:{}", household.id);
+pub fn render_household_summary(
+    household: &CrmContact,
+    members: &[CrmContact],
+) -> (String, String) {
+    let source_id = format!("crm:household:{}", household.crm_key());
     let mut text = String::new();
 
     // Household name priority:
@@ -357,7 +396,7 @@ pub fn render_household_summary(household: &WbContact, members: &[WbContact]) ->
                 &member.suffix,
             );
             // Each member's household title lives in their own nested
-            // WbHouseholdRef (the title field is "this member's role").
+            // CrmHouseholdRef (the title field is "this member's role").
             let title = member
                 .household
                 .as_ref()
@@ -398,7 +437,11 @@ pub fn render_household_summary(household: &WbContact, members: &[WbContact]) ->
             &household.gross_annual_income,
         );
         append_json_val(&mut text, "  Assets", &household.assets);
-        append_json_val(&mut text, "  Non-liquid assets", &household.non_liquid_assets);
+        append_json_val(
+            &mut text,
+            "  Non-liquid assets",
+            &household.non_liquid_assets,
+        );
         append_json_val(&mut text, "  Liabilities", &household.liabilities);
         append_json_val(
             &mut text,
@@ -460,19 +503,17 @@ pub fn render_household_summary(household: &WbContact, members: &[WbContact]) ->
         }
     }
     if !pro_set.is_empty() {
-        append_line(
-            &mut text,
-            "Professional team on file",
-            &pro_set.join(", "),
-        );
+        append_line(&mut text, "Professional team on file", &pro_set.join(", "));
     }
 
     // Key dates: client_since from the household contact or the earliest member
     // that has one.
-    let client_since = household
-        .client_since
-        .as_deref()
-        .or_else(|| members.iter().filter_map(|m| m.client_since.as_deref()).next());
+    let client_since = household.client_since.as_deref().or_else(|| {
+        members
+            .iter()
+            .filter_map(|m| m.client_since.as_deref())
+            .next()
+    });
     if let Some(cs) = client_since {
         append_line(&mut text, "Client since", cs);
     }
@@ -488,14 +529,14 @@ pub fn render_household_summary(household: &WbContact, members: &[WbContact]) ->
 mod tests {
     use super::*;
     use crate::commands::crm::model::{
-        WbContact, WbEmailAddress, WbEvent, WbHouseholdRef, WbNote, WbPhoneNumber, WbStreetAddress,
-        WbTag, WbTask,
+        CrmContact, CrmEmailAddress, CrmEvent, CrmHouseholdRef, CrmNote, CrmPhoneNumber,
+        CrmStreetAddress, CrmTag, CrmTask,
     };
 
     // ── fixture helpers ───────────────────────────────────────────────────────
 
-    fn fixture_household() -> WbContact {
-        WbContact {
+    fn fixture_household() -> CrmContact {
+        CrmContact {
             id: 10001,
             r#type: "household".to_string(),
             company_name: "The Andersons".to_string(),
@@ -505,8 +546,8 @@ mod tests {
         }
     }
 
-    fn fixture_head() -> WbContact {
-        WbContact {
+    fn fixture_head() -> CrmContact {
+        CrmContact {
             id: 10002,
             r#type: "person".to_string(),
             first_name: "Robert".to_string(),
@@ -519,30 +560,31 @@ mod tests {
             risk_tolerance: "Moderate".to_string(),
             investment_objective: "Growth".to_string(),
             time_horizon: "Long-term".to_string(),
-            gross_annual_income: Some(serde_json::Value::Number(
-                serde_json::Number::from(320_000_i64),
-            )),
+            gross_annual_income: Some(serde_json::Value::Number(serde_json::Number::from(
+                320_000_i64,
+            ))),
             assets: Some(serde_json::Value::Number(serde_json::Number::from(
                 4_200_000_i64,
             ))),
             liabilities: Some(serde_json::Value::Number(serde_json::Number::from(
                 850_000_i64,
             ))),
-            background_information: "Retired engineer, active in the local community."
-                .to_string(),
+            background_information: "Retired engineer, active in the local community.".to_string(),
             attorney: Some(20001),
             cpa: Some(20002),
-            household: Some(WbHouseholdRef {
+            household: Some(CrmHouseholdRef {
                 id: 10001,
+                external_id: String::new(),
                 name: "The Andersons".to_string(),
                 title: "Head".to_string(),
                 members: vec![],
+                ..Default::default()
             }),
-            tags: vec![WbTag {
+            tags: vec![CrmTag {
                 id: 1,
                 name: "VIP".to_string(),
             }],
-            street_addresses: vec![WbStreetAddress {
+            street_addresses: vec![CrmStreetAddress {
                 address: "123 Oak Lane".to_string(),
                 city: "Denver".to_string(),
                 state: "CO".to_string(),
@@ -550,12 +592,12 @@ mod tests {
                 kind: "Home".to_string(),
                 principal: true,
             }],
-            email_addresses: vec![WbEmailAddress {
+            email_addresses: vec![CrmEmailAddress {
                 address: "robert@andersonfamily.com".to_string(),
                 kind: "Personal".to_string(),
                 principal: true,
             }],
-            phone_numbers: vec![WbPhoneNumber {
+            phone_numbers: vec![CrmPhoneNumber {
                 address: "555-100-2000".to_string(),
                 kind: "Cell".to_string(),
                 principal: true,
@@ -564,8 +606,8 @@ mod tests {
         }
     }
 
-    fn fixture_spouse() -> WbContact {
-        WbContact {
+    fn fixture_spouse() -> CrmContact {
+        CrmContact {
             id: 10003,
             r#type: "person".to_string(),
             first_name: "Linda".to_string(),
@@ -573,11 +615,13 @@ mod tests {
             birth_date: Some("1968-09-20".to_string()),
             contact_type: "Client".to_string(),
             status: "Active".to_string(),
-            household: Some(WbHouseholdRef {
+            household: Some(CrmHouseholdRef {
                 id: 10001,
+                external_id: String::new(),
                 name: "The Andersons".to_string(),
                 title: "Spouse".to_string(),
                 members: vec![],
+                ..Default::default()
             }),
             ..Default::default()
         }
@@ -595,7 +639,10 @@ mod tests {
         let (source_id, text) = render_household_summary(&hh, &members);
 
         assert_eq!(source_id, "crm:household:10001");
-        assert!(text.contains("The Andersons"), "should contain household name");
+        assert!(
+            text.contains("The Andersons"),
+            "should contain household name"
+        );
         assert!(
             text.contains("Robert Anderson"),
             "should contain head's name"
@@ -623,7 +670,7 @@ mod tests {
         // Simulates a household contact as returned by the live Wealthbox API:
         // `name` is set to the formatted household display name; `company_name`
         // is absent (defaults to "").  The rendered summary must use `name`.
-        let hh = WbContact {
+        let hh = CrmContact {
             id: 20001,
             r#type: "household".to_string(),
             name: "Ellison, Robert & Margaret".to_string(),
@@ -672,12 +719,15 @@ mod tests {
     #[test]
     fn contact_does_not_contain_sensitive_govt_ids() {
         // Sensitive government IDs (passport, SSN, driver's license, green card) are
-        // deliberately absent from the WbContact model (§5.5 Reg S-P).
+        // deliberately absent from the CrmContact model (§5.5 Reg S-P).
         // Verify the rendered text never mentions them.
         let head = fixture_head();
         let (_, text) = render_contact(&head);
         let lower = text.to_lowercase();
-        assert!(!lower.contains("passport"), "must not render passport number");
+        assert!(
+            !lower.contains("passport"),
+            "must not render passport number"
+        );
         assert!(
             !lower.contains("ssn"),
             "must not render social security number"
@@ -697,13 +747,12 @@ mod tests {
 
     #[test]
     fn note_contains_date_and_content() {
-        let note = WbNote {
+        let note = CrmNote {
             id: 30001,
             created_at: "2026-03-10 09:15 AM -0500".to_string(),
             updated_at: "2026-03-10 09:15 AM -0500".to_string(),
-            content:
-                "Reviewed Q1 portfolio allocations with Robert. Discussed rebalancing RSUs."
-                    .to_string(),
+            content: "Reviewed Q1 portfolio allocations with Robert. Discussed rebalancing RSUs."
+                .to_string(),
             ..Default::default()
         };
 
@@ -720,7 +769,7 @@ mod tests {
 
     #[test]
     fn task_contains_key_fields() {
-        let task = WbTask {
+        let task = CrmTask {
             id: 40001,
             name: "Consolidate inherited IRA".to_string(),
             due_date: Some("2026-12-31".to_string()),
@@ -749,7 +798,7 @@ mod tests {
 
     #[test]
     fn event_contains_key_fields() {
-        let event = WbEvent {
+        let event = CrmEvent {
             id: 50001,
             title: "Annual Review — Andersons".to_string(),
             starts_at: "2026-07-15 10:00 AM -0600".to_string(),
@@ -764,10 +813,7 @@ mod tests {
         let (source_id, text) = render_event(&event);
         assert_eq!(source_id, "crm:event:50001");
         assert!(text.contains("Annual Review"), "should contain event title");
-        assert!(
-            text.contains("2026-07-15"),
-            "should contain the start date"
-        );
+        assert!(text.contains("2026-07-15"), "should contain the start date");
         assert!(
             text.contains("Advisor Office"),
             "should contain the location"
@@ -782,7 +828,7 @@ mod tests {
 
     #[test]
     fn sparse_contact_does_not_panic_and_has_no_empty_label_lines() {
-        let sparse = WbContact {
+        let sparse = CrmContact {
             id: 999,
             r#type: "person".to_string(),
             first_name: "Alice".to_string(),
@@ -807,5 +853,43 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn salesforce_records_render_salesforce_label_not_wealthbox() {
+        let contact = CrmContact {
+            id: 1,
+            external_id: "sfdc:003CC0000000002AAA".to_string(),
+            source_provider: CrmRecordProvider::Salesforce,
+            first_name: "Robert".to_string(),
+            last_name: "Anderson".to_string(),
+            ..Default::default()
+        };
+        let (_source_id, contact_text) = render_contact(&contact);
+        assert!(contact_text.starts_with("Salesforce contact: Robert Anderson"));
+        assert!(!contact_text.contains("Wealthbox contact"));
+
+        let note = CrmNote {
+            id: 2,
+            external_id: "sfdc:note-2".to_string(),
+            source_provider: CrmRecordProvider::Salesforce,
+            created_at: "2026-06-27".to_string(),
+            content: "Imported from Salesforce.".to_string(),
+            ..Default::default()
+        };
+        let (_source_id, note_text) = render_note(&note);
+        assert!(note_text.starts_with("Salesforce note (2026-06-27):"));
+        assert!(!note_text.contains("Wealthbox note"));
+
+        let event = CrmEvent {
+            id: 3,
+            external_id: "sfdc:event-3".to_string(),
+            source_provider: CrmRecordProvider::Salesforce,
+            title: "Annual Review".to_string(),
+            ..Default::default()
+        };
+        let (_source_id, event_text) = render_event(&event);
+        assert!(event_text.starts_with("Salesforce event: Annual Review"));
+        assert!(!event_text.contains("Wealthbox event"));
     }
 }

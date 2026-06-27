@@ -222,7 +222,7 @@ describe('MatterNotesEditor', () => {
     await waitFor(() => {
       expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
     });
-    expect(screen.getByText('Matter not found.')).toBeInTheDocument();
+    expect(screen.getByText('Client not found.')).toBeInTheDocument();
   });
 
   // ── Test 6: MatterNotesEditorWrapper: boots ensureMatterSync ───────────────

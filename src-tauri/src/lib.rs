@@ -158,6 +158,7 @@ pub fn run() {
             // Plan 1B.4 — Wealthbox CRM connector commands (connect/sync/status/disconnect).
             commands::crm::commands::crm_set_workspace,
             commands::crm::commands::crm_connect,
+            commands::crm::commands::crm_oauth_connect,
             commands::crm::commands::crm_is_connected,
             commands::crm::commands::crm_disconnect,
             commands::crm::commands::crm_sync_all,

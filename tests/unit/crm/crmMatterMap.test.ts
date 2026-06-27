@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   buildCrmMatterMap,
   buildEsignMatterMap,
+  filterCrmMatterMapForProvider,
   buildMeetingMatterMap,
   buildOneDriveMatterMap,
   resolveEsignMatterForEnvelope,
@@ -25,7 +26,11 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function matter(id: string, crmHouseholdKeys: string[], extra?: Partial<Matter>): Matter {
+function matter(
+  id: string,
+  crmHouseholdKeys: string[],
+  extra?: Partial<Matter>
+): Matter {
   return {
     id,
     name: id,
@@ -47,10 +52,7 @@ function resetStore() {
 
 describe('buildCrmMatterMap', () => {
   it('emits one entry per (matter, householdId)', () => {
-    const matters = [
-      matter('m1', ['hh-001']),
-      matter('m2', ['hh-002']),
-    ];
+    const matters = [matter('m1', ['hh-001']), matter('m2', ['hh-002'])];
     expect(buildCrmMatterMap(matters)).toEqual([
       { householdId: 'hh-001', matterId: 'm1' },
       { householdId: 'hh-002', matterId: 'm2' },
@@ -74,7 +76,9 @@ describe('buildCrmMatterMap', () => {
     // A stale duplicate (the same household claimed by both m1 and m2) must map to
     // exactly ONE matter, or the backend would index it under two matters at once.
     const matters = [matter('m1', ['hh-dup']), matter('m2', ['hh-dup'])];
-    expect(buildCrmMatterMap(matters)).toEqual([{ householdId: 'hh-dup', matterId: 'm1' }]);
+    expect(buildCrmMatterMap(matters)).toEqual([
+      { householdId: 'hh-dup', matterId: 'm1' },
+    ]);
   });
 
   it('skips the unassigned sentinel matter', () => {
@@ -102,6 +106,24 @@ describe('buildCrmMatterMap', () => {
     // A matter loaded from storage before v6 will have the field missing.
     const preMigration = matter('m1', undefined as unknown as string[]);
     expect(buildCrmMatterMap([preMigration])).toEqual([]);
+  });
+
+  it('filters a mixed CRM map to the currently syncing provider', () => {
+    const map = buildCrmMatterMap([
+      matter('wealthbox-matter', ['10001']),
+      matter('salesforce-matter', ['sfdc:001HH0000000001AAA']),
+      matter('redtail-matter', ['redtail:rt-household']),
+    ]);
+
+    expect(filterCrmMatterMapForProvider(map, 'salesforce')).toEqual([
+      { householdId: 'sfdc:001HH0000000001AAA', matterId: 'salesforce-matter' },
+    ]);
+    expect(filterCrmMatterMapForProvider(map, 'wealthbox')).toEqual([
+      { householdId: '10001', matterId: 'wealthbox-matter' },
+    ]);
+    expect(filterCrmMatterMapForProvider(map, 'redtail')).toEqual([
+      { householdId: 'redtail:rt-household', matterId: 'redtail-matter' },
+    ]);
   });
 });
 
@@ -212,19 +234,31 @@ describe('matterStore.createMatter with crmHouseholdKeys', () => {
 
   it('stores the provided household keys', () => {
     const { createMatter } = useMatterStore.getState();
-    const m = createMatter({ name: 'Smith', client: 'Smith', crmHouseholdKeys: ['hh-001', 'hh-002'] });
+    const m = createMatter({
+      name: 'Smith',
+      client: 'Smith',
+      crmHouseholdKeys: ['hh-001', 'hh-002'],
+    });
     expect(m.crmHouseholdKeys).toEqual(['hh-001', 'hh-002']);
   });
 
   it('deduplicates household keys at creation time', () => {
     const { createMatter } = useMatterStore.getState();
-    const m = createMatter({ name: 'Smith', client: 'Smith', crmHouseholdKeys: ['hh-001', 'hh-001'] });
+    const m = createMatter({
+      name: 'Smith',
+      client: 'Smith',
+      crmHouseholdKeys: ['hh-001', 'hh-001'],
+    });
     expect(m.crmHouseholdKeys).toEqual(['hh-001']);
   });
 
   it('filters blank keys at creation time', () => {
     const { createMatter } = useMatterStore.getState();
-    const m = createMatter({ name: 'Smith', client: 'Smith', crmHouseholdKeys: ['', 'hh-001', ''] });
+    const m = createMatter({
+      name: 'Smith',
+      client: 'Smith',
+      crmHouseholdKeys: ['', 'hh-001', ''],
+    });
     expect(m.crmHouseholdKeys).toEqual(['hh-001']);
   });
 
@@ -246,7 +280,9 @@ describe('addCrmHouseholdKey / removeCrmHouseholdKey', () => {
     const { createMatter, addCrmHouseholdKey } = useMatterStore.getState();
     const m = createMatter({ name: 'Smith', client: 'Smith' });
     addCrmHouseholdKey(m.id, 'hh-001');
-    const updated = useMatterStore.getState().matters.find((x) => x.id === m.id);
+    const updated = useMatterStore
+      .getState()
+      .matters.find((x) => x.id === m.id);
     expect(updated?.crmHouseholdKeys).toContain('hh-001');
   });
 
@@ -255,15 +291,26 @@ describe('addCrmHouseholdKey / removeCrmHouseholdKey', () => {
     const m = createMatter({ name: 'Smith', client: 'Smith' });
     addCrmHouseholdKey(m.id, 'hh-001');
     addCrmHouseholdKey(m.id, 'hh-001');
-    const updated = useMatterStore.getState().matters.find((x) => x.id === m.id);
-    expect(updated?.crmHouseholdKeys?.filter((k) => k === 'hh-001')).toHaveLength(1);
+    const updated = useMatterStore
+      .getState()
+      .matters.find((x) => x.id === m.id);
+    expect(
+      updated?.crmHouseholdKeys?.filter((k) => k === 'hh-001')
+    ).toHaveLength(1);
   });
 
   it('removes a household key', () => {
-    const { createMatter, addCrmHouseholdKey, removeCrmHouseholdKey } = useMatterStore.getState();
-    const m = createMatter({ name: 'Smith', client: 'Smith', crmHouseholdKeys: ['hh-001', 'hh-002'] });
+    const { createMatter, addCrmHouseholdKey, removeCrmHouseholdKey } =
+      useMatterStore.getState();
+    const m = createMatter({
+      name: 'Smith',
+      client: 'Smith',
+      crmHouseholdKeys: ['hh-001', 'hh-002'],
+    });
     removeCrmHouseholdKey(m.id, 'hh-001');
-    const updated = useMatterStore.getState().matters.find((x) => x.id === m.id);
+    const updated = useMatterStore
+      .getState()
+      .matters.find((x) => x.id === m.id);
     expect(updated?.crmHouseholdKeys).toEqual(['hh-002']);
   });
 
@@ -271,19 +318,27 @@ describe('addCrmHouseholdKey / removeCrmHouseholdKey', () => {
     // Re-linking a household to a new matter must remove it from its old matter, so it
     // is never claimed by (and re-indexed + orphaned under) two matters at once.
     const { createMatter, addCrmHouseholdKey } = useMatterStore.getState();
-    const a = createMatter({ name: 'A', client: 'A', crmHouseholdKeys: ['hh-move'] });
+    const a = createMatter({
+      name: 'A',
+      client: 'A',
+      crmHouseholdKeys: ['hh-move'],
+    });
     const b = createMatter({ name: 'B', client: 'B' });
     addCrmHouseholdKey(b.id, 'hh-move');
     const matters = useMatterStore.getState().matters;
     expect(matters.find((x) => x.id === a.id)?.crmHouseholdKeys).toEqual([]); // removed from A
-    expect(matters.find((x) => x.id === b.id)?.crmHouseholdKeys).toEqual(['hh-move']); // now on B
+    expect(matters.find((x) => x.id === b.id)?.crmHouseholdKeys).toEqual([
+      'hh-move',
+    ]); // now on B
   });
 
   it('add is a no-op for a blank key', () => {
     const { createMatter, addCrmHouseholdKey } = useMatterStore.getState();
     const m = createMatter({ name: 'Smith', client: 'Smith' });
     addCrmHouseholdKey(m.id, '');
-    const updated = useMatterStore.getState().matters.find((x) => x.id === m.id);
+    const updated = useMatterStore
+      .getState()
+      .matters.find((x) => x.id === m.id);
     expect(updated?.crmHouseholdKeys).toEqual([]);
   });
 });
@@ -317,7 +372,7 @@ describe('matterStore migration v5 -> v7', () => {
       JSON.stringify({
         state: { matters: [v5Matter], activeMatterId: null },
         version: 5,
-      }),
+      })
     );
 
     // Trigger hydration by calling rehydrate.
