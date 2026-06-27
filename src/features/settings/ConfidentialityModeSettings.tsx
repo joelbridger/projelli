@@ -266,7 +266,7 @@ export function ConfidentialityModeSettings() {
             className="mt-2 text-xs rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"
           >
             {privileged.trigger === 'privileged-matter'
-              ? 'On automatically because the active matter has network lockdown. It stays on until you switch to a different matter.'
+              ? 'On automatically because the active client has network lockdown. It stays on until you switch to a different client.'
               : 'On automatically because On this computer only is selected. It stays on while that option is active.'}
           </p>
         )}

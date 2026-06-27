@@ -98,13 +98,13 @@
 
 use anyhow::{Context, Result};
 use arrow_array::{
-    types::Float32Type, Array, FixedSizeListArray, Int64Array, RecordBatch, RecordBatchIterator,
-    StringArray, UInt32Array,
+    Array, FixedSizeListArray, Int64Array, RecordBatch, RecordBatchIterator, StringArray,
+    UInt32Array, types::Float32Type,
 };
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use lancedb::{
-    query::{ExecutableQuery, QueryBase, Select},
     Connection, Table,
+    query::{ExecutableQuery, QueryBase, Select},
 };
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -120,7 +120,9 @@ use super::embedder::EMBEDDING_DIM;
 pub enum SourceType {
     Text,
     /// 1-based page number for display.
-    Pdf { page_number: u32 },
+    Pdf {
+        page_number: u32,
+    },
     /// Email message. `text` column holds hex-encoded AES-256-GCM ciphertext.
     Mail,
     // VG-2b — office documents. Word-processing formats chunk like text
@@ -130,13 +132,19 @@ pub enum SourceType {
     // they are not necessarily contiguous).
     Docx,
     Rtf,
-    Xlsx { sheet_number: u32 },
-    Pptx { slide_number: u32 },
+    Xlsx {
+        sheet_number: u32,
+    },
+    Pptx {
+        slide_number: u32,
+    },
     /// VG-3c — certified line-numbered deposition transcript (.txt detected
     /// by `transcript::detect_transcript`). `start_page` is the chunk
     /// group's locator start page (derived from the locator's first
     /// number), stored in `page_number` the way PDF pages band.
-    Transcript { start_page: u32 },
+    Transcript {
+        start_page: u32,
+    },
     /// Wealthbox CRM record (per-object record or household summary). text column holds hex-encoded AES-256-GCM ciphertext.
     Crm,
 }
@@ -295,7 +303,9 @@ pub fn sql_escape(s: &str) -> String {
 /// be built from a degenerate scope key. Returns the id unchanged if valid.
 pub fn validate_matter_id(matter_id: &str) -> Result<&str> {
     if matter_id.is_empty() {
-        anyhow::bail!("matter_id must not be empty (use UNASSIGNED_MATTER for uncategorized content)");
+        anyhow::bail!(
+            "matter_id must not be empty (use UNASSIGNED_MATTER for uncategorized content)"
+        );
     }
     if matter_id.chars().any(|c| c == '\0' || c.is_control()) {
         anyhow::bail!("matter_id contains control characters");
@@ -1117,6 +1127,86 @@ fn crm_delete_predicate(matter_ids: &[String]) -> Option<String> {
     Some(format!("source_type = 'crm' AND matter_id IN ({list})"))
 }
 
+fn crm_provider_scan_predicate(matter_ids: Option<&[String]>) -> Option<String> {
+    match matter_ids {
+        Some(ids) => crm_delete_predicate(ids),
+        None => Some("source_type = 'crm'".to_string()),
+    }
+}
+
+fn crm_source_id_belongs_to_provider(source_id: &str, provider_id: &str) -> bool {
+    crate::commands::crm::model::crm_source_id_belongs_to_provider(source_id, provider_id)
+}
+
+fn decrypt_path_enc_for_provider_scan(path_enc: &str, key: &[u8; 32]) -> Result<String> {
+    let blob = hex::decode(path_enc).context("decode crm path_enc")?;
+    let plaintext = crate::commands::mail::crypto::decrypt_with_key(&blob, key)
+        .context("decrypt crm path_enc")?;
+    String::from_utf8(plaintext).context("crm path_enc was not utf8")
+}
+
+async fn list_crm_provider_entries(
+    table: &Table,
+    matter_ids: Option<&[String]>,
+    provider_id: &str,
+    key: &[u8; 32],
+) -> Result<Vec<(String, String)>> {
+    use futures_util::TryStreamExt;
+
+    let Some(predicate) = crm_provider_scan_predicate(matter_ids) else {
+        return Ok(Vec::new());
+    };
+
+    let mut stream = table
+        .query()
+        .only_if(&predicate)
+        .select(Select::columns(&["matter_id", "source_id", "path_enc"]))
+        .execute()
+        .await
+        .context("list_crm_provider_entries query execute failed")?;
+
+    let mut out = Vec::new();
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("list_crm_provider_entries stream try_next failed")?
+    {
+        let matter_col = batch
+            .column_by_name("matter_id")
+            .context("missing matter_id column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("matter_id column is not StringArray")?;
+        let source_col = batch
+            .column_by_name("source_id")
+            .context("missing source_id column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("source_id column is not StringArray")?;
+        let path_enc_col = batch
+            .column_by_name("path_enc")
+            .context("missing path_enc column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("path_enc column is not StringArray")?;
+
+        for i in 0..batch.num_rows() {
+            if matter_col.is_null(i) || source_col.is_null(i) || path_enc_col.is_null(i) {
+                continue;
+            }
+            let plain_source_id = decrypt_path_enc_for_provider_scan(path_enc_col.value(i), key)?;
+            if crm_source_id_belongs_to_provider(&plain_source_id, provider_id) {
+                out.push((
+                    matter_col.value(i).to_string(),
+                    source_col.value(i).to_string(),
+                ));
+            }
+        }
+    }
+
+    Ok(out)
+}
+
 /// Delete every CRM chunk belonging to any of `matter_ids` in a SINGLE table
 /// delete (one scan + commit + compaction), instead of one delete per source id.
 ///
@@ -1143,6 +1233,49 @@ pub async fn delete_crm_for_matters(table: &Table, matter_ids: &[String]) -> Res
         .delete(&predicate)
         .await
         .context("delete failed for crm matters")?;
+    Ok(())
+}
+
+/// Delete CRM chunks for the selected matters, scoped to one CRM provider.
+///
+/// The queryable `source_id` column is tokenized, so this scans matching CRM
+/// rows, decrypts `path_enc` in memory, classifies the plaintext source id
+/// (`sfdc:` = Salesforce, no provider prefix = Wealthbox), then deletes only
+/// the matching source-id tokens. This is the multi-CRM safety boundary: a
+/// Salesforce sync can replace Salesforce chunks without touching Wealthbox
+/// chunks that live under the same matter.
+pub async fn delete_crm_for_matters_for_provider(
+    table: &Table,
+    matter_ids: &[String],
+    provider_id: &str,
+    key: &[u8; 32],
+) -> Result<()> {
+    if matter_ids.is_empty() {
+        return Ok(());
+    }
+    let entries = list_crm_provider_entries(table, Some(matter_ids), provider_id, key).await?;
+    let source_tokens: HashSet<String> = entries.into_iter().map(|(_, token)| token).collect();
+    if source_tokens.is_empty() {
+        return Ok(());
+    }
+
+    let matter_list = matter_ids
+        .iter()
+        .map(|m| format!("'{}'", sql_escape(m)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let source_list = source_tokens
+        .iter()
+        .map(|s| format!("'{}'", sql_escape(s)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let predicate = format!(
+        "source_type = 'crm' AND matter_id IN ({matter_list}) AND source_id IN ({source_list})"
+    );
+    table
+        .delete(&predicate)
+        .await
+        .context("delete failed for provider-scoped crm matters")?;
     Ok(())
 }
 
@@ -1182,6 +1315,18 @@ pub async fn list_crm_matters(table: &Table) -> Result<HashSet<String>> {
         }
     }
     Ok(out)
+}
+
+/// Return distinct matters that currently have CRM chunks for one provider.
+/// See [`delete_crm_for_matters_for_provider`] for why provider detection uses
+/// decrypted `path_enc` instead of searching the tokenized `source_id` column.
+pub async fn list_crm_matters_for_provider(
+    table: &Table,
+    provider_id: &str,
+    key: &[u8; 32],
+) -> Result<HashSet<String>> {
+    let entries = list_crm_provider_entries(table, None, provider_id, key).await?;
+    Ok(entries.into_iter().map(|(matter, _)| matter).collect())
 }
 
 /// Compact data fragments and prune old versions in ONE pass. Called once at the
@@ -1283,11 +1428,7 @@ pub async fn retag_matter_for_path(
 ///
 /// BUG-013: used as the SOFT folder-level fallback when a message has no durable
 /// per-message override; the unassigned sentinel is filtered by the caller.
-pub async fn matter_for_path(
-    table: &Table,
-    path: &str,
-    key: &[u8; 32],
-) -> Result<Option<String>> {
+pub async fn matter_for_path(table: &Table, path: &str, key: &[u8; 32]) -> Result<Option<String>> {
     use futures_util::TryStreamExt;
     let predicate = format!(
         "path = '{}'",
@@ -1486,13 +1627,12 @@ pub async fn nearest(
         .limit(top_k);
     // WS-B/C + WS-PRIV + BUG-099: compose all safety predicates. They are part
     // of the query PLAN (prefilter), not a post-hoc filter on the returned Vec.
-    if let Some(predicate) = build_retrieval_predicate(scope, include_privileged, tombstoned_tokens)? {
+    if let Some(predicate) =
+        build_retrieval_predicate(scope, include_privileged, tombstoned_tokens)?
+    {
         query = query.only_if(predicate);
     }
-    let mut stream = query
-        .execute()
-        .await
-        .context("query execute failed")?;
+    let mut stream = query.execute().await.context("query execute failed")?;
 
     let mut out: Vec<StoredHit> = Vec::with_capacity(top_k);
     while let Some(batch) = stream
@@ -1577,7 +1717,9 @@ pub async fn nearest(
                 .map(|c| c.value(i).to_string());
             let page_number = pn_col.filter(|c| !c.is_null(i)).map(|c| c.value(i));
             // G4: null or absent encrypted column → false (pre-G4 plaintext row).
-            let encrypted = enc_col.map(|c| !c.is_null(i) && c.value(i)).unwrap_or(false);
+            let encrypted = enc_col
+                .map(|c| !c.is_null(i) && c.value(i))
+                .unwrap_or(false);
             let id = id_col
                 .filter(|c| !c.is_null(i))
                 .map(|c| c.value(i).to_string())
@@ -1695,14 +1837,18 @@ pub async fn lookup_by_id(
                 .column_by_name(name)
                 .and_then(|c| c.as_any().downcast_ref::<StringArray>())
         };
-        let id_v = str_col("id").map(|c| c.value(0).to_string()).unwrap_or_default();
+        let id_v = str_col("id")
+            .map(|c| c.value(0).to_string())
+            .unwrap_or_default();
         let matter_v = str_col("matter_id")
             .map(|c| c.value(0).to_string())
             .unwrap_or_default();
         let source_v = str_col("source_id")
             .map(|c| c.value(0).to_string())
             .unwrap_or_default();
-        let text_v = str_col("text").map(|c| c.value(0).to_string()).unwrap_or_default();
+        let text_v = str_col("text")
+            .map(|c| c.value(0).to_string())
+            .unwrap_or_default();
         let pi_v = batch
             .column_by_name("paragraph_index")
             .and_then(|c| c.as_any().downcast_ref::<UInt32Array>())
@@ -1777,9 +1923,7 @@ pub async fn list_indexed_mail_paths(table: &Table, key: &[u8; 32]) -> Result<Ha
             }
             let decrypted = hex::decode(penc_col.value(i))
                 .ok()
-                .and_then(|blob| {
-                    crate::commands::mail::crypto::decrypt_with_key(&blob, key).ok()
-                })
+                .and_then(|blob| crate::commands::mail::crypto::decrypt_with_key(&blob, key).ok())
                 .and_then(|v| String::from_utf8(v).ok());
             match decrypted {
                 Some(p) => {
@@ -1843,7 +1987,9 @@ fn unsafe_paths_path(workspace_root: &Path) -> PathBuf {
 
 /// Path of the durable integrity-unknown sentinel (sibling of `.unsafe_tokens`).
 fn integrity_unknown_path(workspace_root: &Path) -> PathBuf {
-    workspace_root.join(".keepance").join(INTEGRITY_UNKNOWN_FILE)
+    workspace_root
+        .join(".keepance")
+        .join(INTEGRITY_UNKNOWN_FILE)
 }
 
 /// BUG-099: mark the workspace integrity UNKNOWN durably (cross-process). Called
@@ -1855,7 +2001,10 @@ pub fn mark_integrity_unknown(workspace_root: &Path) {
         std::fs::create_dir_all(parent).ok();
     }
     if let Err(e) = std::fs::write(&path, b"1") {
-        log::error!("rag: failed to write integrity-unknown sentinel {:?}: {e}", path);
+        log::error!(
+            "rag: failed to write integrity-unknown sentinel {:?}: {e}",
+            path
+        );
     }
 }
 
@@ -1865,7 +2014,10 @@ pub fn clear_integrity_unknown(workspace_root: &Path) {
     match std::fs::remove_file(&path) {
         Ok(()) => {}
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => log::warn!("rag: failed to clear integrity-unknown sentinel {:?}: {e}", path),
+        Err(e) => log::warn!(
+            "rag: failed to clear integrity-unknown sentinel {:?}: {e}",
+            path
+        ),
     }
 }
 
@@ -2088,9 +2240,13 @@ mod tests {
     /// back to its plaintext String, using `key`. Mirrors what `rag_retrieve` and
     /// `rag_verify_citation` do on read.
     fn decrypt_text_col(batch: &RecordBatch, i: usize, key: &[u8; 32]) -> String {
-        use arrow_array::cast::AsArray;
         use crate::commands::mail::crypto::decrypt_with_key;
-        let stored_hex = batch.column_by_name("text").expect("text col").as_string::<i32>().value(i);
+        use arrow_array::cast::AsArray;
+        let stored_hex = batch
+            .column_by_name("text")
+            .expect("text col")
+            .as_string::<i32>()
+            .value(i);
         let blob = hex::decode(stored_hex).expect("hex decode text column");
         String::from_utf8(decrypt_with_key(&blob, key).expect("decrypt text column")).expect("utf8")
     }
@@ -2121,7 +2277,10 @@ mod tests {
         let key = [0x5Au8; 32];
 
         // No file yet → Tokens(empty) (the healthy default — NOT IntegrityUnknown).
-        assert_eq!(read_unsafe_tokens(root), TombstoneRead::Tokens(HashSet::new()));
+        assert_eq!(
+            read_unsafe_tokens(root),
+            TombstoneRead::Tokens(HashSet::new())
+        );
 
         // Persist two tombstoned tokens (the at-rest path-column values), then
         // read them back identically. We use real tokens so the test exercises
@@ -2182,9 +2341,11 @@ mod tests {
             "the durable tombstone file must NOT contain any plaintext path bytes; got {on_disk:?}"
         );
         // But the token round-trips so the exclusion still works after restart.
-        assert!(read_unsafe_tokens(root)
-            .into_tokens()
-            .contains(&super::super::crypto::path_token(&key, secret_path)));
+        assert!(
+            read_unsafe_tokens(root)
+                .into_tokens()
+                .contains(&super::super::crypto::path_token(&key, secret_path))
+        );
     }
 
     /// BUG-099 fail-closed DECORRELATION: the durable tombstone is written when a
@@ -2220,7 +2381,11 @@ mod tests {
             "tombstone must persist even when the vectors dataset dir is read-only \
              (it lives in the sibling .keepance/ dir): {result:?}"
         );
-        assert_eq!(read_unsafe_tokens(root).into_tokens().len(), 1, "the persisted token must read back");
+        assert_eq!(
+            read_unsafe_tokens(root).into_tokens().len(),
+            1,
+            "the persisted token must read back"
+        );
     }
 
     /// BUG-099 fail-CLOSED on unreadable tombstone: a file that EXISTS but cannot
@@ -2274,7 +2439,10 @@ mod tests {
         let mut set = HashSet::new();
         set.insert(super::super::crypto::path_token(&key, "/w/stuck.docx"));
         write_unsafe_tokens(root, &set).expect("write tombstone");
-        assert!(!read_unsafe_tokens(root).is_integrity_unknown(), "clean state first");
+        assert!(
+            !read_unsafe_tokens(root).is_integrity_unknown(),
+            "clean state first"
+        );
 
         // ...but a prior durable WRITE failure dropped the sentinel. Any reader
         // (GUI hydration OR the MCP sidecar) must now fail closed.
@@ -2290,7 +2458,11 @@ mod tests {
             !read_unsafe_tokens(root).is_integrity_unknown(),
             "clearing the sentinel restores normal (readable) tombstone reads"
         );
-        assert_eq!(read_unsafe_tokens(root).into_tokens(), set, "tokens still intact");
+        assert_eq!(
+            read_unsafe_tokens(root).into_tokens(),
+            set,
+            "tokens still intact"
+        );
     }
 
     #[test]
@@ -2402,8 +2574,15 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_WORK_PRODUCT, None, &TEST_KEY)
-            .expect("build_batch");
+        let batch = build_batch(
+            &rows,
+            SourceType::Text,
+            "matter-acme",
+            PRIVILEGE_WORK_PRODUCT,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build_batch");
         let priv_col = batch
             .column_by_name("privilege")
             .expect("privilege col")
@@ -2426,7 +2605,17 @@ mod tests {
         )];
         // A bad privilege value fails the build loudly rather than persisting an
         // unscopeable row.
-        assert!(build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, "bogus", None, &TEST_KEY).is_err());
+        assert!(
+            build_batch(
+                &rows,
+                SourceType::Text,
+                UNASSIGNED_MATTER,
+                "bogus",
+                None,
+                &TEST_KEY
+            )
+            .is_err()
+        );
     }
 
     // ---- build_retrieval_predicate: the single place matter AND privilege compose.
@@ -2466,7 +2655,10 @@ mod tests {
         // The only way to a None predicate (no prefilter at all) is BOTH explicit
         // choices: cross-matter AND include-privileged. Neither is a silent default.
         let p = build_retrieval_predicate(None, true, &[]).expect("predicate");
-        assert!(p.is_none(), "cross-matter + include-privileged => no prefilter");
+        assert!(
+            p.is_none(),
+            "cross-matter + include-privileged => no prefilter"
+        );
     }
 
     #[test]
@@ -2513,7 +2705,10 @@ mod tests {
 
     #[test]
     fn crm_delete_predicate_is_none_for_empty() {
-        assert!(crm_delete_predicate(&[]).is_none(), "empty list => no delete at all");
+        assert!(
+            crm_delete_predicate(&[]).is_none(),
+            "empty list => no delete at all"
+        );
     }
 
     #[test]
@@ -2521,6 +2716,26 @@ mod tests {
         let ids = vec!["a'b".to_string()];
         let p = crm_delete_predicate(&ids).expect("some predicate");
         assert_eq!(p, "source_type = 'crm' AND matter_id IN ('a''b')");
+    }
+
+    #[test]
+    fn crm_source_id_provider_detection_keeps_legacy_wealthbox_unprefixed() {
+        assert!(crm_source_id_belongs_to_provider(
+            "crm:household:10001",
+            "wealthbox"
+        ));
+        assert!(crm_source_id_belongs_to_provider(
+            "crm:contact:sfdc:003CC0000000002AAA",
+            "salesforce"
+        ));
+        assert!(!crm_source_id_belongs_to_provider(
+            "crm:contact:sfdc:003CC0000000002AAA",
+            "wealthbox"
+        ));
+        assert!(crm_source_id_belongs_to_provider(
+            "crm:contact:redtail:123",
+            "redtail"
+        ));
     }
 
     /// BUG-099 tombstone — an empty tombstone slice adds NO extra clause.
@@ -2569,8 +2784,15 @@ mod tests {
                 vec![0.2f32; EMBEDDING_DIM],
             ),
         ];
-        let batch = build_batch(&chunks, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
-            .expect("build_batch");
+        let batch = build_batch(
+            &chunks,
+            SourceType::Text,
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build_batch");
         assert_eq!(batch.num_rows(), 2);
         // 16 columns: id, path, matter_id, source_id, paragraph_index, text,
         // vector, indexed_at, source_type, page_number, encrypted, privilege,
@@ -2592,15 +2814,32 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_NONE, None, &TEST_KEY).expect("build_batch");
-        let matter_col = batch.column_by_name("matter_id").expect("matter_id col").as_string::<i32>();
+        let batch = build_batch(
+            &rows,
+            SourceType::Text,
+            "matter-acme",
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build_batch");
+        let matter_col = batch
+            .column_by_name("matter_id")
+            .expect("matter_id col")
+            .as_string::<i32>();
         assert_eq!(matter_col.value(0), "matter-acme");
         // VG-6e: source_id mirrors the path COLUMN — both hold the same
         // deterministic keyed token of the plaintext path, never the path.
         let expected_token = super::super::crypto::path_token(&TEST_KEY, "/w/contract.md");
-        let src_col = batch.column_by_name("source_id").expect("source_id col").as_string::<i32>();
+        let src_col = batch
+            .column_by_name("source_id")
+            .expect("source_id col")
+            .as_string::<i32>();
         assert_eq!(src_col.value(0), expected_token);
-        let path_col = batch.column_by_name("path").expect("path col").as_string::<i32>();
+        let path_col = batch
+            .column_by_name("path")
+            .expect("path col")
+            .as_string::<i32>();
         assert_eq!(path_col.value(0), expected_token);
     }
 
@@ -2611,8 +2850,8 @@ mod tests {
     /// citation contract is independent of the tokenization).
     #[test]
     fn build_batch_tokenizes_paths_and_path_enc_recovers_plaintext() {
-        use arrow_array::cast::AsArray;
         use crate::commands::mail::crypto::decrypt_with_key;
+        use arrow_array::cast::AsArray;
         let plain = "/ws/clients/very-identifiable-client-name.md";
         let rows = vec![(
             Chunk {
@@ -2625,10 +2864,20 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_NONE, None, &TEST_KEY)
-            .expect("build_batch");
+        let batch = build_batch(
+            &rows,
+            SourceType::Text,
+            "matter-acme",
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build_batch");
         for col_name in ["path", "source_id"] {
-            let col = batch.column_by_name(col_name).expect("col").as_string::<i32>();
+            let col = batch
+                .column_by_name(col_name)
+                .expect("col")
+                .as_string::<i32>();
             let v = col.value(0);
             assert!(
                 !v.contains("very-identifiable-client-name") && !v.contains("/ws/"),
@@ -2637,13 +2886,19 @@ mod tests {
             assert_eq!(v.len(), 64, "{col_name} must hold the 64-hex-char token");
         }
         // (c) path_enc → plaintext round trip.
-        let penc = batch.column_by_name("path_enc").expect("path_enc col").as_string::<i32>();
+        let penc = batch
+            .column_by_name("path_enc")
+            .expect("path_enc col")
+            .as_string::<i32>();
         let blob = hex::decode(penc.value(0)).expect("hex");
         let recovered =
             String::from_utf8(decrypt_with_key(&blob, &TEST_KEY).expect("decrypt")).expect("utf8");
         assert_eq!(recovered, plain);
         // id is plaintext-derived, exactly as before V10.
-        let id_col = batch.column_by_name("id").expect("id col").as_string::<i32>();
+        let id_col = batch
+            .column_by_name("id")
+            .expect("id col")
+            .as_string::<i32>();
         assert_eq!(id_col.value(0), chunk_id(plain, 3));
     }
 
@@ -2651,8 +2906,8 @@ mod tests {
     /// re-identification surface like file paths).
     #[test]
     fn build_batch_mail_tokenizes_paths_and_path_enc_recovers_plaintext() {
-        use arrow_array::cast::AsArray;
         use crate::commands::mail::crypto::decrypt_with_key;
+        use arrow_array::cast::AsArray;
         let plain = "mail:AAMk-very-identifiable-message-id";
         let rows = vec![(
             Chunk {
@@ -2668,14 +2923,20 @@ mod tests {
         let batch = build_batch_mail(&rows, &TEST_KEY, "matter-acme", PRIVILEGE_NONE)
             .expect("build_batch_mail");
         for col_name in ["path", "source_id"] {
-            let col = batch.column_by_name(col_name).expect("col").as_string::<i32>();
+            let col = batch
+                .column_by_name(col_name)
+                .expect("col")
+                .as_string::<i32>();
             let v = col.value(0);
             assert!(
                 !v.contains("mail:") && !v.contains("very-identifiable"),
                 "VG-6e LEAK: mail {col_name} column carries plaintext bytes: {v:?}"
             );
         }
-        let penc = batch.column_by_name("path_enc").expect("path_enc col").as_string::<i32>();
+        let penc = batch
+            .column_by_name("path_enc")
+            .expect("path_enc col")
+            .as_string::<i32>();
         let blob = hex::decode(penc.value(0)).expect("hex");
         let recovered =
             String::from_utf8(decrypt_with_key(&blob, &TEST_KEY).expect("decrypt")).expect("utf8");
@@ -2696,7 +2957,15 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY).expect("build_batch text");
+        let batch = build_batch(
+            &rows,
+            SourceType::Text,
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build_batch text");
         let st_col = batch
             .column_by_name("source_type")
             .expect("source_type column missing")
@@ -2712,7 +2981,10 @@ mod tests {
             .column_by_name("locator")
             .expect("locator column missing")
             .as_string::<i32>();
-        assert!(loc_col.is_null(0), "non-transcript chunks must write null locator");
+        assert!(
+            loc_col.is_null(0),
+            "non-transcript chunks must write null locator"
+        );
     }
 
     #[test]
@@ -2753,14 +3025,20 @@ mod tests {
             &TEST_KEY,
         )
         .expect("build_batch transcript");
-        let st_col = batch.column_by_name("source_type").expect("source_type").as_string::<i32>();
+        let st_col = batch
+            .column_by_name("source_type")
+            .expect("source_type")
+            .as_string::<i32>();
         assert_eq!(st_col.value(0), "transcript");
         let pn_col = batch
             .column_by_name("page_number")
             .expect("page_number")
             .as_primitive::<arrow_array::types::UInt32Type>();
         assert_eq!(pn_col.value(0), 45);
-        let loc_col = batch.column_by_name("locator").expect("locator").as_string::<i32>();
+        let loc_col = batch
+            .column_by_name("locator")
+            .expect("locator")
+            .as_string::<i32>();
         assert_eq!(loc_col.value(0), "45:12-46:3");
         assert_eq!(loc_col.value(1), "46:4-46:20");
         // The content-address contract is untouched: id still hashes
@@ -2783,8 +3061,15 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Pdf { page_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
-            .expect("build_batch pdf");
+        let batch = build_batch(
+            &rows,
+            SourceType::Pdf { page_number: 3 },
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build_batch pdf");
         let st_col = batch
             .column_by_name("source_type")
             .expect("source_type column missing")
@@ -2835,11 +3120,25 @@ mod tests {
 
     #[test]
     fn build_batch_docx_and_rtf_band_like_text() {
-        let b = build_batch(&one_row("/a.docx"), SourceType::Docx, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
-            .expect("build_batch docx");
+        let b = build_batch(
+            &one_row("/a.docx"),
+            SourceType::Docx,
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build_batch docx");
         assert_eq!(batch_st_pn(&b), ("docx".to_string(), 0));
-        let b = build_batch(&one_row("/a.rtf"), SourceType::Rtf, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
-            .expect("build_batch rtf");
+        let b = build_batch(
+            &one_row("/a.rtf"),
+            SourceType::Rtf,
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build_batch rtf");
         assert_eq!(batch_st_pn(&b), ("rtf".to_string(), 0));
     }
 
@@ -2867,7 +3166,9 @@ mod tests {
             assert!(f.is_nullable(), "{name} must be nullable");
         }
         assert_eq!(
-            s.field_with_name("extraction_confidence").unwrap().data_type(),
+            s.field_with_name("extraction_confidence")
+                .unwrap()
+                .data_type(),
             &DataType::Float32
         );
         assert_eq!(
@@ -2916,11 +3217,17 @@ mod tests {
         )
         .expect("build_batch native pdf");
         let ext_col = batch.column_by_name("extraction").expect("extraction col");
-        assert!(ext_col.is_null(0), "native chunks must leave extraction null");
+        assert!(
+            ext_col.is_null(0),
+            "native chunks must leave extraction null"
+        );
         let conf_col = batch
             .column_by_name("extraction_confidence")
             .expect("extraction_confidence col");
-        assert!(conf_col.is_null(0), "native chunks must leave confidence null");
+        assert!(
+            conf_col.is_null(0),
+            "native chunks must leave confidence null"
+        );
     }
 
     #[test]
@@ -2942,10 +3249,12 @@ mod tests {
         // Mail is never OCR-extracted; the columns exist (schema is shared)
         // but stay null.
         assert!(batch.column_by_name("extraction").expect("col").is_null(0));
-        assert!(batch
-            .column_by_name("extraction_confidence")
-            .expect("col")
-            .is_null(0));
+        assert!(
+            batch
+                .column_by_name("extraction_confidence")
+                .expect("col")
+                .is_null(0)
+        );
     }
 
     /// VG-2 round-trip through a real table: an OCR chunk surfaces from
@@ -2998,12 +3307,20 @@ mod tests {
         }
 
         let q = vec![0.10f32; EMBEDDING_DIM];
-        let hits = nearest(&table, &q, 10, None, false, &[]).await.expect("nearest");
+        let hits = nearest(&table, &q, 10, None, false, &[])
+            .await
+            .expect("nearest");
         // VG-6e: the raw path column holds tokens — resolve via path_enc.
-        let scan = hits.iter().find(|h| stored_path(h) == "/scan.pdf").expect("scan hit");
+        let scan = hits
+            .iter()
+            .find(|h| stored_path(h) == "/scan.pdf")
+            .expect("scan hit");
         assert_eq!(scan.extraction.as_deref(), Some("ocr"));
         assert!((scan.extraction_confidence.expect("conf") - 48.6).abs() < 0.001);
-        let native = hits.iter().find(|h| stored_path(h) == "/native.pdf").expect("native hit");
+        let native = hits
+            .iter()
+            .find(|h| stored_path(h) == "/native.pdf")
+            .expect("native hit");
         assert_eq!(native.extraction, None);
         assert_eq!(native.extraction_confidence, None);
     }
@@ -3013,11 +3330,25 @@ mod tests {
         // The number is the REAL 1-based sheet/slide number (empty sections
         // are skipped upstream, so it is NOT necessarily contiguous with the
         // enumeration index used for paragraph_index banding).
-        let b = build_batch(&one_row("/a.xlsx"), SourceType::Xlsx { sheet_number: 2 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
-            .expect("build_batch xlsx");
+        let b = build_batch(
+            &one_row("/a.xlsx"),
+            SourceType::Xlsx { sheet_number: 2 },
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build_batch xlsx");
         assert_eq!(batch_st_pn(&b), ("xlsx".to_string(), 2));
-        let b = build_batch(&one_row("/a.pptx"), SourceType::Pptx { slide_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
-            .expect("build_batch pptx");
+        let b = build_batch(
+            &one_row("/a.pptx"),
+            SourceType::Pptx { slide_number: 3 },
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build_batch pptx");
         assert_eq!(batch_st_pn(&b), ("pptx".to_string(), 3));
     }
 
@@ -3043,9 +3374,20 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY).expect("build_batch text");
+        let batch = build_batch(
+            &rows,
+            SourceType::Text,
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build_batch text");
         // WS-VEC: the text column must NOT contain the plaintext.
-        let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
+        let text_col = batch
+            .column_by_name("text")
+            .expect("text col")
+            .as_string::<i32>();
         assert!(
             !text_col.value(0).contains(plaintext),
             "text-source text column must be ciphertext (WS-VEC), not plaintext"
@@ -3053,14 +3395,20 @@ mod tests {
         // But it must decrypt back to the original plaintext.
         assert_eq!(decrypt_text_col(&batch, 0, &TEST_KEY), plaintext);
         // source_type must still be "text".
-        let st_col = batch.column_by_name("source_type").expect("st col").as_string::<i32>();
+        let st_col = batch
+            .column_by_name("source_type")
+            .expect("st col")
+            .as_string::<i32>();
         assert_eq!(st_col.value(0), "text");
         // WS-VEC: encrypted column must be true for text rows now.
         let enc_col = batch
             .column_by_name("encrypted")
             .expect("encrypted column must exist")
             .as_boolean();
-        assert!(enc_col.value(0), "WS-VEC: text rows must have encrypted=true");
+        assert!(
+            enc_col.value(0),
+            "WS-VEC: text rows must have encrypted=true"
+        );
     }
 
     #[test]
@@ -3078,21 +3426,37 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Pdf { page_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
-            .expect("build_batch pdf");
-        let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
+        let batch = build_batch(
+            &rows,
+            SourceType::Pdf { page_number: 3 },
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build_batch pdf");
+        let text_col = batch
+            .column_by_name("text")
+            .expect("text col")
+            .as_string::<i32>();
         assert!(
             !text_col.value(0).contains(plaintext),
             "pdf-source text column must be ciphertext (WS-VEC), not plaintext"
         );
         assert_eq!(decrypt_text_col(&batch, 0, &TEST_KEY), plaintext);
-        let st_col = batch.column_by_name("source_type").expect("st col").as_string::<i32>();
+        let st_col = batch
+            .column_by_name("source_type")
+            .expect("st col")
+            .as_string::<i32>();
         assert_eq!(st_col.value(0), "pdf");
         let enc_col = batch
             .column_by_name("encrypted")
             .expect("encrypted column must exist")
             .as_boolean();
-        assert!(enc_col.value(0), "WS-VEC: pdf rows must have encrypted=true");
+        assert!(
+            enc_col.value(0),
+            "WS-VEC: pdf rows must have encrypted=true"
+        );
     }
 
     #[test]
@@ -3111,8 +3475,12 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch_mail(&rows, &key, UNASSIGNED_MATTER, PRIVILEGE_NONE).expect("build_batch mail");
-        let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
+        let batch = build_batch_mail(&rows, &key, UNASSIGNED_MATTER, PRIVILEGE_NONE)
+            .expect("build_batch mail");
+        let text_col = batch
+            .column_by_name("text")
+            .expect("text col")
+            .as_string::<i32>();
         let stored = text_col.value(0);
         // The text column must NOT contain the plaintext.
         assert!(
@@ -3121,17 +3489,23 @@ mod tests {
             &stored[..stored.len().min(30)]
         );
         // source_type must be "mail".
-        let st_col = batch.column_by_name("source_type").expect("st col").as_string::<i32>();
+        let st_col = batch
+            .column_by_name("source_type")
+            .expect("st col")
+            .as_string::<i32>();
         assert_eq!(st_col.value(0), "mail");
         // encrypted must be true.
-        let enc_col = batch.column_by_name("encrypted").expect("enc col").as_boolean();
+        let enc_col = batch
+            .column_by_name("encrypted")
+            .expect("enc col")
+            .as_boolean();
         assert!(enc_col.value(0), "mail rows must have encrypted=true");
     }
 
     #[test]
     fn build_batch_mail_ciphertext_decrypts_to_original_plaintext() {
-        use arrow_array::cast::AsArray;
         use crate::commands::mail::crypto::decrypt_with_key;
+        use arrow_array::cast::AsArray;
         let plaintext = "Confidential: closing scheduled for 10am.";
         let key = [0x77u8; 32];
         let rows = vec![(
@@ -3145,8 +3519,12 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch_mail(&rows, &key, UNASSIGNED_MATTER, PRIVILEGE_NONE).expect("build batch");
-        let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
+        let batch =
+            build_batch_mail(&rows, &key, UNASSIGNED_MATTER, PRIVILEGE_NONE).expect("build batch");
+        let text_col = batch
+            .column_by_name("text")
+            .expect("text col")
+            .as_string::<i32>();
         let stored_hex = text_col.value(0);
         let blob = hex::decode(stored_hex).expect("hex decode");
         let recovered = decrypt_with_key(&blob, &key).expect("decrypt");
@@ -3175,17 +3553,26 @@ mod tests {
         let batch = build_batch_external(&rows, &TEST_KEY, "matter-acme", PRIVILEGE_NONE, "esign")
             .expect("build external batch");
 
-        let st_col = batch.column_by_name("source_type").expect("st col").as_string::<i32>();
+        let st_col = batch
+            .column_by_name("source_type")
+            .expect("st col")
+            .as_string::<i32>();
         assert_eq!(st_col.value(0), "esign");
 
-        let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
+        let text_col = batch
+            .column_by_name("text")
+            .expect("text col")
+            .as_string::<i32>();
         assert!(
             !text_col.value(0).contains(plaintext),
             "external text column must contain ciphertext, not plaintext"
         );
         assert_eq!(decrypt_text_col(&batch, 0, &TEST_KEY), plaintext);
 
-        let enc_col = batch.column_by_name("encrypted").expect("enc col").as_boolean();
+        let enc_col = batch
+            .column_by_name("encrypted")
+            .expect("enc col")
+            .as_boolean();
         assert!(enc_col.value(0), "external rows must have encrypted=true");
 
         assert!(
@@ -3230,8 +3617,12 @@ mod tests {
                 vec![0.2f32; EMBEDDING_DIM],
             ),
         ];
-        let batch = build_batch_mail(&rows, &key, UNASSIGNED_MATTER, PRIVILEGE_NONE).expect("build_batch_mail must succeed");
-        let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
+        let batch = build_batch_mail(&rows, &key, UNASSIGNED_MATTER, PRIVILEGE_NONE)
+            .expect("build_batch_mail must succeed");
+        let text_col = batch
+            .column_by_name("text")
+            .expect("text col")
+            .as_string::<i32>();
         // Every row must have a non-empty hex ciphertext — the S2 fix removes the
         // unwrap_or_default() that would silently store "" on failure.
         for i in 0..batch.num_rows() {
@@ -3269,7 +3660,11 @@ mod tests {
         )];
         // Should succeed — verifies the for-loop path (not the old .map iterator).
         let result = build_batch_mail(&rows, &key, UNASSIGNED_MATTER, PRIVILEGE_NONE);
-        assert!(result.is_ok(), "S2: single-row build_batch_mail must return Ok; got {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "S2: single-row build_batch_mail must return Ok; got {:?}",
+            result.err()
+        );
     }
 
     // WS-B/C — mail is scoped by matter exactly like files ---------------------
@@ -3290,7 +3685,8 @@ mod tests {
             },
             vec![seed; EMBEDDING_DIM],
         )];
-        let batch = build_batch_mail(&rows, &key, matter_id, PRIVILEGE_NONE).expect("build mail batch");
+        let batch =
+            build_batch_mail(&rows, &key, matter_id, PRIVILEGE_NONE).expect("build mail batch");
         let schema = batch.schema();
         table
             .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
@@ -3318,7 +3714,8 @@ mod tests {
                 )
             })
             .collect();
-        let batch = build_batch_crm(&rows, &key, matter_id, PRIVILEGE_NONE).expect("build crm batch");
+        let batch =
+            build_batch_crm(&rows, &key, matter_id, PRIVILEGE_NONE).expect("build crm batch");
         let schema = batch.schema();
         table
             .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
@@ -3368,9 +3765,15 @@ mod tests {
                 },
                 vec![0.10f32; EMBEDDING_DIM],
             )];
-            let batch =
-                build_batch(&rows, SourceType::Text, "matter-0", PRIVILEGE_NONE, None, &key)
-                    .expect("build file batch");
+            let batch = build_batch(
+                &rows,
+                SourceType::Text,
+                "matter-0",
+                PRIVILEGE_NONE,
+                None,
+                &key,
+            )
+            .expect("build file batch");
             let schema = batch.schema();
             table
                 .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
@@ -3454,7 +3857,11 @@ mod tests {
             .map(stored_path)
             .filter(|p| p.starts_with("crm:"))
             .collect();
-        assert_eq!(crm0.len(), 5, "first sync indexed all of matter-0; got {crm0:?}");
+        assert_eq!(
+            crm0.len(),
+            5,
+            "first sync indexed all of matter-0; got {crm0:?}"
+        );
 
         // Re-sync matter-0 with contact `0b` REMOVED in Wealthbox (4 records now).
         let m0 = "matter-0".to_string();
@@ -3497,7 +3904,11 @@ mod tests {
             .map(stored_path)
             .filter(|p| p.starts_with("crm:"))
             .collect();
-        assert_eq!(crm17.len(), 5, "matter-17 unaffected by matter-0 re-sync; got {crm17:?}");
+        assert_eq!(
+            crm17.len(),
+            5,
+            "matter-17 unaffected by matter-0 re-sync; got {crm17:?}"
+        );
     }
 
     /// PERF: a first sync's writes are bounded by MATTERS, not items. Mirrors the
@@ -3548,29 +3959,141 @@ mod tests {
         {
             let key = [0x42u8; 32];
             let rows = vec![(
-                Chunk { path: "/clients/a.pdf".into(), paragraph_index: 0, text: "file".into(), start_offset: 0, end_offset: 4, locator: None },
+                Chunk {
+                    path: "/clients/a.pdf".into(),
+                    paragraph_index: 0,
+                    text: "file".into(),
+                    start_offset: 0,
+                    end_offset: 4,
+                    locator: None,
+                },
                 vec![0.10f32; EMBEDDING_DIM],
             )];
-            let batch = build_batch(&rows, SourceType::Text, "matter-A", PRIVILEGE_NONE, None, &key).expect("file batch");
+            let batch = build_batch(
+                &rows,
+                SourceType::Text,
+                "matter-A",
+                PRIVILEGE_NONE,
+                None,
+                &key,
+            )
+            .expect("file batch");
             let schema = batch.schema();
-            table.add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema))).execute().await.expect("add file");
+            table
+                .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+                .execute()
+                .await
+                .expect("add file");
         }
 
         // list_crm_matters sees both A and B.
         let matters = list_crm_matters(&table).await.expect("list crm matters");
-        assert!(matters.contains("matter-A") && matters.contains("matter-B"), "got {matters:?}");
+        assert!(
+            matters.contains("matter-A") && matters.contains("matter-B"),
+            "got {matters:?}"
+        );
 
         // A is orphaned (no longer synced) → purge its CRM only.
-        delete_crm_for_matters(&table, &["matter-A".to_string()]).await.expect("purge orphan");
+        delete_crm_for_matters(&table, &["matter-A".to_string()])
+            .await
+            .expect("purge orphan");
 
         // A's CRM gone; A's file chunk survives; B's CRM intact.
         let after = list_crm_matters(&table).await.expect("list after");
-        assert!(!after.contains("matter-A"), "orphaned matter-A CRM must be purged; got {after:?}");
-        assert!(after.contains("matter-B"), "matter-B CRM must survive; got {after:?}");
+        assert!(
+            !after.contains("matter-A"),
+            "orphaned matter-A CRM must be purged; got {after:?}"
+        );
+        assert!(
+            after.contains("matter-B"),
+            "matter-B CRM must survive; got {after:?}"
+        );
         let q = vec![0.10f32; EMBEDDING_DIM];
-        let a_paths: Vec<String> = nearest(&table, &q, 20, Some("matter-A"), false, &[]).await.expect("nearest A").iter().map(stored_path).collect();
-        assert!(a_paths.iter().any(|p| p == "/clients/a.pdf"), "matter-A file chunk must survive; got {a_paths:?}");
-        assert!(!a_paths.iter().any(|p| p.starts_with("crm:")), "matter-A CRM must be gone; got {a_paths:?}");
+        let a_paths: Vec<String> = nearest(&table, &q, 20, Some("matter-A"), false, &[])
+            .await
+            .expect("nearest A")
+            .iter()
+            .map(stored_path)
+            .collect();
+        assert!(
+            a_paths.iter().any(|p| p == "/clients/a.pdf"),
+            "matter-A file chunk must survive; got {a_paths:?}"
+        );
+        assert!(
+            !a_paths.iter().any(|p| p.starts_with("crm:")),
+            "matter-A CRM must be gone; got {a_paths:?}"
+        );
+    }
+
+    /// Multi-CRM safety boundary: a provider-scoped CRM cleanup under one matter
+    /// removes only that provider's chunks. Without provider scoping, replacing
+    /// Salesforce for a matter would also erase the legacy unprefixed Wealthbox
+    /// chunks in the same matter.
+    #[tokio::test]
+    async fn delete_crm_for_matters_for_provider_preserves_other_crm_provider_chunks() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+        let matter = "matter-coexist".to_string();
+
+        add_crm_chunks(
+            &table,
+            &matter,
+            &[
+                "crm:household:10001".to_string(),
+                "crm:contact:10002".to_string(),
+                "crm:household:sfdc:001HH0000000001AAA".to_string(),
+                "crm:contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA".to_string(),
+            ],
+            0.10,
+        )
+        .await;
+
+        let before = list_crm_matters_for_provider(&table, "salesforce", &TEST_KEY)
+            .await
+            .expect("list salesforce matters");
+        assert!(
+            before.contains(&matter),
+            "Salesforce chunks should be visible before cleanup"
+        );
+
+        delete_crm_for_matters_for_provider(
+            &table,
+            std::slice::from_ref(&matter),
+            "salesforce",
+            &TEST_KEY,
+        )
+        .await
+        .expect("delete salesforce chunks only");
+
+        let q = vec![0.10f32; EMBEDDING_DIM];
+        let paths: Vec<String> = nearest(&table, &q, 20, Some(&matter), false, &[])
+            .await
+            .expect("nearest after provider delete")
+            .iter()
+            .map(stored_path)
+            .collect();
+        assert!(
+            paths.iter().any(|p| p == "crm:household:10001"),
+            "legacy Wealthbox household chunk must survive Salesforce cleanup; got {paths:?}"
+        );
+        assert!(
+            paths.iter().any(|p| p == "crm:contact:10002"),
+            "legacy Wealthbox contact chunk must survive Salesforce cleanup; got {paths:?}"
+        );
+        assert!(
+            !paths.iter().any(|p| p.contains("sfdc:")),
+            "Salesforce chunks must be gone after Salesforce cleanup; got {paths:?}"
+        );
+
+        let salesforce_after = list_crm_matters_for_provider(&table, "salesforce", &TEST_KEY)
+            .await
+            .expect("list salesforce after");
+        let wealthbox_after = list_crm_matters_for_provider(&table, "wealthbox", &TEST_KEY)
+            .await
+            .expect("list wealthbox after");
+        assert!(!salesforce_after.contains(&matter));
+        assert!(wealthbox_after.contains(&matter));
     }
 
     /// An email indexed under Matter A must be retrievable under the Matter A
@@ -3589,13 +4112,23 @@ mod tests {
 
         // Scoped to Matter A: only the Matter-A mail comes back.
         // (VG-6e: the raw path column holds tokens — resolve via path_enc.)
-        let hits_a = nearest(&table, &q, 10, Some("matter_a"), false, &[]).await.expect("nearest a");
+        let hits_a = nearest(&table, &q, 10, Some("matter_a"), false, &[])
+            .await
+            .expect("nearest a");
         let paths_a: Vec<String> = hits_a.iter().map(stored_path).collect();
-        assert!(paths_a.iter().any(|p| p == "mail:a-msg"), "Matter A scope must return Matter A mail");
-        assert!(!paths_a.iter().any(|p| p == "mail:b-msg"), "Matter A scope must NOT return Matter B mail");
+        assert!(
+            paths_a.iter().any(|p| p == "mail:a-msg"),
+            "Matter A scope must return Matter A mail"
+        );
+        assert!(
+            !paths_a.iter().any(|p| p == "mail:b-msg"),
+            "Matter A scope must NOT return Matter B mail"
+        );
 
         // Scoped to Matter B: only the Matter-B mail comes back.
-        let hits_b = nearest(&table, &q, 10, Some("matter_b"), false, &[]).await.expect("nearest b");
+        let hits_b = nearest(&table, &q, 10, Some("matter_b"), false, &[])
+            .await
+            .expect("nearest b");
         let paths_b: Vec<String> = hits_b.iter().map(stored_path).collect();
         assert!(paths_b.iter().any(|p| p == "mail:b-msg"));
         assert!(!paths_b.iter().any(|p| p == "mail:a-msg"));
@@ -3613,7 +4146,9 @@ mod tests {
         let q = vec![0.10f32; EMBEDDING_DIM];
 
         // Initially under Matter A. (VG-6e: resolve real paths via path_enc.)
-        let before = nearest(&table, &q, 10, Some("matter_a"), false, &[]).await.unwrap();
+        let before = nearest(&table, &q, 10, Some("matter_a"), false, &[])
+            .await
+            .unwrap();
         assert!(before.iter().any(|h| stored_path(h) == "mail:movable"));
 
         // Re-tag to Matter B in place (VG-6e: the retag takes the plaintext
@@ -3624,10 +4159,20 @@ mod tests {
         assert_eq!(updated, 1, "exactly one chunk re-tagged");
 
         // Now it is gone from Matter A and present under Matter B.
-        let after_a = nearest(&table, &q, 10, Some("matter_a"), false, &[]).await.unwrap();
-        assert!(!after_a.iter().any(|h| stored_path(h) == "mail:movable"), "must leave Matter A after re-tag");
-        let after_b = nearest(&table, &q, 10, Some("matter_b"), false, &[]).await.unwrap();
-        assert!(after_b.iter().any(|h| stored_path(h) == "mail:movable"), "must appear under Matter B after re-tag");
+        let after_a = nearest(&table, &q, 10, Some("matter_a"), false, &[])
+            .await
+            .unwrap();
+        assert!(
+            !after_a.iter().any(|h| stored_path(h) == "mail:movable"),
+            "must leave Matter A after re-tag"
+        );
+        let after_b = nearest(&table, &q, 10, Some("matter_b"), false, &[])
+            .await
+            .unwrap();
+        assert!(
+            after_b.iter().any(|h| stored_path(h) == "mail:movable"),
+            "must appear under Matter B after re-tag"
+        );
     }
 
     /// The backfill's batched skip-probe: ONE path-only scan returns every mail
@@ -3653,9 +4198,15 @@ mod tests {
             },
             vec![0.2f32; EMBEDDING_DIM],
         )];
-        let batch =
-            build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
-                .expect("build file batch");
+        let batch = build_batch(
+            &rows,
+            SourceType::Text,
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build file batch");
         let schema = batch.schema();
         table
             .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
@@ -3666,7 +4217,9 @@ mod tests {
         // VG-6e: the probe selects mail rows on source_type and decrypts
         // path_enc back to the SAME plaintext "mail:<id>" keys the backfill's
         // membership check probes with.
-        let set = list_indexed_mail_paths(&table, &TEST_KEY).await.expect("list mail paths");
+        let set = list_indexed_mail_paths(&table, &TEST_KEY)
+            .await
+            .expect("list mail paths");
         assert_eq!(set.len(), 2, "exactly the two mail messages: {set:?}");
         assert!(set.contains("mail:msg-1"));
         assert!(set.contains("mail:msg-2"));
@@ -3705,13 +4258,31 @@ mod tests {
 
         // Upsert twice: the second write's internal tokenized delete must
         // replace the first (idempotent re-index), never duplicate.
-        upsert_chunks_for_path(&table, path, mk_rows("v1"), SourceType::Text, "matter_a", PRIVILEGE_NONE, &TEST_KEY)
+        upsert_chunks_for_path(
+            &table,
+            path,
+            mk_rows("v1"),
+            SourceType::Text,
+            "matter_a",
+            PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .expect("first upsert");
+        upsert_chunks_for_path(
+            &table,
+            path,
+            mk_rows("v2"),
+            SourceType::Text,
+            "matter_a",
+            PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .expect("second upsert");
+        let hits = nearest(&table, &q, 10, Some("matter_a"), false, &[])
             .await
-            .expect("first upsert");
-        upsert_chunks_for_path(&table, path, mk_rows("v2"), SourceType::Text, "matter_a", PRIVILEGE_NONE, &TEST_KEY)
-            .await
-            .expect("second upsert");
-        let hits = nearest(&table, &q, 10, Some("matter_a"), false, &[]).await.unwrap();
+            .unwrap();
         assert_eq!(hits.len(), 1, "re-upsert must replace, not duplicate");
         assert_eq!(stored_path(&hits[0]), path);
 
@@ -3724,13 +4295,20 @@ mod tests {
             .await
             .expect("retag matter");
         assert_eq!(n, 1, "retag_matter_for_path must hit the tokenized row");
-        let moved = nearest(&table, &q, 10, Some("matter_b"), true, &[]).await.unwrap();
+        let moved = nearest(&table, &q, 10, Some("matter_b"), true, &[])
+            .await
+            .unwrap();
         assert!(moved.iter().any(|h| stored_path(h) == path));
 
         // delete_path drops the rows through the tokenized predicate.
         delete_path(&table, path, &TEST_KEY).await.expect("delete");
-        let gone = nearest(&table, &q, 10, Some("matter_b"), true, &[]).await.unwrap();
-        assert!(gone.is_empty(), "delete_path must remove the tokenized rows");
+        let gone = nearest(&table, &q, 10, Some("matter_b"), true, &[])
+            .await
+            .unwrap();
+        assert!(
+            gone.is_empty(),
+            "delete_path must remove the tokenized rows"
+        );
     }
 
     /// THE RAW-DISK PROOF (VG-6e, mirrors rag_matter_scope.rs's WS-VEC scan
@@ -3759,13 +4337,23 @@ mod tests {
         )];
         // The PRODUCTION write shape (upsert = tokenized delete + add), so the
         // transaction log this run leaves behind is exactly what ships.
-        upsert_chunks_for_path(&table, secret_path, rows, SourceType::Text, "matter_a", PRIVILEGE_NONE, &TEST_KEY)
-            .await
-            .expect("upsert");
+        upsert_chunks_for_path(
+            &table,
+            secret_path,
+            rows,
+            SourceType::Text,
+            "matter_a",
+            PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .expect("upsert");
 
         // Read path first: the real path comes back via path_enc...
         let q = vec![0.10f32; EMBEDDING_DIM];
-        let hits = nearest(&table, &q, 5, Some("matter_a"), false, &[]).await.unwrap();
+        let hits = nearest(&table, &q, 5, Some("matter_a"), false, &[])
+            .await
+            .unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(stored_path(&hits[0]), secret_path);
         // ...while the raw queryable columns are opaque tokens.
@@ -3779,7 +4367,10 @@ mod tests {
         let needle = b"very-identifiable-client-name";
         let dataset_dir = dataset_path(dir.path());
         let mut files_scanned = 0usize;
-        for entry in walkdir::WalkDir::new(&dataset_dir).into_iter().filter_map(|e| e.ok()) {
+        for entry in walkdir::WalkDir::new(&dataset_dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
             if entry.file_type().is_file() {
                 let bytes = std::fs::read(entry.path()).unwrap_or_default();
                 files_scanned += 1;
@@ -3790,6 +4381,9 @@ mod tests {
                 );
             }
         }
-        assert!(files_scanned > 0, "expected to scan at least one on-disk LanceDB file");
+        assert!(
+            files_scanned > 0,
+            "expected to scan at least one on-disk LanceDB file"
+        );
     }
 }

@@ -29,6 +29,8 @@ import { Button, IconButton, SearchField, Chip, Badge, Eyebrow, Card } from '@/u
 import SurfaceHeader from '@/ui/SurfaceHeader';
 import { useClientMap } from '@/features/matters/useClientMap';
 import { ClientMapView } from '@/features/matters/ClientMapView';
+import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
+import { useNewNav } from '@/platform/flags/newNav';
 import { GuidedInterview } from '@/features/matters/GuidedInterview';
 import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
 import { ClientMapUpdatesTray } from '@/features/matters/ClientMapUpdatesTray';
@@ -77,6 +79,11 @@ function hasUpcomingDates(result: MatterAtAGlanceResult | null): boolean {
 
 const LABEL_START_INTERVIEW = 'Start the guided interview';
 const LABEL_YOUR_ANSWER_PROMPT = 'Your answer to:';
+// newNav shortcut-row labels (the relocated surfaces, kept reachable).
+const SHORTCUT_DOCUMENTS = 'Documents';
+const SHORTCUT_EMAIL = 'Email';
+const SHORTCUT_WORKFLOWS = 'Workflows';
+const SHORTCUT_ACTIVITY = 'Activity';
 
 // ── MatterHub ──────────────────────────────────────────────────────────────
 
@@ -93,6 +100,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
   });
   const { checkForUpdates } = clientMap;
   const matters = useMatters();
+  const newNav = useNewNav();
   const matter = matters.find((m) => m.id === matterId) ?? null;
   const isPrivileged = useActiveMatterPrivileged();
   const entityLabel = useEntityLabel();
@@ -270,7 +278,9 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
   };
 
   // ── Client Map handlers ──────────────────────────────────────────────────
-  const [showClientMap, setShowClientMap] = useState(false);
+  // newNav makes the Client Map the hero of the client-detail view, so it opens
+  // expanded (no "Open Client Map" step); the legacy hub keeps it collapsed.
+  const [showClientMap, setShowClientMap] = useState(newNav);
   const [showInterview, setShowInterview] = useState(false);
 
   // Open the EXACT cited source (the specific document, scrolled to the cited
@@ -452,7 +462,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
               value={askQ}
               onChange={(v: string) => { setAskQ(v); }}
               onClear={() => { setAskQ(''); }}
-              placeholder={`Search this ${entityLabel.one}...`}
+              placeholder={newNav ? `Ask this ${entityLabel.one}...` : `Search this ${entityLabel.one}...`}
               onKeyDown={handleAskKeyDown}
             />
           </div>
@@ -463,7 +473,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
             size="sm"
             onClick={handleAskSubmit}
           >
-            Search
+            {newNav ? 'Ask' : 'Search'}
           </Button>
         </div>
 
@@ -511,6 +521,12 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
         )}
       </div>
 
+      {/* Legacy hub only: the At-a-Glance grid + the four-panel (Documents /
+          Email / Workflows / Activity) grid. newNav hides BOTH and leads with
+          the Client Map as the hero; those capabilities stay reachable via the
+          slim shortcut row below + the gear menu — relocated, never removed. */}
+      {!newNav && (
+      <>
       {/* ── C. At a Glance ─────────────────────────────────────────────── */}
       <div
         style={{
@@ -894,6 +910,37 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
           </div>
         </Card>
       </div>
+      </>
+      )}
+
+      {/* newNav: a slim shortcut row keeps Documents / Email / Workflows /
+          Activity one click away (capabilities relocated, not removed) without
+          making them the primary view. The Client Map below is the hero. */}
+      {newNav && (
+        <div
+          data-testid="hub-shortcut-row"
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--kp-space-sm)', padding: 'var(--kp-surface-gap) var(--kp-gutter) 0' }}
+        >
+          {([
+            { id: 'files', label: SHORTCUT_DOCUMENTS, Icon: FileText, count: displayFolderPaths.length, testid: 'hub-shortcut-documents' },
+            { id: 'email', label: SHORTCUT_EMAIL, Icon: Mail, count: clientEmails.length, testid: 'hub-shortcut-email' },
+            { id: 'workflows', label: SHORTCUT_WORKFLOWS, Icon: GitBranch, count: null, testid: 'hub-shortcut-workflows' },
+            { id: 'audit', label: SHORTCUT_ACTIVITY, Icon: Clock, count: null, testid: 'hub-shortcut-activity' },
+          ] as { id: string; label: string; Icon: typeof FileText; count: number | null; testid: string }[]).map(({ id, label, Icon, count, testid }) => (
+            <button
+              key={id}
+              type="button"
+              data-testid={testid}
+              onClick={() => { dispatchLaunch(id); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: 'var(--color-background)', color: 'var(--kp-navy)', cursor: 'pointer', fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-medium)' }}
+            >
+              <Icon style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
+              <span>{label}</span>
+              {count !== null && <span style={{ color: 'var(--color-muted-foreground)' }}>{count}</span>}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── E. Client Map ──────────────────────────────────────────────── */}
       <div
@@ -916,19 +963,23 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
               <Map style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
               Client Map
             </Eyebrow>
-            <IconButton
-              icon={ChevronRight}
-              label="Open Client Map"
-              variant="ghost"
-              size="sm"
-              data-testid="hub-panel-clientmap-open"
-              onClick={() => {
-                if (!showClientMap && clientMap.status === 'idle') {
-                  void clientMap.generate();
-                }
-                setShowClientMap((v) => !v);
-              }}
-            />
+            {/* newNav keeps the Client Map permanently expanded as the hero, so
+                the collapse toggle is only shown on the legacy hub. */}
+            {!newNav && (
+              <IconButton
+                icon={ChevronRight}
+                label="Open Client Map"
+                variant="ghost"
+                size="sm"
+                data-testid="hub-panel-clientmap-open"
+                onClick={() => {
+                  if (!showClientMap && clientMap.status === 'idle') {
+                    void clientMap.generate();
+                  }
+                  setShowClientMap((v) => !v);
+                }}
+              />
+            )}
           </div>
 
           {/* Body — only shown when expanded */}
@@ -982,7 +1033,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
                   style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
                 >
                   {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                  No information found yet. Add documents or email to this matter first.
+                  No information found yet. Add documents or email to this client first.
                   {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                 </div>
               )}
@@ -1022,33 +1073,53 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
                       />
                     </div>
                   )}
-                  <ClientMapView
-                    map={clientMap.map}
-                    onOpenSource={handleOpenSource}
-                    onEditItem={handleEditItem}
-                    onAnswerQuestion={(gap) => {
-                      const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`);
-                      if (a != null && a.trim() !== '') {
-                        // File the answer in the section this gap question came from,
-                        // and mark the gap resolved so it stops being asked (BUG-106).
-                        answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
-                      }
-                    }}
-                    onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
-                  />
-                  <div style={{ marginTop: 12 }}>
-                    <ClientQuestionsList matterId={matterId} />
-                  </div>
+                  {newNav ? (
+                    // newNav: the redesigned tabbed Client Map panel absorbs the
+                    // questions list, the custom-section composer, and the
+                    // templates list — so they are NOT rendered separately here.
+                    <ClientMapPanel
+                      map={clientMap.map}
+                      onOpenSource={handleOpenSource}
+                      onEditItem={handleEditItem}
+                      onAnswerQuestion={(gap) => {
+                        const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`);
+                        if (a != null && a.trim() !== '') {
+                          answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
+                        }
+                      }}
+                      onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
+                    />
+                  ) : (
+                    <>
+                      <ClientMapView
+                        map={clientMap.map}
+                        onOpenSource={handleOpenSource}
+                        onEditItem={handleEditItem}
+                        onAnswerQuestion={(gap) => {
+                          const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`);
+                          if (a != null && a.trim() !== '') {
+                            // File the answer in the section this gap question came from,
+                            // and mark the gap resolved so it stops being asked (BUG-106).
+                            answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
+                          }
+                        }}
+                        onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
+                      />
+                      <div style={{ marginTop: 12 }}>
+                        <ClientQuestionsList matterId={matterId} />
+                      </div>
 
-                  {/* Add a custom section */}
-                  <div style={{ marginTop: 16, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
-                    <AddCustomSectionForm matterId={matterId} />
-                  </div>
+                      {/* Add a custom section */}
+                      <div style={{ marginTop: 16, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                        <AddCustomSectionForm matterId={matterId} />
+                      </div>
 
-                  {/* Save / apply templates */}
-                  <div style={{ marginTop: 16, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
-                    <ClientMapTemplates matterId={matterId} />
-                  </div>
+                      {/* Save / apply templates */}
+                      <div style={{ marginTop: 16, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                        <ClientMapTemplates matterId={matterId} />
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>

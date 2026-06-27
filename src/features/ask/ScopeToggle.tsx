@@ -3,6 +3,7 @@ import { Chip } from '@/ui/kp';
 import type { IconType } from '@/ui/kp';
 import type { AskScope } from './askHelpers';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useNewNav } from '@/platform/flags/newNav';
 
 /* -------------------------------------------------------------------------- */
 /* ScopeToggle — compact segmented pill control                                */
@@ -26,6 +27,7 @@ export function ScopeToggle({
   isSample: boolean;
 }) {
   const entityLabel = useEntityLabel();
+  const newNav = useNewNav();
   // Build the available options based on context.
   // Email/Documents hidden on the sample matter so demo chips stay prominent.
   const options: ScopeOptionDef[] = [
@@ -41,7 +43,7 @@ export function ScopeToggle({
     <div
       data-testid="scope-toggle"
       role="group"
-      aria-label="Search scope"
+      aria-label={newNav ? 'Ask scope' : 'Search scope'}
       style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
     >
       {options.map((opt) => (

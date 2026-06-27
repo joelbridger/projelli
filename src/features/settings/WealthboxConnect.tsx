@@ -15,7 +15,11 @@ import { useCrmSync } from '@/features/crm/useCrmSync';
 import { useCrmStore } from '@/features/crm/crmStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
-import { buildCrmMatterMap, resolveMatterForHousehold } from '@/platform/rag/matterResolver';
+import {
+  buildCrmMatterMap,
+  filterCrmMatterMapForProvider,
+  resolveMatterForHousehold,
+} from '@/platform/rag/matterResolver';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
@@ -25,13 +29,18 @@ export function WealthboxConnect() {
   const progress = useCrmStore((s) => s.progress);
 
   const [connected, setConnected] = useState(false);
-  const [connectedInfo, setConnectedInfo] = useState<CrmConnectInfo | null>(null);
+  const [connectedInfo, setConnectedInfo] = useState<CrmConnectInfo | null>(
+    null
+  );
   const [token, setToken] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [lastSyncReport, setLastSyncReport] = useState<{ householdsProcessed: number; recordsIndexed: number } | null>(null);
+  const [lastSyncReport, setLastSyncReport] = useState<{
+    householdsProcessed: number;
+    recordsIndexed: number;
+  } | null>(null);
   // Post-disconnect status note — honest about what was actually deleted.
   const [disconnectNote, setDisconnectNote] = useState<string | null>(null);
   // B3: true when disconnect could not fully remove imported data (or the key).
@@ -49,7 +58,9 @@ export function WealthboxConnect() {
 
   // Check connection on mount.
   useEffect(() => {
-    crmIsConnected().then(setConnected).catch(() => {});
+    crmIsConnected()
+      .then(setConnected)
+      .catch(() => {});
   }, []);
 
   // Mirror progress into syncing flag.
@@ -83,7 +94,11 @@ export function WealthboxConnect() {
       setToken('');
     } catch (err) {
       setConnectError(
-        typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not connect. Check your API key and try again.',
+        typeof err === 'string'
+          ? err
+          : err instanceof Error
+            ? err.message
+            : 'Could not connect. Check your API key and try again.'
       );
     } finally {
       setConnecting(false);
@@ -121,7 +136,7 @@ export function WealthboxConnect() {
           title: `Import ${String(count)} Wealthbox household${count === 1 ? '' : 's'}`,
           confirmLabel: 'Import',
           cancelLabel: 'Cancel',
-        },
+        }
       );
       if (!confirmed) return;
 
@@ -131,7 +146,11 @@ export function WealthboxConnect() {
       const currentMatters = getMatters();
       const claimedMatterIds = new Set<string>();
       for (const household of households) {
-        const resolution = resolveMatterForHousehold(currentMatters, household, claimedMatterIds);
+        const resolution = resolveMatterForHousehold(
+          currentMatters,
+          household,
+          claimedMatterIds
+        );
         if (resolution.action === 'link') {
           // Merge: attach this Wealthbox household to the matching file-client.
           addCrmHouseholdKey(resolution.matterId, household.id);
@@ -153,19 +172,31 @@ export function WealthboxConnect() {
 
       // Step 4: Build the household → matter map from the updated store and
       // kick off the backend sync.
-      const map = buildCrmMatterMap(getMatters());
+      const map = filterCrmMatterMapForProvider(
+        buildCrmMatterMap(getMatters()),
+        'wealthbox'
+      );
       const report = await crmSyncAll(map);
-      setLastSyncReport({ householdsProcessed: report.householdsProcessed, recordsIndexed: report.recordsIndexed });
+      setLastSyncReport({
+        householdsProcessed: report.householdsProcessed,
+        recordsIndexed: report.recordsIndexed,
+      });
     } catch (err) {
       // B2 rollback: undo the staged matter changes so a failed sync leaves no
       // phantom Wealthbox-linked clients behind.
       if (createdMatterIds.length > 0 || linkedKeys.length > 0) {
-        const { deleteMatter, removeCrmHouseholdKey } = useMatterStore.getState();
+        const { deleteMatter, removeCrmHouseholdKey } =
+          useMatterStore.getState();
         for (const id of createdMatterIds) deleteMatter(id);
-        for (const { matterId, key } of linkedKeys) removeCrmHouseholdKey(matterId, key);
+        for (const { matterId, key } of linkedKeys)
+          removeCrmHouseholdKey(matterId, key);
       }
       setSyncError(
-        typeof err === 'string' ? err : err instanceof Error ? err.message : 'Sync could not complete. Please try again.',
+        typeof err === 'string'
+          ? err
+          : err instanceof Error
+            ? err.message
+            : 'Sync could not complete. Please try again.'
       );
     } finally {
       setSyncing(false);
@@ -181,7 +212,7 @@ export function WealthboxConnect() {
         confirmLabel: 'Disconnect and delete',
         cancelLabel: 'Cancel',
         variant: 'destructive',
-      },
+      }
     );
     if (!confirmed) return;
     await runDisconnectPurge();
@@ -193,7 +224,11 @@ export function WealthboxConnect() {
    * repeatedly until the data and key are fully removed.
    */
   async function runDisconnectPurge() {
-    try { await crmCancelSync(); } catch { /* best-effort */ }
+    try {
+      await crmCancelSync();
+    } catch {
+      /* best-effort */
+    }
     setConnectError(null);
     setSyncError(null);
     try {
@@ -201,7 +236,8 @@ export function WealthboxConnect() {
 
       // `dataRemains` is authoritative when the backend provides it; older
       // backends omit it, so derive it from the purge booleans as a fallback.
-      const remains = result.dataRemains ?? !(result.ragPurged && result.crmDbPurged);
+      const remains =
+        result.dataRemains ?? !(result.ragPurged && result.crmDbPurged);
       const dataDeleted = !remains && result.ragPurged && result.crmDbPurged;
 
       // B3 safety: scrub the local CRM matter mappings ONLY after deletion is
@@ -213,10 +249,13 @@ export function WealthboxConnect() {
         useMatterStore.getState().scrubWealthboxFromMatters();
       }
 
-      const warn = result.warnings.length > 0 ? ` (${result.warnings.join('; ')})` : '';
+      const warn =
+        result.warnings.length > 0 ? ` (${result.warnings.join('; ')})` : '';
       if (dataDeleted && result.tokenDeleted) {
         setDataRemains(false);
-        setDisconnectNote('Disconnected and deleted the imported Wealthbox data from this device.');
+        setDisconnectNote(
+          'Disconnected and deleted the imported Wealthbox data from this device.'
+        );
         setConnected(false);
         setConnectedInfo(null);
         setLastSyncReport(null);
@@ -228,15 +267,23 @@ export function WealthboxConnect() {
           ? 'the Wealthbox key could not be removed'
           : 'some imported Wealthbox data could not be deleted yet';
         setDisconnectNote(
-          `Disconnect is not finished — ${reason}${warn}. Use “Finish deleting local data” to try again.`,
+          `Disconnect is not finished — ${reason}${warn}. Use “Finish deleting local data” to try again.`
         );
-        crmIsConnected().then(setConnected).catch(() => {});
+        crmIsConnected()
+          .then(setConnected)
+          .catch(() => {});
       }
     } catch (err) {
       setConnectError(
-        typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not disconnect. Please try again.',
+        typeof err === 'string'
+          ? err
+          : err instanceof Error
+            ? err.message
+            : 'Could not disconnect. Please try again.'
       );
-      crmIsConnected().then(setConnected).catch(() => {});
+      crmIsConnected()
+        .then(setConnected)
+        .catch(() => {});
     }
   }
 
@@ -259,7 +306,8 @@ export function WealthboxConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900">Wealthbox</h3>
         <p className="mt-1 text-sm text-slate-600">
-          Connect your Wealthbox account to bring client household data into your Client Maps. Requires the Keepance desktop app.
+          Connect your Wealthbox account to bring client household data into
+          your Client Maps. Requires the Keepance desktop app.
         </p>
         <p className="mt-3 text-xs text-slate-400 italic">
           Available in the desktop app only.
@@ -273,7 +321,8 @@ export function WealthboxConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900">Wealthbox</h3>
         <p className="mt-1 text-sm text-slate-600">
-          Connect your Wealthbox account to bring client household data into your Client Maps. Keepance imports what this Wealthbox login can see.
+          Connect your Wealthbox account to bring client household data into
+          your Client Maps. Keepance imports what this Wealthbox login can see.
         </p>
 
         {/* B3: disconnect didn't fully remove the data/key — keep a visible retry
@@ -285,7 +334,8 @@ export function WealthboxConnect() {
             className="mt-3 space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3"
           >
             <p className="text-sm text-amber-900">
-              {disconnectNote ?? 'Some imported Wealthbox data could not be deleted yet.'}
+              {disconnectNote ??
+                'Some imported Wealthbox data could not be deleted yet.'}
             </p>
             <button
               type="button"
@@ -306,17 +356,22 @@ export function WealthboxConnect() {
             )}
 
             <p className="text-xs text-slate-500">
-              Paste your Wealthbox API key below. You can find it in Wealthbox under Settings &gt; API Access.
+              Paste your Wealthbox API key below. You can find it in Wealthbox
+              under Settings &gt; API Access.
             </p>
 
             <input
               type="password"
               value={token}
-              onChange={(e) => { setToken(e.target.value); }}
+              onChange={(e) => {
+                setToken(e.target.value);
+              }}
               placeholder="Wealthbox API key"
               className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
               autoComplete="off"
-              onKeyDown={(e) => { if (e.key === 'Enter') void connect(); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void connect();
+              }}
             />
 
             {connectError && (
@@ -338,15 +393,20 @@ export function WealthboxConnect() {
           <div className="mt-3 space-y-2 text-sm text-slate-700">
             <p className="font-medium text-green-700">
               Connected
-              {connectedInfo ? ` to ${connectedInfo.name}${connectedInfo.plan ? ` (${connectedInfo.plan})` : ''}` : ''}.
+              {connectedInfo
+                ? ` to ${connectedInfo.name}${connectedInfo.plan ? ` (${connectedInfo.plan})` : ''}`
+                : ''}
+              .
             </p>
 
             {syncing && progress?.status === 'syncing' && (
               <div className="flex items-center gap-3">
                 <p>
                   Syncing...
-                  {progress.households !== undefined && ` ${String(progress.households)} households`}
-                  {progress.records !== undefined && `, ${String(progress.records)} records`}
+                  {progress.households !== undefined &&
+                    ` ${String(progress.households)} households`}
+                  {progress.records !== undefined &&
+                    `, ${String(progress.records)} records`}
                 </p>
                 <button
                   type="button"
@@ -360,7 +420,10 @@ export function WealthboxConnect() {
 
             {!syncing && progress?.status === 'done' && lastSyncReport && (
               <p className="text-slate-600">
-                Sync complete: {lastSyncReport.householdsProcessed.toLocaleString()} households, {lastSyncReport.recordsIndexed.toLocaleString()} records indexed.
+                Sync complete:{' '}
+                {lastSyncReport.householdsProcessed.toLocaleString()}{' '}
+                households, {lastSyncReport.recordsIndexed.toLocaleString()}{' '}
+                records indexed.
               </p>
             )}
             {!syncing && progress?.status === 'done' && !lastSyncReport && (
@@ -374,14 +437,12 @@ export function WealthboxConnect() {
               </p>
             )}
             {progress?.status === 'error' && (
-              <p className="text-red-700">Sync ran into a problem. Try again.</p>
+              <p className="text-red-700">
+                Sync ran into a problem. Try again.
+              </p>
             )}
-            {syncError && (
-              <p className="text-red-700">{syncError}</p>
-            )}
-            {connectError && (
-              <p className="text-red-700">{connectError}</p>
-            )}
+            {syncError && <p className="text-red-700">{syncError}</p>}
+            {connectError && <p className="text-red-700">{connectError}</p>}
 
             <div className="flex items-center gap-2 pt-1">
               <button
