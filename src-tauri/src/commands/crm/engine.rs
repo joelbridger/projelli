@@ -26,7 +26,7 @@ use std::path::Path;
 use sha2::{Digest, Sha256};
 
 use crate::commands::crm::model::{
-    CrmContact, CrmEvent, CrmLink, CrmNote, CrmRecordProvider, CrmTask,
+    CrmContact, CrmEvent, CrmLink, CrmNote, CrmRecordProvider, CrmTask, crm_key_belongs_to_provider,
 };
 use crate::commands::crm::render::{
     render_contact, render_event, render_household_summary, render_note, render_task,
@@ -96,6 +96,17 @@ pub struct SyncReport {
 pub fn content_hash(json: &str) -> String {
     let hash = Sha256::digest(json.as_bytes());
     hex::encode(hash)
+}
+
+pub(crate) fn provider_scoped_matter_map(
+    matter_map: &HashMap<String, String>,
+    provider_id: &str,
+) -> HashMap<String, String> {
+    matter_map
+        .iter()
+        .filter(|(grouping_key, _)| crm_key_belongs_to_provider(grouping_key, provider_id))
+        .map(|(grouping_key, matter_id)| (grouping_key.clone(), matter_id.clone()))
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -575,6 +586,7 @@ pub async fn backfill(
 
     let mut report = SyncReport::default();
     let provider_id = source.provider_id();
+    let provider_matter_map = provider_scoped_matter_map(matter_map, provider_id);
 
     // Phase 1: ingest everything into the store.
     report.ingest = ingest(source, store).await?;
@@ -602,7 +614,7 @@ pub async fn backfill(
     // both fixes that and cuts commits. BTreeMap → deterministic order.
     let mut by_matter: std::collections::BTreeMap<String, Vec<String>> =
         std::collections::BTreeMap::new();
-    for (grouping_key, matter_id) in matter_map {
+    for (grouping_key, matter_id) in &provider_matter_map {
         by_matter
             .entry(matter_id.clone())
             .or_default()
@@ -946,6 +958,47 @@ mod tests {
             "contact:sfdc:003CC0000000002AAA",
             "wealthbox"
         ));
+    }
+
+    #[test]
+    fn backfill_scopes_matter_map_to_current_provider_keys() {
+        let mixed_map: std::collections::HashMap<String, String> = [
+            ("10001".to_string(), "matter-wealthbox".to_string()),
+            (
+                "sfdc:001HH0000000001AAA".to_string(),
+                "matter-salesforce".to_string(),
+            ),
+            (
+                "redtail:rt-household".to_string(),
+                "matter-redtail".to_string(),
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        let salesforce_map = provider_scoped_matter_map(&mixed_map, "salesforce");
+        assert_eq!(salesforce_map.len(), 1);
+        assert_eq!(
+            salesforce_map
+                .get("sfdc:001HH0000000001AAA")
+                .map(String::as_str),
+            Some("matter-salesforce")
+        );
+        assert!(
+            !salesforce_map.contains_key("10001"),
+            "Salesforce sync must not plan legacy Wealthbox household keys"
+        );
+        assert!(
+            !salesforce_map.contains_key("redtail:rt-household"),
+            "Salesforce sync must not plan Redtail household keys"
+        );
+
+        let wealthbox_map = provider_scoped_matter_map(&mixed_map, "wealthbox");
+        assert_eq!(wealthbox_map.len(), 1);
+        assert_eq!(
+            wealthbox_map.get("10001").map(String::as_str),
+            Some("matter-wealthbox")
+        );
     }
 
     // ── Test: ingest ──────────────────────────────────────────────────────────

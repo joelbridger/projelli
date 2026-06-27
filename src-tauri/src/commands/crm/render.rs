@@ -8,7 +8,7 @@
 //! The engine (Plan 1B.4) calls these and passes the resulting text to
 //! `index_crm_text_internal` for embedding + storage.
 
-use crate::commands::crm::model::{CrmContact, CrmEvent, CrmNote, CrmTask};
+use crate::commands::crm::model::{CrmContact, CrmEvent, CrmNote, CrmRecordProvider, CrmTask};
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -67,6 +67,14 @@ fn append_json_val(buf: &mut String, label: &str, v: &Option<serde_json::Value>)
     }
 }
 
+fn provider_label(provider: CrmRecordProvider) -> &'static str {
+    match provider {
+        CrmRecordProvider::Wealthbox => "Wealthbox",
+        CrmRecordProvider::Salesforce => "Salesforce",
+        CrmRecordProvider::Redtail => "Redtail",
+    }
+}
+
 /// Build a display name from individual name parts, joining only those that
 /// are non-empty.
 fn build_full_name(prefix: &str, first: &str, middle: &str, last: &str, suffix: &str) -> String {
@@ -107,7 +115,11 @@ pub fn render_contact(c: &CrmContact) -> (String, String) {
     } else {
         format!("(id {})", c.id)
     };
-    text.push_str(&format!("Wealthbox contact: {}\n", display_name));
+    text.push_str(&format!(
+        "{} contact: {}\n",
+        provider_label(c.source_provider),
+        display_name
+    ));
 
     // Identity extras
     append_line(&mut text, "Nickname", &c.nickname);
@@ -251,7 +263,11 @@ pub fn render_note(n: &CrmNote) -> (String, String) {
     };
 
     let mut text = String::new();
-    text.push_str(&format!("Wealthbox note ({}):\n", date));
+    text.push_str(&format!(
+        "{} note ({}):\n",
+        provider_label(n.source_provider),
+        date
+    ));
     if !n.content.trim().is_empty() {
         text.push_str(n.content.trim());
         text.push('\n');
@@ -269,9 +285,13 @@ pub fn render_task(t: &CrmTask) -> (String, String) {
     let mut text = String::new();
 
     let header = if !t.name.trim().is_empty() {
-        format!("Wealthbox task: {}\n", t.name.trim())
+        format!(
+            "{} task: {}\n",
+            provider_label(t.source_provider),
+            t.name.trim()
+        )
     } else {
-        format!("Wealthbox task (id {})\n", t.id)
+        format!("{} task (id {})\n", provider_label(t.source_provider), t.id)
     };
     text.push_str(&header);
 
@@ -294,9 +314,17 @@ pub fn render_event(e: &CrmEvent) -> (String, String) {
     let mut text = String::new();
 
     let header = if !e.title.trim().is_empty() {
-        format!("Wealthbox event: {}\n", e.title.trim())
+        format!(
+            "{} event: {}\n",
+            provider_label(e.source_provider),
+            e.title.trim()
+        )
     } else {
-        format!("Wealthbox event (id {})\n", e.id)
+        format!(
+            "{} event (id {})\n",
+            provider_label(e.source_provider),
+            e.id
+        )
     };
     text.push_str(&header);
 
@@ -825,5 +853,43 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn salesforce_records_render_salesforce_label_not_wealthbox() {
+        let contact = CrmContact {
+            id: 1,
+            external_id: "sfdc:003CC0000000002AAA".to_string(),
+            source_provider: CrmRecordProvider::Salesforce,
+            first_name: "Robert".to_string(),
+            last_name: "Anderson".to_string(),
+            ..Default::default()
+        };
+        let (_source_id, contact_text) = render_contact(&contact);
+        assert!(contact_text.starts_with("Salesforce contact: Robert Anderson"));
+        assert!(!contact_text.contains("Wealthbox contact"));
+
+        let note = CrmNote {
+            id: 2,
+            external_id: "sfdc:note-2".to_string(),
+            source_provider: CrmRecordProvider::Salesforce,
+            created_at: "2026-06-27".to_string(),
+            content: "Imported from Salesforce.".to_string(),
+            ..Default::default()
+        };
+        let (_source_id, note_text) = render_note(&note);
+        assert!(note_text.starts_with("Salesforce note (2026-06-27):"));
+        assert!(!note_text.contains("Wealthbox note"));
+
+        let event = CrmEvent {
+            id: 3,
+            external_id: "sfdc:event-3".to_string(),
+            source_provider: CrmRecordProvider::Salesforce,
+            title: "Annual Review".to_string(),
+            ..Default::default()
+        };
+        let (_source_id, event_text) = render_event(&event);
+        assert!(event_text.starts_with("Salesforce event: Annual Review"));
+        assert!(!event_text.contains("Wealthbox event"));
     }
 }
