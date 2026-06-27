@@ -73,6 +73,14 @@ pub struct SourceKey {
     pub item_id: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FolderKeyParts {
+    pub account: String,
+    pub site_id: Option<String>,
+    pub drive_id: String,
+    pub path: String,
+}
+
 impl DriveItem {
     pub fn is_file(&self) -> bool {
         self.file.is_some() && self.deleted.is_none()
@@ -193,6 +201,32 @@ pub fn folder_key(account: &str, site_id: Option<&str>, drive_id: &str, path: &s
     }
 }
 
+pub fn parse_folder_key(key: &str) -> Option<FolderKeyParts> {
+    let (prefix, path) = key.rsplit_once(':')?;
+    let parts: Vec<&str> = prefix.split('/').collect();
+    let (account, site_id, drive_id) = match parts.as_slice() {
+        ["m365", account, drive_id] if !account.is_empty() && !drive_id.is_empty() => {
+            ((*account).to_string(), None, (*drive_id).to_string())
+        }
+        ["m365", account, site_id, drive_id]
+            if !account.is_empty() && !site_id.is_empty() && !drive_id.is_empty() =>
+        {
+            (
+                (*account).to_string(),
+                Some((*site_id).to_string()),
+                (*drive_id).to_string(),
+            )
+        }
+        _ => return None,
+    };
+    Some(FolderKeyParts {
+        account,
+        site_id,
+        drive_id,
+        path: normalize_cloud_path(path),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -222,5 +256,28 @@ mod tests {
             item.source_key().source_id,
             "sharepoint:site-1:drive-1:item-1"
         );
+    }
+
+    #[test]
+    fn parses_personal_and_sharepoint_folder_keys() {
+        assert_eq!(
+            parse_folder_key("m365/default/drive-a:/Clients/Acme"),
+            Some(FolderKeyParts {
+                account: "default".into(),
+                site_id: None,
+                drive_id: "drive-a".into(),
+                path: "/clients/acme".into(),
+            })
+        );
+        assert_eq!(
+            parse_folder_key("m365/default/site-1/drive-b:/Shared/Docs"),
+            Some(FolderKeyParts {
+                account: "default".into(),
+                site_id: Some("site-1".into()),
+                drive_id: "drive-b".into(),
+                path: "/shared/docs".into(),
+            })
+        );
+        assert!(parse_folder_key("bad/default/drive:/x").is_none());
     }
 }

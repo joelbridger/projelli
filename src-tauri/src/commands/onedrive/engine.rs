@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use sha2::{Digest, Sha256};
 
 use crate::commands::onedrive::model::{
-    parent_folder_path, DriveItem, OneDriveMatterMapEntry, DEFAULT_ACCOUNT,
+    parent_folder_path, parse_folder_key, DriveItem, OneDriveMatterMapEntry, DEFAULT_ACCOUNT,
 };
 use crate::commands::onedrive::source::{is_delta_gone, DocumentSource};
 use crate::commands::onedrive::store::OneDriveStore;
@@ -32,6 +32,21 @@ pub struct OneDriveSyncReport {
     pub cancelled: bool,
 }
 
+impl OneDriveSyncReport {
+    pub fn merge_from(&mut self, other: OneDriveSyncReport) {
+        self.seen += other.seen;
+        self.downloaded += other.downloaded;
+        self.indexed += other.indexed;
+        self.skipped_unchanged += other.skipped_unchanged;
+        self.removed += other.removed;
+        self.pending_pdf += other.pending_pdf;
+        self.unsupported += other.unsupported;
+        self.repaired += other.repaired;
+        self.delta_reset |= other.delta_reset;
+        self.cancelled |= other.cancelled;
+    }
+}
+
 pub fn content_hash(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }
@@ -42,18 +57,17 @@ pub fn resolve_matter_for_item(item: &DriveItem, matter_map: &[OneDriveMatterMap
     let folder_path = parent_folder_path(item);
     let mut best: Option<(&str, usize)> = None;
     for entry in matter_map {
-        let Some((prefix, mapped_path)) = parse_folder_key(&entry.folder_key) else {
+        let Some(parts) = parse_folder_key(&entry.folder_key) else {
             continue;
         };
-        let expected_prefix = match site_id.as_deref() {
-            Some(site) => format!("m365/{DEFAULT_ACCOUNT}/{site}/{drive_id}"),
-            None => format!("m365/{DEFAULT_ACCOUNT}/{drive_id}"),
-        };
-        if prefix != expected_prefix {
+        if parts.account != DEFAULT_ACCOUNT
+            || parts.drive_id != drive_id
+            || parts.site_id.as_deref() != site_id.as_deref()
+        {
             continue;
         }
-        if path_prefix_matches(&folder_path, &mapped_path) {
-            let len = mapped_path.len();
+        if path_prefix_matches(&folder_path, &parts.path) {
+            let len = parts.path.len();
             if best.map(|(_, best_len)| len > best_len).unwrap_or(true) {
                 best = Some((entry.matter_id.as_str(), len));
             }
@@ -61,14 +75,6 @@ pub fn resolve_matter_for_item(item: &DriveItem, matter_map: &[OneDriveMatterMap
     }
     best.map(|(matter_id, _)| matter_id.to_string())
         .unwrap_or_else(|| UNASSIGNED_MATTER.to_string())
-}
-
-fn parse_folder_key(key: &str) -> Option<(String, String)> {
-    let (prefix, path) = key.rsplit_once(':')?;
-    Some((
-        prefix.to_string(),
-        crate::commands::onedrive::model::normalize_cloud_path(path),
-    ))
 }
 
 fn path_prefix_matches(path: &str, folder: &str) -> bool {
@@ -131,10 +137,14 @@ pub async fn sync_documents(
             .as_ref()
             .map(|row| !row.indexed && !row.pending_pdf)
             .unwrap_or(false);
-        if existing
-            .as_ref()
-            .map(|row| row.remote_signature == remote_signature && row.indexed)
-            .unwrap_or(false)
+        if existing.as_ref().map(|row| {
+            row.remote_signature == remote_signature
+                && row.indexed
+                && row.matter_id == matter_id
+                && row.parent_path == parent_path
+                && row.drive_id == key.drive_id
+                && row.site_id == key.site_id
+        }).unwrap_or(false)
         {
             report.skipped_unchanged += 1;
             continue;
@@ -231,6 +241,13 @@ pub async fn sync_documents(
                 )?;
                 report.unsupported += 1;
             }
+            DownloadedDocumentIndexOutcome::Cancelled => {
+                if existing.is_some() {
+                    store.mark_needs_index(&key.source_id)?;
+                }
+                report.cancelled = true;
+                break;
+            }
         }
     }
 
@@ -260,19 +277,24 @@ mod tests {
     use crate::commands::onedrive::source::DocumentSource;
     use crate::commands::rag::embedder::EMBEDDING_DIM;
     use async_trait::async_trait;
+    use std::sync::Arc;
     use tempfile::TempDir;
 
     struct FakeSource {
+        root_key: String,
         pages: tokio::sync::Mutex<Vec<anyhow::Result<DeltaPage>>>,
         downloads: tokio::sync::Mutex<HashMap<String, Vec<u8>>>,
+        cancel_on_download: Option<Arc<AtomicBool>>,
         download_count: AtomicU32,
     }
 
     impl FakeSource {
         fn new(page: DeltaPage) -> Self {
             Self {
+                root_key: "m365/default/me".to_string(),
                 pages: tokio::sync::Mutex::new(vec![Ok(page)]),
                 downloads: tokio::sync::Mutex::new(HashMap::new()),
+                cancel_on_download: None,
                 download_count: AtomicU32::new(0),
             }
         }
@@ -285,10 +307,22 @@ mod tests {
             self
         }
 
+        fn with_root_key(mut self, root_key: &str) -> Self {
+            self.root_key = root_key.to_string();
+            self
+        }
+
+        fn with_cancel_on_download(mut self, cancel: Arc<AtomicBool>) -> Self {
+            self.cancel_on_download = Some(cancel);
+            self
+        }
+
         fn with_pages(pages: Vec<anyhow::Result<DeltaPage>>) -> Self {
             Self {
+                root_key: "m365/default/me".to_string(),
                 pages: tokio::sync::Mutex::new(pages),
                 downloads: tokio::sync::Mutex::new(HashMap::new()),
+                cancel_on_download: None,
                 download_count: AtomicU32::new(0),
             }
         }
@@ -297,7 +331,7 @@ mod tests {
     #[async_trait]
     impl DocumentSource for FakeSource {
         fn root_key(&self) -> String {
-            "m365/default/me".to_string()
+            self.root_key.clone()
         }
         async fn list_drives(
             &self,
@@ -326,6 +360,9 @@ mod tests {
             item_id: &str,
         ) -> anyhow::Result<Vec<u8>> {
             self.download_count.fetch_add(1, Ordering::SeqCst);
+            if let Some(cancel) = &self.cancel_on_download {
+                cancel.store(true, Ordering::SeqCst);
+            }
             self.downloads
                 .lock()
                 .await
@@ -438,11 +475,15 @@ mod tests {
             ..Default::default()
         };
         let source = FakeSource::new(page);
+        let matter_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
+            matter_id: "matter-a".into(),
+        }];
         let report = sync_documents(
             &source,
             &store,
             dir.path(),
-            &[],
+            &matter_map,
             &AtomicBool::new(false),
             &[0x55; 32],
             &AtomicU32::new(0),
@@ -701,5 +742,232 @@ mod tests {
         assert_eq!(hit.source_type.as_deref(), Some("onedrive"));
         assert_eq!(hit.matter_id.as_deref(), Some("matter-a"));
         assert!(decrypt_hit_text(hit, &rag_key).contains("Acme household"));
+    }
+
+    #[tokio::test]
+    async fn remapped_unchanged_item_reindexes_chunks_under_new_matter() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let rag_key = [0x5a; 32];
+        let first_page = DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "memo.txt",
+                "drive-a",
+                "/drive/root:/Clients/Acme",
+                "same-sig",
+            )],
+            delta_link: Some("delta-a".into()),
+            ..Default::default()
+        };
+        let first_source = FakeSource::new(first_page)
+            .with_download("item-1", b"Confidential OneDrive planning memo for remap.")
+            .await;
+        let first_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
+            matter_id: "matter-a".into(),
+        }];
+        sync_documents(
+            &first_source,
+            &store,
+            dir.path(),
+            &first_map,
+            &AtomicBool::new(false),
+            &rag_key,
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+
+        let second_page = DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "memo.txt",
+                "drive-a",
+                "/drive/root:/Clients/Acme",
+                "same-sig",
+            )],
+            delta_link: Some("delta-b".into()),
+            ..Default::default()
+        };
+        let second_source = FakeSource::new(second_page)
+            .with_download("item-1", b"Confidential OneDrive planning memo for remap.")
+            .await;
+        let second_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
+            matter_id: "matter-b".into(),
+        }];
+        let report = sync_documents(
+            &second_source,
+            &store,
+            dir.path(),
+            &second_map,
+            &AtomicBool::new(false),
+            &rag_key,
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(report.skipped_unchanged, 0);
+        assert_eq!(report.downloaded, 1);
+        assert_eq!(second_source.download_count.load(Ordering::SeqCst), 1);
+        let row = store.get_item("onedrive:drive-a:item-1").unwrap().unwrap();
+        assert_eq!(row.matter_id, "matter-b");
+
+        let conn = rag_store::open_connection(dir.path()).await.unwrap();
+        let table = rag_store::open_or_create_table(&conn).await.unwrap();
+        let old_matter_hits = rag_store::nearest(
+            &table,
+            &vec![0.1f32; EMBEDDING_DIM],
+            5,
+            Some("matter-a"),
+            false,
+            &[],
+        )
+        .await
+        .unwrap();
+        assert!(
+            old_matter_hits
+                .iter()
+                .all(|h| decrypt_hit_path(h, &rag_key) != "onedrive:drive-a:item-1"),
+            "remap must remove the old matter's encrypted OneDrive chunks"
+        );
+        let new_matter_hits = rag_store::nearest(
+            &table,
+            &vec![0.1f32; EMBEDDING_DIM],
+            5,
+            Some("matter-b"),
+            false,
+            &[],
+        )
+        .await
+        .unwrap();
+        assert!(
+            new_matter_hits
+                .iter()
+                .any(|h| decrypt_hit_path(h, &rag_key) == "onedrive:drive-a:item-1"),
+            "remapped OneDrive chunks must be retrievable only under the new matter"
+        );
+    }
+
+    #[tokio::test]
+    async fn non_default_drive_source_uses_its_own_cursor_and_indexes_mapping() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let page = DeltaPage {
+            value: vec![file_item(
+                "item-99",
+                "shared.txt",
+                "drive-shared",
+                "/drive/root:/Clients/Shared",
+                "v1",
+            )],
+            delta_link: Some("delta-shared".into()),
+            ..Default::default()
+        };
+        let source = FakeSource::new(page)
+            .with_root_key("m365/default/drive-shared")
+            .with_download("item-99", b"Shared drive matter note from OneDrive.")
+            .await;
+        let matter_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-shared", "/clients/shared"),
+            matter_id: "matter-shared".into(),
+        }];
+
+        let report = sync_documents(
+            &source,
+            &store,
+            dir.path(),
+            &matter_map,
+            &AtomicBool::new(false),
+            &[0x5b; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(report.downloaded, 1);
+        assert!(report.indexed > 0);
+        assert_eq!(
+            store
+                .get_cursor("m365/default/drive-shared")
+                .unwrap()
+                .as_deref(),
+            Some("delta-shared")
+        );
+        assert!(store.get_cursor("m365/default/me").unwrap().is_none());
+        assert_eq!(
+            store
+                .get_item("onedrive:drive-shared:item-99")
+                .unwrap()
+                .unwrap()
+                .matter_id,
+            "matter-shared"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelled_downloaded_index_does_not_mark_item_indexed_or_advance_cursor() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        store.set_cursor("m365/default/me", "old-delta").unwrap();
+        store
+            .upsert_item(
+                "onedrive:drive-a:item-1",
+                "drive-a",
+                None,
+                "item-1",
+                "memo.txt",
+                "/clients/acme",
+                None,
+                "old-sig|||0",
+                "hash",
+                "matter-a",
+                true,
+                false,
+            )
+            .unwrap();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let page = DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "memo.txt",
+                "drive-a",
+                "/drive/root:/Clients/Acme",
+                "new-sig",
+            )],
+            delta_link: Some("new-delta".into()),
+            ..Default::default()
+        };
+        let source = FakeSource::new(page)
+            .with_cancel_on_download(cancel.clone())
+            .with_download("item-1", b"Cancelled OneDrive note should retry.")
+            .await;
+        let matter_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
+            matter_id: "matter-a".into(),
+        }];
+
+        let report = sync_documents(
+            &source,
+            &store,
+            dir.path(),
+            &matter_map,
+            &cancel,
+            &[0x5c; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+
+        assert!(report.cancelled);
+        assert_eq!(
+            store.get_cursor("m365/default/me").unwrap().as_deref(),
+            Some("old-delta")
+        );
+        let row = store.get_item("onedrive:drive-a:item-1").unwrap().unwrap();
+        assert!(!row.indexed, "cancelled item must retry on the next sync");
+        assert_eq!(row.remote_signature, "old-sig|||0");
     }
 }

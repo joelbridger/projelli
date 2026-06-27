@@ -232,6 +232,7 @@ pub enum DownloadedDocumentIndexOutcome {
     Indexed(u32),
     PendingPdf,
     Unsupported,
+    Cancelled,
 }
 
 /// Additive helper for document connectors that download bytes from an external
@@ -256,7 +257,7 @@ pub async fn index_downloaded_document_bytes(
 
     if let Some(flag) = cancel {
         if flag.load(Ordering::SeqCst) {
-            return Ok(DownloadedDocumentIndexOutcome::Indexed(0));
+            return Ok(DownloadedDocumentIndexOutcome::Cancelled);
         }
     }
 
@@ -299,10 +300,12 @@ pub async fn index_downloaded_document_bytes(
         return Ok(DownloadedDocumentIndexOutcome::Indexed(0));
     }
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-    let vectors = embedder::embed_documents_batched(&texts, cancel)
+    let Some(vectors) = embedder::embed_documents_batched(&texts, cancel)
         .await
         .context("embed downloaded document chunks")?
-        .unwrap_or_default();
+    else {
+        return Ok(DownloadedDocumentIndexOutcome::Cancelled);
+    };
     let rows: Vec<(chunker::Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
     if rows.is_empty() {
         return Ok(DownloadedDocumentIndexOutcome::Indexed(0));
@@ -2777,6 +2780,33 @@ mod tests {
         // VG-2: the OCR disclosure crosses IPC camel-cased.
         assert!(s.contains("\"extraction\":\"ocr\""), "got {}", s);
         assert!(s.contains("\"extractionConfidence\":48.5"), "got {}", s);
+    }
+
+    #[tokio::test]
+    async fn downloaded_document_cancel_returns_cancelled_not_indexed_zero() {
+        let workspace = tempfile::tempdir().expect("workspace tempdir");
+        let conn = store::open_connection(workspace.path())
+            .await
+            .expect("open vector store");
+        let table = store::open_or_create_table(&conn)
+            .await
+            .expect("open chunks table");
+        let cancel = AtomicBool::new(true);
+
+        let outcome = index_downloaded_document_bytes(
+            &table,
+            "onedrive:drive:item",
+            "memo.txt",
+            b"this should not be embedded",
+            "matter-a",
+            store::PRIVILEGE_NONE,
+            &[0x23; 32],
+            Some(&cancel),
+        )
+        .await
+        .expect("cancelled index returns cleanly");
+
+        assert_eq!(outcome, DownloadedDocumentIndexOutcome::Cancelled);
     }
 
     #[test]

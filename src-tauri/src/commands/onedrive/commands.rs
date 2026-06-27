@@ -3,12 +3,14 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 
 use serde::Serialize;
+use std::collections::BTreeSet;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::onedrive::client::OneDriveClient;
 use crate::commands::onedrive::engine::{sync_documents, OneDriveSyncReport};
 use crate::commands::onedrive::model::{
-    folder_key, item_folder_path, Drive, DriveItem, OneDriveMatterMapEntry, DEFAULT_ACCOUNT,
+    folder_key, item_folder_path, parse_folder_key, Drive, DriveItem, OneDriveMatterMapEntry,
+    DEFAULT_ACCOUNT,
 };
 use crate::commands::onedrive::oauth::{OAuth, TokenOutcome};
 use crate::commands::onedrive::source::GraphDocumentSource;
@@ -245,13 +247,18 @@ async fn collect_folders(
     items: Vec<DriveItem>,
     out: &mut Vec<OneDriveFolderDto>,
 ) -> Result<(), String> {
-    let mut stack: Vec<DriveItem> = items.into_iter().filter(|i| i.is_folder()).collect();
-    while let Some(item) = stack.pop() {
+    let mut stack: Vec<(DriveItem, Option<String>)> = items
+        .into_iter()
+        .filter(|i| i.is_folder())
+        .map(|i| (i, site_id.clone()))
+        .collect();
+    while let Some((item, inherited_site_id)) = stack.pop() {
+        let item_site_id = item.site_id().or(inherited_site_id);
         let path = item_folder_path(&item);
         out.push(OneDriveFolderDto {
-            key: folder_key(DEFAULT_ACCOUNT, site_id.as_deref(), drive_id, &path),
+            key: folder_key(DEFAULT_ACCOUNT, item_site_id.as_deref(), drive_id, &path),
             drive_id: drive_id.to_string(),
-            site_id: site_id.clone(),
+            site_id: item_site_id.clone(),
             item_id: item.id.clone(),
             name: item.name.clone(),
             path: path.clone(),
@@ -260,9 +267,29 @@ async fn collect_folders(
             .list_children(drive_id, &item.id)
             .await
             .map_err(|e| e.to_string())?;
-        stack.extend(children.into_iter().filter(|child| child.is_folder()));
+        stack.extend(
+            children
+                .into_iter()
+                .filter(|child| child.is_folder())
+                .map(|child| (child, item_site_id.clone())),
+        );
     }
     Ok(())
+}
+
+fn sync_drive_ids(matter_map: &[OneDriveMatterMapEntry], available_drives: &[Drive]) -> Vec<String> {
+    let mut drive_ids = BTreeSet::new();
+    for drive in available_drives {
+        if !drive.id.trim().is_empty() {
+            drive_ids.insert(drive.id.clone());
+        }
+    }
+    for entry in matter_map {
+        if let Some(parts) = parse_folder_key(&entry.folder_key) {
+            drive_ids.insert(parts.drive_id);
+        }
+    }
+    drive_ids.into_iter().collect()
 }
 
 #[tauri::command]
@@ -314,17 +341,62 @@ pub async fn onedrive_sync(
         }
     });
 
-    let source = GraphDocumentSource::new(token);
-    let result = sync_documents(
-        &source,
-        &store,
-        &workspace,
-        &matter_map,
-        &state.cancel,
-        &rag_key,
-        &state.progress_seen,
-    )
-    .await;
+    let available_drives = OneDriveClient::new(token.clone())
+        .list_drives()
+        .await
+        .unwrap_or_default();
+    let drive_ids = sync_drive_ids(&matter_map, &available_drives);
+    let mut merged_report = OneDriveSyncReport::default();
+    let result = if drive_ids.is_empty() {
+        let source = GraphDocumentSource::new(token);
+        sync_documents(
+            &source,
+            &store,
+            &workspace,
+            &matter_map,
+            &state.cancel,
+            &rag_key,
+            &state.progress_seen,
+        )
+        .await
+        .map(|report| {
+            merged_report.merge_from(report);
+            merged_report
+        })
+    } else {
+        let mut result = Ok(());
+        for drive_id in drive_ids {
+            if state.cancel.load(Ordering::SeqCst) {
+                merged_report.cancelled = true;
+                break;
+            }
+            let source = GraphDocumentSource::new_for_drive(token.clone(), drive_id);
+            match sync_documents(
+                &source,
+                &store,
+                &workspace,
+                &matter_map,
+                &state.cancel,
+                &rag_key,
+                &state.progress_seen,
+            )
+            .await
+            {
+                Ok(report) => {
+                    let cancelled = report.cancelled;
+                    merged_report.merge_from(report);
+                    if cancelled {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    result = Err(e);
+                    break;
+                }
+            }
+        }
+        result.map(|_| merged_report)
+    };
     emitter.abort();
 
     let report = match result {
@@ -353,6 +425,68 @@ pub async fn onedrive_sync(
     );
     *state.last_report.lock().await = Some(report.clone());
     Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::onedrive::model::ParentReference;
+
+    fn folder(id: &str, name: &str, drive_id: &str, path: &str, site_id: Option<&str>) -> DriveItem {
+        DriveItem {
+            id: id.to_string(),
+            name: name.to_string(),
+            parent_reference: Some(ParentReference {
+                drive_id: drive_id.to_string(),
+                path: Some(path.to_string()),
+                site_id: site_id.map(str::to_string),
+                ..Default::default()
+            }),
+            folder: Some(serde_json::json!({})),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn sync_drive_ids_include_non_default_mapped_drive() {
+        let map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "shared-drive", "/Clients/Acme"),
+            matter_id: "matter-a".into(),
+        }];
+        let drives = vec![Drive {
+            id: "personal-drive".into(),
+            name: "OneDrive".into(),
+            ..Default::default()
+        }];
+        assert_eq!(
+            sync_drive_ids(&map, &drives),
+            vec!["personal-drive".to_string(), "shared-drive".to_string()]
+        );
+    }
+
+    #[test]
+    fn sharepoint_folder_key_uses_parent_reference_site_id() {
+        let item = folder(
+            "folder-1",
+            "Clients",
+            "drive-sp",
+            "/drive/root:",
+            Some("site-123"),
+        );
+        let path = item_folder_path(&item);
+        let key = folder_key(DEFAULT_ACCOUNT, item.site_id().as_deref(), "drive-sp", &path);
+        assert_eq!(key, "m365/default/site-123/drive-sp:/clients");
+    }
+
+    #[test]
+    fn sharepoint_child_folder_can_inherit_listing_site_id() {
+        let item = folder("folder-2", "Tax", "drive-sp", "/drive/root:/Clients", None);
+        let inherited_site_id = Some("site-123".to_string());
+        let item_site_id = item.site_id().or(inherited_site_id);
+        let path = item_folder_path(&item);
+        let key = folder_key(DEFAULT_ACCOUNT, item_site_id.as_deref(), "drive-sp", &path);
+        assert_eq!(key, "m365/default/site-123/drive-sp:/clients/tax");
+    }
 }
 
 #[tauri::command]
