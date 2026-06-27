@@ -33,6 +33,7 @@ import {
   Children,
   isValidElement,
   type ReactElement,
+  type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Input } from '@/ui/input';
@@ -126,6 +127,22 @@ export interface SettingsContentProps {
   variant?: 'modal' | 'page';
   /** Optional close handler for the modal header X (modal variant only). */
   onClose?: (() => void) | undefined;
+  /**
+   * Extra, non-schema nav sections appended after the 5 settings sections.
+   * Used by the newNav (3-tab IA) shell, where the gear opens the Settings
+   * screen and Privacy Center + Activity Log are nested as sections here.
+   * Each renders an arbitrary surface; the content is supplied by the caller
+   * so SettingsContent stays decoupled from those surfaces' data wiring.
+   *
+   * Omitted on the default / flag-off path, so the Settings screen (modal and
+   * page) is byte-for-byte unchanged when this prop is absent.
+   */
+  extraSections?: Array<{
+    id: string;
+    label: string;
+    testid: string;
+    content: ReactNode;
+  }> | undefined;
 }
 
 
@@ -770,6 +787,7 @@ export function SettingsContent({
   onRestartOnboarding,
   variant = 'modal',
   onClose,
+  extraSections,
 }: SettingsContentProps) {
   const { t } = useTranslation();
 
@@ -778,6 +796,11 @@ export function SettingsContent({
     cat ? resolveSection(cat) : 'workspace';
 
   const [activeSection, setActiveSection] = useState<SectionCategory>(resolveInitial(initialCategory));
+
+  // newNav: which nested "extra" section (Privacy Center / Activity Log) is
+  // open, or null when a normal settings section is shown. Lives outside the
+  // SectionCategory machinery so the schema-driven search/scoring is untouched.
+  const [activeExtraId, setActiveExtraId] = useState<string | null>(null);
 
   const templateUpdateCount = useTemplateUpdateCount();
   const marketplaceUpdateCount = templateUpdateCount;
@@ -793,7 +816,7 @@ export function SettingsContent({
     if (contentScrollRef.current) {
       contentScrollRef.current.scrollTop = 0;
     }
-  }, [activeSection]);
+  }, [activeSection, activeExtraId]);
 
   // Re-apply initialCategory whenever it changes (deep-link support). Uses the
   // React-sanctioned "adjust state during render when a prop changes" pattern
@@ -811,6 +834,14 @@ export function SettingsContent({
     useSettingsStore();
 
   const searchActive = searchQuery.trim().length > 0;
+
+  // A nested "extra" section is being viewed only when one is selected AND no
+  // search is active (typing a query always shows the schema-driven settings
+  // results, never an extra surface). `activeExtra` is the section to render.
+  const viewingExtra = activeExtraId !== null && !searchActive;
+  const activeExtra = viewingExtra
+    ? (extraSections ?? []).find((s) => s.id === activeExtraId)
+    : undefined;
 
   // Keys that match the current search query
   const filteredKeys = useMemo<Set<string>>(() => {
@@ -1020,7 +1051,7 @@ export function SettingsContent({
             {SETTING_CATEGORIES.map((sec) => {
               const visible = visibleSections.has(sec.id);
               if (!visible) return null;
-              const isActive = activeSection === sec.id;
+              const isActive = !viewingExtra && activeSection === sec.id;
               const showUpdateBadge = sec.id === 'advanced' && marketplaceUpdateCount > 0;
               return (
                 <button
@@ -1033,7 +1064,7 @@ export function SettingsContent({
                       ? 'bg-background font-medium text-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   )}
-                  onClick={(e) => { e.stopPropagation(); setActiveSection(sec.id); }}
+                  onClick={(e) => { e.stopPropagation(); setActiveExtraId(null); setActiveSection(sec.id); }}
                 >
                   <span className="flex-1 truncate">{sec.label}</span>
                   {showUpdateBadge && (
@@ -1051,6 +1082,34 @@ export function SettingsContent({
                 </button>
               );
             })}
+
+            {/* newNav: nested surfaces (Privacy Center / Activity Log) appended
+                below the schema sections, separated by a divider so they read
+                as distinct destinations rather than more preferences. */}
+            {extraSections && extraSections.length > 0 && (
+              <>
+                <div className="my-2 mx-6 border-t border-border/60" aria-hidden="true" />
+                {extraSections.map((sec) => {
+                  const isActive = viewingExtra && activeExtraId === sec.id;
+                  return (
+                    <button
+                      key={sec.id}
+                      data-testid={sec.testid}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={cn(
+                        'w-full flex items-center gap-2 text-left px-6 py-2.5 text-sm transition-colors',
+                        isActive
+                          ? 'bg-background font-medium text-foreground'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                      )}
+                      onClick={(e) => { e.stopPropagation(); setSearchQuery(''); setActiveExtraId(sec.id); }}
+                    >
+                      <span className="flex-1 truncate">{sec.label}</span>
+                    </button>
+                  );
+                })}
+              </>
+            )}
           </nav>
 
           {/* Content area */}
@@ -1059,7 +1118,9 @@ export function SettingsContent({
             data-testid="settings-content-scroll"
             className="flex-1 overflow-y-auto px-8 py-6"
           >
-            {activeSection === 'workspace' ? (
+            {activeExtra ? (
+              activeExtra.content
+            ) : activeSection === 'workspace' ? (
               <WorkspaceSection {...sectionProps} />
             ) : activeSection === 'ai-privacy' ? (
               <AiPrivacySection {...sectionProps} />

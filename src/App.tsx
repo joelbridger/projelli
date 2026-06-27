@@ -21,7 +21,7 @@ import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
 import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelector';
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
-import { GearMenu } from '@/app/shell/layout/GearMenu';
+import { SettingsGearButton } from '@/app/shell/layout/SettingsGearButton';
 import { isNewNavEnabled, useNewNav } from '@/platform/flags/newNav';
 import { TrustBar } from '@/app/shell/layout/TrustBar';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
@@ -1332,17 +1332,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
             )}
           </Button>
           {newNav ? (
-            // newNav: the gear consolidates the relocated surfaces (Settings +
-            // Privacy Center + Activity Log + Documents). The egress badge stays
-            // in the TrustBar; only the deeper detail moves behind the gear.
-            <GearMenu
-              onOpenSettings={() => {
-                if (sidebarActiveTab !== 'settings') setShowSettingsModal(true);
-              }}
-              onOpenPrivacy={() => { setSidebarActiveTab('privacy'); }}
-              onOpenActivity={() => { setSidebarActiveTab('audit'); }}
-              onOpenEmail={() => { setSidebarActiveTab('email'); }}
-              onOpenDocuments={() => { setDocumentsView('browser'); setSidebarActiveTab('files'); }}
+            // newNav: the gear opens the full-page Settings screen, which nests
+            // Privacy Center + Activity Log as sections (see AppSurfaceRouter).
+            // The egress badge stays in the TrustBar; Email + Documents stay
+            // reachable from the Client Map's per-client quick actions.
+            <SettingsGearButton
+              onOpenSettings={() => { setSidebarActiveTab('settings'); }}
             />
           ) : (
             <Button
@@ -1415,6 +1410,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
         {/* Main editor panel, or a full-page reimagined surface (matters/Ask/Email). */}
         <AppSurfaceRouter
+          newNav={newNav}
           sidebarActiveTab={sidebarActiveTab}
           askPrefill={askPrefill}
           setAskPrefill={setAskPrefill}
