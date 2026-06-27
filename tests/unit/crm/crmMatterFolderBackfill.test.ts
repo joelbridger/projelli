@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { attachCrmHouseholdFolderIfUnmapped } from '@/platform/matter/crmMatterFolderBackfill';
+import {
+  attachCrmHouseholdFolderIfUnmapped,
+  buildClaimedCrmFolderSet,
+} from '@/platform/matter/crmMatterFolderBackfill';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { resolveMatterId } from '@/platform/rag/matterResolver';
@@ -111,5 +114,97 @@ describe('attachCrmHouseholdFolderIfUnmapped', () => {
     expect(
       useMatterStore.getState().matters.find((m) => m.id === existing.id)?.folderPaths,
     ).toEqual(['/workspace/Manual/Hollings']);
+  });
+
+  it('does not attach a folder already owned by another matter under a different path shape', () => {
+    useWorkspaceStore.setState({
+      rootPath: 'C:/WS',
+      fileTree: [
+        {
+          id: 'clients',
+          name: 'Clients',
+          path: 'Clients',
+          type: 'folder',
+          children: [
+            {
+              id: 'acme',
+              name: 'acme',
+              path: 'Clients/acme',
+              type: 'folder',
+              children: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    useMatterStore.getState().createMatter({
+      name: 'Acme Matter A',
+      client: 'Acme',
+      folderPaths: ['C:/WS/Clients/Acme'],
+    });
+    const createdByCrm = useMatterStore.getState().createMatter({
+      name: 'Acme',
+      client: 'Acme',
+      crmHouseholdKeys: ['wb-acme-other'],
+      createdFromCrm: true,
+    });
+
+    const attached = attachCrmHouseholdFolderIfUnmapped(
+      createdByCrm.id,
+      { id: 'wb-acme-other', name: 'Acme' },
+      buildClaimedCrmFolderSet(),
+    );
+
+    expect(attached).toBeNull();
+    expect(
+      useMatterStore.getState().matters.find((m) => m.id === createdByCrm.id)?.folderPaths,
+    ).toEqual([]);
+  });
+
+  it('does not attach when existing claims cannot be compared against a known workspace root', () => {
+    useWorkspaceStore.setState({
+      rootPath: null,
+      fileTree: [
+        {
+          id: 'clients',
+          name: 'Clients',
+          path: 'Clients',
+          type: 'folder',
+          children: [
+            {
+              id: 'acme',
+              name: 'Acme',
+              path: 'Clients/Acme',
+              type: 'folder',
+              children: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    useMatterStore.getState().createMatter({
+      name: 'Existing Client',
+      client: 'Existing Client',
+      folderPaths: ['C:/WS/Existing Client'],
+    });
+    const createdByCrm = useMatterStore.getState().createMatter({
+      name: 'Acme',
+      client: 'Acme',
+      crmHouseholdKeys: ['wb-acme'],
+      createdFromCrm: true,
+    });
+
+    expect(
+      attachCrmHouseholdFolderIfUnmapped(
+        createdByCrm.id,
+        { id: 'wb-acme', name: 'Acme' },
+        buildClaimedCrmFolderSet(),
+      ),
+    ).toBeNull();
+    expect(
+      useMatterStore.getState().matters.find((m) => m.id === createdByCrm.id)?.folderPaths,
+    ).toEqual([]);
   });
 });

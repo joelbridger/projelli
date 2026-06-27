@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  canonicalFolderClaimKey,
   normalizeClientName,
   resolveFolderForHousehold,
   resolveMatterForHousehold,
@@ -266,12 +267,26 @@ describe('resolveFolderForHousehold', () => {
   });
 
   it('skips an already-claimed matching folder', () => {
+    const claimed = canonicalFolderClaimKey(
+      '/workspace/Clients/Nakamura, David & Susan',
+      '/workspace',
+    );
     expect(
       resolveFolderForHousehold(
         ['/workspace/Clients/Nakamura, David & Susan'],
         { id: 'wb-nakamura', name: 'Nakamura, David & Susan' },
-        new Set(['/workspace/Clients/Nakamura, David & Susan']),
+        new Set(claimed ? [claimed] : []),
+        '/workspace',
       ),
     ).toBeNull();
+  });
+
+  it('treats absolute and workspace-relative folder claims as the same folder', () => {
+    expect(canonicalFolderClaimKey('C:/WS/Clients/Acme', 'c:/ws')).toBe(
+      'clients/acme',
+    );
+    expect(canonicalFolderClaimKey('Clients/acme/', 'C:/WS')).toBe(
+      'clients/acme',
+    );
   });
 });

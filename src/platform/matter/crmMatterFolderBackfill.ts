@@ -1,6 +1,10 @@
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
-import { normalize as normalizeMatterPath, resolveFolderForHousehold } from '@/platform/rag/matterResolver';
+import {
+  canonicalFolderClaimKey,
+  normalize as normalizeMatterPath,
+  resolveFolderForHousehold,
+} from '@/platform/rag/matterResolver';
 import type { FileNode } from '@/platform/types/workspace';
 
 export interface CrmHouseholdIdentity {
@@ -23,10 +27,11 @@ function collectFolderPaths(nodes: FileNode[]): string[] {
 
 export function buildClaimedCrmFolderSet(): Set<string> {
   const claimed = new Set<string>();
+  const { rootPath } = useWorkspaceStore.getState();
   for (const matter of useMatterStore.getState().matters) {
     for (const folderPath of matter.folderPaths) {
-      const normalized = normalizeMatterPath(folderPath);
-      if (normalized) claimed.add(normalized);
+      const claimKey = canonicalFolderClaimKey(folderPath, rootPath);
+      if (claimKey) claimed.add(claimKey);
     }
   }
   return claimed;
@@ -46,15 +51,19 @@ export function attachCrmHouseholdFolderIfUnmapped(
   const matter = store.matters.find((m) => m.id === matterId);
   if (!matter || matter.folderPaths.length > 0) return null;
 
+  const { fileTree, rootPath } = useWorkspaceStore.getState();
+  if (!rootPath && claimedFolders.size > 0) return null;
   const folder = resolveFolderForHousehold(
-    collectFolderPaths(useWorkspaceStore.getState().fileTree),
+    collectFolderPaths(fileTree),
     household,
-    claimedFolders
+    claimedFolders,
+    rootPath
   );
   if (!folder) return null;
 
   store.addFolderPath(matterId, folder);
   const normalized = normalizeMatterPath(folder);
-  if (normalized) claimedFolders.add(normalized);
+  const claimKey = canonicalFolderClaimKey(normalized, rootPath);
+  if (claimKey) claimedFolders.add(claimKey);
   return folder;
 }

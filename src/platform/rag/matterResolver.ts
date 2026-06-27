@@ -26,6 +26,38 @@ export function normalize(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+$/, '');
 }
 
+function normalizeClaimPath(path: string): string {
+  return normalize(path.trim()).replace(/\/+/g, '/');
+}
+
+/**
+ * Canonical key for folder ownership checks.
+ *
+ * Folder claims are privacy boundaries. The same physical folder may appear as
+ * an absolute workspace path (`C:/WS/Clients/Acme`) or workspace-relative path
+ * (`Clients/acme`), and Windows paths are case-insensitive. This key collapses
+ * those shapes so auto-backfills never attach a folder already owned by another
+ * matter.
+ */
+export function canonicalFolderClaimKey(
+  folderPath: string,
+  workspaceRoot?: string | null,
+): string | null {
+  const normalizedPath = normalizeClaimPath(folderPath);
+  if (!normalizedPath) return null;
+
+  const pathKey = normalizedPath.toLowerCase();
+  const rootKey = workspaceRoot ? normalizeClaimPath(workspaceRoot).toLowerCase() : '';
+  if (!rootKey) return pathKey;
+
+  if (pathKey === rootKey) return null;
+  const rootPrefix = `${rootKey}/`;
+  if (!pathKey.startsWith(rootPrefix)) return pathKey;
+
+  const relative = pathKey.slice(rootPrefix.length).replace(/^\/+/, '');
+  return relative || null;
+}
+
 /**
  * True when `filePath` is the folder `folder` itself or a descendant of it,
  * respecting path boundaries. Both inputs are normalised here.
@@ -420,7 +452,8 @@ function folderPathLeafName(folderPath: string): string {
 export function resolveFolderForHousehold(
   folderPaths: string[],
   household: { id?: string; name: string },
-  claimedFolders: ReadonlySet<string> = new Set()
+  claimedFolders: ReadonlySet<string> = new Set(),
+  workspaceRoot?: string | null,
 ): string | null {
   const householdName = normalizeClientName(household.name);
   if (!householdName) return null;
@@ -432,7 +465,9 @@ export function resolveFolderForHousehold(
   if (matches.length !== 1) return null;
 
   const match = matches[0];
-  if (!match || claimedFolders.has(normalize(match))) return null;
+  if (!match) return null;
+  const claimKey = canonicalFolderClaimKey(match, workspaceRoot);
+  if (!claimKey || claimedFolders.has(claimKey)) return null;
   return match;
 }
 

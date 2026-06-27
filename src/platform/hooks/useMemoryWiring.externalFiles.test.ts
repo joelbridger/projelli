@@ -26,10 +26,15 @@ vi.mock('@/platform/utils/onedrive-commands', () => ({
 
 import {
   buildWorkspaceAbsolutePath,
+  changedFolderPaths,
   indexWorkspacePdfs,
   reindexFolderPaths,
   startFullIndex,
 } from './useMemoryWiring';
+import {
+  attachCrmHouseholdFolderIfUnmapped,
+  buildClaimedCrmFolderSet,
+} from '@/platform/matter/crmMatterFolderBackfill';
 import {
   MemoryService,
   resetPdfIndexingEnabledReader,
@@ -472,6 +477,70 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
 
     expect(reindexPaths).toHaveBeenCalledWith(
       ['C:/ws/Northcrest/Clients/Acme/plan.docx'],
+      matterId,
+    );
+  });
+
+  it('retags an existing unassigned document after CRM backfill adds the matter folder', async () => {
+    const matterId = 'matter-ellison';
+    const folder = 'Clients/Ellison, Robert & Margaret';
+    const docPath = `${folder}/review-plan.docx`;
+
+    useWorkspaceStore.setState({
+      rootPath: 'C:/ws/Northcrest',
+      fileTree: [
+        makeFolder('Clients', [
+          makeFolder(folder, [makeFile(docPath)]),
+        ]),
+      ],
+    });
+    useMatterStore.setState({
+      matters: [
+        {
+          ...makeMatter(matterId, []),
+          name: 'Ellison, Robert & Margaret',
+          client: 'Ellison, Robert & Margaret',
+          crmHouseholdKeys: ['wb-ellison'],
+          createdFromCrm: true,
+        },
+      ],
+      activeMatterId: null,
+    });
+
+    const before = useMatterStore.getState().matters.map((matter) => ({
+      id: matter.id,
+      folderPaths: matter.folderPaths,
+    }));
+    const attached = attachCrmHouseholdFolderIfUnmapped(
+      matterId,
+      { id: 'wb-ellison', name: 'Ellison, Robert & Margaret' },
+      buildClaimedCrmFolderSet(),
+    );
+    const after = useMatterStore.getState().matters.map((matter) => ({
+      id: matter.id,
+      folderPaths: matter.folderPaths,
+    }));
+
+    expect(attached).toBe(folder);
+    const changed = changedFolderPaths(before, after);
+    expect(changed).toEqual([folder]);
+
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      getFileTree: vi.fn().mockResolvedValue([
+        makeFolder('Clients', [
+          makeFolder(folder, [makeFile(docPath)]),
+        ]),
+      ]),
+    };
+
+    await reindexFolderPaths(changed, ws);
+
+    expect(reindexPaths).toHaveBeenCalledTimes(1);
+    expect(reindexPaths).toHaveBeenCalledWith(
+      ['C:/ws/Northcrest/Clients/Ellison, Robert & Margaret/review-plan.docx'],
       matterId,
     );
   });
