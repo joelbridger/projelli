@@ -247,13 +247,36 @@ export function SourcePanel({
           )}
         </div>
 
-        {cite.path && (
+        {/* Email citation → open the light EmailViewer reading view. Self-
+            dispatches keepance:open-email so it works regardless of the file
+            pipeline (the email has no on-disk path / editor). */}
+        {cite.path?.startsWith('mail:') && (
           <Button
             variant="secondary"
             size="sm"
             iconLeft={ExternalLink}
             fullWidth
-            onClick={() => { onOpenFile?.(cite.path ?? ''); }}
+            data-testid="source-open-email"
+            onClick={() => {
+              window.dispatchEvent(
+                new CustomEvent('keepance:open-email', { detail: { sourceId: cite.path } }),
+              );
+            }}
+            style={{ marginTop: 'var(--kp-space-sm)' }}
+          >
+            Open email
+          </Button>
+        )}
+        {/* Document citation → open in the editor. Gated on onOpenFile so a
+            surface that doesn't wire it (the Ask surface today) doesn't show a
+            dead button; the document citation viewer lands in Wave 3. */}
+        {cite.path && !cite.path.startsWith('mail:') && onOpenFile && (
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft={ExternalLink}
+            fullWidth
+            onClick={() => { onOpenFile(cite.path ?? ''); }}
             style={{ marginTop: 'var(--kp-space-sm)' }}
           >
             {/* eslint-disable keepance-i18n/no-hardcoded-string */}
