@@ -259,3 +259,65 @@ describe('MatterHub — list to hub navigation', () => {
     expect(screen.getByTestId('hub-sample-glance')).toBeInTheDocument();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// newNav: the redesigned client-detail leads with the Client Map (no doc/email/
+// workflow tab grid); capabilities relocate to a slim shortcut row.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('MatterHub — newNav redesigned client-detail layout', () => {
+  beforeEach(() => {
+    resetStore();
+    window.localStorage.setItem('keepance:newNav', '1');
+  });
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('leads with the Client Map (expanded) and hides the four-panel + glance grids', () => {
+    useMatterStore.getState().createMatter({ name: 'Redesign Co', client: 'Redesign Co' });
+    const matter = useMatterStore.getState().matters[0]!;
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+
+    // Client Map is present and permanently expanded (no collapse toggle).
+    expect(screen.getByTestId('hub-panel-clientmap')).toBeInTheDocument();
+    expect(screen.queryByTestId('hub-panel-clientmap-open')).toBeNull();
+    // The doc/email/workflow/activity tab cards + the At-a-Glance grid are gone
+    // as the primary view.
+    expect(screen.queryByTestId('hub-panel-documents')).toBeNull();
+    expect(screen.queryByTestId('hub-panel-email')).toBeNull();
+    expect(screen.queryByTestId('hub-ai-glance')).toBeNull();
+    // ...but every capability stays reachable from the slim shortcut row.
+    expect(screen.getByTestId('hub-shortcut-row')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-shortcut-documents')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-shortcut-email')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-shortcut-workflows')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-shortcut-activity')).toBeInTheDocument();
+  });
+
+  it('shortcut-row Documents still launches the files surface (capability not lost)', () => {
+    useMatterStore.getState().createMatter({ name: 'Shortcut Co', client: 'Shortcut Co' });
+    const matter = useMatterStore.getState().matters[0]!;
+    const events: CustomEvent[] = [];
+    const handler = (e: Event) => { events.push(e as CustomEvent); };
+    window.addEventListener('keepance:matter-launch', handler);
+
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+    fireEvent.click(screen.getByTestId('hub-shortcut-documents'));
+
+    expect(events).toHaveLength(1);
+    expect(events[0]!.detail.surface).toBe('files');
+    expect(events[0]!.detail.matterId).toBe(matter.id);
+    window.removeEventListener('keepance:matter-launch', handler);
+  });
+
+  it('legacy layout (flag off) still shows the four panels and no shortcut row', () => {
+    window.localStorage.clear(); // force flag OFF for this case
+    useMatterStore.getState().createMatter({ name: 'Legacy Co', client: 'Legacy Co' });
+    const matter = useMatterStore.getState().matters[0]!;
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+
+    expect(screen.getByTestId('hub-panel-documents')).toBeInTheDocument();
+    expect(screen.queryByTestId('hub-shortcut-row')).toBeNull();
+  });
+});

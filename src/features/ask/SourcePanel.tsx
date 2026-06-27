@@ -240,7 +240,7 @@ export function SourcePanel({
                 {verdictState.verdict === 'verified' && 'Quote found in source. This citation checks out.'}
                 {verdictState.verdict === 'notFound' && 'This quote was not found in the cited source. Do not rely on it without checking the original.'}
                 {verdictState.verdict === 'textMismatch' && 'The quote does not match the stored text. Do not rely on it without checking the original.'}
-                {verdictState.verdict === 'matterMismatch' && `This source belongs to a different matter. Do not rely on it. This may be a cross-matter data leak.`}
+                {verdictState.verdict === 'matterMismatch' && `This source belongs to a different client. Do not rely on it. This may be a cross-client data leak.`}
                 {/* eslint-enable keepance-i18n/no-hardcoded-string */}
               </span>
             </div>

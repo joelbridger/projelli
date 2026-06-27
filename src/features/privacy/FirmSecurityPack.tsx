@@ -209,7 +209,7 @@ const SECTIONS: Section[] = [
         <ul style={{ marginTop: '0.5rem', paddingLeft: '1.25rem' }}>
           <li>Where exactly is my data stored, and who has access?</li>
           <li>What leaves the device when I use a cloud AI model?</li>
-          <li>How do information barriers work across shared matters?</li>
+          <li>How do information barriers work across shared clients?</li>
           <li>What is the status of your SOC 2 examination?</li>
           <li>Can I see the DPA before we sign?</li>
           <li>How do I verify the claims in this document against the source code?</li>
