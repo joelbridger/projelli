@@ -16,6 +16,10 @@ import { useCrmStore } from '@/features/crm/crmStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import {
+  attachCrmHouseholdFolderIfUnmapped,
+  buildClaimedCrmFolderSet,
+} from '@/platform/matter/crmMatterFolderBackfill';
+import {
   buildCrmMatterMap,
   filterCrmMatterMapForProvider,
   resolveMatterForHousehold,
@@ -116,6 +120,7 @@ export function SalesforceConnect() {
 
     const createdMatterIds: string[] = [];
     const linkedKeys: Array<{ matterId: string; key: string }> = [];
+    const attachedFolders: Array<{ matterId: string; folderPath: string }> = [];
 
     try {
       const households = await crmListHouseholds(PROVIDER);
@@ -139,16 +144,18 @@ export function SalesforceConnect() {
 
       const currentMatters = getMatters();
       const claimedMatterIds = new Set<string>();
+      const claimedFolders = buildClaimedCrmFolderSet();
       for (const household of households) {
         const resolution = resolveMatterForHousehold(
           currentMatters,
           household,
           claimedMatterIds
         );
+        let matterId = resolution.matterId;
         if (resolution.action === 'link') {
-          addCrmHouseholdKey(resolution.matterId, household.id);
-          linkedKeys.push({ matterId: resolution.matterId, key: household.id });
-          claimedMatterIds.add(resolution.matterId);
+          addCrmHouseholdKey(matterId, household.id);
+          linkedKeys.push({ matterId, key: household.id });
+          claimedMatterIds.add(matterId);
         } else if (resolution.action === 'create') {
           const created = createMatter({
             name: household.name,
@@ -157,6 +164,15 @@ export function SalesforceConnect() {
             createdFromCrm: true,
           });
           createdMatterIds.push(created.id);
+          matterId = created.id;
+        }
+        if (matterId) {
+          const folderPath = attachCrmHouseholdFolderIfUnmapped(
+            matterId,
+            household,
+            claimedFolders
+          );
+          if (folderPath) attachedFolders.push({ matterId, folderPath });
         }
       }
 
@@ -170,9 +186,15 @@ export function SalesforceConnect() {
         recordsIndexed: report.recordsIndexed,
       });
     } catch (err) {
-      if (createdMatterIds.length > 0 || linkedKeys.length > 0) {
-        const { deleteMatter, removeCrmHouseholdKey } =
+      if (
+        createdMatterIds.length > 0 ||
+        linkedKeys.length > 0 ||
+        attachedFolders.length > 0
+      ) {
+        const { deleteMatter, removeCrmHouseholdKey, removeFolderPath } =
           useMatterStore.getState();
+        for (const { matterId, folderPath } of attachedFolders)
+          removeFolderPath(matterId, folderPath);
         for (const id of createdMatterIds) deleteMatter(id);
         for (const { matterId, key } of linkedKeys)
           removeCrmHouseholdKey(matterId, key);

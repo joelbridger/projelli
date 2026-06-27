@@ -26,6 +26,38 @@ export function normalize(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+$/, '');
 }
 
+function normalizeClaimPath(path: string): string {
+  return normalize(path.trim()).replace(/\/+/g, '/');
+}
+
+/**
+ * Canonical key for folder ownership checks.
+ *
+ * Folder claims are privacy boundaries. The same physical folder may appear as
+ * an absolute workspace path (`C:/WS/Clients/Acme`) or workspace-relative path
+ * (`Clients/acme`), and Windows paths are case-insensitive. This key collapses
+ * those shapes so auto-backfills never attach a folder already owned by another
+ * matter.
+ */
+export function canonicalFolderClaimKey(
+  folderPath: string,
+  workspaceRoot?: string | null,
+): string | null {
+  const normalizedPath = normalizeClaimPath(folderPath);
+  if (!normalizedPath) return null;
+
+  const pathKey = normalizedPath.toLowerCase();
+  const rootKey = workspaceRoot ? normalizeClaimPath(workspaceRoot).toLowerCase() : '';
+  if (!rootKey) return pathKey;
+
+  if (pathKey === rootKey) return null;
+  const rootPrefix = `${rootKey}/`;
+  if (!pathKey.startsWith(rootPrefix)) return pathKey;
+
+  const relative = pathKey.slice(rootPrefix.length).replace(/^\/+/, '');
+  return relative || null;
+}
+
 /**
  * True when `filePath` is the folder `folder` itself or a descendant of it,
  * respecting path boundaries. Both inputs are normalised here.
@@ -403,6 +435,40 @@ export function resolveMatterForOneDriveFolder(
 
   // Priority 3: no clear match. Do not create a matter from a cloud folder.
   return { matterId: '', action: 'unassigned', name: folderName };
+}
+
+function folderPathLeafName(folderPath: string): string {
+  return normalize(folderPath).split('/').filter(Boolean).pop()?.trim() ?? '';
+}
+
+/**
+ * Resolve a CRM household against the user's workspace folders.
+ *
+ * This is deliberately stricter than a fuzzy search: a household may claim a
+ * folder only when its normalized name matches exactly one workspace folder's
+ * leaf name. Duplicate same-name folders stay unassigned so Keepance never
+ * guesses across client privacy boundaries.
+ */
+export function resolveFolderForHousehold(
+  folderPaths: string[],
+  household: { id?: string; name: string },
+  claimedFolders: ReadonlySet<string> = new Set(),
+  workspaceRoot?: string | null,
+): string | null {
+  const householdName = normalizeClientName(household.name);
+  if (!householdName) return null;
+
+  const matches = folderPaths.filter(
+    (folderPath) =>
+      normalizeClientName(folderPathLeafName(folderPath)) === householdName
+  );
+  if (matches.length !== 1) return null;
+
+  const match = matches[0];
+  if (!match) return null;
+  const claimKey = canonicalFolderClaimKey(match, workspaceRoot);
+  if (!claimKey || claimedFolders.has(claimKey)) return null;
+  return match;
 }
 
 export function buildEsignMatterMap(matters: Matter[]): EsignMatterMapEntry[] {

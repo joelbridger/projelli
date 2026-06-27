@@ -5,7 +5,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { normalizeClientName, resolveMatterForHousehold } from './matterResolver';
+import {
+  canonicalFolderClaimKey,
+  normalizeClientName,
+  resolveFolderForHousehold,
+  resolveMatterForHousehold,
+} from './matterResolver';
 import type { Matter } from '@/platform/types/matter';
 
 /** Minimal Matter fixture — only required fields + optional CRM keys. */
@@ -219,5 +224,69 @@ describe('resolveMatterForHousehold', () => {
     const result = resolveMatterForHousehold(matters, { id: 'wb-42', name: 'Smith, Bob' });
     expect(result.action).toBe('reuse');
     expect(result.matterId).toBe('m-linked');
+  });
+});
+
+// ────────────────────────────────────────────────────────────
+// resolveFolderForHousehold
+// ────────────────────────────────────────────────────────────
+
+describe('resolveFolderForHousehold', () => {
+  it('returns the one unambiguous matching workspace folder', () => {
+    expect(
+      resolveFolderForHousehold(
+        [
+          '/workspace/Clients/Ellison, Robert & Margaret',
+          '/workspace/Clients/Hollings Family',
+          '/workspace/Clients/Nakamura, David & Susan',
+        ],
+        { id: 'wb-ellison', name: 'Ellison, Robert & Margaret' },
+      ),
+    ).toBe('/workspace/Clients/Ellison, Robert & Margaret');
+  });
+
+  it('returns null when two folders share the same normalized leaf name', () => {
+    expect(
+      resolveFolderForHousehold(
+        [
+          '/workspace/Clients/Hollings Family',
+          '/workspace/Archive/HOLLINGS FAMILY',
+        ],
+        { id: 'wb-hollings', name: 'Hollings Family' },
+      ),
+    ).toBeNull();
+  });
+
+  it('normalizes punctuation and whitespace in demo star household names', () => {
+    expect(
+      resolveFolderForHousehold(
+        ['/workspace/Clients/Ellison, Robert & Margaret'],
+        { id: 'wb-ellison', name: '  "Ellison, Robert & Margaret"  ' },
+      ),
+    ).toBe('/workspace/Clients/Ellison, Robert & Margaret');
+  });
+
+  it('skips an already-claimed matching folder', () => {
+    const claimed = canonicalFolderClaimKey(
+      '/workspace/Clients/Nakamura, David & Susan',
+      '/workspace',
+    );
+    expect(
+      resolveFolderForHousehold(
+        ['/workspace/Clients/Nakamura, David & Susan'],
+        { id: 'wb-nakamura', name: 'Nakamura, David & Susan' },
+        new Set(claimed ? [claimed] : []),
+        '/workspace',
+      ),
+    ).toBeNull();
+  });
+
+  it('treats absolute and workspace-relative folder claims as the same folder', () => {
+    expect(canonicalFolderClaimKey('C:/WS/Clients/Acme', 'c:/ws')).toBe(
+      'clients/acme',
+    );
+    expect(canonicalFolderClaimKey('Clients/acme/', 'C:/WS')).toBe(
+      'clients/acme',
+    );
   });
 });
