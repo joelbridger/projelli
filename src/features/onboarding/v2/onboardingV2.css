@@ -1,0 +1,179 @@
+/**
+ * OnboardingV2 styles — scoped under `.kp-onbv2`.
+ *
+ * Everything here is namespaced so the onboarding's Sora typeface, brand
+ * palette, and decorative animations never leak into the rest of the app.
+ * Light theme only. No values escape the overlay container.
+ *
+ * Brand palette (from the round-8 prototype spec):
+ *   navy   #0A2540  · accent #1f74c4 · bright #5dc6ff
+ *   pink   #FF3CE8  · green  #1fa971 · field  #f5f7fb
+ */
+
+/* Self-hosted Sora (offline-safe — no CDN; local-first app). */
+@font-face {
+  font-family: 'Sora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/sora/sora-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Sora';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('/fonts/sora/sora-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Sora';
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url('/fonts/sora/sora-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Sora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('/fonts/sora/sora-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Sora';
+  font-style: normal;
+  font-weight: 800;
+  font-display: block;
+  src: url('/fonts/sora/sora-800.woff2') format('woff2');
+}
+
+.kp-onbv2 {
+  --kp-navy: #0a2540;
+  --kp-accent: #1f74c4;
+  --kp-bright: #5dc6ff;
+  --kp-pink: #ff3ce8;
+  --kp-green: #1fa971;
+  --kp-field: #f5f7fb;
+  --kp-stage: #f5f6fb;
+  font-family: 'Sora', system-ui, -apple-system, sans-serif;
+  color: var(--kp-navy);
+  -webkit-font-smoothing: antialiased;
+}
+
+.kp-onbv2 *,
+.kp-onbv2 *::before,
+.kp-onbv2 *::after {
+  box-sizing: border-box;
+}
+
+/* ---- Decorative background (orbs + grain) ---- */
+.kp-onbv2-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--kp-stage);
+  pointer-events: none;
+}
+.kp-onbv2-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.85;
+  will-change: transform;
+}
+.kp-onbv2-orb--pink {
+  width: 60vmax;
+  height: 60vmax;
+  top: -18vmax;
+  right: -12vmax;
+  background: radial-gradient(circle, rgba(255, 60, 232, 0.5), rgba(255, 60, 232, 0) 70%);
+  animation: kp-onbv2-drift-pink 9s ease-in-out infinite alternate;
+}
+.kp-onbv2-orb--blue {
+  width: 66vmax;
+  height: 66vmax;
+  bottom: -22vmax;
+  left: -14vmax;
+  background: radial-gradient(circle, rgba(93, 198, 255, 0.6), rgba(93, 198, 255, 0) 70%);
+  animation: kp-onbv2-drift-blue 9s ease-in-out infinite alternate;
+}
+.kp-onbv2-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.45;
+  background-image: radial-gradient(rgba(10, 37, 64, 0.05) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+
+@keyframes kp-onbv2-drift-pink {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(-3vmax, 3vmax) scale(1.06); }
+}
+@keyframes kp-onbv2-drift-blue {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(3vmax, -2vmax) scale(1.05); }
+}
+
+/* ---- Entrance animations (respect reduced-motion) ---- */
+@keyframes kp-onbv2-rise {
+  from { opacity: 0; transform: translateY(22px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.kp-onbv2-rise {
+  animation: kp-onbv2-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ---- Progress-fill shimmer (the green import bars) ---- */
+@keyframes kp-onbv2-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(220%); }
+}
+.kp-onbv2-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.45),
+    transparent
+  );
+  animation: kp-onbv2-shimmer 1.8s ease-in-out infinite;
+}
+
+/* ---- Indeterminate bar (Building your Client Maps) ---- */
+@keyframes kp-onbv2-indet {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
+.kp-onbv2-indet {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 38%;
+  border-radius: 99px;
+  background: var(--kp-green);
+  animation: kp-onbv2-indet 1.5s ease-in-out infinite;
+}
+
+/* ---- Custom scrollbar for the question-chip area ---- */
+.kp-onbv2-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(10, 37, 64, 0.18) transparent;
+}
+.kp-onbv2-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.kp-onbv2-scroll::-webkit-scrollbar-thumb {
+  background: rgba(10, 37, 64, 0.18);
+  border-radius: 99px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kp-onbv2-orb,
+  .kp-onbv2-rise,
+  .kp-onbv2-shimmer::after,
+  .kp-onbv2-indet {
+    animation: none !important;
+  }
+}

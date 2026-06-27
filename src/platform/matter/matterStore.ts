@@ -210,6 +210,19 @@ interface MatterState {
   setStatus: (matterId: string, status: MatterSyncStatus) => void;
   clearMatter: (matterId: string) => void;
   clear: () => void;
+
+  // ── Client Map nav slice (EPHEMERAL — never persisted) ────────────────────
+  /**
+   * newNav: which client's Client Map "hub" (the per-client hero view) is open
+   * on the Client Map surface, or null for the all-clients overview. Ephemeral
+   * so it survives the MattersHome unmount/remount that a surface switch causes
+   * — the back-nav fix (drill into Documents/Email and return to Client Map and
+   * you land back on the same client's hub, not the overview). Only honored when
+   * it === activeMatterId, so a stale id left over from a client switch falls
+   * back to the overview rather than showing the wrong client.
+   */
+  clientMapHubId: string | null;
+  setClientMapHubId: (id: string | null) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -423,8 +436,9 @@ export const useMatterStore = create<MatterState>()(
           return {
             matters: state.matters.filter((m) => m.id !== id),
             // If the deleted matter was active, fall back to the all-matters scope.
-            activeMatterId:
-              state.activeMatterId === id ? null : state.activeMatterId,
+            activeMatterId: state.activeMatterId === id ? null : state.activeMatterId,
+            // Close its Client Map hub so a recycled id can't reopen it.
+            clientMapHubId: state.clientMapHubId === id ? null : state.clientMapHubId,
             snapshots,
             cache,
             statusByMatterId,
@@ -684,9 +698,10 @@ export const useMatterStore = create<MatterState>()(
           // Don't leave the active scope pointing at a just-archived matter —
           // fall back to the explicit all-matters scope (same as deleteMatter).
           activeMatterId:
-            archived && state.activeMatterId === id
-              ? null
-              : state.activeMatterId,
+            archived && state.activeMatterId === id ? null : state.activeMatterId,
+          // Close its Client Map hub too, so it can't resurface on archive.
+          clientMapHubId:
+            archived && state.clientMapHubId === id ? null : state.clientMapHubId,
         }));
       },
 
@@ -697,9 +712,20 @@ export const useMatterStore = create<MatterState>()(
         // in a legal app where the active scope must be obvious. A stale
         // matter-launch event or old persisted id falls back to all-matters.
         set((state) => {
-          if (id === null) return { activeMatterId: null };
-          const m = findMatter(id, state.matters);
-          return { activeMatterId: m && !m.archived ? id : null };
+          const nextActive = id === null
+            ? null
+            : (() => { const m = findMatter(id, state.matters); return m && !m.archived ? id : null; })();
+          // Close a Client Map hub the moment the active client changes AWAY from
+          // it, so re-selecting the old client later (via the rail switcher) does
+          // not resurrect its hub. Re-setting the SAME id (e.g. a matter-launch
+          // into the client's Documents) keeps the hub open — that's the back-nav
+          // case. openHub() always setActiveMatter() then setClientMapHubId(),
+          // so opening a fresh hub still lands correctly.
+          const clientMapHubId =
+            nextActive !== null && nextActive === state.clientMapHubId
+              ? state.clientMapHubId
+              : null;
+          return { activeMatterId: nextActive, clientMapHubId };
         });
       },
 
@@ -786,6 +812,10 @@ export const useMatterStore = create<MatterState>()(
           return { statusByMatterId: next };
         }),
       clear: () => set({ statusByMatterId: {} }),
+
+      // ── Client Map nav slice (ephemeral) ─────────────────────────────────
+      clientMapHubId: null,
+      setClientMapHubId: (id) => set({ clientMapHubId: id }),
     }),
     {
       name: 'keepance:matters',

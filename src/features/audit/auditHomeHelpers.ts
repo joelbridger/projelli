@@ -107,6 +107,9 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   'wealthbox.connect': Users2,
   'wealthbox.sync': Users2,
   'wealthbox.disconnect': Users2,
+  'salesforce.connect': Users2,
+  'salesforce.sync': Users2,
+  'salesforce.disconnect': Users2,
 };
 
 export const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -146,6 +149,9 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   'wealthbox.connect': 'Wealthbox Connected',
   'wealthbox.sync': 'Wealthbox Synced',
   'wealthbox.disconnect': 'Wealthbox Disconnected',
+  'salesforce.connect': 'Salesforce Connected',
+  'salesforce.sync': 'Salesforce Synced',
+  'salesforce.disconnect': 'Salesforce Disconnected',
 };
 
 /** Semantic category per action, drives colour + grouping in filters. */
@@ -188,6 +194,9 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   'wealthbox.connect': 'system',
   'wealthbox.sync': 'system',
   'wealthbox.disconnect': 'system',
+  'salesforce.connect': 'system',
+  'salesforce.sync': 'system',
+  'salesforce.disconnect': 'system',
 };
 
 export const CATEGORY_COLOR: Record<ActionCategory, string> = {

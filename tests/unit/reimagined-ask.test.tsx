@@ -24,6 +24,14 @@ vi.mock('@/platform/fs/workspaceStore', () => ({
     selector({ rootPath: mockRootPath }),
 }));
 
+// newNav gates the Search→Ask surface rename. Default OFF so every existing
+// test exercises the flag-OFF ("Search") surface unchanged.
+const navState = vi.hoisted(() => ({ on: false }));
+vi.mock('@/platform/flags/newNav', () => ({
+  useNewNav: () => navState.on,
+  isNewNavEnabled: () => navState.on,
+}));
+
 let mockProfession = 'legal';
 
 vi.mock('@/platform/matter/samples/sampleMatterDemo', () => ({
@@ -123,6 +131,7 @@ vi.mock('@/platform/state/aiChatStore', () => {
 describe('Ask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    navState.on = false;
     mockActiveMatter = null;
     mockRootPath = null;
     mockProfession = 'legal';
@@ -815,5 +824,29 @@ describe('Ask', () => {
   it('memory-off warning uses plain-language "indexed on your machine" text', () => {
     render(<Ask />);
     expect(screen.getByText(/cited answers need your documents indexed on your machine/i)).toBeDefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // Wave 4 — Search→Ask inner rename (newNav-gated; flag-OFF stays "Search")
+  // -------------------------------------------------------------------------
+
+  describe('Search→Ask rename', () => {
+    it('newNav renames the surface to "Ask" (heading + composer placeholder)', () => {
+      navState.on = true;
+      render(<Ask />);
+      expect(screen.getByRole('heading', { name: 'Ask' })).toBeInTheDocument();
+      expect(
+        screen.getByTestId('ask-composer-input').getAttribute('placeholder'),
+      ).toMatch(/^Ask /);
+    });
+
+    it('flag-OFF keeps the surface named "Search" (byte-for-byte)', () => {
+      navState.on = false;
+      render(<Ask />);
+      expect(screen.getByRole('heading', { name: 'Search' })).toBeInTheDocument();
+      expect(
+        screen.getByTestId('ask-composer-input').getAttribute('placeholder'),
+      ).toMatch(/^Search /);
+    });
   });
 });

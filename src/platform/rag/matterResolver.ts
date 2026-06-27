@@ -213,6 +213,19 @@ export function buildCrmMatterMap(matters: Matter[]): CrmMatterMapEntry[] {
   return out;
 }
 
+export function filterCrmMatterMapForProvider(
+  matterMap: CrmMatterMapEntry[],
+  provider: 'wealthbox' | 'salesforce' | 'redtail'
+): CrmMatterMapEntry[] {
+  return matterMap.filter(({ householdId }) => {
+    if (provider === 'salesforce') return householdId.startsWith('sfdc:');
+    if (provider === 'redtail') return householdId.startsWith('redtail:');
+    return (
+      !householdId.startsWith('sfdc:') && !householdId.startsWith('redtail:')
+    );
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // External connector -> matter mapping slots
 //

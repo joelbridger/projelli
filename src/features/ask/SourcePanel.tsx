@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CheckCircle2, FileText, ExternalLink, ShieldCheck, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button, Badge, Eyebrow, Card } from '@/ui/kp';
+import { useNewNav } from '@/platform/flags/newNav';
 import type { AnswerCitation } from './askHelpers';
 import { ragVerifyCitation, type CitationVerdict } from '@/platform/utils/tauri-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
@@ -16,6 +17,11 @@ export function SourcePanel({
   onAuditLog,
 }: {
   cite: AnswerCitation | null;
+  /**
+   * Flag-OFF only: the shipped Ask surface never wires this, so the legacy
+   * "Open in editor" button is a no-op there. Kept so flag-OFF renders
+   * byte-for-byte; the newNav citation-open actions are separate (below).
+   */
   onOpenFile?: (path: string) => void;
   /**
    * WS3 (Task 4): when provided, each "Verify against source" result emits
@@ -23,6 +29,10 @@ export function SourcePanel({
    */
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 }) {
+  // newNav gates the relocated citation-open actions (email reading view,
+  // document editor). Flag-OFF keeps the shipped (no-op) "Open in editor"
+  // button so the Search surface renders byte-for-byte.
+  const newNav = useNewNav();
   // WS3 (Task 4): verification state — null = not run, 'loading' = in flight,
   // CitationVerdict = result.
   const [verdictState, setVerdictState] = useState<CitationVerdict | 'loading' | null>(null);
@@ -240,26 +250,86 @@ export function SourcePanel({
                 {verdictState.verdict === 'verified' && 'Quote found in source. This citation checks out.'}
                 {verdictState.verdict === 'notFound' && 'This quote was not found in the cited source. Do not rely on it without checking the original.'}
                 {verdictState.verdict === 'textMismatch' && 'The quote does not match the stored text. Do not rely on it without checking the original.'}
-                {verdictState.verdict === 'matterMismatch' && `This source belongs to a different matter. Do not rely on it. This may be a cross-matter data leak.`}
+                {verdictState.verdict === 'matterMismatch' && `This source belongs to a different client. Do not rely on it. This may be a cross-client data leak.`}
                 {/* eslint-enable keepance-i18n/no-hardcoded-string */}
               </span>
             </div>
           )}
         </div>
 
-        {cite.path && (
-          <Button
-            variant="secondary"
-            size="sm"
-            iconLeft={ExternalLink}
-            fullWidth
-            onClick={() => { onOpenFile?.(cite.path ?? ''); }}
-            style={{ marginTop: 'var(--kp-space-sm)' }}
-          >
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            Open in editor
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-          </Button>
+        {/* newNav: the relocated citation-open actions. Flag-OFF keeps the
+            shipped (no-op) "Open in editor" button so the Search surface is
+            byte-for-byte unchanged. */}
+        {newNav ? (
+          <>
+            {/* Email citation → open the light EmailViewer reading view. Self-
+                dispatches keepance:open-email (the email has no on-disk path). */}
+            {cite.path?.startsWith('mail:') && (
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={ExternalLink}
+                fullWidth
+                data-testid="source-open-email"
+                onClick={() => {
+                  window.dispatchEvent(
+                    new CustomEvent('keepance:open-email', { detail: { sourceId: cite.path } }),
+                  );
+                }}
+                style={{ marginTop: 'var(--kp-space-sm)' }}
+              >
+                Open email
+              </Button>
+            )}
+            {/* Document citation → open the cited source in the contextual
+                editor, scrolled to the cited passage. Self-dispatches
+                keepance:matter-launch (document source), reusing the shell's
+                matter-scoped, binary-aware (.docx) open-and-scroll pipeline —
+                the same path Client Map source links use. Excludes mail:/crm:
+                (those have their own routes) and gates on matterId so the open
+                is confined to the citation's matter (fail-closed otherwise). */}
+            {cite.path && !cite.path.startsWith('mail:') && !cite.path.startsWith('crm:') && cite.matterId && (
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={ExternalLink}
+                fullWidth
+                data-testid="source-open-document"
+                onClick={() => {
+                  const source: { kind: 'document'; ref: string; snippet?: string } = {
+                    kind: 'document',
+                    ref: cite.path ?? '',
+                  };
+                  if (cite.excerpt) source.snippet = cite.excerpt;
+                  window.dispatchEvent(
+                    new CustomEvent('keepance:matter-launch', {
+                      detail: { matterId: cite.matterId, surface: 'files', source },
+                    }),
+                  );
+                }}
+                style={{ marginTop: 'var(--kp-space-sm)' }}
+              >
+                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                Open in editor
+                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+              </Button>
+            )}
+          </>
+        ) : (
+          cite.path && (
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft={ExternalLink}
+              fullWidth
+              onClick={() => { onOpenFile?.(cite.path ?? ''); }}
+              style={{ marginTop: 'var(--kp-space-sm)' }}
+            >
+              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+              Open in editor
+              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            </Button>
+          )
         )}
       </div>
     </div>

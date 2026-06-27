@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   buildCrmMatterMap,
   buildEsignMatterMap,
+  filterCrmMatterMapForProvider,
   buildMeetingMatterMap,
   buildOneDriveMatterMap,
 } from '@/platform/rag/matterResolver';
@@ -104,6 +105,24 @@ describe('buildCrmMatterMap', () => {
     // A matter loaded from storage before v6 will have the field missing.
     const preMigration = matter('m1', undefined as unknown as string[]);
     expect(buildCrmMatterMap([preMigration])).toEqual([]);
+  });
+
+  it('filters a mixed CRM map to the currently syncing provider', () => {
+    const map = buildCrmMatterMap([
+      matter('wealthbox-matter', ['10001']),
+      matter('salesforce-matter', ['sfdc:001HH0000000001AAA']),
+      matter('redtail-matter', ['redtail:rt-household']),
+    ]);
+
+    expect(filterCrmMatterMapForProvider(map, 'salesforce')).toEqual([
+      { householdId: 'sfdc:001HH0000000001AAA', matterId: 'salesforce-matter' },
+    ]);
+    expect(filterCrmMatterMapForProvider(map, 'wealthbox')).toEqual([
+      { householdId: '10001', matterId: 'wealthbox-matter' },
+    ]);
+    expect(filterCrmMatterMapForProvider(map, 'redtail')).toEqual([
+      { householdId: 'redtail:rt-household', matterId: 'redtail-matter' },
+    ]);
   });
 });
 
