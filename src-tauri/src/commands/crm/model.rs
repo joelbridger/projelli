@@ -26,6 +26,26 @@ pub enum CrmRecordProvider {
     Redtail,
 }
 
+pub fn crm_key_belongs_to_provider(key: &str, provider_id: &str) -> bool {
+    let trimmed = key.trim();
+    match provider_id {
+        "salesforce" => trimmed.starts_with("sfdc:"),
+        "redtail" => trimmed.starts_with("redtail:"),
+        "wealthbox" => !trimmed.starts_with("sfdc:") && !trimmed.starts_with("redtail:"),
+        _ => false,
+    }
+}
+
+pub fn crm_source_id_belongs_to_provider(source_id: &str, provider_id: &str) -> bool {
+    let Some(rest) = source_id.strip_prefix("crm:") else {
+        return false;
+    };
+    let Some((_, key)) = rest.split_once(':') else {
+        return false;
+    };
+    crm_key_belongs_to_provider(key, provider_id)
+}
+
 // ---------------------------------------------------------------------------
 // Serde helper — tolerates both MISSING and explicit NULL
 // ---------------------------------------------------------------------------

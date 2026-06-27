@@ -26,7 +26,7 @@ use std::path::Path;
 use sha2::{Digest, Sha256};
 
 use crate::commands::crm::model::{
-    CrmContact, CrmEvent, CrmLink, CrmNote, CrmRecordProvider, CrmTask,
+    CrmContact, CrmEvent, CrmLink, CrmNote, CrmRecordProvider, CrmTask, crm_key_belongs_to_provider,
 };
 use crate::commands::crm::render::{
     render_contact, render_event, render_household_summary, render_note, render_task,
@@ -96,6 +96,17 @@ pub struct SyncReport {
 pub fn content_hash(json: &str) -> String {
     let hash = Sha256::digest(json.as_bytes());
     hex::encode(hash)
+}
+
+pub(crate) fn provider_scoped_matter_map(
+    matter_map: &HashMap<String, String>,
+    provider_id: &str,
+) -> HashMap<String, String> {
+    matter_map
+        .iter()
+        .filter(|(grouping_key, _)| crm_key_belongs_to_provider(grouping_key, provider_id))
+        .map(|(grouping_key, matter_id)| (grouping_key.clone(), matter_id.clone()))
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -575,6 +586,7 @@ pub async fn backfill(
 
     let mut report = SyncReport::default();
     let provider_id = source.provider_id();
+    let provider_matter_map = provider_scoped_matter_map(matter_map, provider_id);
 
     // Phase 1: ingest everything into the store.
     report.ingest = ingest(source, store).await?;
@@ -602,7 +614,7 @@ pub async fn backfill(
     // both fixes that and cuts commits. BTreeMap → deterministic order.
     let mut by_matter: std::collections::BTreeMap<String, Vec<String>> =
         std::collections::BTreeMap::new();
-    for (grouping_key, matter_id) in matter_map {
+    for (grouping_key, matter_id) in &provider_matter_map {
         by_matter
             .entry(matter_id.clone())
             .or_default()
@@ -748,8 +760,8 @@ mod tests {
         CrmContact, CrmEvent, CrmHouseholdRef, CrmLink, CrmNote, CrmTask,
     };
     use crate::commands::crm::salesforce::{
-        normalize_salesforce_records, SalesforceAccount, SalesforceAccountContactRelation,
-        SalesforceContact,
+        SalesforceAccount, SalesforceAccountContactRelation, SalesforceContact,
+        normalize_salesforce_records,
     };
     use crate::commands::crm::store::CrmStore;
     use async_trait::async_trait;
@@ -948,6 +960,47 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn backfill_scopes_matter_map_to_current_provider_keys() {
+        let mixed_map: std::collections::HashMap<String, String> = [
+            ("10001".to_string(), "matter-wealthbox".to_string()),
+            (
+                "sfdc:001HH0000000001AAA".to_string(),
+                "matter-salesforce".to_string(),
+            ),
+            (
+                "redtail:rt-household".to_string(),
+                "matter-redtail".to_string(),
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        let salesforce_map = provider_scoped_matter_map(&mixed_map, "salesforce");
+        assert_eq!(salesforce_map.len(), 1);
+        assert_eq!(
+            salesforce_map
+                .get("sfdc:001HH0000000001AAA")
+                .map(String::as_str),
+            Some("matter-salesforce")
+        );
+        assert!(
+            !salesforce_map.contains_key("10001"),
+            "Salesforce sync must not plan legacy Wealthbox household keys"
+        );
+        assert!(
+            !salesforce_map.contains_key("redtail:rt-household"),
+            "Salesforce sync must not plan Redtail household keys"
+        );
+
+        let wealthbox_map = provider_scoped_matter_map(&mixed_map, "wealthbox");
+        assert_eq!(wealthbox_map.len(), 1);
+        assert_eq!(
+            wealthbox_map.get("10001").map(String::as_str),
+            Some("matter-wealthbox")
+        );
+    }
+
     // ── Test: ingest ──────────────────────────────────────────────────────────
 
     #[tokio::test]
@@ -1109,9 +1162,11 @@ mod tests {
         let items = plan_household_index(&store, "sfdc:001HH0000000001AAA", "matter-anderson")
             .expect("plan salesforce household");
         assert!(items.iter().all(|i| i.matter_id == "matter-anderson"));
-        assert!(items
-            .iter()
-            .any(|i| i.source_id == "crm:household:sfdc:001HH0000000001AAA"));
+        assert!(
+            items
+                .iter()
+                .any(|i| i.source_id == "crm:household:sfdc:001HH0000000001AAA")
+        );
         assert!(items.iter().any(|i| {
             i.source_id == "crm:contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA"
                 && i.text.contains("Robert Anderson")
@@ -1975,7 +2030,9 @@ mod tests {
             "Alpha household must be indexed; got {paths:?}"
         );
         assert!(
-            paths.iter().any(|p| p.contains(":30003") || p.contains(":30004")),
+            paths
+                .iter()
+                .any(|p| p.contains(":30003") || p.contains(":30004")),
             "Beta household must be indexed (NOT wiped by Alpha's sibling under the same matter); got {paths:?}"
         );
     }
@@ -2063,7 +2120,7 @@ mod tests {
     #[tokio::test]
     async fn backfill_salesforce_empty_map_purges_only_salesforce_crm_chunks() {
         use crate::commands::mail::crypto::decrypt_with_key;
-        use crate::commands::rag::chunker::{chunk_text, Chunk};
+        use crate::commands::rag::chunker::{Chunk, chunk_text};
         use crate::commands::rag::embedder::EMBEDDING_DIM;
         use crate::commands::rag::store::{self, PRIVILEGE_NONE};
         use arrow_array::RecordBatchIterator;
@@ -2184,8 +2241,8 @@ mod tests {
     #[ignore]
     async fn backfill_empty_map_purges_crm_preserving_files() {
         use crate::commands::rag::chunker::Chunk;
-        use crate::commands::rag::embedder::{embed_documents_batched, EMBEDDING_DIM};
-        use crate::commands::rag::store::{self, SourceType, PRIVILEGE_NONE};
+        use crate::commands::rag::embedder::{EMBEDDING_DIM, embed_documents_batched};
+        use crate::commands::rag::store::{self, PRIVILEGE_NONE, SourceType};
         use arrow_array::RecordBatchIterator;
         skip_without_model!();
 

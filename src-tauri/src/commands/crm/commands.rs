@@ -7,20 +7,21 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::audit::AuditState;
 use crate::commands::crm::engine;
+use crate::commands::crm::model::crm_key_belongs_to_provider;
 use crate::commands::crm::provider::{
-    client_for, delete_token, read_token, store_token, validate_token, CrmProvider,
+    CrmProvider, client_for, delete_token, read_token, store_token, validate_token,
 };
 use crate::commands::crm::salesforce::{
-    build_salesforce_auth_url, exchange_salesforce_code, salesforce_client_id, SalesforceClient,
-    SALESFORCE_TOKEN_ENDPOINT,
+    SALESFORCE_TOKEN_ENDPOINT, SalesforceClient, build_salesforce_auth_url,
+    exchange_salesforce_code, salesforce_client_id,
 };
 use crate::commands::crm::store::CrmStore;
 
@@ -143,6 +144,18 @@ pub struct CrmDisconnectResult {
 pub struct CrmHouseholdDto {
     pub id: String,
     pub name: String,
+}
+
+fn provider_scoped_matter_entries(
+    matter_map: &[CrmMatterMapEntry],
+    provider: CrmProvider,
+) -> HashMap<String, String> {
+    let provider_id = provider.id();
+    matter_map
+        .iter()
+        .filter(|entry| crm_key_belongs_to_provider(&entry.household_id, provider_id))
+        .map(|entry| (entry.household_id.clone(), entry.matter_id.clone()))
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -740,10 +753,7 @@ pub async fn crm_sync_all(
     );
 
     // Convert the Vec<CrmMatterMapEntry> → HashMap<String,String> for the engine.
-    let matter_hashmap: HashMap<String, String> = matter_map
-        .iter()
-        .map(|e| (e.household_id.clone(), e.matter_id.clone()))
-        .collect();
+    let matter_hashmap = provider_scoped_matter_entries(&matter_map, provider);
 
     // Open (or create) the encrypted CRM store.
     let store = CrmStore::open(&workspace).map_err(|e| {
@@ -1080,7 +1090,7 @@ mod tests {
     #[tokio::test]
     async fn salesforce_disconnect_purges_live_and_tombstoned_chunks_preserving_wealthbox() {
         use crate::commands::mail::crypto::decrypt_with_key;
-        use crate::commands::rag::chunker::{chunk_text, Chunk};
+        use crate::commands::rag::chunker::{Chunk, chunk_text};
         use crate::commands::rag::embedder::EMBEDDING_DIM;
         use crate::commands::rag::store::{self, PRIVILEGE_NONE};
         use arrow_array::RecordBatchIterator;
@@ -1213,7 +1223,7 @@ mod tests {
     #[tokio::test]
     async fn wealthbox_disconnect_purges_live_and_tombstoned_chunks_preserving_salesforce() {
         use crate::commands::mail::crypto::decrypt_with_key;
-        use crate::commands::rag::chunker::{chunk_text, Chunk};
+        use crate::commands::rag::chunker::{Chunk, chunk_text};
         use crate::commands::rag::embedder::EMBEDDING_DIM;
         use crate::commands::rag::store::{self, PRIVILEGE_NONE};
         use arrow_array::RecordBatchIterator;
@@ -1425,6 +1435,42 @@ mod tests {
             map.get("10001").map(String::as_str),
             Some("matter-second"),
             "last entry wins on duplicate"
+        );
+    }
+
+    #[test]
+    fn sync_entry_path_filters_matter_map_to_current_provider() {
+        let entries = vec![
+            CrmMatterMapEntry {
+                household_id: "10001".to_string(),
+                matter_id: "matter-wealthbox".to_string(),
+            },
+            CrmMatterMapEntry {
+                household_id: "sfdc:001HH0000000001AAA".to_string(),
+                matter_id: "matter-salesforce".to_string(),
+            },
+            CrmMatterMapEntry {
+                household_id: "redtail:rt-household".to_string(),
+                matter_id: "matter-redtail".to_string(),
+            },
+        ];
+
+        let salesforce = provider_scoped_matter_entries(&entries, CrmProvider::Salesforce);
+        assert_eq!(salesforce.len(), 1);
+        assert_eq!(
+            salesforce
+                .get("sfdc:001HH0000000001AAA")
+                .map(String::as_str),
+            Some("matter-salesforce")
+        );
+        assert!(!salesforce.contains_key("10001"));
+        assert!(!salesforce.contains_key("redtail:rt-household"));
+
+        let wealthbox = provider_scoped_matter_entries(&entries, CrmProvider::Wealthbox);
+        assert_eq!(wealthbox.len(), 1);
+        assert_eq!(
+            wealthbox.get("10001").map(String::as_str),
+            Some("matter-wealthbox")
         );
     }
 

@@ -77,7 +77,7 @@ export function resolveMatterId(filePath: string, matters: Matter[]): string {
  */
 export function findMatter(
   matterId: string | null | undefined,
-  matters: Matter[],
+  matters: Matter[]
 ): Matter | undefined {
   if (!matterId || matterId === UNASSIGNED_MATTER_ID) return undefined;
   return matters.find((m) => m.id === matterId);
@@ -120,7 +120,11 @@ export interface MailMatterMapEntry {
  * The key is the value stored in a matter's `mailFolderPaths`. Provider and
  * account are required and must be non-empty.
  */
-export function mailFolderKey(provider: string, account: string, folderId?: string): string {
+export function mailFolderKey(
+  provider: string,
+  account: string,
+  folderId?: string
+): string {
   const p = provider.trim();
   const a = account.trim();
   const f = (folderId ?? '').trim();
@@ -136,7 +140,7 @@ export function mailFolderKey(provider: string, account: string, folderId?: stri
  * Returns `null` for a malformed key (fewer than two segments).
  */
 export function parseMailFolderKey(
-  key: string,
+  key: string
 ): { provider: string; account: string; folderId: string } | null {
   const firstSlash = key.indexOf('/');
   if (firstSlash < 0) return null;
@@ -209,6 +213,19 @@ export function buildCrmMatterMap(matters: Matter[]): CrmMatterMapEntry[] {
   return out;
 }
 
+export function filterCrmMatterMapForProvider(
+  matterMap: CrmMatterMapEntry[],
+  provider: 'wealthbox' | 'salesforce' | 'redtail'
+): CrmMatterMapEntry[] {
+  return matterMap.filter(({ householdId }) => {
+    if (provider === 'salesforce') return householdId.startsWith('sfdc:');
+    if (provider === 'redtail') return householdId.startsWith('redtail:');
+    return (
+      !householdId.startsWith('sfdc:') && !householdId.startsWith('redtail:')
+    );
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // External connector -> matter mapping slots
 //
@@ -235,7 +252,7 @@ export interface MeetingMatterMapEntry {
 function buildConnectorMatterMap<T extends { matterId: string }>(
   matters: Matter[],
   getKeys: (matter: Matter) => string[] | undefined,
-  toEntry: (key: string, matterId: string) => T,
+  toEntry: (key: string, matterId: string) => T
 ): T[] {
   const out: T[] = [];
   const claimed = new Set<string>();
@@ -250,11 +267,13 @@ function buildConnectorMatterMap<T extends { matterId: string }>(
   return out;
 }
 
-export function buildOneDriveMatterMap(matters: Matter[]): OneDriveMatterMapEntry[] {
+export function buildOneDriveMatterMap(
+  matters: Matter[]
+): OneDriveMatterMapEntry[] {
   return buildConnectorMatterMap(
     matters,
     (m) => m.onedriveFolderKeys,
-    (folderKey, matterId) => ({ folderKey, matterId }),
+    (folderKey, matterId) => ({ folderKey, matterId })
   );
 }
 
@@ -262,15 +281,17 @@ export function buildEsignMatterMap(matters: Matter[]): EsignMatterMapEntry[] {
   return buildConnectorMatterMap(
     matters,
     (m) => m.esignKeys,
-    (esignKey, matterId) => ({ esignKey, matterId }),
+    (esignKey, matterId) => ({ esignKey, matterId })
   );
 }
 
-export function buildMeetingMatterMap(matters: Matter[]): MeetingMatterMapEntry[] {
+export function buildMeetingMatterMap(
+  matters: Matter[]
+): MeetingMatterMapEntry[] {
   return buildConnectorMatterMap(
     matters,
     (m) => m.meetingKeys,
-    (meetingKey, matterId) => ({ meetingKey, matterId }),
+    (meetingKey, matterId) => ({ meetingKey, matterId })
   );
 }
 
@@ -336,7 +357,7 @@ export interface HouseholdResolution {
 export function resolveMatterForHousehold(
   matters: Matter[],
   household: { id: string; name: string },
-  claimedMatterIds: ReadonlySet<string> = new Set(),
+  claimedMatterIds: ReadonlySet<string> = new Set()
 ): HouseholdResolution {
   // Priority 1: already linked by household key.
   for (const matter of matters) {
@@ -357,7 +378,7 @@ export function resolveMatterForHousehold(
     const matches = matters.filter(
       (m) =>
         normalizeClientName(m.name) === normalizedHouseholdName ||
-        normalizeClientName(m.client) === normalizedHouseholdName,
+        normalizeClientName(m.client) === normalizedHouseholdName
     );
     // Exactly one matter carries this name → unambiguous identity. Zero or many → create.
     if (matches.length === 1) {
@@ -388,7 +409,7 @@ export function resolveMailMatter(
   matters: Matter[],
   provider: string,
   account: string,
-  folderId: string,
+  folderId: string
 ): string {
   let accountLevel: string | null = null;
   for (const m of matters) {
