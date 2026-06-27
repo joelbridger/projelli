@@ -17,9 +17,15 @@ import { Settings } from 'lucide-react';
 export interface SettingsGearButtonProps {
   /** Open the full-page Settings screen (Privacy Center + Activity Log nest there). */
   onOpenSettings: () => void;
+  /**
+   * True when the Settings screen is the active surface. Gives the gear a
+   * "you are here" pressed state + aria-current, since Settings is not a rail
+   * tab in the 3-tab IA and would otherwise leave no active-nav cue.
+   */
+  active?: boolean;
 }
 
-export function SettingsGearButton({ onOpenSettings }: SettingsGearButtonProps) {
+export function SettingsGearButton({ onOpenSettings, active = false }: SettingsGearButtonProps) {
   const label = 'Settings';
   return (
     <button
@@ -27,9 +33,10 @@ export function SettingsGearButton({ onOpenSettings }: SettingsGearButtonProps) 
       data-testid="settings-gear"
       title={`${label} (Ctrl+,)`}
       aria-label={label}
+      aria-current={active ? 'page' : undefined}
       onClick={onOpenSettings}
       className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-      style={{ border: 0, background: 'transparent', cursor: 'pointer' }}
+      style={{ border: 0, background: active ? 'var(--kp-side-active-bg)' : 'transparent', cursor: 'pointer' }}
     >
       <Settings className="h-4 w-4" />
     </button>

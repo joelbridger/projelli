@@ -1337,6 +1337,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
             // The egress badge stays in the TrustBar; Email + Documents stay
             // reachable from the Client Map's per-client quick actions.
             <SettingsGearButton
+              active={sidebarActiveTab === 'settings'}
               onOpenSettings={() => { setSidebarActiveTab('settings'); }}
             />
           ) : (

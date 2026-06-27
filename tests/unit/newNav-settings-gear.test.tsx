@@ -42,4 +42,13 @@ describe('SettingsGearButton (newNav)', () => {
     render(<SettingsGearButton onOpenSettings={vi.fn()} />);
     expect(screen.getByTestId('settings-gear').getAttribute('aria-label')).toBeTruthy();
   });
+
+  it('shows a "you are here" active state (aria-current) when Settings is the active surface', () => {
+    const { rerender } = render(<SettingsGearButton onOpenSettings={vi.fn()} />);
+    // Not on Settings → no active cue.
+    expect(screen.getByTestId('settings-gear').hasAttribute('aria-current')).toBe(false);
+    // On Settings → aria-current="page".
+    rerender(<SettingsGearButton onOpenSettings={vi.fn()} active />);
+    expect(screen.getByTestId('settings-gear').getAttribute('aria-current')).toBe('page');
+  });
 });

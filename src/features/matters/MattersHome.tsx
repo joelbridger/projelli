@@ -22,6 +22,7 @@ import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/platfo
 import type { Matter } from '@/platform/types/matter';
 import type { AuditEntry } from '@/platform/types/audit';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useNewNav } from '@/platform/flags/newNav';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar } from '@/ui/kp';
 
@@ -603,7 +604,28 @@ export function MattersHome({ onAuditLog }: MattersHomeProps = {}) {
   const activeMatterId = useActiveMatterId();
   const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
   const setMatterArchived = useMatterStore((s) => s.setMatterArchived);
+  // Hub-open state. Flag-off keeps the original local state (byte-for-byte
+  // unchanged). newNav lifts it into the store's ephemeral clientMapHubId so it
+  // survives the MattersHome remount a surface switch causes — returning to the
+  // Client Map tab after drilling into a client's Documents/Email lands back on
+  // that client's hub, not the all-clients overview.
+  const newNav = useNewNav();
   const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
+  const clientMapHubId = useMatterStore((s) => s.clientMapHubId);
+  const setClientMapHubId = useMatterStore((s) => s.setClientMapHubId);
+  // The hub is shown for the active client only: a stale clientMapHubId left
+  // over from a client switch (clientMapHubId !== activeMatterId) falls back to
+  // the overview rather than showing the wrong client's hub.
+  const hubMatterId = newNav
+    ? (clientMapHubId !== null && clientMapHubId === activeMatterId ? clientMapHubId : null)
+    : selectedMatterId;
+  const openHub = (id: string) => {
+    setActiveMatter(id);
+    if (newNav) { setClientMapHubId(id); } else { setSelectedMatterId(id); }
+  };
+  const closeHub = () => {
+    if (newNav) { setClientMapHubId(null); } else { setSelectedMatterId(null); }
+  };
   const entityLabel = useEntityLabel();
   const [archivedExpanded, setArchivedExpanded] = useState(false);
 
@@ -666,11 +688,11 @@ export function MattersHome({ onAuditLog }: MattersHomeProps = {}) {
   const showSearch = activeMatters.length > SEARCH_THRESHOLD;
 
   // If a hub is open, render MatterHub instead of the table
-  if (selectedMatterId !== null) {
+  if (hubMatterId !== null) {
     return (
       <MatterHub
-        matterId={selectedMatterId}
-        onBack={() => { setSelectedMatterId(null); }}
+        matterId={hubMatterId}
+        onBack={closeHub}
         {...(onAuditLog ? { onAuditLog } : {})}
       />
     );
@@ -772,10 +794,7 @@ export function MattersHome({ onAuditLog }: MattersHomeProps = {}) {
                         matter={m}
                         isActive={m.id === activeMatterId}
                         showConfidentialityColumn={showConfidentialityColumn}
-                        onSelect={(id) => {
-                          setActiveMatter(id);
-                          setSelectedMatterId(id);
-                        }}
+                        onSelect={(id) => { openHub(id); }}
                         onArchive={(id) => { setMatterArchived(id, true); }}
                       />
                     ))
