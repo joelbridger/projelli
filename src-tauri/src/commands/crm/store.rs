@@ -28,6 +28,19 @@ const KEY_LEN: usize = 32;
 /// Mirrors `mail::crypto::get_or_create_master_key` exactly — same algorithm,
 /// separate keychain entry so this DB has its own independent key.
 fn crm_master_key() -> Result<[u8; KEY_LEN]> {
+    if let Ok(hex) = std::env::var("KEEPANCE_HEADLESS_TEST_CRM_MASTER_KEY_HEX") {
+        let bytes = hex::decode(hex.trim()).context("decode headless test crm master key hex")?;
+        if bytes.len() != KEY_LEN {
+            anyhow::bail!(
+                "headless test crm master key has wrong length: {}",
+                bytes.len()
+            );
+        }
+        let mut k = [0u8; KEY_LEN];
+        k.copy_from_slice(&bytes);
+        return Ok(k);
+    }
+
     let entry = keyring::Entry::new(CRM_KEYCHAIN_SERVICE, CRM_KEYCHAIN_KEY)
         .context("crm keychain entry")?;
     match entry.get_password() {
@@ -261,19 +274,39 @@ impl CrmStore {
             anyhow::bail!("invalid CRM provider marker");
         }
         let c = self.conn.lock().unwrap();
-        let like = format!("%:{marker}%");
+        let like = format!("{marker}%");
         let sql = if include_deleted {
             "SELECT id, kind, household_id, updated_at, content_hash, json, deleted
              FROM crm_objects
-             WHERE id LIKE ?1"
+             WHERE substr(id, instr(id, ':') + 1) LIKE ?1"
         } else {
             "SELECT id, kind, household_id, updated_at, content_hash, json, deleted
              FROM crm_objects
-             WHERE id LIKE ?1 AND deleted = 0"
+             WHERE substr(id, instr(id, ':') + 1) LIKE ?1 AND deleted = 0"
         };
         let mut stmt = c.prepare(sql)?;
         let rows = stmt
             .query_map([like], row_to_crm_object)?
+            .collect::<rusqlite::Result<Vec<CrmObjectRow>>>()?;
+        Ok(rows)
+    }
+
+    /// Return every legacy Wealthbox row, including tombstoned rows. Wealthbox
+    /// owns the original unprefixed id space (`contact:10002`, `note:456`).
+    #[allow(dead_code)]
+    pub fn list_legacy_wealthbox_objects_including_deleted(&self) -> Result<Vec<CrmObjectRow>> {
+        let c = self.conn.lock().unwrap();
+        let mut stmt = c.prepare(
+            "SELECT id, kind, household_id, updated_at, content_hash, json, deleted
+             FROM crm_objects
+             WHERE instr(id, ':') = 0
+                OR (
+                    substr(id, instr(id, ':') + 1) NOT LIKE 'sfdc:%'
+                    AND substr(id, instr(id, ':') + 1) NOT LIKE 'redtail:%'
+                )",
+        )?;
+        let rows = stmt
+            .query_map([], row_to_crm_object)?
             .collect::<rusqlite::Result<Vec<CrmObjectRow>>>()?;
         Ok(rows)
     }
@@ -288,11 +321,11 @@ impl CrmStore {
             anyhow::bail!("invalid CRM provider marker");
         }
         let c = self.conn.lock().unwrap();
-        let like = format!("%:{marker}%");
+        let like = format!("{marker}%");
 
         let mut stmt = c.prepare(
             "SELECT DISTINCT household_id FROM crm_objects
-             WHERE id LIKE ?1 AND household_id != ''",
+             WHERE substr(id, instr(id, ':') + 1) LIKE ?1 AND household_id != ''",
         )?;
         let household_ids = stmt
             .query_map([like.as_str()], |r| r.get::<_, String>(0))?
@@ -306,8 +339,54 @@ impl CrmStore {
             )?;
         }
 
-        let deleted = c.execute("DELETE FROM crm_objects WHERE id LIKE ?1", [like])?;
+        let deleted = c.execute(
+            "DELETE FROM crm_objects WHERE substr(id, instr(id, ':') + 1) LIKE ?1",
+            [like],
+        )?;
         Ok(deleted)
+    }
+
+    /// Hard-delete every legacy Wealthbox object while preserving provider-prefixed
+    /// rows such as Salesforce (`sfdc:`) and Redtail (`redtail:`).
+    #[allow(dead_code)]
+    pub fn purge_legacy_wealthbox_objects(&self) -> Result<usize> {
+        let c = self.conn.lock().unwrap();
+        let legacy_predicate = "instr(id, ':') = 0
+            OR (
+                substr(id, instr(id, ':') + 1) NOT LIKE 'sfdc:%'
+                AND substr(id, instr(id, ':') + 1) NOT LIKE 'redtail:%'
+            )";
+
+        let mut stmt = c.prepare(&format!(
+            "SELECT DISTINCT household_id FROM crm_objects
+             WHERE ({legacy_predicate}) AND household_id != ''"
+        ))?;
+        let household_ids = stmt
+            .query_map([], |r| r.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<String>>>()?;
+        drop(stmt);
+
+        for household_id in household_ids {
+            c.execute(
+                "DELETE FROM crm_render_state WHERE household_id = ?1",
+                [household_id],
+            )?;
+        }
+
+        let deleted = c.execute(
+            &format!("DELETE FROM crm_objects WHERE {legacy_predicate}"),
+            [],
+        )?;
+        Ok(deleted)
+    }
+
+    #[allow(dead_code)]
+    pub fn has_any_objects_including_deleted(&self) -> Result<bool> {
+        let c = self.conn.lock().unwrap();
+        let count = c.query_row("SELECT COUNT(*) FROM crm_objects", [], |r| {
+            r.get::<_, i64>(0)
+        })?;
+        Ok(count > 0)
     }
 
     /// Soft-delete an object (sets `deleted = 1`).
@@ -728,6 +807,84 @@ mod tests {
     }
 
     #[test]
+    fn legacy_wealthbox_purge_removes_live_and_tombstoned_rows_only() {
+        let (_d, s) = crm_store();
+
+        s.upsert_object(
+            "contact:10002",
+            "person",
+            "10001",
+            "",
+            "hash-wb-live",
+            r#"{"id":10002}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "note:20002",
+            "note",
+            "10001",
+            "",
+            "hash-wb-tombstoned",
+            r#"{"id":20002}"#,
+        )
+        .unwrap();
+        s.tombstone_object("note:20002").unwrap();
+        s.upsert_object(
+            "contact:sfdc:001HH0000000001AAA",
+            "household",
+            "sfdc:001HH0000000001AAA",
+            "",
+            "hash-sf",
+            r#"{"external_id":"sfdc:001HH0000000001AAA"}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "contact:redtail:family:7",
+            "household",
+            "redtail:family:7",
+            "",
+            "hash-redtail-family",
+            r#"{"external_id":"redtail:family:7"}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "note:redtail:note:2",
+            "note",
+            "redtail:family:7",
+            "",
+            "hash-redtail-note",
+            r#"{"external_id":"redtail:note:2"}"#,
+        )
+        .unwrap();
+        s.set_render_state("10001", "stale", true).unwrap();
+
+        let wealthbox_rows = s.list_legacy_wealthbox_objects_including_deleted().unwrap();
+        assert_eq!(wealthbox_rows.len(), 2);
+
+        let deleted = s.purge_legacy_wealthbox_objects().unwrap();
+        assert_eq!(deleted, 2);
+
+        assert!(s.get_object("contact:10002").unwrap().is_none());
+        assert!(s.get_object("note:20002").unwrap().is_none());
+        assert!(
+            s.get_object("contact:sfdc:001HH0000000001AAA")
+                .unwrap()
+                .is_some(),
+            "Salesforce row must survive Wealthbox purge"
+        );
+        assert!(
+            s.get_object("contact:redtail:family:7").unwrap().is_some(),
+            "Redtail row must survive Wealthbox purge"
+        );
+        assert_eq!(
+            s.get_render_state("10001").unwrap(),
+            None,
+            "legacy Wealthbox purge must clear stale render state for that household"
+        );
+        assert!(s.has_any_objects_including_deleted().unwrap());
+    }
+
+    #[test]
     fn provider_marker_purge_removes_only_redtail_rows() {
         let (_d, s) = crm_store();
 
@@ -814,7 +971,9 @@ mod tests {
             .unwrap();
 
         assert!(
-            s.list_objects_by_provider_marker("sfdc:").unwrap().is_empty(),
+            s.list_objects_by_provider_marker("sfdc:")
+                .unwrap()
+                .is_empty(),
             "the live provider-marker list should still hide tombstoned rows"
         );
 

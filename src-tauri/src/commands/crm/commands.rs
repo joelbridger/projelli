@@ -7,8 +7,8 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -16,12 +16,12 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::commands::audit::AuditState;
 use crate::commands::crm::engine;
 use crate::commands::crm::provider::{
-    client_for, delete_token, read_token, store_token, validate_token, CrmProvider,
+    CrmProvider, client_for, delete_token, read_token, store_token, validate_token,
 };
 use crate::commands::crm::redtail::RedtailClient;
 use crate::commands::crm::salesforce::{
-    build_salesforce_auth_url, exchange_salesforce_code, salesforce_client_id, SalesforceClient,
-    SALESFORCE_TOKEN_ENDPOINT,
+    SALESFORCE_TOKEN_ENDPOINT, SalesforceClient, build_salesforce_auth_url,
+    exchange_salesforce_code, salesforce_client_id,
 };
 use crate::commands::crm::store::CrmStore;
 
@@ -540,53 +540,35 @@ async fn crm_disconnect_logic_for_provider(
         return result;
     };
 
-    match provider {
-        CrmProvider::Wealthbox => {
-            // Wealthbox was the original CRM provider; its historical disconnect
-            // contract is a full CRM purge for the current workspace.
-            match purge_crm_rag_chunks(&ws).await {
-                Ok(()) => result.rag_purged = true,
-                Err(e) => {
-                    log::warn!("crm_disconnect: rag purge failed (non-fatal): {e:#}");
-                    result
-                        .warnings
-                        .push(format!("Search-index (RAG) purge failed: {e}"));
-                }
-            }
-            match CrmStore::purge(&ws) {
-                Ok(()) => result.crm_db_purged = true,
-                Err(e) => {
-                    log::warn!("crm_disconnect: crm db purge failed (non-fatal): {e:#}");
-                    result
-                        .warnings
-                        .push(format!("CRM database purge failed: {e}"));
+    let mut no_crm_rows_remain = false;
+    match purge_crm_data_for_provider(&ws, provider).await {
+        Ok(outcome) => {
+            result.rag_purged = true;
+            result.crm_db_purged = true;
+            no_crm_rows_remain = outcome.no_crm_rows_remain;
+            if no_crm_rows_remain {
+                match CrmStore::purge(&ws) {
+                    Ok(()) => {}
+                    Err(e) => {
+                        result.crm_db_purged = false;
+                        log::warn!("crm_disconnect: shared crm db purge failed (non-fatal): {e:#}");
+                        result
+                            .warnings
+                            .push(format!("CRM database purge failed: {e}"));
+                    }
                 }
             }
         }
-        CrmProvider::Salesforce => match purge_namespaced_crm_data(&ws, "sfdc:").await {
-            Ok(()) => {
-                result.rag_purged = true;
-                result.crm_db_purged = true;
-            }
-            Err(e) => {
-                log::warn!("crm_disconnect: salesforce purge failed (non-fatal): {e:#}");
-                result
-                    .warnings
-                    .push(format!("Salesforce imported-data purge failed: {e}"));
-            }
-        },
-        CrmProvider::Redtail => match purge_namespaced_crm_data(&ws, "redtail:").await {
-            Ok(()) => {
-                result.rag_purged = true;
-                result.crm_db_purged = true;
-            }
-            Err(e) => {
-                log::warn!("crm_disconnect: redtail purge failed (non-fatal): {e:#}");
-                result
-                    .warnings
-                    .push(format!("Redtail imported-data purge failed: {e}"));
-            }
-        },
+        Err(e) => {
+            log::warn!(
+                "crm_disconnect: {} purge failed (non-fatal): {e:#}",
+                provider.display_name()
+            );
+            result.warnings.push(format!(
+                "{} imported-data purge failed: {e}",
+                provider.display_name()
+            ));
+        }
     }
 
     // P2 — remove the API token (= become "disconnected") ONLY AFTER both purges succeed,
@@ -604,7 +586,7 @@ async fn crm_disconnect_logic_for_provider(
                 ));
             }
         }
-        if provider == CrmProvider::Wealthbox {
+        if no_crm_rows_remain {
             if let Err(e) = CrmStore::delete_master_key() {
                 log::warn!("crm_disconnect: crm db key deletion failed (non-fatal): {e:#}");
                 result.warnings.push(format!(
@@ -666,30 +648,45 @@ pub async fn crm_disconnect(
     Ok(result)
 }
 
-/// Open the workspace RAG table and delete every chunk with source_type = 'crm'.
-/// Extracted as a helper so the two awaits stay out of the command body.
-async fn purge_crm_rag_chunks(ws: &std::path::Path) -> anyhow::Result<()> {
-    let conn = crate::commands::rag::store::open_connection(ws).await?;
-    let table = crate::commands::rag::store::open_or_create_table(&conn).await?;
-    crate::commands::rag::store::delete_source_type(&table, "crm").await
+#[derive(Debug, Clone, Copy)]
+enum CrmProviderDataScope {
+    LegacyWealthbox,
+    ProviderMarker(&'static str),
 }
 
-async fn purge_namespaced_crm_data(
+#[derive(Debug, Clone, Copy, Default)]
+struct ProviderCrmPurgeOutcome {
+    no_crm_rows_remain: bool,
+}
+
+async fn purge_crm_data_for_provider(
     ws: &std::path::Path,
-    provider_marker: &str,
-) -> anyhow::Result<()> {
+    provider: CrmProvider,
+) -> anyhow::Result<ProviderCrmPurgeOutcome> {
     let store = CrmStore::open(ws)?;
     let key = crate::commands::rag::crypto::get_or_create_master_key()?;
-    purge_provider_crm_data_with_store_and_key(ws, &store, provider_marker, &key).await
+    let scope = match provider {
+        CrmProvider::Wealthbox => CrmProviderDataScope::LegacyWealthbox,
+        CrmProvider::Salesforce => CrmProviderDataScope::ProviderMarker("sfdc:"),
+        CrmProvider::Redtail => CrmProviderDataScope::ProviderMarker("redtail:"),
+    };
+    purge_provider_crm_data_with_store_and_key(ws, &store, scope, &key).await
 }
 
 async fn purge_provider_crm_data_with_store_and_key(
     ws: &std::path::Path,
     store: &CrmStore,
-    provider_marker: &str,
+    scope: CrmProviderDataScope,
     rag_key: &[u8; 32],
-) -> anyhow::Result<()> {
-    let rows = store.list_objects_by_provider_marker_including_deleted(provider_marker)?;
+) -> anyhow::Result<ProviderCrmPurgeOutcome> {
+    let rows = match scope {
+        CrmProviderDataScope::LegacyWealthbox => {
+            store.list_legacy_wealthbox_objects_including_deleted()?
+        }
+        CrmProviderDataScope::ProviderMarker(marker) => {
+            store.list_objects_by_provider_marker_including_deleted(marker)?
+        }
+    };
     let source_ids: Vec<String> = rows.iter().filter_map(crm_source_id_for_row).collect();
 
     let conn = crate::commands::rag::store::open_connection(ws).await?;
@@ -698,8 +695,18 @@ async fn purge_provider_crm_data_with_store_and_key(
         crate::commands::rag::store::delete_path(&table, &source_id, rag_key).await?;
     }
 
-    store.purge_objects_by_provider_marker(provider_marker)?;
-    Ok(())
+    match scope {
+        CrmProviderDataScope::LegacyWealthbox => {
+            store.purge_legacy_wealthbox_objects()?;
+        }
+        CrmProviderDataScope::ProviderMarker(marker) => {
+            store.purge_objects_by_provider_marker(marker)?;
+        }
+    }
+
+    Ok(ProviderCrmPurgeOutcome {
+        no_crm_rows_remain: !store.has_any_objects_including_deleted()?,
+    })
 }
 
 fn crm_source_id_for_row(row: &crate::commands::crm::store::CrmObjectRow) -> Option<String> {
@@ -1146,9 +1153,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn salesforce_disconnect_purges_live_and_tombstoned_chunks_preserving_wealthbox() {
+    async fn salesforce_disconnect_purges_live_and_tombstoned_chunks_preserving_other_crms() {
         use crate::commands::mail::crypto::decrypt_with_key;
-        use crate::commands::rag::chunker::{chunk_text, Chunk};
+        use crate::commands::rag::chunker::{Chunk, chunk_text};
         use crate::commands::rag::embedder::EMBEDDING_DIM;
         use crate::commands::rag::store::{self, PRIVILEGE_NONE};
         use arrow_array::RecordBatchIterator;
@@ -1156,14 +1163,10 @@ mod tests {
         const RAG_KEY: [u8; 32] = [0x5Au8; 32];
         const CRM_KEY: [u8; 32] = [0x33u8; 32];
         const MATTER: &str = "matter-salesforce-disconnect";
-        const SALESFORCE_MARKER: &str = "sfdc:";
 
         let workspace = tempfile::TempDir::new().unwrap();
-        let crm = crate::commands::crm::store::CrmStore::open_with_key(
-            workspace.path(),
-            &CRM_KEY,
-        )
-        .expect("open crm store");
+        let crm = crate::commands::crm::store::CrmStore::open_with_key(workspace.path(), &CRM_KEY)
+            .expect("open crm store");
 
         crm.upsert_object(
             "contact:10002",
@@ -1194,6 +1197,15 @@ mod tests {
         .expect("upsert salesforce tombstone target");
         crm.tombstone_object("contact:sfdc:003TOMBSTONED:acct:001HH")
             .expect("tombstone salesforce row");
+        crm.upsert_object(
+            "contact:redtail:contact:66",
+            "person",
+            "redtail:family:7",
+            "",
+            "hash-redtail-live",
+            r#"{"external_id":"redtail:contact:66"}"#,
+        )
+        .expect("upsert redtail contact");
 
         let conn = store::open_connection(workspace.path())
             .await
@@ -1205,6 +1217,7 @@ mod tests {
             "crm:contact:10002",
             "crm:contact:sfdc:003LIVE:acct:001HH",
             "crm:contact:sfdc:003TOMBSTONED:acct:001HH",
+            "crm:contact:redtail:contact:66",
         ];
         let mut rows: Vec<(Chunk, Vec<f32>)> = Vec::new();
         for source_id in source_ids {
@@ -1224,7 +1237,7 @@ mod tests {
         purge_provider_crm_data_with_store_and_key(
             workspace.path(),
             &crm,
-            SALESFORCE_MARKER,
+            CrmProviderDataScope::ProviderMarker("sfdc:"),
             &RAG_KEY,
         )
         .await
@@ -1233,6 +1246,12 @@ mod tests {
         assert!(
             crm.get_object("contact:10002").unwrap().is_some(),
             "Wealthbox CRM row must survive Salesforce disconnect"
+        );
+        assert!(
+            crm.get_object("contact:redtail:contact:66")
+                .unwrap()
+                .is_some(),
+            "Redtail CRM row must survive Salesforce disconnect"
         );
         assert!(
             crm.get_object("contact:sfdc:003LIVE:acct:001HH")
@@ -1277,15 +1296,178 @@ mod tests {
             "Wealthbox RAG chunk must survive Salesforce disconnect; got {paths:?}"
         );
         assert!(
+            paths.iter().any(|p| p == "crm:contact:redtail:contact:66"),
+            "Redtail RAG chunk must survive Salesforce disconnect; got {paths:?}"
+        );
+        assert!(
             !paths.iter().any(|p| p.contains("sfdc:")),
             "live and tombstoned Salesforce RAG chunks must be gone; got {paths:?}"
         );
     }
 
     #[tokio::test]
+    async fn wealthbox_disconnect_purges_live_and_tombstoned_chunks_preserving_other_crms() {
+        use crate::commands::mail::crypto::decrypt_with_key;
+        use crate::commands::rag::chunker::{Chunk, chunk_text};
+        use crate::commands::rag::embedder::EMBEDDING_DIM;
+        use crate::commands::rag::store::{self, PRIVILEGE_NONE};
+        use arrow_array::RecordBatchIterator;
+
+        const RAG_KEY: [u8; 32] = [0x5Bu8; 32];
+        const CRM_KEY: [u8; 32] = [0x34u8; 32];
+        const MATTER: &str = "matter-wealthbox-disconnect";
+
+        let workspace = tempfile::TempDir::new().unwrap();
+        let crm = crate::commands::crm::store::CrmStore::open_with_key(workspace.path(), &CRM_KEY)
+            .expect("open crm store");
+
+        crm.upsert_object(
+            "contact:10002",
+            "person",
+            "10001",
+            "",
+            "hash-wb-live",
+            r#"{"id":10002}"#,
+        )
+        .expect("upsert wealthbox live contact");
+        crm.upsert_object(
+            "note:20002",
+            "note",
+            "10001",
+            "",
+            "hash-wb-tombstoned",
+            r#"{"id":20002}"#,
+        )
+        .expect("upsert wealthbox tombstone target");
+        crm.tombstone_object("note:20002")
+            .expect("tombstone wealthbox row");
+        crm.upsert_object(
+            "contact:sfdc:003LIVE:acct:001HH",
+            "person",
+            "sfdc:001HH",
+            "",
+            "hash-sf-live",
+            r#"{"external_id":"sfdc:003LIVE:acct:001HH"}"#,
+        )
+        .expect("upsert salesforce contact");
+        crm.upsert_object(
+            "contact:redtail:contact:66",
+            "person",
+            "redtail:family:7",
+            "",
+            "hash-redtail-live",
+            r#"{"external_id":"redtail:contact:66"}"#,
+        )
+        .expect("upsert redtail contact");
+
+        let conn = store::open_connection(workspace.path())
+            .await
+            .expect("open vector store");
+        let table = store::open_or_create_table(&conn)
+            .await
+            .expect("open chunks table");
+        let source_ids = [
+            "crm:contact:10002",
+            "crm:note:20002",
+            "crm:contact:sfdc:003LIVE:acct:001HH",
+            "crm:contact:redtail:contact:66",
+        ];
+        let mut rows: Vec<(Chunk, Vec<f32>)> = Vec::new();
+        for source_id in source_ids {
+            for chunk in chunk_text(source_id, &format!("CRM fixture for {source_id}")) {
+                rows.push((chunk, vec![0.11f32; EMBEDDING_DIM]));
+            }
+        }
+        let batch = store::build_batch_crm(&rows, &RAG_KEY, MATTER, PRIVILEGE_NONE)
+            .expect("build crm batch");
+        let schema = batch.schema();
+        table
+            .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+            .execute()
+            .await
+            .expect("add crm chunks");
+
+        let outcome = purge_provider_crm_data_with_store_and_key(
+            workspace.path(),
+            &crm,
+            CrmProviderDataScope::LegacyWealthbox,
+            &RAG_KEY,
+        )
+        .await
+        .expect("purge wealthbox provider data");
+
+        assert!(
+            !outcome.no_crm_rows_remain,
+            "shared CRM DB/key must stay while Salesforce and Redtail rows remain"
+        );
+        assert!(
+            crm.get_object("contact:10002").unwrap().is_none(),
+            "live Wealthbox CRM row must be purged"
+        );
+        assert!(
+            crm.get_object("note:20002").unwrap().is_none(),
+            "tombstoned Wealthbox CRM row must be purged"
+        );
+        assert!(
+            crm.get_object("contact:sfdc:003LIVE:acct:001HH")
+                .unwrap()
+                .is_some(),
+            "Salesforce CRM row must survive Wealthbox disconnect"
+        );
+        assert!(
+            crm.get_object("contact:redtail:contact:66")
+                .unwrap()
+                .is_some(),
+            "Redtail CRM row must survive Wealthbox disconnect"
+        );
+
+        let conn_after = store::open_connection(workspace.path())
+            .await
+            .expect("reopen vector store after purge");
+        let table_after = store::open_or_create_table(&conn_after)
+            .await
+            .expect("reopen chunks table after purge");
+        let hits = store::nearest(
+            &table_after,
+            &vec![0.11f32; EMBEDDING_DIM],
+            20,
+            Some(MATTER),
+            false,
+            &[],
+        )
+        .await
+        .expect("nearest after wealthbox purge");
+        let paths: Vec<String> = hits
+            .iter()
+            .map(|hit| {
+                let enc = hit.path_enc.as_deref().expect("crm hit has path_enc");
+                let blob = hex::decode(enc).expect("path_enc hex");
+                String::from_utf8(decrypt_with_key(&blob, &RAG_KEY).expect("decrypt path_enc"))
+                    .expect("utf8 path")
+            })
+            .collect();
+        assert!(
+            paths
+                .iter()
+                .any(|p| p == "crm:contact:sfdc:003LIVE:acct:001HH"),
+            "Salesforce RAG chunk must survive Wealthbox disconnect; got {paths:?}"
+        );
+        assert!(
+            paths.iter().any(|p| p == "crm:contact:redtail:contact:66"),
+            "Redtail RAG chunk must survive Wealthbox disconnect; got {paths:?}"
+        );
+        assert!(
+            !paths
+                .iter()
+                .any(|p| p == "crm:contact:10002" || p == "crm:note:20002"),
+            "live and tombstoned Wealthbox RAG chunks must be gone; got {paths:?}"
+        );
+    }
+
+    #[tokio::test]
     async fn redtail_disconnect_purges_live_and_tombstoned_chunks_preserving_other_crms() {
         use crate::commands::mail::crypto::decrypt_with_key;
-        use crate::commands::rag::chunker::{chunk_text, Chunk};
+        use crate::commands::rag::chunker::{Chunk, chunk_text};
         use crate::commands::rag::embedder::EMBEDDING_DIM;
         use crate::commands::rag::store::{self, PRIVILEGE_NONE};
         use arrow_array::RecordBatchIterator;
@@ -1293,14 +1475,10 @@ mod tests {
         const RAG_KEY: [u8; 32] = [0x5Au8; 32];
         const CRM_KEY: [u8; 32] = [0x33u8; 32];
         const MATTER: &str = "matter-redtail-disconnect";
-        const REDTAIL_MARKER: &str = "redtail:";
 
         let workspace = tempfile::TempDir::new().unwrap();
-        let crm = crate::commands::crm::store::CrmStore::open_with_key(
-            workspace.path(),
-            &CRM_KEY,
-        )
-        .expect("open crm store");
+        let crm = crate::commands::crm::store::CrmStore::open_with_key(workspace.path(), &CRM_KEY)
+            .expect("open crm store");
 
         crm.upsert_object(
             "contact:10002",
@@ -1368,15 +1546,19 @@ mod tests {
             .await
             .expect("add crm chunks");
 
-        purge_provider_crm_data_with_store_and_key(
+        let outcome = purge_provider_crm_data_with_store_and_key(
             workspace.path(),
             &crm,
-            REDTAIL_MARKER,
+            CrmProviderDataScope::ProviderMarker("redtail:"),
             &RAG_KEY,
         )
         .await
         .expect("purge redtail provider data");
 
+        assert!(
+            !outcome.no_crm_rows_remain,
+            "shared CRM DB/key must stay while Wealthbox and Salesforce rows remain"
+        );
         assert!(
             crm.get_object("contact:10002").unwrap().is_some(),
             "Wealthbox CRM row must survive Redtail disconnect"

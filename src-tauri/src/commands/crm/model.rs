@@ -18,6 +18,14 @@
 /// TODO(live-probe): confirm updated_since format + max per_page against a real token.
 pub const DEFAULT_PER_PAGE: usize = 50;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CrmRecordProvider {
+    #[default]
+    Wealthbox,
+    Salesforce,
+    Redtail,
+}
+
 // ---------------------------------------------------------------------------
 // Serde helper — tolerates both MISSING and explicit NULL
 // ---------------------------------------------------------------------------
@@ -49,6 +57,8 @@ pub struct CrmHouseholdMember {
     pub id: i64,
     #[serde(default, deserialize_with = "null_to_default")]
     pub external_id: String,
+    #[serde(skip)]
+    pub source_provider: CrmRecordProvider,
     pub first_name: String,
     pub last_name: String,
     /// Household title role: Head, Spouse, Partner, Child, Grandchild, etc.
@@ -66,6 +76,8 @@ pub struct CrmHouseholdRef {
     pub id: i64,
     #[serde(default, deserialize_with = "null_to_default")]
     pub external_id: String,
+    #[serde(skip)]
+    pub source_provider: CrmRecordProvider,
     pub name: String,
     /// This contact's role within the household (e.g. "Head", "Spouse").
     pub title: String,
@@ -74,7 +86,8 @@ pub struct CrmHouseholdRef {
 
 impl CrmHouseholdRef {
     pub fn crm_key(&self) -> String {
-        provider_prefixed_external_id(&self.external_id).unwrap_or_else(|| self.id.to_string())
+        provider_prefixed_external_id(self.source_provider, &self.external_id)
+            .unwrap_or_else(|| self.id.to_string())
     }
 }
 
@@ -124,6 +137,8 @@ pub struct CrmLink {
     pub id: i64,
     #[serde(default, deserialize_with = "null_to_default")]
     pub external_id: String,
+    #[serde(skip)]
+    pub source_provider: CrmRecordProvider,
     #[serde(rename = "type")]
     pub r#type: String,
     pub name: String,
@@ -131,7 +146,8 @@ pub struct CrmLink {
 
 impl CrmLink {
     pub fn crm_key(&self) -> String {
-        provider_prefixed_external_id(&self.external_id).unwrap_or_else(|| self.id.to_string())
+        provider_prefixed_external_id(self.source_provider, &self.external_id)
+            .unwrap_or_else(|| self.id.to_string())
     }
 }
 
@@ -165,6 +181,8 @@ pub struct CrmContact {
     pub id: i64,
     #[serde(default, deserialize_with = "null_to_default")]
     pub external_id: String,
+    #[serde(skip)]
+    pub source_provider: CrmRecordProvider,
     #[serde(rename = "type", default, deserialize_with = "null_to_default")]
     pub r#type: String,
 
@@ -274,7 +292,8 @@ impl CrmContact {
     /// `external_id` is ignored, because honoring it would shift existing
     /// `crm:<kind>:<id>` source ids and make old chunks look orphaned.
     pub fn crm_key(&self) -> String {
-        provider_prefixed_external_id(&self.external_id).unwrap_or_else(|| self.id.to_string())
+        provider_prefixed_external_id(self.source_provider, &self.external_id)
+            .unwrap_or_else(|| self.id.to_string())
     }
 
     /// Returns the id of the household this contact belongs to.
@@ -311,6 +330,8 @@ pub struct CrmNote {
     pub id: i64,
     #[serde(default, deserialize_with = "null_to_default")]
     pub external_id: String,
+    #[serde(skip)]
+    pub source_provider: CrmRecordProvider,
     pub created_at: String,
     pub updated_at: String,
     pub content: String,
@@ -319,7 +340,8 @@ pub struct CrmNote {
 
 impl CrmNote {
     pub fn crm_key(&self) -> String {
-        provider_prefixed_external_id(&self.external_id).unwrap_or_else(|| self.id.to_string())
+        provider_prefixed_external_id(self.source_provider, &self.external_id)
+            .unwrap_or_else(|| self.id.to_string())
     }
 }
 
@@ -330,6 +352,8 @@ pub struct CrmTask {
     pub id: i64,
     #[serde(default, deserialize_with = "null_to_default")]
     pub external_id: String,
+    #[serde(skip)]
+    pub source_provider: CrmRecordProvider,
     pub name: String,
     pub due_date: Option<String>,
     pub complete: bool,
@@ -340,7 +364,8 @@ pub struct CrmTask {
 
 impl CrmTask {
     pub fn crm_key(&self) -> String {
-        provider_prefixed_external_id(&self.external_id).unwrap_or_else(|| self.id.to_string())
+        provider_prefixed_external_id(self.source_provider, &self.external_id)
+            .unwrap_or_else(|| self.id.to_string())
     }
 }
 
@@ -351,6 +376,8 @@ pub struct CrmEvent {
     pub id: i64,
     #[serde(default, deserialize_with = "null_to_default")]
     pub external_id: String,
+    #[serde(skip)]
+    pub source_provider: CrmRecordProvider,
     pub title: String,
     pub starts_at: String,
     pub ends_at: String,
@@ -362,16 +389,20 @@ pub struct CrmEvent {
 
 impl CrmEvent {
     pub fn crm_key(&self) -> String {
-        provider_prefixed_external_id(&self.external_id).unwrap_or_else(|| self.id.to_string())
+        provider_prefixed_external_id(self.source_provider, &self.external_id)
+            .unwrap_or_else(|| self.id.to_string())
     }
 }
 
-fn provider_prefixed_external_id(external_id: &str) -> Option<String> {
+fn provider_prefixed_external_id(
+    source_provider: CrmRecordProvider,
+    external_id: &str,
+) -> Option<String> {
     let trimmed = external_id.trim();
-    if trimmed.starts_with("sfdc:") || trimmed.starts_with("redtail:") {
-        Some(trimmed.to_string())
-    } else {
-        None
+    match source_provider {
+        CrmRecordProvider::Salesforce if trimmed.starts_with("sfdc:") => Some(trimmed.to_string()),
+        CrmRecordProvider::Redtail if trimmed.starts_with("redtail:") => Some(trimmed.to_string()),
+        _ => None,
     }
 }
 
@@ -404,7 +435,7 @@ mod tests {
     fn wealthbox_contact_with_stray_external_id_keeps_legacy_numeric_crm_key() {
         let contact = CrmContact {
             id: 10002,
-            external_id: "WB-EXT-10002".to_string(),
+            external_id: "sfdc:evil".to_string(),
             r#type: "person".to_string(),
             ..Default::default()
         };
@@ -421,11 +452,13 @@ mod tests {
         let salesforce = CrmContact {
             id: 42,
             external_id: "sfdc:003CC0000000002AAA".to_string(),
+            source_provider: CrmRecordProvider::Salesforce,
             ..Default::default()
         };
         let redtail = CrmContact {
             id: 43,
             external_id: "redtail:contact:123".to_string(),
+            source_provider: CrmRecordProvider::Redtail,
             ..Default::default()
         };
 

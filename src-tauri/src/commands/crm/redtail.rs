@@ -16,7 +16,7 @@ use sha2::{Digest, Sha256};
 
 use crate::commands::crm::model::{
     CrmContact, CrmEmailAddress, CrmEvent, CrmHouseholdMember, CrmHouseholdRef, CrmLink, CrmNote,
-    CrmPhoneNumber, CrmStreetAddress,
+    CrmPhoneNumber, CrmRecordProvider, CrmStreetAddress,
 };
 use crate::commands::crm::source::CrmSource;
 
@@ -466,6 +466,7 @@ fn family_to_household(family: &RedtailFamily, contacts_by_id: &HashMap<i64, Val
             members.push(CrmHouseholdMember {
                 id: stable_numeric_id(&redtail_contact_key(member.contact_id)),
                 external_id: redtail_contact_key(member.contact_id),
+                source_provider: CrmRecordProvider::Redtail,
                 first_name: string_field(raw, "first_name"),
                 last_name: string_field(raw, "last_name"),
                 title: if member.hoh {
@@ -483,6 +484,7 @@ fn family_to_household(family: &RedtailFamily, contacts_by_id: &HashMap<i64, Val
     CrmContact {
         id: stable_numeric_id(&redtail_family_key(family.id)),
         external_id: redtail_family_key(family.id),
+        source_provider: CrmRecordProvider::Redtail,
         r#type: "household".to_string(),
         name: family.name.clone(),
         company_name: family.name.clone(),
@@ -531,6 +533,7 @@ fn contact_to_crm(
                     .map(|raw_member| CrmHouseholdMember {
                         id: stable_numeric_id(&redtail_contact_key(member.contact_id)),
                         external_id: redtail_contact_key(member.contact_id),
+                        source_provider: CrmRecordProvider::Redtail,
                         first_name: string_field(raw_member, "first_name"),
                         last_name: string_field(raw_member, "last_name"),
                         title: if member.hoh {
@@ -547,6 +550,7 @@ fn contact_to_crm(
         CrmHouseholdRef {
             id: stable_numeric_id(&redtail_family_key(family.id)),
             external_id: redtail_family_key(family.id),
+            source_provider: CrmRecordProvider::Redtail,
             name: family.name.clone(),
             title: family
                 .members
@@ -569,6 +573,7 @@ fn contact_to_crm(
     Some(CrmContact {
         id: stable_numeric_id(&redtail_contact_key(id)),
         external_id: redtail_contact_key(id),
+        source_provider: CrmRecordProvider::Redtail,
         r#type: redtail_contact_type(raw),
         prefix: string_field(raw, "salutation"),
         first_name: string_field(raw, "first_name"),
@@ -602,6 +607,7 @@ fn note_to_crm(raw: &Value, contact_id: i64) -> Option<CrmNote> {
     Some(CrmNote {
         id: stable_numeric_id(&redtail_note_key(id)),
         external_id: redtail_note_key(id),
+        source_provider: CrmRecordProvider::Redtail,
         created_at: string_field(raw, "created_at"),
         updated_at: string_field(raw, "updated_at"),
         content: decode_redtail_html(&first_non_empty(raw, &["body", "content", "note"])),
@@ -618,6 +624,7 @@ fn activity_to_event(raw: &Value, contact_id: i64) -> Option<CrmEvent> {
     Some(CrmEvent {
         id: stable_numeric_id(&redtail_activity_key(id)),
         external_id: redtail_activity_key(id),
+        source_provider: CrmRecordProvider::Redtail,
         title: first_non_empty(raw, &["title", "subject", "name"]),
         starts_at: first_non_empty(
             raw,
@@ -658,6 +665,7 @@ fn contact_link(contact_id: i64, name: &str) -> CrmLink {
     CrmLink {
         id: stable_numeric_id(&redtail_contact_key(contact_id)),
         external_id: redtail_contact_key(contact_id),
+        source_provider: CrmRecordProvider::Redtail,
         r#type: "contact".to_string(),
         name: name.to_string(),
     }

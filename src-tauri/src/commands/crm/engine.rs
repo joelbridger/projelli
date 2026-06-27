@@ -25,7 +25,9 @@ use std::path::Path;
 
 use sha2::{Digest, Sha256};
 
-use crate::commands::crm::model::{CrmContact, CrmEvent, CrmLink, CrmNote, CrmTask};
+use crate::commands::crm::model::{
+    CrmContact, CrmEvent, CrmLink, CrmNote, CrmRecordProvider, CrmTask,
+};
 use crate::commands::crm::render::{
     render_contact, render_event, render_household_summary, render_note, render_task,
 };
@@ -308,19 +310,41 @@ pub fn plan_household_index(
         // value) still indexes instead of being skipped.
         match row.kind.to_ascii_lowercase().as_str() {
             "household" => {
-                hh_contact = Some(serde_json::from_str(&row.json)?);
+                let mut contact: CrmContact = serde_json::from_str(&row.json)?;
+                apply_contact_provider(&mut contact, provider_for_store_id(&row.id));
+                hh_contact = Some(contact);
             }
             "person" | "organization" | "trust" => {
-                member_contacts.push(serde_json::from_str(&row.json)?);
+                let mut contact: CrmContact = serde_json::from_str(&row.json)?;
+                apply_contact_provider(&mut contact, provider_for_store_id(&row.id));
+                member_contacts.push(contact);
             }
             "note" => {
-                notes.push(serde_json::from_str(&row.json)?);
+                let mut note: CrmNote = serde_json::from_str(&row.json)?;
+                apply_linked_object_provider(
+                    &mut note.source_provider,
+                    &mut note.linked_to,
+                    &row.id,
+                );
+                notes.push(note);
             }
             "task" => {
-                tasks.push(serde_json::from_str(&row.json)?);
+                let mut task: CrmTask = serde_json::from_str(&row.json)?;
+                apply_linked_object_provider(
+                    &mut task.source_provider,
+                    &mut task.linked_to,
+                    &row.id,
+                );
+                tasks.push(task);
             }
             "event" => {
-                events.push(serde_json::from_str(&row.json)?);
+                let mut event: CrmEvent = serde_json::from_str(&row.json)?;
+                apply_linked_object_provider(
+                    &mut event.source_provider,
+                    &mut event.linked_to,
+                    &row.id,
+                );
+                events.push(event);
             }
             other => {
                 log::warn!(
@@ -385,6 +409,42 @@ pub fn plan_household_index(
     }
 
     Ok(items)
+}
+
+fn provider_for_store_id(store_id: &str) -> CrmRecordProvider {
+    let rest = store_id
+        .split_once(':')
+        .map(|(_, rest)| rest)
+        .unwrap_or(store_id);
+    if rest.starts_with("sfdc:") {
+        CrmRecordProvider::Salesforce
+    } else if rest.starts_with("redtail:") {
+        CrmRecordProvider::Redtail
+    } else {
+        CrmRecordProvider::Wealthbox
+    }
+}
+
+fn apply_contact_provider(contact: &mut CrmContact, provider: CrmRecordProvider) {
+    contact.source_provider = provider;
+    if let Some(household) = contact.household.as_mut() {
+        household.source_provider = provider;
+        for member in &mut household.members {
+            member.source_provider = provider;
+        }
+    }
+}
+
+fn apply_linked_object_provider(
+    source_provider: &mut CrmRecordProvider,
+    linked_to: &mut [CrmLink],
+    store_id: &str,
+) {
+    let provider = provider_for_store_id(store_id);
+    *source_provider = provider;
+    for link in linked_to {
+        link.source_provider = provider;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -688,8 +748,8 @@ mod tests {
         CrmContact, CrmEvent, CrmHouseholdRef, CrmLink, CrmNote, CrmTask,
     };
     use crate::commands::crm::salesforce::{
-        normalize_salesforce_records, SalesforceAccount, SalesforceAccountContactRelation,
-        SalesforceContact,
+        SalesforceAccount, SalesforceAccountContactRelation, SalesforceContact,
+        normalize_salesforce_records,
     };
     use crate::commands::crm::store::CrmStore;
     use async_trait::async_trait;
@@ -734,6 +794,7 @@ mod tests {
                 name: "The Andersons".to_string(),
                 title: "Head".to_string(),
                 members: vec![],
+                ..Default::default()
             }),
             ..Default::default()
         }
@@ -754,6 +815,7 @@ mod tests {
                 name: "The Andersons".to_string(),
                 title: "Spouse".to_string(),
                 members: vec![],
+                ..Default::default()
             }),
             ..Default::default()
         }
@@ -773,7 +835,9 @@ mod tests {
                 external_id: String::new(),
                 r#type: "contact".to_string(),
                 name: "Robert Anderson".to_string(),
+                ..Default::default()
             }],
+            ..Default::default()
         }
     }
 
@@ -792,7 +856,9 @@ mod tests {
                 external_id: String::new(),
                 r#type: "contact".to_string(),
                 name: "The Andersons".to_string(),
+                ..Default::default()
             }],
+            ..Default::default()
         }
     }
 
@@ -813,7 +879,9 @@ mod tests {
                 external_id: String::new(),
                 r#type: "contact".to_string(),
                 name: "The Andersons".to_string(),
+                ..Default::default()
             }],
+            ..Default::default()
         }
     }
 
@@ -869,10 +937,7 @@ mod tests {
             "contact:sfdc:003CC0000000002AAA",
             "salesforce"
         ));
-        assert!(object_belongs_to_provider(
-            "contact:redtail:123",
-            "redtail"
-        ));
+        assert!(object_belongs_to_provider("contact:redtail:123", "redtail"));
         assert!(!object_belongs_to_provider(
             "contact:redtail:123",
             "wealthbox"
@@ -1031,6 +1096,7 @@ mod tests {
                 CrmContact {
                     id: 7001,
                     external_id: "redtail:family:7".to_string(),
+                    source_provider: CrmRecordProvider::Redtail,
                     r#type: "household".to_string(),
                     name: "The Anderson Family".to_string(),
                     company_name: "The Anderson Family".to_string(),
@@ -1040,12 +1106,14 @@ mod tests {
                 CrmContact {
                     id: 7066,
                     external_id: "redtail:contact:66".to_string(),
+                    source_provider: CrmRecordProvider::Redtail,
                     r#type: "person".to_string(),
                     first_name: "Robert".to_string(),
                     last_name: "Anderson".to_string(),
                     household: Some(CrmHouseholdRef {
                         id: 7001,
                         external_id: "redtail:family:7".to_string(),
+                        source_provider: CrmRecordProvider::Redtail,
                         name: "The Anderson Family".to_string(),
                         title: "Head of household".to_string(),
                         members: Vec::new(),
@@ -1059,12 +1127,14 @@ mod tests {
             Ok(vec![CrmNote {
                 id: 9002,
                 external_id: "redtail:note:2".to_string(),
+                source_provider: CrmRecordProvider::Redtail,
                 created_at: "2026-06-01T12:00:00Z".to_string(),
                 updated_at: "2026-06-01T12:00:00Z".to_string(),
                 content: "Reviewed Q1 allocations with Robert.".to_string(),
                 linked_to: vec![CrmLink {
                     id: 7066,
                     external_id: "redtail:contact:66".to_string(),
+                    source_provider: CrmRecordProvider::Redtail,
                     r#type: "contact".to_string(),
                     name: "Robert Anderson".to_string(),
                 }],
@@ -1079,12 +1149,14 @@ mod tests {
             Ok(vec![CrmEvent {
                 id: 9010,
                 external_id: "redtail:activity:10".to_string(),
+                source_provider: CrmRecordProvider::Redtail,
                 title: "Annual Review".to_string(),
                 starts_at: "2026-07-15T10:00:00Z".to_string(),
                 description: "Tax-loss harvest discussion.".to_string(),
                 linked_to: vec![CrmLink {
                     id: 7066,
                     external_id: "redtail:contact:66".to_string(),
+                    source_provider: CrmRecordProvider::Redtail,
                     r#type: "contact".to_string(),
                     name: "Robert Anderson".to_string(),
                 }],
@@ -1119,9 +1191,11 @@ mod tests {
         let items = plan_household_index(&store, "sfdc:001HH0000000001AAA", "matter-anderson")
             .expect("plan salesforce household");
         assert!(items.iter().all(|i| i.matter_id == "matter-anderson"));
-        assert!(items
-            .iter()
-            .any(|i| i.source_id == "crm:household:sfdc:001HH0000000001AAA"));
+        assert!(
+            items
+                .iter()
+                .any(|i| i.source_id == "crm:household:sfdc:001HH0000000001AAA")
+        );
         assert!(items.iter().any(|i| {
             i.source_id == "crm:contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA"
                 && i.text.contains("Robert Anderson")
@@ -1190,15 +1264,19 @@ mod tests {
         let items = plan_household_index(&store, "redtail:family:7", "matter-anderson")
             .expect("plan redtail household");
         assert!(items.iter().all(|i| i.matter_id == "matter-anderson"));
-        assert!(items
-            .iter()
-            .any(|i| i.source_id == "crm:household:redtail:family:7"));
+        assert!(
+            items
+                .iter()
+                .any(|i| i.source_id == "crm:household:redtail:family:7")
+        );
         assert!(items.iter().any(|i| {
             i.source_id == "crm:note:redtail:note:2" && i.text.contains("Reviewed Q1 allocations")
         }));
-        assert!(items
-            .iter()
-            .any(|i| i.source_id == "crm:event:redtail:activity:10"));
+        assert!(
+            items
+                .iter()
+                .any(|i| i.source_id == "crm:event:redtail:activity:10")
+        );
     }
 
     #[tokio::test]
@@ -1336,6 +1414,7 @@ mod tests {
                         name: "The Bishops".to_string(),
                         title: "Head".to_string(),
                         members: vec![],
+                        ..Default::default()
                     }),
                     ..Default::default()
                 },
@@ -1351,6 +1430,7 @@ mod tests {
                         name: "The Bishops".to_string(),
                         title: "Entity".to_string(),
                         members: vec![],
+                        ..Default::default()
                     }),
                     ..Default::default()
                 },
@@ -1366,6 +1446,7 @@ mod tests {
                         name: "The Bishops".to_string(),
                         title: "Entity".to_string(),
                         members: vec![],
+                        ..Default::default()
                     }),
                     ..Default::default()
                 },
@@ -1491,6 +1572,7 @@ mod tests {
                         name: "The Bishops".to_string(),
                         title: "Head".to_string(),
                         members: vec![],
+                        ..Default::default()
                     }),
                     ..Default::default()
                 },
@@ -1506,6 +1588,7 @@ mod tests {
                         name: "The Bishops".to_string(),
                         title: "Entity".to_string(),
                         members: vec![],
+                        ..Default::default()
                     }),
                     ..Default::default()
                 },
@@ -1666,6 +1749,7 @@ mod tests {
                 updated_at: "2026-01-01".to_string(),
                 content: "Orphan note — no linked contact".to_string(),
                 linked_to: vec![], // empty → cannot resolve a grouping key
+                ..Default::default()
             };
             Ok(vec![fixture_note(), orphan])
         }
@@ -1729,7 +1813,9 @@ mod tests {
                     external_id: String::new(),
                     r#type: "Project".to_string(),
                     name: "Some Pipeline Project".to_string(),
+                    ..Default::default()
                 }],
+                ..Default::default()
             };
             Ok(vec![note])
         }
@@ -1944,6 +2030,7 @@ mod tests {
                         name: "Alpha".to_string(),
                         title: "Head".to_string(),
                         members: vec![],
+                        ..Default::default()
                     }),
                     ..Default::default()
                 },
@@ -1968,6 +2055,7 @@ mod tests {
                         name: "Beta".to_string(),
                         title: "Head".to_string(),
                         members: vec![],
+                        ..Default::default()
                     }),
                     ..Default::default()
                 },
@@ -2045,7 +2133,9 @@ mod tests {
             "Alpha household must be indexed; got {paths:?}"
         );
         assert!(
-            paths.iter().any(|p| p.contains(":30003") || p.contains(":30004")),
+            paths
+                .iter()
+                .any(|p| p.contains(":30003") || p.contains(":30004")),
             "Beta household must be indexed (NOT wiped by Alpha's sibling under the same matter); got {paths:?}"
         );
     }
@@ -2133,7 +2223,7 @@ mod tests {
     #[tokio::test]
     async fn backfill_salesforce_empty_map_purges_only_salesforce_crm_chunks() {
         use crate::commands::mail::crypto::decrypt_with_key;
-        use crate::commands::rag::chunker::{chunk_text, Chunk};
+        use crate::commands::rag::chunker::{Chunk, chunk_text};
         use crate::commands::rag::embedder::EMBEDDING_DIM;
         use crate::commands::rag::store::{self, PRIVILEGE_NONE};
         use arrow_array::RecordBatchIterator;
@@ -2254,8 +2344,8 @@ mod tests {
     #[ignore]
     async fn backfill_empty_map_purges_crm_preserving_files() {
         use crate::commands::rag::chunker::Chunk;
-        use crate::commands::rag::embedder::{embed_documents_batched, EMBEDDING_DIM};
-        use crate::commands::rag::store::{self, SourceType, PRIVILEGE_NONE};
+        use crate::commands::rag::embedder::{EMBEDDING_DIM, embed_documents_batched};
+        use crate::commands::rag::store::{self, PRIVILEGE_NONE, SourceType};
         use arrow_array::RecordBatchIterator;
         skip_without_model!();
 
