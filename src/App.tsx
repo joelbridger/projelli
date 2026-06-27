@@ -1341,6 +1341,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
               }}
               onOpenPrivacy={() => { setSidebarActiveTab('privacy'); }}
               onOpenActivity={() => { setSidebarActiveTab('audit'); }}
+              onOpenEmail={() => { setSidebarActiveTab('email'); }}
               onOpenDocuments={() => { setDocumentsView('browser'); setSidebarActiveTab('files'); }}
             />
           ) : (

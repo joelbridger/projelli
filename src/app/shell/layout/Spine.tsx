@@ -169,18 +169,24 @@ export function Spine({
         </div>
         {matters.length > 0 ? (
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--kp-space-2xs) 10px var(--kp-space-xs)', borderTop: '1px solid var(--kp-side-border)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--kp-space-xs)', padding: 'var(--kp-space-xs) 10px 6px' }}>
-              <span style={{ fontSize: 10, fontWeight: 'var(--kp-weight-bold)', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--kp-side-fg-faint)' }}>
-                {entityLabel.Other}
-              </span>
-              {newNav && (
+            {newNav ? (
+              // newNav: header row gains the "+ New client" affordance.
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--kp-space-xs)', padding: 'var(--kp-space-xs) 10px 6px' }}>
+                <span style={{ fontSize: 10, fontWeight: 'var(--kp-weight-bold)', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--kp-side-fg-faint)' }}>
+                  {entityLabel.Other}
+                </span>
                 <button type="button" data-testid="spine-new-client" title={newClientLabel} aria-label={newClientLabel}
                   onClick={() => { window.dispatchEvent(new CustomEvent('keepance:open-matter-manager')); }}
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 'var(--radius-md)', border: 0, background: 'transparent', color: 'var(--kp-side-fg-dim)', cursor: 'pointer', flex: 'none' }}>
                   <Plus size={15} strokeWidth={2} />
                 </button>
-              )}
-            </div>
+              </div>
+            ) : (
+              // Flag-off: byte-for-byte the original header markup.
+              <div style={{ fontSize: 10, fontWeight: 'var(--kp-weight-bold)', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--kp-side-fg-faint)', padding: 'var(--kp-space-xs) 10px 6px' }}>
+                {entityLabel.Other}
+              </div>
+            )}
             {matters.map((m) => {
               const on = m.id === activeMatterId;
               return (
