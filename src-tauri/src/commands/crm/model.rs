@@ -74,11 +74,7 @@ pub struct CrmHouseholdRef {
 
 impl CrmHouseholdRef {
     pub fn crm_key(&self) -> String {
-        if self.external_id.trim().is_empty() {
-            self.id.to_string()
-        } else {
-            self.external_id.trim().to_string()
-        }
+        provider_prefixed_external_id(&self.external_id).unwrap_or_else(|| self.id.to_string())
     }
 }
 
@@ -135,11 +131,7 @@ pub struct CrmLink {
 
 impl CrmLink {
     pub fn crm_key(&self) -> String {
-        if self.external_id.trim().is_empty() {
-            self.id.to_string()
-        } else {
-            self.external_id.trim().to_string()
-        }
+        provider_prefixed_external_id(&self.external_id).unwrap_or_else(|| self.id.to_string())
     }
 }
 
@@ -275,16 +267,14 @@ pub struct CrmContact {
 impl CrmContact {
     /// Provider-safe CRM id used in the local store and RAG source ids.
     ///
-    /// Wealthbox keeps the historical numeric id (for example `10001`).
-    /// Providers with global string ids, such as Salesforce, set
-    /// `external_id` to a namespaced value such as `sfdc:001...` so their rows
-    /// can never collide with Wealthbox rows.
+    /// Wealthbox keeps the historical numeric id forever (for example `10001`).
+    /// Providers with global string ids, such as Salesforce, must set
+    /// `external_id` to a provider-prefixed value such as `sfdc:001...` so their
+    /// rows can never collide with Wealthbox rows. A stray unprefixed Wealthbox
+    /// `external_id` is ignored, because honoring it would shift existing
+    /// `crm:<kind>:<id>` source ids and make old chunks look orphaned.
     pub fn crm_key(&self) -> String {
-        if self.external_id.trim().is_empty() {
-            self.id.to_string()
-        } else {
-            self.external_id.trim().to_string()
-        }
+        provider_prefixed_external_id(&self.external_id).unwrap_or_else(|| self.id.to_string())
     }
 
     /// Returns the id of the household this contact belongs to.
@@ -329,11 +319,7 @@ pub struct CrmNote {
 
 impl CrmNote {
     pub fn crm_key(&self) -> String {
-        if self.external_id.trim().is_empty() {
-            self.id.to_string()
-        } else {
-            self.external_id.trim().to_string()
-        }
+        provider_prefixed_external_id(&self.external_id).unwrap_or_else(|| self.id.to_string())
     }
 }
 
@@ -354,11 +340,7 @@ pub struct CrmTask {
 
 impl CrmTask {
     pub fn crm_key(&self) -> String {
-        if self.external_id.trim().is_empty() {
-            self.id.to_string()
-        } else {
-            self.external_id.trim().to_string()
-        }
+        provider_prefixed_external_id(&self.external_id).unwrap_or_else(|| self.id.to_string())
     }
 }
 
@@ -380,11 +362,16 @@ pub struct CrmEvent {
 
 impl CrmEvent {
     pub fn crm_key(&self) -> String {
-        if self.external_id.trim().is_empty() {
-            self.id.to_string()
-        } else {
-            self.external_id.trim().to_string()
-        }
+        provider_prefixed_external_id(&self.external_id).unwrap_or_else(|| self.id.to_string())
+    }
+}
+
+fn provider_prefixed_external_id(external_id: &str) -> Option<String> {
+    let trimmed = external_id.trim();
+    if trimmed.starts_with("sfdc:") || trimmed.starts_with("redtail:") {
+        Some(trimmed.to_string())
+    } else {
+        None
     }
 }
 
@@ -411,6 +398,39 @@ mod tests {
         let c2: CrmContact =
             serde_json::from_str(json2).expect("parse with background_information");
         assert_eq!(c2.background_information, "Primary name still works.");
+    }
+
+    #[test]
+    fn wealthbox_contact_with_stray_external_id_keeps_legacy_numeric_crm_key() {
+        let contact = CrmContact {
+            id: 10002,
+            external_id: "WB-EXT-10002".to_string(),
+            r#type: "person".to_string(),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            contact.crm_key(),
+            "10002",
+            "Wealthbox source ids must stay crm:<kind>:<legacy-id> even if the API adds external_id"
+        );
+    }
+
+    #[test]
+    fn provider_prefixed_external_id_is_used_for_salesforce_and_redtail() {
+        let salesforce = CrmContact {
+            id: 42,
+            external_id: "sfdc:003CC0000000002AAA".to_string(),
+            ..Default::default()
+        };
+        let redtail = CrmContact {
+            id: 43,
+            external_id: "redtail:contact:123".to_string(),
+            ..Default::default()
+        };
+
+        assert_eq!(salesforce.crm_key(), "sfdc:003CC0000000002AAA");
+        assert_eq!(redtail.crm_key(), "redtail:contact:123");
     }
 
     // ── realistic fixture JSON (shaped like documented Wealthbox responses) ──

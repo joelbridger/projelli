@@ -1117,6 +1117,94 @@ fn crm_delete_predicate(matter_ids: &[String]) -> Option<String> {
     Some(format!("source_type = 'crm' AND matter_id IN ({list})"))
 }
 
+fn crm_provider_scan_predicate(matter_ids: Option<&[String]>) -> Option<String> {
+    match matter_ids {
+        Some(ids) => crm_delete_predicate(ids),
+        None => Some("source_type = 'crm'".to_string()),
+    }
+}
+
+fn crm_source_id_belongs_to_provider(source_id: &str, provider_id: &str) -> bool {
+    let Some(rest) = source_id.strip_prefix("crm:") else {
+        return false;
+    };
+    let Some((_, payload)) = rest.split_once(':') else {
+        return false;
+    };
+    match provider_id {
+        "salesforce" => payload.starts_with("sfdc:"),
+        "redtail" => payload.starts_with("redtail:"),
+        "wealthbox" => !payload.starts_with("sfdc:") && !payload.starts_with("redtail:"),
+        _ => false,
+    }
+}
+
+fn decrypt_path_enc_for_provider_scan(path_enc: &str, key: &[u8; 32]) -> Result<String> {
+    let blob = hex::decode(path_enc).context("decode crm path_enc")?;
+    let plaintext = crate::commands::mail::crypto::decrypt_with_key(&blob, key)
+        .context("decrypt crm path_enc")?;
+    String::from_utf8(plaintext).context("crm path_enc was not utf8")
+}
+
+async fn list_crm_provider_entries(
+    table: &Table,
+    matter_ids: Option<&[String]>,
+    provider_id: &str,
+    key: &[u8; 32],
+) -> Result<Vec<(String, String)>> {
+    use futures_util::TryStreamExt;
+
+    let Some(predicate) = crm_provider_scan_predicate(matter_ids) else {
+        return Ok(Vec::new());
+    };
+
+    let mut stream = table
+        .query()
+        .only_if(&predicate)
+        .select(Select::columns(&["matter_id", "source_id", "path_enc"]))
+        .execute()
+        .await
+        .context("list_crm_provider_entries query execute failed")?;
+
+    let mut out = Vec::new();
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("list_crm_provider_entries stream try_next failed")?
+    {
+        let matter_col = batch
+            .column_by_name("matter_id")
+            .context("missing matter_id column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("matter_id column is not StringArray")?;
+        let source_col = batch
+            .column_by_name("source_id")
+            .context("missing source_id column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("source_id column is not StringArray")?;
+        let path_enc_col = batch
+            .column_by_name("path_enc")
+            .context("missing path_enc column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("path_enc column is not StringArray")?;
+
+        for i in 0..batch.num_rows() {
+            if matter_col.is_null(i) || source_col.is_null(i) || path_enc_col.is_null(i) {
+                continue;
+            }
+            let plain_source_id = decrypt_path_enc_for_provider_scan(path_enc_col.value(i), key)?;
+            if crm_source_id_belongs_to_provider(&plain_source_id, provider_id) {
+                out.push((matter_col.value(i).to_string(), source_col.value(i).to_string()));
+            }
+        }
+    }
+
+    Ok(out)
+}
+
 /// Delete every CRM chunk belonging to any of `matter_ids` in a SINGLE table
 /// delete (one scan + commit + compaction), instead of one delete per source id.
 ///
@@ -1143,6 +1231,49 @@ pub async fn delete_crm_for_matters(table: &Table, matter_ids: &[String]) -> Res
         .delete(&predicate)
         .await
         .context("delete failed for crm matters")?;
+    Ok(())
+}
+
+/// Delete CRM chunks for the selected matters, scoped to one CRM provider.
+///
+/// The queryable `source_id` column is tokenized, so this scans matching CRM
+/// rows, decrypts `path_enc` in memory, classifies the plaintext source id
+/// (`sfdc:` = Salesforce, no provider prefix = Wealthbox), then deletes only
+/// the matching source-id tokens. This is the multi-CRM safety boundary: a
+/// Salesforce sync can replace Salesforce chunks without touching Wealthbox
+/// chunks that live under the same matter.
+pub async fn delete_crm_for_matters_for_provider(
+    table: &Table,
+    matter_ids: &[String],
+    provider_id: &str,
+    key: &[u8; 32],
+) -> Result<()> {
+    if matter_ids.is_empty() {
+        return Ok(());
+    }
+    let entries = list_crm_provider_entries(table, Some(matter_ids), provider_id, key).await?;
+    let source_tokens: HashSet<String> = entries.into_iter().map(|(_, token)| token).collect();
+    if source_tokens.is_empty() {
+        return Ok(());
+    }
+
+    let matter_list = matter_ids
+        .iter()
+        .map(|m| format!("'{}'", sql_escape(m)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let source_list = source_tokens
+        .iter()
+        .map(|s| format!("'{}'", sql_escape(s)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let predicate = format!(
+        "source_type = 'crm' AND matter_id IN ({matter_list}) AND source_id IN ({source_list})"
+    );
+    table
+        .delete(&predicate)
+        .await
+        .context("delete failed for provider-scoped crm matters")?;
     Ok(())
 }
 
@@ -1182,6 +1313,18 @@ pub async fn list_crm_matters(table: &Table) -> Result<HashSet<String>> {
         }
     }
     Ok(out)
+}
+
+/// Return distinct matters that currently have CRM chunks for one provider.
+/// See [`delete_crm_for_matters_for_provider`] for why provider detection uses
+/// decrypted `path_enc` instead of searching the tokenized `source_id` column.
+pub async fn list_crm_matters_for_provider(
+    table: &Table,
+    provider_id: &str,
+    key: &[u8; 32],
+) -> Result<HashSet<String>> {
+    let entries = list_crm_provider_entries(table, None, provider_id, key).await?;
+    Ok(entries.into_iter().map(|(matter, _)| matter).collect())
 }
 
 /// Compact data fragments and prune old versions in ONE pass. Called once at the
@@ -2523,6 +2666,26 @@ mod tests {
         assert_eq!(p, "source_type = 'crm' AND matter_id IN ('a''b')");
     }
 
+    #[test]
+    fn crm_source_id_provider_detection_keeps_legacy_wealthbox_unprefixed() {
+        assert!(crm_source_id_belongs_to_provider(
+            "crm:household:10001",
+            "wealthbox"
+        ));
+        assert!(crm_source_id_belongs_to_provider(
+            "crm:contact:sfdc:003CC0000000002AAA",
+            "salesforce"
+        ));
+        assert!(!crm_source_id_belongs_to_provider(
+            "crm:contact:sfdc:003CC0000000002AAA",
+            "wealthbox"
+        ));
+        assert!(crm_source_id_belongs_to_provider(
+            "crm:contact:redtail:123",
+            "redtail"
+        ));
+    }
+
     /// BUG-099 tombstone — an empty tombstone slice adds NO extra clause.
     #[test]
     fn predicate_empty_tombstone_adds_no_clause() {
@@ -3571,6 +3734,74 @@ mod tests {
         let a_paths: Vec<String> = nearest(&table, &q, 20, Some("matter-A"), false, &[]).await.expect("nearest A").iter().map(stored_path).collect();
         assert!(a_paths.iter().any(|p| p == "/clients/a.pdf"), "matter-A file chunk must survive; got {a_paths:?}");
         assert!(!a_paths.iter().any(|p| p.starts_with("crm:")), "matter-A CRM must be gone; got {a_paths:?}");
+    }
+
+    /// Multi-CRM safety boundary: a provider-scoped CRM cleanup under one matter
+    /// removes only that provider's chunks. Without provider scoping, replacing
+    /// Salesforce for a matter would also erase the legacy unprefixed Wealthbox
+    /// chunks in the same matter.
+    #[tokio::test]
+    async fn delete_crm_for_matters_for_provider_preserves_other_crm_provider_chunks() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+        let matter = "matter-coexist".to_string();
+
+        add_crm_chunks(
+            &table,
+            &matter,
+            &[
+                "crm:household:10001".to_string(),
+                "crm:contact:10002".to_string(),
+                "crm:household:sfdc:001HH0000000001AAA".to_string(),
+                "crm:contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA".to_string(),
+            ],
+            0.10,
+        )
+        .await;
+
+        let before = list_crm_matters_for_provider(&table, "salesforce", &TEST_KEY)
+            .await
+            .expect("list salesforce matters");
+        assert!(before.contains(&matter), "Salesforce chunks should be visible before cleanup");
+
+        delete_crm_for_matters_for_provider(
+            &table,
+            std::slice::from_ref(&matter),
+            "salesforce",
+            &TEST_KEY,
+        )
+        .await
+        .expect("delete salesforce chunks only");
+
+        let q = vec![0.10f32; EMBEDDING_DIM];
+        let paths: Vec<String> = nearest(&table, &q, 20, Some(&matter), false, &[])
+            .await
+            .expect("nearest after provider delete")
+            .iter()
+            .map(stored_path)
+            .collect();
+        assert!(
+            paths.iter().any(|p| p == "crm:household:10001"),
+            "legacy Wealthbox household chunk must survive Salesforce cleanup; got {paths:?}"
+        );
+        assert!(
+            paths.iter().any(|p| p == "crm:contact:10002"),
+            "legacy Wealthbox contact chunk must survive Salesforce cleanup; got {paths:?}"
+        );
+        assert!(
+            !paths.iter().any(|p| p.contains("sfdc:")),
+            "Salesforce chunks must be gone after Salesforce cleanup; got {paths:?}"
+        );
+
+        let salesforce_after = list_crm_matters_for_provider(&table, "salesforce", &TEST_KEY)
+            .await
+            .expect("list salesforce after");
+        let wealthbox_after = list_crm_matters_for_provider(&table, "wealthbox", &TEST_KEY)
+            .await
+            .expect("list wealthbox after");
+        assert!(!salesforce_after.contains(&matter));
+        assert!(wealthbox_after.contains(&matter));
     }
 
     /// An email indexed under Matter A must be retrievable under the Matter A

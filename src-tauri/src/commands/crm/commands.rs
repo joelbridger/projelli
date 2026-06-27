@@ -679,14 +679,23 @@ async fn purge_namespaced_crm_data(
     provider_marker: &str,
 ) -> anyhow::Result<()> {
     let store = CrmStore::open(ws)?;
-    let rows = store.list_objects_by_provider_marker(provider_marker)?;
+    let key = crate::commands::rag::crypto::get_or_create_master_key()?;
+    purge_provider_crm_data_with_store_and_key(ws, &store, provider_marker, &key).await
+}
+
+async fn purge_provider_crm_data_with_store_and_key(
+    ws: &std::path::Path,
+    store: &CrmStore,
+    provider_marker: &str,
+    rag_key: &[u8; 32],
+) -> anyhow::Result<()> {
+    let rows = store.list_objects_by_provider_marker_including_deleted(provider_marker)?;
     let source_ids: Vec<String> = rows.iter().filter_map(crm_source_id_for_row).collect();
 
-    let key = crate::commands::rag::crypto::get_or_create_master_key()?;
     let conn = crate::commands::rag::store::open_connection(ws).await?;
     let table = crate::commands::rag::store::open_or_create_table(&conn).await?;
     for source_id in source_ids {
-        crate::commands::rag::store::delete_path(&table, &source_id, &key).await?;
+        crate::commands::rag::store::delete_path(&table, &source_id, rag_key).await?;
     }
 
     store.purge_objects_by_provider_marker(provider_marker)?;
@@ -1133,6 +1142,300 @@ mod tests {
         assert_eq!(
             crm_source_id_for_row(&note).as_deref(),
             Some("crm:note:redtail:note:2")
+        );
+    }
+
+    #[tokio::test]
+    async fn salesforce_disconnect_purges_live_and_tombstoned_chunks_preserving_wealthbox() {
+        use crate::commands::mail::crypto::decrypt_with_key;
+        use crate::commands::rag::chunker::{chunk_text, Chunk};
+        use crate::commands::rag::embedder::EMBEDDING_DIM;
+        use crate::commands::rag::store::{self, PRIVILEGE_NONE};
+        use arrow_array::RecordBatchIterator;
+
+        const RAG_KEY: [u8; 32] = [0x5Au8; 32];
+        const CRM_KEY: [u8; 32] = [0x33u8; 32];
+        const MATTER: &str = "matter-salesforce-disconnect";
+        const SALESFORCE_MARKER: &str = "sfdc:";
+
+        let workspace = tempfile::TempDir::new().unwrap();
+        let crm = crate::commands::crm::store::CrmStore::open_with_key(
+            workspace.path(),
+            &CRM_KEY,
+        )
+        .expect("open crm store");
+
+        crm.upsert_object(
+            "contact:10002",
+            "person",
+            "10001",
+            "",
+            "hash-wb-contact",
+            r#"{"id":10002}"#,
+        )
+        .expect("upsert wealthbox contact");
+        crm.upsert_object(
+            "contact:sfdc:003LIVE:acct:001HH",
+            "person",
+            "sfdc:001HH",
+            "",
+            "hash-sf-live",
+            r#"{"external_id":"sfdc:003LIVE:acct:001HH"}"#,
+        )
+        .expect("upsert salesforce live contact");
+        crm.upsert_object(
+            "contact:sfdc:003TOMBSTONED:acct:001HH",
+            "person",
+            "sfdc:001HH",
+            "",
+            "hash-sf-tombstoned",
+            r#"{"external_id":"sfdc:003TOMBSTONED:acct:001HH"}"#,
+        )
+        .expect("upsert salesforce tombstone target");
+        crm.tombstone_object("contact:sfdc:003TOMBSTONED:acct:001HH")
+            .expect("tombstone salesforce row");
+
+        let conn = store::open_connection(workspace.path())
+            .await
+            .expect("open vector store");
+        let table = store::open_or_create_table(&conn)
+            .await
+            .expect("open chunks table");
+        let source_ids = [
+            "crm:contact:10002",
+            "crm:contact:sfdc:003LIVE:acct:001HH",
+            "crm:contact:sfdc:003TOMBSTONED:acct:001HH",
+        ];
+        let mut rows: Vec<(Chunk, Vec<f32>)> = Vec::new();
+        for source_id in source_ids {
+            for chunk in chunk_text(source_id, &format!("CRM fixture for {source_id}")) {
+                rows.push((chunk, vec![0.10f32; EMBEDDING_DIM]));
+            }
+        }
+        let batch = store::build_batch_crm(&rows, &RAG_KEY, MATTER, PRIVILEGE_NONE)
+            .expect("build crm batch");
+        let schema = batch.schema();
+        table
+            .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+            .execute()
+            .await
+            .expect("add crm chunks");
+
+        purge_provider_crm_data_with_store_and_key(
+            workspace.path(),
+            &crm,
+            SALESFORCE_MARKER,
+            &RAG_KEY,
+        )
+        .await
+        .expect("purge salesforce provider data");
+
+        assert!(
+            crm.get_object("contact:10002").unwrap().is_some(),
+            "Wealthbox CRM row must survive Salesforce disconnect"
+        );
+        assert!(
+            crm.get_object("contact:sfdc:003LIVE:acct:001HH")
+                .unwrap()
+                .is_none(),
+            "live Salesforce CRM row must be purged"
+        );
+        assert!(
+            crm.get_object("contact:sfdc:003TOMBSTONED:acct:001HH")
+                .unwrap()
+                .is_none(),
+            "tombstoned Salesforce CRM row must be purged"
+        );
+
+        let conn_after = store::open_connection(workspace.path())
+            .await
+            .expect("reopen vector store after purge");
+        let table_after = store::open_or_create_table(&conn_after)
+            .await
+            .expect("reopen chunks table after purge");
+        let hits = store::nearest(
+            &table_after,
+            &vec![0.10f32; EMBEDDING_DIM],
+            20,
+            Some(MATTER),
+            false,
+            &[],
+        )
+        .await
+        .expect("nearest after salesforce purge");
+        let paths: Vec<String> = hits
+            .iter()
+            .map(|hit| {
+                let enc = hit.path_enc.as_deref().expect("crm hit has path_enc");
+                let blob = hex::decode(enc).expect("path_enc hex");
+                String::from_utf8(decrypt_with_key(&blob, &RAG_KEY).expect("decrypt path_enc"))
+                    .expect("utf8 path")
+            })
+            .collect();
+        assert!(
+            paths.iter().any(|p| p == "crm:contact:10002"),
+            "Wealthbox RAG chunk must survive Salesforce disconnect; got {paths:?}"
+        );
+        assert!(
+            !paths.iter().any(|p| p.contains("sfdc:")),
+            "live and tombstoned Salesforce RAG chunks must be gone; got {paths:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn redtail_disconnect_purges_live_and_tombstoned_chunks_preserving_other_crms() {
+        use crate::commands::mail::crypto::decrypt_with_key;
+        use crate::commands::rag::chunker::{chunk_text, Chunk};
+        use crate::commands::rag::embedder::EMBEDDING_DIM;
+        use crate::commands::rag::store::{self, PRIVILEGE_NONE};
+        use arrow_array::RecordBatchIterator;
+
+        const RAG_KEY: [u8; 32] = [0x5Au8; 32];
+        const CRM_KEY: [u8; 32] = [0x33u8; 32];
+        const MATTER: &str = "matter-redtail-disconnect";
+        const REDTAIL_MARKER: &str = "redtail:";
+
+        let workspace = tempfile::TempDir::new().unwrap();
+        let crm = crate::commands::crm::store::CrmStore::open_with_key(
+            workspace.path(),
+            &CRM_KEY,
+        )
+        .expect("open crm store");
+
+        crm.upsert_object(
+            "contact:10002",
+            "person",
+            "10001",
+            "",
+            "hash-wb-contact",
+            r#"{"id":10002}"#,
+        )
+        .expect("upsert wealthbox contact");
+        crm.upsert_object(
+            "contact:sfdc:003LIVE:acct:001HH",
+            "person",
+            "sfdc:001HH",
+            "",
+            "hash-sf-live",
+            r#"{"external_id":"sfdc:003LIVE:acct:001HH"}"#,
+        )
+        .expect("upsert salesforce live contact");
+        crm.upsert_object(
+            "contact:redtail:contact:66",
+            "person",
+            "redtail:family:7",
+            "",
+            "hash-redtail-live",
+            r#"{"external_id":"redtail:contact:66"}"#,
+        )
+        .expect("upsert redtail live contact");
+        crm.upsert_object(
+            "note:redtail:note:2",
+            "note",
+            "redtail:family:7",
+            "",
+            "hash-redtail-tombstoned",
+            r#"{"external_id":"redtail:note:2"}"#,
+        )
+        .expect("upsert redtail tombstone target");
+        crm.tombstone_object("note:redtail:note:2")
+            .expect("tombstone redtail row");
+
+        let conn = store::open_connection(workspace.path())
+            .await
+            .expect("open vector store");
+        let table = store::open_or_create_table(&conn)
+            .await
+            .expect("open chunks table");
+        let source_ids = [
+            "crm:contact:10002",
+            "crm:contact:sfdc:003LIVE:acct:001HH",
+            "crm:contact:redtail:contact:66",
+            "crm:note:redtail:note:2",
+        ];
+        let mut rows: Vec<(Chunk, Vec<f32>)> = Vec::new();
+        for source_id in source_ids {
+            for chunk in chunk_text(source_id, &format!("CRM fixture for {source_id}")) {
+                rows.push((chunk, vec![0.10f32; EMBEDDING_DIM]));
+            }
+        }
+        let batch = store::build_batch_crm(&rows, &RAG_KEY, MATTER, PRIVILEGE_NONE)
+            .expect("build mixed crm batch");
+        let schema = batch.schema();
+        table
+            .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+            .execute()
+            .await
+            .expect("add crm chunks");
+
+        purge_provider_crm_data_with_store_and_key(
+            workspace.path(),
+            &crm,
+            REDTAIL_MARKER,
+            &RAG_KEY,
+        )
+        .await
+        .expect("purge redtail provider data");
+
+        assert!(
+            crm.get_object("contact:10002").unwrap().is_some(),
+            "Wealthbox CRM row must survive Redtail disconnect"
+        );
+        assert!(
+            crm.get_object("contact:sfdc:003LIVE:acct:001HH")
+                .unwrap()
+                .is_some(),
+            "Salesforce CRM row must survive Redtail disconnect"
+        );
+        assert!(
+            crm.get_object("contact:redtail:contact:66")
+                .unwrap()
+                .is_none(),
+            "live Redtail CRM row must be purged"
+        );
+        assert!(
+            crm.get_object("note:redtail:note:2").unwrap().is_none(),
+            "tombstoned Redtail CRM row must be purged"
+        );
+
+        let conn_after = store::open_connection(workspace.path())
+            .await
+            .expect("reopen vector store after purge");
+        let table_after = store::open_or_create_table(&conn_after)
+            .await
+            .expect("reopen chunks table after purge");
+        let hits = store::nearest(
+            &table_after,
+            &vec![0.10f32; EMBEDDING_DIM],
+            20,
+            Some(MATTER),
+            false,
+            &[],
+        )
+        .await
+        .expect("nearest after redtail purge");
+        let paths: Vec<String> = hits
+            .iter()
+            .map(|hit| {
+                let enc = hit.path_enc.as_deref().expect("crm hit has path_enc");
+                let blob = hex::decode(enc).expect("path_enc hex");
+                String::from_utf8(decrypt_with_key(&blob, &RAG_KEY).expect("decrypt path_enc"))
+                    .expect("utf8 path")
+            })
+            .collect();
+        assert!(
+            paths.iter().any(|p| p == "crm:contact:10002"),
+            "Wealthbox RAG chunk must survive Redtail disconnect; got {paths:?}"
+        );
+        assert!(
+            paths
+                .iter()
+                .any(|p| p == "crm:contact:sfdc:003LIVE:acct:001HH"),
+            "Salesforce RAG chunk must survive Redtail disconnect; got {paths:?}"
+        );
+        assert!(
+            !paths.iter().any(|p| p.contains("redtail:")),
+            "live and tombstoned Redtail RAG chunks must be gone; got {paths:?}"
         );
     }
 

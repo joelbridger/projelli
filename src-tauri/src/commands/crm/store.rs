@@ -231,22 +231,47 @@ impl CrmStore {
         Ok(rows)
     }
 
-    /// Return every live object whose store id carries a provider marker in the
+    /// Return every non-deleted object whose store id carries a provider marker in the
     /// id payload, e.g. `contact:sfdc:003...`. This is used for provider-scoped
     /// disconnect so removing Salesforce cannot remove Wealthbox rows.
     #[allow(dead_code)]
     pub fn list_objects_by_provider_marker(&self, marker: &str) -> Result<Vec<CrmObjectRow>> {
+        self.list_objects_by_provider_marker_inner(marker, false)
+    }
+
+    /// Return every object whose store id carries a provider marker, including
+    /// tombstoned rows. Disconnect uses this path so stale RAG chunks from rows
+    /// that disappeared in an earlier sync are purged before the DB rows are
+    /// hard-deleted.
+    #[allow(dead_code)]
+    pub fn list_objects_by_provider_marker_including_deleted(
+        &self,
+        marker: &str,
+    ) -> Result<Vec<CrmObjectRow>> {
+        self.list_objects_by_provider_marker_inner(marker, true)
+    }
+
+    fn list_objects_by_provider_marker_inner(
+        &self,
+        marker: &str,
+        include_deleted: bool,
+    ) -> Result<Vec<CrmObjectRow>> {
         let marker = marker.trim();
         if marker.is_empty() || marker.contains('%') || marker.contains('_') {
             anyhow::bail!("invalid CRM provider marker");
         }
         let c = self.conn.lock().unwrap();
         let like = format!("%:{marker}%");
-        let mut stmt = c.prepare(
+        let sql = if include_deleted {
             "SELECT id, kind, household_id, updated_at, content_hash, json, deleted
              FROM crm_objects
-             WHERE id LIKE ?1 AND deleted = 0",
-        )?;
+             WHERE id LIKE ?1"
+        } else {
+            "SELECT id, kind, household_id, updated_at, content_hash, json, deleted
+             FROM crm_objects
+             WHERE id LIKE ?1 AND deleted = 0"
+        };
+        let mut stmt = c.prepare(sql)?;
         let rows = stmt
             .query_map([like], row_to_crm_object)?
             .collect::<rusqlite::Result<Vec<CrmObjectRow>>>()?;
@@ -769,6 +794,37 @@ mod tests {
             s.get_render_state("redtail:family:7").unwrap(),
             None,
             "provider purge must clear stale render state for that household"
+        );
+    }
+
+    #[test]
+    fn provider_marker_list_including_deleted_returns_tombstoned_salesforce_rows() {
+        let (_d, s) = crm_store();
+
+        s.upsert_object(
+            "contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA",
+            "person",
+            "sfdc:001HH0000000001AAA",
+            "",
+            "hash-sf-contact",
+            r#"{"external_id":"sfdc:003CC0000000002AAA:acct:001HH0000000001AAA"}"#,
+        )
+        .unwrap();
+        s.tombstone_object("contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA")
+            .unwrap();
+
+        assert!(
+            s.list_objects_by_provider_marker("sfdc:").unwrap().is_empty(),
+            "the live provider-marker list should still hide tombstoned rows"
+        );
+
+        let all = s
+            .list_objects_by_provider_marker_including_deleted("sfdc:")
+            .unwrap();
+        assert_eq!(all.len(), 1);
+        assert!(
+            all[0].deleted,
+            "disconnect needs tombstoned provider rows so their stale RAG chunks can be deleted"
         );
     }
 
