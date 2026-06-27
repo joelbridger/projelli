@@ -18,6 +18,7 @@ use crate::commands::crm::engine;
 use crate::commands::crm::provider::{
     client_for, delete_token, read_token, store_token, validate_token, CrmProvider,
 };
+use crate::commands::crm::redtail::RedtailClient;
 use crate::commands::crm::salesforce::{
     build_salesforce_auth_url, exchange_salesforce_code, salesforce_client_id, SalesforceClient,
     SALESFORCE_TOKEN_ENDPOINT,
@@ -300,15 +301,57 @@ pub async fn crm_set_workspace(
 #[tauri::command]
 pub async fn crm_connect(
     app: AppHandle,
-    token: String,
+    token: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
     provider: Option<String>,
 ) -> Result<CrmConnectInfo, String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
 
+    if provider == CrmProvider::Redtail {
+        let username = username
+            .as_deref()
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| "Redtail username is required".to_string())?;
+        let password = password
+            .as_deref()
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| "Redtail password is required".to_string())?;
+        let info = RedtailClient::authenticate(username, password)
+            .await
+            .map_err(|_| {
+                "Could not connect to Redtail: invalid login or network error".to_string()
+            })?;
+
+        // Store only the exchanged Redtail UserKey. The advisor password is
+        // used for this request and is never persisted.
+        store_token(provider, &info.user_key)?;
+
+        append_crm_audit_best_effort(
+            &app,
+            &provider.audit_action("connect"),
+            "Connected Redtail. Redtail password was used once to get a UserKey; only the UserKey is stored locally.",
+        )
+        .await;
+
+        return Ok(CrmConnectInfo {
+            name: info.name,
+            plan: info.tier,
+            email: info.email,
+        });
+    }
+
+    let token = token
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| format!("{} API token is required", provider.display_name()))?;
+
     // Validate: call /me and check the response is a success. Any network
     // error or non-2xx status surfaces a clean message; raw body is never
     // surfaced (it may contain advisor/firm PII).
-    let info = validate_token(provider, &token).await.map_err(|_| {
+    let info = validate_token(provider, token).await.map_err(|_| {
         format!(
             "Could not connect to {}: invalid token or network error",
             provider.display_name()
@@ -316,7 +359,7 @@ pub async fn crm_connect(
     })?;
 
     // Store the token only after a confirmed successful validation.
-    store_token(provider, &token)?;
+    store_token(provider, token)?;
 
     // Emit durable audit — best-effort; uses AuditState workspace (same DB
     // that the Activity Log reads) so the entry appears immediately.
@@ -352,7 +395,7 @@ pub async fn crm_oauth_connect(
     let provider = CrmProvider::from_optional(provider.as_deref())?;
     if provider != CrmProvider::Salesforce {
         return Err(format!(
-            "{} uses the API-key connect path, not OAuth.",
+            "{} uses a direct connect path, not OAuth.",
             provider.display_name()
         ));
     }
@@ -520,16 +563,28 @@ async fn crm_disconnect_logic_for_provider(
                 }
             }
         }
-        CrmProvider::Salesforce => match purge_salesforce_crm_data(&ws).await {
+        CrmProvider::Salesforce => match purge_namespaced_crm_data(&ws, "sfdc:").await {
             Ok(()) => {
                 result.rag_purged = true;
                 result.crm_db_purged = true;
             }
             Err(e) => {
                 log::warn!("crm_disconnect: salesforce purge failed (non-fatal): {e:#}");
-                result.warnings.push(format!(
-                    "Salesforce imported-data purge failed: {e}"
-                ));
+                result
+                    .warnings
+                    .push(format!("Salesforce imported-data purge failed: {e}"));
+            }
+        },
+        CrmProvider::Redtail => match purge_namespaced_crm_data(&ws, "redtail:").await {
+            Ok(()) => {
+                result.rag_purged = true;
+                result.crm_db_purged = true;
+            }
+            Err(e) => {
+                log::warn!("crm_disconnect: redtail purge failed (non-fatal): {e:#}");
+                result
+                    .warnings
+                    .push(format!("Redtail imported-data purge failed: {e}"));
             }
         },
     }
@@ -619,11 +674,12 @@ async fn purge_crm_rag_chunks(ws: &std::path::Path) -> anyhow::Result<()> {
     crate::commands::rag::store::delete_source_type(&table, "crm").await
 }
 
-async fn purge_salesforce_crm_data(ws: &std::path::Path) -> anyhow::Result<()> {
-    const SALESFORCE_MARKER: &str = "sfdc:";
-
+async fn purge_namespaced_crm_data(
+    ws: &std::path::Path,
+    provider_marker: &str,
+) -> anyhow::Result<()> {
     let store = CrmStore::open(ws)?;
-    let rows = store.list_objects_by_provider_marker(SALESFORCE_MARKER)?;
+    let rows = store.list_objects_by_provider_marker(provider_marker)?;
     let source_ids: Vec<String> = rows.iter().filter_map(crm_source_id_for_row).collect();
 
     let key = crate::commands::rag::crypto::get_or_create_master_key()?;
@@ -633,7 +689,7 @@ async fn purge_salesforce_crm_data(ws: &std::path::Path) -> anyhow::Result<()> {
         crate::commands::rag::store::delete_path(&table, &source_id, &key).await?;
     }
 
-    store.purge_objects_by_provider_marker(SALESFORCE_MARKER)?;
+    store.purge_objects_by_provider_marker(provider_marker)?;
     Ok(())
 }
 
@@ -1046,6 +1102,37 @@ mod tests {
         assert_eq!(
             crm_source_id_for_row(&contact).as_deref(),
             Some("crm:contact:sfdc:003CC0000000002AAA:acct:001HH0000000001AAA")
+        );
+    }
+
+    #[test]
+    fn crm_source_id_for_redtail_rows_uses_provider_namespaced_key() {
+        let household = crate::commands::crm::store::CrmObjectRow {
+            id: "contact:redtail:family:7".to_string(),
+            kind: "household".to_string(),
+            household_id: "redtail:family:7".to_string(),
+            updated_at: String::new(),
+            content_hash: "hash".to_string(),
+            json: "{}".to_string(),
+            deleted: false,
+        };
+        let note = crate::commands::crm::store::CrmObjectRow {
+            id: "note:redtail:note:2".to_string(),
+            kind: "note".to_string(),
+            household_id: "redtail:family:7".to_string(),
+            updated_at: String::new(),
+            content_hash: "hash".to_string(),
+            json: "{}".to_string(),
+            deleted: false,
+        };
+
+        assert_eq!(
+            crm_source_id_for_row(&household).as_deref(),
+            Some("crm:household:redtail:family:7")
+        );
+        assert_eq!(
+            crm_source_id_for_row(&note).as_deref(),
+            Some("crm:note:redtail:note:2")
         );
     }
 

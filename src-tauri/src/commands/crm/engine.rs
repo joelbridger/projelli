@@ -232,11 +232,15 @@ fn object_belongs_to_provider(store_id: &str, provider_id: &str) -> bool {
             .split_once(':')
             .map(|(_, rest)| rest.starts_with("sfdc:"))
             .unwrap_or(false),
+        "redtail" => store_id
+            .split_once(':')
+            .map(|(_, rest)| rest.starts_with("redtail:"))
+            .unwrap_or(false),
         "wealthbox" => store_id
             .split_once(':')
-            .map(|(_, rest)| !rest.starts_with("sfdc:"))
+            .map(|(_, rest)| !rest.starts_with("sfdc:") && !rest.starts_with("redtail:"))
             .unwrap_or(true),
-        _ => true,
+        _ => false,
     }
 }
 
@@ -970,6 +974,81 @@ mod tests {
         }
     }
 
+    struct RedtailFixtureSource;
+
+    #[async_trait]
+    impl CrmSource for RedtailFixtureSource {
+        fn provider_id(&self) -> &'static str {
+            "redtail"
+        }
+
+        async fn list_all_contacts(&self) -> anyhow::Result<Vec<CrmContact>> {
+            Ok(vec![
+                CrmContact {
+                    id: 7001,
+                    external_id: "redtail:family:7".to_string(),
+                    r#type: "household".to_string(),
+                    name: "The Anderson Family".to_string(),
+                    company_name: "The Anderson Family".to_string(),
+                    contact_type: "Family".to_string(),
+                    ..Default::default()
+                },
+                CrmContact {
+                    id: 7066,
+                    external_id: "redtail:contact:66".to_string(),
+                    r#type: "person".to_string(),
+                    first_name: "Robert".to_string(),
+                    last_name: "Anderson".to_string(),
+                    household: Some(CrmHouseholdRef {
+                        id: 7001,
+                        external_id: "redtail:family:7".to_string(),
+                        name: "The Anderson Family".to_string(),
+                        title: "Head of household".to_string(),
+                        members: Vec::new(),
+                    }),
+                    ..Default::default()
+                },
+            ])
+        }
+
+        async fn list_notes(&self) -> anyhow::Result<Vec<CrmNote>> {
+            Ok(vec![CrmNote {
+                id: 9002,
+                external_id: "redtail:note:2".to_string(),
+                created_at: "2026-06-01T12:00:00Z".to_string(),
+                updated_at: "2026-06-01T12:00:00Z".to_string(),
+                content: "Reviewed Q1 allocations with Robert.".to_string(),
+                linked_to: vec![CrmLink {
+                    id: 7066,
+                    external_id: "redtail:contact:66".to_string(),
+                    r#type: "contact".to_string(),
+                    name: "Robert Anderson".to_string(),
+                }],
+            }])
+        }
+
+        async fn list_tasks(&self) -> anyhow::Result<Vec<CrmTask>> {
+            Ok(Vec::new())
+        }
+
+        async fn list_events(&self) -> anyhow::Result<Vec<CrmEvent>> {
+            Ok(vec![CrmEvent {
+                id: 9010,
+                external_id: "redtail:activity:10".to_string(),
+                title: "Annual Review".to_string(),
+                starts_at: "2026-07-15T10:00:00Z".to_string(),
+                description: "Tax-loss harvest discussion.".to_string(),
+                linked_to: vec![CrmLink {
+                    id: 7066,
+                    external_id: "redtail:contact:66".to_string(),
+                    r#type: "contact".to_string(),
+                    name: "Robert Anderson".to_string(),
+                }],
+                ..Default::default()
+            }])
+        }
+    }
+
     #[tokio::test]
     async fn salesforce_records_group_by_namespaced_household_key_and_plan_per_matter_chunks() {
         let (_d, store) = crm_store();
@@ -993,12 +1072,8 @@ mod tests {
             "contact row should include Salesforce namespace and household account id"
         );
 
-        let items = plan_household_index(
-            &store,
-            "sfdc:001HH0000000001AAA",
-            "matter-anderson",
-        )
-        .expect("plan salesforce household");
+        let items = plan_household_index(&store, "sfdc:001HH0000000001AAA", "matter-anderson")
+            .expect("plan salesforce household");
         assert!(items.iter().all(|i| i.matter_id == "matter-anderson"));
         assert!(items
             .iter()
@@ -1013,13 +1088,17 @@ mod tests {
     async fn salesforce_ingest_does_not_tombstone_existing_wealthbox_rows() {
         let (_d, store) = crm_store();
 
-        ingest(&FakeCrmSource, &store).await.expect("ingest wealthbox");
-        assert!(store
-            .get_object("contact:10001")
-            .expect("get wealthbox household")
-            .expect("wealthbox household exists")
-            .deleted
-            == false);
+        ingest(&FakeCrmSource, &store)
+            .await
+            .expect("ingest wealthbox");
+        assert!(
+            store
+                .get_object("contact:10001")
+                .expect("get wealthbox household")
+                .expect("wealthbox household exists")
+                .deleted
+                == false
+        );
 
         ingest(&SalesforceFixtureSource, &store)
             .await
@@ -1038,6 +1117,76 @@ mod tests {
             .expect("get salesforce household")
             .expect("salesforce household exists");
         assert!(!salesforce_household.deleted);
+    }
+
+    #[tokio::test]
+    async fn redtail_records_group_by_namespaced_family_key_and_plan_per_matter_chunks() {
+        let (_d, store) = crm_store();
+
+        let report = ingest(&RedtailFixtureSource, &store)
+            .await
+            .expect("ingest redtail");
+
+        assert_eq!(report.contacts, 2, "family household + one contact");
+        assert_eq!(report.notes, 1);
+        assert_eq!(report.events, 1);
+        let rows = store
+            .list_objects_by_household("redtail:family:7")
+            .expect("list redtail household objects");
+        assert_eq!(rows.len(), 4);
+        assert!(
+            rows.iter().any(|r| r.id == "contact:redtail:family:7"),
+            "family row should use Redtail namespace"
+        );
+        assert!(
+            rows.iter().any(|r| r.id == "note:redtail:note:2"),
+            "note row should use Redtail namespace"
+        );
+
+        let items = plan_household_index(&store, "redtail:family:7", "matter-anderson")
+            .expect("plan redtail household");
+        assert!(items.iter().all(|i| i.matter_id == "matter-anderson"));
+        assert!(items
+            .iter()
+            .any(|i| i.source_id == "crm:household:redtail:family:7"));
+        assert!(items.iter().any(|i| {
+            i.source_id == "crm:note:redtail:note:2" && i.text.contains("Reviewed Q1 allocations")
+        }));
+        assert!(items
+            .iter()
+            .any(|i| i.source_id == "crm:event:redtail:activity:10"));
+    }
+
+    #[tokio::test]
+    async fn redtail_ingest_does_not_tombstone_wealthbox_or_salesforce_rows() {
+        let (_d, store) = crm_store();
+
+        ingest(&FakeCrmSource, &store)
+            .await
+            .expect("ingest wealthbox");
+        ingest(&SalesforceFixtureSource, &store)
+            .await
+            .expect("ingest salesforce");
+        ingest(&RedtailFixtureSource, &store)
+            .await
+            .expect("ingest redtail");
+
+        let wealthbox_household = store
+            .get_object("contact:10001")
+            .expect("get wealthbox household after redtail")
+            .expect("wealthbox household still exists");
+        assert!(
+            !wealthbox_household.deleted,
+            "a Redtail snapshot must not tombstone Wealthbox rows"
+        );
+        let salesforce_household = store
+            .get_object("contact:sfdc:001HH0000000001AAA")
+            .expect("get salesforce household after redtail")
+            .expect("salesforce household still exists");
+        assert!(
+            !salesforce_household.deleted,
+            "a Redtail snapshot must not tombstone Salesforce rows"
+        );
     }
 
     // ── Test: plan_household_index ────────────────────────────────────────────

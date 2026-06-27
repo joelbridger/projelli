@@ -5,6 +5,7 @@
 //! engine/store/render code stays provider-neutral.
 
 use crate::commands::crm::client::WealthboxClient;
+use crate::commands::crm::redtail::{RedtailAuthInfo, RedtailClient};
 use crate::commands::crm::salesforce::{SalesforceClient, SalesforceTokenSet};
 use crate::commands::crm::source::CrmSource;
 
@@ -15,6 +16,7 @@ const LEGACY_WEALTHBOX_SERVICE: &str = "keepance-wealthbox";
 pub enum CrmProvider {
     Wealthbox,
     Salesforce,
+    Redtail,
 }
 
 impl CrmProvider {
@@ -27,6 +29,7 @@ impl CrmProvider {
         {
             "" | "wealthbox" => Ok(Self::Wealthbox),
             "salesforce" | "sfdc" => Ok(Self::Salesforce),
+            "redtail" => Ok(Self::Redtail),
             other => Err(format!("unsupported CRM provider: {other}")),
         }
     }
@@ -35,6 +38,7 @@ impl CrmProvider {
         match self {
             Self::Wealthbox => "wealthbox",
             Self::Salesforce => "salesforce",
+            Self::Redtail => "redtail",
         }
     }
 
@@ -42,6 +46,7 @@ impl CrmProvider {
         match self {
             Self::Wealthbox => "Wealthbox",
             Self::Salesforce => "Salesforce",
+            Self::Redtail => "Redtail",
         }
     }
 
@@ -57,6 +62,7 @@ impl CrmProvider {
         match self {
             Self::Wealthbox => Some(LEGACY_WEALTHBOX_SERVICE),
             Self::Salesforce => None,
+            Self::Redtail => None,
         }
     }
 }
@@ -78,6 +84,7 @@ pub fn client_for(provider: CrmProvider, token: String) -> anyhow::Result<Box<dy
     match provider {
         CrmProvider::Wealthbox => Ok(Box::new(WealthboxClient::new(token))),
         CrmProvider::Salesforce => Ok(Box::new(SalesforceClient::new(token)?)),
+        CrmProvider::Redtail => Ok(Box::new(RedtailClient::new(token)?)),
     }
 }
 
@@ -98,6 +105,15 @@ pub async fn validate_token(
             Ok(CrmProviderAccountInfo {
                 name: info.name,
                 plan: String::new(),
+                email: info.email,
+            })
+        }
+        CrmProvider::Redtail => {
+            let client = RedtailClient::new(token.to_string())?;
+            let info: RedtailAuthInfo = client.validate_user_key().await?;
+            Ok(CrmProviderAccountInfo {
+                name: info.name,
+                plan: info.tier,
                 email: info.email,
             })
         }
@@ -208,6 +224,10 @@ mod tests {
             CrmProvider::Salesforce
         );
         assert_eq!(
+            CrmProvider::from_optional(Some("Redtail")).unwrap(),
+            CrmProvider::Redtail
+        );
+        assert_eq!(
             CrmProvider::from_optional(Some("Wealthbox")).unwrap(),
             CrmProvider::Wealthbox
         );
@@ -215,7 +235,7 @@ mod tests {
 
     #[test]
     fn unknown_provider_is_rejected() {
-        let err = CrmProvider::from_optional(Some("redtail")).unwrap_err();
+        let err = CrmProvider::from_optional(Some("unknown-crm")).unwrap_err();
         assert!(err.contains("unsupported CRM provider"));
     }
 
@@ -226,6 +246,15 @@ mod tests {
             "keepance-crm-salesforce"
         );
         assert_eq!(CrmProvider::Salesforce.legacy_keychain_service(), None);
+    }
+
+    #[test]
+    fn redtail_uses_provider_scoped_keychain_slot() {
+        assert_eq!(
+            CrmProvider::Redtail.keychain_service(),
+            "keepance-crm-redtail"
+        );
+        assert_eq!(CrmProvider::Redtail.legacy_keychain_service(), None);
     }
 
     #[test]

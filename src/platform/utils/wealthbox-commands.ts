@@ -8,7 +8,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { CrmMatterMapEntry } from '@/platform/rag/matterResolver';
 
-export type CrmProvider = 'wealthbox' | 'salesforce';
+export type CrmProvider = 'wealthbox' | 'salesforce' | 'redtail';
 
 // ── CRM event constant ──────────────────────────────────────────────────────
 
@@ -96,6 +96,19 @@ export async function crmSetWorkspace(path: string, provider?: CrmProvider): Pro
 export async function crmConnect(token: string, provider?: CrmProvider): Promise<CrmConnectInfo> {
   if (!isTauri()) throw new Error('Wealthbox connect is only available in the desktop app.');
   return invoke<CrmConnectInfo>('crm_connect', provider ? { token, provider } : { token });
+}
+
+/**
+ * Connect to a username/password CRM provider. Redtail uses this path: the
+ * backend exchanges the password for a UserKey and stores only the UserKey.
+ */
+export async function crmConnectWithCredentials(
+  provider: CrmProvider,
+  username: string,
+  password: string,
+): Promise<CrmConnectInfo> {
+  if (!isTauri()) throw new Error('CRM connect is only available in the desktop app.');
+  return invoke<CrmConnectInfo>('crm_connect', { provider, username, password });
 }
 
 /** Run a provider browser OAuth flow. Salesforce uses this path. */

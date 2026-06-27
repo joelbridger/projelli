@@ -91,13 +91,13 @@ impl CrmStore {
         if let Some(parent) = p.parent() {
             std::fs::create_dir_all(parent).ok();
         }
-        let conn = Connection::open(&p)
-            .with_context(|| format!("open crm enc db {}", p.display()))?;
+        let conn =
+            Connection::open(&p).with_context(|| format!("open crm enc db {}", p.display()))?;
 
         // SQLCipher: key must be set before any DDL.
         // Raw-hex form bypasses passphrase KDF overhead.
         let hex_key = hex::encode(key);
-        conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";" , hex_key))?;
+        conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_key))?;
 
         // Two concurrent writers (sync loop + indexer) need a wait instead of
         // an immediate "database is locked" failure.
@@ -211,9 +211,7 @@ impl CrmStore {
     #[allow(dead_code)]
     pub fn list_object_ids(&self, kind: &str) -> Result<Vec<String>> {
         let c = self.conn.lock().unwrap();
-        let mut stmt = c.prepare(
-            "SELECT id FROM crm_objects WHERE kind = ?1 AND deleted = 0",
-        )?;
+        let mut stmt = c.prepare("SELECT id FROM crm_objects WHERE kind = ?1 AND deleted = 0")?;
         let rows = stmt
             .query_map([kind], |r| r.get::<_, String>(0))?
             .collect::<rusqlite::Result<Vec<String>>>()?;
@@ -291,10 +289,7 @@ impl CrmStore {
     #[allow(dead_code)]
     pub fn tombstone_object(&self, id: &str) -> Result<()> {
         let c = self.conn.lock().unwrap();
-        c.execute(
-            "UPDATE crm_objects SET deleted = 1 WHERE id = ?1",
-            [id],
-        )?;
+        c.execute("UPDATE crm_objects SET deleted = 1 WHERE id = ?1", [id])?;
         Ok(())
     }
 
@@ -367,10 +362,7 @@ impl CrmStore {
 
     /// Retrieve the render/index state for a household, or `None` if absent.
     #[allow(dead_code)]
-    pub fn get_render_state(
-        &self,
-        household_id: &str,
-    ) -> Result<Option<(String, bool)>> {
+    pub fn get_render_state(&self, household_id: &str) -> Result<Option<(String, bool)>> {
         let c = self.conn.lock().unwrap();
         Ok(c.query_row(
             "SELECT render_hash, indexed FROM crm_render_state
@@ -394,10 +386,10 @@ impl CrmStore {
     pub fn get_meta(&self, key: &str) -> Result<Option<String>> {
         use rusqlite::OptionalExtension;
         let c = self.conn.lock().unwrap();
-        Ok(c.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| {
-            r.get(0)
-        })
-        .optional()?)
+        Ok(
+            c.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0))
+                .optional()?,
+        )
     }
 
     /// Set (upsert) one meta value.  Idempotent; last-writer-wins.
@@ -520,7 +512,10 @@ mod tests {
         }
         assert!(base.exists(), "db file should exist before purge");
         for suffix in ["-wal", "-shm", "-journal"] {
-            assert!(sidecar(&base, suffix).exists(), "sidecar {suffix} should exist before purge");
+            assert!(
+                sidecar(&base, suffix).exists(),
+                "sidecar {suffix} should exist before purge"
+            );
         }
 
         CrmStore::purge(dir.path()).expect("purge");
@@ -707,6 +702,76 @@ mod tests {
         );
     }
 
+    #[test]
+    fn provider_marker_purge_removes_only_redtail_rows() {
+        let (_d, s) = crm_store();
+
+        s.upsert_object(
+            "contact:10002",
+            "person",
+            "10001",
+            "",
+            "hash-wb",
+            r#"{"id":10002}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "contact:sfdc:001HH0000000001AAA",
+            "household",
+            "sfdc:001HH0000000001AAA",
+            "",
+            "hash-sf",
+            r#"{"external_id":"sfdc:001HH0000000001AAA"}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "contact:redtail:family:7",
+            "household",
+            "redtail:family:7",
+            "",
+            "hash-redtail-family",
+            r#"{"external_id":"redtail:family:7"}"#,
+        )
+        .unwrap();
+        s.upsert_object(
+            "note:redtail:note:2",
+            "note",
+            "redtail:family:7",
+            "",
+            "hash-redtail-note",
+            r#"{"external_id":"redtail:note:2"}"#,
+        )
+        .unwrap();
+        s.set_render_state("redtail:family:7", "stale", true)
+            .unwrap();
+
+        let redtail_rows = s.list_objects_by_provider_marker("redtail:").unwrap();
+        assert_eq!(redtail_rows.len(), 2);
+
+        let deleted = s.purge_objects_by_provider_marker("redtail:").unwrap();
+        assert_eq!(deleted, 2);
+
+        assert!(
+            s.get_object("contact:10002").unwrap().is_some(),
+            "Wealthbox row must survive Redtail purge"
+        );
+        assert!(
+            s.get_object("contact:sfdc:001HH0000000001AAA")
+                .unwrap()
+                .is_some(),
+            "Salesforce row must survive Redtail purge"
+        );
+        assert!(
+            s.get_object("contact:redtail:family:7").unwrap().is_none(),
+            "Redtail household row must be gone"
+        );
+        assert_eq!(
+            s.get_render_state("redtail:family:7").unwrap(),
+            None,
+            "provider purge must clear stale render state for that household"
+        );
+    }
+
     // -----------------------------------------------------------------------
     // Cursor round-trip
     // -----------------------------------------------------------------------
@@ -767,10 +832,7 @@ mod tests {
 
         assert_eq!(s.get_meta("sync_state").unwrap(), None);
         s.set_meta("sync_state", "idle").unwrap();
-        assert_eq!(
-            s.get_meta("sync_state").unwrap().as_deref(),
-            Some("idle")
-        );
+        assert_eq!(s.get_meta("sync_state").unwrap().as_deref(), Some("idle"));
         // Last-writer-wins.
         s.set_meta("sync_state", "running").unwrap();
         assert_eq!(
@@ -806,8 +868,9 @@ mod tests {
         let db_path = CrmStore::db_path(dir.path());
         let raw = Connection::open(&db_path).expect("open file");
         // A SELECT without a key should fail (file is encrypted).
-        let result =
-            raw.query_row("SELECT count(*) FROM crm_objects", [], |r| r.get::<_, i64>(0));
+        let result = raw.query_row("SELECT count(*) FROM crm_objects", [], |r| {
+            r.get::<_, i64>(0)
+        });
         assert!(
             result.is_err(),
             "plain rusqlite connection must not be able to read SQLCipher DB"
