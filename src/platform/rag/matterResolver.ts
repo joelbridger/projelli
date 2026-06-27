@@ -405,6 +405,37 @@ export function resolveMatterForOneDriveFolder(
   return { matterId: '', action: 'unassigned', name: folderName };
 }
 
+function folderPathLeafName(folderPath: string): string {
+  return normalize(folderPath).split('/').filter(Boolean).pop()?.trim() ?? '';
+}
+
+/**
+ * Resolve a CRM household against the user's workspace folders.
+ *
+ * This is deliberately stricter than a fuzzy search: a household may claim a
+ * folder only when its normalized name matches exactly one workspace folder's
+ * leaf name. Duplicate same-name folders stay unassigned so Keepance never
+ * guesses across client privacy boundaries.
+ */
+export function resolveFolderForHousehold(
+  folderPaths: string[],
+  household: { id?: string; name: string },
+  claimedFolders: ReadonlySet<string> = new Set()
+): string | null {
+  const householdName = normalizeClientName(household.name);
+  if (!householdName) return null;
+
+  const matches = folderPaths.filter(
+    (folderPath) =>
+      normalizeClientName(folderPathLeafName(folderPath)) === householdName
+  );
+  if (matches.length !== 1) return null;
+
+  const match = matches[0];
+  if (!match || claimedFolders.has(normalize(match))) return null;
+  return match;
+}
+
 export function buildEsignMatterMap(matters: Matter[]): EsignMatterMapEntry[] {
   const out: EsignMatterMapEntry[] = [];
   for (const matter of matters) {

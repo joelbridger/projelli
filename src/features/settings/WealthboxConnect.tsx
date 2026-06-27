@@ -16,6 +16,10 @@ import { useCrmStore } from '@/features/crm/crmStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import {
+  attachCrmHouseholdFolderIfUnmapped,
+  buildClaimedCrmFolderSet,
+} from '@/platform/matter/crmMatterFolderBackfill';
+import {
   buildCrmMatterMap,
   filterCrmMatterMapForProvider,
   resolveMatterForHousehold,
@@ -115,6 +119,7 @@ export function WealthboxConnect() {
     // Wealthbox-linked clients in local state.
     const createdMatterIds: string[] = [];
     const linkedKeys: Array<{ matterId: string; key: string }> = [];
+    const attachedFolders: Array<{ matterId: string; folderPath: string }> = [];
 
     try {
       // Step 1: Fetch the household list.
@@ -145,17 +150,19 @@ export function WealthboxConnect() {
       // households from linking to the same matter in a single sync pass.
       const currentMatters = getMatters();
       const claimedMatterIds = new Set<string>();
+      const claimedFolders = buildClaimedCrmFolderSet();
       for (const household of households) {
         const resolution = resolveMatterForHousehold(
           currentMatters,
           household,
           claimedMatterIds
         );
+        let matterId = resolution.matterId;
         if (resolution.action === 'link') {
           // Merge: attach this Wealthbox household to the matching file-client.
-          addCrmHouseholdKey(resolution.matterId, household.id);
-          linkedKeys.push({ matterId: resolution.matterId, key: household.id });
-          claimedMatterIds.add(resolution.matterId);
+          addCrmHouseholdKey(matterId, household.id);
+          linkedKeys.push({ matterId, key: household.id });
+          claimedMatterIds.add(matterId);
         } else if (resolution.action === 'create') {
           // No matching file-client — create a fresh matter for this household.
           // Mark it createdFromCrm so a later disconnect can scrub its imported name.
@@ -166,8 +173,17 @@ export function WealthboxConnect() {
             createdFromCrm: true,
           });
           createdMatterIds.push(created.id);
+          matterId = created.id;
         }
         // 'reuse': already linked — buildCrmMatterMap picks it up automatically.
+        if (matterId) {
+          const folderPath = attachCrmHouseholdFolderIfUnmapped(
+            matterId,
+            household,
+            claimedFolders
+          );
+          if (folderPath) attachedFolders.push({ matterId, folderPath });
+        }
       }
 
       // Step 4: Build the household → matter map from the updated store and
@@ -184,9 +200,15 @@ export function WealthboxConnect() {
     } catch (err) {
       // B2 rollback: undo the staged matter changes so a failed sync leaves no
       // phantom Wealthbox-linked clients behind.
-      if (createdMatterIds.length > 0 || linkedKeys.length > 0) {
-        const { deleteMatter, removeCrmHouseholdKey } =
+      if (
+        createdMatterIds.length > 0 ||
+        linkedKeys.length > 0 ||
+        attachedFolders.length > 0
+      ) {
+        const { deleteMatter, removeCrmHouseholdKey, removeFolderPath } =
           useMatterStore.getState();
+        for (const { matterId, folderPath } of attachedFolders)
+          removeFolderPath(matterId, folderPath);
         for (const id of createdMatterIds) deleteMatter(id);
         for (const { matterId, key } of linkedKeys)
           removeCrmHouseholdKey(matterId, key);
