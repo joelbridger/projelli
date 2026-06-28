@@ -229,12 +229,12 @@ export function AppSurfaceRouter({
 
   const buildDocumentsHome = (opts: { embedded?: boolean; scopeFolderPaths?: string[]; scopeMatterId?: string }) => (
     <DocumentsHome
-      // Embedded (per-client) always lands on the scoped file LIST, never a
-      // stale editor pane that could still be showing another client's open
-      // file (matter isolation). Opening a file from the list still flips to the
-      // editor in place. The global surface keeps the shared documentsView (it
-      // IS the editor host for Ctrl+P / Ask-citation opens).
-      documentsView={opts.embedded ? 'browser' : documentsView}
+      // Shared documentsView is passed in both modes so a file-open inside the
+      // surface still flips to the editor. Embedded mode forces only the INITIAL
+      // landing to the scoped file list (see DocumentsHome's `embedded` handling)
+      // so it never mounts into a stale editor pane showing another client's
+      // file — without freezing later browser->editor transitions.
+      documentsView={documentsView}
       onFileOpen={handleFileOpen}
       onCreateFile={handleCreateFile}
       onCreateFolder={handleCreateFolder}

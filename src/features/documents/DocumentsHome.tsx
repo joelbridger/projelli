@@ -386,7 +386,12 @@ export function DocumentsHome({
   // every nav, the useState initializer is the reliable place to honor the
   // intent: 'browser' => show the Files list; 'editor'/undefined => editor
   // (legacy default when the prop is absent in tests/browser).
-  const initialOnFiles = documentsView === 'browser';
+  // Embedded (per-client) ALWAYS lands on the scoped file list, never a stale
+  // editor pane that could be showing another client's open file (matter
+  // isolation). This forces only the INITIAL state; later file-open transitions
+  // (documentsView -> 'editor', or an editor-surface tab becoming active) still
+  // flip to the editor in place via the effects below.
+  const initialOnFiles = embedded || documentsView === 'browser';
   const [userOnFiles, setUserOnFiles] = useState(initialOnFiles);
   // Ref that shadows userOnFiles so we can read it synchronously in the effect
   // without capturing a stale closure.

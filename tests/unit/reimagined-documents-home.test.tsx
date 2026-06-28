@@ -294,6 +294,25 @@ describe('DocumentsHome — file open + editor tab', () => {
     });
   });
 
+  it('embedded (per-client) lands on the scoped file surface, not a stale editor, even with an editor tab open', () => {
+    // Matter isolation: another client's document is the active editor tab and
+    // the shared view is 'editor'. The embedded Documents tab must still mount
+    // on the scoped file surface, never showing that foreign open file.
+    mockActiveTabPath = '/workspace/Other Client/secret.docx';
+    mockOpenTabs = [{ path: '/workspace/Other Client/secret.docx', name: 'secret.docx', type: 'file' }];
+    render(
+      <DocumentsHome
+        {...buildDefaultProps()}
+        embedded
+        scopeFolderPaths={['/workspace/Contracts']}
+        scopeMatterId="A"
+        documentsView="editor"
+      />,
+    );
+    expect(screen.getByTestId('documents-right-panel')).toBeTruthy();
+    expect(screen.queryByTestId('documents-editor-pane')).toBeNull();
+  });
+
   it('clicking "Files" tab from editor view returns to the grid', async () => {
     mockActiveTabPath = '/workspace/Brief.md';
     mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
