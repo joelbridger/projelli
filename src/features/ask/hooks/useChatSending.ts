@@ -351,11 +351,18 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // WS-PRIV — privileged content is excluded UNLESS the user has
           // explicitly turned on "Include privileged sources" (captured at send
           // time). The default (false) keeps privileged work out of retrieval.
+          // WS3d-A — read the (default-OFF) reranker toggle per call. When off,
+          // retrieval is byte-for-byte the vector-only path; when on, the
+          // backend re-orders within the same already-scoped candidate set.
+          const enableReranker =
+            useSettingsStore.getState().getSetting<boolean>('enableReranker') === true;
           const hits = await MemoryService.retrieve(
             retrievalQuery,
             DEFAULT_WORKSPACE_TOP_K,
             retrievalScope,
             includePrivileged,
+            undefined,
+            enableReranker,
           );
           // D1 — filter workspace retrieval results to the active folder scope
           // so @workspace searches don't surface documents from other client

@@ -531,7 +531,17 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
             retrieve: async (query, topK, scope, perSourceCap) => {
               // F-510 — the finder's per-source diversity cap rides through
               // (privilege stays EXCLUDED, the 4th positional default).
-              const hits = await MemoryService.retrieve(query, topK, scope, false, perSourceCap);
+              // WS3d-A — default-OFF reranker toggle, read per call.
+              const enableReranker =
+                useSettingsStore.getState().getSetting<boolean>('enableReranker') === true;
+              const hits = await MemoryService.retrieve(
+                query,
+                topK,
+                scope,
+                false,
+                perSourceCap,
+                enableReranker,
+              );
               // Audit (3.0 provenance) — the litigation `analyze` step runs a
               // matter-scoped, privilege-EXCLUDED retrieval (the safe default on
               // MemoryService.retrieve). Record the scope, the privilege

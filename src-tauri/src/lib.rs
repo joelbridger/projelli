@@ -71,6 +71,10 @@ pub fn run() {
             // Option B — visible, resumable first-run download of the e5-small model.
             commands::rag::model_download::model_status,
             commands::rag::model_download::model_ensure,
+            // WS3d-A — optional cross-encoder reranker: visible, resumable
+            // first-run download + status (the feature itself is default-OFF).
+            commands::rag::reranker_download::reranker_status,
+            commands::rag::reranker_download::reranker_ensure,
             // Keepance Local AI — visible first-run GGUF download and lazy
             // llama.cpp server sidecar lifecycle.
             commands::local_llm::model_download::local_llm_model_status,

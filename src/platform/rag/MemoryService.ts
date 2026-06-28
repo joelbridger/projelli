@@ -317,17 +317,22 @@ export const MemoryService = {
    *
    *  F-510: `perSourceCap` optionally caps how many hits one source document
    *  may contribute (rank-preserving; the backend overfetches then caps).
-   *  Omitted = no cap — chat retrieval and every existing caller unchanged. */
+   *  Omitted = no cap — chat retrieval and every existing caller unchanged.
+   *
+   *  WS3d-A: `enableReranker` (default false) turns on the optional
+   *  cross-encoder reranking pass. Off = byte-for-byte the vector-only path;
+   *  callers read the `enableReranker` setting and pass it here per call. */
   async retrieve(
     query: string,
     topK: number,
     scope: RetrievalScope = { kind: 'allMatters' },
     includePrivileged = false,
     perSourceCap?: number,
+    enableReranker = false,
   ): Promise<RagHit[]> {
     if (!isMemoryEnabled()) return [];
     if (!query.trim() || topK <= 0) return [];
-    return ragRetrieve(query, topK, scope, includePrivileged, perSourceCap);
+    return ragRetrieve(query, topK, scope, includePrivileged, perSourceCap, enableReranker);
   },
 
   /** Index a single PDF file into the RAG store. Reads bytes via the

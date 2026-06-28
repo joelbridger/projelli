@@ -391,13 +391,20 @@ export async function ragIndexPdfChunks(
  *  that many hits per source document (the backend overfetches, then caps,
  *  preserving rank order). Omitted = no cap; today only the contradiction
  *  finder's feed passes one. The cap runs over already-scoped hits, so it can
- *  only narrow a result set, never widen it. */
+ *  only narrow a result set, never widen it.
+ *
+ *  WS3d-A: `enableReranker` is an OPTIONAL cross-encoder reranking pass.
+ *  DEFAULT OFF (omitted or `false`) — retrieval is byte-for-byte the vector-only
+ *  path. When `true`, the backend re-orders ONLY within the already-scoped
+ *  candidate set (never widening scope/privilege), and transparently falls back
+ *  to vector-only if the reranker model isn't installed. */
 export async function ragRetrieve(
   query: string,
   topK: number,
   scope: RetrievalScope,
   includePrivileged?: boolean,
   perSourceCap?: number,
+  enableReranker?: boolean,
 ): Promise<RagHit[]> {
   if (!isTauri()) {
     throw new Error('RAG is only available in the desktop app.');
@@ -408,6 +415,7 @@ export async function ragRetrieve(
     scope,
     includePrivileged,
     perSourceCap,
+    enableReranker,
   });
 }
 

@@ -33,6 +33,8 @@ pub mod extractor;
 pub mod model_download;
 pub mod office;
 pub mod pdf_indexer;
+pub mod reranker;
+pub mod reranker_download;
 pub mod store;
 pub mod transcript;
 
@@ -1979,6 +1981,16 @@ pub fn cap_per_source(hits: Vec<Hit>, cap: usize, top_k: usize) -> Vec<Hit> {
 /// the cap runs over already-scoped hits, so it can only NARROW a feed, never
 /// widen it; it cannot weaken isolation. Today only the contradiction finder
 /// passes a cap (perSourceCap: 4); chat retrieval is unchanged.
+/// WS3d-A — `enable_reranker` (camelCase `enableReranker` over IPC) is the
+/// OPTIONAL cross-encoder reranking layer. DEFAULT OFF: absent or `false`
+/// leaves retrieval byte-for-byte the vector-only path (same fetch size, same
+/// scores, same order). Only an explicit `true` turns it on, and even then it
+/// re-orders ONLY within the already-scoped, already-prefiltered candidate set
+/// `nearest()` returned — it can never widen scope, re-admit a prefiltered-out
+/// chunk, or change which matters/privilege are visible (re-ranking ≠
+/// re-retrieval). If the reranker model isn't downloaded or fails to load,
+/// retrieval transparently falls back to the vector-only order — never crashes,
+/// never blocks an answer.
 #[tauri::command]
 pub async fn rag_retrieve(
     state: State<'_, RagState>,
@@ -1987,6 +1999,7 @@ pub async fn rag_retrieve(
     scope: RetrievalScope,
     include_privileged: Option<bool>,
     per_source_cap: Option<u32>,
+    enable_reranker: Option<bool>,
 ) -> Result<Vec<Hit>, String> {
     if query.trim().is_empty() || top_k == 0 {
         return Ok(Vec::new());
@@ -2009,7 +2022,21 @@ pub async fn rag_retrieve(
     // F-510: cap == 0 (or absent) = no cap. With a cap we OVERFETCH so the
     // per-source filter has candidates from other sources to fill from.
     let cap = per_source_cap.unwrap_or(0) as usize;
-    let fetch_k = if cap > 0 {
+    // WS3d-A: default OFF. When ON, we likewise OVERFETCH so the cross-encoder
+    // can promote a strongly-relevant chunk the vector pass ranked just outside
+    // top_k into the final set, then we truncate back to top_k after re-sort.
+    // Every overfetched candidate still went through the SAME matter/privilege/
+    // tombstone prefilter inside nearest() — overfetch widens depth, never scope.
+    //
+    // EXACT fallback: we only overfetch when the reranker is actually going to
+    // run — i.e. the flag is on AND the model is present and loads
+    // (`ensure_ready`). If it's absent or fails to load, `want_rerank` is false
+    // and `fetch_k` stays `top_k`, so retrieval is byte-for-byte the vector-only
+    // path — never a top-K skimmed off a larger ANN query whose candidate
+    // exploration / tie order could differ. (Codex review, P2.)
+    let enable_reranker = enable_reranker.unwrap_or(false);
+    let want_rerank = enable_reranker && reranker::ensure_ready().await;
+    let fetch_k = if cap > 0 || want_rerank {
         (top_k as usize).saturating_mul(4).min(200)
     } else {
         top_k as usize
@@ -2152,15 +2179,55 @@ pub async fn rag_retrieve(
             }
         })
         .collect();
+    // WS3d-A — THE RERANKER SEAM. Default OFF: when `want_rerank` is false
+    // (flag off, or the model is absent / failed to load) this whole block is
+    // skipped, no overfetch happened above, and the code below is byte-for-byte
+    // the historical vector-only path. When ON (flag set AND model ready),
+    // re-score the already-decrypted, already-scoped `hits` with the
+    // cross-encoder and overwrite each hit's score IN PLACE (the sort below then
+    // re-orders by it). This re-orders WITHIN the prefiltered set only — it
+    // cannot widen scope or re-admit a filtered-out chunk. GRACEFUL FALLBACK:
+    // any failure (model absent, load error, inference error) is logged and the
+    // existing vector scores are left untouched, so retrieval degrades to
+    // vector-only rather than failing — an answer is never blocked on the
+    // reranker.
+    if want_rerank && !hits.is_empty() {
+        let texts: Vec<String> = hits.iter().map(|h| h.chunk_text.clone()).collect();
+        match reranker::rescore(&query, texts).await {
+            Ok(scores) if scores.len() == hits.len() => {
+                for (h, s) in hits.iter_mut().zip(scores) {
+                    h.score = s;
+                }
+            }
+            Ok(_) => {
+                log::warn!(
+                    "rag_retrieve: reranker returned a mismatched score count; \
+                     falling back to vector-only order"
+                );
+            }
+            Err(e) => {
+                log::warn!(
+                    "rag_retrieve: reranker unavailable ({e:#}); \
+                     falling back to vector-only order"
+                );
+            }
+        }
+    }
     // LanceDB returns by ascending distance, which corresponds to
-    // descending score, but sort defensively.
+    // descending score, but sort defensively. With the reranker ON this is the
+    // re-sort over the cross-encoder scores assigned just above.
     hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
     // F-510: apply the per-source diversity cap AFTER decrypt/sort, over the
     // already-scoped overfetched candidates, then truncate to the caller's
     // top_k. No cap requested = the overfetch never happened (fetch_k ==
-    // top_k) and this is a no-op.
+    // top_k) and this is a no-op — UNLESS the reranker overfetched, in which
+    // case the explicit truncate below trims the candidate pool back to top_k.
     if cap > 0 {
         hits = cap_per_source(hits, cap, top_k as usize);
+    } else {
+        // No-op when fetch_k == top_k (reranker OFF, no cap); trims the
+        // reranker's overfetched pool back to the caller's top_k when ON.
+        hits.truncate(top_k as usize);
     }
     Ok(hits)
 }
