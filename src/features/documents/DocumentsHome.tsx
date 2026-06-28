@@ -488,21 +488,15 @@ export function DocumentsHome({
     () => (embedded && scopeFolderPaths && scopeFolderPaths.length > 0 ? scopeFolderPaths[0]! : null),
   );
 
-  // Embedded (per-client): never let the folder target fall back to the GLOBAL
-  // workspace root. Navigating to the scoped root (the "All files" breadcrumb)
-  // sets null, which would make New document / Add files write outside the
-  // client; clamp null to the client's own folder so created/imported files
-  // always land inside the client (matter isolation). Codex P2.
-  const handleSetCurrentFolderPath = useCallback(
-    (p: string | null) => {
-      if (p === null && embedded && scopeFolderPaths && scopeFolderPaths.length > 0) {
-        setCurrentFolderPath(scopeFolderPaths[0]!);
-      } else {
-        setCurrentFolderPath(p);
-      }
-    },
-    [embedded, scopeFolderPaths],
-  );
+  // Embedded (per-client): clamp only the create/import TARGET — not navigation.
+  // At the scoped root (currentFolderPath === null, e.g. the "All files"
+  // breadcrumb) New document / Add files would otherwise fall back to the GLOBAL
+  // workspace; this fallback keeps them inside the client's own folder (matter
+  // isolation). Navigation is deliberately left free (null = scoped root) so a
+  // client with MULTIPLE mapped folders can still reach the root + its sibling
+  // folders (Codex P2 — clamping navigation made those unreachable).
+  const embeddedCreateFallback =
+    embedded && scopeFolderPaths && scopeFolderPaths.length > 0 ? scopeFolderPaths[0]! : null;
 
   // ── Add-files / trust-note logic ─────────────────────────────────────────
 
@@ -517,7 +511,7 @@ export function DocumentsHome({
       markTrustShown();
     }
     if (onImportFiles) {
-      void onImportFiles(currentFolderPath);
+      void onImportFiles(currentFolderPath ?? embeddedCreateFallback);
     } else if (onCreateDefaultDocument) {
       onCreateDefaultDocument();
     } else if (onCreateDocxAtRoot) {
@@ -534,7 +528,7 @@ export function DocumentsHome({
   // ── Toolbar action handlers (lifted from DocumentGridView) ────────────────
 
   const handleCreateDocument = useCallback(() => {
-    const parentPath = currentFolderPath ?? undefined;
+    const parentPath = currentFolderPath ?? embeddedCreateFallback ?? undefined;
     if (onCreateDefaultDocument) {
       onCreateDefaultDocument(parentPath);
     } else if (onCreateDocxAtRoot) {
@@ -545,7 +539,7 @@ export function DocumentsHome({
   }, [currentFolderPath, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
 
   const handleCreateFolder = useCallback(() => {
-    onCreateFolder(currentFolderPath ?? rootPath ?? '');
+    onCreateFolder(currentFolderPath ?? embeddedCreateFallback ?? rootPath ?? '');
   }, [currentFolderPath, rootPath, onCreateFolder]);
 
   const trashBadgeCount = trashStats.itemCount;
@@ -852,7 +846,8 @@ export function DocumentsHome({
             onEmptyTrash={onEmptyTrash}
             docsView={docsView}
             currentFolderPath={currentFolderPath}
-            onSetCurrentFolderPath={handleSetCurrentFolderPath}
+            onSetCurrentFolderPath={setCurrentFolderPath}
+            {...(embeddedCreateFallback ? { createFolderFallback: embeddedCreateFallback } : {})}
             {...(scopedFileTree !== undefined ? { scopedFileTree } : {})}
             treeView={
               <FileTree

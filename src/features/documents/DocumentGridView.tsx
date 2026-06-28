@@ -390,6 +390,13 @@ export interface DocumentGridViewProps {
    * the normal global file browser.
    */
   scopedFileTree?: FileNode[];
+  /**
+   * Embedded (per-client) only: the folder a new document/folder lands in when
+   * the user is at the scoped root (currentFolderPath === null) — the client's
+   * own folder, so creates never fall back to the GLOBAL workspace. Navigation
+   * is unaffected; this only changes the create target (matter isolation).
+   */
+  createFolderFallback?: string | null;
 }
 
 // ── Main export ────────────────────────────────────────────────────────────
@@ -417,6 +424,7 @@ export function DocumentGridView({
   onSetCurrentFolderPath,
   treeView,
   scopedFileTree,
+  createFolderFallback,
 }: DocumentGridViewProps) {
   const storeFileTree = useWorkspaceStore((s) => s.fileTree);
   // Per-client Documents sub-tab passes a pre-scoped tree; the global browser
@@ -539,18 +547,20 @@ export function DocumentGridView({
     // R6-1: thread the open folder so a new document lands where the user is.
     // When at root (currentFolderPath === null) we pass undefined and App.tsx
     // falls back to its canonical `docs/` folder — same contract as before.
-    const parentPath = currentFolderPath ?? undefined;
+    // Embedded (per-client): `createFolderFallback` keeps a root-level create
+    // inside the client's folder instead of the global workspace (isolation).
+    const parentPath = currentFolderPath ?? createFolderFallback ?? undefined;
     if (onCreateDefaultDocument) {
       onCreateDefaultDocument(parentPath);
     } else if (onCreateDocxAtRoot) {
       onCreateDocxAtRoot(parentPath);
     } else {
-      onCreateFile(currentFolderPath ?? rootPath ?? '');
+      onCreateFile(currentFolderPath ?? createFolderFallback ?? rootPath ?? '');
     }
   }
 
   function handleCreateFolder() {
-    onCreateFolder(currentFolderPath ?? rootPath ?? '');
+    onCreateFolder(currentFolderPath ?? createFolderFallback ?? rootPath ?? '');
   }
 
   // R6-1: grid drag-and-drop. Dropping a card onto a FOLDER card moves it

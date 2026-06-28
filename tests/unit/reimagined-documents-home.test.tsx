@@ -402,6 +402,26 @@ describe('DocumentsHome — file open + editor tab', () => {
     expect(onImportFiles).toHaveBeenLastCalledWith('/workspace/Contracts');
   });
 
+  it('embedded navigation can reach the scoped root (multi-folder clients can see sibling folders)', () => {
+    // The create-target clamp must NOT clamp NAVIGATION — otherwise a client with
+    // several mapped folders can never get back to the root where siblings show.
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    render(
+      <DocumentsHome
+        {...buildDefaultProps()}
+        embedded
+        scopeFolderPaths={['/workspace/Contracts']}
+      />,
+    );
+    // Starts inside the client's folder — its file is visible.
+    expect(screen.getByText('NDA.docx')).toBeTruthy();
+    // "All files" reaches the scoped root (navigation is NOT clamped back in).
+    fireEvent.click(screen.getByTestId('breadcrumb-crumb-0'));
+    expect(screen.queryByText('NDA.docx')).toBeNull();
+    expect(screen.getByText('Contracts')).toBeTruthy();
+  });
+
   it('clicking "Files" tab from editor view returns to the grid', async () => {
     mockActiveTabPath = '/workspace/Brief.md';
     mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
