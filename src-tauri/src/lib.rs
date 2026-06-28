@@ -177,6 +177,15 @@ pub fn run() {
             commands::onedrive::commands::onedrive_sync,
             commands::onedrive::commands::onedrive_cancel,
             commands::onedrive::commands::onedrive_status,
+            // Box document connector (read-only Developer Token import).
+            commands::boxc::commands::box_set_workspace,
+            commands::boxc::commands::box_connect,
+            commands::boxc::commands::box_is_connected,
+            commands::boxc::commands::box_disconnect,
+            commands::boxc::commands::box_list_folders,
+            commands::boxc::commands::box_sync,
+            commands::boxc::commands::box_cancel,
+            commands::boxc::commands::box_status,
             // Read-only DocuSign connector — completed envelopes + signing timeline.
             commands::docusign::commands::docusign_set_workspace,
             commands::docusign::commands::docusign_connect,
@@ -236,6 +245,8 @@ pub fn run() {
             commands::crm::commands::manage_state(app);
             // OneDrive / SharePoint connector state.
             commands::onedrive::commands::manage_state(app);
+            // Box connector state.
+            commands::boxc::commands::manage_state(app);
             // Read-only DocuSign connector state.
             commands::docusign::commands::manage_state(app);
             // Calendly connector — manage workspace, single-flight sync, and progress.
