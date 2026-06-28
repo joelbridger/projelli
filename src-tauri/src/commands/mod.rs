@@ -16,6 +16,8 @@ pub mod crm;
 pub mod docusign;
 // Read-only Jotform connector — intake/KYC submissions into client memory.
 pub mod jotform;
+// Read-only Zocks connector — meeting notes/transcripts into client memory.
+pub mod zocks;
 // Calendly connector — read-only scheduled events + invitee intake into meeting RAG.
 pub mod calendly;
 // Shared additive connector foundation — generic external RAG ingestion bridge.

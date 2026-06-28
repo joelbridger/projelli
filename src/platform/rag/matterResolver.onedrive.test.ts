@@ -125,7 +125,9 @@ describe('new connector matter-map shells', () => {
     ]);
     expect(buildZocksMatterMap(matters)).toEqual([
       { zocksKey: 'zocks-a', matterId: 'matter-a' },
+      { zocksKey: 'Acme', matterId: 'matter-a' },
       { zocksKey: 'zocks-b', matterId: 'matter-b' },
+      { zocksKey: 'Beta', matterId: 'matter-b' },
     ]);
     expect(buildAddeparMatterMap(matters)).toEqual([
       { addeparKey: 'addepar-a', matterId: 'matter-a' },

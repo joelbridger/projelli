@@ -218,6 +218,16 @@ pub fn run() {
             commands::jotform::commands::jotform_cancel,
             commands::jotform::commands::jotform_status,
             commands::jotform::commands::jotform_list_unassigned,
+            // Read-only Zocks connector — meeting notes/transcripts into client memory.
+            commands::zocks::commands::zocks_set_workspace,
+            commands::zocks::commands::zocks_connect,
+            commands::zocks::commands::zocks_is_connected,
+            commands::zocks::commands::zocks_disconnect,
+            commands::zocks::commands::zocks_list_sessions,
+            commands::zocks::commands::zocks_sync,
+            commands::zocks::commands::zocks_cancel,
+            commands::zocks::commands::zocks_status,
+            commands::zocks::commands::zocks_list_unassigned,
             // Calendly connector — read-only scheduled events + invitee Q&A.
             commands::calendly::commands::calendly_set_workspace,
             commands::calendly::commands::calendly_connect,
@@ -276,6 +286,8 @@ pub fn run() {
             commands::docusign::commands::manage_state(app);
             // Read-only Jotform connector state.
             commands::jotform::commands::manage_state(app);
+            // Read-only Zocks connector state.
+            commands::zocks::commands::manage_state(app);
             // Calendly connector — manage workspace, single-flight sync, and progress.
             commands::calendly::commands::manage_state(app);
             // Keepance 3.0 — manage encrypted audit-store state (active workspace).

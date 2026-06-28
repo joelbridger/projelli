@@ -404,11 +404,19 @@ export function buildSharefileMatterMap(
 }
 
 export function buildZocksMatterMap(matters: Matter[]): ZocksMatterMapEntry[] {
-  return buildConnectorMatterMap(
-    matters,
-    (m) => m.zocksKeys,
-    (zocksKey, matterId) => ({ zocksKey, matterId })
-  );
+  const out: ZocksMatterMapEntry[] = [];
+  const claimed = new Set<string>();
+  for (const m of matters) {
+    if (m.id === UNASSIGNED_MATTER_ID) continue;
+    for (const rawKey of [...(m.zocksKeys ?? []), m.client, m.name]) {
+      const zocksKey = rawKey.trim();
+      const normalized = normalizeMeetingKey(zocksKey);
+      if (!zocksKey || !normalized || claimed.has(normalized)) continue;
+      claimed.add(normalized);
+      out.push({ zocksKey, matterId: m.id });
+    }
+  }
+  return out;
 }
 
 export function buildAddeparMatterMap(
