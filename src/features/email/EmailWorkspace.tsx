@@ -111,6 +111,13 @@ export function EmailWorkspace({
 }: EmailWorkspaceProps) {
   const activeMatter = useActiveMatter();
 
+  // Per-client (embedded) browse fetches a deeper page so a client's mail is far
+  // more likely to surface in one shot; combined with the reachable "Load more"
+  // in the empty state below, this avoids a dead-end when the client's mail
+  // isn't among the newest rows. (A fully accurate server-side per-matter list
+  // is a backend follow-up — `mail_list_messages` has no matter filter.)
+  const PAGE_SIZE = embedded ? 200 : 50;
+
   // First-connect TTV callout — shown once after the first account is connected.
   const { firstConnectCalloutSeen, dismissFirstConnectCallout } = useMailStore();
 
@@ -332,7 +339,7 @@ export function EmailWorkspace({
         const listQuery: Parameters<typeof mailListMessages>[0] = {
           sortBy: 'date',
           sortDesc: true,
-          limit: 50,
+          limit: PAGE_SIZE,
           offset: 0,
         };
         if (query) listQuery.keyword = query;
@@ -389,7 +396,7 @@ export function EmailWorkspace({
         const listQuery: Parameters<typeof mailListMessages>[0] = {
           sortBy: 'date',
           sortDesc: true,
-          limit: 50,
+          limit: PAGE_SIZE,
           offset,
         };
         if (query) listQuery.keyword = query;
@@ -507,8 +514,8 @@ export function EmailWorkspace({
   }, []);
 
   const handleLoadMore = useCallback(() => {
-    setOffset((o) => o + 50);
-  }, []);
+    setOffset((o) => o + PAGE_SIZE);
+  }, [PAGE_SIZE]);
 
   const handleRetry = useCallback(() => {
     setError(null);
@@ -1016,6 +1023,38 @@ export function EmailWorkspace({
                       : 'No email has been synced yet.'}
                   { }
                 </p>
+                {/* Embedded scoping filters the loaded page client-side, so a
+                    client's mail might sit deeper than the rows fetched so far.
+                    When more rows exist, let the user keep scanning rather than
+                    dead-ending on "none found" (Codex review P2). */}
+                {embedded && items.length < total && (
+                  <button
+                    type="button"
+                    data-testid="email-scoped-load-more"
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    style={{
+                      marginTop: 4,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '6px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 'var(--kp-font-xs)',
+                      fontWeight: 'var(--kp-weight-medium)',
+                      color: 'var(--kp-navy)',
+                      background: '#fff',
+                      border: '1px solid var(--color-border)',
+                      cursor: loadingMore ? 'default' : 'pointer',
+                    }}
+                  >
+                    {loadingMore && (
+                      <Loader2 style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
+                    )}
+                    {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+                    {loadingMore ? 'Looking...' : 'Keep looking in more email'}
+                  </button>
+                )}
               </div>
             )}
 

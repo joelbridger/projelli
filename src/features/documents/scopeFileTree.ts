@@ -12,31 +12,19 @@
  * render/useMemo, and so the unscoped store tree the rest of the app uses is
  * never altered.
  *
- * Path matching is exact-segment based (a trailing-slash–normalized prefix),
- * so `/ws/Brennan` does NOT accidentally match `/ws/Brennan Two`.
+ * Matching reuses the app's canonical folder logic (`isPathInFolder` /
+ * `normalize` from the matter resolver — the SAME check `resolveMatterId` uses),
+ * so the pruned view agrees exactly with how files are assigned to matters, and
+ * Windows backslash paths + trailing slashes are handled identically. Matching
+ * is whole-segment, so `/ws/Brennan` does NOT match `/ws/Brennan Two`.
  */
 import type { FileNode } from '@/platform/types/workspace';
-
-/** Normalize a path for comparison: collapse duplicate slashes, drop a single
- *  trailing slash (but keep root "/"). */
-function norm(p: string): string {
-  const collapsed = p.replace(/\/+/g, '/');
-  return collapsed.length > 1 ? collapsed.replace(/\/$/, '') : collapsed;
-}
-
-/** True when `path` is exactly `folder` or a descendant of it (segment-aware). */
-function isAtOrUnder(path: string, folder: string): boolean {
-  const a = norm(path);
-  const b = norm(folder);
-  return a === b || a.startsWith(`${b}/`);
-}
+import { isPathInFolder, normalize } from '@/platform/rag/matterResolver';
 
 /** True when `path` is a strict ancestor of `folder` (so we must descend into
  *  it to reach the scoped folder). */
 function isAncestorOf(path: string, folder: string): boolean {
-  const a = norm(path);
-  const b = norm(folder);
-  return b.startsWith(`${a}/`);
+  return isPathInFolder(folder, path) && normalize(path) !== normalize(folder);
 }
 
 /**
@@ -53,11 +41,11 @@ export function scopeFileTreeToFolders(
   folderPaths: string[],
 ): FileNode[] {
   if (folderPaths.length === 0) return [];
-  const folders = folderPaths.map(norm);
+  const folders = folderPaths.filter(Boolean);
 
   function prune(node: FileNode): FileNode | null {
     // Inside one of the matter's folders (or exactly one): keep the whole node.
-    if (folders.some((f) => isAtOrUnder(node.path, f))) {
+    if (folders.some((f) => isPathInFolder(node.path, f))) {
       return node;
     }
     // A folder above a scoped folder: keep only the branch that reaches it.

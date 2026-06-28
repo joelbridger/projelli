@@ -460,7 +460,14 @@ export function DocumentsHome({
   // ── Toolbar folder state ──────────────────────────────────────────────────
   // The drilled-into folder (null = root), lifted from DocumentGridView so the
   // toolbar's create/import buttons land items in the folder you're viewing.
-  const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
+  // When embedded as a per-client tab, default into the client's mapped folder
+  // so New document / New folder / Add files land INSIDE the client rather than
+  // at the workspace root, where they'd immediately vanish from this scoped
+  // view (Codex review P2). This component remounts on each sub-tab open, so the
+  // initializer reliably re-seeds the target each time.
+  const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(
+    () => (embedded && scopeFolderPaths && scopeFolderPaths.length > 0 ? scopeFolderPaths[0]! : null),
+  );
 
   // ── Add-files / trust-note logic ─────────────────────────────────────────
 

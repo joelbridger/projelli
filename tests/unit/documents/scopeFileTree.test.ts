@@ -68,4 +68,16 @@ describe('scopeFileTreeToFolders', () => {
     scopeFileTreeToFolders(TREE, ['/ws/Clients/Webb']);
     expect(JSON.stringify(TREE)).toBe(snapshot);
   });
+
+  it('normalizes path shapes the way matter resolution does (backslashes / trailing slash)', () => {
+    // Reuses isPathInFolder/normalize, so a Windows-style or trailing-slash
+    // matter folder still matches a forward-slash tree node (Codex review P2).
+    const win: FileNode[] = [
+      folder('C:/WS/Clients/Acme', [file('C:/WS/Clients/Acme/deal.docx')]),
+      folder('C:/WS/Clients/Beta', [file('C:/WS/Clients/Beta/x.docx')]),
+    ];
+    const out = scopeFileTreeToFolders(win, ['C:\\WS\\Clients\\Acme\\']);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.path).toBe('C:/WS/Clients/Acme');
+  });
 });
