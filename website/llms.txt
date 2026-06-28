@@ -1,29 +1,29 @@
 # Keepance
 
-> The private intelligence layer for a law practice. Find anything you have ever emailed or filed, instantly and privately, with cited answers. Draft and redline in real Word with tracked changes. A litigation associate that reads depositions and flags contradictions for you. Everything stays on the lawyer's machine, confidential by architecture.
+> The private intelligence layer for a financial advisory practice. Find anything you have ever emailed or filed, instantly and privately, with cited answers. Draft and redline in real Word with tracked changes. An analysis assistant that reads a client's whole file and flags what needs your attention. Everything stays on the advisor's machine, confidential by architecture.
 
 ## What Keepance is
 
-Keepance is a desktop application (Windows, macOS, Linux) that is the private place a lawyer's whole practice lives and answers back. It imports and privately indexes email, documents, prior matters, and deposition transcripts; answers plain-English questions over all of it with a clickable citation on every answer; runs a litigation associate (contradiction-finder, timeline builder, discovery triage, privilege-log drafter); and drafts, edits, and redlines real Word and PDF files with tracked changes intact. Built with Tauri 2 + React + TypeScript.
+Keepance is a desktop application (Windows, macOS, Linux) that is the private place an advisor's whole practice lives and answers back. It imports and privately indexes email, documents, prior client files, and account statements; answers plain-English questions over all of it with a clickable citation on every answer; runs an analysis assistant (open-item finder, review-timeline builder, annual-review packet drafter, meeting-prep and suitability notes); and drafts, edits, and redlines real Word and PDF files with tracked changes intact. Built with Tauri 2 + React + TypeScript.
 
-The lawyer never sees Markdown. Documents they read, edit, and ship are real Word and PDF on their own letterhead. Any plain-text layer is an invisible internal detail, never the legal deliverable.
+The advisor never sees Markdown. Documents they read, edit, and ship are real Word and PDF on their own letterhead. Any plain-text layer is an invisible internal detail, never the deliverable.
 
-Unlike cloud AI assistants (Microsoft 365 Copilot, ChatGPT, Claude.ai, Gemini), Keepance keeps client data on the user's machine. The user picks how private each matter is: a local model (nothing leaves the machine), bring-your-own-key direct to the provider (the prompt goes straight to Anthropic, OpenAI, or Google, never through Keepance servers), or, for firms, an assured zero-retention deployment with a signed DPA.
+Unlike cloud AI assistants (Microsoft 365 Copilot, ChatGPT, Claude.ai, Gemini), Keepance keeps client data on the user's machine. The user picks how private each client is: a local model (nothing leaves the machine), bring-your-own-key direct to the provider (the prompt goes straight to Anthropic, OpenAI, or Google, never through Keepance servers), or, for firms, an assured zero-retention deployment (a signed DPA and SOC 2 are on the roadmap, not yet in place).
 
 ## Who Keepance is for
 
-The center of gravity is small and mid-size, litigation-heavy law firms, and litigation-heavy solos. The on-ramp is the confidentiality-anxious solo attorney. Keepance lands with the solo and grows into the firm.
+The center of gravity is solo and small/mid-size RIA and financial-advisory practices. The on-ramp is the confidentiality-anxious solo advisor. Keepance lands with the solo advisor and grows into the firm.
 
-The same private architecture serves adjacent professions bound by NDA or professional confidentiality: tax preparers and CPAs (IRC 6713/7216), independent consultants and agencies, and financial advisors and RIAs. Law is the focus; these are adjacent markets the same engine serves.
+The same private architecture serves adjacent professions bound by confidentiality: tax preparers and CPAs, independent consultants and agencies, and law firms. Advisors are the focus; these are adjacent markets the same engine serves.
 
-Keepance is not a general productivity tool, not a Notion or Obsidian competitor, not a practice-management replacement (it sits beside Clio), and not a legal-research substitute (it is not Westlaw or Lexis).
+Keepance is not a general productivity tool, not a Notion or Obsidian competitor, not a CRM replacement (it sits beside Wealthbox or Redtail), and not a custodian or financial-planning-software substitute (it sits beside eMoney or MoneyGuidePro).
 
 ## The differentiators (the message pillars)
 
-1. **Find anything, privately**: confidential search and cited recall across the lawyer's email, documents, and past matters. Ask in plain English, get the exact source back with a citation, scoped to one matter so client files never cross.
-2. **The litigation associate**: deposition and discovery analysis. Surfaces contradictions across transcripts, statements, and emails; builds timelines; triages document productions; drafts privilege logs. It proposes, the lawyer decides, and every flag is pinned to a source.
-3. **Real deliverables, Office-native**: import, generate, edit, and redline real Word and PDF on the firm's letterhead, with tracked changes, comments, styles, numbering, and tables intact. The AI operates on the real document structure, not a flattened copy.
-4. **The trust and confidentiality layer**: the confidentiality spectrum (local, BYOK, assured), an egress indicator on every action, a one-screen plain-English data map, encryption at rest, an audit and provenance trail, and privilege tagging.
+1. **Find anything, privately**: confidential search and cited recall across the advisor's email, documents, and past client work. Ask in plain English, get the exact source back with a citation, scoped to one client so households never cross.
+2. **The analysis assistant**: it reads a household's whole file and flags what needs attention. Surfaces open items and mismatches across statements, forms, and emails; builds the review timeline; drafts the annual-review packet and meeting-prep and suitability notes. It proposes, the advisor decides, and every flag is pinned to a source.
+3. **Real deliverables, Office-native**: import, generate, edit, and redline real Word and PDF on the advisor's letterhead, with tracked changes, comments, styles, numbering, and tables intact. The AI operates on the real document structure, not a flattened copy.
+4. **The trust and confidentiality layer**: the confidentiality spectrum (local, BYOK, assured), an egress indicator on every action, a one-screen plain-English data map, encryption at rest, an audit and provenance trail, and confidentiality tagging.
 5. **Honesty as the brand**: the whole truth about where data goes, told first. With a cloud key, the provider sees the prompt; Keepance says so plainly. Only a local model means nothing leaves the machine.
 
 ## Pricing
@@ -32,15 +32,15 @@ Per seat, billed annually (headline price); month-to-month available at roughly 
 
 | Tier | Annual (per seat) | Month-to-month | Who it is for | What it adds |
 |---|---|---|---|---|
-| Solo | $39/mo ($468/yr) | $49/mo | A single attorney | The complete confidential workspace: the Word-native editor, AI redlining with tracked changes, matter-scoped cited recall across email and documents, privilege controls, local/BYOK, the trust layer |
-| Professional | $79/mo ($948/yr) | $99/mo | The serious solo or small-firm litigator | Everything in Solo, plus the litigation associate (contradiction-finder, timelines, discovery triage, privilege-log drafter), version history, all practice packs, priority support |
-| Firm | $129/seat/mo ($1,548/seat/yr), min 3 seats | $159/seat/mo | Firms of roughly 5 to 50 attorneys | Everything in Professional, plus shared matters and collaboration, an admin console with SSO and ethical walls, the assured zero-retention option, and the assurance package (DPA, trust center, SOC 2 readiness) |
+| Solo | $39/mo ($468/yr) | $49/mo | A solo advisor | The complete confidential workspace: the Word-native editor, AI redlining with tracked changes, client-scoped cited recall across email and documents, confidentiality controls, local/BYOK, the trust layer |
+| Professional | $79/mo ($948/yr) | $99/mo | The established solo or growing advisory practice | Everything in Solo, plus the Advisor Practice Pack (financial-plan summaries, meeting-prep and suitability notes, annual-review packets, Reg BI and Reg S-P documentation), version history, all practice packs, priority support |
+| Firm | $129/seat/mo ($1,548/seat/yr), min 3 seats | $159/seat/mo | Advisory firms of roughly 5 to 50 people | Everything in Professional, plus shared client work and collaboration, an admin console with SSO and information barriers, the assured zero-retention option, and the assurance package (DPA, trust center, SOC 2 readiness, on the roadmap) |
 
 Founding rate: the first cohort locks a 30 percent discount for the life of the subscription (Solo $27/mo, Professional $55/mo, Firm $90/seat/mo).
 
 **BYOK and total cost**: the user brings their own AI key and pays the provider directly, usually $5 to $15 a month for a solo. Keepance takes zero markup on AI usage. Run a local model with Ollama and pay nothing for AI. The subscription covers the platform, not the AI tokens.
 
-**Data ownership guarantee**: your files are always yours. They are real Word and PDF files in your own folders. If you ever cancel, you keep every document, email, and matter you have made. A lapsed subscription turns off the AI features and updates, not your data.
+**Data ownership guarantee**: your files are always yours. They are real Word and PDF files in your own folders. If you ever cancel, you keep every document, email, and client file you have made. A lapsed subscription turns off the AI features and updates, not your data.
 
 **Grandfathering**: anyone who bought the old one-time Personal, Professional, or Practice license keeps exactly what they paid for. Keepance 3.0 is a new, repositioned product at new pricing, and never claws back what a buyer already owns.
 
@@ -48,12 +48,12 @@ Sold via LemonSqueezy (merchant of record handles VAT, tax, refunds).
 
 ## Where Keepance sits versus competitors
 
-- **Thomson Reuters CoCounsel Core**: $225/seat/mo (about $4,500/yr). Keepance Firm is roughly half to one-third the price.
-- **Westlaw + CoCounsel**: $428 to $639/seat/mo. Keepance Firm is one-third to one-fifth the price.
-- **Clio / MyCase (practice management)**: $39 to $149/seat/mo annual. Comparable, but Keepance is the private AI layer beside Clio, not a replacement.
-- **Microsoft 365 Copilot**: $21 to $30/mo add-on (needs base M365). Keepance Solo is at or above, with legal-specific depth, no required base subscription, and the one thing Copilot structurally cannot offer: the document and the AI both stay private.
+- **Jump / Zocks (AI meeting notes)**: about $75 to $175/advisor/mo. A different job (meeting capture and CRM sync); Keepance is the private layer for confidential drafting and analysis, not a meeting-notes tool.
+- **eMoney / MoneyGuidePro AI (bundled)**: bundled into the planning suite. Runs in the vendor cloud; Keepance keeps client data on the advisor's machine.
+- **ChatGPT (free / Plus)**: $0 to $20/mo. Generic and cloud-only; with Keepance on a local model no client data leaves the machine.
+- **Microsoft 365 Copilot**: $21 to $30/mo add-on (needs base M365). Keepance Solo is at or above, with advisor-specific depth, no required base subscription, and the one thing Copilot structurally cannot offer: the document and the AI both stay private.
 
-The story: a fraction of CoCounsel, and the only one where your client files never leave your control. (Pricing references are from the providers' published rates as of June 2026 and are for comparison only.)
+The story: a fraction of the cost of cloud advisor tools, and the only one where your client files never leave your control. (Pricing references are from the providers' published rates as of June 2026 and are for comparison only.)
 
 ## Platform support
 
@@ -91,7 +91,7 @@ Auto-updates land via GitHub Releases with minisign-signed update bundles.
 
 ## Comparison pages
 
-Per-competitor comparison pages: https://keepance.com/vs/ (CoCounsel, Clio Duo, Microsoft 365 Copilot, Obsidian, Notion, ChatGPT, and more)
+Per-competitor comparison pages: https://keepance.com/vs/ (Microsoft 365 Copilot, ChatGPT, Notion, Obsidian, and more)
 
 ## Contact
 
@@ -101,4 +101,4 @@ Per-competitor comparison pages: https://keepance.com/vs/ (CoCounsel, Clio Duo, 
 
 ## Last updated
 
-2026-06-09. Repositioned for the Keepance 3.0 launch (the private intelligence layer for a law practice; subscription pricing). Refreshed after major releases and quarterly otherwise.
+2026-06-28. Repositioned for financial advisors and RIAs (the private intelligence layer for a financial advisory practice; subscription pricing). Refreshed after major releases and quarterly otherwise.
