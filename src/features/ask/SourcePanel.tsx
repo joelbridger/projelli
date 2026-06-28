@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { CheckCircle2, FileText, ExternalLink, ShieldCheck, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button, Badge, Eyebrow, Card } from '@/ui/kp';
-import { useNewNav } from '@/platform/flags/newNav';
 import type { AnswerCitation } from './askHelpers';
 import { ragVerifyCitation, type CitationVerdict } from '@/platform/utils/tauri-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
@@ -13,26 +12,15 @@ import type { AuditEntry } from '@/platform/types/audit';
 
 export function SourcePanel({
   cite,
-  onOpenFile,
   onAuditLog,
 }: {
   cite: AnswerCitation | null;
-  /**
-   * Flag-OFF only: the shipped Ask surface never wires this, so the legacy
-   * "Open in editor" button is a no-op there. Kept so flag-OFF renders
-   * byte-for-byte; the newNav citation-open actions are separate (below).
-   */
-  onOpenFile?: (path: string) => void;
   /**
    * WS3 (Task 4): when provided, each "Verify against source" result emits
    * a `citation_verified` audit entry so the check is on the record.
    */
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 }) {
-  // newNav gates the relocated citation-open actions (email reading view,
-  // document editor). Flag-OFF keeps the shipped (no-op) "Open in editor"
-  // button so the Search surface renders byte-for-byte.
-  const newNav = useNewNav();
   // WS3 (Task 4): verification state — null = not run, 'loading' = in flight,
   // CitationVerdict = result.
   const [verdictState, setVerdictState] = useState<CitationVerdict | 'loading' | null>(null);
@@ -257,11 +245,8 @@ export function SourcePanel({
           )}
         </div>
 
-        {/* newNav: the relocated citation-open actions. Flag-OFF keeps the
-            shipped (no-op) "Open in editor" button so the Search surface is
-            byte-for-byte unchanged. */}
-        {newNav ? (
-          <>
+        {/* The relocated citation-open actions. */}
+        <>
             {/* Email citation → open the light EmailViewer reading view. Self-
                 dispatches keepance:open-email (the email has no on-disk path). */}
             {cite.path?.startsWith('mail:') && (
@@ -314,23 +299,7 @@ export function SourcePanel({
                 {/* eslint-enable keepance-i18n/no-hardcoded-string */}
               </Button>
             )}
-          </>
-        ) : (
-          cite.path && (
-            <Button
-              variant="secondary"
-              size="sm"
-              iconLeft={ExternalLink}
-              fullWidth
-              onClick={() => { onOpenFile?.(cite.path ?? ''); }}
-              style={{ marginTop: 'var(--kp-space-sm)' }}
-            >
-              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-              Open in editor
-              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-            </Button>
-          )
-        )}
+        </>
       </div>
     </div>
   );

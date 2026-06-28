@@ -129,13 +129,10 @@ export interface SettingsContentProps {
   onClose?: (() => void) | undefined;
   /**
    * Extra, non-schema nav sections appended after the 5 settings sections.
-   * Used by the newNav (3-tab IA) shell, where the gear opens the Settings
-   * screen and Privacy Center + Activity Log are nested as sections here.
-   * Each renders an arbitrary surface; the content is supplied by the caller
-   * so SettingsContent stays decoupled from those surfaces' data wiring.
-   *
-   * Omitted on the default / flag-off path, so the Settings screen (modal and
-   * page) is byte-for-byte unchanged when this prop is absent.
+   * The gear opens the Settings screen and Privacy Center + Activity Log are
+   * nested as sections here. Each renders an arbitrary surface; the content is
+   * supplied by the caller so SettingsContent stays decoupled from those
+   * surfaces' data wiring. Optional — the modal variant omits it.
    */
   extraSections?: Array<{
     id: string;
@@ -797,8 +794,8 @@ export function SettingsContent({
 
   const [activeSection, setActiveSection] = useState<SectionCategory>(resolveInitial(initialCategory));
 
-  // newNav: which nested "extra" section (Privacy Center / Activity Log) is
-  // open, or null when a normal settings section is shown. Lives outside the
+  // Which nested "extra" section (Privacy Center / Activity Log) is open, or
+  // null when a normal settings section is shown. Lives outside the
   // SectionCategory machinery so the schema-driven search/scoring is untouched.
   const [activeExtraId, setActiveExtraId] = useState<string | null>(null);
 
@@ -1083,9 +1080,9 @@ export function SettingsContent({
               );
             })}
 
-            {/* newNav: nested surfaces (Privacy Center / Activity Log) appended
-                below the schema sections, separated by a divider so they read
-                as distinct destinations rather than more preferences. */}
+            {/* Nested surfaces (Privacy Center / Activity Log) appended below
+                the schema sections, separated by a divider so they read as
+                distinct destinations rather than more preferences. */}
             {extraSections && extraSections.length > 0 && (
               <>
                 <div className="my-2 mx-6 border-t border-border/60" aria-hidden="true" />

@@ -10,20 +10,11 @@
  *
  * The hub is honored only when clientMapHubId === activeMatterId, so a stale id
  * from a client switch falls back to the overview (never the wrong client).
- *
- * Flag-off keeps the original local-state behavior (clientMapHubId ignored).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useProfessionStore } from '@/platform/profile/professionStore';
-
-// Toggle newNav per test via a hoisted handle.
-const nav = vi.hoisted(() => ({ on: true }));
-vi.mock('@/platform/flags/newNav', () => ({
-  useNewNav: () => nav.on,
-  isNewNavEnabled: () => nav.on,
-}));
 
 // Stub the heavy MatterHub — we only assert routing (which view renders).
 vi.mock('@/features/matters/MatterHub', () => ({
@@ -85,7 +76,6 @@ function seedMatter(name = 'Acme Household'): string {
 }
 
 beforeEach(() => {
-  nav.on = true;
   useMatterStore.setState({ matters: [], activeMatterId: null, clientMapHubId: null });
   useProfessionStore.setState({ profession: 'advisor' });
 });
@@ -139,7 +129,7 @@ describe('matterStore — clientMapHubId (ephemeral hub-nav slice)', () => {
   });
 });
 
-describe('Client Map hub navigation — newNav', () => {
+describe('Client Map hub navigation', () => {
   it('shows the OVERVIEW table when no hub is open', () => {
     const id = seedMatter();
     render(<MattersHome />);
@@ -185,29 +175,5 @@ describe('Client Map hub navigation — newNav', () => {
     fireEvent.click(screen.getByTestId('mock-hub-back'));
     expect(useMatterStore.getState().clientMapHubId).toBeNull();
     expect(screen.getByTestId(`matter-row-${id}`)).toBeInTheDocument();
-  });
-});
-
-describe('Client Map hub navigation — flag-off (unchanged)', () => {
-  it('ignores clientMapHubId entirely; the store field never opens the hub', () => {
-    nav.on = false;
-    const id = seedMatter();
-    useMatterStore.getState().setActiveMatter(id);
-    useMatterStore.getState().setClientMapHubId(id); // would open the hub in newNav
-    cleanup();
-    render(<MattersHome />);
-    // Flag-off uses local selection only → overview shown despite clientMapHubId.
-    expect(screen.getByTestId(`matter-row-${id}`)).toBeInTheDocument();
-    expect(screen.queryByTestId('mock-matter-hub')).not.toBeInTheDocument();
-  });
-
-  it('still opens the hub via local state on a row click (original behavior)', () => {
-    nav.on = false;
-    const id = seedMatter();
-    render(<MattersHome />);
-    fireEvent.click(screen.getByTestId(`matter-row-${id}`));
-    // Local selection drives the hub; the store field stays null.
-    expect(screen.getByTestId('mock-matter-hub')).toBeInTheDocument();
-    expect(useMatterStore.getState().clientMapHubId).toBeNull();
   });
 });

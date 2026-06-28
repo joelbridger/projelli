@@ -135,14 +135,14 @@ describe('Ask audit logging', () => {
     });
   });
 
-  it('logs retrieval, egress, and model_call for a successful Search request', async () => {
+  it('logs retrieval, egress, and model_call for a successful Ask request', async () => {
     const logged: LoggedEntry[] = [];
     render(<Ask onAuditLog={(entry) => logged.push(entry)} />);
 
     fireEvent.change(screen.getByTestId('ask-composer-input'), {
       target: { value: 'When does the client want to retire?' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /^Search$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
 
     await waitFor(() => expect(h.sendMessage).toHaveBeenCalledTimes(1));
 

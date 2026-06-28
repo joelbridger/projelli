@@ -317,7 +317,7 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
       // Send anyway, while the badge is still "checking".
       const input = screen.getByTestId('ask-composer-input');
       fireEvent.change(input, { target: { value: 'What is the portfolio value?' } });
-      fireEvent.click(screen.getByRole('button', { name: /^Search$/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
 
       // HOLE #2 proof: at the instant sendMessageStreaming runs, the banner DOM
       // already reflects the REAL destination (provider-direct / data leaves) —
@@ -359,7 +359,7 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
     render(<Ask />);
     const input = screen.getByTestId('ask-composer-input');
     fireEvent.change(input, { target: { value: 'What is the portfolio value?' } });
-    fireEvent.click(screen.getByRole('button', { name: /^Search$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
 
     // The send guard must re-resolve to the on-device engine and answer locally...
     await waitFor(() => {

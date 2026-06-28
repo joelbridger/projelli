@@ -36,7 +36,6 @@ import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { useAsk, type UseAskProps } from './useAsk';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { useNewNav } from '@/platform/flags/newNav';
 
 /* -------------------------------------------------------------------------- */
 /* Main component                                                               */
@@ -45,10 +44,8 @@ import { useNewNav } from '@/platform/flags/newNav';
 export function Ask(props: UseAskProps) {
   const { onSaveToDocument } = props;
   const entityLabel = useEntityLabel();
-  // newNav renames this surface "Search" -> "Ask" (the 3-tab IA's "Ask" tab).
-  // Flag-OFF keeps "Search" (its rail tab is "Search"), byte-for-byte.
-  const newNav = useNewNav();
-  const askVerb = newNav ? 'Ask' : 'Search';
+  // This surface is the 3-tab IA's "Ask" tab.
+  const askVerb = 'Ask';
   const {
     activeMatter,
     isSampleMatterActive,
@@ -105,12 +102,8 @@ export function Ask(props: UseAskProps) {
       >
         <SurfaceHeader
           Icon={Sparkles}
-          title={newNav ? 'Ask' : 'Search'}
-          description={
-            newNav
-              ? 'Ask anything across your work. Every answer cites its source.'
-              : 'Find anything across your work. Every answer cites its source.'
-          }
+          title="Ask"
+          description="Ask anything across your work. Every answer cites its source."
         />
       </div>
 
@@ -118,7 +111,7 @@ export function Ask(props: UseAskProps) {
       <SurfaceToolbar>
         {turns.length > 0 && (
           <Button variant="secondary" size="md" iconLeft={Plus} onClick={handleNewAsk}>
-            {newNav ? 'New question' : 'New search'}
+            New question
           </Button>
         )}
         <ScopeToggle
@@ -135,9 +128,9 @@ export function Ask(props: UseAskProps) {
           onKeyDown={handleKeyDown}
           placeholder={
             askScope === 'email'
-              ? (newNav ? 'Ask about your imported email…' : 'Search your imported email…')
+              ? 'Ask about your imported email…'
               : askScope === 'documents'
-                ? (newNav ? 'Ask across your documents…' : 'Search across your documents…')
+                ? 'Ask across your documents…'
                 : activeMatter
                   ? `${askVerb} ${matterLabel(activeMatter)}…`
                   : `${askVerb} across all ${entityLabel.other}…`

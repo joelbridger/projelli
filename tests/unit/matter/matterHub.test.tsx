@@ -155,7 +155,7 @@ describe('MatterHub — list to hub navigation', () => {
 
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
 
-    fireEvent.click(screen.getByTestId('hub-panel-documents-open'));
+    fireEvent.click(screen.getByTestId('hub-shortcut-documents'));
 
     expect(events).toHaveLength(1);
     expect(events[0]!.detail.surface).toBe('files');
@@ -174,7 +174,7 @@ describe('MatterHub — list to hub navigation', () => {
 
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
 
-    fireEvent.click(screen.getByTestId('hub-panel-email-open'));
+    fireEvent.click(screen.getByTestId('hub-shortcut-email'));
 
     expect(events).toHaveLength(1);
     expect(events[0]!.detail.surface).toBe('email');
@@ -193,7 +193,7 @@ describe('MatterHub — list to hub navigation', () => {
 
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
 
-    fireEvent.click(screen.getByTestId('hub-panel-workflows-open'));
+    fireEvent.click(screen.getByTestId('hub-shortcut-workflows'));
 
     expect(events).toHaveLength(1);
     expect(events[0]!.detail.surface).toBe('workflows');
@@ -212,7 +212,7 @@ describe('MatterHub — list to hub navigation', () => {
 
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
 
-    fireEvent.click(screen.getByTestId('hub-panel-activity-open'));
+    fireEvent.click(screen.getByTestId('hub-shortcut-activity'));
 
     expect(events).toHaveLength(1);
     expect(events[0]!.detail.surface).toBe('audit');
@@ -239,7 +239,7 @@ describe('MatterHub — list to hub navigation', () => {
     expect(screen.getByTestId(`matter-row-${matter.id}`)).toBeInTheDocument();
   });
 
-  it('sample matter shows curated at-a-glance', () => {
+  it('sample matter leads with the Client Map (no separate curated glance)', () => {
     useMatterStore.setState({
       matters: [
         {
@@ -256,22 +256,19 @@ describe('MatterHub — list to hub navigation', () => {
 
     render(<MatterHub matterId={SAMPLE_MATTER_ID} onBack={() => undefined} />);
 
-    expect(screen.getByTestId('hub-sample-glance')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-panel-clientmap')).toBeInTheDocument();
+    expect(screen.queryByTestId('hub-sample-glance')).toBeNull();
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// newNav: the redesigned client-detail leads with the Client Map (no doc/email/
-// workflow tab grid); capabilities relocate to a slim shortcut row.
+// The redesigned client-detail leads with the Client Map (no doc/email/workflow
+// tab grid); capabilities relocate to a slim shortcut row.
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('MatterHub — newNav redesigned client-detail layout', () => {
+describe('MatterHub — redesigned client-detail layout', () => {
   beforeEach(() => {
     resetStore();
-    window.localStorage.setItem('keepance:newNav', '1');
-  });
-  afterEach(() => {
-    window.localStorage.clear();
   });
 
   it('leads with the Client Map (expanded) and hides the four-panel + glance grids', () => {
@@ -309,15 +306,5 @@ describe('MatterHub — newNav redesigned client-detail layout', () => {
     expect(events[0]!.detail.surface).toBe('files');
     expect(events[0]!.detail.matterId).toBe(matter.id);
     window.removeEventListener('keepance:matter-launch', handler);
-  });
-
-  it('legacy layout (flag off) still shows the four panels and no shortcut row', () => {
-    window.localStorage.clear(); // force flag OFF for this case
-    useMatterStore.getState().createMatter({ name: 'Legacy Co', client: 'Legacy Co' });
-    const matter = useMatterStore.getState().matters[0]!;
-    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
-
-    expect(screen.getByTestId('hub-panel-documents')).toBeInTheDocument();
-    expect(screen.queryByTestId('hub-shortcut-row')).toBeNull();
   });
 });

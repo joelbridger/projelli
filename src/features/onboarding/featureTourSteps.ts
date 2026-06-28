@@ -1,7 +1,10 @@
 /**
  * Feature tour steps shown AFTER the first-run wizard completes.
  *
- * 11-step onboarding sequence for Keepance 3.0's Spine navigation.
+ * 11-step onboarding sequence for Keepance 3.0's 3-tab Spine navigation
+ * (Client Map · Ask · Workflows). The relocated surfaces — Documents, Email,
+ * Activity Log, Privacy Center, Settings — are taught against where they now
+ * live: inside a client (Client Map), the Ask source filter, and the gear menu.
  * Target selectors: data-testid first, fallback to CSS selector.
  * Placement: 'top' | 'bottom' | 'left' | 'right' | 'center' (center
  * = modal-in-the-middle, for intro + outro steps).
@@ -25,30 +28,30 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   },
   {
     id: 'matters',
-    title: 'Clients first',
-    body: 'Every client gets their own private space. Your documents, emails, and AI conversations stay inside that client boundary so the wrong client never sees the wrong file. Create one from the Clients view or the plus button in the header.',
+    title: 'Your Client Map',
+    body: 'Keepance leads with your clients, not loose files. Each client gets their own private space, and opening one shows their Client Map: documents, emails, and AI conversations all stay inside that client boundary so the wrong client never sees the wrong file. Create one with the plus button next to Clients.',
     targetSelector: '[data-testid="spine-nav-matters"]',
     placement: 'right',
   },
   {
     id: 'ask',
-    title: 'Search finds anything in your files',
-    body: 'Type a question, a phrase, a client name, or an account number. Search looks across every document and email in your workspace and answers with citations you can click back to the source. It also runs full AI conversations when you need them.',
+    title: 'Ask finds anything in your work',
+    body: 'Type a question, a phrase, a client name, or an account number. Ask looks across every document and email in your workspace and answers with citations you can click back to the source. It also runs full AI conversations when you need them.',
     targetSelector: '[data-testid="spine-nav-search"]',
     placement: 'right',
   },
   {
     id: 'documents',
     title: 'Your documents, as real files',
-    body: 'Word documents, Markdown, PDFs, transcripts: all stored as real files on your disk. Every edit saves automatically and keeps a version history. Back them up with Time Machine, File History, or any folder sync tool you already use.',
-    targetSelector: '[data-testid="spine-nav-files"]',
+    body: 'Word documents, Markdown, PDFs, transcripts: all stored as real files on your disk, inside the client they belong to. Open a client from the Client Map to see their documents. Every edit saves automatically and keeps a version history you can back up with any folder sync tool.',
+    targetSelector: '[data-testid="spine-nav-matters"]',
     placement: 'right',
   },
   {
     id: 'email',
-    title: 'Email lives here now',
-    body: 'Connect your Microsoft 365 or Gmail inbox and Keepance imports your client emails, lets you search across them, and cites them in your answers. Your email stays encrypted on your machine; nothing is uploaded to Keepance servers.',
-    targetSelector: '[data-testid="spine-nav-email"]',
+    title: 'Email, imported and searchable',
+    body: 'Connect your Microsoft 365 or Gmail inbox and Keepance imports your client emails. Filter Ask to Email to search across them and cite them in your answers. Your email stays encrypted on your machine; nothing is uploaded to Keepance servers.',
+    targetSelector: '[data-testid="spine-nav-search"]',
     placement: 'right',
   },
   {
@@ -60,24 +63,24 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   },
   {
     id: 'audit',
-    title: 'Activity Log',
-    body: 'Every AI action is logged: the prompt, the model, the response, and the cost. If a client ever asks what the AI did with their documents, this is your answer. Filter by date, export to CSV, or print it for the file.',
-    targetSelector: '[data-testid="spine-nav-audit"]',
-    placement: 'right',
+    title: 'Your Activity Log, in Settings',
+    body: 'Open the gear to find your Activity Log. Every AI action is logged: the prompt, the model, the response, and the cost. If a client ever asks what the AI did with their documents, this is your answer. Filter by date, export to CSV, or print it for the file.',
+    targetSelector: '[data-testid="settings-gear"]',
+    placement: 'bottom',
   },
   {
     id: 'privacy',
-    title: 'Privacy Center',
-    body: 'This is where you can see exactly where your data lives and what, if anything, leaves your machine. You can run a one-click confidentiality report that lists every data store and every outbound connection. It\'s the plain answer to "where does my clients\' data go."',
-    targetSelector: '[data-testid="spine-nav-privacy"]',
-    placement: 'right',
+    title: 'Your Privacy Center, in Settings',
+    body: 'Also under the gear: the Privacy Center shows exactly where your data lives and what, if anything, leaves your machine. Run a one-click confidentiality report that lists every data store and every outbound connection. It\'s the plain answer to "where does my clients\' data go."',
+    targetSelector: '[data-testid="settings-gear"]',
+    placement: 'bottom',
   },
   {
     id: 'settings',
-    title: 'Settings',
-    body: 'Your AI connection lives here: add your own API key, switch to a local model, or set up your firm\'s proxy. You can also configure your email account, firm details, and general preferences. If something isn\'t working, Settings is the first place to check.',
-    targetSelector: '[data-testid="spine-nav-settings"]',
-    placement: 'right',
+    title: 'Settings and your AI key',
+    body: 'The gear opens Settings. Your AI connection lives here: add your own API key, switch to a local model, or set up your firm\'s proxy. You can also configure your email account, firm details, and general preferences. If something isn\'t working, Settings is the first place to check.',
+    targetSelector: '[data-testid="settings-gear"]',
+    placement: 'bottom',
   },
   {
     id: 'account',

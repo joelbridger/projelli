@@ -174,7 +174,7 @@ describe('MattersHome — B4 quick-actions visible at rest', () => {
     const docsBtn = screen.getByTestId(`matter-launch-documents-${matter.id}`);
     const emailBtn = screen.getByTestId(`matter-launch-email-${matter.id}`);
 
-    expect(askBtn.getAttribute('aria-label')).toContain('Search');
+    expect(askBtn.getAttribute('aria-label')).toContain('Ask');
     expect(docsBtn.getAttribute('aria-label')).toContain('Open documents for');
     expect(emailBtn.getAttribute('aria-label')).toContain('Open email for');
   });
