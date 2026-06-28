@@ -251,7 +251,7 @@ export function Ask(props: UseAskProps) {
                       : [
                           `Summarize this ${entityLabel.one}`,
                           'Find all related emails',
-                          'What are the upcoming deadlines?',
+                          'What client reviews are coming up?',
                         ]
                     ).map((example) => (
                       <Chip

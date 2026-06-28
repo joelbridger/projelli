@@ -104,14 +104,14 @@ describe('PrivacySettings — privacy description copy', () => {
 describe('DATA_MAP_ROWS — design-partner diagnostics row', () => {
   it('includes a row about design-partner diagnostics', () => {
     const dpRow = DATA_MAP_ROWS.find(
-      (r) => r.title.toLowerCase().includes('design-partner'),
+      (r) => r.title.toLowerCase().includes('error reporting'),
     );
     expect(dpRow).toBeDefined();
   });
 
   it('design-partner row mentions opt-in and off by default', () => {
     const dpRow = DATA_MAP_ROWS.find(
-      (r) => r.title.toLowerCase().includes('design-partner'),
+      (r) => r.title.toLowerCase().includes('error reporting'),
     );
     const combined = ((dpRow?.body ?? '') + ' ' + (dpRow?.caveat ?? '')).toLowerCase();
     expect(combined).toContain('opt-in');
@@ -120,7 +120,7 @@ describe('DATA_MAP_ROWS — design-partner diagnostics row', () => {
 
   it('design-partner row explicitly states what is NOT sent', () => {
     const dpRow = DATA_MAP_ROWS.find(
-      (r) => r.title.toLowerCase().includes('design-partner'),
+      (r) => r.title.toLowerCase().includes('error reporting'),
     );
     const body = dpRow?.body ?? '';
     expect(body).toContain('never sends');
@@ -128,7 +128,7 @@ describe('DATA_MAP_ROWS — design-partner diagnostics row', () => {
 
   it('design-partner row has a caveat linking to the Settings disclosure', () => {
     const dpRow = DATA_MAP_ROWS.find(
-      (r) => r.title.toLowerCase().includes('design-partner'),
+      (r) => r.title.toLowerCase().includes('error reporting'),
     );
     expect(dpRow?.caveat).toBeDefined();
     expect(dpRow?.caveat).toContain('Settings');
@@ -142,7 +142,7 @@ describe('DATA_MAP_ROWS — design-partner diagnostics row', () => {
 describe('WS6 privacy copy — voice rules', () => {
   it('DATA_MAP_ROWS design-partner row has no em dashes', () => {
     const dpRow = DATA_MAP_ROWS.find(
-      (r) => r.title.toLowerCase().includes('design-partner'),
+      (r) => r.title.toLowerCase().includes('error reporting'),
     );
     const allText = [dpRow?.title, dpRow?.body, dpRow?.caveat].join(' ');
     expect(allText).not.toMatch(/—|&mdash;/);

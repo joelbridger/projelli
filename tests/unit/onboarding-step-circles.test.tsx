@@ -67,9 +67,10 @@ describe('onboarding step circles — digit centering (Task 4)', () => {
       screen.getByRole('button', { name: /got it/i }).click();
     });
 
-    // Data → "Got it, connect an AI"
+    // Data → "Connect an AI provider" (NEW-013: clearer CTA than the old
+    // "Got it, connect an AI")
     await act(async () => {
-      screen.getByRole('button', { name: /got it, connect an ai/i }).click();
+      screen.getByRole('button', { name: /connect an ai provider/i }).click();
     });
 
     // AI setup (mocked) → "Set up later"

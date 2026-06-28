@@ -1173,8 +1173,8 @@ export function EmailWorkspace({
                   }}
                 >
                   {[
-                    'Who emailed about the deposition?',
-                    'Find emails with attachments from opposing counsel',
+                    'Who emailed about a beneficiary change?',
+                    'Find statements with attachments from the custodian',
                     'What did the client agree to over email?',
                   ].map((chip) => (
                     <button

@@ -270,7 +270,7 @@ describe('MatterManagerDialog — external AI tool access grant', () => {
     expect(screen.queryByTestId(`matter-mcp-access-badge-${matter.id}`)).not.toBeInTheDocument();
 
     const input = screen.getByLabelText(
-      'Allow external AI tools (MCP) to access this client',
+      "Allow connected external AI tools to access this client's files",
     ) as HTMLInputElement;
     fireEvent.click(input);
 

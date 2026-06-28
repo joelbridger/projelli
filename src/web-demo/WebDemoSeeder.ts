@@ -17,6 +17,7 @@
  * the user gets the empty workspace and a Group IV notice).
  */
 
+import sampleWorkspaceAdvisor from './sample-workspace-advisor.json';
 import sampleWorkspaceLegal from './sample-workspace.json';
 import sampleWorkspaceTax from './sample-workspace-tax.json';
 import sampleWorkspaceConsulting from './sample-workspace-consulting.json';
@@ -25,7 +26,7 @@ import { WebFSBackend } from '@/platform/fs/WebFSBackend';
 const SEED_FLAG_KEY = '__keepance_demo_seeded';
 const SEED_VERSION_KEY = '__keepance_demo_seed_version';
 
-export type DemoProfession = 'legal' | 'tax' | 'consulting';
+export type DemoProfession = 'advisor' | 'legal' | 'tax' | 'consulting';
 
 interface SampleFile {
   path: string;
@@ -40,22 +41,25 @@ interface SampleWorkspace {
 
 /**
  * Read the `profession` URL parameter to determine which demo workspace to
- * seed. Accepts `legal` (default), `tax`, or `consulting`. Any unrecognised
- * value falls back to `legal`.
+ * seed. Accepts `advisor` (default — financial advisors are the lead ICP),
+ * `legal`, `tax`, or `consulting`. Any unrecognised value falls back to
+ * `advisor`, so a plain keepance.com/try shows advisor content.
  */
 export function getDemoProfession(): DemoProfession {
-  if (typeof window === 'undefined') return 'legal';
+  if (typeof window === 'undefined') return 'advisor';
   const params = new URLSearchParams(window.location.search);
   const raw = params.get('profession');
+  if (raw === 'legal') return 'legal';
   if (raw === 'tax') return 'tax';
   if (raw === 'consulting') return 'consulting';
-  return 'legal';
+  return 'advisor';
 }
 
 function getSampleForProfession(profession: DemoProfession): SampleWorkspace {
+  if (profession === 'legal') return sampleWorkspaceLegal as SampleWorkspace;
   if (profession === 'tax') return sampleWorkspaceTax as SampleWorkspace;
   if (profession === 'consulting') return sampleWorkspaceConsulting as SampleWorkspace;
-  return sampleWorkspaceLegal as SampleWorkspace;
+  return sampleWorkspaceAdvisor as SampleWorkspace;
 }
 
 /**

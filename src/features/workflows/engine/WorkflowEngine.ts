@@ -205,10 +205,23 @@ export class WorkflowEngine {
     };
 
     this.toolCalls = [];
-    this.emitWorkflowAudit('workflow_start', template, {
-      runId,
-      startedAt: startTime.toISOString(),
-    });
+    // NEW-024: log 'workflow_start' only once the run has genuinely begun (the
+    // first step has produced output), NOT eagerly before the first interview.
+    // A run the user cancels at the very first question — before any work — then
+    // leaves NO audit trail at all, instead of a phantom "Started"/"Failed" pair
+    // (and the runner deletes its empty output folder).
+    // Object (not a `let` boolean) so the compiler's control-flow analysis can't
+    // wrongly narrow it to a constant across the closure mutation below — which
+    // would make the `!startAudit.emitted` guards read as "always truthy".
+    const startAudit = { emitted: false };
+    const ensureWorkflowStartAudited = () => {
+      if (startAudit.emitted) return;
+      startAudit.emitted = true;
+      this.emitWorkflowAudit('workflow_start', template, {
+        runId,
+        startedAt: startTime.toISOString(),
+      });
+    };
 
     try {
       // Execute each step in sequence
@@ -220,7 +233,19 @@ export class WorkflowEngine {
 
         this.onProgress?.(i, step.name, 'started');
 
+        // Bracket the run with 'workflow_start' BEFORE the first step does any
+        // work, so the audit reads start-first. The one exception is a first
+        // step that is an INTERVIEW: it emits no audit events of its own and can
+        // be cancelled, so we defer the start-audit until it resolves — a cancel
+        // then leaves no audit trace at all (NEW-024). Ordering is preserved
+        // either way because an interview contributes nothing before it returns.
+        if (!startAudit.emitted && step.type !== 'interview') ensureWorkflowStartAudited();
+
         const stepOutput = await this.executeStep(step);
+        // Covers the interview-first case: the run has genuinely started once the
+        // first step yields output. Cancelling the interview throws above this
+        // line, so 'workflow_start' is never emitted for a never-started run.
+        ensureWorkflowStartAudited();
         this.execution.stepOutputs.push(stepOutput);
         this.execution.inputs = { ...this.execution.inputs, ...stepOutput };
 
@@ -230,6 +255,7 @@ export class WorkflowEngine {
       this.execution.status = 'completed';
       this.execution.endTime = new Date();
 
+      ensureWorkflowStartAudited(); // 0-step templates still bracket cleanly
       this.emitWorkflowAudit('workflow_complete', template, {
         runId,
         startedAt: startTime.toISOString(),
@@ -238,6 +264,11 @@ export class WorkflowEngine {
 
       return this.createRunRecord();
     } catch (error) {
+      // A user-cancelled interview rejects with Error('User cancelled'). We keep
+      // the live status as 'failed' (the WorkflowExecution status enum has no
+      // 'cancelled'); the error message is the signal the runner reads to tell a
+      // deliberate cancel apart from a real failure.
+      const userCancelled = error instanceof Error && error.message === 'User cancelled';
       this.execution.status = 'failed';
       this.execution.endTime = new Date();
       this.execution.error = error instanceof Error ? error.message : 'Unknown error';
@@ -248,6 +279,14 @@ export class WorkflowEngine {
         this.onProgress?.(stepIndex, step.name, 'failed');
       }
 
+      // Cancelled before any work began: never really started, so log nothing.
+      // The runner removes the empty output folder it pre-created.
+      if (userCancelled && !startAudit.emitted) {
+        return this.createRunRecord();
+      }
+
+      // A genuine failure (or a cancel after some work) still brackets the run.
+      ensureWorkflowStartAudited();
       this.emitWorkflowAudit('workflow_fail', template, {
         runId,
         startedAt: startTime.toISOString(),

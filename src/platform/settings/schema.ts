@@ -147,7 +147,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     label: 'Theme',
     description: 'Choose light, dark, or follow your system preference.',
     type: 'select',
-    defaultValue: 'system',
+    defaultValue: 'light',
     options: [
       { value: 'system', label: 'System' },
       { value: 'light', label: 'Light' },

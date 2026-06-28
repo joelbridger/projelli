@@ -64,23 +64,40 @@ export function localModelAvailability(
  * honestly:
  *   - saved provider set      -> honour it (an explicit choice is never unknown);
  *   - unset + local 'ready'    -> 'keepance-local' (the honest on-device default);
- *   - unset + local 'absent'   -> 'anthropic' (legacy cloud default drives the
- *                                 add-a-key flow, only once we KNOW local is out);
+ *   - unset + local 'absent'   -> the first provider the user has a VALID key for
+ *                                 (key-aware path), else 'none' (NO_AI_PROVIDER):
+ *                                 no provider is configured, so the badge reads
+ *                                 "No AI connected" and send is disabled — it must
+ *                                 NEVER name a provider the user can't send to.
+ *                                 Legacy 2-arg callers (that don't pass keys) keep
+ *                                 the historical 'anthropic' add-a-key fallback;
  *   - unset + local 'unknown'  -> null. The probe is still pending, so the caller
  *                                 shows a neutral "Checking local AI" badge and
  *                                 DISABLES send until the status resolves — we
  *                                 never guess "cloud" and never leak.
  * The egress badge, the input toolbar, and the send path all read THIS one value
  * (or its null), so they can never disagree about where the next message goes.
+ *
+ * NEW-003: passing `availableValidProviders` is what fixes the trust badge that
+ * claimed "Sent to your Anthropic account" while the model picker said "No AI
+ * provider configured" — with no keys, this now resolves to 'none' so the two
+ * agree.
  */
 export function effectiveChatProvider(
   saved: ChatProvider | undefined,
   local: LocalModelAvailability,
-): ChatProvider | null {
+  availableValidProviders?: ChatProvider[],
+): ChatProvider | 'none' | null {
   if (saved) return saved;
   if (local === 'ready') return 'keepance-local';
-  if (local === 'absent') return 'anthropic';
-  return null; // 'unknown' — probe pending; caller shows "Checking" + disables send
+  if (local === 'unknown') return null; // probe pending; caller shows "Checking" + disables send
+  // local === 'absent': we KNOW there is no usable on-device model.
+  if (availableValidProviders !== undefined) {
+    // Key-aware: name only a provider the user can actually send to.
+    return availableValidProviders[0] ?? 'none';
+  }
+  // Legacy 2-arg callers: preserve the historical cloud default.
+  return 'anthropic';
 }
 
 /** Cloud providers that have a hardcoded model list + a models cache. */

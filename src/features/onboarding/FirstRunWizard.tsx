@@ -37,6 +37,7 @@ import { AiSetupStep } from '@/features/onboarding/AiSetupStep';
 import { DiskEncryptionGuidance } from '@/features/onboarding/DiskEncryptionGuidance';
 import { DataMapDialog, DataMapContent } from '@/platform/privacy/ui/DataMapDialog';
 import { persistProfessionModelDefault, getModelForProfession } from '@/platform/profile/professionModel';
+import { useProfessionStore } from '@/platform/profile/professionStore';
 import { markAiSetupDeferred } from '@/features/onboarding/aiSetupState';
 import type { KeyProvider } from '@/platform/providers/KeychainService';
 import type { ProviderId } from '@/features/onboarding/ProviderTutorialSteps';
@@ -137,6 +138,10 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
     // Set a sensible default model for the chosen profession (e.g. legal -> a
     // strong Claude default). Never overrides a model the user already picked.
     persistProfessionModelDefault(id);
+    // NEW-001: sync the REACTIVE profession store now (not only at completion) so
+    // the AI-setup step and all profession-aware copy reflect the choice on the
+    // next screen instead of showing the previous profession's wording.
+    useProfessionStore.getState().setProfession(id);
   };
 
   const markComplete = async () => {
@@ -338,8 +343,9 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
                     onClick={() => setStep('ai-setup')}
                     size="lg"
                   >
-                    {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
-                    Got it, connect an AI
+                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                    Connect an AI provider
+                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                   </Button>
                 </div>
               }

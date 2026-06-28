@@ -55,3 +55,29 @@ export async function resolveLocalGenerationProvider(): Promise<ResolvedLocalPro
   const provider = new OllamaProvider({});
   return { provider, providerId: 'ollama', model: provider.getMetadata().model };
 }
+
+/**
+ * Resolve a local generation provider only when one is actually available.
+ *
+ * This is stricter than `resolveLocalGenerationProvider()`, which intentionally
+ * falls back to Ollama in Local-only mode so the send path can surface the
+ * existing "Ollama is not running" error. Non-local modes use this stricter
+ * helper before claiming "local AI" in the privacy badge or send path.
+ */
+export async function resolveAvailableLocalGenerationProvider(): Promise<ResolvedLocalProvider | null> {
+  if (await isEmbeddedLocalModelReady()) {
+    const provider = new KeepanceLocalProvider({});
+    return { provider, providerId: 'keepance-local', model: provider.getMetadata().model };
+  }
+
+  try {
+    const { detectOllama } = await import('@/platform/providers/OllamaProvider');
+    const status = await detectOllama();
+    if (!status.reachable) return null;
+  } catch {
+    return null;
+  }
+
+  const provider = new OllamaProvider({});
+  return { provider, providerId: 'ollama', model: provider.getMetadata().model };
+}

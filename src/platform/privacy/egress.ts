@@ -44,7 +44,11 @@ export type EgressProvider = string;
  * this as a neutral "No AI connected" state instead of guessing a provider.
  * It is NOT a real provider id and never reaches `resolveEgress`'s routing.
  */
-export const NO_AI_PROVIDER: EgressProvider = 'none';
+// Typed as the literal 'none' (not the wider `EgressProvider`/string) so unions
+// like `ChatProvider | typeof NO_AI_PROVIDER` keep their members instead of
+// collapsing to `string`. 'none' is still assignable everywhere an
+// EgressProvider is expected.
+export const NO_AI_PROVIDER = 'none';
 
 /**
  * Confidentiality mode (the visible "spectrum" the user can choose).

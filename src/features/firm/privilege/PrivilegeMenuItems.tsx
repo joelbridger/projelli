@@ -25,10 +25,13 @@ import {
 } from '@/ui/dropdown-menu';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/platform/firm/privilegeStore';
 import {
-  ALL_PRIVILEGE_STATUSES,
   privilegeLabel,
+  privilegeMenuStatuses,
+  privilegeControlLabel,
+  privilegeMenuHint,
   type Privilege,
 } from '@/platform/types/privilege';
+import { useProfessionStore } from '@/platform/profile/professionStore';
 
 export interface PrivilegeMenuItemsProps {
   /** The source being tagged: a file path, `mail:<id>`, or `.aichat` path. */
@@ -40,16 +43,17 @@ export interface PrivilegeMenuItemsProps {
 export function PrivilegeMenuItems({ sourceId, onChanged }: PrivilegeMenuItemsProps) {
   const current = usePrivilegeForSource(sourceId);
   const setPrivilege = usePrivilegeStore((s) => s.setPrivilege);
+  const profession = useProfessionStore((s) => s.profession);
 
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger data-testid="privilege-menu-trigger" data-privilege={current}>
         <ShieldCheck className="h-3.5 w-3.5 mr-2" />
-        Privilege
+        {privilegeControlLabel(profession)}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-64">
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-          Privileged sources are kept out of AI retrieval by default.
+          {privilegeMenuHint(profession)}
         </DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={current}
@@ -59,14 +63,14 @@ export function PrivilegeMenuItems({ sourceId, onChanged }: PrivilegeMenuItemsPr
             onChanged?.(next);
           }}
         >
-          {ALL_PRIVILEGE_STATUSES.map((status) => (
+          {privilegeMenuStatuses(profession).map((status) => (
             <DropdownMenuRadioItem
               key={status}
               value={status}
               data-testid={`privilege-option-${status}`}
               className="text-xs"
             >
-              {privilegeLabel(status)}
+              {privilegeLabel(status, profession)}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

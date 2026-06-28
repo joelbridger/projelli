@@ -40,6 +40,17 @@ import {
   getScopeLabel,
 } from './auditHomeHelpers';
 
+// ── Model display helper ────────────────────────────────────────────────────
+
+/**
+ * Map internal/dev model identifiers to user-friendly display strings.
+ * Only changes the label shown in the UI — stored data is never modified.
+ */
+function displayModelLabel(model: string): string {
+  if (model === 'mock-model' || model === 'mock_model') return 'No AI configured';
+  return model;
+}
+
 // ── Detail panel ───────────────────────────────────────────────────────────
 
 export interface DetailPanelProps {
@@ -95,7 +106,7 @@ export function DetailPanel({ entry, onClose }: DetailPanelProps) {
           <MetaField label="Timestamp" value={formatFullTimestamp(entry.timestamp)} mono />
           <MetaField label="ID" value={entry.id} mono truncate />
           <MetaField label="Action" value={entry.action} mono />
-          {entry.model !== undefined && <MetaField label="Model" value={entry.model} />}
+          {entry.model !== undefined && <MetaField label="Model" value={displayModelLabel(entry.model)} />}
           {entry.userDecision !== undefined && (
             <MetaField label="User decision" value={entry.userDecision} />
           )}
@@ -303,7 +314,7 @@ export function AuditRow({ entry, onSelect }: AuditRowProps) {
             {lookupLabel(ACTION_LABELS, entry.action)}
           </span>
           {entry.model !== undefined && entry.model !== '' && (
-            <Badge variant="neutral" size="sm" mono>{entry.model}</Badge>
+            <Badge variant="neutral" size="sm" mono>{displayModelLabel(entry.model)}</Badge>
           )}
         </div>
         <div
@@ -362,6 +373,11 @@ export function AuditRow({ entry, onSelect }: AuditRowProps) {
             </Badge>
           </span>
         )}
+        {/* No badge for genuinely unscoped events (settings changes, key events,
+            generic user actions): getScopeLabel already returns the explicit
+            "All clients" badge for true all-matters retrieval/scope events, so a
+            blank cell here honestly means "this action had no client scope" —
+            not "applies to every client". */}
       </div>
     </button>
   );

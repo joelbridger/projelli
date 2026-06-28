@@ -106,11 +106,33 @@ describe('Privacy initial-load race: local-model READY', () => {
 });
 
 describe('Privacy initial-load race: local-model ABSENT (probe resolved)', () => {
-  it('falls back to the cloud default ONLY once we KNOW the local model is absent', () => {
-    // Direct mode so the anthropic fallback resolves to the honest "data leaves".
+  it('shows "No AI connected" (NOT a fabricated cloud provider) when local is absent AND no key is set', () => {
+    // NEW-003 regression guard: previously the badge claimed "Sent to your
+    // Anthropic account / data leaves" with zero keys configured, contradicting
+    // the model picker's "No AI provider configured". With no key and no local
+    // model the honest destination is 'none' — nothing leaves, send disabled.
     useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
     localStatus.current = makeSnap({ state: 'absent', probed: true });
     render(<AIChatViewer chatData={unsetChat()} apiKeys={[]} />);
+
+    const badge = screen.getByTestId('egress-indicator');
+    expect(badge.getAttribute('data-destination')).toBe('none');
+    expect(badge.getAttribute('data-data-leaves')).toBe('false');
+
+    act(() => fireEvent.change(screen.getByTestId('chat-input'), { target: { value: 'hello' } }));
+    expect((screen.getByTestId('chat-send-button') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('falls back to the cloud provider the user actually has a VALID key for once local is absent', () => {
+    // Direct mode + a real key => the honest "data leaves" cloud destination.
+    useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
+    localStatus.current = makeSnap({ state: 'absent', probed: true });
+    render(
+      <AIChatViewer
+        chatData={unsetChat()}
+        apiKeys={[{ provider: 'anthropic', key: 'sk-ant-test', isValid: true }]}
+      />,
+    );
 
     const badge = screen.getByTestId('egress-indicator');
     expect(badge.getAttribute('data-destination')).toBe('provider-direct');

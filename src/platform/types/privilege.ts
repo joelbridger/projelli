@@ -29,6 +29,8 @@
  *   - `attorney-client` — attorney-client privileged. Excluded by default.
  *   - `work-product`    — attorney work product. Excluded by default.
  */
+import type { Profession } from '@/platform/profile/professionModel';
+
 export type Privilege = 'none' | 'attorney-client' | 'work-product';
 
 /** The default (and safe) privilege for any source that has not been tagged. */
@@ -57,8 +59,27 @@ export function isPrivileged(privilege: Privilege | null | undefined): boolean {
  * A short, human-readable label for a privilege status. Hyphen-and-space form,
  * never an em dash (project copy rule). Used by the file-tree indicator, the
  * editor header, and the tagging menu.
+ *
+ * Profession-aware: attorney-client / work-product are LEGAL doctrines. For a
+ * non-legal practice (financial advisor, tax, consulting) the same underlying
+ * "keep this source out of AI retrieval" boundary reads as plain confidentiality
+ * — a financial advisor has no "attorney-client privilege". So for any
+ * non-legal profession both privileged statuses collapse to "Sensitive". The
+ * stored string values never change (the Rust retrieval prefilter depends on
+ * them); only the visible words adapt. Defaults to the legal labels so existing
+ * callers/tests stay correct.
  */
-export function privilegeLabel(privilege: Privilege): string {
+export function privilegeLabel(privilege: Privilege, profession: Profession = 'legal'): string {
+  if (profession !== 'legal') {
+    switch (privilege) {
+      case 'attorney-client':
+      case 'work-product':
+        return 'Sensitive — kept out of AI';
+      case 'none':
+      default:
+        return 'Available to AI';
+    }
+  }
   switch (privilege) {
     case 'attorney-client':
       return 'Attorney-Client Privileged';
@@ -71,7 +92,10 @@ export function privilegeLabel(privilege: Privilege): string {
 }
 
 /** A compact label for the inline indicator chip (kept short on purpose). */
-export function privilegeShortLabel(privilege: Privilege): string {
+export function privilegeShortLabel(privilege: Privilege, profession: Profession = 'legal'): string {
+  if (profession !== 'legal') {
+    return isPrivileged(privilege) ? 'Sensitive' : '';
+  }
   switch (privilege) {
     case 'attorney-client':
       return 'Privileged';
@@ -81,4 +105,27 @@ export function privilegeShortLabel(privilege: Privilege): string {
     default:
       return '';
   }
+}
+
+/**
+ * The statuses to OFFER in the per-source tagging menu, in display order.
+ * Legal practices distinguish attorney-client privilege from attorney work
+ * product, so all three show. A non-legal practice only needs the binary
+ * "available vs. keep-out-of-AI", so the menu collapses to two options
+ * (attorney-client is the canonical "sensitive" value the tagger writes).
+ */
+export function privilegeMenuStatuses(profession: Profession = 'legal'): ReadonlyArray<Privilege> {
+  return profession === 'legal' ? ALL_PRIVILEGE_STATUSES : ['none', 'attorney-client'];
+}
+
+/** The verb-noun label for the tagging control itself (button / menu trigger). */
+export function privilegeControlLabel(profession: Profession = 'legal'): string {
+  return profession === 'legal' ? 'Privilege' : 'Sensitive';
+}
+
+/** The one-line explanation shown above the tagging menu. */
+export function privilegeMenuHint(profession: Profession = 'legal'): string {
+  return profession === 'legal'
+    ? 'Privileged sources are kept out of AI retrieval by default.'
+    : 'Sensitive sources are kept out of AI retrieval by default.';
 }

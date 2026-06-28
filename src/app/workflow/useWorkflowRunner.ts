@@ -86,6 +86,7 @@ export interface UseWorkflowRunnerOptions {
     writeFile: (path: string, content: string) => Promise<void>;
     writeFileBinary: (path: string, content: ArrayBuffer) => Promise<void>;
     mkdir: (path: string) => Promise<void>;
+    delete: (path: string) => Promise<void>;
     getFileTree: () => Promise<FileNode[]>;
   } | null>;
   templatesMetadataReaderRef: React.MutableRefObject<TemplateMetadataReader | null>;
@@ -652,11 +653,52 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         void sendDiagnosticEvent({ event: 'feature_used', feature: 'workflow' }).catch(() => undefined);
         void sendDiagnosticEvent({ event: 'workflow_run', templateId: template.id }).catch(() => undefined);
         const runRecord = await engine.execute(template);
-        completeRun(runRecord);
 
         // Final snapshot for the completed run. Pull the engine's last
         // execution state so endTime + final status are reflected.
         const finalExecution = engine.getExecution() ?? initialExecution;
+
+        // The engine reports a user cancellation as status 'failed' with the
+        // error message 'User cancelled' (the live status enum has no
+        // 'cancelled' value).
+        const userCancelled =
+          finalExecution.status === 'failed' && finalExecution.error === 'User cancelled';
+
+        // NEW-024: the user cancelled at the very first question, before any
+        // work. The output folder + .workflow file were pre-created (and a tab
+        // opened) before the interview, so a mis-clicked Run would otherwise
+        // leave an empty orphan folder in Documents. Clean it all up and record
+        // nothing — there's no run to keep.
+        const cancelledBeforeWork =
+          userCancelled &&
+          artifacts.length === 0 &&
+          completedAnswers.length === 0;
+        if (cancelledBeforeWork) {
+          // Cancel any debounced snapshot the onProgress handler scheduled for the
+          // interview step before the cancel, so it can't write the folder back
+          // after we delete it. The compiler can't see writeTimer being set inside
+          // the onProgress closure, so it wrongly thinks this guard is dead.
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+          if (writeTimer) { clearTimeout(writeTimer); writeTimer = null; }
+          pendingFileData = null;
+          try {
+            useEditorStore.getState().closeTab(workflowFilePath, { discard: true });
+          } catch { /* tab may already be gone */ }
+          try {
+            await workspaceServiceRef.current.delete(workflowFolderPath);
+          } catch (cleanupErr) {
+            console.warn('[workflow] failed to remove cancelled workflow folder:', cleanupErr);
+          }
+          setCurrentExecution(null);
+          setActiveWorkflowFilePath(null);
+          try {
+            setFileTree(await workspaceServiceRef.current.getFileTree());
+          } catch { /* non-fatal */ }
+          return;
+        }
+
+        completeRun(runRecord);
+
         // Data-loss fix (Codex audit #9): AWAIT the terminal-state write so the
         // .workflow provenance/audit record is durably on disk (the old
         // fire-and-forget could leave it stale/"running" if the app closed right
@@ -667,7 +709,13 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
             workflowFolderPath,
             completedAnswers,
             artifacts,
-            status: finalExecution.status === 'failed' ? 'failed' : 'completed',
+            // A cancel that happened AFTER some work is recorded as 'cancelled'
+            // (not the scarier 'failed'); a real error stays 'failed'.
+            status: userCancelled
+              ? 'cancelled'
+              : finalExecution.status === 'failed'
+                ? 'failed'
+                : 'completed',
           }),
         );
 

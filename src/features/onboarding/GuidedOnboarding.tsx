@@ -40,6 +40,7 @@ import { useRecordConfidentialityChoice } from '@/platform/hooks/useConfidential
 
 import { writeSampleFiles, getSamplesForProfession } from '@/platform/matter/samples';
 import { persistProfessionModelDefault, getModelForProfession } from '@/platform/profile/professionModel';
+import { useProfessionStore } from '@/platform/profile/professionStore';
 import { markAiSetupDeferred } from '@/features/onboarding/aiSetupState';
 import { useProfessionCopy } from '@/features/onboarding/useProfessionCopy';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
@@ -169,6 +170,12 @@ export function GuidedOnboarding({
   const selectProfession = (id: Profession) => {
     setProfession(id);
     persistProfessionModelDefault(id);
+    // NEW-001: sync the REACTIVE profession store immediately, not just at
+    // onboarding completion. The AI-setup step (and every other profession-aware
+    // string downstream) reads `useProfessionStore`; without this, a user who
+    // picks "Financial advisor" still saw legal-era copy like "Recommended for
+    // legal work" on the very next screen, because the store hadn't updated yet.
+    useProfessionStore.getState().setProfession(id);
   };
 
   const advance = (from: StepIndex) => {
@@ -644,7 +651,7 @@ function TrustStep({ onBack, onNext }: { onBack: () => void; onNext: () => void 
 
       <DataMapDialog open={dataMapOpen} onOpenChange={setDataMapOpen} />
 
-      <StepFooter onBack={onBack} onNext={onNext} nextLabel="Got it, connect an AI" nextTestId="onboarding-data-continue" />
+      <StepFooter onBack={onBack} onNext={onNext} nextLabel="Connect an AI provider" nextTestId="onboarding-data-continue" />
     </div>
   );
 }

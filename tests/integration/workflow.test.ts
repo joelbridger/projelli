@@ -359,6 +359,39 @@ describe('Workflow Integration Tests', () => {
       expect(runRecord.status).toBe('failed');
       expect(cancellingInterviewHandler).toHaveBeenCalled();
     });
+
+    it('NEW-024: cancelling at the first interview emits NO workflow audit (no phantom run)', async () => {
+      const auditEntries: { action: string }[] = [];
+      const cancellingInterviewHandler: InterviewHandler = vi.fn(async () => {
+        throw new Error('User cancelled');
+      });
+
+      const engine = new WorkflowEngine(
+        mockProvider,
+        fileOps,
+        cancellingInterviewHandler,
+        progressHandler,
+        {
+          audit: {
+            onAuditLog: (entry) => auditEntries.push(entry),
+            providerId: 'openai',
+            model: 'gpt-4o-mini',
+            getConfidentialityMode: () => 'direct',
+            getScope: () => ({ kind: 'matter', matterId: 'm-1' }),
+          },
+        },
+      );
+
+      const runRecord = await engine.execute(ClientIntakeSynthesizer);
+
+      // The run never really started: no 'Workflow Started' and no
+      // 'Workflow Failed' should be logged for a mis-clicked Run + Cancel.
+      const actions = auditEntries.map((e) => e.action);
+      expect(actions).not.toContain('workflow_start');
+      expect(actions).not.toContain('workflow_fail');
+      expect(runRecord.status).toBe('failed');
+      expect(runRecord.error).toBe('User cancelled');
+    });
   });
 
   describe('Execution State', () => {

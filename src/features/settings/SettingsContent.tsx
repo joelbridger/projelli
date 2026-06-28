@@ -569,11 +569,19 @@ function WorkspaceSection(props: SectionProps) {
 }
 
 function AiPrivacySection(props: SectionProps) {
-  const aiKeys     = ['ambientFileContext', 'ambientContextTokenLimit', 'chatContextTokenLimit', 'keepRecentTurns', 'manageApiKeys', 'manageAIRules'];
+  // Token-limit keys go under a collapsed "Advanced" group (NEW-016): non-technical
+  // advisors shouldn't see raw token numbers up front.
+  const aiMainKeys     = ['ambientFileContext', 'keepRecentTurns', 'manageApiKeys', 'manageAIRules'];
+  const aiAdvancedKeys = ['ambientContextTokenLimit', 'chatContextTokenLimit'];
   const memoryKeys = ['memoryEnabled', 'factsInjection', 'factsAutoAccept', 'includePdfsInWorkspaceIndex', 'ocrScannedPdfs'];
   // confidentialityMode and privilegedMatterMode are rendered by ConfidentialityModeSettings
 
-  const aiMatch = anyMatch(['confidentialityMode', 'privilegedMatterMode', ...aiKeys], props);
+  // Advanced section is collapsed by default; auto-expands when search matches a token-limit key.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const advancedHasSearchMatch = props.searchActive && anyMatch(aiAdvancedKeys, props);
+  const showAdvancedRows = advancedOpen || advancedHasSearchMatch;
+
+  const aiMatch = anyMatch(['confidentialityMode', 'privilegedMatterMode', ...aiMainKeys, ...aiAdvancedKeys], props);
   // Privacy has no schema keys (rendered by PrivacySettings); treat as a match
   // unless the search clearly has nothing AI/memory either (keep it reachable).
   const privacyMatch = !props.searchActive
@@ -591,8 +599,33 @@ function AiPrivacySection(props: SectionProps) {
         >
           <ConfidentialityModeSettings />
           <LocalAiSettingsControl />
-          {renderRows(aiKeys, props)}
+          {renderRows(aiMainKeys, props)}
           <AIContextCapabilityWarning getSetting={props.getSetting} />
+          {/* Advanced — token limits: collapsed by default so non-technical users don't see raw numbers */}
+          <div style={{ marginTop: 8 }}>
+            <button
+              type="button"
+              data-testid="ai-advanced-toggle"
+              onClick={() => { setAdvancedOpen((v) => !v); }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 'var(--kp-font-xs)',
+                fontWeight: 'var(--kp-weight-semibold)',
+                color: 'var(--color-muted-foreground)',
+                background: 'none',
+                border: 'none',
+                padding: '4px 0',
+                cursor: 'pointer',
+              }}
+              aria-expanded={showAdvancedRows}
+            >
+              <span style={{ fontSize: 10 }}>{showAdvancedRows ? '▲' : '▼'}</span>
+              Advanced
+            </button>
+            {showAdvancedRows && renderRows(aiAdvancedKeys, props)}
+          </div>
         </SubSection>
         <SubSection
           id="aip-memory"
