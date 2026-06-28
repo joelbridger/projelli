@@ -186,6 +186,16 @@ pub fn run() {
             commands::docusign::commands::docusign_cancel_sync,
             commands::docusign::commands::docusign_sync_status,
             commands::docusign::commands::docusign_list_unassigned,
+            // Read-only Jotform connector — intake/KYC submissions.
+            commands::jotform::commands::jotform_set_workspace,
+            commands::jotform::commands::jotform_connect,
+            commands::jotform::commands::jotform_is_connected,
+            commands::jotform::commands::jotform_disconnect,
+            commands::jotform::commands::jotform_list_forms,
+            commands::jotform::commands::jotform_sync,
+            commands::jotform::commands::jotform_cancel,
+            commands::jotform::commands::jotform_status,
+            commands::jotform::commands::jotform_list_unassigned,
             // Calendly connector — read-only scheduled events + invitee Q&A.
             commands::calendly::commands::calendly_set_workspace,
             commands::calendly::commands::calendly_connect,
@@ -238,6 +248,8 @@ pub fn run() {
             commands::onedrive::commands::manage_state(app);
             // Read-only DocuSign connector state.
             commands::docusign::commands::manage_state(app);
+            // Read-only Jotform connector state.
+            commands::jotform::commands::manage_state(app);
             // Calendly connector — manage workspace, single-flight sync, and progress.
             commands::calendly::commands::manage_state(app);
             // Keepance 3.0 — manage encrypted audit-store state (active workspace).

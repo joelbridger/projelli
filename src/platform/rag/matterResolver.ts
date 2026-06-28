@@ -368,11 +368,24 @@ export function buildBoxMatterMap(matters: Matter[]): BoxMatterMapEntry[] {
 export function buildJotformMatterMap(
   matters: Matter[]
 ): JotformMatterMapEntry[] {
-  return buildConnectorMatterMap(
-    matters,
-    (m) => m.jotformKeys,
-    (jotformKey, matterId) => ({ jotformKey, matterId })
-  );
+  const out: JotformMatterMapEntry[] = [];
+  for (const matter of matters) {
+    if (matter.id === UNASSIGNED_MATTER_ID) continue;
+    const seenForMatter = new Set<string>();
+    const keys = [
+      ...(matter.jotformKeys ?? []),
+      matter.client,
+      matter.name,
+    ];
+    for (const rawKey of keys) {
+      const key = rawKey.trim();
+      const normalized = normalizeEsignKey(key);
+      if (!key || !normalized || seenForMatter.has(normalized)) continue;
+      seenForMatter.add(normalized);
+      out.push({ jotformKey: key, matterId: matter.id });
+    }
+  }
+  return out;
 }
 
 export function buildSharefileMatterMap(
