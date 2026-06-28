@@ -145,82 +145,6 @@ describe('MatterHub — list to hub navigation', () => {
     expect(screen.queryByTestId('hub-isolated-badge')).toBeNull();
   });
 
-  it('Documents panel > dispatches keepance:matter-launch with surface files', () => {
-    useMatterStore.getState().createMatter({ name: 'Doc Panel Test', client: 'Client' });
-    const matter = useMatterStore.getState().matters[0]!;
-
-    const events: CustomEvent[] = [];
-    const handler = (e: Event) => { events.push(e as CustomEvent); };
-    window.addEventListener('keepance:matter-launch', handler);
-
-    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
-
-    fireEvent.click(screen.getByTestId('hub-shortcut-documents'));
-
-    expect(events).toHaveLength(1);
-    expect(events[0]!.detail.surface).toBe('files');
-    expect(events[0]!.detail.matterId).toBe(matter.id);
-
-    window.removeEventListener('keepance:matter-launch', handler);
-  });
-
-  it('Email panel > dispatches keepance:matter-launch with surface email', () => {
-    useMatterStore.getState().createMatter({ name: 'Email Panel Test', client: 'Client' });
-    const matter = useMatterStore.getState().matters[0]!;
-
-    const events: CustomEvent[] = [];
-    const handler = (e: Event) => { events.push(e as CustomEvent); };
-    window.addEventListener('keepance:matter-launch', handler);
-
-    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
-
-    fireEvent.click(screen.getByTestId('hub-shortcut-email'));
-
-    expect(events).toHaveLength(1);
-    expect(events[0]!.detail.surface).toBe('email');
-    expect(events[0]!.detail.matterId).toBe(matter.id);
-
-    window.removeEventListener('keepance:matter-launch', handler);
-  });
-
-  it('Workflows panel > dispatches keepance:matter-launch with surface workflows', () => {
-    useMatterStore.getState().createMatter({ name: 'Workflow Panel Test', client: 'Client' });
-    const matter = useMatterStore.getState().matters[0]!;
-
-    const events: CustomEvent[] = [];
-    const handler = (e: Event) => { events.push(e as CustomEvent); };
-    window.addEventListener('keepance:matter-launch', handler);
-
-    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
-
-    fireEvent.click(screen.getByTestId('hub-shortcut-workflows'));
-
-    expect(events).toHaveLength(1);
-    expect(events[0]!.detail.surface).toBe('workflows');
-    expect(events[0]!.detail.matterId).toBe(matter.id);
-
-    window.removeEventListener('keepance:matter-launch', handler);
-  });
-
-  it('Activity panel > dispatches keepance:matter-launch with surface audit', () => {
-    useMatterStore.getState().createMatter({ name: 'Activity Panel Test', client: 'Client' });
-    const matter = useMatterStore.getState().matters[0]!;
-
-    const events: CustomEvent[] = [];
-    const handler = (e: Event) => { events.push(e as CustomEvent); };
-    window.addEventListener('keepance:matter-launch', handler);
-
-    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
-
-    fireEvent.click(screen.getByTestId('hub-shortcut-activity'));
-
-    expect(events).toHaveLength(1);
-    expect(events[0]!.detail.surface).toBe('audit');
-    expect(events[0]!.detail.matterId).toBe(matter.id);
-
-    window.removeEventListener('keepance:matter-launch', handler);
-  });
-
   it('back button returns to matter list', () => {
     useMatterStore.getState().createMatter({ name: 'Back Test', client: 'Client' });
     const matter = useMatterStore.getState().matters[0]!;
@@ -262,49 +186,78 @@ describe('MatterHub — list to hub navigation', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The redesigned client-detail leads with the Client Map (no doc/email/workflow
-// tab grid); capabilities relocate to a slim shortcut row.
+// The client-detail hub is a tabbed workspace: Overview (the Client Map) ·
+// Documents · Email · Activity. The old shortcut row that flipped the window to
+// a GLOBAL surface is gone; the scoped per-client surfaces render in place.
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('MatterHub — redesigned client-detail layout', () => {
+describe('MatterHub — sub-tab workspace', () => {
   beforeEach(() => {
     resetStore();
   });
 
-  it('leads with the Client Map (expanded) and hides the four-panel + glance grids', () => {
+  it('leads with the Client Map under an Overview/Documents/Email/Activity sub-tab bar', () => {
     useMatterStore.getState().createMatter({ name: 'Redesign Co', client: 'Redesign Co' });
     const matter = useMatterStore.getState().matters[0]!;
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
 
-    // Client Map is present and permanently expanded (no collapse toggle).
+    // The sub-tab bar replaces the old shortcut row.
+    expect(screen.getByTestId('hub-subtab-bar')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-subtab-overview')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-subtab-documents')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-subtab-email')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-subtab-activity')).toBeInTheDocument();
+    expect(screen.queryByTestId('hub-shortcut-row')).toBeNull();
+
+    // Overview is the default and leads with the Client Map.
+    expect(screen.getByTestId('hub-subtab-panel-overview')).toBeInTheDocument();
     expect(screen.getByTestId('hub-panel-clientmap')).toBeInTheDocument();
-    expect(screen.queryByTestId('hub-panel-clientmap-open')).toBeNull();
-    // The doc/email/workflow/activity tab cards + the At-a-Glance grid are gone
-    // as the primary view.
-    expect(screen.queryByTestId('hub-panel-documents')).toBeNull();
-    expect(screen.queryByTestId('hub-panel-email')).toBeNull();
-    expect(screen.queryByTestId('hub-ai-glance')).toBeNull();
-    // ...but every capability stays reachable from the slim shortcut row.
-    expect(screen.getByTestId('hub-shortcut-row')).toBeInTheDocument();
-    expect(screen.getByTestId('hub-shortcut-documents')).toBeInTheDocument();
-    expect(screen.getByTestId('hub-shortcut-email')).toBeInTheDocument();
-    expect(screen.getByTestId('hub-shortcut-workflows')).toBeInTheDocument();
-    expect(screen.getByTestId('hub-shortcut-activity')).toBeInTheDocument();
   });
 
-  it('shortcut-row Documents still launches the files surface (capability not lost)', () => {
-    useMatterStore.getState().createMatter({ name: 'Shortcut Co', client: 'Shortcut Co' });
+  it('clicking a sub-tab renders its supplied scoped surface in place (no global navigation)', () => {
+    useMatterStore.getState().createMatter({ name: 'Tabbed Co', client: 'Tabbed Co' });
     const matter = useMatterStore.getState().matters[0]!;
+
+    // A global matter-launch must NOT fire when switching sub-tabs.
     const events: CustomEvent[] = [];
     const handler = (e: Event) => { events.push(e as CustomEvent); };
     window.addEventListener('keepance:matter-launch', handler);
 
-    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
-    fireEvent.click(screen.getByTestId('hub-shortcut-documents'));
+    render(
+      <MatterHub
+        matterId={matter.id}
+        onBack={() => undefined}
+        renderDocuments={() => <div data-testid="stub-documents">docs</div>}
+        renderEmail={() => <div data-testid="stub-email">email</div>}
+        renderActivity={() => <div data-testid="stub-activity">activity</div>}
+      />,
+    );
 
-    expect(events).toHaveLength(1);
-    expect(events[0]!.detail.surface).toBe('files');
-    expect(events[0]!.detail.matterId).toBe(matter.id);
+    fireEvent.click(screen.getByTestId('hub-subtab-documents'));
+    expect(screen.getByTestId('hub-subtab-panel-documents')).toBeInTheDocument();
+    expect(screen.getByTestId('stub-documents')).toBeInTheDocument();
+    expect(screen.queryByTestId('hub-panel-clientmap')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('hub-subtab-email'));
+    expect(screen.getByTestId('stub-email')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('hub-subtab-activity'));
+    expect(screen.getByTestId('stub-activity')).toBeInTheDocument();
+
+    // Back to Overview shows the Client Map again.
+    fireEvent.click(screen.getByTestId('hub-subtab-overview'));
+    expect(screen.getByTestId('hub-panel-clientmap')).toBeInTheDocument();
+
+    expect(events).toHaveLength(0);
     window.removeEventListener('keepance:matter-launch', handler);
+  });
+
+  it('a sub-tab with no supplied surface shows a graceful placeholder', () => {
+    useMatterStore.getState().createMatter({ name: 'Bare Co', client: 'Bare Co' });
+    const matter = useMatterStore.getState().matters[0]!;
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+
+    fireEvent.click(screen.getByTestId('hub-subtab-documents'));
+    expect(screen.getByTestId('hub-subtab-unavailable')).toBeInTheDocument();
   });
 });

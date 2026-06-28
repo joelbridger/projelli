@@ -28,7 +28,7 @@
  * No Tailwind on layout elements — all styling via inline styles + CSS vars.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { FolderOpen, FolderTree, FileText, X, Plus, Upload, ListTree, LayoutGrid } from 'lucide-react';
 import { IconButton, Callout, Button, SearchField, SurfaceToolbar } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
@@ -39,6 +39,7 @@ import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';
 import { FileTree } from '@/features/documents/workspace/FileTree';
+import { scopeFileTreeToFolders } from './scopeFileTree';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -114,6 +115,20 @@ export interface DocumentsHomeProps {
   onCreateTextFileAtRoot?: () => void;
   onCreateFolderAtRoot?: () => void;
   onSetLetterheadTemplate?: (path: string) => void;
+  /**
+   * Embedded mode — the per-client Documents sub-tab inside the Client Map hub.
+   * Hides the standalone "Documents" surface header (the hub already provides
+   * the client header) so it reads as a section of the client, not a separate
+   * destination.
+   */
+  embedded?: boolean;
+  /**
+   * When set, the file browser is scoped to THIS client's folders (the matter's
+   * `folderPaths`). The tree + grid show only files under these folders; an
+   * empty array means the client has no mapped folders yet (honest empty state).
+   * Undefined = the global, full-workspace browser.
+   */
+  scopeFolderPaths?: string[];
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -315,12 +330,24 @@ export function DocumentsHome({
   onCreateTextFileAtRoot,
   onCreateFolderAtRoot,
   onSetLetterheadTemplate,
+  embedded = false,
+  scopeFolderPaths,
 }: DocumentsHomeProps) {
   const activeTabPath = useEditorStore((s) => s.activeTabPath);
   const openTabs = useEditorStore((s) => s.openTabs);
   const setActiveTab = useEditorStore((s) => s.setActiveTab);
   const closeTab = useEditorStore((s) => s.closeTab);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
+  const storeFileTree = useWorkspaceStore((s) => s.fileTree);
+
+  // Per-client scoping: when `scopeFolderPaths` is provided, prune the workspace
+  // tree to just this client's folders and feed that pruned tree to both the
+  // grid and the tree views. Pure + memoized so the global store tree is never
+  // mutated and we don't reprune on every render.
+  const scopedFileTree = useMemo(
+    () => (scopeFolderPaths ? scopeFileTreeToFolders(storeFileTree, scopeFolderPaths) : undefined),
+    [scopeFolderPaths, storeFileTree],
+  );
 
   // Trust banner state
   const [showTrustBanner, setShowTrustBanner] = useState(false);
@@ -532,14 +559,17 @@ export function DocumentsHome({
         overflow: 'hidden',
       }}
     >
-      {/* Page header */}
-      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-        <SurfaceHeader
-          Icon={FolderTree}
-          title="Documents"
-          description="Your files and folders, on your computer."
-        />
-      </div>
+      {/* Page header — hidden when embedded as a per-client sub-tab (the hub
+          already shows the client header above the sub-tab bar). */}
+      {!embedded && (
+        <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+          <SurfaceHeader
+            Icon={FolderTree}
+            title="Documents"
+            description="Your files and folders, on your computer."
+          />
+        </div>
+      )}
 
       {/* ── Files toolbar — shown above the tab strip when Files tab is active */}
       {showFilesGrid && (
@@ -766,9 +796,11 @@ export function DocumentsHome({
             docsView={docsView}
             currentFolderPath={currentFolderPath}
             onSetCurrentFolderPath={setCurrentFolderPath}
+            {...(scopedFileTree !== undefined ? { scopedFileTree } : {})}
             treeView={
               <FileTree
                 hideToolbar
+                {...(scopedFileTree !== undefined ? { fileTreeOverride: scopedFileTree } : {})}
                 onFileOpen={onFileOpen}
                 onCreateFile={onCreateFile}
                 onCreateFolder={onCreateFolder}

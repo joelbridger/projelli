@@ -25,6 +25,7 @@ import i18n from '../i18n';
 import { detectLocale } from '../lib/locale-detect';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { seedWebDemoWorkspace } from './WebDemoSeeder';
+import { seedWebDemoClientMap } from './seedWebDemoClientMap';
 import { DemoModeBanner } from './DemoModeBanner';
 import { DemoLimitGate } from './DemoLimitGate';
 import { trackDemoLoaded } from './demoPlausible';
@@ -54,7 +55,13 @@ async function bootstrap(): Promise<void> {
   // populated on first paint. The seeder is idempotent and fast (a handful
   // of small writes).
   try {
-    await seedWebDemoWorkspace();
+    const { profession } = await seedWebDemoWorkspace();
+    // Advisor pack (the default /try): seed the Webb Household client + its
+    // fully-filled, cited Client Map and open its hub, so the demo lands on the
+    // Client Map — the first thing a visitor sees — instead of the file browser.
+    if (profession === 'advisor') {
+      seedWebDemoClientMap();
+    }
   } catch (err) {
     // Seeder errors are non-fatal: the demo still loads with an empty
     // workspace, which is degraded but functional.

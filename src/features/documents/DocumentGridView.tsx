@@ -383,6 +383,13 @@ export interface DocumentGridViewProps {
   retentionPeriod?: TrashRetentionPeriod;
   customRetentionDays?: number;
   onRetentionChange?: (period: TrashRetentionPeriod, customDays?: number) => void;
+  /**
+   * When set, the grid renders THIS pre-scoped tree instead of the full
+   * workspace tree from the store. Used by the per-client Documents sub-tab to
+   * show only the client's folders (see `scopeFileTreeToFolders`). Undefined =
+   * the normal global file browser.
+   */
+  scopedFileTree?: FileNode[];
 }
 
 // ── Main export ────────────────────────────────────────────────────────────
@@ -409,8 +416,12 @@ export function DocumentGridView({
   currentFolderPath,
   onSetCurrentFolderPath,
   treeView,
+  scopedFileTree,
 }: DocumentGridViewProps) {
-  const fileTree = useWorkspaceStore((s) => s.fileTree);
+  const storeFileTree = useWorkspaceStore((s) => s.fileTree);
+  // Per-client Documents sub-tab passes a pre-scoped tree; the global browser
+  // uses the full workspace tree from the store.
+  const fileTree = scopedFileTree ?? storeFileTree;
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const activeTabPath = useEditorStore((s) => s.activeTabPath);
   const openTabs = useEditorStore((s) => s.openTabs);

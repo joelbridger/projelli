@@ -67,11 +67,18 @@ export interface AuditHomeProps {
   entries: AuditEntry[];
   integrity?: AuditIntegrityVerdict | undefined;
   onVerifyIntegrity?: (() => Promise<AuditIntegrityVerdict | undefined>) | undefined;
+  /**
+   * When set, the log is pre-scoped to a single client's activity (used by the
+   * per-client Activity sub-tab in the Client Map hub). Entries are filtered to
+   * those whose matter scope matches this id before any in-view filtering, so
+   * the Activity tab reads as "this client's activity", not the global log.
+   */
+  scopeMatterId?: string;
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function AuditHome({ entries, integrity, onVerifyIntegrity }: AuditHomeProps) {
+export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, scopeMatterId }: AuditHomeProps) {
   const { t } = useTranslation();
   // Profession-aware entity word so the export note follows the practice
   // (advisor → "clients", legal → "matters") instead of a hardcoded "matters".
@@ -91,6 +98,15 @@ export function AuditHome({ entries, integrity, onVerifyIntegrity }: AuditHomePr
 
   // ── Detail panel ──────────────────────────────────────────────────────
   const [detailEntry, setDetailEntry] = useState<AuditEntry | null>(null);
+
+  // Pre-scope to a single client when embedded as the per-client Activity
+  // sub-tab. Reuses the same matter-scope matching the in-view filter uses, so
+  // every downstream derivation (models, scopes, counts, export) operates on
+  // this client's activity only. Unscoped (scopeMatterId absent) = global log.
+  const entries = useMemo(
+    () => (scopeMatterId ? filterEntries(entriesProp, { matterId: scopeMatterId }) : entriesProp),
+    [entriesProp, scopeMatterId],
+  );
 
   // ── Derived data ──────────────────────────────────────────────────────
   const availableModels = useMemo(() => uniqueModels(entries), [entries]);

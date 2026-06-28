@@ -1,0 +1,75 @@
+/**
+ * scopeFileTree — prune a workspace file tree to a single client's folders.
+ *
+ * The Client Map hub's "Documents" sub-tab shows THIS client's files, not the
+ * whole workspace. A matter owns one or more absolute `folderPaths`
+ * (`Matter.folderPaths`); this helper returns a new tree containing only:
+ *   - the subtree rooted at each of the matter's folders (its full contents),
+ *   - plus the ancestor folders needed to reach them (so the path is navigable).
+ *
+ * Everything outside the matter's folders is dropped. The function is PURE
+ * (returns new nodes; never mutates the input) so it is safe to call inside a
+ * render/useMemo, and so the unscoped store tree the rest of the app uses is
+ * never altered.
+ *
+ * Path matching is exact-segment based (a trailing-slash–normalized prefix),
+ * so `/ws/Brennan` does NOT accidentally match `/ws/Brennan Two`.
+ */
+import type { FileNode } from '@/platform/types/workspace';
+
+/** Normalize a path for comparison: collapse duplicate slashes, drop a single
+ *  trailing slash (but keep root "/"). */
+function norm(p: string): string {
+  const collapsed = p.replace(/\/+/g, '/');
+  return collapsed.length > 1 ? collapsed.replace(/\/$/, '') : collapsed;
+}
+
+/** True when `path` is exactly `folder` or a descendant of it (segment-aware). */
+function isAtOrUnder(path: string, folder: string): boolean {
+  const a = norm(path);
+  const b = norm(folder);
+  return a === b || a.startsWith(`${b}/`);
+}
+
+/** True when `path` is a strict ancestor of `folder` (so we must descend into
+ *  it to reach the scoped folder). */
+function isAncestorOf(path: string, folder: string): boolean {
+  const a = norm(path);
+  const b = norm(folder);
+  return b.startsWith(`${a}/`);
+}
+
+/**
+ * Return a pruned copy of `tree` limited to the given absolute `folderPaths`.
+ *
+ * - `folderPaths` empty → returns `[]` (a client with no mapped folders has no
+ *   scoped documents; the caller shows an honest empty state).
+ * - A node at/under any folder path is included whole (its full subtree).
+ * - A folder that is an ancestor of a scoped folder is kept but recursed into,
+ *   so only the branch leading to the scoped folder survives.
+ */
+export function scopeFileTreeToFolders(
+  tree: FileNode[],
+  folderPaths: string[],
+): FileNode[] {
+  if (folderPaths.length === 0) return [];
+  const folders = folderPaths.map(norm);
+
+  function prune(node: FileNode): FileNode | null {
+    // Inside one of the matter's folders (or exactly one): keep the whole node.
+    if (folders.some((f) => isAtOrUnder(node.path, f))) {
+      return node;
+    }
+    // A folder above a scoped folder: keep only the branch that reaches it.
+    if (node.type === 'folder' && folders.some((f) => isAncestorOf(node.path, f))) {
+      const children = (node.children ?? [])
+        .map(prune)
+        .filter((c): c is FileNode => c !== null);
+      return { ...node, children };
+    }
+    // Unrelated to every scoped folder: drop it.
+    return null;
+  }
+
+  return tree.map(prune).filter((n): n is FileNode => n !== null);
+}

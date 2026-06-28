@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, SurfaceToolbar, Callout } from '@/ui/kp';
 import { useActiveMatter, getMatters } from '@/platform/matter/matterStore';
+import { resolveMailMatter } from '@/platform/rag/matterResolver';
 import { useMailStore } from './mailStore';
 import {
   mailListMessages,
@@ -72,6 +73,14 @@ import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 export interface EmailWorkspaceProps {
   onSaveToWorkspace?: ((content: string, suggestedName: string) => Promise<void>) | undefined;
   onOpenSettings?: (() => void) | undefined;
+  /**
+   * Embedded mode — the per-client Email sub-tab inside the Client Map hub.
+   * Hides the standalone "Email" surface header and the "This client / All
+   * email" scope toggle, and scopes BOTH the keyword browse list and the AI
+   * search to the active client's correspondence (per-client only; the global
+   * inbox as a destination is gone — global reach is Ctrl+P + Ask citations).
+   */
+  embedded?: boolean;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -98,6 +107,7 @@ function sanitizeConnectedAccounts(accounts: ConnectedAccount[]): ConnectedAccou
 export function EmailWorkspace({
   onSaveToWorkspace,
   onOpenSettings,
+  embedded = false,
 }: EmailWorkspaceProps) {
   const activeMatter = useActiveMatter();
 
@@ -544,6 +554,17 @@ export function EmailWorkspace({
   // Active filter count for badge
   const activeFilterCount = [providerFilter, dateFrom, dateTo, hasAttachments].filter(Boolean).length;
 
+  // Per-client (embedded) browse scoping: filter the keyword list to mail whose
+  // (provider, account, folder) maps to the active client's matter — the SAME
+  // folder→matter resolution the indexer uses (`resolveMailMatter`). The global
+  // browse list is untouched. Note: per-message filings (mail_retag_message_matter)
+  // are an override the list path can't surface frontend-only, so this scopes by
+  // folder mapping; a fully accurate server-side per-matter list is a backend
+  // follow-up. AI search (Ask mode) is already matter-scoped via RetrievalScope.
+  const scopedItems = embedded && activeMatter
+    ? items.filter((m) => resolveMailMatter(getMatters(), m.provider, m.account, m.folderId) === activeMatter.id)
+    : items;
+
   // Fix 7: persist list scroll position per-matter in sessionStorage
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const scrollKey = `email-scroll-${activeMatter?.id ?? 'all'}`;
@@ -579,14 +600,17 @@ export function EmailWorkspace({
         overflowY: 'auto',
       }}
     >
-      {/* Page header */}
-      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-        <SurfaceHeader
-          Icon={Mail}
-          title="Email"
-          description="Search, read, and file your imported email."
-        />
-      </div>
+      {/* Page header — hidden when embedded as a per-client sub-tab (the hub
+          already shows the client header above the sub-tab bar). */}
+      {!embedded && (
+        <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+          <SurfaceHeader
+            Icon={Mail}
+            title="Email"
+            description="Search, read, and file your imported email."
+          />
+        </div>
+      )}
 
       {/* Toolbar — compose, mode toggle, scope toggle (conditional), search, filters toggle */}
       {hasConnectedMail && (
@@ -633,8 +657,10 @@ export function EmailWorkspace({
           ))}
         </div>
 
-        {/* 3. Scope toggle — only when a matter is active AND in Ask AI mode */}
-        {activeMatter && mode !== 'keyword' && (
+        {/* 3. Scope toggle — only when a matter is active AND in Ask AI mode.
+            Hidden when embedded: the per-client Email sub-tab is locked to this
+            client (no "All email" destination), so the toggle would be a no-op. */}
+        {activeMatter && mode !== 'keyword' && !embedded && (
           <SegmentedToggle
             ariaLabel="Email scope"
             size="md"
@@ -955,7 +981,7 @@ export function EmailWorkspace({
             )}
 
             {/* No results state */}
-            {!loading && !error && items.length === 0 && (
+            {!loading && !error && scopedItems.length === 0 && (
               <div
                 data-testid="no-results-state"
                 style={{
@@ -983,14 +1009,18 @@ export function EmailWorkspace({
                 </p>
                 <p style={{ margin: 0, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
                   { }
-                  {query ? 'Try a different keyword or adjust the filters.' : 'No email has been synced yet.'}
+                  {query
+                    ? 'Try a different keyword or adjust the filters.'
+                    : embedded
+                      ? "No email is filed to this client yet. Connect a mail folder for this client to see their correspondence here."
+                      : 'No email has been synced yet.'}
                   { }
                 </p>
               </div>
             )}
 
             {/* Results list */}
-            {!loading && !error && items.length > 0 && (
+            {!loading && !error && scopedItems.length > 0 && (
               <div
                 style={{
                   margin: `var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)`,
@@ -1011,11 +1041,13 @@ export function EmailWorkspace({
                     background: 'rgba(10,37,64,0.02)',
                   }}
                 >
-                  {total === items.length && !query
-                    ? 'All email loaded'
-                    : `Showing ${String(items.length)} of ${String(total)}`}
+                  {embedded
+                    ? `Showing ${String(scopedItems.length)} for this client`
+                    : total === items.length && !query
+                      ? 'All email loaded'
+                      : `Showing ${String(items.length)} of ${String(total)}`}
                 </div>
-                {items.map((item) => (
+                {scopedItems.map((item) => (
                   <MailRow
                     key={item.id}
                     item={item}
@@ -1251,6 +1283,10 @@ export function EmailWorkspace({
                       Enable it in Settings
                     </button>
                     .
+                  </span>
+                ) : activeMatter && !scopeAllEmail && embedded ? (
+                  <span>
+                    No email is filed to this client yet. Connect a mail folder for this client to search their correspondence.
                   </span>
                 ) : activeMatter && !scopeAllEmail ? (
                   <span>
