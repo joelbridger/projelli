@@ -27,6 +27,7 @@ import { DocuSignConnect } from '@/features/settings/DocuSignConnect';
 import { ShareFileConnect } from '@/features/settings/ShareFileConnect';
 import { JotformConnect } from '@/features/settings/JotformConnect';
 import { ZocksConnect } from '@/features/settings/ZocksConnect';
+import { AddeparConnect } from '@/features/settings/AddeparConnect';
 import { CalendlyConnect } from '@/features/settings/CalendlyConnect';
 import { SalesforceConnect } from '@/features/settings/SalesforceConnect';
 import { RedtailConnect } from '@/features/settings/RedtailConnect';
@@ -313,6 +314,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                 <OneDriveConnect />
                 <BoxConnect />
                 <WealthboxConnect />
+                <AddeparConnect />
                 <DocuSignConnect />
                 <ShareFileConnect />
                 <JotformConnect />

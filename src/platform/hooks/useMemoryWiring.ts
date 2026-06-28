@@ -58,6 +58,7 @@ import { mailSetWorkspace } from '@/platform/utils/mail-commands';
 import { docusignSetWorkspace } from '@/platform/utils/docusign-commands';
 import { jotformSetWorkspace } from '@/platform/utils/jotform-commands';
 import { zocksSetWorkspace } from '@/platform/utils/zocks-commands';
+import { addeparSetWorkspace } from '@/platform/utils/addepar-commands';
 import { crmSetWorkspace } from '@/platform/utils/wealthbox-commands';
 import { oneDriveSetWorkspace } from '@/platform/utils/onedrive-commands';
 import { boxSetWorkspace } from '@/platform/utils/box-commands';
@@ -576,6 +577,11 @@ export function useMemoryWiring(
           await zocksSetWorkspace(rootPath);
         } catch (err) {
           console.warn('zocksSetWorkspace failed; continuing workspace setup:', err);
+        }
+        try {
+          await addeparSetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('addeparSetWorkspace failed; continuing workspace setup:', err);
         }
         try {
           await calendlySetWorkspace(rootPath);

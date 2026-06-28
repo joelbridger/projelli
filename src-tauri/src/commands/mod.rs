@@ -10,6 +10,8 @@ pub mod http;
 pub mod keychain;
 // Keepance 3.0 — SQLCipher-encrypted, append-only audit "defense file" store.
 pub mod audit;
+// Read-only Addepar portfolio connector — household holdings/performance into RAG.
+pub mod addepar;
 // Wealthbox CRM connector (Phase 1A) — CRM RAG ingestion bridge.
 pub mod crm;
 // Read-only DocuSign connector — completed envelopes + signing audit trail.

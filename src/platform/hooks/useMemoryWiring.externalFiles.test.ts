@@ -28,6 +28,10 @@ vi.mock('@/platform/utils/sharefile-commands', () => ({
   sharefileSetWorkspace: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@/platform/utils/addepar-commands', () => ({
+  addeparSetWorkspace: vi.fn().mockResolvedValue(undefined),
+}));
+
 import {
   buildWorkspaceAbsolutePath,
   changedFolderPaths,

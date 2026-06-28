@@ -228,6 +228,15 @@ pub fn run() {
             commands::zocks::commands::zocks_cancel,
             commands::zocks::commands::zocks_status,
             commands::zocks::commands::zocks_list_unassigned,
+            // Read-only Addepar portfolio connector — household holdings/performance.
+            commands::addepar::commands::addepar_set_workspace,
+            commands::addepar::commands::addepar_connect,
+            commands::addepar::commands::addepar_is_connected,
+            commands::addepar::commands::addepar_disconnect,
+            commands::addepar::commands::addepar_list_entities,
+            commands::addepar::commands::addepar_sync,
+            commands::addepar::commands::addepar_cancel,
+            commands::addepar::commands::addepar_status,
             // Calendly connector — read-only scheduled events + invitee Q&A.
             commands::calendly::commands::calendly_set_workspace,
             commands::calendly::commands::calendly_connect,
@@ -288,6 +297,8 @@ pub fn run() {
             commands::jotform::commands::manage_state(app);
             // Read-only Zocks connector state.
             commands::zocks::commands::manage_state(app);
+            // Read-only Addepar connector state.
+            commands::addepar::commands::manage_state(app);
             // Calendly connector — manage workspace, single-flight sync, and progress.
             commands::calendly::commands::manage_state(app);
             // Keepance 3.0 — manage encrypted audit-store state (active workspace).
