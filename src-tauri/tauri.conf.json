@@ -76,7 +76,8 @@
     },
     "resources": [
       "resources/**/*",
-      "binaries/**/*"
+      "binaries/**/*",
+      "voices/**/*"
     ],
     "externalBin": [
       "binaries/piper",

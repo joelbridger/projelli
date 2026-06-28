@@ -15,6 +15,36 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BINARIES_DIR="$REPO_ROOT/src-tauri/binaries"
 RELEASE_BASE="https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_VERSION"
 
+# Pinned SHA256 digests — computed from the upstream release artifacts at b9789.
+# Fail loudly on mismatch so a replaced or corrupt asset is never staged.
+# Uses a case statement (not declare -A) to stay compatible with macOS Bash 3.2.
+get_llama_sha256() {
+  case "$1" in
+    "llama-b9789-bin-ubuntu-x64.tar.gz") echo "549fad25d7dc09cdea17e8c410251bae93ac5451dafce100624c665daceee978" ;;
+    "llama-b9789-bin-macos-arm64.tar.gz") echo "27c1193d620301f92331d09cb9e6ef5f0d4d570f2c0863db74a9b88731d6ca47" ;;
+    "llama-b9789-bin-macos-x64.tar.gz") echo "cd912c36aeea012419f13c0781ae2ad4ac56239c14fa4fa9ac6074a9d0c94bba" ;;
+    "llama-b9789-bin-win-cpu-x64.zip") echo "b5e7b4ba66ae0a885cb670f88bfca35f73e45aeca565f1da4ce437b3a3cbae96" ;;
+    *) echo "" ;;
+  esac
+}
+
+verify_sha256() {
+  local file="$1" expected="$2"
+  local actual
+  if command -v sha256sum &>/dev/null; then
+    actual=$(sha256sum "$file" | awk '{print $1}')
+  else
+    actual=$(shasum -a 256 "$file" | awk '{print $1}')
+  fi
+  if [[ "$actual" != "$expected" ]]; then
+    echo "SHA256 mismatch for $file" >&2
+    echo "  expected: $expected" >&2
+    echo "  got:      $actual" >&2
+    exit 1
+  fi
+  echo "SHA256 verified: $(basename "$file")"
+}
+
 mkdir -p "$BINARIES_DIR"
 
 detect_target_triple() {
@@ -81,9 +111,11 @@ trap 'rm -rf "$TMP"' EXIT
 echo "Downloading llama.cpp $LLAMA_VERSION for $TARGET_TRIPLE..."
 if [[ "$ARCHIVE" == *.zip ]]; then
   curl -fsSL "$RELEASE_BASE/$ARCHIVE" -o "$TMP/llama.zip"
+  verify_sha256 "$TMP/llama.zip" "$(get_llama_sha256 "$ARCHIVE")"
   unzip -q "$TMP/llama.zip" -d "$TMP"
 else
   curl -fsSL "$RELEASE_BASE/$ARCHIVE" -o "$TMP/llama.tar.gz"
+  verify_sha256 "$TMP/llama.tar.gz" "$(get_llama_sha256 "$ARCHIVE")"
   tar -xzf "$TMP/llama.tar.gz" -C "$TMP"
 fi
 
@@ -95,6 +127,7 @@ fi
 
 cp "$SRC_DIR/$SERVER_NAME" "$BINARIES_DIR/$DEST_BIN"
 chmod +x "$BINARIES_DIR/$DEST_BIN" || true
+test -s "$BINARIES_DIR/$DEST_BIN" || { echo "Staged llama-server binary is empty: $DEST_BIN" >&2; exit 1; }
 
 # Copy the sibling runtime libraries. The shipped executable must stay in this
 # same directory because OS loaders search the launched exe's folder first.

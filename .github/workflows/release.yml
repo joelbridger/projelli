@@ -204,7 +204,7 @@ jobs:
           else
             TARGET="x86_64-unknown-linux-gnu"
           fi
-          FETCH_PIPER_VOICE=0 TARGET_TRIPLE="$TARGET" bash scripts/fetch-piper-sidecar.sh
+          FETCH_PIPER_VOICE=1 TARGET_TRIPLE="$TARGET" bash scripts/fetch-piper-sidecar.sh
           TARGET_TRIPLE="$TARGET" bash scripts/fetch-llama-sidecar.sh
           ls -la src-tauri/binaries/
 
@@ -267,24 +267,20 @@ jobs:
           # Add our keychain to the search list (don't replace user's, append).
           security list-keychains -d user -s "$KEYCHAIN_PATH" \
             $(security list-keychains -d user | sed -E 's/[[:space:]]*"([^"]+)"[[:space:]]*/\1 /g')
-          # Sign every embedded executable/dylib that ships in
-          # Contents/Resources/binaries/. Apple notarization rejects the app if
-          # any nested native file is unsigned.
-          # Apple notarization rejects the .app if ANY nested binary lacks
-          # Developer ID + hardened runtime + secure timestamp. Each item gets
-          # the same triple-signed treatment as the MCP sidecar.
+          # Sign every Mach-O file in binaries/ — including helper executables like
+          # piper_phonemize that don't match a simple name pattern. Apple notarization
+          # rejects the .app if ANY nested native binary is unsigned, so we detect by
+          # file type rather than by name. Dylibs are Mach-O shared libraries and are
+          # covered by the same check.
           while IFS= read -r -d '' BIN; do
-            codesign --force --options runtime --timestamp \
-              --sign "$APPLE_SIGNING_IDENTITY" \
-              "$BIN"
-            codesign --verify --verbose=2 "$BIN"
-            codesign -dvvv "$BIN" 2>&1 | grep -E "Authority|Timestamp|Runtime|flags" || true
-          done < <(find binaries -maxdepth 1 -type f \( \
-            -name 'keepance-mcp-*' -o \
-            -name 'piper-*' -o \
-            -name 'llama-server-*' -o \
-            -name '*.dylib' \
-          \) -print0)
+            if file "$BIN" | grep -q 'Mach-O'; then
+              codesign --force --options runtime --timestamp \
+                --sign "$APPLE_SIGNING_IDENTITY" \
+                "$BIN"
+              codesign --verify --verbose=2 "$BIN"
+              codesign -dvvv "$BIN" 2>&1 | grep -E "Authority|Timestamp|Runtime|flags" || true
+            fi
+          done < <(find binaries -maxdepth 1 -type f -print0)
           rm -f "$CERT_PATH"
 
       # Phase 4 M6 (v1.5 Flag 4) - Fetch the voice sidecar binary
@@ -449,7 +445,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          FETCH_PIPER_VOICE=0 TARGET_TRIPLE=x86_64-pc-windows-msvc bash scripts/fetch-piper-sidecar.sh
+          FETCH_PIPER_VOICE=1 TARGET_TRIPLE=x86_64-pc-windows-msvc bash scripts/fetch-piper-sidecar.sh
           TARGET_TRIPLE=x86_64-pc-windows-msvc bash scripts/fetch-llama-sidecar.sh
           ls -la src-tauri/binaries/
 
