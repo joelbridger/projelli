@@ -2,7 +2,9 @@
 //!
 //! Every method is a GET. This module must never add Graph write endpoints.
 
-use crate::commands::mail::graph::{page_continuation, Continuation, GraphClient};
+use crate::commands::mail::graph::{
+    page_continuation, Continuation, GraphClient, GraphTokenRefresh,
+};
 use crate::commands::onedrive::model::{DeltaPage, Drive, DriveItem, Site};
 
 const SELECT_ITEM: &str =
@@ -22,6 +24,22 @@ impl OneDriveClient {
     pub fn new_with_base(token: String, base: String) -> Self {
         Self {
             graph: GraphClient::new_with_base(token, base),
+        }
+    }
+
+    pub fn new_with_refresh(token: String, refresh: GraphTokenRefresh) -> Self {
+        Self {
+            graph: GraphClient::new_with_refresh(token, refresh),
+        }
+    }
+
+    pub fn new_with_base_and_refresh(
+        token: String,
+        base: String,
+        refresh: GraphTokenRefresh,
+    ) -> Self {
+        Self {
+            graph: GraphClient::new_with_base_and_refresh(token, base, Some(refresh)),
         }
     }
 

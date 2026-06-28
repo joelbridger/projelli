@@ -15,6 +15,7 @@ use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
+use crate::commands::mail::graph::{GraphTokenRefresh, GraphTokenRefreshFuture};
 use crate::commands::mail::oauth::{OAuth, TokenOutcome};
 use crate::commands::mail::provider::MailProvider;
 use crate::commands::mail::store::{EncryptedMailStore, MailListPage, MailListQuery, MailStore};
@@ -659,7 +660,10 @@ pub async fn mail_get_attachment(
     match provider.as_str() {
         "m365" => {
             let token = fresh_access_token().await?;
-            let client = crate::commands::mail::graph::GraphClient::new(token);
+            let client = crate::commands::mail::graph::GraphClient::new_with_refresh(
+                token,
+                graph_token_refresh(),
+            );
             let (bytes, content_type, filename) = client
                 .get_attachment(&message_id, &attachment_id)
                 .await
@@ -1088,6 +1092,16 @@ async fn fresh_access_token() -> Result<String, String> {
         TokenOutcome::Failed(e) => Err(format!("refresh failed: {e}")),
         _ => Err("unexpected refresh outcome".into()),
     }
+}
+
+fn graph_token_refresh() -> GraphTokenRefresh {
+    Arc::new(|| -> GraphTokenRefreshFuture {
+        Box::pin(async {
+            fresh_access_token()
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))
+        })
+    })
 }
 
 #[tauri::command]
@@ -1654,7 +1668,11 @@ async fn sync_m365_section(
     cancel: &Arc<AtomicBool>,
 ) -> Result<SectionOutcome, String> {
     let token = fresh_access_token().await?;
-    let folders = crate::commands::mail::graph::GraphProvider::new(token)
+    let refresh = graph_token_refresh();
+    let folders = crate::commands::mail::graph::GraphProvider::new_with_refresh(
+        token,
+        refresh.clone(),
+    )
         .list_folders()
         .await
         .map_err(|e| e.to_string())?;
@@ -1664,7 +1682,8 @@ async fn sync_m365_section(
             return Ok(SectionOutcome::Cancelled);
         }
         let token = fresh_access_token().await?;
-        let provider = crate::commands::mail::graph::GraphProvider::new(token);
+        let provider =
+            crate::commands::mail::graph::GraphProvider::new_with_refresh(token, refresh.clone());
         let folder_matter = resolve_mail_matter(matter_map, "m365", M365_ACCOUNT, &folder.id);
         let s = sync_one_folder(
             app, "m365", &provider, store, workspace, &folder, M365_ACCOUNT, &folder_matter,
@@ -1991,7 +2010,10 @@ async fn send_m365(
     attachments: Vec<AttachmentInput>,
 ) -> Result<String, String> {
     let token = fresh_access_token().await?; // returns "scope_upgrade_required" when needed
-    let client = crate::commands::mail::graph::GraphClient::new(token);
+    let client = crate::commands::mail::graph::GraphClient::new_with_refresh(
+        token,
+        graph_token_refresh(),
+    );
 
     // conversation_id is not stored in MailRecord; pass None for now.
     // Threading for M365 replies can be added when conversationId is stored.

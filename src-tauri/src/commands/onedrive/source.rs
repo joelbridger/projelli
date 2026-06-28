@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 
 use crate::commands::mail::graph::DeltaGone;
+use crate::commands::mail::graph::GraphTokenRefresh;
 use crate::commands::onedrive::client::OneDriveClient;
 use crate::commands::onedrive::model::{DeltaPage, Drive, DriveItem};
 
@@ -33,10 +34,35 @@ impl GraphDocumentSource {
         }
     }
 
+    pub fn new_for_default_drive_with_refresh(
+        token: String,
+        omit_select: bool,
+        refresh: GraphTokenRefresh,
+    ) -> Self {
+        Self {
+            client: OneDriveClient::new_with_refresh(token, refresh),
+            drive_id: None,
+            omit_select,
+        }
+    }
+
     #[allow(dead_code)]
     pub fn new_for_drive(token: String, drive_id: String, omit_select: bool) -> Self {
         Self {
             client: OneDriveClient::new(token),
+            drive_id: Some(drive_id),
+            omit_select,
+        }
+    }
+
+    pub fn new_for_drive_with_refresh(
+        token: String,
+        drive_id: String,
+        omit_select: bool,
+        refresh: GraphTokenRefresh,
+    ) -> Self {
+        Self {
+            client: OneDriveClient::new_with_refresh(token, refresh),
             drive_id: Some(drive_id),
             omit_select,
         }

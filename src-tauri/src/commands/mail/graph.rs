@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{future::Future, pin::Pin, sync::Arc, time::Duration};
 
 #[derive(Debug, PartialEq)]
 pub enum Continuation { Next(String), Delta(String), End }
@@ -14,34 +14,94 @@ impl std::fmt::Display for DeltaGone {
 }
 impl std::error::Error for DeltaGone {}
 
-pub struct GraphClient { token: String, base: String, http: reqwest::Client }
+pub type GraphTokenRefreshFuture = Pin<Box<dyn Future<Output = anyhow::Result<String>> + Send>>;
+pub type GraphTokenRefresh = Arc<dyn Fn() -> GraphTokenRefreshFuture + Send + Sync>;
+
+pub struct GraphClient {
+    token: tokio::sync::Mutex<String>,
+    refresh_lock: tokio::sync::Mutex<()>,
+    refresh: Option<GraphTokenRefresh>,
+    base: String,
+    http: reqwest::Client,
+}
 
 impl GraphClient {
     pub fn new(token: String) -> Self { Self::new_with_base(token, "https://graph.microsoft.com".into()) }
     pub fn new_with_base(token: String, base: String) -> Self {
+        Self::new_with_base_and_refresh(token, base, None)
+    }
+    pub fn new_with_refresh(token: String, refresh: GraphTokenRefresh) -> Self {
+        Self::new_with_base_and_refresh(token, "https://graph.microsoft.com".into(), Some(refresh))
+    }
+    pub fn new_with_base_and_refresh(
+        token: String,
+        base: String,
+        refresh: Option<GraphTokenRefresh>,
+    ) -> Self {
         // Bound every request so a hung connection can't stall a sync forever.
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(15))
             .build()
             .expect("build reqwest client");
-        Self { token, base, http }
+        Self {
+            token: tokio::sync::Mutex::new(token),
+            refresh_lock: tokio::sync::Mutex::new(()),
+            refresh,
+            base,
+            http,
+        }
     }
     pub fn base(&self) -> &str { &self.base }
+
+    async fn bearer_token(&self) -> String {
+        self.token.lock().await.clone()
+    }
+
+    async fn refresh_after_unauthorized(&self, stale_access: &str) -> anyhow::Result<bool> {
+        let Some(refresh) = &self.refresh else {
+            return Ok(false);
+        };
+        let _refresh_guard = self.refresh_lock.lock().await;
+        if self.bearer_token().await != stale_access {
+            return Ok(true);
+        }
+        let access = refresh().await.map_err(|e| {
+            anyhow::anyhow!("Microsoft Graph access token expired and refresh failed: {e}")
+        })?;
+        if access.trim().is_empty() {
+            anyhow::bail!("Microsoft Graph access token expired and refresh returned an empty token");
+        }
+        *self.token.lock().await = access;
+        Ok(true)
+    }
 
     /// GET an absolute Graph URL (used for nextLink/deltaLink which come back
     /// fully-formed), honoring 429/Retry-After with capped backoff. Up to 8 tries.
     pub async fn get_json(&self, url: &str) -> anyhow::Result<serde_json::Value> {
-        for attempt in 0..8u32 {
+        let mut throttle_attempt = 0u32;
+        let mut refreshed = false;
+        loop {
+            if throttle_attempt >= 8 {
+                anyhow::bail!("graph: throttled past retry budget");
+            }
+            let access = self.bearer_token().await;
             let resp = self.http.get(url)
-                .bearer_auth(&self.token)
+                .bearer_auth(&access)
                 .send().await?;
             if resp.status().as_u16() == 429 {
                 let ra = resp.headers().get("Retry-After").and_then(|v| v.to_str().ok()).map(String::from);
-                tokio::time::sleep(retry_delay(ra.as_deref(), attempt)).await;
+                tokio::time::sleep(retry_delay(ra.as_deref(), throttle_attempt)).await;
+                throttle_attempt += 1;
                 continue;
             }
             let status = resp.status();
+            if status.as_u16() == 401 && !refreshed {
+                if self.refresh_after_unauthorized(&access).await? {
+                    refreshed = true;
+                    continue;
+                }
+            }
             let body = resp.text().await?;
             if status.as_u16() == 410 {
                 log::warn!(
@@ -65,23 +125,35 @@ impl GraphClient {
             }
             return Ok(serde_json::from_str(&body)?);
         }
-        anyhow::bail!("graph: throttled past retry budget")
     }
 
     /// GET an absolute Graph URL and return raw response bytes. Used for
     /// OneDrive/SharePoint file downloads. Mirrors `get_json`'s retry and
     /// status-only UI error policy; raw error bodies are logged locally only.
     pub async fn get_bytes(&self, url: &str) -> anyhow::Result<Vec<u8>> {
-        for attempt in 0..8u32 {
+        let mut throttle_attempt = 0u32;
+        let mut refreshed = false;
+        loop {
+            if throttle_attempt >= 8 {
+                anyhow::bail!("graph: throttled past retry budget");
+            }
+            let access = self.bearer_token().await;
             let resp = self.http.get(url)
-                .bearer_auth(&self.token)
+                .bearer_auth(&access)
                 .send().await?;
             if resp.status().as_u16() == 429 {
                 let ra = resp.headers().get("Retry-After").and_then(|v| v.to_str().ok()).map(String::from);
-                tokio::time::sleep(retry_delay(ra.as_deref(), attempt)).await;
+                tokio::time::sleep(retry_delay(ra.as_deref(), throttle_attempt)).await;
+                throttle_attempt += 1;
                 continue;
             }
             let status = resp.status();
+            if status.as_u16() == 401 && !refreshed {
+                if self.refresh_after_unauthorized(&access).await? {
+                    refreshed = true;
+                    continue;
+                }
+            }
             if !status.is_success() {
                 let body = resp.text().await?;
                 log::warn!(
@@ -97,7 +169,6 @@ impl GraphClient {
             }
             return Ok(resp.bytes().await?.to_vec());
         }
-        anyhow::bail!("graph: throttled past retry budget")
     }
 
     /// Start a delta round for a folder (no cursor) or resume from a saved
@@ -154,11 +225,17 @@ impl GraphClient {
         url: &str,
         body: &serde_json::Value,
     ) -> anyhow::Result<serde_json::Value> {
-        for attempt in 0..8u32 {
+        let mut throttle_attempt = 0u32;
+        let mut refreshed = false;
+        loop {
+            if throttle_attempt >= 8 {
+                anyhow::bail!("graph: throttled past retry budget");
+            }
+            let access = self.bearer_token().await;
             let resp = self
                 .http
                 .post(url)
-                .bearer_auth(&self.token)
+                .bearer_auth(&access)
                 .json(body)
                 .send()
                 .await?;
@@ -168,10 +245,17 @@ impl GraphClient {
                     .get("Retry-After")
                     .and_then(|v| v.to_str().ok())
                     .map(String::from);
-                tokio::time::sleep(retry_delay(ra.as_deref(), attempt)).await;
+                tokio::time::sleep(retry_delay(ra.as_deref(), throttle_attempt)).await;
+                throttle_attempt += 1;
                 continue;
             }
             let status = resp.status();
+            if status.as_u16() == 401 && !refreshed {
+                if self.refresh_after_unauthorized(&access).await? {
+                    refreshed = true;
+                    continue;
+                }
+            }
             if status.as_u16() == 202 {
                 // sendMail returns 202 Accepted with an empty body.
                 return Ok(serde_json::json!({}));
@@ -188,7 +272,6 @@ impl GraphClient {
             }
             return Ok(serde_json::from_str(&body_text).unwrap_or(serde_json::json!({})));
         }
-        anyhow::bail!("graph: throttled past retry budget")
     }
 
     /// `POST /v1.0/me/sendMail` — compose and send a message immediately.
@@ -302,6 +385,16 @@ pub struct GraphProvider { client: GraphClient }
 impl GraphProvider {
     pub fn new(token: String) -> Self { Self { client: GraphClient::new(token) } }
     pub fn new_with_base(token: String, base: String) -> Self { Self { client: GraphClient::new_with_base(token, base) } }
+    pub fn new_with_refresh(token: String, refresh: GraphTokenRefresh) -> Self {
+        Self { client: GraphClient::new_with_refresh(token, refresh) }
+    }
+    pub fn new_with_base_and_refresh(
+        token: String,
+        base: String,
+        refresh: GraphTokenRefresh,
+    ) -> Self {
+        Self { client: GraphClient::new_with_base_and_refresh(token, base, Some(refresh)) }
+    }
 }
 
 #[async_trait]
@@ -404,6 +497,103 @@ mod tests {
         let page = client.get_json(&url).await.expect("page");
         assert_eq!(page_continuation(&page), Continuation::Delta("https://x/d?$deltatoken=tok".into()));
         assert_eq!(page["value"][0]["id"], "m1");
+    }
+
+    #[tokio::test]
+    async fn get_json_refreshes_access_token_once_on_401() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::{header, method, path};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1.0/me/drive/root/delta"))
+            .and(header("authorization", "Bearer OLD"))
+            .respond_with(ResponseTemplate::new(401).set_body_string("expired token"))
+            .mount(&server).await;
+        Mock::given(method("GET"))
+            .and(path("/v1.0/me/drive/root/delta"))
+            .and(header("authorization", "Bearer NEW"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "value": [{ "id": "file-1", "name": "Plan.docx" }]
+            })))
+            .mount(&server).await;
+
+        let refresh_count = Arc::new(AtomicUsize::new(0));
+        let refresh_seen = refresh_count.clone();
+        let refresh: GraphTokenRefresh = Arc::new(move || -> GraphTokenRefreshFuture {
+            let refresh_seen = refresh_seen.clone();
+            Box::pin(async move {
+                refresh_seen.fetch_add(1, Ordering::SeqCst);
+                Ok("NEW".to_string())
+            })
+        });
+        let client = GraphClient::new_with_base_and_refresh("OLD".into(), server.uri(), Some(refresh));
+        let url = format!("{}/v1.0/me/drive/root/delta", server.uri());
+
+        let page = client.get_json(&url).await.expect("401 should refresh and retry");
+
+        assert_eq!(refresh_count.load(Ordering::SeqCst), 1);
+        assert_eq!(page["value"][0]["id"], "file-1");
+    }
+
+    #[tokio::test]
+    async fn concurrent_401s_share_one_access_token_refresh() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1.0/me/drive/root/delta"))
+            .and(header("authorization", "Bearer OLD"))
+            .respond_with(ResponseTemplate::new(401).set_body_string("expired token"))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1.0/me/drive/root/delta"))
+            .and(header("authorization", "Bearer NEW"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "value": [{ "id": "file-1", "name": "Plan.docx" }]
+            })))
+            .mount(&server)
+            .await;
+
+        let refresh_count = Arc::new(AtomicUsize::new(0));
+        let refresh_seen = refresh_count.clone();
+        let refresh: GraphTokenRefresh = Arc::new(move || -> GraphTokenRefreshFuture {
+            let refresh_seen = refresh_seen.clone();
+            Box::pin(async move {
+                refresh_seen.fetch_add(1, Ordering::SeqCst);
+                tokio::time::sleep(Duration::from_millis(25)).await;
+                Ok("NEW".to_string())
+            })
+        });
+        let client = Arc::new(GraphClient::new_with_base_and_refresh(
+            "OLD".into(),
+            server.uri(),
+            Some(refresh),
+        ));
+        let url = format!("{}/v1.0/me/drive/root/delta", server.uri());
+
+        let mut tasks = Vec::new();
+        for _ in 0..5 {
+            let client = client.clone();
+            let url = url.clone();
+            tasks.push(tokio::spawn(async move { client.get_json(&url).await }));
+        }
+
+        for task in tasks {
+            let page = task.await.expect("task should join").expect("request should retry");
+            assert_eq!(page["value"][0]["id"], "file-1");
+        }
+        assert_eq!(refresh_count.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
