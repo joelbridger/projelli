@@ -68,7 +68,12 @@ export function AddeparConnect() {
     }
     setBusy(true);
     try {
-      const connectedInfo = await addeparConnect(fields[0]!, fields[1]!, fields[2]!, fields[3]!);
+      const connectedInfo = await addeparConnect(
+        apiKey.trim(),
+        apiSecret.trim(),
+        subdomain.trim(),
+        firmId.trim(),
+      );
       setInfo(connectedInfo);
       setConnected(true);
       setApiKey('');
@@ -256,8 +261,8 @@ function linkExactHouseholdMatches(
       : [];
 
     if (matches.length === 1) {
-      const match = matches[0]!;
-      if ((match.addeparKeys ?? []).length === 0 && !claimedMatterIds.has(match.id)) {
+      const match = matches[0];
+      if (match && (match.addeparKeys ?? []).length === 0 && !claimedMatterIds.has(match.id)) {
         addAddeparKey(match.id, entity.id);
         claimedMatterIds.add(match.id);
         linked += 1;
