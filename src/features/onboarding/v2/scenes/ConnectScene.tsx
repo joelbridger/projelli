@@ -4,15 +4,14 @@
  *
  * Wires the REAL data connectors. Rather than pixel-cloning the prototype's
  * three logo tiles with mock buttons, this reuses the actual, tested connector
- * components (MailConnect / MailGmailConnect / MailImapConnect / WealthboxConnect).
+ * components (MailConnect / MailGmailConnect / MailImapConnect /
+ * WealthboxConnect / OneDriveConnect).
  * That matters: those components don't just authenticate, they kick off the
  * background sync that the "Setting up your firm" progress bars read from. A
  * cloned tile would connect but never import.
  *
- * OneDrive (and the rest of the prototype's "coming soon" logos) are not yet
- * real connectors, so they render as honest "coming soon" slots — never a fake
- * connection. When a real OneDrive connector lands, drop its component in next
- * to the others.
+ * The remaining prototype logos render as honest "coming soon" slots — never
+ * fake connections.
  */
 
 import { useState } from 'react';
@@ -21,6 +20,7 @@ import { Lock, Monitor, EyeOff, ChevronDown } from 'lucide-react';
 import { MailConnect } from '@/features/settings/MailConnect';
 import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
 import { MailImapConnect } from '@/features/settings/MailImapConnect';
+import { OneDriveConnect } from '@/features/settings/OneDriveConnect';
 import { WealthboxConnect } from '@/features/settings/WealthboxConnect';
 
 import { SecurityPill } from '../components/SecurityPill';
@@ -49,6 +49,9 @@ export function ConnectScene() {
         </div>
         <div data-testid="connect-wealthbox">
           <WealthboxConnect />
+        </div>
+        <div data-testid="connect-onedrive">
+          <OneDriveConnect />
         </div>
       </div>
 
@@ -80,7 +83,6 @@ export function ConnectScene() {
       <div className="mt-8 w-full max-w-[760px] rounded-[20px] border border-[#0a2540]/8 bg-white/80 p-6">
         <div className="text-xs font-bold tracking-[0.08em] text-[#5b6b80]">{C.comingSoonLabel}</div>
         <div className="mt-4 flex flex-wrap items-center justify-center gap-x-7 gap-y-4 opacity-60">
-          <ComingSoonLogo name="OneDrive" file="onedrive.svg" />
           {ONB_COMING_SOON_LOGOS.map((logo) => (
             <ComingSoonLogo key={logo.name} name={logo.name} file={logo.file} />
           ))}
