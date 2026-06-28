@@ -109,6 +109,29 @@ jobs:
           CI: '1'
         run: cargo test --workspace --locked
 
+  cargo-deny:
+    # License + supply-chain gate. Fails the PR if a dependency introduces a
+    # disallowed license (e.g. strong copyleft like GPL/AGPL, which is unsafe to
+    # ship in this proprietary app), a known RUSTSEC security advisory, a yanked
+    # crate, or a source outside crates.io. The full policy and the reasoning
+    # behind every allowance/exception live in src-tauri/deny.toml.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # cargo-deny shells out to `cargo metadata`, so a toolchain must be on
+      # PATH. ubuntu-latest ships one, but install it explicitly (as the `rust`
+      # job does) so the gate doesn't depend on the runner image. No compiling
+      # happens here — cargo-deny only reads Cargo.toml/Cargo.lock metadata.
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-deny (prebuilt binary — no compile)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - name: cargo-deny check (advisories, licenses, sources, bans)
+        working-directory: ./src-tauri
+        run: cargo deny check advisories licenses sources bans
+
   e2e:
     # Browser E2E gatekeeper (2026-06-24 testing strategy): build the production-like
     # preview bundle and run the Playwright suite (chromium project) against it, so a
