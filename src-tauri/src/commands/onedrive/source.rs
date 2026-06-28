@@ -17,21 +17,28 @@ pub trait DocumentSource: Send + Sync {
 pub struct GraphDocumentSource {
     client: OneDriveClient,
     drive_id: Option<String>,
+    omit_delta_select: bool,
 }
 
 impl GraphDocumentSource {
     pub fn new(token: String) -> Self {
+        Self::new_for_default_drive(token, false)
+    }
+
+    pub fn new_for_default_drive(token: String, omit_delta_select: bool) -> Self {
         Self {
             client: OneDriveClient::new(token),
             drive_id: None,
+            omit_delta_select,
         }
     }
 
     #[allow(dead_code)]
-    pub fn new_for_drive(token: String, drive_id: String) -> Self {
+    pub fn new_for_drive(token: String, drive_id: String, omit_delta_select: bool) -> Self {
         Self {
             client: OneDriveClient::new(token),
             drive_id: Some(drive_id),
+            omit_delta_select,
         }
     }
 }
@@ -61,7 +68,7 @@ impl DocumentSource for GraphDocumentSource {
 
     async fn delta_root(&self, cursor: Option<&str>) -> anyhow::Result<DeltaPage> {
         self.client
-            .delta_root(self.drive_id.as_deref(), cursor)
+            .delta_root(self.drive_id.as_deref(), cursor, self.omit_delta_select)
             .await
     }
 

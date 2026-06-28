@@ -43,11 +43,24 @@ impl GraphClient {
             }
             let status = resp.status();
             let body = resp.text().await?;
-            if status.as_u16() == 410 { return Err(anyhow::Error::new(DeltaGone)); }
+            if status.as_u16() == 410 {
+                log::warn!(
+                    "graph request failed: url={} status={} body={}",
+                    url,
+                    status,
+                    body
+                );
+                return Err(anyhow::Error::new(DeltaGone));
+            }
             if !status.is_success() {
                 // Never surface the raw Graph body to the caller/UI: it can carry
                 // mailbox addresses or other PII. Log locally; return status only.
-                log::warn!("graph request failed (HTTP {}): {}", status, body);
+                log::warn!(
+                    "graph request failed: url={} status={} body={}",
+                    url,
+                    status,
+                    body
+                );
                 anyhow::bail!("Microsoft Graph request failed (HTTP {})", status);
             }
             return Ok(serde_json::from_str(&body)?);
@@ -57,7 +70,7 @@ impl GraphClient {
 
     /// GET an absolute Graph URL and return raw response bytes. Used for
     /// OneDrive/SharePoint file downloads. Mirrors `get_json`'s retry and
-    /// status-only error policy; raw bodies are never logged or surfaced.
+    /// status-only UI error policy; raw error bodies are logged locally only.
     pub async fn get_bytes(&self, url: &str) -> anyhow::Result<Vec<u8>> {
         for attempt in 0..8u32 {
             let resp = self.http.get(url)
@@ -69,9 +82,17 @@ impl GraphClient {
                 continue;
             }
             let status = resp.status();
-            if status.as_u16() == 410 { return Err(anyhow::Error::new(DeltaGone)); }
             if !status.is_success() {
-                log::warn!("graph byte request failed (HTTP {})", status);
+                let body = resp.text().await?;
+                log::warn!(
+                    "graph byte request failed: url={} status={} body={}",
+                    url,
+                    status,
+                    body
+                );
+                if status.as_u16() == 410 {
+                    return Err(anyhow::Error::new(DeltaGone));
+                }
                 anyhow::bail!("Microsoft Graph request failed (HTTP {})", status);
             }
             return Ok(resp.bytes().await?.to_vec());
@@ -157,7 +178,12 @@ impl GraphClient {
             }
             let body_text = resp.text().await?;
             if !status.is_success() {
-                log::warn!("graph POST failed (HTTP {}): {}", status, body_text);
+                log::warn!(
+                    "graph POST failed: url={} status={} body={}",
+                    url,
+                    status,
+                    body_text
+                );
                 anyhow::bail!("Microsoft Graph request failed (HTTP {})", status);
             }
             return Ok(serde_json::from_str(&body_text).unwrap_or(serde_json::json!({})));
