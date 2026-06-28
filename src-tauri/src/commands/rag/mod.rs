@@ -253,7 +253,30 @@ pub async fn index_downloaded_document_bytes(
     key: &[u8; 32],
     cancel: Option<&AtomicBool>,
 ) -> anyhow::Result<DownloadedDocumentIndexOutcome> {
+    index_downloaded_document_bytes_as_source_type(
+        table, source_id, filename, bytes, matter_id, privilege, key, cancel, "onedrive",
+    )
+    .await
+}
+
+/// Same as `index_downloaded_document_bytes`, but lets connector engines name
+/// their own external source type while reusing the exact same extraction,
+/// chunking, embedding, and encrypted LanceDB write path.
+#[allow(clippy::too_many_arguments)]
+pub async fn index_downloaded_document_bytes_as_source_type(
+    table: &lancedb::Table,
+    source_id: &str,
+    filename: &str,
+    bytes: &[u8],
+    matter_id: &str,
+    privilege: &str,
+    key: &[u8; 32],
+    cancel: Option<&AtomicBool>,
+    source_type: &str,
+) -> anyhow::Result<DownloadedDocumentIndexOutcome> {
     use anyhow::Context;
+
+    store::validate_external_source_type(source_type)?;
 
     if let Some(flag) = cancel {
         if flag.load(Ordering::SeqCst) {
@@ -311,7 +334,7 @@ pub async fn index_downloaded_document_bytes(
         return Ok(DownloadedDocumentIndexOutcome::Indexed(0));
     }
 
-    let batch = store::build_batch_external(&rows, key, matter_id, privilege, "onedrive")
+    let batch = store::build_batch_external(&rows, key, matter_id, privilege, source_type)
         .context("build downloaded document batch")?;
     let schema = batch.schema();
     use arrow_array::RecordBatchIterator;

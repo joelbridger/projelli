@@ -382,6 +382,10 @@ export function buildSharefileMatterMap(
     matters,
     (m) => m.sharefileFolderKeys,
     (folderKey, matterId) => ({ folderKey, matterId })
+  ).sort(
+    (a, b) =>
+      connectorFolderPathLength(b.folderKey) -
+      connectorFolderPathLength(a.folderKey)
   );
 }
 
@@ -404,6 +408,10 @@ export function buildAddeparMatterMap(
 }
 
 function oneDriveFolderPathLength(folderKey: string): number {
+  return connectorFolderPathLength(folderKey);
+}
+
+function connectorFolderPathLength(folderKey: string): number {
   const colon = folderKey.lastIndexOf(':');
   return colon >= 0 ? folderKey.slice(colon + 1).length : folderKey.length;
 }
