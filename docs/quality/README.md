@@ -41,6 +41,7 @@ We test in **layers**, cheapest first. Thousands of small automated tests run on
 - **[2026-06-20-real-software-test-results.md](2026-06-20-real-software-test-results.md)** — the narrative log of what was actually driven and what happened.
 
 ### Operational reference
+- **[TROUBLESHOOTING_TESTS.md](TROUBLESHOOTING_TESTS.md)** — debugging a failing test, layer by layer: Vitest (jsdom polyfills, the confidentiality-mode seed, mocks, stores), Playwright (the CI quarantine, ports, cold-start timing, visual baselines), and Rust (the `REQUIRE_RAG_MODEL` skip, the cargo build lock, system deps). Read this when a test goes red.
 - **[e2e-suite-batching.md](e2e-suite-batching.md)** — why the browser suite runs in shards / via a preview server (server memory pressure) and how.
 - **[DEFINITION_OF_DONE.md](DEFINITION_OF_DONE.md)** — the merge bar (note: pre-3.0 branding, due a refresh).
 - **Bench setup + operation:** `docs/operations/2026-06-19-test-bench-operations-guide.md` (daily use), `...-test-bench-setup-plan.md` (one-time setup), `...-ai-dev-velocity-strategy.md` (the why).
