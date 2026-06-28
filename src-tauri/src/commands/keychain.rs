@@ -25,11 +25,29 @@ const INTERNAL_EXACT_SERVICES: &[&str] = &[
     "keepance-mail-ms",
     "keepance-mail-imap",
     "keepance-mail-gmail",
+    // OneDrive connector: the Microsoft refresh token lives under this exact
+    // service (it does NOT share the `keepance-onedrive-` prefix below). The
+    // connector's SQLCipher master key uses `keepance-onedrive-enc`, covered
+    // by the prefix. Both are Rust-owned and read via keyring::Entry directly.
+    "keepance-docs-ms",
+    // CRM connector legacy Wealthbox token slot (pre-`keepance-crm-` naming).
+    // The live slots all use the `keepance-crm-` prefix below.
+    "keepance-wealthbox",
 ];
 const INTERNAL_SERVICE_PREFIXES: &[&str] = &[
     // Vault VMKs are Rust-owned. Firm collaboration keys use
     // com.keepance.matter/user/device and intentionally remain renderer-owned.
     "com.keepance.vault.",
+    // CRM connector namespace. Covers every per-provider token slot
+    // (`keepance-crm-wealthbox` / `-salesforce` / `-redtail`, built as
+    // `format!("keepance-crm-{}", id)` in crm/provider.rs) and the SQLCipher
+    // master key (`keepance-crm-enc`). Prefix-based so a future CRM provider
+    // under the same namespace is denied to the renderer by default.
+    "keepance-crm-",
+    // OneDrive connector namespace. Covers the SQLCipher master key
+    // (`keepance-onedrive-enc`) and any future OneDrive-scoped secret. The
+    // refresh token's exact service `keepance-docs-ms` is listed above.
+    "keepance-onedrive-",
 ];
 
 /// Structured error returned to the frontend. Separating "not found" from
@@ -86,6 +104,17 @@ fn resolve_service(service: Option<String>) -> String {
 
 fn is_internal_service(service: &str) -> bool {
     let normalized = service.trim();
+    // Fail closed on control characters (NUL especially). Some OS keychain
+    // backends truncate a target name at an interior NUL: on Windows, keyring
+    // hands a NUL-terminated string to Credential Manager, so a renderer-
+    // supplied name like "keepance-docs-ms\0x" would NOT match the exact
+    // denylist below in Rust, yet resolve to the real internal entry at the OS
+    // layer — a denylist bypass. Any control character makes the name suspect,
+    // and no legitimate renderer-owned service (com.keepance.*) contains one,
+    // so we treat it as internal (denied).
+    if normalized.chars().any(|c| c.is_control()) {
+        return true;
+    }
     INTERNAL_EXACT_SERVICES.contains(&normalized)
         || INTERNAL_SERVICE_PREFIXES
             .iter()
@@ -186,11 +215,98 @@ mod tests {
         ));
     }
 
+    /// Connector secrets (OneDrive + CRM) must be denied to the renderer bridge
+    /// for get/set/delete. These are Rust-owned token + DB-encryption services;
+    /// a compromised renderer must not be able to read them via keychain_get.
+    #[test]
+    fn connector_secret_services_are_denied() {
+        // Every connector service name that exists in the codebase today.
+        let denied = [
+            // OneDrive
+            "keepance-docs-ms",      // MS refresh token (exact)
+            "keepance-onedrive-enc", // SQLCipher master key (prefix)
+            // CRM (Wealthbox / Salesforce / Redtail) + legacy slot
+            "keepance-crm-wealthbox",
+            "keepance-crm-salesforce",
+            "keepance-crm-redtail",
+            "keepance-crm-enc", // SQLCipher master key
+            "keepance-wealthbox", // legacy Wealthbox slot (exact)
+            // Future connectors under the same namespaces must be denied by default.
+            "keepance-crm-newprovider",
+            "keepance-onedrive-future-secret",
+        ];
+        for svc in denied {
+            assert!(
+                is_internal_service(svc),
+                "service '{svc}' must be classified internal"
+            );
+            // The renderer bridge denies all three operations equally because
+            // every command calls validate_renderer_service_access first.
+            assert!(
+                matches!(
+                    validate_renderer_service_access(svc)
+                        .expect_err("connector service must be denied"),
+                    KeychainError::Denied(_)
+                ),
+                "service '{svc}' must be denied to the renderer"
+            );
+            // Trimmed/padded input must not bypass the check.
+            assert!(
+                is_internal_service(&format!("  {svc}  ")),
+                "padded service '{svc}' must still be denied"
+            );
+        }
+    }
+
+    /// Regression: a control character (e.g. an interior NUL) must not let a
+    /// renderer alias an exact-denied connector service. Some OS keychains
+    /// truncate the target name at NUL, so this would otherwise resolve to the
+    /// real secret. Fail closed: any control char => denied.
+    #[test]
+    fn control_chars_in_service_are_denied() {
+        for svc in [
+            "keepance-docs-ms\0x",
+            "keepance-wealthbox\0",
+            "com.keepance.app\0keepance-docs-ms",
+            "normal\u{007f}name",
+            "tab\tname",
+        ] {
+            assert!(
+                is_internal_service(svc),
+                "service with control char must be denied: {svc:?}"
+            );
+            assert!(matches!(
+                validate_renderer_service_access(svc).expect_err("must deny"),
+                KeychainError::Denied(_)
+            ));
+        }
+    }
+
     #[test]
     fn user_key_service_is_not_denied() {
         let svc = resolve_service(Some("com.keepance.app".to_string()));
         assert_eq!(svc, "com.keepance.app");
         assert!(!is_internal_service(&svc));
+    }
+
+    /// The renderer legitimately owns the firm collaboration namespaces
+    /// (user/matter/device) and the default app service. Adding connector
+    /// denials must NOT accidentally deny these.
+    #[test]
+    fn renderer_owned_services_remain_allowed() {
+        for svc in [
+            "com.keepance.app",
+            "com.keepance.user.abc123",
+            "com.keepance.matter.matter-42",
+            "com.keepance.device.dev-9",
+            "com.keepance.device.meta",
+        ] {
+            assert!(
+                !is_internal_service(svc),
+                "renderer-owned service '{svc}' must stay allowed"
+            );
+            assert!(validate_renderer_service_access(svc).is_ok());
+        }
     }
 
     #[test]
