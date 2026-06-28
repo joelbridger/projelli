@@ -87,13 +87,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2
-      - name: Stage Piper sidecar stub (tauri externalBin existence check)
-        # The gate runs cargo test before the build job stages the real Piper;
-        # tauri validates binaries/piper exists before compiling, so stub it.
+      - name: Stage sidecar stubs (tauri externalBin existence check)
+        # The gate runs cargo test before the build jobs stage the real
+        # sidecars; tauri validates externalBin paths before compiling, so
+        # use tiny stubs here only.
         run: |
           mkdir -p src-tauri/binaries
           printf '#!/bin/sh\nexit 0\n' > src-tauri/binaries/piper-x86_64-unknown-linux-gnu
+          printf '#!/bin/sh\nexit 0\n' > src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu
           chmod +x src-tauri/binaries/piper-x86_64-unknown-linux-gnu
+          chmod +x src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu
       - name: Rust tests
         working-directory: ./src-tauri
         env: { CI: '1' }
@@ -187,37 +190,23 @@ jobs:
       # release artifact is pinned, the step is a no-op and voice features
       # are marked "binary required; see docs" in V1_5_RELEASE.md.
       #
-      # v2.0 Stream B: Piper TTS sidecar. Listed in tauri.conf.json
-      # externalBin, so Tauri's build.rs validates presence on every cargo
-      # invocation (including the MCP stub build below). Must stage BEFORE
-      # any cargo build runs. Inputs are matrix-defined, not user input.
-      - name: Fetch Piper TTS sidecar (Mac/Linux)
+      # Piper and llama.cpp are listed in tauri.conf.json externalBin, so
+      # Tauri's build.rs validates presence on every cargo invocation. Stage
+      # the real binaries and sibling runtime libraries BEFORE any cargo build.
+      - name: Fetch local sidecars (Mac/Linux)
         shell: bash
-        working-directory: src-tauri
         env:
           MATRIX_ARGS: ${{ matrix.args }}
         run: |
           set -euo pipefail
-          PIPER_VERSION="2023.11.14-2"
-          mkdir -p binaries
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             TARGET="${MATRIX_ARGS##*--target }"
-            case "$TARGET" in
-              aarch64-apple-darwin) ARCHIVE="piper_macos_aarch64.tar.gz" ;;
-              x86_64-apple-darwin)  ARCHIVE="piper_macos_x64.tar.gz" ;;
-              *) echo "Unknown Mac target: $TARGET" >&2; exit 1 ;;
-            esac
           else
             TARGET="x86_64-unknown-linux-gnu"
-            ARCHIVE="piper_linux_x86_64.tar.gz"
           fi
-          TMP="$(mktemp -d)"
-          curl -fsSL "https://github.com/rhasspy/piper/releases/download/$PIPER_VERSION/$ARCHIVE" -o "$TMP/piper.tar.gz"
-          tar -xzf "$TMP/piper.tar.gz" -C "$TMP"
-          cp "$TMP/piper/piper" "binaries/piper-$TARGET"
-          chmod +x "binaries/piper-$TARGET"
-          rm -rf "$TMP"
-          ls -la binaries/
+          FETCH_PIPER_VOICE=0 TARGET_TRIPLE="$TARGET" bash scripts/fetch-piper-sidecar.sh
+          TARGET_TRIPLE="$TARGET" bash scripts/fetch-llama-sidecar.sh
+          ls -la src-tauri/binaries/
 
       - name: Build Keepance MCP stub binary (Mac/Linux)
         shell: bash
@@ -278,21 +267,24 @@ jobs:
           # Add our keychain to the search list (don't replace user's, append).
           security list-keychains -d user -s "$KEYCHAIN_PATH" \
             $(security list-keychains -d user | sed -E 's/[[:space:]]*"([^"]+)"[[:space:]]*/\1 /g')
-          # Sign every embedded binary that ships in Contents/Resources/binaries/.
+          # Sign every embedded executable/dylib that ships in
+          # Contents/Resources/binaries/. Apple notarization rejects the app if
+          # any nested native file is unsigned.
           # Apple notarization rejects the .app if ANY nested binary lacks
           # Developer ID + hardened runtime + secure timestamp. Each item gets
           # the same triple-signed treatment as the MCP sidecar.
-          for BIN in "binaries/keepance-mcp-" "binaries/piper-${MCP_TARGET}"; do
-            if [ ! -f "$BIN" ]; then
-              echo "warn: expected binary missing: $BIN"
-              continue
-            fi
+          while IFS= read -r -d '' BIN; do
             codesign --force --options runtime --timestamp \
               --sign "$APPLE_SIGNING_IDENTITY" \
               "$BIN"
             codesign --verify --verbose=2 "$BIN"
             codesign -dvvv "$BIN" 2>&1 | grep -E "Authority|Timestamp|Runtime|flags" || true
-          done
+          done < <(find binaries -maxdepth 1 -type f \( \
+            -name 'keepance-mcp-*' -o \
+            -name 'piper-*' -o \
+            -name 'llama-server-*' -o \
+            -name '*.dylib' \
+          \) -print0)
           rm -f "$CERT_PATH"
 
       # Phase 4 M6 (v1.5 Flag 4) - Fetch the voice sidecar binary
@@ -450,29 +442,16 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      # v2.0 Stream B: Piper TTS sidecar. Listed in tauri.conf.json
-      # externalBin, so Tauri's build.rs validates presence on every cargo
-      # invocation (including the MCP stub build below). Must stage BEFORE
-      # any cargo build runs.
-      - name: Fetch Piper TTS sidecar (Windows)
-        shell: pwsh
-        working-directory: src-tauri
+      # Piper and llama.cpp are listed in tauri.conf.json externalBin, so
+      # Tauri's build.rs validates presence on every cargo invocation. Stage
+      # the real Windows binaries and sibling DLLs BEFORE any cargo build.
+      - name: Fetch local sidecars (Windows)
+        shell: bash
         run: |
-          $ErrorActionPreference = "Stop"
-          $piperVersion = "2023.11.14-2"
-          $archive = "piper_windows_amd64.zip"
-          $url = "https://github.com/rhasspy/piper/releases/download/$piperVersion/$archive"
-          New-Item -ItemType Directory -Force -Path "binaries" | Out-Null
-          $tmp = Join-Path $env:TEMP "piper-win-$([System.Guid]::NewGuid())"
-          New-Item -ItemType Directory -Force -Path $tmp | Out-Null
-          $zipPath = Join-Path $tmp "piper.zip"
-          Invoke-WebRequest -Uri $url -OutFile $zipPath
-          Expand-Archive -Path $zipPath -DestinationPath $tmp -Force
-          $piperExe = Get-ChildItem -Path $tmp -Recurse -Include 'piper.exe' | Select-Object -First 1
-          if (-not $piperExe) { throw "piper.exe not found in archive" }
-          Copy-Item $piperExe.FullName "binaries/piper-x86_64-pc-windows-msvc.exe"
-          Remove-Item -Recurse -Force $tmp
-          Get-ChildItem binaries
+          set -euo pipefail
+          FETCH_PIPER_VOICE=0 TARGET_TRIPLE=x86_64-pc-windows-msvc bash scripts/fetch-piper-sidecar.sh
+          TARGET_TRIPLE=x86_64-pc-windows-msvc bash scripts/fetch-llama-sidecar.sh
+          ls -la src-tauri/binaries/
 
       # Phase 2 (v1.5) - stage the stub MCP sidecar binary. See the Mac/Linux
       # job above for rationale. Windows uses the MSVC host triple.

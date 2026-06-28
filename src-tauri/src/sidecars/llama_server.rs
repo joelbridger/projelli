@@ -348,7 +348,20 @@ fn target_triple() -> String {
         }
 }
 
+fn triple_named_llama_server() -> String {
+    format!("llama-server-{}", target_triple())
+}
+
 pub fn find_llama_server_in(root: &Path) -> Option<PathBuf> {
+    // In packaged installs Tauri's externalBin copy is placed at the install
+    // root, but llama.cpp's runtime DLLs/shared libs are bundled under
+    // resources/binaries. Prefer the triple-named resource binary there so the
+    // executable and its sibling libraries stay in the same directory.
+    let candidate = root.join(with_platform_ext(&triple_named_llama_server()));
+    if candidate.exists() {
+        return Some(candidate);
+    }
+
     let candidate = root.join(with_platform_ext("llama-server"));
     if candidate.exists() {
         return Some(candidate);
@@ -370,11 +383,7 @@ pub fn resolve_llama_server_binary(app: &AppHandle) -> Option<PathBuf> {
 
     let dev_candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("binaries")
-        .join(format!(
-            "llama-server-{}{}",
-            target_triple(),
-            if cfg!(windows) { ".exe" } else { "" }
-        ));
+        .join(with_platform_ext(&triple_named_llama_server()));
     if dev_candidate.exists() {
         return Some(dev_candidate);
     }
@@ -457,6 +466,34 @@ mod tests {
         };
         let expected = tmp.path().join(name);
         fs::write(&expected, b"fake binary").unwrap();
+        assert_eq!(
+            find_llama_server_in(tmp.path()).as_deref(),
+            Some(expected.as_path())
+        );
+    }
+
+    #[test]
+    fn find_llama_server_prefers_triple_named_binary() {
+        let tmp = tempfile::tempdir().unwrap();
+        let expected = tmp
+            .path()
+            .join(with_platform_ext(&triple_named_llama_server()));
+        fs::write(&expected, b"fake binary").unwrap();
+        assert_eq!(
+            find_llama_server_in(tmp.path()).as_deref(),
+            Some(expected.as_path())
+        );
+    }
+
+    #[test]
+    fn find_llama_server_prefers_triple_named_over_plain_binary() {
+        let tmp = tempfile::tempdir().unwrap();
+        let expected = tmp
+            .path()
+            .join(with_platform_ext(&triple_named_llama_server()));
+        let plain = tmp.path().join(with_platform_ext("llama-server"));
+        fs::write(&expected, b"fake triple binary").unwrap();
+        fs::write(&plain, b"fake plain binary").unwrap();
         assert_eq!(
             find_llama_server_in(tmp.path()).as_deref(),
             Some(expected.as_path())

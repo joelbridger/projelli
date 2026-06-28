@@ -45,20 +45,8 @@ fn with_platform_ext(name: &str) -> String {
     }
 }
 
-/// Resolve the Piper binary path. Returns None when not bundled.
-pub fn resolve_piper_binary(app: &AppHandle) -> Option<PathBuf> {
-    let binary_name = with_platform_ext("piper");
-
-    // 1. Release: resource dir + binaries/
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        let candidate = resource_dir.join("binaries").join(&binary_name);
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-
-    // 2. Dev: src-tauri/binaries/<name>-<target-triple>
-    let target_triple = std::env::consts::ARCH.to_string()
+fn target_triple() -> String {
+    std::env::consts::ARCH.to_string()
         + "-"
         + if cfg!(target_os = "windows") {
             "pc-windows-msvc"
@@ -66,15 +54,45 @@ pub fn resolve_piper_binary(app: &AppHandle) -> Option<PathBuf> {
             "apple-darwin"
         } else {
             "unknown-linux-gnu"
-        };
+        }
+}
 
+fn triple_named_piper() -> String {
+    format!("piper-{}", target_triple())
+}
+
+fn find_piper_in(root: &std::path::Path) -> Option<PathBuf> {
+    // Prefer the resource-bundled, triple-named binary because its DLLs/shared
+    // libs are copied into the same binaries directory by the staging scripts.
+    let candidate = root.join(with_platform_ext(&triple_named_piper()));
+    if candidate.exists() {
+        return Some(candidate);
+    }
+
+    let candidate = root.join(with_platform_ext("piper"));
+    if candidate.exists() {
+        return Some(candidate);
+    }
+
+    None
+}
+
+/// Resolve the Piper binary path. Returns None when not bundled.
+pub fn resolve_piper_binary(app: &AppHandle) -> Option<PathBuf> {
+    // 1. Release: resource dir + binaries/
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        if let Some(path) = find_piper_in(&resource_dir.join("binaries")) {
+            return Some(path);
+        }
+        if let Some(path) = find_piper_in(&resource_dir) {
+            return Some(path);
+        }
+    }
+
+    // 2. Dev: src-tauri/binaries/<name>-<target-triple>
     let dev_candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("binaries")
-        .join(format!(
-            "piper-{}{}",
-            target_triple,
-            if cfg!(windows) { ".exe" } else { "" }
-        ));
+        .join(with_platform_ext(&triple_named_piper()));
     if dev_candidate.exists() {
         return Some(dev_candidate);
     }
@@ -89,10 +107,7 @@ pub fn resolve_voice_model(app: &AppHandle, voice_id: &str) -> Option<PathBuf> {
 
     // Bundled voices live in resource_dir/voices/<voice-id>/
     if let Ok(resource_dir) = app.path().resource_dir() {
-        let bundled = resource_dir
-            .join("voices")
-            .join(voice_id)
-            .join(&onnx_name);
+        let bundled = resource_dir.join("voices").join(voice_id).join(&onnx_name);
         if bundled.exists() {
             return Some(bundled);
         }
@@ -118,8 +133,7 @@ pub fn resolve_voice_model(app: &AppHandle, voice_id: &str) -> Option<PathBuf> {
 /// and the "Read aloud" button.
 #[tauri::command]
 pub async fn tts_sidecar_available(app: AppHandle) -> bool {
-    resolve_piper_binary(&app).is_some()
-        && resolve_voice_model(&app, "en_US-amy-medium").is_some()
+    resolve_piper_binary(&app).is_some() && resolve_voice_model(&app, "en_US-amy-medium").is_some()
 }
 
 /// Synthesize text and return WAV bytes.
@@ -234,5 +248,27 @@ mod tests {
         let fake_root = PathBuf::from("/nonexistent-keepance-test-dir");
         let candidate = fake_root.join("binaries").join(with_platform_ext("piper"));
         assert!(!candidate.exists());
+    }
+
+    #[test]
+    fn find_piper_prefers_triple_named_binary() {
+        let tmp = tempfile::tempdir().unwrap();
+        let expected = tmp.path().join(with_platform_ext(&triple_named_piper()));
+        std::fs::write(&expected, b"fake binary").unwrap();
+        assert_eq!(
+            find_piper_in(tmp.path()).as_deref(),
+            Some(expected.as_path())
+        );
+    }
+
+    #[test]
+    fn find_piper_still_accepts_plain_binary() {
+        let tmp = tempfile::tempdir().unwrap();
+        let expected = tmp.path().join(with_platform_ext("piper"));
+        std::fs::write(&expected, b"fake binary").unwrap();
+        assert_eq!(
+            find_piper_in(tmp.path()).as_deref(),
+            Some(expected.as_path())
+        );
     }
 }
