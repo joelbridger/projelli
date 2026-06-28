@@ -1,0 +1,312 @@
+{
+  "_comment": "WS3b COMMITTED retrieval-quality baseline — the reference a future retrieval reranker must BEAT. Measured against the REAL shipped stack (fastembed multilingual-e5-small + LanceDB) over the shared distractor corpus by src-tauri/tests/rag_retrieval_quality.rs. Regenerate with: REQUIRE_RAG_MODEL=1 cargo test -p keepance --test rag_retrieval_quality -- --nocapture, then copy results/retrieval-latest.json's summary+cases here. P@3/P@5 are intentionally low: most queries have a single relevant document, so P@3 maxes at 0.333 and P@5 at 0.200 — MRR / NDCG@5 / Hit@K are the meaningful signals.",
+  "model": "multilingual-e5-small",
+  "engine": "fastembed + lancedb (real shipped stack)",
+  "capturedAt": "2026-06-28",
+  "floor": {
+    "mrr": 0.7,
+    "hitAt3": 0.8
+  },
+  "summary": {
+    "hitAt1": 0.8666666666666667,
+    "hitAt3": 1,
+    "hitAt5": 1,
+    "mrr": 0.9333333333333333,
+    "n": 15,
+    "ndcgAt5": 0.9507906338095277,
+    "pAt1": 0.8666666666666667,
+    "pAt3": 0.33333333333333326,
+    "pAt5": 0.20000000000000004
+  },
+  "cases": [
+    {
+      "expectedSources": [
+        "johnson-deposition.md"
+      ],
+      "id": "r-johnson-severance",
+      "rankOfFirstRelevant": 1,
+      "rankedSources": [
+        "johnson-deposition.md",
+        "johnson-incident-summary.md",
+        "johnston-deposition.md",
+        "johnson-engagement-letter.md",
+        "johnston-engagement-letter.md",
+        "nexus-diagnostics-nda.md",
+        "acme-supply-agreement.md",
+        "acme-intake-memo.md"
+      ],
+      "reciprocalRank": 1,
+      "scope": "allMatters",
+      "topK": 10
+    },
+    {
+      "expectedSources": [
+        "johnston-deposition.md"
+      ],
+      "id": "r-johnston-severance",
+      "rankOfFirstRelevant": 1,
+      "rankedSources": [
+        "johnston-deposition.md",
+        "johnston-engagement-letter.md",
+        "johnson-incident-summary.md",
+        "johnson-deposition.md",
+        "johnson-engagement-letter.md",
+        "acme-intake-memo.md",
+        "acme-supply-agreement.md",
+        "nexus-diagnostics-nda.md"
+      ],
+      "reciprocalRank": 1,
+      "scope": "allMatters",
+      "topK": 10
+    },
+    {
+      "expectedSources": [
+        "johnson-engagement-letter.md"
+      ],
+      "id": "r-johnson-rate",
+      "rankOfFirstRelevant": 1,
+      "rankedSources": [
+        "johnson-engagement-letter.md",
+        "johnston-engagement-letter.md",
+        "johnson-deposition.md",
+        "johnson-incident-summary.md",
+        "johnston-deposition.md",
+        "nexus-diagnostics-nda.md",
+        "acme-supply-agreement.md",
+        "acme-intake-memo.md"
+      ],
+      "reciprocalRank": 1,
+      "scope": "allMatters",
+      "topK": 10
+    },
+    {
+      "expectedSources": [
+        "johnston-engagement-letter.md"
+      ],
+      "id": "r-johnston-rate",
+      "rankOfFirstRelevant": 1,
+      "rankedSources": [
+        "johnston-engagement-letter.md",
+        "johnson-engagement-letter.md",
+        "johnston-deposition.md",
+        "johnson-deposition.md",
+        "johnson-incident-summary.md",
+        "acme-intake-memo.md",
+        "nexus-diagnostics-nda.md",
+        "acme-supply-agreement.md"
+      ],
+      "reciprocalRank": 1,
+      "scope": "allMatters",
+      "topK": 10
+    },
+    {
+      "expectedSources": [
+        "johnston-deposition.md"
+      ],
+      "id": "r-johnston-employer",
+      "rankOfFirstRelevant": 1,
+      "rankedSources": [
+        "johnston-deposition.md",
+        "johnson-deposition.md",
+        "johnson-incident-summary.md",
+        "johnston-engagement-letter.md",
+        "johnson-engagement-letter.md",
+        "acme-intake-memo.md",
+        "nexus-diagnostics-nda.md",
+        "acme-supply-agreement.md"
+      ],
+      "reciprocalRank": 1,
+      "scope": "allMatters",
+      "topK": 10
+    },
+    {
+      "expectedSources": [
+        "johnston-deposition.md"
+      ],
+      "id": "r-johnston-deadline",
+      "rankOfFirstRelevant": 1,
+      "rankedSources": [
+        "johnston-deposition.md",
+        "johnson-incident-summary.md",
+        "johnson-deposition.md",
+        "johnston-engagement-letter.md",
+        "johnson-engagement-letter.md",
+        "nexus-diagnostics-nda.md",
+        "acme-intake-memo.md",
+        "acme-supply-agreement.md"
+      ],
+      "reciprocalRank": 1,
+      "scope": "allMatters",
+      "topK": 10
+    },
+    {
+      "expectedSources": [
+        "johnson-engagement-letter.md"
+      ],
+      "id": "r-johnson-attorney",
+      "rankOfFirstRelevant": 2,
+      "rankedSources": [
+        "johnson-deposition.md",
+        "johnson-engagement-letter.md",
+        "johnson-incident-summary.md",
+        "johnston-engagement-letter.md",
+        "johnston-deposition.md",
+        "acme-intake-memo.md",
+        "nexus-diagnostics-nda.md",
+        "acme-supply-agreement.md"
+      ],
+      "reciprocalRank": 0.5,
+      "scope": "allMatters",
+      "topK": 10
+    },
+    {
+      "expectedSources": [
+        "nexus-diagnostics-nda.md"
+      ],
+      "id": "r-telomere-rider",
+      "rankOfFirstRelevant": 1,
+      "rankedSources": [
+        "nexus-diagnostics-nda.md",
+        "acme-supply-agreement.md",
+        "acme-intake-memo.md",
+        "johnston-engagement-letter.md",
+        "johnson-engagement-letter.md",
+        "johnston-deposition.md",
+        "johnson-deposition.md",
+        "johnson-incident-summary.md"
+      ],
+      "reciprocalRank": 1,
+      "scope": "allMatters",
+      "topK": 10
+    },
+    {
+      "expectedSources": [
+        "nexus-diagnostics-nda.md"
+      ],
+      "id": "r-ta204-damages",
+      "rankOfFirstRelevant": 1,
+      "rankedSources": [
+        "nexus-diagnostics-nda.md",
+        "acme-supply-agreement.md",
+        "acme-intake-memo.md",
+        "johnson-engagement-letter.md",
+        "johnston-engagement-letter.md",
+        "johnson-deposition.md",
+        "johnson-incident-summary.md",
+        "johnston-deposition.md"
+      ],
+      "reciprocalRank": 1,
+      "scope": "allMatters",
+      "topK": 10
+    },
+    {
+      "expectedSources": [
+        "nexus-diagnostics-nda.md"
+      ],
+      "id": "r-nexus-diagnostics-parties",
+      "rankOfFirstRelevant": 1,
+      "rankedSources": [
+        "nexus-diagnostics-nda.md",
+        "johnson-deposition.md",
+        "johnson-engagement-letter.md",
+        "johnson-incident-summary.md",
+        "acme-supply-agreement.md",
+        "johnston-engagement-letter.md",
+        "acme-intake-memo.md",
+        "johnston-deposition.md"
+      ],
+      "reciprocalRank": 1,
+      "scope": "allMatters",
+      "topK": 10
+    },
+    {
+      "expectedSources": [
+        "acme-supply-agreement.md"
+      ],
+      "id": "r-acme-term",
+      "rankOfFirstRelevant": 1,
+      "rankedSources": [
+        "acme-supply-agreement.md",
+        "acme-intake-memo.md",
+        "nexus-diagnostics-nda.md",
+        "johnson-engagement-letter.md",
+        "johnston-engagement-letter.md",
+        "johnson-incident-summary.md",
+        "johnston-deposition.md",
+        "johnson-deposition.md"
+      ],
+      "reciprocalRank": 1,
+      "scope": "allMatters",
+      "topK": 10
+    },
+    {
+      "expectedSources": [
+        "acme-supply-agreement.md"
+      ],
+      "id": "r-acme-product",
+      "rankOfFirstRelevant": 1,
+      "rankedSources": [
+        "acme-supply-agreement.md",
+        "acme-intake-memo.md",
+        "nexus-diagnostics-nda.md",
+        "johnson-engagement-letter.md",
+        "johnston-engagement-letter.md",
+        "johnston-deposition.md",
+        "johnson-deposition.md",
+        "johnson-incident-summary.md"
+      ],
+      "reciprocalRank": 1,
+      "scope": "allMatters",
+      "topK": 10
+    },
+    {
+      "expectedSources": [
+        "acme-supply-agreement.md"
+      ],
+      "id": "r-acme-insurance",
+      "rankOfFirstRelevant": 1,
+      "rankedSources": [
+        "acme-supply-agreement.md",
+        "acme-intake-memo.md",
+        "nexus-diagnostics-nda.md",
+        "johnson-engagement-letter.md",
+        "johnston-engagement-letter.md",
+        "johnson-incident-summary.md",
+        "johnson-deposition.md",
+        "johnston-deposition.md"
+      ],
+      "reciprocalRank": 1,
+      "scope": "allMatters",
+      "topK": 10
+    },
+    {
+      "expectedSources": [
+        "johnson-deposition.md"
+      ],
+      "id": "r-scoped-johnson-severance",
+      "rankOfFirstRelevant": 2,
+      "rankedSources": [
+        "johnson-incident-summary.md",
+        "johnson-deposition.md",
+        "johnson-engagement-letter.md"
+      ],
+      "reciprocalRank": 0.5,
+      "scope": "matter:matter-johnson",
+      "topK": 10
+    },
+    {
+      "expectedSources": [
+        "johnston-engagement-letter.md"
+      ],
+      "id": "r-scoped-johnston-rate",
+      "rankOfFirstRelevant": 1,
+      "rankedSources": [
+        "johnston-engagement-letter.md",
+        "johnston-deposition.md"
+      ],
+      "reciprocalRank": 1,
+      "scope": "matter:matter-johnston",
+      "topK": 10
+    }
+  ]
+}

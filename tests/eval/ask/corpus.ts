@@ -25,26 +25,61 @@ import type { RagHit } from '@/platform/utils/tauri-commands';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CORPUS_DIR = join(HERE, 'corpus');
 
-/** The documents in the eval corpus, keyed by basename (the citation label). */
+/** The documents in the eval corpus, keyed by basename (the citation label).
+ *
+ *  The first five are the original Johnson (employment) + Acme (contract)
+ *  matters. The last three are DISTRACTORS added for the retrieval-quality eval
+ *  (WS3b): a deliberately confusable second client (`johnston-*`, "Marcus
+ *  Johnston" vs. "Marcus Johnson") with conflicting parallel facts, and a
+ *  confusable company (`nexus-diagnostics-nda.md`, "Nexus Diagnostics Inc." vs.
+ *  the Johnson matter's "Nexus Dynamics Corp.") carrying rare long-tail keywords
+ *  (the "Telomere Assay Confidentiality Rider" / "TA-204"). They exist so a
+ *  retrieval test can catch "retrieved the wrong client's document" bugs. */
 export const CORPUS_DOCS = [
   'johnson-deposition.md',
   'johnson-incident-summary.md',
   'johnson-engagement-letter.md',
   'acme-supply-agreement.md',
   'acme-intake-memo.md',
+  'johnston-deposition.md',
+  'johnston-engagement-letter.md',
+  'nexus-diagnostics-nda.md',
 ] as const;
 
 export type CorpusDoc = (typeof CORPUS_DOCS)[number];
 
 /** Which confidentiality scope (matter) each document belongs to. The harness
- *  uses this so a cross-matter citation can be caught exactly as the app would. */
+ *  uses this so a cross-matter citation can be caught exactly as the app would.
+ *
+ *  SINGLE SOURCE OF TRUTH: this map mirrors `corpus/manifest.json`, which the
+ *  Rust retrieval-quality baseline (`src-tauri/tests/rag_retrieval_quality.rs`)
+ *  also reads, so both languages index the same corpus under the same matters.
+ *  `corpusManifest()` loads the JSON and `corpus-manifest.test.ts` asserts the
+ *  two never drift. */
 export const DOC_MATTER: Record<CorpusDoc, string> = {
   'johnson-deposition.md': 'matter-johnson',
   'johnson-incident-summary.md': 'matter-johnson',
   'johnson-engagement-letter.md': 'matter-johnson',
   'acme-supply-agreement.md': 'matter-acme',
   'acme-intake-memo.md': 'matter-acme',
+  'johnston-deposition.md': 'matter-johnston',
+  'johnston-engagement-letter.md': 'matter-johnston',
+  'nexus-diagnostics-nda.md': 'matter-nexus-diagnostics',
 };
+
+/** A document's entry in `corpus/manifest.json`. */
+export interface CorpusManifestEntry {
+  matterId: string;
+  privilege: 'none' | 'attorney-client' | 'work-product';
+}
+
+/** Load and parse `corpus/manifest.json` — the cross-language (TS + Rust) source
+ *  of truth for which matter/privilege each corpus document is indexed under. */
+export function corpusManifest(): Record<string, CorpusManifestEntry> {
+  const raw = readFileSync(join(CORPUS_DIR, 'manifest.json'), 'utf8');
+  const parsed = JSON.parse(raw) as { documents: Record<string, CorpusManifestEntry> };
+  return parsed.documents;
+}
 
 const cache = new Map<CorpusDoc, string[]>();
 
