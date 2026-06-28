@@ -210,6 +210,8 @@ describe('retrieval-never-egresses: personal install, choiceMade=false', () => {
       { kind: 'allMatters' },
       false,
       undefined,
+      false,
+      false,
     );
   });
 
@@ -221,6 +223,8 @@ describe('retrieval-never-egresses: personal install, choiceMade=false', () => {
       { kind: 'matter', matterId: 'matter-acme' },
       false,
       undefined,
+      false,
+      false,
     );
   });
 
@@ -243,6 +247,8 @@ describe('retrieval-never-egresses: personal install, choiceMade=false', () => {
       { kind: 'allMatters' },
       true,
       undefined,
+      false,
+      false,
     );
     expect(h.cloudProviderConstructed).toBe(false);
   });
@@ -255,6 +261,8 @@ describe('retrieval-never-egresses: personal install, choiceMade=false', () => {
       { kind: 'allMatters' },
       false,
       2,
+      false,
+      false,
     );
     expect(h.cloudProviderConstructed).toBe(false);
   });

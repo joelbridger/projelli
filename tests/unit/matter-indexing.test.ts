@@ -115,6 +115,8 @@ describe('MemoryService indexing carries matter id', () => {
       { kind: 'matter', matterId: 'm1' },
       false,
       undefined,
+      false,
+      false,
     );
   });
 

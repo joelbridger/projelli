@@ -200,6 +200,9 @@ describe('Ask-my-workspace chat mode (M2)', () => {
       8,
       { kind: 'allMatters' },
       false,
+      undefined,
+      false,
+      false,
     );
   });
 
