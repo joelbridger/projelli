@@ -166,20 +166,20 @@ export function AddeparConnect() {
           <AddeparInput label="Firm subdomain" value={subdomain} onChange={setSubdomain} placeholder="examplefirm" />
           <AddeparInput label="Firm id" value={firmId} onChange={setFirmId} placeholder="1" />
           <div className="sm:col-span-2">
-            <Button size="sm" onClick={connect} disabled={busy}>
+            <Button size="sm" onClick={() => { void connect(); }} disabled={busy}>
               {busy ? 'Connecting...' : 'Connect Addepar'}
             </Button>
           </div>
         </div>
       ) : (
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button size="sm" onClick={syncNow} disabled={syncing || busy}>
+          <Button size="sm" onClick={() => { void syncNow(); }} disabled={syncing || busy}>
             {syncing ? 'Syncing...' : 'Sync households'}
           </Button>
           <Button size="sm" variant="secondary" onClick={() => { void addeparCancel(); }} disabled={!syncing}>
             Stop
           </Button>
-          <Button size="sm" variant="secondary" onClick={disconnect} disabled={busy || syncing}>
+          <Button size="sm" variant="secondary" onClick={() => { void disconnect(); }} disabled={busy || syncing}>
             Disconnect
           </Button>
         </div>
