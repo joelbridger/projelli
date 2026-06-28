@@ -66,6 +66,8 @@ describe('MemoryService toggle', () => {
       { kind: 'allMatters' },
       false,
       undefined,
+      false,
+      false,
     );
     expect(hits).toHaveLength(1);
     expect(hits[0]?.chunkText).toBe('hello');
@@ -91,6 +93,8 @@ describe('MemoryService toggle', () => {
       { kind: 'allMatters' },
       false,
       undefined,
+      false,
+      false,
     );
     expect(hits).toEqual(backendHits);
   });
@@ -105,6 +109,8 @@ describe('MemoryService toggle', () => {
       { kind: 'matter', matterId: 'm-1' },
       false,
       undefined,
+      false,
+      false,
     );
   });
 
@@ -129,6 +135,8 @@ describe('MemoryService toggle', () => {
       { kind: 'matter', matterId: 'm-1' },
       false,
       undefined,
+      false,
+      false,
     );
     expect(hits).toEqual(backendHits);
   });

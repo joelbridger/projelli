@@ -101,6 +101,8 @@ describe('MemoryService carries privilege + default-excludes it', () => {
       { kind: 'matter', matterId: 'm1' },
       false,
       undefined,
+      false,
+      false,
     );
   });
 
@@ -112,6 +114,8 @@ describe('MemoryService carries privilege + default-excludes it', () => {
       { kind: 'matter', matterId: 'm1' },
       true,
       undefined,
+      false,
+      false,
     );
   });
 

@@ -166,6 +166,9 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
       8,
       { kind: 'matter', matterId: m.id },
       false,
+      undefined,
+      false,
+      false,
     );
   });
 
@@ -182,6 +185,9 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
       'pricing?',
       8,
       { kind: 'allMatters' },
+      false,
+      undefined,
+      false,
       false,
     );
   });
