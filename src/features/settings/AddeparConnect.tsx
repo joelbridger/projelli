@@ -17,6 +17,7 @@ import {
   type AddeparSyncReport,
 } from '@/platform/utils/addepar-commands';
 import { getMatters, useMatterStore } from '@/platform/matter/matterStore';
+import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import {
   buildAddeparMatterMap,
   normalizeClientName,
@@ -66,6 +67,10 @@ export function AddeparConnect() {
       setError('API key, API secret, firm subdomain, and firm id are required.');
       return;
     }
+    if (isLocalOnlyMode()) {
+      setError('Local-only mode is on. Turn it off before connecting Addepar, because sign-in contacts Addepar.');
+      return;
+    }
     setBusy(true);
     try {
       const connectedInfo = await addeparConnect(
@@ -89,6 +94,10 @@ export function AddeparConnect() {
 
   async function syncNow() {
     setError(null);
+    if (isLocalOnlyMode()) {
+      setError('Local-only mode is on. Turn it off before syncing Addepar, because it contacts Addepar.');
+      return;
+    }
     setReport(null);
     setLinkedCount(0);
     setUnmatched([]);
