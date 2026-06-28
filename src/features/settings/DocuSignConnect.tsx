@@ -139,18 +139,18 @@ export function DocuSignConnect() {
 
       <div className="mt-4 flex flex-wrap gap-2">
         {!connected ? (
-          <Button size="sm" onClick={connect} disabled={busy}>
+          <Button size="sm" onClick={() => { void connect(); }} disabled={busy}>
             {busy ? 'Connecting...' : 'Connect DocuSign'}
           </Button>
         ) : (
           <>
-            <Button size="sm" onClick={syncNow} disabled={syncing || busy}>
+            <Button size="sm" onClick={() => { void syncNow(); }} disabled={syncing || busy}>
               {syncing ? 'Syncing...' : 'Sync completed envelopes'}
             </Button>
             <Button size="sm" variant="secondary" onClick={() => { void docusignCancelSync(); }} disabled={!syncing}>
               Stop
             </Button>
-            <Button size="sm" variant="secondary" onClick={disconnect} disabled={busy || syncing}>
+            <Button size="sm" variant="secondary" onClick={() => { void disconnect(); }} disabled={busy || syncing}>
               Disconnect
             </Button>
           </>
