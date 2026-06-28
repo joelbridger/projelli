@@ -35,6 +35,7 @@
     "extract-i18n": "node ./node_modules/.bin/i18next --config i18next-parser.config.js",
     "translate-i18n": "node scripts/translate-i18n.mjs",
     "fetch-piper-sidecar": "bash scripts/fetch-piper-sidecar.sh",
+    "fetch-llama-sidecar": "bash scripts/fetch-llama-sidecar.sh",
     "test:desktop": "bash tests/desktop/run.sh",
     "robot:test": "vitest run --config scripts/robot/vitest.config.mjs",
     "robot:daemon": "node scripts/robot/server.mjs",
