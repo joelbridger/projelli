@@ -57,8 +57,26 @@ describe('effectiveChatProvider — the privacy-badge fallback fix + its initial
     expect(effectiveChatProvider(undefined, 'unknown')).not.toBe('anthropic');
   });
 
-  it("an UNSET chat falls back to 'anthropic' only once we KNOW the local model is absent", () => {
+  it("an UNSET chat falls back to 'anthropic' only once we KNOW the local model is absent (legacy 2-arg)", () => {
     expect(effectiveChatProvider(undefined, 'absent')).toBe('anthropic');
+  });
+
+  // NEW-003: the key-aware 3-arg form. With it, an unset/absent chat names only a
+  // provider the user can actually send to — or 'none' when there are no keys —
+  // so the trust badge can't claim "Sent to your Anthropic account" with no key.
+  it("an UNSET + absent chat resolves to 'none' when there are NO valid keys", () => {
+    expect(effectiveChatProvider(undefined, 'absent', [])).toBe('none');
+    expect(effectiveChatProvider(undefined, 'absent', [])).not.toBe('anthropic');
+  });
+
+  it('an UNSET + absent chat resolves to the first VALID-keyed provider (not a hardcoded anthropic)', () => {
+    expect(effectiveChatProvider(undefined, 'absent', ['openai'])).toBe('openai');
+    expect(effectiveChatProvider(undefined, 'absent', ['google', 'openai'])).toBe('google');
+  });
+
+  it('the on-device model still wins over the key list when it is ready', () => {
+    expect(effectiveChatProvider(undefined, 'ready', [])).toBe('keepance-local');
+    expect(effectiveChatProvider(undefined, 'unknown', [])).toBeNull();
   });
 });
 

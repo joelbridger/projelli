@@ -296,12 +296,15 @@ describe('EmailWorkspace', () => {
     // Hover to reveal row actions
     fireEvent.mouseEnter(rows[0]!);
 
-    // Open privilege dropdown
-    const privilegeBtn = rows[0]!.querySelector('button[title="Set privilege"]');
+    // Open the sensitivity dropdown. The control label is profession-aware
+    // (NEW-015): under the default 'advisor' profession it reads "Sensitive"
+    // (legal practices see "Privilege"). The underlying status values are
+    // unchanged, so the attorney-client option id still drives the store.
+    const privilegeBtn = rows[0]!.querySelector('button[title="Set sensitive"]');
     expect(privilegeBtn).toBeTruthy();
     fireEvent.click(privilegeBtn!);
 
-    // Select attorney-client option
+    // Select the "keep out of AI" (attorney-client) option
     const acOption = screen.getByTestId('privilege-option-attorney-client');
     fireEvent.click(acOption);
 
@@ -489,7 +492,7 @@ describe('EmailWorkspace', () => {
     // All three chips should render
     const chips = screen.getAllByTestId('ask-chip');
     expect(chips.length).toBeGreaterThanOrEqual(3);
-    expect(chips[0]).toHaveTextContent('Who emailed about the deposition?');
+    expect(chips[0]).toHaveTextContent('Who emailed about a beneficiary change?');
   });
 
   // 15. Clicking a chip fills the Ask AI input with the chip text
@@ -504,7 +507,7 @@ describe('EmailWorkspace', () => {
     fireEvent.click(chips[0]!);
 
     const input = screen.getByTestId('email-search-input') as HTMLInputElement;
-    expect(input.value).toBe('Who emailed about the deposition?');
+    expect(input.value).toBe('Who emailed about a beneficiary change?');
     // Empty state should be hidden once there is a query
     expect(screen.queryByTestId('ask-empty-state')).not.toBeInTheDocument();
   });

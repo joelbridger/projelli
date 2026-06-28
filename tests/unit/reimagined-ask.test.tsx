@@ -190,7 +190,7 @@ describe('Ask', () => {
     // Default profession is legal in this test file, so entityLabel.one = 'matter'
     expect(screen.getByText(/summarize this matter/i)).toBeDefined();
     expect(screen.getByText(/find all related emails/i)).toBeDefined();
-    expect(screen.getByText(/what are the upcoming deadlines/i)).toBeDefined();
+    expect(screen.getByText(/what client reviews are coming up/i)).toBeDefined();
   });
 
   it('clicking an example chip RUNS the search (does not just fill the input) — UX-28', async () => {

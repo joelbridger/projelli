@@ -33,6 +33,7 @@ import { KeepanceLocalProvider } from '@/platform/providers/KeepanceLocalProvide
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
 import {
   effectiveChatProvider,
+  resolveAvailableProviders,
   type LocalModelAvailability,
 } from '@/features/ask/chat/providerModelResolution';
 import { assertLocalOnlyAllowsSend, assertCloudGenerationAllowed, isLocalOnlyMode, LocalOnlyEgressError } from '@/platform/privacy/localOnlyGuard';
@@ -187,11 +188,17 @@ export function useChatSending(deps: UseChatSendingDeps) {
   const buildFastProvider = useCallback((): import('@/platform/providers/Provider').Provider | null => {
     // The provider this chat actually targets (never a hidden cloud fallback
     // when the embedded local model is ready — see effectiveChatProvider).
-    const chatProvider = effectiveChatProvider(chatData.provider, localAvailability);
+    // Key-aware so a no-key chat resolves to 'none' (not a fabricated cloud one).
+    const chatProvider = effectiveChatProvider(
+      chatData.provider,
+      localAvailability,
+      resolveAvailableProviders(apiKeys),
+    );
     // Privacy: if the local-model status probe is still resolving we don't know
     // the destination — refuse to build a "fast" compression provider rather
     // than guess a cloud one (the send button is disabled in this window too).
-    if (chatProvider === null) return null;
+    // 'none' means no provider is configured at all — nothing to build.
+    if (chatProvider === null || chatProvider === 'none') return null;
     // BUG-021 (privacy): chat compression sends prior messages to a "fast"
     // provider before the main send guard runs. In Local-only mode, force the
     // local model so compression can't leak to the cloud.
@@ -279,12 +286,28 @@ export function useChatSending(deps: UseChatSendingDeps) {
     // The provider this send ACTUALLY targets — must match the egress badge.
     // A chat with no saved provider resolves to the embedded local model when
     // it is ready, never to a hidden cloud fallback (see effectiveChatProvider).
-    const effectiveProvider = effectiveChatProvider(chatData.provider, localAvailability);
+    const effectiveProvider = effectiveChatProvider(
+      chatData.provider,
+      localAvailability,
+      resolveAvailableProviders(apiKeys),
+    );
     // Privacy: while the local-model status probe is unresolved we don't know
     // where this would go — block the send (the composer is disabled in this
     // window too) rather than guess a cloud default and leak. Silent, like the
     // empty-input / already-loading guards above.
     if (effectiveProvider === null) return;
+    // No provider configured at all (no valid key, no on-device model). Surface
+    // a clear, honest message instead of a confusing "No valid none API key"
+    // error — and matching the egress badge that now reads "No AI connected".
+    if (effectiveProvider === 'none') {
+      addMessage(chatId, {
+        role: 'assistant',
+        content: 'No AI provider is connected. Add an API key in Settings, or set up local AI, to start chatting.',
+        timestamp: new Date().toISOString(),
+        isError: true,
+      });
+      return;
+    }
     const bypassContextLimit = bypassNextContextLimitRef.current;
     bypassNextContextLimitRef.current = false;
 

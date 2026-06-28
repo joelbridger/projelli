@@ -40,6 +40,7 @@ import { ChatModelPicker } from '@/features/ask/chat/ChatModelPicker';
 import {
   resolveNewChatDefault,
   resolveSettingsDefaults,
+  resolveAvailableProviders,
   effectiveChatProvider,
   localModelAvailability,
   type ChatProvider,
@@ -199,12 +200,24 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // we must not guess a provider. The badge then shows "Checking local AI" and
   // send stays disabled (localStatusPending) until the status settles — never a
   // silent cloud default mid-probe.
-  const effectiveProvider = effectiveChatProvider(chatData.provider, localAvailability);
+  // Key-aware fallback (NEW-003): when a chat has no saved provider and there's
+  // no on-device model, resolve to a provider the user actually has a valid key
+  // for — or 'none' when there are no keys — instead of the old hardcoded
+  // 'anthropic'. This is what keeps the egress trust badge from claiming "Sent
+  // to your Anthropic account" while the model picker says "No AI provider
+  // configured" (the two now agree).
+  const validProviders = resolveAvailableProviders(apiKeys);
+  const effectiveProvider = effectiveChatProvider(chatData.provider, localAvailability, validProviders);
   const localStatusPending = effectiveProvider === null;
+  // No usable provider at all (no saved/valid key, no on-device model). Distinct
+  // from `localStatusPending` (probe still running): here we KNOW there's nothing
+  // to send with, so the badge shows "No AI connected" and send is disabled.
+  const noProviderConnected = effectiveProvider === 'none';
   // Firm "Assured" availability for THIS chat's provider — does the firm have a
   // managed key for it? Drives the egress indicator's assured-proxy story.
   const assuredAvailableForChat = useFirmStore((s) =>
     effectiveProvider !== null &&
+    effectiveProvider !== 'none' &&
     isAssuredProvider(effectiveProvider) &&
     s.assuredProviders.includes(effectiveProvider),
   );
@@ -420,7 +433,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     // While the local-model status probe is unresolved (effectiveProvider null)
     // we don't know the destination — bail and let the effect re-run once it
     // resolves (effectiveProvider is in the dep array), never guessing a cloud.
-    if (effectiveProvider === null) return;
+    if (effectiveProvider === null || effectiveProvider === 'none') return;
     const chatProvider = effectiveProvider;
     // WS-C honesty — a LOCAL (Ollama) chat extracts facts on the local model
     // itself ($0, nothing leaves). It needs no key, so it must not be gated by
@@ -565,8 +578,9 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     const hasImageAtt = pendingAttachments.some((a) => a.type === 'image');
     if (!hasImageAtt) return null;
     const chatProvider = effectiveProvider;
-    // No provider resolved yet (status probe pending) — no warning to show.
-    if (chatProvider === null) return null;
+    // No provider resolved yet (status probe pending) or none configured — no
+    // warning to show (send is disabled in those states anyway).
+    if (chatProvider === null || chatProvider === 'none') return null;
     const chatModel = chatData.model ?? '';
     if (!chatModel) return null;
     if (isVisionModel(chatProvider, chatModel)) return null;
@@ -673,7 +687,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           // send is separately gated on localStatusPending. effectiveProvider is
           // null only mid-probe (when no provider is saved), so this resolves to
           // the cloud default purely for the strategy choice — nothing leaves.
-          const provider = effectiveProvider ?? 'anthropic';
+          const provider = (effectiveProvider && effectiveProvider !== 'none') ? effectiveProvider : 'anthropic';
           const model = chatData.model ?? '';
           const mode = getPdfMode(provider, model);
 
@@ -1467,7 +1481,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         />
         {/* Stream A1 — ChatInputToolbar: paperclip, paste, drop, tiles, vision warning */}
         <ChatInputToolbar
-          provider={effectiveProvider ?? 'anthropic'}
+          provider={(effectiveProvider && effectiveProvider !== 'none') ? effectiveProvider : 'anthropic'}
           model={chatData.model ?? ''}
           pendingAttachments={pendingAttachments}
           previewUrls={previewUrls}
@@ -1475,7 +1489,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           onRemoveAttachment={handleRemoveAttachment}
           onSwitchModel={handleSwitchModel}
           visionWarning={visionWarning}
-          sendDisabled={visionWarning !== null || isLoading || trialGate.isLocked || localStatusPending}
+          sendDisabled={visionWarning !== null || isLoading || trialGate.isLocked || localStatusPending || noProviderConnected}
           className="mb-2"
         />
         <div className="flex gap-2">
@@ -1508,7 +1522,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           <Button
             data-testid="chat-send-button"
             onClick={handleSendMessage}
-            disabled={(!inputValue.trim() && pendingAttachments.length === 0) || isLoading || trialGate.isLocked || visionWarning !== null || localStatusPending}
+            disabled={(!inputValue.trim() && pendingAttachments.length === 0) || isLoading || trialGate.isLocked || visionWarning !== null || localStatusPending || noProviderConnected}
             size="icon"
             className="h-[60px] w-[60px] shrink-0"
           >

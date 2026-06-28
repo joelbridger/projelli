@@ -2,7 +2,14 @@ import { useEffect, useRef } from 'react';
 import { ChevronDown, ShieldCheck, Check } from 'lucide-react';
 import { Dropdown } from '@/ui/kp';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/platform/firm/privilegeStore';
-import { ALL_PRIVILEGE_STATUSES, isPrivileged, type Privilege } from '@/platform/types/privilege';
+import {
+  isPrivileged,
+  privilegeLabel,
+  privilegeShortLabel,
+  privilegeMenuStatuses,
+  privilegeControlLabel,
+} from '@/platform/types/privilege';
+import { useProfessionStore } from '@/platform/profile/professionStore';
 
 export interface MailRowPrivilegeProps {
   sourceId: string;
@@ -14,6 +21,7 @@ export function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivil
   const mailSourceId = sourceId.startsWith('mail:') ? sourceId : `mail:${sourceId}`;
   const privilege = usePrivilegeForSource(mailSourceId);
   const setPrivilege = usePrivilegeStore((s) => s.setPrivilege);
+  const profession = useProfessionStore((s) => s.profession);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Outside click handler to close the dropdown
@@ -28,17 +36,11 @@ export function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivil
     return () => { document.removeEventListener('mousedown', handler); };
   }, [open, onOpenChange]);
 
-  const privilegeLabels: Record<Privilege, string> = {
-    none: 'Not privileged',
-    'attorney-client': 'Attorney-Client',
-    'work-product': 'Work Product',
-  };
-
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
       <button
         type="button"
-        title="Set privilege"
+        title={`Set ${privilegeControlLabel(profession).toLowerCase()}`}
         onClick={(e) => {
           e.stopPropagation();
           onOpenChange(!open);
@@ -60,7 +62,9 @@ export function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivil
         }}
       >
         <ShieldCheck style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
-        {isPrivileged(privilege) ? privilegeLabels[privilege] : 'Privilege'}
+        {isPrivileged(privilege)
+          ? privilegeShortLabel(privilege, profession)
+          : privilegeControlLabel(profession)}
         <ChevronDown style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
       </button>
 
@@ -72,7 +76,7 @@ export function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivil
             minWidth: 170,
           }}
         >
-          {ALL_PRIVILEGE_STATUSES.map((status) => (
+          {privilegeMenuStatuses(profession).map((status) => (
             <button
               key={status}
               type="button"
@@ -97,7 +101,7 @@ export function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivil
                 textAlign: 'left',
               }}
             >
-              {privilegeLabels[status]}
+              {privilegeLabel(status, profession)}
               {privilege === status && (
                 <Check style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', color: 'var(--kp-navy)', strokeWidth: 2.5 }} />
               )}

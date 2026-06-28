@@ -358,55 +358,55 @@ export function useTestModeWorkspace(options: UseTestModeWorkspaceOptions): void
 
       console.log('Test mode enabled: Mock workspace initialized with 2 demo tabs + mock FS');
 
-      // Recording mode: seed a realistic legal matter (Halvorsen Estate),
-      // populate the tree, and open the deposition notes so the app can be
+      // Recording mode: seed a realistic advisory household (the Webbs),
+      // populate the tree, and open the review notes so the app can be
       // screen-recorded for the marketing site. Recording-only; gated by
       // ?recordMatter so the normal E2E path is unchanged.
       if (RECORD_MATTER) {
-        const DIR = '/test-workspace/Halvorsen Estate';
-        const depoNotes = [
-          '# Deposition Notes: Markus Halvorsen',
+        const DIR = '/test-workspace/Webb Household';
+        const reviewNotes = [
+          '# Review Notes: Webb Household',
           '',
-          '**Matter:** Halvorsen Estate v. Cedar Point Holdings, LLC',
-          '**Deponent:** Markus Halvorsen (defendant, managing member)',
-          '**Date:** April 14, 2026',
+          '**Meeting:** Annual review',
+          '**Date:** June 12, 2026',
+          '**Present:** Marcus and Tanya Webb, me',
           '',
-          '## Testimony to remember',
+          '## What they told me',
           '',
-          '- **p. 12** Did he see the second appraisal before closing? "No. I never saw a second appraisal. The first one was the only number I had."',
-          '- **p. 31** Sale closed "sometime in November, I think the 20th or so."',
-          '- **p. 47** What did he review before closing? "I reviewed all the paperwork the accountant sent over. The appraisals, the title work, the closing statement. All of it."',
-          '- **p. 52** He and the accountant "talked every week without fail" during the sale.',
-          '- **p. 68** He was "traveling most of October and November" and "hard to reach."',
+          '- Marcus changed jobs last year. The $96k from the old employer 401(k) is still at the prior custodian. He wants it "in one place."',
+          '- Tanya got a raise. They can push another $400/month into savings.',
+          '- They are nervous about the market and asked, again, whether they should move to cash. Walked them through the plan and the time horizon.',
+          '- Marcus mentioned, almost in passing, that he and his first wife divorced in 2019 and he "updated everything." Worth verifying.',
           '',
-          '## My flags',
+          '## What we agreed to do',
           '',
-          '- p. 12 vs p. 47 looks like a straight contradiction on the second appraisal. Pull Exhibit 9.',
-          '- p. 52 vs p. 68 is softer. Worth a follow-up.',
+          '- Roll the old 401(k) into Marcus\'s IRA. I\'ll start the paperwork.',
+          '- Increase the joint brokerage auto-contribution by $400/month.',
+          '- Recheck every beneficiary designation. Marcus\'s comment about the divorce is exactly why.',
           '',
         ].join('\n');
-        const depoChat = JSON.stringify({
-          version: 1, id: 'demo-depo', title: 'Deposition contradictions',
-          created: '2026-04-15T09:12:00.000Z', updated: '2026-04-15T09:14:00.000Z',
+        const planChat = JSON.stringify({
+          version: 1, id: 'demo-plan-review', title: 'Plan review',
+          created: '2026-06-13T09:12:00.000Z', updated: '2026-06-13T09:14:00.000Z',
           provider: 'anthropic', model: 'claude-sonnet-4-6',
           messages: [
-            { role: 'user', content: 'Read my Deposition Notes for the Halvorsen matter. Find any places where his testimony contradicts itself, with page cites.', timestamp: '2026-04-15T09:12:00.000Z' },
-            { role: 'assistant', content: 'Here is what stands out.\n\n**The clear one: the second appraisal.** On page 12 he says "No. I never saw a second appraisal." On page 47 he says he reviewed "all the paperwork the accountant sent over. The appraisals, the title work, the closing statement. All of it." Those two cannot both be true if the second appraisal was in that batch. Your note points at Exhibit 9, the appraisal transmittal. If that shows the appraisal going to him before closing, page 12 is the problem.\n\n**The softer one: availability.** Page 52 has him talking to the accountant "every week without fail" during the sale. Page 68 has him "traveling most of October and November" and "hard to reach." Worth a follow-up to pin down which it was.\n\nI am not drawing a legal conclusion, just showing you where the record disagrees with itself. Confirm each cite against the certified transcript.', timestamp: '2026-04-15T09:14:00.000Z' },
+            { role: 'user', content: 'Read my Review Notes and the Beneficiary Designations for the Webb household. Did we miss any beneficiary updates, and what did we agree to act on?', timestamp: '2026-06-13T09:12:00.000Z' },
+            { role: 'assistant', content: 'Here is what stands out, and yes, there is a real gap.\n\n**The beneficiary gap: the old 401(k).** Your beneficiary file shows the prior-employer 401(k) still lists Jessica Reyes (100%), dated 2019, with no contingent. Your review notes have Marcus saying he divorced in 2019 and "updated everything." He did not update this one. As it stands, if Marcus died before the rollover, that ~$96k would go to his ex-spouse, not to Tanya. Every other account already names Tanya primary with the kids 50/50 contingent, so this is the single outlier. Confirm it against the custodian\'s record, not Marcus\'s memory.\n\n**What you agreed to act on:** roll the old 401(k) into Marcus\'s IRA (this also fixes the beneficiary problem), increase the joint brokerage contribution by $400/month, and recheck every beneficiary against the custodian.\n\nI am not making the change for you, just showing you where the record disagrees with what the client believes. Verify the old 401(k) beneficiary with the custodian before you rely on this.', timestamp: '2026-06-13T09:14:00.000Z' },
           ],
         }, null, 2);
         const matterFiles = [
-          { path: `${DIR}/Deposition Notes.md`, name: 'Deposition Notes.md', content: depoNotes },
-          { path: `${DIR}/Deposition contradictions.aichat`, name: 'Deposition contradictions.aichat', content: depoChat },
-          { path: `${DIR}/Privilege Log.md`, name: 'Privilege Log.md', content: '# Privilege Log\n\n| Date | Author | Recipient | Privilege | Description |\n|---|---|---|---|---|\n| 2024-09-02 | Client | Me | Attorney-Client | Client request for advice re appraisal discrepancy |\n| 2024-10-11 | Me | (file) | Work Product | Internal analysis in anticipation of litigation |\n' },
-          { path: `${DIR}/Case Timeline.md`, name: 'Case Timeline.md', content: '# Case Timeline\n\n- 2024-08-15 First appraisal delivered ($4.2M).\n- [2024-09-01] Second appraisal commissioned. Halvorsen denies seeing it (Depo p. 12).\n- [2024-11-20] Sale closes. Confirm against the recorded deed.\n- 2025-02 Estate files suit.\n' },
-          { path: `${DIR}/Client Intake Summary.md`, name: 'Client Intake Summary.md', content: '# Client Intake Summary\n\n**Client:** Estate of Anders Halvorsen\n**Matter:** Below-value sale; concealed second appraisal.\n\nFlag: confirm the limitations period and calendar it.\n' },
+          { path: `${DIR}/Review Notes.md`, name: 'Review Notes.md', content: reviewNotes },
+          { path: `${DIR}/Plan review.aichat`, name: 'Plan review.aichat', content: planChat },
+          { path: `${DIR}/Beneficiary Designations.md`, name: 'Beneficiary Designations.md', content: '# Beneficiary Designations: Webb Household\n\n| Account | Owner | Primary beneficiary | Last confirmed |\n|---|---|---|---|\n| 401(k) (current employer) | Marcus | Tanya Webb (100%) | 2026-01 |\n| Old 401(k) (prior employer) | Marcus | **Jessica Reyes (100%)** | 2019 |\n| 403(b) | Tanya | Marcus Webb (100%) | 2026-01 |\n\nThe old 401(k) still lists Marcus\'s first wife, dated 2019. He believes he updated everything after the divorce. He did not update this one. Roll it into the IRA so the correct beneficiaries control.\n' },
+          { path: `${DIR}/Financial Plan Summary.md`, name: 'Financial Plan Summary.md', content: '# Financial Plan Summary: Webb Household\n\n- Retire at 60, fund both kids\' college, pay off the house early.\n- Marcus 401(k) $412k; old 401(k) $96k (rollover pending); Tanya 403(b) $188k.\n- Roth IRAs $61k / $54k; 529s $48k / $29k; cash reserve $55k.\n\nPlan: roll the old 401(k) in, keep the 529 auto-contributions, revisit a Roth conversion in a low-income year, hold the moderate-growth allocation.\n' },
+          { path: `${DIR}/Client Intake Summary.md`, name: 'Client Intake Summary.md', content: '# Client Intake Summary\n\n**Household:** Marcus & Tanya Webb\n**Engagement:** Comprehensive planning + investment management.\n\nFlag: confirm the beneficiary on the old 401(k) and the rollover paperwork.\n' },
         ];
         const svc = workspaceServiceRef.current;
         if (svc) {
           void Promise.all(matterFiles.map((f) => svc.writeFile(f.path, f.content))).then(() => {
             setFileTree([
               {
-                id: DIR, name: 'Halvorsen Estate', path: DIR, type: 'folder',
+                id: DIR, name: 'Webb Household', path: DIR, type: 'folder',
                 children: matterFiles.map((f) => ({
                   id: f.path, name: f.name, path: f.path, type: 'file',
                   extension: f.name.split('.').pop(),
@@ -414,8 +414,8 @@ export function useTestModeWorkspace(options: UseTestModeWorkspaceOptions): void
               },
             ] as Parameters<typeof setFileTree>[0]);
             expandAllFolders();
-            const depo = matterFiles[0]!;
-            openFile(depo.path, depo.name, depo.content);
+            const firstFile = matterFiles[0]!;
+            openFile(firstFile.path, firstFile.name, firstFile.content);
           });
         }
       }

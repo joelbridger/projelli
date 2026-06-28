@@ -183,7 +183,7 @@ export function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToW
             <Paperclip style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', color: 'var(--color-muted-foreground)', strokeWidth: 1.75, flex: 'none' }} />
           )}
           {isPrivileged(privilege) && (
-            <Badge variant="privilege" size="sm" icon={ShieldCheck}>Privileged</Badge>
+            <Badge variant="privilege" size="sm" icon={ShieldCheck}>{entityLabel.confidentialityBadge}</Badge>
           )}
         </div>
 

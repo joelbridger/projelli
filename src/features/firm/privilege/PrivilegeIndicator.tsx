@@ -17,6 +17,7 @@ import {
   privilegeLabel,
   type Privilege,
 } from '@/platform/types/privilege';
+import { useProfessionStore } from '@/platform/profile/professionStore';
 
 export interface PrivilegeIndicatorProps {
   privilege: Privilege;
@@ -30,10 +31,11 @@ export function PrivilegeIndicator({
   compact = false,
   className,
 }: PrivilegeIndicatorProps) {
+  const profession = useProfessionStore((s) => s.profession);
   if (!isPrivileged(privilege)) return null;
 
   const Icon = privilege === 'attorney-client' ? Lock : ShieldAlert;
-  const full = privilegeLabel(privilege);
+  const full = privilegeLabel(privilege, profession);
 
   return (
     <span
@@ -47,7 +49,7 @@ export function PrivilegeIndicator({
       )}
     >
       <Icon className="h-3 w-3 shrink-0" />
-      {!compact && <span className="truncate">{privilegeShortLabel(privilege)}</span>}
+      {!compact && <span className="truncate">{privilegeShortLabel(privilege, profession)}</span>}
     </span>
   );
 }

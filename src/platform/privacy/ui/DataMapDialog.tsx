@@ -136,9 +136,9 @@ export const DATA_MAP_ROWS: MapRow[] = [
   {
     icon: BarChart2,
     tone: 'text-violet-700 bg-violet-50 dark:text-violet-300 dark:bg-violet-950/40',
-    title: 'Design-partner diagnostics (opt-in, off by default)',
-    body: 'If you turn on Design-partner diagnostics in Settings, Keepance sends structured usage counts to help improve the product for legal practice: which features you use, how many searches you run, which workflow template you ran, and whether you connected a provider. It never sends your content, file names, matter names, prompts, or search queries. Only counts and internal ids. This is a separate opt-in from anonymous analytics, also off by default.',
-    caveat: 'To confirm what is collected: Settings > Privacy > Design-partner diagnostics lists every field sent. Endpoint: keepance.com/api/forms/keepance/design-partner-event.',
+    title: 'Optional error reporting (opt-in, off by default)',
+    body: 'If you turn on Optional error reporting in Settings, Keepance sends structured usage counts to help improve the product: which features you use, how many searches you run, which workflow template you ran, and whether you connected a provider. It never sends your content, file names, client names, prompts, or search queries. Only counts and internal ids. This is a separate opt-in from anonymous analytics, also off by default.',
+    caveat: 'To confirm what is collected: Settings > Privacy > Optional error reporting lists every field sent. Endpoint: keepance.com/api/forms/keepance/design-partner-event.',
   },
   {
     icon: HardDrive,

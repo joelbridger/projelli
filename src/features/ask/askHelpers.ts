@@ -13,11 +13,15 @@ import type { RagHit } from '@/platform/utils/tauri-commands';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
-import { resolveLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
+import {
+  resolveAvailableLocalGenerationProvider,
+  resolveLocalGenerationProvider,
+} from '@/platform/providers/resolveLocalProvider';
 import { localLlmModelStatus } from '@/platform/utils/tauri-commands';
 import { mailGetMessage } from '@/platform/utils/mail-commands';
 import { KeychainService } from '@/platform/providers/KeychainService';
 import { assertCloudGenerationAllowed, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { NO_AI_PROVIDER } from '@/platform/privacy/egress';
 import type { Provider } from '@/platform/providers/Provider';
 import type { ChatMessage } from '@/platform/types/ai';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
@@ -118,6 +122,14 @@ export interface ResolvedAskProvider {
   model: string;
 }
 
+// NO_AI_PROVIDER's value is the literal 'none'; we spell it out here (rather than
+// `typeof NO_AI_PROVIDER`, which is the wider `EgressProvider`/string and would
+// collapse the whole union to `string`).
+export type ActiveAskProviderId = ResolvedAskProvider['providerId'] | 'none';
+
+export const NO_ASK_PROVIDER_CONNECTED_MESSAGE =
+  'No AI provider is connected. Add an API key in Settings, or set up local AI.';
+
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -167,6 +179,10 @@ export async function resolveLocalAskProvider(): Promise<ResolvedAskProvider> {
   return await resolveLocalGenerationProvider();
 }
 
+async function resolveAvailableLocalAskProvider(): Promise<ResolvedAskProvider | null> {
+  return await resolveAvailableLocalGenerationProvider();
+}
+
 /**
  * The cloud provider (+ model) the Ask send would prefer for the given key
  * PRESENCE, honouring the user's SELECTED default provider/model and the
@@ -205,9 +221,7 @@ function resolveAskCloudResolution(availableKeys: CloudProviderKeyPresence) {
  *     honouring the user's selected default), when a key for it is present;
  *   - else (no cloud key) -> the local engine (embedded-when-ready, else Ollama).
  */
-export async function resolveActiveAskProviderId(): Promise<
-  ResolvedAskProvider['providerId']
-> {
+export async function resolveActiveAskProviderId(): Promise<ActiveAskProviderId> {
   const localId = async (): Promise<'keepance-local' | 'ollama'> => {
     try {
       if ((await localLlmModelStatus()) === 'ready') return 'keepance-local';
@@ -227,7 +241,8 @@ export async function resolveActiveAskProviderId(): Promise<
   };
   const resolved = resolveAskCloudResolution(availableKeys);
   if (resolved) return resolved.provider;
-  return await localId();
+  const localProvider = await resolveAvailableLocalAskProvider();
+  return localProvider?.providerId ?? NO_AI_PROVIDER;
 }
 
 export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
@@ -287,9 +302,12 @@ export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
       }
     }
   }
-  // No usable cloud provider (no key, or no explicit choice yet) — fall back to
-  // the local engine: embedded Keepance Local AI when ready, else Ollama.
-  return await resolveLocalAskProvider();
+  // No usable cloud provider (no key, or no explicit choice yet). In Direct /
+  // Assured mode, only claim a local route after proving one exists: embedded
+  // Keepance Local AI ready, else a reachable Ollama daemon.
+  const localProvider = await resolveAvailableLocalAskProvider();
+  if (localProvider) return localProvider;
+  throw new Error(NO_ASK_PROVIDER_CONNECTED_MESSAGE);
 }
 
 export async function buildProviderAsync(): Promise<Provider> {
@@ -321,6 +339,10 @@ export function friendlyErrorMessage(
 ): string {
   const lower = raw.toLowerCase();
   const localOnly = opts?.mode === 'local-only';
+
+  if (raw === NO_ASK_PROVIDER_CONNECTED_MESSAGE) {
+    return NO_ASK_PROVIDER_CONNECTED_MESSAGE;
+  }
 
   // Genuine auth — the ONLY branch that mentions a key. Never in Local-only
   // (there is no key to check there), and never when the AI was not even reached

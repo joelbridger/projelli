@@ -6,6 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
+import { useProfessionStore } from '@/platform/profile/professionStore';
 
 // ---------------------------------------------------------------------------
 // Mock heavy leaf components so the orchestrator tree renders without real
@@ -122,10 +123,15 @@ describe('GuidedOnboarding', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    // Selecting a profession card now syncs the reactive profession store
+    // (NEW-001), a module-level singleton that survives between tests — reset it
+    // to the app default so a prior test's pick can't leak into the CTA labels.
+    useProfessionStore.getState().setProfession('advisor');
   });
 
   afterEach(() => {
     localStorage.clear();
+    useProfessionStore.getState().setProfession('advisor');
   });
 
   // 1. Welcome step renders; Next advances to Profession
