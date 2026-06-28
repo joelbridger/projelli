@@ -51,6 +51,9 @@ describe('useGlobalEventBus — per-client surface routing', () => {
     expect(handlers.setSidebarActiveTab).not.toHaveBeenCalledWith('files');
     expect(useMatterStore.getState().clientMapHubId).toBe('m1');
     expect(useMatterStore.getState().clientMapHubTab).toBe('documents');
+    // Must land on the scoped file LIST, never a stale editor pane from another
+    // client (matter isolation).
+    expect(handlers.setDocumentsView).toHaveBeenCalledWith('browser');
   });
 
   it('routes an Email quick-action into the hub Email sub-tab', () => {

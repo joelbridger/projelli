@@ -137,6 +137,9 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
           // can clear a hub id that doesn't match the new active matter).
           useMatterStore.getState().setClientMapHubId(matterId);
           useMatterStore.getState().setClientMapHubTab(hubTab);
+          // Documents must land on the scoped file LIST, not a stale editor pane
+          // that could still show another client's open file (matter isolation).
+          if (hubTab === 'documents') ref.current.setDocumentsView('browser');
           ref.current.setSidebarActiveTab('matters');
           return;
         }
