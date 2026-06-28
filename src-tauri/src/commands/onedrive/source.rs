@@ -17,7 +17,7 @@ pub trait DocumentSource: Send + Sync {
 pub struct GraphDocumentSource {
     client: OneDriveClient,
     drive_id: Option<String>,
-    omit_delta_select: bool,
+    omit_select: bool,
 }
 
 impl GraphDocumentSource {
@@ -25,20 +25,20 @@ impl GraphDocumentSource {
         Self::new_for_default_drive(token, false)
     }
 
-    pub fn new_for_default_drive(token: String, omit_delta_select: bool) -> Self {
+    pub fn new_for_default_drive(token: String, omit_select: bool) -> Self {
         Self {
             client: OneDriveClient::new(token),
             drive_id: None,
-            omit_delta_select,
+            omit_select,
         }
     }
 
     #[allow(dead_code)]
-    pub fn new_for_drive(token: String, drive_id: String, omit_delta_select: bool) -> Self {
+    pub fn new_for_drive(token: String, drive_id: String, omit_select: bool) -> Self {
         Self {
             client: OneDriveClient::new(token),
             drive_id: Some(drive_id),
-            omit_delta_select,
+            omit_select,
         }
     }
 }
@@ -58,17 +58,19 @@ impl DocumentSource for GraphDocumentSource {
 
     async fn list_root_children(&self, drive_id: Option<&str>) -> anyhow::Result<Vec<DriveItem>> {
         self.client
-            .list_root_children(drive_id.or(self.drive_id.as_deref()))
+            .list_root_children(drive_id.or(self.drive_id.as_deref()), self.omit_select)
             .await
     }
 
     async fn list_children(&self, drive_id: &str, item_id: &str) -> anyhow::Result<Vec<DriveItem>> {
-        self.client.list_children(drive_id, item_id).await
+        self.client
+            .list_children(drive_id, item_id, self.omit_select)
+            .await
     }
 
     async fn delta_root(&self, cursor: Option<&str>) -> anyhow::Result<DeltaPage> {
         self.client
-            .delta_root(self.drive_id.as_deref(), cursor, self.omit_delta_select)
+            .delta_root(self.drive_id.as_deref(), cursor, self.omit_select)
             .await
     }
 

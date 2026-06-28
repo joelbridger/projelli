@@ -45,19 +45,17 @@ impl OneDriveClient {
     pub async fn list_root_children(
         &self,
         drive_id: Option<&str>,
+        omit_select: bool,
     ) -> anyhow::Result<Vec<DriveItem>> {
+        let query = children_query(omit_select);
         let url = match drive_id {
             Some(drive_id) => format!(
-                "{}/v1.0/drives/{}/root/children?$select={}&$top=200",
+                "{}/v1.0/drives/{}/root/children{}",
                 self.base(),
                 enc_path_segment(drive_id),
-                SELECT_ITEM
+                query
             ),
-            None => format!(
-                "{}/v1.0/me/drive/root/children?$select={}&$top=200",
-                self.base(),
-                SELECT_ITEM
-            ),
+            None => format!("{}/v1.0/me/drive/root/children{}", self.base(), query),
         };
         self.collect_array(&url).await
     }
@@ -66,13 +64,15 @@ impl OneDriveClient {
         &self,
         drive_id: &str,
         item_id: &str,
+        omit_select: bool,
     ) -> anyhow::Result<Vec<DriveItem>> {
+        let query = children_query(omit_select);
         let url = format!(
-            "{}/v1.0/drives/{}/items/{}/children?$select={}&$top=200",
+            "{}/v1.0/drives/{}/items/{}/children{}",
             self.base(),
             enc_path_segment(drive_id),
             enc_path_segment(item_id),
-            SELECT_ITEM
+            query
         );
         self.collect_array(&url).await
     }
@@ -188,4 +188,30 @@ fn enc_path_segment(s: &str) -> String {
         }
     }
     out
+}
+
+fn children_query(omit_select: bool) -> String {
+    if omit_select {
+        "?$top=200".to_string()
+    } else {
+        format!("?$select={SELECT_ITEM}&$top=200")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn children_query_omits_select_for_personal_drive() {
+        assert_eq!(children_query(true), "?$top=200");
+    }
+
+    #[test]
+    fn children_query_keeps_select_for_business_drive() {
+        assert_eq!(
+            children_query(false),
+            format!("?$select={SELECT_ITEM}&$top=200")
+        );
+    }
 }

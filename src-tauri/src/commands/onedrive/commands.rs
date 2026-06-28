@@ -231,11 +231,12 @@ pub async fn onedrive_list_folders() -> Result<Vec<OneDriveFolderDto>, String> {
     let drives = client.list_drives().await.map_err(|e| e.to_string())?;
     let mut out = Vec::new();
     for drive in drives {
+        let omit_select = is_personal_drive(&drive);
         let roots = client
-            .list_root_children(Some(&drive.id))
+            .list_root_children(Some(&drive.id), omit_select)
             .await
             .map_err(|e| e.to_string())?;
-        collect_folders(&client, &drive.id, None, roots, &mut out).await?;
+        collect_folders(&client, &drive.id, omit_select, None, roots, &mut out).await?;
     }
     Ok(out)
 }
@@ -243,6 +244,7 @@ pub async fn onedrive_list_folders() -> Result<Vec<OneDriveFolderDto>, String> {
 async fn collect_folders(
     client: &OneDriveClient,
     drive_id: &str,
+    omit_select: bool,
     site_id: Option<String>,
     items: Vec<DriveItem>,
     out: &mut Vec<OneDriveFolderDto>,
@@ -264,7 +266,7 @@ async fn collect_folders(
             path: path.clone(),
         });
         let children = client
-            .list_children(drive_id, &item.id)
+            .list_children(drive_id, &item.id, omit_select)
             .await
             .map_err(|e| e.to_string())?;
         stack.extend(
@@ -277,18 +279,33 @@ async fn collect_folders(
     Ok(())
 }
 
-fn sync_drive_ids(matter_map: &[OneDriveMatterMapEntry], available_drives: &[Drive]) -> Vec<String> {
+fn sync_drive_ids(
+    matter_map: &[OneDriveMatterMapEntry],
+    available_drives: &[Drive],
+) -> Vec<String> {
     let mut drive_ids = BTreeSet::new();
+    let mut personal_drive_ids = BTreeSet::new();
     for drive in available_drives {
+        if is_personal_drive(drive) {
+            if !drive.id.trim().is_empty() {
+                personal_drive_ids.insert(drive.id.clone());
+            }
+            continue;
+        }
         if !drive.id.trim().is_empty() {
             drive_ids.insert(drive.id.clone());
         }
     }
     for entry in matter_map {
         if let Some(parts) = parse_folder_key(&entry.folder_key) {
+            if personal_drive_ids.contains(&parts.drive_id) {
+                continue;
+            }
             drive_ids.insert(parts.drive_id);
         }
     }
+    // Personal-only accounts fall through to /me/drive. Mixed personal+business accounts
+    // are not fully handled here; the personal drive is only synced when no per-drive ids remain.
     drive_ids.into_iter().collect()
 }
 
@@ -356,12 +373,12 @@ pub async fn onedrive_sync(
     let drive_ids = sync_drive_ids(&matter_map, &available_drives);
     let mut merged_report = OneDriveSyncReport::default();
     let result = if drive_ids.is_empty() {
-        let omit_delta_select = OneDriveClient::new(token.clone())
+        let omit_select = OneDriveClient::new(token.clone())
             .default_drive()
             .await
             .map(|drive| is_personal_drive(&drive))
             .unwrap_or(false);
-        let source = GraphDocumentSource::new_for_default_drive(token, omit_delta_select);
+        let source = GraphDocumentSource::new_for_default_drive(token, omit_select);
         sync_documents(
             &source,
             &store,
@@ -383,13 +400,12 @@ pub async fn onedrive_sync(
                 merged_report.cancelled = true;
                 break;
             }
-            let omit_delta_select = available_drives
+            let omit_select = available_drives
                 .iter()
                 .find(|drive| drive.id == drive_id)
                 .map(is_personal_drive)
                 .unwrap_or(false);
-            let source =
-                GraphDocumentSource::new_for_drive(token.clone(), drive_id, omit_delta_select);
+            let source = GraphDocumentSource::new_for_drive(token.clone(), drive_id, omit_select);
             match sync_documents(
                 &source,
                 &store,
@@ -451,7 +467,13 @@ mod tests {
     use super::*;
     use crate::commands::onedrive::model::ParentReference;
 
-    fn folder(id: &str, name: &str, drive_id: &str, path: &str, site_id: Option<&str>) -> DriveItem {
+    fn folder(
+        id: &str,
+        name: &str,
+        drive_id: &str,
+        path: &str,
+        site_id: Option<&str>,
+    ) -> DriveItem {
         DriveItem {
             id: id.to_string(),
             name: name.to_string(),
@@ -473,14 +495,41 @@ mod tests {
             matter_id: "matter-a".into(),
         }];
         let drives = vec![Drive {
-            id: "personal-drive".into(),
-            name: "OneDrive".into(),
+            id: "business-drive".into(),
+            name: "Business Documents".into(),
+            drive_type: Some("business".into()),
             ..Default::default()
         }];
         assert_eq!(
             sync_drive_ids(&map, &drives),
-            vec!["personal-drive".to_string(), "shared-drive".to_string()]
+            vec!["business-drive".to_string(), "shared-drive".to_string()]
         );
+    }
+
+    #[test]
+    fn sync_drive_ids_skip_personal_available_drive() {
+        let drives = vec![Drive {
+            id: "personal-drive".into(),
+            name: "OneDrive".into(),
+            drive_type: Some("personal".into()),
+            ..Default::default()
+        }];
+        assert_eq!(sync_drive_ids(&[], &drives), Vec::<String>::new());
+    }
+
+    #[test]
+    fn sync_drive_ids_skip_personal_mapped_drive() {
+        let map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "personal-drive", "/Clients/Acme"),
+            matter_id: "matter-a".into(),
+        }];
+        let drives = vec![Drive {
+            id: "personal-drive".into(),
+            name: "OneDrive".into(),
+            drive_type: Some("personal".into()),
+            ..Default::default()
+        }];
+        assert_eq!(sync_drive_ids(&map, &drives), Vec::<String>::new());
     }
 
     #[test]
@@ -493,7 +542,12 @@ mod tests {
             Some("site-123"),
         );
         let path = item_folder_path(&item);
-        let key = folder_key(DEFAULT_ACCOUNT, item.site_id().as_deref(), "drive-sp", &path);
+        let key = folder_key(
+            DEFAULT_ACCOUNT,
+            item.site_id().as_deref(),
+            "drive-sp",
+            &path,
+        );
         assert_eq!(key, "m365/default/site-123/drive-sp:/clients");
     }
 
