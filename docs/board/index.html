@@ -158,6 +158,28 @@
   .pd-link{margin-left:6px;color:var(--accent);font-weight:700;text-decoration:none;font-size:13px}
   .pd-link:hover{text-decoration:underline}
 
+  /* Strategic memo (long-form, scannable) */
+  .memo-toc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px;box-shadow:var(--shadow)}
+  .memo-toc-h{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 9px}
+  .memo-toc-list{display:flex;flex-wrap:wrap;gap:6px 10px}
+  a.memo-toclink{font-size:12.5px;font-weight:600;color:var(--navy);text-decoration:none;background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;padding:5px 9px}
+  a.memo-toclink:hover{border-color:var(--accent);color:var(--accent)}
+  .memo-block{padding:20px 0;border-top:1px solid var(--line)}
+  .memo-block:first-of-type{border-top:0;padding-top:4px}
+  .memo-bhead{display:flex;align-items:center;gap:11px;margin:0 0 9px;flex-wrap:wrap}
+  .memo-num{flex:none;width:28px;height:28px;border-radius:8px;background:var(--navy);color:#fff;font-weight:700;font-size:13.5px;display:grid;place-items:center}
+  .memo-btitle{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:19px;margin:0;letter-spacing:-.01em;min-width:0;color:var(--ink)}
+  .memo-bhead .chip{margin:0}
+  .memo-lead{font-size:15px;font-weight:600;color:var(--ink);background:var(--bg-soft);border-left:4px solid var(--accent);border-radius:0 10px 10px 0;padding:11px 14px;margin:0 0 12px}
+  .memo-p{font-size:14px;color:var(--ink-soft);margin:0 0 11px}
+  .memo-block ul.list li{font-size:13.5px}
+  .memo-tablewrap{overflow-x:auto;margin:6px 0 12px}
+  table.memo-table{width:100%;border-collapse:collapse;font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  table.memo-table th,table.memo-table td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.memo-table th{background:var(--navy);color:#fff;font-weight:600;font-size:12px;letter-spacing:.02em;white-space:nowrap}
+  table.memo-table tr:last-child td{border-bottom:0}
+  table.memo-table tr:nth-child(even) td{background:#fafbfd}
+
   footer{border-top:1px solid var(--line); padding:22px 0 40px; color:var(--muted); font-size:13px}
   footer b{color:var(--ink-soft)}
   .loading,.error{padding:60px 0; text-align:center; color:var(--muted)}
@@ -194,11 +216,13 @@
   var TONE = {
     strategy:"good", roadmap:"good", marketing:"warn", sales:"gap", growth:"gap",
     competitive:"good", engineering:"gap", ux:"warn", ui:"good",
-    testing:"warn", finance:"warn", questions:"info", demo:"good", persondev:"good"
+    testing:"warn", finance:"warn", questions:"info", demo:"good", persondev:"good",
+    memo:"info"
   };
   // Tab grouping (Overview is special; others list their section ids)
   var TABS = [
     { id:"overview",  label:"Overview" },
+    { id:"memo",      label:"Strategic Memo", sections:["memo"] },
     { id:"persondev", label:"Personal Development", sections:["persondev"] },
     { id:"demo",      label:"Demo",          sections:["demo"] },
     { id:"strategy",  label:"Strategy",      sections:["strategy","competitive"] },
@@ -286,8 +310,31 @@
       +'<button type="button" class="pd-reset" id="pd-reset">Reset progress</button></div></div>';
     return '<p class="now">'+esc(s.now)+'</p>'+intro+bar+groups+linkBlock;
   }
+  function renderMemo(s){
+    var nav=(s.blocks||[]).map(function(b){
+      return '<a class="memo-toclink" href="#memo-'+esc(b.n)+'">'+esc(b.n)+'. '+esc(b.title)+'</a>';
+    }).join('');
+    var toc = nav ? '<div class="memo-toc"><div class="memo-toc-h">Jump to a section</div><div class="memo-toc-list">'+nav+'</div></div>' : '';
+    var blocks=(s.blocks||[]).map(function(b){
+      var chipHtml = b.tone ? chip(b.tone, b.tag||'') : '';
+      var lead = b.lead ? '<p class="memo-lead">'+esc(b.lead)+'</p>' : '';
+      var body = (b.body||[]).map(function(p){return '<p class="memo-p">'+esc(p)+'</p>';}).join('');
+      var bullets = (b.bullets&&b.bullets.length) ? '<ul class="list">'+b.bullets.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>' : '';
+      var table='';
+      if(b.table && b.table.rows){
+        var th='<tr>'+(b.table.headers||[]).map(function(h){return '<th>'+esc(h)+'</th>';}).join('')+'</tr>';
+        var tr=(b.table.rows||[]).map(function(r){return '<tr>'+r.map(function(c){return '<td>'+esc(c)+'</td>';}).join('')+'</tr>';}).join('');
+        table='<div class="memo-tablewrap"><table class="memo-table"><thead>'+th+'</thead><tbody>'+tr+'</tbody></table></div>';
+      }
+      return '<div class="memo-block" id="memo-'+esc(b.n)+'"><div class="memo-bhead"><span class="memo-num">'+esc(b.n)+'</span><h3 class="memo-btitle">'+esc(b.title)+'</h3>'+chipHtml+'</div>'+lead+body+bullets+table+'</div>';
+    }).join('');
+    var intro = s.intro ? '<p class="demo-intro">'+esc(s.intro)+'</p>' : '';
+    var links=(s.links||[]).map(function(l){return '<a class="reslink" href="'+esc(l.doc)+'" target="_blank" rel="noopener">'+esc(l.label)+' →</a>';}).join('');
+    var linkBlock = links ? '<div class="reslinks"><h3><span class="mark res"></span>Full memo &amp; companion docs</h3><div class="reslist">'+links+'</div></div>' : '';
+    return '<p class="now">'+esc(s.now)+'</p>'+intro+toc+blocks+linkBlock;
+  }
   function renderSection(s, collapsed){
-    var body = s.type==='testing' ? renderTesting(s) : s.type==='questions' ? renderQuestions(s) : s.type==='roadmap' ? renderRoadmap(s) : s.type==='demo' ? renderDemo(s) : s.type==='persondev' ? renderPersonalDev(s) : renderStandard(s);
+    var body = s.type==='testing' ? renderTesting(s) : s.type==='questions' ? renderQuestions(s) : s.type==='roadmap' ? renderRoadmap(s) : s.type==='demo' ? renderDemo(s) : s.type==='persondev' ? renderPersonalDev(s) : s.type==='memo' ? renderMemo(s) : renderStandard(s);
     return '<section class="area'+(collapsed?' collapsed':'')+'" id="sec-'+s.id+'">'
       +'<button class="area-head" type="button" aria-expanded="'+(collapsed?'false':'true')+'">'
       +'<span class="area-emoji">'+(s.icon||'•')+'</span>'
