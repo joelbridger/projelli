@@ -22,6 +22,7 @@ import { MailImapConnect } from '@/features/settings/MailImapConnect';
 import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
 import { WealthboxConnect } from '@/features/settings/WealthboxConnect';
 import { OneDriveConnect } from '@/features/settings/OneDriveConnect';
+import { BoxConnect } from '@/features/settings/BoxConnect';
 import { DocuSignConnect } from '@/features/settings/DocuSignConnect';
 import { CalendlyConnect } from '@/features/settings/CalendlyConnect';
 import { SalesforceConnect } from '@/features/settings/SalesforceConnect';
@@ -307,6 +308,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                 <MailImapConnect />
                 <MailGmailConnect />
                 <OneDriveConnect />
+                <BoxConnect />
                 <WealthboxConnect />
                 <DocuSignConnect />
                 <CalendlyConnect />

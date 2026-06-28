@@ -22,6 +22,8 @@ pub mod connector;
 pub mod mail;
 // Read-only OneDrive / SharePoint document connector.
 pub mod onedrive;
+// Read-only Box document connector.
+pub mod boxc;
 // Phase 4 M4 (v1.5 Flag 2) — host-side bridge for the Keepance MCP sidecar:
 // list pending write approvals, record the user's decision, resolve the
 // platform `.mcpb` bundle path.
