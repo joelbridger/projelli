@@ -11,15 +11,14 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
+import { waitForTestModeLoad, hardClick, gotoDocuments } from './helpers/test-utils';
 
 test.describe('Destructive actions (UX-16)', () => {
   test('deleting a file shows an Undo toast that restores it', async ({ page }) => {
-    await page.goto('/?testMode=true');
+    await page.goto('/?testMode=true&seedDemo=1');
     await waitForTestModeLoad(page);
 
-    await hardClick(page.getByTestId('spine-nav-files'));
-    await hardClick(page.getByRole('tab', { name: 'Files' }));
+    await gotoDocuments(page);
     await hardClick(page.getByTestId('docs-view-tree'));
 
     const items = page.getByTestId('file-tree').locator('[role="treeitem"]');

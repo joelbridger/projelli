@@ -7,7 +7,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
+import { waitForTestModeLoad, hardClick, gotoDocuments } from './helpers/test-utils';
 
 test.describe('Shell empty states (UX-07)', () => {
   test.beforeEach(async ({ page }) => {
@@ -18,13 +18,12 @@ test.describe('Shell empty states (UX-07)', () => {
         /* no-op */
       }
     });
-    await page.goto('/?testMode=true');
+    await page.goto('/?testMode=true&seedDemo=1');
     await waitForTestModeLoad(page);
   });
 
   test('Documents empty state renders with create actions', async ({ page }) => {
-    await hardClick(page.getByTestId('spine-nav-files'));
-    await hardClick(page.getByRole('tab', { name: 'Files' }));
+    await gotoDocuments(page);
     await page.evaluate(() => {
       (window as unknown as { __setTestFileTree?: (tree: unknown[]) => void }).__setTestFileTree?.([]);
     });
@@ -45,7 +44,8 @@ test.describe('Shell empty states (UX-07)', () => {
   });
 
   test('Activity Log empty state renders when no entries exist', async ({ page }) => {
-    await hardClick(page.getByTestId('spine-nav-audit'));
+    await hardClick(page.getByTestId('settings-gear'));
+    await hardClick(page.getByTestId('settings-category-activity-log'));
 
     const emptyState = page.getByTestId('audit-empty-state');
     await expect(emptyState).toBeVisible();
@@ -53,8 +53,7 @@ test.describe('Shell empty states (UX-07)', () => {
   });
 
   test('Trash empty state renders when trash is empty', async ({ page }) => {
-    await hardClick(page.getByTestId('spine-nav-files'));
-    await hardClick(page.getByRole('tab', { name: 'Files' }));
+    await gotoDocuments(page);
     await hardClick(page.getByTestId('docs-trash-toggle'));
 
     const emptyState = page.getByTestId('empty-state-trash');

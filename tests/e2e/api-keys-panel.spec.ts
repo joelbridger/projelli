@@ -12,14 +12,14 @@ import { hardClick, safeFill, waitForTestModeLoad } from './helpers/test-utils';
 const PROVIDERS = ['anthropic', 'openai', 'google'] as const;
 
 async function clearBrowserKeys(page: Page) {
-  await page.evaluate(() => {
-    for (const provider of ['anthropic', 'openai', 'google']) {
+  await page.evaluate((providers) => {
+    for (const provider of providers) {
       localStorage.removeItem(`apiKey_${provider}`);
       localStorage.removeItem(`bos_key_${provider}`);
     }
     localStorage.removeItem('bos_key_metadata');
     localStorage.removeItem('keepance_apikeys_migrated_v1');
-  });
+  }, PROVIDERS);
 }
 
 async function seedStoredKey(page: Page, provider: (typeof PROVIDERS)[number], key: string) {
@@ -44,7 +44,7 @@ async function seedStoredKey(page: Page, provider: (typeof PROVIDERS)[number], k
 }
 
 async function openApiKeyManager(page: Page) {
-  await hardClick(page.getByTestId('spine-nav-settings'));
+  await hardClick(page.getByTestId('settings-gear'));
   await expect(page.getByTestId('settings-page')).toBeVisible();
 
   await hardClick(page.getByTestId('settings-category-ai-privacy'));
@@ -65,7 +65,7 @@ test.describe('API key management', () => {
   });
 
   test('Settings exposes the Manage AI Account Keys action', async ({ page }) => {
-    await hardClick(page.getByTestId('spine-nav-settings'));
+    await hardClick(page.getByTestId('settings-gear'));
     await expect(page.getByTestId('settings-page')).toBeVisible();
 
     await hardClick(page.getByTestId('settings-category-ai-privacy'));

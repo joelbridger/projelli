@@ -65,6 +65,24 @@ export async function waitForTestModeLoad(page: Page) {
 }
 
 /**
+ * Open the matter-scoped Documents browser through the new Client Map IA.
+ *
+ * Tests that use the default matter should load `?testMode=true&seedDemo=1`
+ * so the Brennan demo client exists.
+ */
+export async function gotoDocuments(page: Page, matterId = 'matter_demo_brennan') {
+  await hardClick(page.getByTestId('spine-nav-matters'));
+
+  const shortcut = page.getByTestId('hub-shortcut-documents');
+  if (!(await shortcut.isVisible().catch(() => false))) {
+    await hardClick(page.getByTestId(`matter-row-${matterId}`));
+  }
+
+  await hardClick(page.getByTestId('hub-shortcut-documents'));
+  await expect(page.getByTestId('documents-toolbar')).toBeVisible({ timeout: 10_000 });
+}
+
+/**
  * Check if the workspace selector is shown (no workspace open)
  */
 export async function isWorkspaceSelectorVisible(page: Page): Promise<boolean> {

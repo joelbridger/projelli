@@ -7,7 +7,7 @@
 
 import { test, expect } from '@playwright/test';
 
-import { waitForTestModeLoad } from './helpers/test-utils';
+import { waitForTestModeLoad, gotoDocuments } from './helpers/test-utils';
 
 async function openSyntheticTab(
   page: import('@playwright/test').Page,
@@ -28,7 +28,7 @@ async function openSyntheticTab(
 
 test.describe('Tab Bar Horizontal Scroll', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/?testMode=true');
+    await page.goto('/?testMode=true&seedDemo=1');
     await waitForTestModeLoad(page);
     // Pin a known viewport size so the min-width per tab reliably overflows.
     await page.setViewportSize({ width: 1000, height: 800 });
@@ -41,7 +41,7 @@ test.describe('Tab Bar Horizontal Scroll', () => {
       await openSyntheticTab(page, i);
     }
 
-    await page.getByTestId('spine-nav-files').click();
+    await gotoDocuments(page);
     const strip = page.getByTestId('documents-tab-strip');
     await expect(strip).toBeVisible();
 
