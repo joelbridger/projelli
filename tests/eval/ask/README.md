@@ -69,6 +69,63 @@ The nightly writes `results/latest.json` (gitignored), compares the pass rate to
 
 To schedule it, add the cron line in the header of `scripts/eval/ask-nightly.mjs`.
 
+## Retrieval quality + citation faithfulness (WS3b)
+
+The answer eval above tests the ANSWER given retrieval. Two further tests measure
+the layers underneath it — and establish the **measurement baseline** a future
+retrieval reranker must beat.
+
+### 1. Retrieval quality — `retrieval-quality.test.ts` + `rag_retrieval_quality.rs`
+
+"Did the engine rank the RIGHT document highly?" measured as **MRR, NDCG@5,
+Precision@{1,3,5}, Hit@{1,3,5}** over an adversarial distractor corpus (two
+confusable clients "Marcus Johnson" / "Marcus Johnston" with conflicting facts, a
+confusable company "Nexus Diagnostics" / "Nexus Dynamics", and rare long-tail
+keywords). Cases live in `retrievalCases.ts`; metrics in `retrievalMetrics.ts`.
+
+The product's retrieval path (fastembed **e5-small** + LanceDB) is native Rust —
+there is no JS embedder — so the REAL numbers are produced by the Rust
+integration test `src-tauri/tests/rag_retrieval_quality.rs`, over the SAME shared
+corpus (`corpus/*.md` + `corpus/manifest.json`). It prints the metrics, holds a
+regression floor, and writes `results/retrieval-latest.json`. The committed
+`retrieval-baseline.json` is the frozen reference.
+
+The TS test is always model-free in the gate: it unit-tests the metric math,
+checks case integrity, and validates + prints the committed baseline (recomputing
+its metrics from the per-case ranked lists). When a fresh real run is present it
+cross-checks the Rust-computed summary against a TS recomputation (catches metric
+drift). It **skips gracefully** when the run artifact is absent.
+
+```bash
+# TS layer (gate — metric math + committed-baseline validation, no model)
+npx vitest run tests/eval/ask/retrieval-quality.test.ts
+
+# REAL baseline — needs the e5-small model cache provisioned. REQUIRE_RAG_MODEL=1
+# turns a missing model into a hard failure instead of a silent skip (matches the
+# other RAG integration tests). Provision the model by running the app once, or
+# populate <data_dir>/keepance/models/e5-small.
+REQUIRE_RAG_MODEL=1 cargo test -p keepance --test rag_retrieval_quality -- --nocapture
+```
+
+**Baseline (measured 2026-06-28, multilingual-e5-small, n=15):** MRR 0.933 ·
+NDCG@5 0.951 · P@1 0.867 · Hit@1 0.867 · Hit@3 1.000 · Hit@5 1.000. (P@3/P@5 are
+intentionally low — most queries have a single relevant document, so P@3 maxes at
+0.333 and P@5 at 0.200; MRR / NDCG@5 / Hit@K are the meaningful signals.)
+
+### 2. Citation faithfulness — `citation-faithfulness.test.ts`
+
+"Does every citation resolve to a real chunk whose text actually supports the
+claim?" For each gold answer it verifies, via the product's own
+`parseCitations` / `resolveCitationTarget`, that (a) every citation resolves to a
+retrieved chunk, (b) every required fact appears in the TEXT of a chunk the answer
+cited, and (c) a decline never cites. A curated negative control (dangling,
+cross-client, same-locator drift, confusable-company, decline-that-cites) must be
+caught — each for its named reason. Deterministic, no model, runs in the gate.
+
+```bash
+npx vitest run tests/eval/ask/citation-faithfulness.test.ts
+```
+
 ## Why MockProvider for the gate?
 
 We can't run real RAG (LanceDB/embeddings are native Rust) or a real model inside

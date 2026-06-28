@@ -1,0 +1,13 @@
+{
+  "_comment": "Cross-language corpus manifest for the Ask answer-quality eval AND the Rust retrieval-quality baseline (src-tauri/tests/rag_retrieval_quality.rs). Maps each corpus/*.md document to the confidentiality scope (matter) and privilege it is indexed under. corpus.ts asserts its DOC_MATTER map equals this file (drift guard); the Rust test reads this file so both languages index the same corpus the same way. privilege is one of: none | attorney-client | work-product.",
+  "documents": {
+    "johnson-deposition.md": { "matterId": "matter-johnson", "privilege": "none" },
+    "johnson-incident-summary.md": { "matterId": "matter-johnson", "privilege": "none" },
+    "johnson-engagement-letter.md": { "matterId": "matter-johnson", "privilege": "none" },
+    "acme-supply-agreement.md": { "matterId": "matter-acme", "privilege": "none" },
+    "acme-intake-memo.md": { "matterId": "matter-acme", "privilege": "none" },
+    "johnston-deposition.md": { "matterId": "matter-johnston", "privilege": "none" },
+    "johnston-engagement-letter.md": { "matterId": "matter-johnston", "privilege": "none" },
+    "nexus-diagnostics-nda.md": { "matterId": "matter-nexus-diagnostics", "privilege": "none" }
+  }
+}
