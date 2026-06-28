@@ -22,6 +22,9 @@ docs/
 | [VISION.md](reference/VISION.md) | Current product vision (founder-focused positioning) |
 | [PROJECT_VISION_ORIGINAL.md](reference/PROJECT_VISION_ORIGINAL.md) | Original vision doc — preserved for context |
 | [ARCHITECTURE.md](reference/ARCHITECTURE.md) | System architecture, layered design, modules |
+| [RUST_BACKEND.md](reference/RUST_BACKEND.md) | The Rust/Tauri backend: command layer + the `keepance-vault` and `keepance-docx` crates + the encrypted audit store |
+| [RAG_PIPELINE.md](reference/RAG_PIPELINE.md) | The local search engine end-to-end: ingest → chunk → embed → LanceDB → retrieve → cited answer |
+| [CONNECTORS.md](reference/CONNECTORS.md) | Data connectors (email/CRM/OneDrive/Calendly/DocuSign): the connect→sync→index pipeline, matter mapping, how to add one, per-connector status |
 | [PRD.md](reference/PRD.md) | Product requirements and user stories |
 | [DECISIONS.md](reference/DECISIONS.md) | Architecture Decision Records (ADRs) |
 | [IMPLEMENTATION.md](reference/IMPLEMENTATION.md) | Detailed implementation notes |
@@ -31,7 +34,8 @@ docs/
 
 | File | What it covers |
 |---|---|
-| [DEVELOPMENT_WORKFLOW.md](operations/DEVELOPMENT_WORKFLOW.md) | Day-to-day dev workflow, branch strategy, releases |
+| [DEVELOPER_ONBOARDING.md](operations/DEVELOPER_ONBOARDING.md) | **New-developer runbook: clone → install → prerequisites → run dev → tests → the gate → PR/CI. Start here to set up the repo.** |
+| [DEVELOPMENT_WORKFLOW.md](operations/DEVELOPMENT_WORKFLOW.md) | Older day-to-day dev/release workflow (v1.0-era; superseded for the dev loop by DEVELOPER_ONBOARDING.md above) |
 
 ## Quality (testing + DoD)
 
@@ -40,6 +44,7 @@ docs/
 | File | What it covers |
 |---|---|
 | [quality/README.md](quality/README.md) | **The testing index — current state, the pyramid, how to run, what's left** |
+| [TROUBLESHOOTING_TESTS.md](quality/TROUBLESHOOTING_TESTS.md) | Debugging a failing test: Vitest (jsdom polyfills, mocks, stores), Playwright (flaky/quarantine, ports, timing), Rust (`REQUIRE_RAG_MODEL`, build lock) |
 | [DEFINITION_OF_DONE.md](quality/DEFINITION_OF_DONE.md) | What "done" means before merging (note: pre-3.0 branding, due a refresh) |
 | (archived) `archive/quality/PLAYWRIGHT_TESTING.md` | E2E patterns — superseded by `playwright.config.ts` + the full-user-test playbook |
 | (archived) `archive/quality/MANUAL_TESTING_CHECKLIST.md` | v1.0-era manual checklist — superseded by the full-user-test playbook + Windows test plan |
