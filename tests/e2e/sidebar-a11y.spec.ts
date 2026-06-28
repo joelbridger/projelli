@@ -11,14 +11,9 @@ import { test, expect } from '@playwright/test';
 import { hardClick, waitForTestModeLoad } from './helpers/test-utils';
 
 const SPINE_ITEMS = [
-  { id: 'matters', label: 'Matters' },
-  { id: 'search', label: 'Search' },
-  { id: 'files', label: 'Documents' },
-  { id: 'email', label: 'Email' },
+  { id: 'matters', label: 'Client Map' },
+  { id: 'search', label: 'Ask' },
   { id: 'workflows', label: 'Workflows' },
-  { id: 'audit', label: 'Activity Log' },
-  { id: 'privacy', label: 'Privacy Center' },
-  { id: 'settings', label: 'Settings' },
 ] as const;
 
 test.describe('Spine nav accessibility', () => {
@@ -39,24 +34,25 @@ test.describe('Spine nav accessibility', () => {
   });
 
   test('the active destination is marked with aria-current', async ({ page }) => {
-    const files = page.getByTestId('spine-nav-files');
-    await expect(files).toHaveAttribute('aria-current', 'page');
+    // The 3-tab IA lands on the Client Map (matters).
+    const matters = page.getByTestId('spine-nav-matters');
+    await expect(matters).toHaveAttribute('aria-current', 'page');
 
     const search = page.getByTestId('spine-nav-search');
     await expect(search).not.toHaveAttribute('aria-current', 'page');
 
     await hardClick(search);
     await expect(search).toHaveAttribute('aria-current', 'page');
-    await expect(files).not.toHaveAttribute('aria-current', 'page');
+    await expect(matters).not.toHaveAttribute('aria-current', 'page');
   });
 
   test('keyboard users can focus and activate spine destinations', async ({ page }) => {
-    const settings = page.getByTestId('spine-nav-settings');
-    await settings.focus();
-    await expect(settings).toBeFocused();
+    const workflows = page.getByTestId('spine-nav-workflows');
+    await workflows.focus();
+    await expect(workflows).toBeFocused();
 
     await page.keyboard.press('Enter');
-    await expect(settings).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByTestId('settings-page')).toBeVisible();
+    await expect(workflows).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('associate-home')).toBeVisible();
   });
 });

@@ -42,35 +42,41 @@ test.describe('Spine Navigation (test mode)', () => {
     await waitForTestModeLoad(page);
   });
 
-  test('spine has all current navigation destinations', async ({ page }) => {
-    const expectedTabs = ['matters', 'search', 'files', 'email', 'workflows', 'audit', 'privacy', 'settings'];
+  test('spine has exactly the 3 IA rail destinations (and not the demoted ones)', async ({ page }) => {
+    const expectedTabs = ['matters', 'search', 'workflows'];
     for (const tabId of expectedTabs) {
       await expect(page.getByTestId(`spine-nav-${tabId}`)).toBeVisible();
+    }
+    // Documents / Email / Activity Log / Privacy Center / Settings relocated —
+    // they are no longer rail tabs (reached via the client hub + the gear).
+    for (const tabId of ['files', 'email', 'audit', 'privacy', 'settings']) {
+      await expect(page.getByTestId(`spine-nav-${tabId}`)).toHaveCount(0);
     }
   });
 
   test('spine collapse and expand buttons work', async ({ page }) => {
     const collapseBtn = page.getByRole('button', { name: 'Collapse sidebar' });
     await hardClick(collapseBtn);
-    await expect(page.getByTestId('spine-nav-collapsed-files')).toBeVisible();
+    await expect(page.getByTestId('spine-nav-collapsed-matters')).toBeVisible();
 
     const expandBtn = page.getByRole('button', { name: 'Expand' });
     await hardClick(expandBtn);
-    await expect(page.getByTestId('spine-nav-files')).toBeVisible();
+    await expect(page.getByTestId('spine-nav-matters')).toBeVisible();
   });
 
   test('clicking spine tabs switches content', async ({ page }) => {
     await hardClick(page.getByTestId('spine-nav-search'));
-    await expect(page.getByRole('heading', { name: 'Search' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Ask' })).toBeVisible();
     await expect(page.getByTestId('ask-composer-input')).toBeVisible();
 
     await hardClick(page.getByTestId('spine-nav-workflows'));
     await expect(page.getByTestId('associate-home')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Workflows' })).toBeVisible();
 
-    await hardClick(page.getByTestId('spine-nav-files'));
-    await expect(page.getByRole('heading', { name: 'Documents' })).toBeVisible();
-    await expect(page.getByTestId('documents-tab-strip')).toBeVisible();
+    // Back to the Client Map — content switches away from Ask.
+    await hardClick(page.getByTestId('spine-nav-matters'));
+    await expect(page.getByTestId('spine-nav-matters')).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('ask-composer-input')).toHaveCount(0);
   });
 
   test('visual snapshot: main app in test mode', async ({ page }) => {

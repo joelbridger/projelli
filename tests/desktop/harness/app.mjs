@@ -87,10 +87,52 @@ export async function bootToWorkspace(session, { workspacePath, workspaceName = 
 }
 
 /**
- * Navigate the left spine to a surface by its visible label
- * (Matters, Search, Documents, Email, Workflows, Activity Log, Privacy Center, Settings).
+ * Navigate to a surface by its (historical) label, mapped onto the 3-tab IA.
+ *
+ * The rail now has only Client Map (matters) · Ask (search) · Workflows. The
+ * demoted surfaces are reached elsewhere: Settings / Activity Log / Privacy
+ * Center via the gear (Activity Log + Privacy Center are nested Settings
+ * sections); Documents / Email are per-client (open a client, then its hub
+ * shortcut row). Old labels are accepted and translated so existing specs keep
+ * working where the destination is globally reachable.
  */
 export async function gotoSurface(session, label) {
+  // The 3 rail tabs (accept old + new labels).
+  const railTestid = {
+    Matters: 'spine-nav-matters',
+    'Client Map': 'spine-nav-matters',
+    Search: 'spine-nav-search',
+    Ask: 'spine-nav-search',
+    Workflows: 'spine-nav-workflows',
+  }[label];
+  if (railTestid) {
+    const btn = await session.find('xpath', `//*[@data-testid=${xpathLiteral(railTestid)}]`, 15_000);
+    await session.click(btn);
+    return;
+  }
+
+  // Settings opens full-page via the gear.
+  if (label === 'Settings') {
+    const gear = await session.find('xpath', `//*[@data-testid='settings-gear']`, 15_000);
+    await session.click(gear);
+    return;
+  }
+
+  // Activity Log / Privacy Center are nested sections inside Settings (the gear).
+  const nestedTestid = {
+    'Activity Log': 'settings-category-activity-log',
+    'Privacy Center': 'settings-category-privacy-center',
+  }[label];
+  if (nestedTestid) {
+    const gear = await session.find('xpath', `//*[@data-testid='settings-gear']`, 15_000);
+    await session.click(gear);
+    const section = await session.find('xpath', `//*[@data-testid=${xpathLiteral(nestedTestid)}]`, 15_000);
+    await session.click(section);
+    return;
+  }
+
+  // Fallback: a visible nav button (e.g. Documents/Email are per-client and have
+  // no global nav button in the 3-tab IA — callers should open a client first).
   const btn = await session.find('xpath', `//nav//button[normalize-space()=${xpathLiteral(label)}]`, 15_000);
   await session.click(btn);
 }
