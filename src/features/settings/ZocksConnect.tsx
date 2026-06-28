@@ -77,6 +77,10 @@ export function ZocksConnect() {
 
   async function syncNow() {
     setError(null);
+    if (isLocalOnlyMode()) {
+      setError('Local-only mode is on. Turn it off before syncing Zocks, because it contacts Zocks.');
+      return;
+    }
     setSyncing(true);
     try {
       const result = await zocksSync(buildZocksMatterMap(getMatters()));
