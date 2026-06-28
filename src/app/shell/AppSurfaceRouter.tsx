@@ -227,7 +227,7 @@ export function AppSurfaceRouter({
     />
   );
 
-  const buildDocumentsHome = (opts: { embedded?: boolean; scopeFolderPaths?: string[] }) => (
+  const buildDocumentsHome = (opts: { embedded?: boolean; scopeFolderPaths?: string[]; scopeMatterId?: string }) => (
     <DocumentsHome
       documentsView={documentsView}
       onFileOpen={handleFileOpen}
@@ -253,6 +253,7 @@ export function AppSurfaceRouter({
       onRetentionChange={handleTrashRetentionChange}
       {...(opts.embedded ? { embedded: true } : {})}
       {...(opts.scopeFolderPaths ? { scopeFolderPaths: opts.scopeFolderPaths } : {})}
+      {...(opts.scopeMatterId ? { scopeMatterId: opts.scopeMatterId } : {})}
       mainPanelContent={documentsMainPanel()}
     />
   );
@@ -303,7 +304,11 @@ export function AppSurfaceRouter({
         <MattersHome
           onAuditLog={addAuditEntry}
           renderClientDocuments={() =>
-            buildDocumentsHome({ embedded: true, scopeFolderPaths: activeMatter?.folderPaths ?? [] })
+            buildDocumentsHome({
+              embedded: true,
+              scopeFolderPaths: activeMatter?.folderPaths ?? [],
+              ...(activeMatter ? { scopeMatterId: activeMatter.id } : {}),
+            })
           }
           renderClientEmail={() => buildEmailWorkspace({ embedded: true })}
           renderClientActivity={() =>

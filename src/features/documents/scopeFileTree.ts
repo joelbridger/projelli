@@ -19,7 +19,8 @@
  * is whole-segment, so `/ws/Brennan` does NOT match `/ws/Brennan Two`.
  */
 import type { FileNode } from '@/platform/types/workspace';
-import { isPathInFolder, normalize } from '@/platform/rag/matterResolver';
+import type { Matter } from '@/platform/types/matter';
+import { isPathInFolder, normalize, resolveMatterId } from '@/platform/rag/matterResolver';
 
 /** True when `path` is a strict ancestor of `folder` (so we must descend into
  *  it to reach the scoped folder). */
@@ -32,20 +33,45 @@ function isAncestorOf(path: string, folder: string): boolean {
  *
  * - `folderPaths` empty → returns `[]` (a client with no mapped folders has no
  *   scoped documents; the caller shows an honest empty state).
- * - A node at/under any folder path is included whole (its full subtree).
- * - A folder that is an ancestor of a scoped folder is kept but recursed into,
- *   so only the branch leading to the scoped folder survives.
+ * - A node at/under any folder path is included; an ancestor folder is kept only
+ *   for the branch leading down to a scoped folder.
+ * - **Matter isolation:** when `matters` + `scopeMatterId` are supplied, a
+ *   descendant owned by a DIFFERENT matter (a subfolder mapped to another
+ *   client, nested inside this client's folder) is DROPPED — using the same
+ *   longest-match ownership `resolveMatterId` uses — so one client's tab can
+ *   never surface another client's files. Without that context the prune is
+ *   purely folder-based (back-compat).
  */
 export function scopeFileTreeToFolders(
   tree: FileNode[],
   folderPaths: string[],
+  matters?: Matter[],
+  scopeMatterId?: string,
 ): FileNode[] {
   if (folderPaths.length === 0) return [];
   const folders = folderPaths.filter(Boolean);
+  const ownershipAware = matters !== undefined && scopeMatterId !== undefined;
 
   function prune(node: FileNode): FileNode | null {
-    // Inside one of the matter's folders (or exactly one): keep the whole node.
+    // Inside one of the matter's folders (path-wise).
     if (folders.some((f) => isPathInFolder(node.path, f))) {
+      if (!ownershipAware) {
+        // Folder-based only: keep the whole subtree.
+        return node;
+      }
+      // Ownership-aware: a node whose longest-match owner is a DIFFERENT matter
+      // (a nested foreign-client subfolder/file) must be dropped, not leaked.
+      if (resolveMatterId(node.path, matters) !== scopeMatterId) {
+        return null;
+      }
+      // Ours — but recurse folders, since a deeper subfolder could be mapped to
+      // another matter even though this level is ours.
+      if (node.type === 'folder') {
+        const children = (node.children ?? [])
+          .map(prune)
+          .filter((c): c is FileNode => c !== null);
+        return { ...node, children };
+      }
       return node;
     }
     // A folder above a scoped folder: keep only the branch that reaches it.

@@ -7,6 +7,11 @@
 import { describe, it, expect } from 'vitest';
 import { scopeFileTreeToFolders } from '@/features/documents/scopeFileTree';
 import type { FileNode } from '@/platform/types/workspace';
+import type { Matter } from '@/platform/types/matter';
+
+function matter(id: string, folderPaths: string[]): Matter {
+  return { id, name: id, client: id, folderPaths, createdAt: '2026-01-01T00:00:00.000Z' };
+}
 
 function folder(path: string, children: FileNode[] = []): FileNode {
   return { id: path, name: path.split('/').pop() ?? path, path, type: 'folder', children };
@@ -67,6 +72,34 @@ describe('scopeFileTreeToFolders', () => {
     const snapshot = JSON.stringify(TREE);
     scopeFileTreeToFolders(TREE, ['/ws/Clients/Webb']);
     expect(JSON.stringify(TREE)).toBe(snapshot);
+  });
+
+  it('drops a nested subfolder owned by ANOTHER client (matter-isolation leak)', () => {
+    // Client A owns /ws/Clients; client B owns the nested /ws/Clients/Beta.
+    const nested: FileNode[] = [
+      folder('/ws/Clients', [
+        folder('/ws/Clients/Acme', [file('/ws/Clients/Acme/deal.docx')]),
+        folder('/ws/Clients/Beta', [file('/ws/Clients/Beta/secret.docx')]),
+      ]),
+    ];
+    const matters = [matter('A', ['/ws/Clients']), matter('B', ['/ws/Clients/Beta'])];
+
+    const out = scopeFileTreeToFolders(nested, ['/ws/Clients'], matters, 'A');
+    expect(out).toHaveLength(1);
+    expect(out[0]!.path).toBe('/ws/Clients');
+    const childPaths = out[0]!.children?.map((c) => c.path) ?? [];
+    expect(childPaths).toContain('/ws/Clients/Acme');
+    // B's folder must NOT leak into A's scoped view.
+    expect(childPaths).not.toContain('/ws/Clients/Beta');
+  });
+
+  it('without matter context, prune is folder-based only (back-compat)', () => {
+    const nested: FileNode[] = [
+      folder('/ws/Clients', [folder('/ws/Clients/Beta', [file('/ws/Clients/Beta/x.docx')])]),
+    ];
+    // No matters passed → the nested folder is kept (no ownership awareness).
+    const out = scopeFileTreeToFolders(nested, ['/ws/Clients']);
+    expect(out[0]!.children?.map((c) => c.path)).toEqual(['/ws/Clients/Beta']);
   });
 
   it('normalizes path shapes the way matter resolution does (backslashes / trailing slash)', () => {

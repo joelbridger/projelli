@@ -89,7 +89,7 @@ import { MattersHome } from '@/features/matters/MattersHome';
 import { MatterHub } from '@/features/matters/MatterHub';
 
 function resetStore() {
-  useMatterStore.setState({ matters: [], activeMatterId: null });
+  useMatterStore.setState({ matters: [], activeMatterId: null, clientMapHubId: null, clientMapHubTab: null });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -259,5 +259,25 @@ describe('MatterHub — sub-tab workspace', () => {
 
     fireEvent.click(screen.getByTestId('hub-subtab-documents'));
     expect(screen.getByTestId('hub-subtab-unavailable')).toBeInTheDocument();
+  });
+
+  it('opens directly on a requested sub-tab from the client-list quick-action signal', () => {
+    useMatterStore.getState().createMatter({ name: 'Quick Co', client: 'Quick Co' });
+    const matter = useMatterStore.getState().matters[0]!;
+    // The event bus set this one-shot signal when routing a row's Email action.
+    useMatterStore.getState().setClientMapHubTab('email');
+
+    render(
+      <MatterHub
+        matterId={matter.id}
+        onBack={() => undefined}
+        renderEmail={() => <div data-testid="stub-email">email</div>}
+      />,
+    );
+
+    // Lands on Email (not Overview), and the one-shot signal is consumed.
+    expect(screen.getByTestId('stub-email')).toBeInTheDocument();
+    expect(screen.queryByTestId('hub-panel-clientmap')).toBeNull();
+    expect(useMatterStore.getState().clientMapHubTab).toBeNull();
   });
 });

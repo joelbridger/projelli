@@ -15,7 +15,7 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { Briefcase, Lock, Sparkles, FileText, Mail, Clock, ArrowLeft, Loader2, Map } from 'lucide-react';
 import { isTauri } from '@tauri-apps/api/core';
-import { useMatters, useActiveMatterPrivileged, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
+import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
@@ -66,7 +66,7 @@ function formatDate(iso: string): string {
 
 // ── Sub-tabs ───────────────────────────────────────────────────────────────
 
-type HubTab = 'overview' | 'documents' | 'email' | 'activity';
+type HubTab = ClientMapHubTab;
 
 const HUB_TABS: { id: HubTab; label: string; Icon: typeof FileText }[] = [
   { id: 'overview', label: 'Overview', Icon: Map },
@@ -105,12 +105,35 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   const [askQ, setAskQ] = useState('');
 
   // ── Active sub-tab ─────────────────────────────────────────────────────────
-  // Overview (the Client Map) is the default. Reset to Overview whenever the
-  // client changes so drilling into a new client always lands on its Map.
-  const [subTab, setSubTab] = useState<HubTab>('overview');
+  // Overview (the Client Map) is the default. A client-list quick-action can
+  // request a specific sub-tab (the Documents/Email row shortcuts) via the
+  // store's one-shot `clientMapHubTab`, so those land on THIS client's scoped
+  // sub-tab instead of a global surface.
+  const pendingHubTab = useMatterStore((s) => s.clientMapHubTab);
+  const setPendingHubTab = useMatterStore((s) => s.setClientMapHubTab);
+  const [subTab, setSubTab] = useState<HubTab>(() => pendingHubTab ?? 'overview');
+
+  // Reset to Overview when the client changes — UNLESS a specific sub-tab was
+  // just requested for the newly-opened client (read the live store value, which
+  // the consume effect below has not cleared yet). This effect is declared FIRST
+  // so it runs before the consume effect on mount / a client switch; otherwise it
+  // would see the just-cleared signal and stomp the requested sub-tab back to
+  // Overview.
   useEffect(() => {
-    setSubTab('overview');
+    if (!useMatterStore.getState().clientMapHubTab) {
+      setSubTab('overview');
+    }
   }, [matterId]);
+
+  // Honor + consume a pending sub-tab request. Reactive on `pendingHubTab` so it
+  // also handles a quick-action targeting the SAME already-open client (where
+  // the matterId effect above doesn't re-run).
+  useEffect(() => {
+    if (pendingHubTab) {
+      setSubTab(pendingHubTab);
+      setPendingHubTab(null);
+    }
+  }, [pendingHubTab, setPendingHubTab]);
 
   // Count sessions belonging to this matter (key starts with `ask-${matterId}`)
   const matterSessionPrefix = `ask-${matterId}`;

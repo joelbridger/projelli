@@ -34,6 +34,7 @@ import { IconButton, Callout, Button, SearchField, SurfaceToolbar } from '@/ui/k
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import { getFileIcon } from '@/platform/utils/fileIcons';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
@@ -129,6 +130,12 @@ export interface DocumentsHomeProps {
    * Undefined = the global, full-workspace browser.
    */
   scopeFolderPaths?: string[];
+  /**
+   * The id of the client being scoped. Combined with the matter list, the prune
+   * drops any nested subfolder owned by a DIFFERENT client, so this tab can
+   * never surface another client's files (matter isolation).
+   */
+  scopeMatterId?: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -332,6 +339,7 @@ export function DocumentsHome({
   onSetLetterheadTemplate,
   embedded = false,
   scopeFolderPaths,
+  scopeMatterId,
 }: DocumentsHomeProps) {
   const activeTabPath = useEditorStore((s) => s.activeTabPath);
   const openTabs = useEditorStore((s) => s.openTabs);
@@ -339,14 +347,20 @@ export function DocumentsHome({
   const closeTab = useEditorStore((s) => s.closeTab);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const storeFileTree = useWorkspaceStore((s) => s.fileTree);
+  // Used (only when scoping) to drop nested foreign-client folders from the tree.
+  const matters = useMatterStore((s) => s.matters);
 
   // Per-client scoping: when `scopeFolderPaths` is provided, prune the workspace
-  // tree to just this client's folders and feed that pruned tree to both the
-  // grid and the tree views. Pure + memoized so the global store tree is never
-  // mutated and we don't reprune on every render.
+  // tree to just this client's folders — and, with the matter list + id, drop
+  // any subfolder owned by another client — then feed that pruned tree to both
+  // the grid and the tree views. Pure + memoized so the global store tree is
+  // never mutated and we don't reprune on every render.
   const scopedFileTree = useMemo(
-    () => (scopeFolderPaths ? scopeFileTreeToFolders(storeFileTree, scopeFolderPaths) : undefined),
-    [scopeFolderPaths, storeFileTree],
+    () =>
+      scopeFolderPaths
+        ? scopeFileTreeToFolders(storeFileTree, scopeFolderPaths, matters, scopeMatterId)
+        : undefined,
+    [scopeFolderPaths, storeFileTree, matters, scopeMatterId],
   );
 
   // Trust banner state

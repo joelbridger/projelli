@@ -121,7 +121,25 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
 
       if (hasExplicitSurface) {
         const surface = detail.surface as AllowedSurface;
-        if (surface === 'files') ref.current.setDocumentsView('browser');
+        // Documents / Email / Activity are no longer GLOBAL destinations — the
+        // client-list quick-actions for them must open the active client's HUB
+        // sub-tab, scoped to THIS client. Routing them to the old global
+        // surfaces leaked every other client's files/inbox/activity (P1). The
+        // hub renders inside the Client Map ('matters') tab; a one-shot
+        // `clientMapHubTab` tells MatterHub which sub-tab to open.
+        const hubTab =
+          surface === 'files' ? 'documents'
+          : surface === 'email' ? 'email'
+          : surface === 'audit' ? 'activity'
+          : null;
+        if (hubTab) {
+          // setActiveMatter ran just above; set the hub id AFTER it (setActiveMatter
+          // can clear a hub id that doesn't match the new active matter).
+          useMatterStore.getState().setClientMapHubId(matterId);
+          useMatterStore.getState().setClientMapHubTab(hubTab);
+          ref.current.setSidebarActiveTab('matters');
+          return;
+        }
         ref.current.setSidebarActiveTab(surface);
         if (surface === 'search' && detail.question) {
           ref.current.setAskPrefill({ question: detail.question, autoSubmit: true });
