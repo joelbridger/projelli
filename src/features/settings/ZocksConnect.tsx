@@ -158,7 +158,7 @@ export function ZocksConnect() {
             autoComplete="off"
             onKeyDown={(event) => { if (event.key === 'Enter') void connect(); }}
           />
-          <Button size="sm" onClick={connect} disabled={busy}>
+          <Button size="sm" onClick={() => { void connect(); }} disabled={busy}>
             {busy ? 'Connecting...' : 'Connect Zocks'}
           </Button>
         </div>
@@ -166,13 +166,13 @@ export function ZocksConnect() {
 
       {connected && (
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button size="sm" onClick={syncNow} disabled={syncing || busy}>
+          <Button size="sm" onClick={() => { void syncNow(); }} disabled={syncing || busy}>
             {syncing ? 'Syncing...' : 'Sync Zocks meetings'}
           </Button>
           <Button size="sm" variant="secondary" onClick={() => { void zocksCancel(); }} disabled={!syncing}>
             Stop
           </Button>
-          <Button size="sm" variant="secondary" onClick={disconnect} disabled={busy || syncing}>
+          <Button size="sm" variant="secondary" onClick={() => { void disconnect(); }} disabled={busy || syncing}>
             Disconnect
           </Button>
         </div>
