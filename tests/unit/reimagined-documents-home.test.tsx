@@ -313,6 +313,40 @@ describe('DocumentsHome — file open + editor tab', () => {
     expect(screen.queryByTestId('documents-editor-pane')).toBeNull();
   });
 
+  it('switching clients on the Documents sub-tab remounts the surface — imports target the NEW client folder, not the old (matter isolation)', () => {
+    // Simulates open-Client-A-Documents -> switch-to-Client-B-Documents. The
+    // per-client key (applied in AppSurfaceRouter/MattersHome) remounts the
+    // surface, so Client A's currentFolderPath does NOT survive into B — without
+    // it, creating/importing from B's tab would write into A's folder.
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    const onImportFiles = vi.fn();
+
+    const { rerender } = render(
+      <DocumentsHome
+        key="A"
+        {...buildDefaultProps({ onImportFiles })}
+        embedded
+        scopeFolderPaths={['/workspace/Client A']}
+        scopeMatterId="A"
+      />,
+    );
+    fireEvent.click(screen.getByTestId('add-files-btn'));
+    expect(onImportFiles).toHaveBeenLastCalledWith('/workspace/Client A');
+
+    rerender(
+      <DocumentsHome
+        key="B"
+        {...buildDefaultProps({ onImportFiles })}
+        embedded
+        scopeFolderPaths={['/workspace/Client B']}
+        scopeMatterId="B"
+      />,
+    );
+    fireEvent.click(screen.getByTestId('add-files-btn'));
+    expect(onImportFiles).toHaveBeenLastCalledWith('/workspace/Client B');
+  });
+
   it('clicking "Files" tab from editor view returns to the grid', async () => {
     mockActiveTabPath = '/workspace/Brief.md';
     mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];

@@ -229,6 +229,11 @@ export function AppSurfaceRouter({
 
   const buildDocumentsHome = (opts: { embedded?: boolean; scopeFolderPaths?: string[]; scopeMatterId?: string }) => (
     <DocumentsHome
+      // Per-client key so switching clients on the same sub-tab REMOUNTS this
+      // surface (fresh currentFolderPath etc.) instead of reusing the prior
+      // client's instance and writing new files into the prior client's folder
+      // (matter isolation). Undefined for the global browser.
+      key={opts.scopeMatterId}
       // Shared documentsView is passed in both modes so a file-open inside the
       // surface still flips to the editor. Embedded mode forces only the INITIAL
       // landing to the scoped file list (see DocumentsHome's `embedded` handling)
@@ -263,8 +268,11 @@ export function AppSurfaceRouter({
     />
   );
 
-  const buildEmailWorkspace = (opts: { embedded?: boolean }) => (
+  const buildEmailWorkspace = (opts: { embedded?: boolean; scopeMatterId?: string }) => (
     <EmailWorkspace
+      // Per-client key — remount on client switch so Email selections / open
+      // detail don't carry from one client into the next (matter isolation).
+      key={opts.scopeMatterId}
       onSaveToWorkspace={async (content, suggestedName) => {
         if (!workspaceServiceRef.current || !rootPath) return;
         // Word-first: saved email content becomes a real .docx.
@@ -294,7 +302,10 @@ export function AppSurfaceRouter({
     // surface, so one malformed audit row must never white-screen the whole
     // app — contain any render failure here.
     <ErrorBoundary label="Activity Log">
+      {/* Per-client key — remount on client switch so the Activity detail panel
+          / filters don't carry from one client into the next (matter isolation). */}
       <AuditHome
+        key={opts.scopeMatterId}
         entries={auditEntries}
         integrity={auditIntegrity}
         onVerifyIntegrity={verifyAuditIntegrity}
@@ -315,7 +326,9 @@ export function AppSurfaceRouter({
               ...(activeMatter ? { scopeMatterId: activeMatter.id } : {}),
             })
           }
-          renderClientEmail={() => buildEmailWorkspace({ embedded: true })}
+          renderClientEmail={() =>
+            buildEmailWorkspace({ embedded: true, ...(activeMatter ? { scopeMatterId: activeMatter.id } : {}) })
+          }
           renderClientActivity={() =>
             buildActivity(activeMatter ? { scopeMatterId: activeMatter.id } : {})
           }

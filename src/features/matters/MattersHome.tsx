@@ -695,6 +695,11 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
   if (hubMatterId !== null) {
     return (
       <MatterHub
+        // Remount the whole hub when the client changes, so NO per-client local
+        // state (the scoped Documents folder, Email selections, Activity detail,
+        // the Ask box) can survive an A->B switch into the next client (matter
+        // isolation — a reused instance otherwise leaks A's state into B).
+        key={hubMatterId}
         matterId={hubMatterId}
         onBack={closeHub}
         {...(onAuditLog ? { onAuditLog } : {})}
