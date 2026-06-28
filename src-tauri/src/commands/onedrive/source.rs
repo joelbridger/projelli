@@ -56,15 +56,19 @@ impl DocumentSource for GraphDocumentSource {
         self.client.list_drives().await
     }
 
-    async fn list_root_children(&self, drive_id: Option<&str>) -> anyhow::Result<Vec<DriveItem>> {
+    async fn list_root_children(&self, _drive_id: Option<&str>) -> anyhow::Result<Vec<DriveItem>> {
         self.client
-            .list_root_children(drive_id.or(self.drive_id.as_deref()), self.omit_select)
+            .list_root_children(self.graph_drive_id(), self.omit_select)
             .await
     }
 
-    async fn list_children(&self, drive_id: &str, item_id: &str) -> anyhow::Result<Vec<DriveItem>> {
+    async fn list_children(
+        &self,
+        _drive_id: &str,
+        item_id: &str,
+    ) -> anyhow::Result<Vec<DriveItem>> {
         self.client
-            .list_children(drive_id, item_id, self.omit_select)
+            .list_children(self.graph_drive_id(), item_id, self.omit_select)
             .await
     }
 
@@ -74,8 +78,16 @@ impl DocumentSource for GraphDocumentSource {
             .await
     }
 
-    async fn download_content(&self, drive_id: &str, item_id: &str) -> anyhow::Result<Vec<u8>> {
-        self.client.download_content(drive_id, item_id).await
+    async fn download_content(&self, _drive_id: &str, item_id: &str) -> anyhow::Result<Vec<u8>> {
+        self.client
+            .download_content(self.graph_drive_id(), item_id)
+            .await
+    }
+}
+
+impl GraphDocumentSource {
+    fn graph_drive_id(&self) -> Option<&str> {
+        self.drive_id.as_deref()
     }
 }
 

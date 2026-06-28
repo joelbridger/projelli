@@ -47,33 +47,17 @@ impl OneDriveClient {
         drive_id: Option<&str>,
         omit_select: bool,
     ) -> anyhow::Result<Vec<DriveItem>> {
-        let query = children_query(omit_select);
-        let url = match drive_id {
-            Some(drive_id) => format!(
-                "{}/v1.0/drives/{}/root/children{}",
-                self.base(),
-                enc_path_segment(drive_id),
-                query
-            ),
-            None => format!("{}/v1.0/me/drive/root/children{}", self.base(), query),
-        };
+        let url = root_children_url(self.base(), drive_id, omit_select);
         self.collect_array(&url).await
     }
 
     pub async fn list_children(
         &self,
-        drive_id: &str,
+        drive_id: Option<&str>,
         item_id: &str,
         omit_select: bool,
     ) -> anyhow::Result<Vec<DriveItem>> {
-        let query = children_query(omit_select);
-        let url = format!(
-            "{}/v1.0/drives/{}/items/{}/children{}",
-            self.base(),
-            enc_path_segment(drive_id),
-            enc_path_segment(item_id),
-            query
-        );
+        let url = children_url(self.base(), drive_id, item_id, omit_select);
         self.collect_array(&url).await
     }
 
@@ -129,13 +113,12 @@ impl OneDriveClient {
         })
     }
 
-    pub async fn download_content(&self, drive_id: &str, item_id: &str) -> anyhow::Result<Vec<u8>> {
-        let url = format!(
-            "{}/v1.0/drives/{}/items/{}/content",
-            self.base(),
-            enc_path_segment(drive_id),
-            enc_path_segment(item_id)
-        );
+    pub async fn download_content(
+        &self,
+        drive_id: Option<&str>,
+        item_id: &str,
+    ) -> anyhow::Result<Vec<u8>> {
+        let url = content_url(self.base(), drive_id, item_id);
         self.graph.get_bytes(&url).await
     }
 
@@ -198,6 +181,54 @@ fn children_query(omit_select: bool) -> String {
     }
 }
 
+fn root_children_url(base: &str, drive_id: Option<&str>, omit_select: bool) -> String {
+    let query = children_query(omit_select);
+    match drive_id {
+        Some(drive_id) => format!(
+            "{}/v1.0/drives/{}/root/children{}",
+            base,
+            enc_path_segment(drive_id),
+            query
+        ),
+        None => format!("{base}/v1.0/me/drive/root/children{query}"),
+    }
+}
+
+fn children_url(base: &str, drive_id: Option<&str>, item_id: &str, omit_select: bool) -> String {
+    let query = children_query(omit_select);
+    match drive_id {
+        Some(drive_id) => format!(
+            "{}/v1.0/drives/{}/items/{}/children{}",
+            base,
+            enc_path_segment(drive_id),
+            enc_path_segment(item_id),
+            query
+        ),
+        None => format!(
+            "{}/v1.0/me/drive/items/{}/children{}",
+            base,
+            enc_path_segment(item_id),
+            query
+        ),
+    }
+}
+
+fn content_url(base: &str, drive_id: Option<&str>, item_id: &str) -> String {
+    match drive_id {
+        Some(drive_id) => format!(
+            "{}/v1.0/drives/{}/items/{}/content",
+            base,
+            enc_path_segment(drive_id),
+            enc_path_segment(item_id)
+        ),
+        None => format!(
+            "{}/v1.0/me/drive/items/{}/content",
+            base,
+            enc_path_segment(item_id)
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -212,6 +243,46 @@ mod tests {
         assert_eq!(
             children_query(false),
             format!("?$select={SELECT_ITEM}&$top=200")
+        );
+    }
+
+    #[test]
+    fn default_drive_folder_urls_use_me_drive_without_select() {
+        assert_eq!(
+            root_children_url("https://graph.test", None, true),
+            "https://graph.test/v1.0/me/drive/root/children?$top=200"
+        );
+        assert_eq!(
+            children_url("https://graph.test", None, "item 1", true),
+            "https://graph.test/v1.0/me/drive/items/item%201/children?$top=200"
+        );
+    }
+
+    #[test]
+    fn default_drive_content_url_uses_me_drive() {
+        assert_eq!(
+            content_url("https://graph.test", None, "item 1"),
+            "https://graph.test/v1.0/me/drive/items/item%201/content"
+        );
+    }
+
+    #[test]
+    fn explicit_drive_urls_keep_drives_addressing() {
+        assert_eq!(
+            root_children_url("https://graph.test", Some("drive 1"), false),
+            format!(
+                "https://graph.test/v1.0/drives/drive%201/root/children?$select={SELECT_ITEM}&$top=200"
+            )
+        );
+        assert_eq!(
+            children_url("https://graph.test", Some("drive 1"), "item 1", false),
+            format!(
+                "https://graph.test/v1.0/drives/drive%201/items/item%201/children?$select={SELECT_ITEM}&$top=200"
+            )
+        );
+        assert_eq!(
+            content_url("https://graph.test", Some("drive 1"), "item 1"),
+            "https://graph.test/v1.0/drives/drive%201/items/item%201/content"
         );
     }
 }
