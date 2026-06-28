@@ -14,8 +14,51 @@ PIPER_VERSION="2023.11.14-2"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BINARIES_DIR="$REPO_ROOT/src-tauri/binaries"
 VOICES_DIR="$REPO_ROOT/src-tauri/voices"
-CDN_BASE="https://keepance.com/voices"
+# Official rhasspy/piper-voices repo on HuggingFace, pinned to a specific commit
+# so the download is immutable. Update this hash when upgrading the voice model.
+HF_COMMIT="e21c7de8d4eab79b902f0d61e662b3f21664b8d2"
+HF_BASE="https://huggingface.co/rhasspy/piper-voices/resolve/$HF_COMMIT"
 FETCH_PIPER_VOICE="${FETCH_PIPER_VOICE:-1}"
+
+# Pinned SHA256 digests — computed from upstream release artifacts at 2023.11.14-2.
+# Fail loudly on mismatch so a replaced or corrupt asset is never staged.
+# Uses a case statement (not declare -A) to stay compatible with macOS Bash 3.2.
+get_piper_sha256() {
+  case "$1" in
+    "piper_linux_x86_64.tar.gz")   echo "a50cb45f355b7af1f6d758c1b360717877ba0a398cc8cbe6d2a7a3a26e225992" ;;
+    "piper_macos_aarch64.tar.gz")  echo "6b1eb03b3735946cb35216e063e7eebcc33a6bbf5dd96ec0217959bf1cdcb0cc" ;;
+    "piper_macos_x64.tar.gz")      echo "ced85c0a3df13945b1e623b878a48fdc2854d5c485b4b67f62857cf551deaf8b" ;;
+    "piper_windows_amd64.zip")     echo "f3c58906402b24f3a96d92145f58acba6d86c9b5db896d207f78dc80811efcea" ;;
+    *) echo "" ;;
+  esac
+}
+
+# Pinned SHA256 digests for the bundled en_US-amy-medium voice model, computed
+# from HuggingFace rhasspy/piper-voices at commit e21c7de8d4eab79b902f0d61e662b3f21664b8d2.
+get_voice_sha256() {
+  case "$1" in
+    "en_US-amy-medium.onnx")      echo "b3a6e47b57b8c7fbe6a0ce2518161a50f59a9cdd8a50835c02cb02bdd6206c18" ;;
+    "en_US-amy-medium.onnx.json") echo "95a23eb4d42909d38df73bb9ac7f45f597dbfcde2d1bf9526fdeaf5466977d77" ;;
+    *) echo "" ;;
+  esac
+}
+
+verify_sha256() {
+  local file="$1" expected="$2"
+  local actual
+  if command -v sha256sum &>/dev/null; then
+    actual=$(sha256sum "$file" | awk '{print $1}')
+  else
+    actual=$(shasum -a 256 "$file" | awk '{print $1}')
+  fi
+  if [[ "$actual" != "$expected" ]]; then
+    echo "SHA256 mismatch for $file" >&2
+    echo "  expected: $expected" >&2
+    echo "  got:      $actual" >&2
+    exit 1
+  fi
+  echo "SHA256 verified: $(basename "$file")"
+}
 
 mkdir -p "$BINARIES_DIR" "$VOICES_DIR"
 
@@ -80,9 +123,11 @@ trap 'rm -rf "$TMP"' EXIT
 echo "Downloading Piper $PIPER_VERSION for $TARGET_TRIPLE..."
 if [[ "$ARCHIVE" == *.zip ]]; then
   curl -fsSL "$RELEASE_BASE/$ARCHIVE" -o "$TMP/piper.zip"
+  verify_sha256 "$TMP/piper.zip" "$(get_piper_sha256 "$ARCHIVE")"
   unzip -q "$TMP/piper.zip" -d "$TMP"
 else
   curl -fsSL "$RELEASE_BASE/$ARCHIVE" -o "$TMP/piper.tar.gz"
+  verify_sha256 "$TMP/piper.tar.gz" "$(get_piper_sha256 "$ARCHIVE")"
   tar -xzf "$TMP/piper.tar.gz" -C "$TMP"
 fi
 
@@ -99,22 +144,28 @@ fi
 cp -a "$SRC_DIR/." "$BINARIES_DIR/"
 mv "$BINARIES_DIR/$BIN_NAME" "$BINARIES_DIR/$DEST_BIN"
 chmod +x "$BINARIES_DIR/$DEST_BIN" || true
+test -s "$BINARIES_DIR/$DEST_BIN" || { echo "Staged piper binary is empty: $DEST_BIN" >&2; exit 1; }
 echo "Piper binary: $BINARIES_DIR/$DEST_BIN"
 
 if [[ "$FETCH_PIPER_VOICE" == "1" ]]; then
-  # Download bundled English voice from Keepance CDN. This is useful for local
-  # dev setup, but release sidecar staging must not fail if the CDN voice URL
-  # is temporarily serving an HTML page instead of the archive.
+  # Download the bundled English voice directly from the canonical HuggingFace
+  # repo. When FETCH_PIPER_VOICE=1, the voice is required — release builds set
+  # this so tts_sidecar_available() returns true at runtime.
+  # The Rust runtime expects: resource_dir/voices/en_US-amy-medium/<files>
   VOICE_ID="en_US-amy-medium"
-  VOICE_ARCHIVE="$VOICE_ID.tar.gz"
-  echo "Downloading bundled voice: $VOICE_ID..."
-  if curl -fsSL "$CDN_BASE/$VOICE_ARCHIVE" -o "$TMP/$VOICE_ARCHIVE" \
-    && tar -tzf "$TMP/$VOICE_ARCHIVE" >/dev/null 2>&1; then
-    tar -xzf "$TMP/$VOICE_ARCHIVE" -C "$VOICES_DIR"
-    echo "Voice files extracted to: $VOICES_DIR/$VOICE_ID/"
-  else
-    echo "Warning: bundled voice archive was not available; Piper sidecar staging is still complete." >&2
-  fi
+  HF_VOICE_DIR="en/en_US/amy/medium"
+  VOICE_DEST="$VOICES_DIR/$VOICE_ID"
+  mkdir -p "$VOICE_DEST"
+  echo "Downloading bundled voice: $VOICE_ID from HuggingFace..."
+  for VOICE_FILE in "$VOICE_ID.onnx" "$VOICE_ID.onnx.json"; do
+    if ! curl -fsSL "$HF_BASE/$HF_VOICE_DIR/$VOICE_FILE" -o "$VOICE_DEST/$VOICE_FILE"; then
+      echo "Error: failed to download voice file: $HF_BASE/$HF_VOICE_DIR/$VOICE_FILE" >&2
+      exit 1
+    fi
+    verify_sha256 "$VOICE_DEST/$VOICE_FILE" "$(get_voice_sha256 "$VOICE_FILE")"
+    echo "  staged: $VOICE_DEST/$VOICE_FILE"
+  done
+  echo "Voice files staged to: $VOICE_DEST/"
 else
   echo "Skipping bundled voice download (FETCH_PIPER_VOICE=$FETCH_PIPER_VOICE)."
 fi
