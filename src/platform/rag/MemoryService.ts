@@ -26,6 +26,7 @@ import {
   ragRetagPrivilege,
   ragRetrieve,
   ragSetWorkspace,
+  OCR_SKIP_CONFIDENCE,
   type RagHit,
   type RetrievalScope,
 } from '@/platform/utils/tauri-commands';
@@ -340,7 +341,16 @@ export const MemoryService = {
    *  word confidence rides along to the store (`pageConfidences`) so citations
    *  can disclose OCR provenance and low confidence. Toggle off or engine
    *  unavailable keeps the previous honest behaviour: a fully scanned file is
-   *  skipped with `reason: 'scanned'`; a mixed file indexes its native pages. */
+   *  skipped with `reason: 'scanned'`; a mixed file indexes its native pages.
+   *
+   *  WS3c: OCR pages whose confidence is below `OCR_SKIP_CONFIDENCE` (30) are
+   *  near-gibberish and are dropped here so they never enter the index. A file
+   *  whose ONLY content was such sub-threshold OCR pages is reported as a
+   *  scanned-equivalent skip (`reason: 'scanned-low-confidence'`), never a
+   *  silent empty index. If OCR ran but every page instead FAILED to
+   *  render/recognize (no low-confidence drop at all) the file reports
+   *  `reason: 'ocr-failed'` so a real engine fault isn't hidden behind the
+   *  low-confidence label. Native pages and OCR pages at >= 30 are unaffected. */
   async indexPdfFile(
     path: string,
     workspaceService: { readBinary: (path: string) => Promise<ArrayBuffer> },
@@ -420,6 +430,47 @@ export const MemoryService = {
       }
       // Mixed file with OCR unavailable: fall through and index the native
       // pages exactly as before VG-2.
+    }
+
+    // WS3c — OCR confidence skip gate. An OCR-read page whose mean word
+    // confidence is below OCR_SKIP_CONFIDENCE (30) is near-gibberish; indexing
+    // it would pollute retrieval and produce bad citations. Drop those pages
+    // here (the sole PDF ingest path) BEFORE the store call: blanking a page's
+    // text makes the Rust chunker skip it (its empty-page skip), and clearing
+    // that page's confidence keeps `pageConfidences` aligned with `pages`.
+    //
+    // Only OCR-read pages (a numeric confidence) are eligible — native-text
+    // pages (confidence `undefined`) are always indexed, and OCR pages at >= 30
+    // keep their text AND their confidence so the 30–60 "low-confidence scan"
+    // disclosure label is unaffected. `pageConfidences` is only defined when
+    // OCR actually ran, so the native-only path is untouched.
+    if (pageConfidences) {
+      let droppedLowConfidence = false;
+      for (let i = 0; i < pageConfidences.length; i += 1) {
+        const conf = pageConfidences[i];
+        if (conf !== undefined && conf < OCR_SKIP_CONFIDENCE) {
+          pages[i] = '';
+          pageConfidences[i] = undefined;
+          droppedLowConfidence = true;
+        }
+      }
+      // Fully-unreadable scan: OCR ran but nothing survived to index and there
+      // is no native text to fall back on. Don't silently return an empty
+      // "indexed: false" with no reason — report it honestly so the caller can
+      // surface it, and clear any stale rows so a file that previously indexed
+      // cleanly doesn't leave orphans behind. Two honest causes, kept distinct
+      // so the reason isn't misleading for debugging:
+      //   - at least one page was dropped by the < 30 gate  → 'scanned-low-confidence'
+      //   - no page was low-confidence, every OCR page just failed to
+      //     render/recognize (all confidences stayed undefined) → 'ocr-failed'
+      if (pages.every((p) => p.trim().length === 0)) {
+        await ragDeletePath(path).catch(() => undefined);
+        return {
+          indexed: false,
+          pageCount: result.pageCount,
+          reason: droppedLowConfidence ? 'scanned-low-confidence' : 'ocr-failed',
+        };
+      }
     }
 
     // WS-B/C: tag PDF chunks with the matter this file belongs to.
