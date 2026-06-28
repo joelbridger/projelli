@@ -141,6 +141,17 @@ export interface RagHit {
  *  the sources accordion, and the finder deliverable all read it. */
 export const OCR_LOW_CONFIDENCE = 60;
 
+/** WS3c — the OCR confidence SKIP threshold (0-100 scale). An OCR-read page
+ *  whose mean word confidence is below this is near-gibberish: it is dropped at
+ *  ingestion and never indexed, so garbage scans cannot pollute retrieval or
+ *  produce bad citations. The final coherent design is a two-tier gate:
+ *  skip below `OCR_SKIP_CONFIDENCE` (30) · disclose between it and
+ *  `OCR_LOW_CONFIDENCE` (60) as a "low-confidence scan" · trust at/above 60.
+ *  Only OCR-read pages are subject to the skip; native-text pages are always
+ *  indexed. Centralised here alongside `OCR_LOW_CONFIDENCE` so the two
+ *  thresholds stay together and are never magic-number-scattered. */
+export const OCR_SKIP_CONFIDENCE = 30;
+
 /** WS-B/C — the REQUIRED retrieval scope. A caller cannot omit scope and
  *  silently search every matter; it must name `matter` or `allMatters`.
  *  Mirrors `RetrievalScope` in `src-tauri/src/commands/rag/mod.rs`.

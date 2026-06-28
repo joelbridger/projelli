@@ -34,6 +34,7 @@ vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
   return {
     ...actual,
     ragIndexPdfChunks: vi.fn(() => Promise.resolve(3)),
+    ragDeletePath: vi.fn(() => Promise.resolve()),
   };
 });
 
@@ -65,7 +66,11 @@ import {
   isOcrScannedPdfsEnabled,
 } from '@/platform/rag/MemoryService';
 import { useOcrProgressStore } from '@/platform/rag/ocrProgressStore';
-import { ragIndexPdfChunks } from '@/platform/utils/tauri-commands';
+import {
+  OCR_SKIP_CONFIDENCE,
+  ragDeletePath,
+  ragIndexPdfChunks,
+} from '@/platform/utils/tauri-commands';
 
 const NATIVE_PAGE_TEXT =
   'This page has a real extracted text layer with well over the per-page OCR threshold of characters.';
@@ -228,6 +233,122 @@ describe('MemoryService.indexPdfFile OCR pipeline', () => {
       { page: 2, totalPages: 2 },
     ]);
     expect(useOcrProgressStore.getState().current).toBeNull();
+  });
+});
+
+describe('WS3c — OCR confidence skip gate (< 30 not indexed)', () => {
+  beforeEach(() => {
+    setMemoryEnabledReader(() => true);
+    setPdfIndexingEnabledReader(() => true);
+    vi.mocked(isOcrEngineAvailable).mockReturnValue(true);
+    vi.mocked(ragIndexPdfChunks).mockResolvedValue(3);
+  });
+
+  afterEach(() => {
+    resetMemoryEnabledReader();
+    resetPdfIndexingEnabledReader();
+    resetOcrScannedPdfsEnabledReader();
+    useOcrProgressStore.getState().clear();
+    vi.clearAllMocks();
+  });
+
+  it('(a) drops an OCR page below 30 confidence while keeping the good page', async () => {
+    // Fully scanned two-page file: page 1 reads cleanly (85), page 2 is
+    // near-gibberish (20). Only page 2 must be excluded from indexing.
+    mockExtraction(['', ''], true);
+    vi.mocked(ocrPageImage)
+      .mockResolvedValueOnce({ text: 'a clean confident scan page', confidence: 85 })
+      .mockResolvedValueOnce({ text: 'gjbber1sh n0ise scan', confidence: 20 });
+
+    const r = await MemoryService.indexPdfFile('/w/scan.pdf', ws());
+
+    expect(ragIndexPdfChunks).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0];
+    // Sub-30 page is blanked (Rust chunker then skips it); good page kept.
+    expect(call[1]).toEqual(['a clean confident scan page', '']);
+    // Its confidence is cleared too, so the array stays aligned with pages.
+    expect(call[5]).toEqual([85, undefined]);
+    expect(r.indexed).toBe(true);
+  });
+
+  it('(b) indexes a page exactly at the threshold (>= 30) and preserves its OCR confidence', async () => {
+    // A page at exactly OCR_SKIP_CONFIDENCE is KEPT (gate is strictly "<").
+    // Its confidence rides along so the chunk still carries extraction=("ocr",conf).
+    mockExtraction(['', ''], true);
+    vi.mocked(ocrPageImage)
+      .mockResolvedValueOnce({ text: 'boundary page text', confidence: OCR_SKIP_CONFIDENCE })
+      .mockResolvedValueOnce({ text: 'clearly confident page', confidence: 90 });
+
+    await MemoryService.indexPdfFile('/w/scan.pdf', ws());
+
+    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0];
+    expect(call[1]).toEqual(['boundary page text', 'clearly confident page']);
+    // Both confidences survive — the extraction marker is intact for both pages.
+    expect(call[5]).toEqual([OCR_SKIP_CONFIDENCE, 90]);
+  });
+
+  it('(c) leaves the 30–60 low-confidence disclosure band untouched', async () => {
+    // A page at 45 sits in the disclose band: kept AND its confidence preserved
+    // so the citation UI still labels it a "low-confidence scan" (< 60).
+    mockExtraction([''], true);
+    vi.mocked(ocrPageImage).mockResolvedValueOnce({ text: 'midband scan page', confidence: 45 });
+
+    const r = await MemoryService.indexPdfFile('/w/scan.pdf', ws());
+
+    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0];
+    expect(call[1]).toEqual(['midband scan page']);
+    expect(call[5]).toEqual([45]);
+    expect(r.indexed).toBe(true);
+  });
+
+  it('(d) a fully-garbage scan (all pages < 30) is an honest skip, not a silent empty index', async () => {
+    mockExtraction(['', ''], true);
+    vi.mocked(ocrPageImage)
+      .mockResolvedValueOnce({ text: 'n0ise', confidence: 15 })
+      .mockResolvedValueOnce({ text: 'm0re n0ise', confidence: 22 });
+
+    const r = await MemoryService.indexPdfFile('/w/garbage.pdf', ws());
+
+    // Nothing survived the gate and there is no native text -> never index a
+    // broken empty result; report a scanned-equivalent reason instead.
+    expect(ragIndexPdfChunks).not.toHaveBeenCalled();
+    expect(r.indexed).toBe(false);
+    expect(r.reason).toBe('scanned-low-confidence');
+    // Stale rows for the path are cleared so a previously-good index can't orphan.
+    expect(ragDeletePath).toHaveBeenCalledWith('/w/garbage.pdf');
+    // The OCR worker heap is still returned after the (failed) read.
+    expect(destroyOcrClient).toHaveBeenCalledTimes(1);
+  });
+
+  it('(d2) an all-failed scan (every OCR page threw) reports ocr-failed, not low-confidence', async () => {
+    // OCR ran but every page render/recognition threw: confidences stay
+    // undefined and no page was dropped by the < 30 gate. The honest reason is
+    // an OCR failure, NOT a low-confidence scan — otherwise a real engine fault
+    // hides behind the low-confidence label.
+    mockExtraction(['', ''], true);
+    vi.mocked(ocrPageImage).mockRejectedValue(new Error('worker crashed'));
+
+    const r = await MemoryService.indexPdfFile('/w/broken.pdf', ws());
+
+    expect(ragIndexPdfChunks).not.toHaveBeenCalled();
+    expect(r.indexed).toBe(false);
+    expect(r.reason).toBe('ocr-failed');
+    expect(ragDeletePath).toHaveBeenCalledWith('/w/broken.pdf');
+  });
+
+  it('(e) a sub-30 OCR page never costs a mixed file its native pages', async () => {
+    // Native page 1 + image-only page 2 OCR'd at 18. Page 2 is dropped, but the
+    // native page must still index (the gate only touches OCR-read pages).
+    mockExtraction([NATIVE_PAGE_TEXT, ''], false);
+    vi.mocked(ocrPageImage).mockResolvedValueOnce({ text: 'low conf garbage', confidence: 18 });
+
+    const r = await MemoryService.indexPdfFile('/w/mixed.pdf', ws());
+
+    expect(ragIndexPdfChunks).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0];
+    expect(call[1]).toEqual([NATIVE_PAGE_TEXT, '']);
+    expect(call[5]).toEqual([undefined, undefined]);
+    expect(r.indexed).toBe(true);
   });
 });
 
