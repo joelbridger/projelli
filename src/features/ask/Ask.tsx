@@ -7,6 +7,14 @@
  *   "ask-<matterId>"  when a matter is active
  *   "ask-global"      otherwise
  *
+ * Layout (ChatGPT shape):
+ *   - A persistent left rail (ConversationsRail) lists every saved conversation
+ *     and is the single switcher — "New question" at the top, click-to-switch,
+ *     the active thread highlighted, grouped by this client vs. everything else.
+ *   - The composer (AskComposer) is BIG and CENTERED while the thread is empty,
+ *     then drops to a sticky bottom bar once the thread has any turns. Both
+ *     positions render the same controls (scope pills, input, submit, egress).
+ *
  * Citation-first design: {n} chips + SourcePanel for every answer.
  * SourcePanel reflects the most recently clicked citation across the
  * entire conversation (selectedTurnIdx + selected pair).
@@ -16,24 +24,21 @@
  *   - All matters  (cross-matter search)
  *   - Email        (only mail: chunks)
  *   - Documents    (only non-mail: chunks)
- * Email/Documents are hidden on the sample matter so the demo chips stay front
- * and center.
  */
 
 import {
-  Sparkles, ArrowRight, AlertTriangle,
-  MessageSquare, Plus,
+  Sparkles, AlertTriangle,
 } from 'lucide-react';
-import { Button, Chip, Eyebrow, EmptyState, SurfaceToolbar, SearchField } from '@/ui/kp';
-import { ScopeToggle } from './ScopeToggle';
+import { Button, Chip, EmptyState } from '@/ui/kp';
 import { SourcePanel } from './SourcePanel';
 import { SampleBridgeCallout } from './SampleBridgeCallout';
 import { TurnBlock } from './TurnBlock';
+import { AskComposer } from './AskComposer';
+import { ConversationsRail, type RailGroup } from './ConversationsRail';
 import { SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { useAsk, type UseAskProps } from './useAsk';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
@@ -48,7 +53,6 @@ export function Ask(props: UseAskProps) {
   const askVerb = 'Ask';
   const {
     activeMatter,
-    isSampleMatterActive,
     demoQuestions,
     chatId,
     askScope,
@@ -66,8 +70,9 @@ export function Ask(props: UseAskProps) {
     confidentialityMode,
     bottomRef,
     composerInputRef,
-    recentSessions,
-    matterRecentSessions,
+    railSessions,
+    railCollapsed,
+    toggleRailCollapsed,
     selectedCite,
     anyHasCitations,
     handleCitationSelect,
@@ -79,6 +84,85 @@ export function Ask(props: UseAskProps) {
     onOpenFileAtPath,
     isBusy,
   } = useAsk(props);
+
+  const isSampleMatter = activeMatter?.id === SAMPLE_MATTER_ID;
+  // Empty thread => centered composer; any turn (or a first answer streaming)
+  // => the composer has dropped to the sticky bottom bar.
+  const isEmptyThread = turns.length === 0 && !streamingTurn;
+
+  const composerPlaceholder =
+    askScope === 'email'
+      ? 'Ask about your imported email…'
+      : askScope === 'documents'
+        ? 'Ask across your documents…'
+        : activeMatter
+          ? `${askVerb} ${matterLabel(activeMatter)}…`
+          : `${askVerb} across all ${entityLabel.other}…`;
+  const composerAriaLabel = `${askVerb} this ${entityLabel.one}`;
+
+  // Conversations-rail grouping. A session belongs to the active client when its
+  // id is exactly "ask-<matterId>" or a timestamped variant "ask-<matterId>-…";
+  // everything else (global + other clients) falls into the second group.
+  const matterId = activeMatter?.id ?? null;
+  const belongsToActiveClient = (sid: string): boolean =>
+    matterId !== null && (sid === `ask-${matterId}` || sid.startsWith(`ask-${matterId}-`));
+  const railGroups: RailGroup[] = matterId !== null
+    ? [
+        {
+          key: 'this-client',
+          title: `This ${entityLabel.one}`,
+          items: railSessions.filter((s) => belongsToActiveClient(s.chatId)),
+        },
+        {
+          key: 'other',
+          title: 'Other conversations',
+          items: railSessions.filter((s) => !belongsToActiveClient(s.chatId)),
+        },
+      ]
+    : [{ key: 'all', title: null, items: railSessions }];
+
+  // Shared composer props (the same controls, different position).
+  const composerCommon = {
+    askScope,
+    setAskScope,
+    hasMatter: !!activeMatter,
+    isSample: isSampleMatter,
+    inputRef: composerInputRef,
+    question,
+    onQuestionChange: (v: string) => { setQuestion(v); },
+    onKeyDown: handleKeyDown,
+    onSubmit: () => void handleAsk(),
+    placeholder: composerPlaceholder,
+    ariaLabel: composerAriaLabel,
+    isBusy,
+    status,
+    submitLabel: askVerb,
+    egressProvider: displayedProvider,
+    egressMode: confidentialityMode,
+  } as const;
+
+  const errorBanner = status === 'error' && errorMsg ? (
+    <div
+      role="status"
+      aria-live="polite"
+      style={{
+        display: 'flex',
+        gap: 8,
+        alignItems: 'flex-start',
+        padding: '9px 12px',
+        borderRadius: 'var(--radius-md)',
+        background: 'var(--kp-danger-bg)',
+        border: '1px solid rgba(176, 42, 31, 0.3)',
+        fontSize: 'var(--kp-font-xs)',
+        color: 'var(--kp-danger)',
+        maxWidth: 680,
+        width: '100%',
+      }}
+    >
+      <AlertTriangle size={15} strokeWidth={2} style={{ marginTop: 1, flex: 'none' }} />
+      {errorMsg}
+    </div>
+  ) : null;
 
   return (
     <div
@@ -107,355 +191,220 @@ export function Ask(props: UseAskProps) {
         />
       </div>
 
-      {/* Toolbar: New question/search (button) -> scope (filters) -> field + submit */}
-      <SurfaceToolbar>
-        {turns.length > 0 && (
-          <Button variant="secondary" size="md" iconLeft={Plus} onClick={handleNewAsk}>
-            New question
-          </Button>
-        )}
-        <ScopeToggle
-          scope={askScope}
-          onChange={setAskScope}
-          hasMatter={!!activeMatter}
-          isSample={isSampleMatterActive}
+      {/* Body: conversations rail (left) + conversation/composer column (right) */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+        <ConversationsRail
+          groups={railGroups}
+          activeChatId={chatId}
+          onSelect={handleLoadSession}
+          onNewQuestion={handleNewAsk}
+          collapsed={railCollapsed}
+          onToggleCollapsed={toggleRailCollapsed}
         />
-        <SearchField
-          ref={composerInputRef}
-          icon={Sparkles}
-          value={question}
-          onChange={(v) => { setQuestion(v); }}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            askScope === 'email'
-              ? 'Ask about your imported email…'
-              : askScope === 'documents'
-                ? 'Ask across your documents…'
-                : activeMatter
-                  ? `${askVerb} ${matterLabel(activeMatter)}…`
-                  : `${askVerb} across all ${entityLabel.other}…`
-          }
-          disabled={isBusy}
-          aria-label={`${askVerb} this ${entityLabel.one}`}
-          data-testid="ask-composer-input"
-          size="md"
-          style={{ flex: 1, minWidth: 240 }}
-        />
-        <Button
-          variant="primary"
-          size="md"
-          onClick={() => void handleAsk()}
-          disabled={isBusy || !question.trim()}
-          loading={isBusy}
-          iconLeft={isBusy ? undefined : ArrowRight}
-          aria-label={status === 'retrieving' ? 'Searching your documents' : status === 'answering' ? 'Answering' : undefined}
-        >
-          <span role={isBusy ? 'status' : undefined}>
-            {status === 'retrieving' ? 'Searching…' : status === 'answering' ? 'Answering…' : askVerb}
-          </span>
-        </Button>
-      </SurfaceToolbar>
 
-      {/* Egress indicator — where this search's AI request goes. */}
-      <div style={{ padding: 'var(--kp-space-xs) var(--kp-gutter)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-        <EgressIndicator provider={displayedProvider} mode={confidentialityMode} variant="full" />
-      </div>
-
-      {/* Recent sessions chips */}
-      {/* Fix #4: show whenever there is at least one session other than the current
-          one, so the first conversation is not hidden after switching away. */}
-      {recentSessions.some((s) => s.chatId !== chatId) && (
         <div
           style={{
-            display: 'flex',
-            gap: 'var(--kp-space-xs)',
-            padding: 'var(--kp-space-xs) var(--kp-gutter)',
-            overflowX: 'auto',
-            flexShrink: 0,
-            borderBottom: '1px solid var(--color-border)',
-          }}
-        >
-          {/* Fix #6: chips now show a date/time sub-label so similar-start sessions are distinguishable. */}
-          {recentSessions.map(({ chatId: sid, label, dateLabel }) => (
-            <Chip
-              key={sid}
-              size="sm"
-              active={sid === chatId}
-              icon={MessageSquare}
-              onClick={() => { handleLoadSession(sid); }}
-              style={{ flexShrink: 0, maxWidth: 260 }}
-            >
-              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
-                  {label.length > 48 ? `${label.slice(0, 48)}…` : label}
-                </span>
-                {dateLabel && (
-                  <span style={{ fontSize: 'var(--kp-font-2xs)', opacity: 0.65, whiteSpace: 'nowrap' }}>
-                    {dateLabel}
-                  </span>
-                )}
-              </span>
-            </Chip>
-          ))}
-        </div>
-      )}
-
-      {/* Main area: two-column grid (conversation | source panel) */}
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: 'grid',
-          gridTemplateColumns: anyHasCitations ? '1fr 260px' : '1fr',
-          gap: 0,
-          overflow: 'hidden',
-        }}
-      >
-        {/* Left: scrollable conversation */}
-        <div
-          style={{
-            overflowY: 'auto',
-            padding: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)',
+            flex: 1,
+            minWidth: 0,
+            minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
-            gap: 'var(--kp-stack-gap)',
-            minWidth: 0,
+            overflow: 'hidden',
           }}
         >
-          {/* Empty state */}
-          {turns.length === 0 && !streamingTurn && status !== 'error' && (
+          {isEmptyThread ? (
+            /* -------- Empty thread: centered composer (ChatGPT first screen) -------- */
             <div
               style={{
                 flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 'var(--kp-space-sm)',
-                padding: 'var(--kp-space-4xl) 0',
+                gap: 'var(--kp-space-md)',
+                padding: 'var(--kp-space-4xl) var(--kp-gutter)',
               }}
             >
+              {errorBanner}
+
               <EmptyState
                 icon={Sparkles}
                 iconSize={36}
                 title="What do you want to find?"
                 body={
-                  activeMatter?.id === SAMPLE_MATTER_ID
-                    ? `This is a sample ${entityLabel.one}. Click a question below and see a cited answer. Click any citation to read the exact passage.`
+                  isSampleMatter
+                    ? `This is a sample ${entityLabel.one}. Type a question or click one below and see a cited answer. Click any citation to read the exact passage.`
                     : 'Every answer shows the exact document and page it came from. Click any chip to read the passage.'
                 }
-                actions={
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--kp-space-xs)', justifyContent: 'center', maxWidth: 480 }}>
-                    {(activeMatter?.id === SAMPLE_MATTER_ID
-                      ? (demoQuestions as unknown as string[])
-                      : [
-                          `Summarize this ${entityLabel.one}`,
-                          'Find all related emails',
-                          'What client reviews are coming up?',
-                        ]
-                    ).map((example) => (
-                      <Chip
-                        key={example}
-                        size="md"
-                        onClick={() => {
-                          // UX-28: a suggestion chip RUNS the search on click
-                          // (it used to only fill the box for non-sample matters,
-                          // which read as broken). Sample + real matters now behave
-                          // the same.
-                          void handleAsk(example);
-                        }}
-                      >
-                        {example}
-                      </Chip>
-                    ))}
-                  </div>
-                }
               />
-              {/* C1 — "Recent in this matter" for non-sample real matters */}
-              {activeMatter && activeMatter.id !== SAMPLE_MATTER_ID && matterRecentSessions.length > 0 && (
+
+              {/* The composer, big and centered. */}
+              <AskComposer variant="centered" {...composerCommon} />
+
+              {/* Example questions — clicking one RUNS the search (UX-28). */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 'var(--kp-space-xs)',
+                  justifyContent: 'center',
+                  maxWidth: 480,
+                }}
+              >
+                {(isSampleMatter
+                  ? (demoQuestions as unknown as string[])
+                  : [
+                      `Summarize this ${entityLabel.one}`,
+                      'Find all related emails',
+                      'What client reviews are coming up?',
+                    ]
+                ).map((example) => (
+                  <Chip
+                    key={example}
+                    size="md"
+                    onClick={() => {
+                      void handleAsk(example);
+                    }}
+                  >
+                    {example}
+                  </Chip>
+                ))}
+              </div>
+
+              {/* Memory-off warning — actionable with an "Enable indexing" button. */}
+              {!isMemoryEnabled() && (
                 <div
-                  data-testid="recent-in-matter"
                   style={{
-                    marginTop: 'var(--kp-space-xs)',
-                    width: '100%',
-                    maxWidth: 380,
-                    textAlign: 'left',
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'center',
+                    padding: 'var(--kp-space-xs) var(--kp-space-md)',
+                    fontSize: 'var(--kp-font-xs)',
+                    color: 'var(--kp-direct)',
+                    background: 'var(--kp-direct-bg)',
+                    border: '1px solid var(--kp-direct-line)',
+                    borderRadius: 'var(--radius-md)',
+                    maxWidth: 560,
+                    flexWrap: 'wrap',
                   }}
                 >
-                  <Eyebrow style={{ marginBottom: 'var(--kp-space-xs)' }}>
-                    {`Recent in this ${entityLabel.one}`}
-                  </Eyebrow>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-2xs)' }}>
-                    {/* Fix #6: each item shows the date/time sub-label so similar-start sessions are distinguishable. */}
-                    {matterRecentSessions.map(({ chatId: sid, label, dateLabel }) => (
-                      <button
-                        key={sid}
-                        type="button"
-                        data-testid="matter-session-item"
-                        onClick={() => { handleLoadSession(sid); }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 'var(--kp-space-xs)',
-                          padding: 'var(--kp-space-xs) var(--kp-space-sm)',
-                          borderRadius: 'var(--radius-md)',
-                          border: '1px solid var(--color-border)',
-                          background: 'var(--color-background)',
-                          color: 'var(--color-foreground)',
-                          fontSize: 'var(--kp-font-xs)',
-                          fontWeight: 'var(--kp-weight-regular)',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          width: '100%',
-                          transition: 'background 0.1s',
-                        }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-secondary)'; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-background)'; }}
-                      >
-                        <MessageSquare size={13} strokeWidth={1.75} style={{ color: 'var(--kp-navy)', flex: 'none', opacity: 0.55 }} />
-                        <span style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {label.length > 60 ? `${label.slice(0, 60)}…` : label}
-                          </span>
-                          {dateLabel && (
-                            <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', marginTop: 1 }}>
-                              {dateLabel}
-                            </span>
-                          )}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                  <AlertTriangle size={15} strokeWidth={2} style={{ flex: 'none' }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                    Cited answers need your documents indexed on your machine. Enable it in Settings.
+                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                  </span>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('keepance:open-settings', { detail: { category: 'ai' } }));
+                    }}
+                    style={{ flexShrink: 0 }}
+                  >
+                    Enable indexing
+                  </Button>
                 </div>
               )}
-              {/* B2: bridge callout — only on sample matter, dismissible */}
-              {activeMatter?.id === SAMPLE_MATTER_ID && (
-                <SampleBridgeCallout />
-              )}
+
+              {/* B2: bridge callout — only on the sample matter, dismissible. */}
+              {isSampleMatter && <SampleBridgeCallout />}
             </div>
+          ) : (
+            /* -------- Active thread: conversation + sticky bottom composer -------- */
+            <>
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  display: 'grid',
+                  gridTemplateColumns: anyHasCitations ? '1fr 260px' : '1fr',
+                  gap: 0,
+                  overflow: 'hidden',
+                }}
+              >
+                {/* Left: scrollable conversation */}
+                <div
+                  style={{
+                    overflowY: 'auto',
+                    padding: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 'var(--kp-stack-gap)',
+                    minWidth: 0,
+                  }}
+                >
+                  {/* Conversation lives in an aria-live region so screen readers
+                      announce completed answers. */}
+                  <div aria-live="polite" aria-atomic="false">
+                    {turns.map((turn, idx) => (
+                      <TurnBlock
+                        key={idx}
+                        turn={turn}
+                        turnIdx={idx}
+                        selectedTurnIdx={selectedTurnIdx}
+                        selected={selected}
+                        onCitationSelect={handleCitationSelect}
+                        onSaveToDocument={onSaveToDocument ? handleSaveToDocument : undefined}
+                        isSaving={savingIdx === idx}
+                        isPersisted={false}
+                        {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
+                      />
+                    ))}
+
+                    {streamingTurn && (
+                      <TurnBlock
+                        key="streaming"
+                        turn={streamingTurn}
+                        turnIdx={turns.length}
+                        selectedTurnIdx={selectedTurnIdx}
+                        selected={selected}
+                        onCitationSelect={handleCitationSelect}
+                        onSaveToDocument={undefined}
+                        isSaving={false}
+                        isPersisted={false}
+                        isStreaming
+                        {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
+                      />
+                    )}
+                  </div>
+
+                  {/* B2: bridge callout below demo answers (sample matter w/ turns). */}
+                  {isSampleMatter && turns.length > 0 && !streamingTurn && (
+                    <SampleBridgeCallout />
+                  )}
+
+                  {errorBanner}
+
+                  <div ref={bottomRef} />
+                </div>
+
+                {/* Right: sticky source panel */}
+                {anyHasCitations && (
+                  <div
+                    style={{
+                      borderLeft: '1px solid var(--color-border)',
+                      padding: 'var(--kp-surface-gap) var(--kp-card-pad)',
+                      overflowY: 'auto',
+                      background: 'var(--color-background)',
+                    }}
+                  >
+                    <SourcePanel
+                      cite={selectedCite}
+                      {...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {})}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* The composer, dropped to a sticky bottom bar. */}
+              <AskComposer variant="bottom" {...composerCommon} />
+            </>
           )}
-
-          {/* Fix #7: wrap conversation in aria-live region so screen readers announce completed answers. */}
-          <div aria-live="polite" aria-atomic="false">
-          {/* Completed turns */}
-          {turns.map((turn, idx) => (
-            <TurnBlock
-              key={idx}
-              turn={turn}
-              turnIdx={idx}
-              selectedTurnIdx={selectedTurnIdx}
-              selected={selected}
-              onCitationSelect={handleCitationSelect}
-              onSaveToDocument={onSaveToDocument ? handleSaveToDocument : undefined}
-              isSaving={savingIdx === idx}
-              isPersisted={false}
-              {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
-            />
-          ))}
-
-          {/* Streaming turn */}
-          {streamingTurn && (
-            <TurnBlock
-              key="streaming"
-              turn={streamingTurn}
-              turnIdx={turns.length}
-              selectedTurnIdx={selectedTurnIdx}
-              selected={selected}
-              onCitationSelect={handleCitationSelect}
-              onSaveToDocument={undefined}
-              isSaving={false}
-              isPersisted={false}
-              isStreaming
-              {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
-            />
-          )}
-          </div>
-
-          {/* B2: bridge callout below demo answers (sample matter with turns) */}
-          {activeMatter?.id === SAMPLE_MATTER_ID && turns.length > 0 && !streamingTurn && (
-            <SampleBridgeCallout />
-          )}
-
-          {/* Error — announced to assistive tech (acc-04 / UX-29). */}
-          {status === 'error' && errorMsg && (
-            <div
-              role="status"
-              aria-live="polite"
-              style={{
-                display: 'flex',
-                gap: 8,
-                alignItems: 'flex-start',
-                padding: '9px 12px',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--kp-danger-bg)',
-                border: '1px solid rgba(176, 42, 31, 0.3)',
-                fontSize: 'var(--kp-font-xs)',
-                color: 'var(--kp-danger)',
-              }}
-            >
-              <AlertTriangle size={15} strokeWidth={2} style={{ marginTop: 1, flex: 'none' }} />
-              {errorMsg}
-            </div>
-          )}
-
-          <div ref={bottomRef} />
         </div>
-
-        {/* Right: sticky source panel */}
-        {anyHasCitations && (
-          <div
-            style={{
-              borderLeft: '1px solid var(--color-border)',
-              padding: 'var(--kp-surface-gap) var(--kp-card-pad)',
-              overflowY: 'auto',
-              background: 'var(--color-background)',
-            }}
-          >
-            <SourcePanel
-              cite={selectedCite}
-              {...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {})}
-            />
-          </div>
-        )}
       </div>
-
-      {/* Memory-off warning — Fix #5: now actionable with "Enable indexing" button. */}
-      {!isMemoryEnabled() && turns.length === 0 && !streamingTurn && (
-        <div
-          style={{
-            display: 'flex',
-            gap: 8,
-            alignItems: 'center',
-            padding: 'var(--kp-space-xs) var(--kp-gutter)',
-            fontSize: 'var(--kp-font-xs)',
-            color: 'var(--kp-direct)',
-            background: 'var(--kp-direct-bg)',
-            borderTop: '1px solid var(--kp-direct-line)',
-            flexShrink: 0,
-            flexWrap: 'wrap',
-          }}
-        >
-          <AlertTriangle size={15} strokeWidth={2} style={{ flex: 'none' }} />
-          <span style={{ flex: 1, minWidth: 0 }}>
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            Cited answers need your documents indexed on your machine. Enable it in Settings.
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-          </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent('keepance:open-settings', { detail: { category: 'ai' } }));
-            }}
-            style={{ flexShrink: 0 }}
-          >
-            Enable indexing
-          </Button>
-        </div>
-      )}
-
-      {/* The composer moved into the toolbar above — the search field now sits
-          next to the scope pills (search-first, matching the other tabs). */}
     </div>
   );
 }
