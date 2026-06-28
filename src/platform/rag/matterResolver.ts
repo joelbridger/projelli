@@ -640,7 +640,9 @@ export function resolveEsignMatterForEnvelope(
   }
 
   if (matches.size === 1) {
-    return { matterId: [...matches][0]!, needsAssignment: false, reason: '' };
+    for (const only of matches) {
+      return { matterId: only, needsAssignment: false, reason: '' };
+    }
   }
   return {
     matterId: UNASSIGNED_MATTER_ID,
