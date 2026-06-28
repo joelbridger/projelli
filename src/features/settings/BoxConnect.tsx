@@ -82,6 +82,10 @@ export function BoxConnect() {
 
   async function syncNow() {
     setError(null);
+    if (isLocalOnlyMode()) {
+      setError('Local-only mode is on. Turn it off before syncing Box, because it contacts Box.');
+      return;
+    }
     setSyncing(true);
     try {
       const result = await boxSync(buildBoxMatterMap(getMatters()));

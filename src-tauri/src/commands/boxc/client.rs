@@ -156,7 +156,7 @@ mod tests {
         for verb in ["post", "put", "patch", "delete"] {
             let forbidden = format!(".{verb}(");
             assert!(
-                !src.contains(forbidden),
+                !src.contains(forbidden.as_str()),
                 "Box client must stay read-only; found {}",
                 forbidden
             );
