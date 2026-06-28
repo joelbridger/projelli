@@ -14,6 +14,8 @@ pub mod audit;
 pub mod crm;
 // Read-only DocuSign connector — completed envelopes + signing audit trail.
 pub mod docusign;
+// Read-only Zocks connector — meeting notes/transcripts into client memory.
+pub mod zocks;
 // Calendly connector — read-only scheduled events + invitee intake into meeting RAG.
 pub mod calendly;
 // Shared additive connector foundation — generic external RAG ingestion bridge.
