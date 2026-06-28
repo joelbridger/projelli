@@ -116,14 +116,15 @@ export function findMatter(
 }
 
 /**
- * A short display label for a matter ("Client - Matter" when both are set,
- * else whichever exists). Used by the active-matter indicator and selector.
+ * A short display label for a matter ("Client - Matter" when both are set and
+ * DIFFER, else whichever exists). CRM-created household matters set name ===
+ * client (both the household name), so we must not render "Name - Name".
  * Uses a hyphen, never an em dash (project copy rule).
  */
 export function matterLabel(matter: Matter): string {
   const name = matter.name.trim();
   const client = matter.client.trim();
-  if (name && client) return `${client} - ${name}`;
+  if (name && client && name !== client) return `${client} - ${name}`;
   return name || client || matter.id;
 }
 
