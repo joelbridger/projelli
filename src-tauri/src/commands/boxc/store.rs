@@ -174,9 +174,11 @@ impl BoxStore {
     pub fn list_active_source_ids(&self) -> Result<Vec<String>> {
         let c = self.conn.lock().unwrap();
         let mut stmt = c.prepare("SELECT source_id FROM box_items WHERE deleted = 0")?;
-        stmt.query_map([], |row| row.get(0))?
+        let ids = stmt
+            .query_map([], |row| row.get(0))?
             .collect::<rusqlite::Result<Vec<String>>>()
-            .map_err(anyhow::Error::from)
+            .map_err(anyhow::Error::from)?;
+        Ok(ids)
     }
 
     pub fn mark_deleted(&self, source_id: &str) -> Result<()> {
