@@ -81,6 +81,10 @@ export function JotformConnect() {
 
   async function syncNow() {
     setError(null);
+    if (isLocalOnlyMode()) {
+      setError('Local-only mode is on. Turn it off before syncing Jotform, because it contacts Jotform.');
+      return;
+    }
     setSyncing(true);
     try {
       const result = await jotformSync(buildJotformMatterMap(getMatters()));
