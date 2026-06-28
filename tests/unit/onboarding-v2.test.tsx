@@ -37,6 +37,9 @@ vi.mock('@/features/settings/MailGmailConnect', () => ({
 vi.mock('@/features/settings/MailImapConnect', () => ({
   MailImapConnect: () => <div data-testid="mail-imap-stub" />,
 }));
+vi.mock('@/features/settings/OneDriveConnect', () => ({
+  OneDriveConnect: () => <div data-testid="onedrive-stub" />,
+}));
 vi.mock('@/features/settings/WealthboxConnect', () => ({
   WealthboxConnect: () => <div data-testid="wealthbox-stub" />,
 }));
@@ -198,11 +201,12 @@ describe('ConnectScene mounts real connectors', () => {
     h.progress = null;
   });
 
-  it('renders the Microsoft 365 + Wealthbox connectors, and reveals Gmail/IMAP', () => {
+  it('renders the Microsoft 365 + OneDrive + Wealthbox connectors, and reveals Gmail/IMAP', () => {
     renderFlow();
     goToAi();
     clickContinue(); // -> connect
     expect(screen.getByTestId('mail-connect-stub')).toBeTruthy();
+    expect(screen.getByTestId('onedrive-stub')).toBeTruthy();
     expect(screen.getByTestId('wealthbox-stub')).toBeTruthy();
     expect(screen.queryByTestId('mail-gmail-stub')).toBeNull();
     fireEvent.click(screen.getByTestId('connect-more-email'));
