@@ -14,7 +14,7 @@
       "icon": "📝",
       "title": "Strategic Advisor Memo",
       "status": "Verdict: narrow + test",
-      "now": "A hard-nosed, investor-grade read of the REAL Keepance (built from the code, the docs, fresh market research, and an independent Codex pass told to argue the opposite). It exists to answer one question: can this become a real company that creates meaningful wealth in five years? It is intentionally tough on the idea because the product is good enough to deserve a real test, not another build cycle. The full 20-section version and the action plan are linked at the bottom.",
+      "now": "A hard-nosed, investor-grade read of the REAL Keepance (built from the code, the docs, fresh market research, and an independent Codex pass told to argue the opposite). It exists to answer one question: can this become a real company that creates meaningful wealth in five years? It is intentionally tough on the idea because the product is good enough to deserve a real test, not another build cycle. Every section below is the full memo, just made scannable; a longer source version and the action-plan companion are also saved in the Keepance project for the team.",
       "intro": "Bottom line up front: an unusually good product chasing an unproven need. The advisor direction is the soundest of its five re-aims, but it rests on a single advisor's pain signal, and the privacy wedge is a trust-accelerator, not a must-buy. The only correct move is to narrow to one bulletproof job and let real, arm's-length advisors prove or disprove demand in 60 days.",
       "blocks": [
         {
@@ -309,16 +309,7 @@
           ]
         }
       ],
-      "links": [
-        {
-          "label": "📄 Full memo — the complete 20-section analysis",
-          "doc": "https://github.com/keepance/keepance/blob/keepance-3.0/docs/strategy/2026-06-28-strategic-advisor-memo.md"
-        },
-        {
-          "label": "✅ Action plan — prioritized recommendations + the 30-day task list",
-          "doc": "https://github.com/keepance/keepance/blob/keepance-3.0/KEEPANCE_STRATEGIC_ADVISOR_ACTION_PLAN.md"
-        }
-      ]
+      "links": []
     },
     {
       "id": "strategy",
