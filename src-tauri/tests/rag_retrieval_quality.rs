@@ -330,3 +330,190 @@ async fn retrieval_quality_baseline() {
          from the top 3 too often. See tests/eval/ask/results/retrieval-latest.json"
     );
 }
+
+/* ════════════════════ WS3d-A — RERANKER OFF vs ON ════════════════════════
+ * Measures the cross-encoder reranker against the SAME real shipped stack and
+ * the SAME adversarial corpus as the baseline above. For every case we fetch a
+ * deliberately OVERFETCHED candidate pool (top_k*4, exactly what the production
+ * `rag_retrieve` does when the reranker is on), then score it two ways:
+ *
+ *   OFF — take the first top_k candidates in vector (cosine) order. This is
+ *         byte-for-byte the committed baseline path (the first N of the
+ *         nearest-N-overfetch ARE the nearest-N), so the OFF numbers MUST equal
+ *         the frozen `retrieval-baseline.json` — the proof that the flag's
+ *         OFF state is a true no-op.
+ *   ON  — re-score the whole pool with the production `reranker::rescore`
+ *         cross-encoder, re-sort by that score, take top_k. This is the
+ *         production reranker-ON path.
+ *
+ * Both are graded with the IDENTICAL metric functions, and the deltas are
+ * printed + written to results/retrieval-reranked-latest.json. This is the
+ * headline evidence. The reranker is NOT enabled by this test — it only
+ * measures. Gated by REQUIRE_RAG_MODEL (e5) AND the reranker model being
+ * provisioned (REQUIRE_RERANKER_MODEL=1 turns a missing reranker into a hard
+ * failure instead of a silent skip).
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/// Decrypt a hit's chunk text exactly as `rag_retrieve` does before handing it
+/// to the reranker (WS-VEC: the `text` column is ciphertext at rest).
+fn decrypt_text(h: &store::StoredHit) -> String {
+    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+    if h.encrypted {
+        hex::decode(&h.text)
+            .ok()
+            .and_then(|b| decrypt_with_key(&b, &VEC_KEY).ok())
+            .and_then(|v| String::from_utf8(v).ok())
+            .unwrap_or_default()
+    } else {
+        h.text.clone()
+    }
+}
+
+/// Aggregate metrics over all cases, given a per-case ranked source list.
+struct Agg {
+    rr: Vec<f64>,
+    ndcg5: Vec<f64>,
+    h1: Vec<f64>,
+    h3: Vec<f64>,
+    h5: Vec<f64>,
+    p1: Vec<f64>,
+}
+impl Agg {
+    fn new() -> Self {
+        Self { rr: vec![], ndcg5: vec![], h1: vec![], h3: vec![], h5: vec![], p1: vec![] }
+    }
+    fn push(&mut self, ranked: &[String], expected: &[&str]) {
+        self.rr.push(reciprocal_rank(ranked, expected));
+        self.ndcg5.push(ndcg_at_k(ranked, expected, 5));
+        self.h1.push(if hit_at_k(ranked, expected, 1) { 1.0 } else { 0.0 });
+        self.h3.push(if hit_at_k(ranked, expected, 3) { 1.0 } else { 0.0 });
+        self.h5.push(if hit_at_k(ranked, expected, 5) { 1.0 } else { 0.0 });
+        self.p1.push(precision_at_k(ranked, expected, 1));
+    }
+    fn mrr(&self) -> f64 { mean(&self.rr) }
+    fn ndcg(&self) -> f64 { mean(&self.ndcg5) }
+    fn hit1(&self) -> f64 { mean(&self.h1) }
+    fn json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "n": self.rr.len(),
+            "mrr": mean(&self.rr),
+            "ndcgAt5": mean(&self.ndcg5),
+            "hitAt1": mean(&self.h1),
+            "hitAt3": mean(&self.h3),
+            "hitAt5": mean(&self.h5),
+            "pAt1": mean(&self.p1),
+        })
+    }
+}
+
+#[tokio::test]
+async fn retrieval_reranker_off_vs_on() {
+    skip_without_model!();
+    // Reranker presence gate (mirrors the e5 gate). REQUIRE_RERANKER_MODEL=1
+    // makes a missing reranker a hard failure rather than a silent skip.
+    use keepance_lib::commands::rag::reranker;
+    if !reranker::is_available() {
+        if std::env::var("REQUIRE_RERANKER_MODEL").ok().filter(|v| !v.is_empty()).is_some() {
+            panic!(
+                "REQUIRE_RERANKER_MODEL set but the reranker model is not provisioned — \
+                 run: cargo test -p keepance --lib provision_reranker_into_writable_cache -- --ignored"
+            );
+        }
+        eprintln!("SKIP retrieval_reranker_off_vs_on: reranker model not provisioned");
+        return;
+    }
+
+    let dir = corpus_dir();
+    let (table, _tmp) = build_table(&dir).await;
+
+    let mut off = Agg::new();
+    let mut on = Agg::new();
+    let mut case_json = Vec::new();
+
+    println!("\n══════════ WS3d-A RERANKER OFF vs ON (real e5-small + LanceDB + cross-encoder) ══════════");
+    println!("model: {}", reranker::RERANKER_MODEL);
+    println!("{:<32} {:>8} {:>8}   off→on ranked sources", "case", "off RR", "on RR");
+
+    for c in cases() {
+        let q = embed(c.query).await;
+        // OVERFETCH exactly like production rag_retrieve does when reranking.
+        let overfetch = c.top_k.saturating_mul(4).min(200);
+        let pool = nearest(&table, &q, overfetch, c.scope).await.expect("retrieve");
+
+        // OFF: first top_k in cosine order == the committed baseline path.
+        let off_hits: Vec<store::StoredHit> = pool.iter().take(c.top_k).cloned().collect();
+        let off_ranked = ranked_sources(&off_hits);
+        off.push(&off_ranked, c.expected);
+
+        // ON: cross-encoder rescore over the whole pool, re-sort, take top_k.
+        let texts: Vec<String> = pool.iter().map(decrypt_text).collect();
+        let scores = reranker::rescore(c.query, texts).await.expect("rescore");
+        assert_eq!(scores.len(), pool.len(), "one score per candidate");
+        let mut scored: Vec<(f32, store::StoredHit)> =
+            scores.into_iter().zip(pool.iter().cloned()).collect();
+        scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+        let on_hits: Vec<store::StoredHit> =
+            scored.into_iter().take(c.top_k).map(|(_, h)| h).collect();
+        let on_ranked = ranked_sources(&on_hits);
+        on.push(&on_ranked, c.expected);
+
+        let off_rr = reciprocal_rank(&off_ranked, c.expected);
+        let on_rr = reciprocal_rank(&on_ranked, c.expected);
+        let arrow = if on_rr > off_rr { "▲" } else if on_rr < off_rr { "▼" } else { "=" };
+        println!(
+            "{:<32} {:>8.3} {:>8.3} {}  {}",
+            c.id, off_rr, on_rr, arrow, on_ranked.join(" > ")
+        );
+
+        case_json.push(serde_json::json!({
+            "id": c.id,
+            "offRankedSources": off_ranked,
+            "onRankedSources": on_ranked,
+            "offReciprocalRank": off_rr,
+            "onReciprocalRank": on_rr,
+        }));
+    }
+
+    println!("\n── SUMMARY (n={}) ─────────────────────────────────", off.rr.len());
+    println!("            {:>10} {:>10} {:>10}", "OFF", "ON", "Δ (on-off)");
+    println!("   MRR      {:>10.4} {:>10.4} {:>+10.4}", off.mrr(), on.mrr(), on.mrr() - off.mrr());
+    println!("   NDCG@5   {:>10.4} {:>10.4} {:>+10.4}", off.ndcg(), on.ndcg(), on.ndcg() - off.ndcg());
+    println!("   Hit@1    {:>10.4} {:>10.4} {:>+10.4}", off.hit1(), on.hit1(), on.hit1() - off.hit1());
+    println!("───────────────────────────────────────────────────\n");
+
+    // Persist the comparison artifact (gitignored, alongside the baseline one).
+    let report = serde_json::json!({
+        "model": format!("{}", reranker::RERANKER_MODEL),
+        "engine": "fastembed reranker + e5-small + lancedb (real shipped stack)",
+        "off": off.json(),
+        "on": on.json(),
+        "cases": case_json,
+    });
+    let results_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..").join("tests").join("eval").join("ask").join("results");
+    let _ = std::fs::create_dir_all(&results_dir);
+    std::fs::write(
+        results_dir.join("retrieval-reranked-latest.json"),
+        serde_json::to_string_pretty(&report).unwrap(),
+    )
+    .expect("write retrieval-reranked-latest.json");
+
+    // PROOF THE FLAG'S OFF STATE IS A NO-OP: the OFF numbers must match the
+    // committed baseline snapshot. (Reads retrieval-baseline.json so a baseline
+    // refresh keeps this honest.)
+    let baseline: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("..").join("tests").join("eval").join("ask").join("retrieval-baseline.json"),
+        )
+        .expect("read retrieval-baseline.json"),
+    )
+    .expect("parse baseline");
+    let base_mrr = baseline["summary"]["mrr"].as_f64().expect("baseline summary.mrr");
+    assert!(
+        (off.mrr() - base_mrr).abs() < 1e-9,
+        "reranker-OFF MRR {:.6} must equal the committed baseline {:.6} — the OFF path is NOT a no-op!",
+        off.mrr(),
+        base_mrr
+    );
+}

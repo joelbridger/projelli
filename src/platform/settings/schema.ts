@@ -588,6 +588,23 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     defaultValue: false,
   },
 
+  // ── Advanced: Smarter search re-ranking (experimental, default OFF) ─────
+  {
+    // WS3d-A. When ON, Keepance runs a second, more careful scorer over the
+    // documents the first search finds, re-ordering them so the most relevant
+    // passage rises to the top. It needs a one-time model download and adds a
+    // little time per search. OFF by default: search behaves exactly as it
+    // does today. This is experimental and being measured before it becomes a
+    // default.
+    key: 'enableReranker',
+    category: 'advanced',
+    label: 'Smarter search re-ranking (experimental)',
+    description:
+      'Re-orders search results with a second, more careful relevance check so the best passage surfaces first. Requires a one-time model download and adds a little time per search. Off by default — leaving it off keeps search exactly as it is today.',
+    type: 'toggle',
+    defaultValue: false,
+  },
+
   // ── Help: Setup / Onboarding ──────────────────────────────────────────
   {
     key: 'viewApiKeyTutorial',

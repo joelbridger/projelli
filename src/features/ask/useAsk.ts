@@ -13,6 +13,7 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { getDemoAnswerForWorkspace, getDemoQuestions } from '@/platform/matter/samples/sampleMatterDemo';
 import { useProfessionStore } from '@/platform/profile/professionStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import {
   DEFAULT_WORKSPACE_TOP_K,
@@ -414,7 +415,17 @@ export function useAsk({
       const memoryEnabled = isMemoryEnabled();
       if (memoryEnabled) {
         failedStage = 'retrieval';
-        const rawHits = await MemoryService.retrieve(q, DEFAULT_WORKSPACE_TOP_K, retrievalScope, false);
+        // WS3d-A — default-OFF reranker toggle, read per call.
+        const enableReranker =
+          useSettingsStore.getState().getSetting<boolean>('enableReranker') === true;
+        const rawHits = await MemoryService.retrieve(
+          q,
+          DEFAULT_WORKSPACE_TOP_K,
+          retrievalScope,
+          false,
+          undefined,
+          enableReranker,
+        );
         failedStage = 'post-retrieval';
         // Apply client-side type filter for Email/Documents scopes.
         hits = filterHitsByScope(rawHits, askScope);
