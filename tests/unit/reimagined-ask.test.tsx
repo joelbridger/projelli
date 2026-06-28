@@ -1,6 +1,6 @@
 // Tests for Ask multi-turn conversational surface
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { Ask } from '@/features/ask/Ask';
 
 const mockInitSession = vi.fn();
@@ -313,9 +313,11 @@ describe('Ask', () => {
     };
     try {
       render(<Ask />);
-      // The restored question should appear in the conversation.
-      expect(screen.getByText(/what is the statute of limitations/i)).toBeDefined();
-      // The restored answer should appear (stripped of any chip markers).
+      // The restored question should appear in the conversation. (It also appears
+      // as the active thread's label in the rail, so allow more than one match.)
+      expect(screen.getAllByText(/what is the statute of limitations/i).length).toBeGreaterThanOrEqual(1);
+      // The restored answer should appear (stripped of any chip markers). Unique
+      // to the conversation — the rail only labels threads by their question.
       expect(screen.getByText(/statute runs three years/i)).toBeDefined();
     } finally {
       delete mockSessions['ask-global'];
@@ -432,10 +434,11 @@ describe('Ask', () => {
   });
 
   // -------------------------------------------------------------------------
-  // C1 — "Recent in this matter" returning-user payoff
+  // Conversations rail — saved-thread switching (replaces the old in-empty-state
+  // "Recent in this matter" list + top chip strip; the rail is the one switcher)
   // -------------------------------------------------------------------------
 
-  it('shows "Recent in this matter" list when a non-sample matter has prior sessions', () => {
+  it('rail groups this client\'s prior threads under a "This matter" section', () => {
     const MATTER_ID = 'matter_reyes_v_tompkins';
     mockActiveMatter = { id: MATTER_ID, name: 'Reyes v. Tompkins' };
     // Seed two prior sessions for this matter (keyed with timestamped variants)
@@ -459,22 +462,23 @@ describe('Ask', () => {
     };
     try {
       render(<Ask />);
-      // Section heading and items should be present
-      expect(screen.getByTestId('recent-in-matter')).toBeDefined();
-      expect(screen.getByText(/recent in this matter/i)).toBeDefined();
-      const items = screen.getAllByTestId('matter-session-item');
+      // The persistent rail lists both threads under the "This matter" group.
+      // (Scope the heading lookup to the rail — "This matter" also appears as a
+      // scope pill in the composer.)
+      const rail = screen.getByTestId('conversations-rail');
+      expect(rail).toBeInTheDocument();
+      expect(within(rail).getByText(/this matter/i)).toBeInTheDocument();
+      const items = screen.getAllByTestId('rail-conversation-item');
       expect(items.length).toBe(2);
-      // First question of each session should appear as the label (may appear in
-      // both the top session chips strip and the landing section list).
-      expect(screen.getAllByText(/what are the deposition highlights/i).length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText(/what is the discovery deadline/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText(/what are the deposition highlights/i)).toBeInTheDocument();
+      expect(screen.getByText(/what is the discovery deadline/i)).toBeInTheDocument();
     } finally {
       delete mockSessions[`ask-${MATTER_ID}-1000`];
       delete mockSessions[`ask-${MATTER_ID}-2000`];
     }
   });
 
-  it('clicking a "Recent in this matter" item loads that session (calls setChatId)', () => {
+  it('clicking a rail conversation loads that session (re-inits it)', () => {
     const MATTER_ID = 'matter_reyes_v_tompkins';
     mockActiveMatter = { id: MATTER_ID, name: 'Reyes v. Tompkins' };
     const priorSessionId = `ask-${MATTER_ID}-1000`;
@@ -487,45 +491,36 @@ describe('Ask', () => {
       isLoading: false,
       lastUpdated: '2026-01-01T00:00:00Z',
     };
-    // Also seed the prior session's messages in the store so they restore on load
-    mockSessions[priorSessionId] = mockSessions[priorSessionId]!;
     try {
       render(<Ask />);
-      const item = screen.getByTestId('matter-session-item');
+      const item = screen.getByTestId('rail-conversation-item');
       fireEvent.click(item);
-      // After clicking, the component should display the prior session's content.
-      // initSession will be called for the loaded session id.
+      // Switching to the thread re-inits that session id via the chatId effect.
       expect(mockInitSession).toHaveBeenCalledWith(priorSessionId, []);
     } finally {
       delete mockSessions[priorSessionId];
     }
   });
 
-  it('does NOT show "Recent in this matter" for the sample matter', () => {
-    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
-    // Seed a prior sample session that would match the prefix
-    const priorSampleId = `ask-${SAMPLE_MATTER_ID}-1000`;
-    mockSessions[priorSampleId] = {
-      chatId: priorSampleId,
-      messages: [
-        { role: 'user', content: 'What is the fee arrangement?', timestamp: '2026-01-01T00:00:00Z' },
-        { role: 'assistant', content: 'The fee is $350/hr.', timestamp: '2026-01-01T00:00:00Z' },
-      ],
-      isLoading: false,
-      lastUpdated: '2026-01-01T00:00:00Z',
-    };
-    try {
-      render(<Ask />);
-      expect(screen.queryByTestId('recent-in-matter')).toBeNull();
-    } finally {
-      delete mockSessions[priorSampleId];
-    }
-  });
-
-  it('does NOT show "Recent in this matter" when the non-sample matter has no prior sessions', () => {
+  it('rail shows the empty hint when the active matter has no prior threads', () => {
     mockActiveMatter = { id: 'matter_fresh', name: 'Fresh Matter' };
     render(<Ask />);
-    expect(screen.queryByTestId('recent-in-matter')).toBeNull();
+    // Rail is present but lists nothing yet.
+    expect(screen.getByTestId('conversations-rail')).toBeInTheDocument();
+    expect(screen.queryAllByTestId('rail-conversation-item').length).toBe(0);
+    expect(screen.getByText(/your conversations will appear here/i)).toBeInTheDocument();
+  });
+
+  it('rail can be collapsed to a thin strip and re-expanded', () => {
+    mockActiveMatter = { id: 'matter_abc', name: 'ABC v. XYZ' };
+    render(<Ask />);
+    const rail = screen.getByTestId('conversations-rail');
+    expect(rail.getAttribute('data-collapsed')).toBe('false');
+    // Collapse, then expand, via the toggle.
+    fireEvent.click(screen.getByTestId('rail-toggle'));
+    expect(screen.getByTestId('conversations-rail').getAttribute('data-collapsed')).toBe('true');
+    fireEvent.click(screen.getByTestId('rail-toggle'));
+    expect(screen.getByTestId('conversations-rail').getAttribute('data-collapsed')).toBe('false');
   });
 
   // -------------------------------------------------------------------------
@@ -741,15 +736,25 @@ describe('Ask', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Fix #3 — "New question" button in composer row
+  // Conversations rail — "New question" action (always present)
   // -------------------------------------------------------------------------
 
-  it('does not show inline New question button when there are no turns', () => {
+  it('the conversations rail is always rendered with a "New question" action', () => {
     render(<Ask />);
-    // With no turns, the header button should be absent (turns.length === 0)
-    // There should be no button with text "New question" at all
-    const newQuestionBtns = screen.queryAllByRole('button', { name: /new question/i });
-    expect(newQuestionBtns.length).toBe(0);
+    // The rail is the ChatGPT-style persistent left list; "New question" lives at
+    // the top and is always available (it starts a fresh thread).
+    expect(screen.getByTestId('conversations-rail')).toBeInTheDocument();
+    expect(screen.getByTestId('rail-new-question')).toBeInTheDocument();
+  });
+
+  it('clicking the rail "New question" starts a fresh thread (re-inits a session)', () => {
+    render(<Ask />);
+    // Starting state inits the base session once.
+    expect(mockInitSession).toHaveBeenCalledWith('ask-global', []);
+    const callsBefore = mockInitSession.mock.calls.length;
+    fireEvent.click(screen.getByTestId('rail-new-question'));
+    // handleNewAsk mints a new chatId, so the mount/chatId effect re-inits.
+    expect(mockInitSession.mock.calls.length).toBeGreaterThan(callsBefore);
   });
 
   // -------------------------------------------------------------------------

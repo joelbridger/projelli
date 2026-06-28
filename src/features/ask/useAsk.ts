@@ -51,6 +51,9 @@ import {
   buildRecentAskSessions,
 } from './askHelpers';
 
+/** localStorage key for the conversations-rail collapsed preference. */
+const ASK_RAIL_COLLAPSED_KEY = 'keepance:ask-rail-collapsed';
+
 export interface UseAskProps {
   onSaveToDocument?: (content: string) => Promise<void>;
   /** When non-null, prefills the composer with the given question and optionally auto-submits. */
@@ -145,23 +148,32 @@ export function useAsk({
       ? activeProvider.provider
       : null;
 
-  // Recent sessions: sessions keyed "ask-*", scoped to the current workspace.
-  const recentSessions = buildRecentAskSessions(sessions, rootPath, {
-    excludeChatId: chatId,
-    limit: 5,
-  });
+  // Conversations rail: every "ask-*" session in this workspace, INCLUDING the
+  // active one so the rail can highlight it. The rail is the primary switcher now
+  // (it replaced the old top chip-strip + in-empty-state recent list), so we lift
+  // the old 5-item cap and show the full local history. Grouping (this client vs
+  // everything else) is done in the view from this flat, recency-sorted list.
+  const railSessions = buildRecentAskSessions(sessions, rootPath, { limit: 100 });
 
-  // Matter-scoped prior sessions: sessions whose key starts with "ask-<matterId>"
-  // (covers both the base id and timestamped variants like ask-<matterId>-<ts>).
-  // Only shown for non-sample real matters on the empty/landing state.
-  const matterSessionPrefix = activeMatter ? `ask-${activeMatter.id}` : null;
-  const matterRecentSessions = matterSessionPrefix !== null
-    ? buildRecentAskSessions(sessions, rootPath, {
-        prefix: matterSessionPrefix,
-        excludeChatId: chatId,
-        limit: 5,
-      })
-    : [];
+  // Rail collapse — view-only state, persisted so the choice survives reloads.
+  const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(ASK_RAIL_COLLAPSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleRailCollapsed = useCallback(() => {
+    setRailCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(ASK_RAIL_COLLAPSED_KEY, next ? '1' : '0');
+      } catch {
+        /* ignore storage failures (private mode / quota) */
+      }
+      return next;
+    });
+  }, []);
 
   // On mount / chatId change: init session and reconstruct turns from persisted messages.
   // Fix #1: read getState() instead of the closed-over `sessions` selector so we always
@@ -771,8 +783,9 @@ export function useAsk({
     confidentialityMode,
     bottomRef,
     composerInputRef,
-    recentSessions,
-    matterRecentSessions,
+    railSessions,
+    railCollapsed,
+    toggleRailCollapsed,
     selectedCite,
     anyHasCitations,
     handleCitationSelect,
