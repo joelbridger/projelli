@@ -158,6 +158,8 @@ interface MatterState {
 
   // OneDrive / SharePoint folder mapping.
   addOneDriveFolderKey: (id: string, folderKey: string) => void;
+  // ShareFile folder mapping.
+  addSharefileFolderKey: (id: string, folderKey: string) => void;
   /**
    * Remove every trace of Wealthbox from local matters after a disconnect:
    *   - pure-CRM matters (no user files/mail) are deleted;
@@ -629,6 +631,25 @@ export const useMatterStore = create<MatterState>()(
             const others = m.onedriveFolderKeys ?? [];
             return others.includes(key)
               ? { ...m, onedriveFolderKeys: others.filter((k) => k !== key) }
+              : m;
+          }),
+        }));
+      },
+
+      addSharefileFolderKey: (id, folderKey) => {
+        const key = folderKey.trim();
+        if (!key) return;
+        set((state) => ({
+          matters: state.matters.map((m) => {
+            if (m.id === id) {
+              const existing = m.sharefileFolderKeys ?? [];
+              return existing.includes(key)
+                ? m
+                : { ...m, sharefileFolderKeys: [...existing, key] };
+            }
+            const others = m.sharefileFolderKeys ?? [];
+            return others.includes(key)
+              ? { ...m, sharefileFolderKeys: others.filter((k) => k !== key) }
               : m;
           }),
         }));

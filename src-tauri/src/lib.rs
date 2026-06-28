@@ -190,6 +190,15 @@ pub fn run() {
             commands::boxc::commands::box_sync,
             commands::boxc::commands::box_cancel,
             commands::boxc::commands::box_status,
+            // ShareFile document connector (read-only portal import).
+            commands::sharefile::commands::sharefile_set_workspace,
+            commands::sharefile::commands::sharefile_connect,
+            commands::sharefile::commands::sharefile_is_connected,
+            commands::sharefile::commands::sharefile_disconnect,
+            commands::sharefile::commands::sharefile_list_folders,
+            commands::sharefile::commands::sharefile_sync,
+            commands::sharefile::commands::sharefile_cancel,
+            commands::sharefile::commands::sharefile_status,
             // Read-only DocuSign connector — completed envelopes + signing timeline.
             commands::docusign::commands::docusign_set_workspace,
             commands::docusign::commands::docusign_connect,
@@ -251,6 +260,8 @@ pub fn run() {
             commands::onedrive::commands::manage_state(app);
             // Box connector state.
             commands::boxc::commands::manage_state(app);
+            // ShareFile connector state.
+            commands::sharefile::commands::manage_state(app);
             // Read-only DocuSign connector state.
             commands::docusign::commands::manage_state(app);
             // Calendly connector — manage workspace, single-flight sync, and progress.

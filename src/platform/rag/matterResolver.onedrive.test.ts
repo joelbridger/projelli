@@ -129,6 +129,34 @@ describe('new connector matter-map shells', () => {
       { addeparKey: 'addepar-b', matterId: 'matter-b' },
     ]);
   });
+
+  it('sorts ShareFile folder mappings by most specific path first', () => {
+    const matters: Matter[] = [
+      makeMatter({
+        id: 'matter-parent',
+        name: 'Acme',
+        client: 'Acme',
+        sharefileFolderKeys: ['sharefile/default/fo-parent:/clients/acme'],
+      }),
+      makeMatter({
+        id: 'matter-child',
+        name: 'Acme Pleadings',
+        client: 'Acme',
+        sharefileFolderKeys: ['sharefile/default/fo-child:/clients/acme/pleadings'],
+      }),
+    ];
+
+    expect(buildSharefileMatterMap(matters)).toEqual([
+      {
+        folderKey: 'sharefile/default/fo-child:/clients/acme/pleadings',
+        matterId: 'matter-child',
+      },
+      {
+        folderKey: 'sharefile/default/fo-parent:/clients/acme',
+        matterId: 'matter-parent',
+      },
+    ]);
+  });
 });
 
 describe('resolveMatterForOneDriveFolder', () => {

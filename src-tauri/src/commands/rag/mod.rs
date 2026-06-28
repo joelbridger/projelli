@@ -263,8 +263,9 @@ pub async fn index_downloaded_document_bytes(
 }
 
 /// Same as `index_downloaded_document_bytes`, but lets a document connector
-/// name its own source type (`onedrive`, `box`, etc.) while reusing the same
-/// extraction, embedding, encryption, and stale-row deletion path.
+/// name its own source type (`onedrive`, `box`, `sharefile`, etc.) while reusing
+/// the same extraction, embedding, encryption, and stale-row deletion path.
+/// Shared by all document connectors (Box and ShareFile both call it).
 #[allow(clippy::too_many_arguments)]
 pub async fn index_downloaded_document_bytes_as_source_type(
     table: &lancedb::Table,

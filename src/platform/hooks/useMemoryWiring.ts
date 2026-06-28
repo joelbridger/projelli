@@ -59,6 +59,7 @@ import { docusignSetWorkspace } from '@/platform/utils/docusign-commands';
 import { crmSetWorkspace } from '@/platform/utils/wealthbox-commands';
 import { oneDriveSetWorkspace } from '@/platform/utils/onedrive-commands';
 import { boxSetWorkspace } from '@/platform/utils/box-commands';
+import { sharefileSetWorkspace } from '@/platform/utils/sharefile-commands';
 import { calendlySetWorkspace } from '@/platform/utils/calendly-commands';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/platform/types/workspace';
@@ -551,6 +552,11 @@ export function useMemoryWiring(
           await boxSetWorkspace(rootPath);
         } catch (err) {
           console.warn('boxSetWorkspace failed; continuing workspace setup:', err);
+        }
+        try {
+          await sharefileSetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('sharefileSetWorkspace failed; continuing workspace setup:', err);
         }
         // Best-effort: DocuSign sync/list/disconnect commands also need the
         // active workspace path before they can read/write local connector data.
