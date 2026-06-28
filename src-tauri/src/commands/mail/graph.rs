@@ -58,6 +58,58 @@ impl GraphClient {
         self.token.lock().await.clone()
     }
 
+    /// Gate attaching the Microsoft bearer token to a request: only ever send
+    /// it to a real Graph origin over a safe scheme.
+    ///
+    /// Continuation links (nextLink/deltaLink) and persisted delta cursors are
+    /// fed straight back into `get_json`/`get_bytes`, so a planted or MitM'd URL
+    /// could otherwise exfiltrate the access token to an attacker-controlled
+    /// host. We require the request URL's origin (scheme + host + port) to match
+    /// the configured `base`, and additionally accept the canonical public Graph
+    /// host (`graph.microsoft.com`) over HTTPS. Embedded userinfo, non-HTTPS
+    /// public hosts, and any other host are rejected outright.
+    ///
+    /// Note: Graph's `/content` download endpoint 302-redirects to a
+    /// pre-signed URL on a different host; reqwest's default redirect policy
+    /// strips the Authorization header across hosts, so only this *initial* URL
+    /// (always a Graph origin) ever carries the token. Validating it here is
+    /// sufficient and does not break legitimate downloads.
+    fn validate_token_target(&self, url: &str) -> anyhow::Result<()> {
+        let parsed = reqwest::Url::parse(url)
+            .map_err(|_| anyhow::anyhow!("graph: refusing to send token to an unparseable URL"))?;
+        // Never attach credentials to a URL carrying embedded userinfo
+        // (e.g. https://attacker@graph.microsoft.com/...).
+        if !parsed.username().is_empty() || parsed.password().is_some() {
+            anyhow::bail!("graph: refusing to send token to a URL with embedded credentials");
+        }
+        let scheme = parsed.scheme();
+        let host = parsed.host_str().unwrap_or("");
+        // The canonical public Graph endpoint, always over HTTPS on the default
+        // 443 port. Pinning the port closes a planted-URL gap: a link like
+        // `https://graph.microsoft.com:444/...` would otherwise match host+scheme
+        // and send the token to a non-standard port. Legit next/delta/download
+        // links always use 443; configured test/national-cloud origins are
+        // handled by the exact-origin branch below.
+        if scheme == "https"
+            && host.eq_ignore_ascii_case("graph.microsoft.com")
+            && parsed.port_or_known_default() == Some(443)
+        {
+            return Ok(());
+        }
+        // Otherwise require the exact origin of the configured base. This covers
+        // test mock servers (http://127.0.0.1:port), national clouds, and any
+        // pinned/proxy base, while still rejecting every other host.
+        if let Ok(base) = reqwest::Url::parse(&self.base) {
+            if scheme == base.scheme()
+                && host.eq_ignore_ascii_case(base.host_str().unwrap_or(""))
+                && parsed.port_or_known_default() == base.port_or_known_default()
+            {
+                return Ok(());
+            }
+        }
+        anyhow::bail!("graph: refusing to send token to non-Graph host '{host}'")
+    }
+
     async fn refresh_after_unauthorized(&self, stale_access: &str) -> anyhow::Result<bool> {
         let Some(refresh) = &self.refresh else {
             return Ok(false);
@@ -79,6 +131,7 @@ impl GraphClient {
     /// GET an absolute Graph URL (used for nextLink/deltaLink which come back
     /// fully-formed), honoring 429/Retry-After with capped backoff. Up to 8 tries.
     pub async fn get_json(&self, url: &str) -> anyhow::Result<serde_json::Value> {
+        self.validate_token_target(url)?;
         let mut throttle_attempt = 0u32;
         let mut refreshed = false;
         loop {
@@ -105,21 +158,22 @@ impl GraphClient {
             let body = resp.text().await?;
             if status.as_u16() == 410 {
                 log::warn!(
-                    "graph request failed: url={} status={} body={}",
-                    url,
+                    "graph request failed: url={} status={} {}",
+                    redact_url(url),
                     status,
-                    body
+                    summarize_error_body(&body)
                 );
                 return Err(anyhow::Error::new(DeltaGone));
             }
             if !status.is_success() {
                 // Never surface the raw Graph body to the caller/UI: it can carry
-                // mailbox addresses or other PII. Log locally; return status only.
+                // mailbox addresses or other PII. Log a redacted url + a
+                // non-sensitive body summary only; return status to the caller.
                 log::warn!(
-                    "graph request failed: url={} status={} body={}",
-                    url,
+                    "graph request failed: url={} status={} {}",
+                    redact_url(url),
                     status,
-                    body
+                    summarize_error_body(&body)
                 );
                 anyhow::bail!("Microsoft Graph request failed (HTTP {})", status);
             }
@@ -131,6 +185,7 @@ impl GraphClient {
     /// OneDrive/SharePoint file downloads. Mirrors `get_json`'s retry and
     /// status-only UI error policy; raw error bodies are logged locally only.
     pub async fn get_bytes(&self, url: &str) -> anyhow::Result<Vec<u8>> {
+        self.validate_token_target(url)?;
         let mut throttle_attempt = 0u32;
         let mut refreshed = false;
         loop {
@@ -157,10 +212,10 @@ impl GraphClient {
             if !status.is_success() {
                 let body = resp.text().await?;
                 log::warn!(
-                    "graph byte request failed: url={} status={} body={}",
-                    url,
+                    "graph byte request failed: url={} status={} {}",
+                    redact_url(url),
                     status,
-                    body
+                    summarize_error_body(&body)
                 );
                 if status.as_u16() == 410 {
                     return Err(anyhow::Error::new(DeltaGone));
@@ -225,6 +280,7 @@ impl GraphClient {
         url: &str,
         body: &serde_json::Value,
     ) -> anyhow::Result<serde_json::Value> {
+        self.validate_token_target(url)?;
         let mut throttle_attempt = 0u32;
         let mut refreshed = false;
         loop {
@@ -263,10 +319,10 @@ impl GraphClient {
             let body_text = resp.text().await?;
             if !status.is_success() {
                 log::warn!(
-                    "graph POST failed: url={} status={} body={}",
-                    url,
+                    "graph POST failed: url={} status={} {}",
+                    redact_url(url),
                     status,
-                    body_text
+                    summarize_error_body(&body_text)
                 );
                 anyhow::bail!("Microsoft Graph request failed (HTTP {})", status);
             }
@@ -329,6 +385,37 @@ impl GraphClient {
         let url = format!("{}/v1.0/me/sendMail", self.base);
         self.post_json(&url, &payload).await?;
         Ok(String::new())
+    }
+}
+
+/// Redact a Graph URL for local logging: keep only host + path, dropping the
+/// query string and fragment. next/delta links carry opaque sync cursors
+/// (skip/delta tokens) in the query that must never reach the log. Userinfo, if
+/// any, is dropped with the rest of the authority components we don't emit.
+fn redact_url(url: &str) -> String {
+    match reqwest::Url::parse(url) {
+        Ok(u) => format!("{}{}", u.host_str().unwrap_or("?"), u.path()),
+        Err(_) => "<unparseable-url>".to_string(),
+    }
+}
+
+/// Summarize a Graph error body for logging without leaking PII. Graph errors
+/// are shaped `{"error":{"code":"...","message":"..."}}`; the `code` is a safe
+/// machine enum (e.g. `InvalidAuthenticationToken`, `itemNotFound`) but the
+/// `message` can carry mailbox/document metadata. We log only the code (when
+/// present) plus the raw body length — never the body itself.
+fn summarize_error_body(body: &str) -> String {
+    let code = serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| {
+            v.get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|c| c.as_str())
+                .map(String::from)
+        });
+    match code {
+        Some(c) => format!("code={c} bytes={}", body.len()),
+        None => format!("bytes={}", body.len()),
     }
 }
 
@@ -738,5 +825,96 @@ mod tests {
         assert!(page.done, "Cursor::Backfill with deltaLink must be done=true");
         assert_eq!(page.next, Some(delta_link), "next must equal the deltaLink");
         assert!(page.removed_ids.is_empty(), "no tombstones expected");
+    }
+
+    #[test]
+    fn token_target_accepts_canonical_graph_host_over_https() {
+        // Production base; canonical Graph host + continuation links are allowed.
+        let client = GraphClient::new("AT".into());
+        assert!(client
+            .validate_token_target("https://graph.microsoft.com/v1.0/me/drive/root/delta")
+            .is_ok());
+        assert!(client
+            .validate_token_target(
+                "https://graph.microsoft.com/v1.0/me/messages?$deltatoken=opaque"
+            )
+            .is_ok());
+    }
+
+    #[test]
+    fn token_target_rejects_non_graph_and_unsafe_urls() {
+        let client = GraphClient::new("AT".into());
+        // Wrong host entirely (planted continuation URL).
+        assert!(client
+            .validate_token_target("https://evil.example.com/v1.0/me/messages")
+            .is_err());
+        // Right host but plaintext http (downgrade / MitM).
+        assert!(client
+            .validate_token_target("http://graph.microsoft.com/v1.0/me/messages")
+            .is_err());
+        // Embedded userinfo trying to look like Graph.
+        assert!(client
+            .validate_token_target("https://attacker@graph.microsoft.com/v1.0/me/messages")
+            .is_err());
+        // Lookalike host that merely contains the Graph host as a substring.
+        assert!(client
+            .validate_token_target("https://graph.microsoft.com.evil.example/v1.0/me")
+            .is_err());
+        // Canonical Graph host on a non-default port (planted continuation URL).
+        assert!(client
+            .validate_token_target("https://graph.microsoft.com:444/v1.0/me/messages")
+            .is_err());
+        // Explicit default port 443 is fine.
+        assert!(client
+            .validate_token_target("https://graph.microsoft.com:443/v1.0/me/messages")
+            .is_ok());
+        // Unparseable.
+        assert!(client.validate_token_target("not a url").is_err());
+    }
+
+    #[test]
+    fn token_target_accepts_configured_test_base_origin() {
+        // A mock/test base (plain http on localhost) is honored so the connector
+        // still works against a configured non-default origin, but only that
+        // exact origin — not arbitrary http hosts.
+        let client = GraphClient::new_with_base("AT".into(), "http://127.0.0.1:8451".into());
+        assert!(client
+            .validate_token_target("http://127.0.0.1:8451/v1.0/me/drive/root/delta")
+            .is_ok());
+        // Same host, different port → rejected.
+        assert!(client
+            .validate_token_target("http://127.0.0.1:9999/v1.0/me")
+            .is_err());
+        // Different http host → rejected.
+        assert!(client
+            .validate_token_target("http://192.168.0.1:8451/v1.0/me")
+            .is_err());
+    }
+
+    #[test]
+    fn redact_url_drops_query_and_keeps_host_path() {
+        assert_eq!(
+            redact_url("https://graph.microsoft.com/v1.0/me/messages/delta?$deltatoken=SECRET"),
+            "graph.microsoft.com/v1.0/me/messages/delta"
+        );
+        // No query → unchanged host+path.
+        assert_eq!(
+            redact_url("https://graph.microsoft.com/v1.0/me/drive"),
+            "graph.microsoft.com/v1.0/me/drive"
+        );
+        assert_eq!(redact_url("::::nonsense"), "<unparseable-url>");
+    }
+
+    #[test]
+    fn summarize_error_body_emits_code_and_length_never_message() {
+        let body = r#"{"error":{"code":"InvalidAuthenticationToken","message":"user@example.com token expired at mailbox X"}}"#;
+        let summary = summarize_error_body(body);
+        assert!(summary.contains("code=InvalidAuthenticationToken"), "{summary}");
+        assert!(summary.contains(&format!("bytes={}", body.len())), "{summary}");
+        // The PII-bearing message must never appear in the summary.
+        assert!(!summary.contains("user@example.com"), "{summary}");
+        assert!(!summary.contains("mailbox"), "{summary}");
+        // Non-JSON / unexpected shape → length only, no panic.
+        assert_eq!(summarize_error_body("plain text"), "bytes=10");
     }
 }
