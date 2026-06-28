@@ -144,7 +144,7 @@ describe('BUG-002 — Ask composer preserves input on AI query failure', () => {
 
     // Submit via the Search button
     act(() => {
-      fireEvent.click(screen.getByRole('button', { name: /search/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
     });
 
     // Wait for the error state to settle (the hook sets status to 'error')
@@ -177,7 +177,7 @@ describe('BUG-002 — Ask composer preserves input on AI query failure', () => {
     });
 
     act(() => {
-      fireEvent.click(screen.getByRole('button', { name: /search/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
     });
 
     // After a successful send the input should be cleared

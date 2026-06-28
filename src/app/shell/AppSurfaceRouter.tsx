@@ -38,12 +38,6 @@ import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import type { Matter } from '@/platform/types/matter';
 
 export interface AppSurfaceRouterProps {
-  /**
-   * newNav (3-tab IA) shell is active. When true, the full-page Settings
-   * surface nests Privacy Center + Activity Log as sections (the gear opens
-   * Settings; those surfaces are no longer separate destinations).
-   */
-  newNav: boolean;
   sidebarActiveTab: AppSurface;
   askPrefill: { question: string; autoSubmit?: boolean } | null;
   setAskPrefill: React.Dispatch<React.SetStateAction<{ question: string; autoSubmit?: boolean } | null>>;
@@ -102,7 +96,6 @@ export interface AppSurfaceRouterProps {
 }
 
 export function AppSurfaceRouter({
-  newNav,
   sidebarActiveTab,
   askPrefill,
   setAskPrefill,
@@ -159,36 +152,33 @@ export function AppSurfaceRouter({
   handleSettingsRestartOnboarding,
   activeMatter,
 }: AppSurfaceRouterProps) {
-  // newNav: Privacy Center + Activity Log are nested as sections inside the
-  // Settings screen (the gear opens Settings). Built here so SettingsContent
-  // stays decoupled from these surfaces' data wiring. Off the flag, the
-  // Settings screen renders its 5 schema sections only — unchanged.
-  const settingsNestedSections = newNav
-    ? [
-        {
-          id: 'privacy-center',
-          label: 'Privacy Center',
-          testid: 'settings-category-privacy-center',
-          content: <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />,
-        },
-        {
-          id: 'activity-log',
-          label: 'Activity Log',
-          testid: 'settings-category-activity-log',
-          // Same error-boundary guard the standalone Activity Log surface uses:
-          // a malformed audit row must never white-screen the Settings page.
-          content: (
-            <ErrorBoundary label="Activity Log">
-              <AuditHome
-                entries={auditEntries}
-                integrity={auditIntegrity}
-                onVerifyIntegrity={verifyAuditIntegrity}
-              />
-            </ErrorBoundary>
-          ),
-        },
-      ]
-    : undefined;
+  // Privacy Center + Activity Log are nested as sections inside the Settings
+  // screen (the gear opens Settings). Built here so SettingsContent stays
+  // decoupled from these surfaces' data wiring.
+  const settingsNestedSections = [
+    {
+      id: 'privacy-center',
+      label: 'Privacy Center',
+      testid: 'settings-category-privacy-center',
+      content: <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />,
+    },
+    {
+      id: 'activity-log',
+      label: 'Activity Log',
+      testid: 'settings-category-activity-log',
+      // Same error-boundary guard the standalone Activity Log surface uses:
+      // a malformed audit row must never white-screen the Settings page.
+      content: (
+        <ErrorBoundary label="Activity Log">
+          <AuditHome
+            entries={auditEntries}
+            integrity={auditIntegrity}
+            onVerifyIntegrity={verifyAuditIntegrity}
+          />
+        </ErrorBoundary>
+      ),
+    },
+  ];
 
   return (
     <>
@@ -359,7 +349,7 @@ export function AppSurfaceRouter({
             templates={loadAllTemplates()}
             onAction={handleSettingsAction}
             onRestartOnboarding={handleSettingsRestartOnboarding}
-            {...(settingsNestedSections ? { extraSections: settingsNestedSections } : {})}
+            extraSections={settingsNestedSections}
           />
         </div>
       ) : (

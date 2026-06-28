@@ -22,7 +22,6 @@ import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/platfo
 import type { Matter } from '@/platform/types/matter';
 import type { AuditEntry } from '@/platform/types/audit';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { useNewNav } from '@/platform/flags/newNav';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar } from '@/ui/kp';
 
@@ -250,9 +249,8 @@ type MatterSurface = 'search' | 'files' | 'email';
 
 function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onArchive }: MatterRowProps) {
   const { t } = useTranslation();
-  const newNav = useNewNav();
-  // newNav renames the search surface "Ask"; keep this quick-action consistent.
-  const askActionLabel = newNav ? 'Ask' : 'Search';
+  // The search surface is "Ask"; keep this quick-action consistent.
+  const askActionLabel = 'Ask';
   const label = matterLabel(matter);
   const folderCount = matter.folderPaths.length;
   const [hovered, setHovered] = useState(false);
@@ -607,27 +605,22 @@ export function MattersHome({ onAuditLog }: MattersHomeProps = {}) {
   const activeMatterId = useActiveMatterId();
   const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
   const setMatterArchived = useMatterStore((s) => s.setMatterArchived);
-  // Hub-open state. Flag-off keeps the original local state (byte-for-byte
-  // unchanged). newNav lifts it into the store's ephemeral clientMapHubId so it
-  // survives the MattersHome remount a surface switch causes — returning to the
-  // Client Map tab after drilling into a client's Documents/Email lands back on
-  // that client's hub, not the all-clients overview.
-  const newNav = useNewNav();
-  const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
+  // Hub-open state lives in the store's ephemeral clientMapHubId so it survives
+  // the MattersHome remount a surface switch causes — returning to the Client
+  // Map tab after drilling into a client's Documents/Email lands back on that
+  // client's hub, not the all-clients overview.
   const clientMapHubId = useMatterStore((s) => s.clientMapHubId);
   const setClientMapHubId = useMatterStore((s) => s.setClientMapHubId);
   // The hub is shown for the active client only: a stale clientMapHubId left
   // over from a client switch (clientMapHubId !== activeMatterId) falls back to
   // the overview rather than showing the wrong client's hub.
-  const hubMatterId = newNav
-    ? (clientMapHubId !== null && clientMapHubId === activeMatterId ? clientMapHubId : null)
-    : selectedMatterId;
+  const hubMatterId = clientMapHubId !== null && clientMapHubId === activeMatterId ? clientMapHubId : null;
   const openHub = (id: string) => {
     setActiveMatter(id);
-    if (newNav) { setClientMapHubId(id); } else { setSelectedMatterId(id); }
+    setClientMapHubId(id);
   };
   const closeHub = () => {
-    if (newNav) { setClientMapHubId(null); } else { setSelectedMatterId(null); }
+    setClientMapHubId(null);
   };
   const entityLabel = useEntityLabel();
   const [archivedExpanded, setArchivedExpanded] = useState(false);

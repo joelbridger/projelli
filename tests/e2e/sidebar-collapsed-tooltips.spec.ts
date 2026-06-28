@@ -15,27 +15,28 @@ test.describe('Collapsed spine labels', () => {
     await waitForTestModeLoad(page);
   });
 
-  test('Documents nav exposes a title label when the spine is collapsed', async ({ page }) => {
+  test('Client Map nav exposes a title label when the spine is collapsed', async ({ page }) => {
     await hardClick(page.getByRole('button', { name: 'Collapse sidebar' }));
 
-    const documents = page.getByTestId('spine-nav-collapsed-files');
-    await expect(documents).toBeVisible();
-    await expect(documents).toHaveAttribute('title', 'Documents');
+    const clientMap = page.getByTestId('spine-nav-collapsed-matters');
+    await expect(clientMap).toBeVisible();
+    await expect(clientMap).toHaveAttribute('title', 'Client Map');
   });
 
   test('collapsed spine preserves the active destination state', async ({ page }) => {
     await hardClick(page.getByRole('button', { name: 'Collapse sidebar' }));
 
-    const documents = page.getByTestId('spine-nav-collapsed-files');
-    await expect(documents).toHaveAttribute('aria-current', 'page');
+    // Lands on the Client Map (matters).
+    const clientMap = page.getByTestId('spine-nav-collapsed-matters');
+    await expect(clientMap).toHaveAttribute('aria-current', 'page');
 
-    await hardClick(page.getByTestId('spine-nav-collapsed-settings'));
-    await expect(page.getByTestId('spine-nav-collapsed-settings')).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByTestId('settings-page')).toBeVisible();
+    await hardClick(page.getByTestId('spine-nav-collapsed-workflows'));
+    await expect(page.getByTestId('spine-nav-collapsed-workflows')).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('associate-home')).toBeVisible();
   });
 
   test('expanded spine shows inline labels and no collapsed icon buttons', async ({ page }) => {
-    await expect(page.getByTestId('spine-nav-files')).toContainText('Documents');
-    await expect(page.getByTestId('spine-nav-collapsed-files')).toHaveCount(0);
+    await expect(page.getByTestId('spine-nav-matters')).toContainText('Client Map');
+    await expect(page.getByTestId('spine-nav-collapsed-matters')).toHaveCount(0);
   });
 });

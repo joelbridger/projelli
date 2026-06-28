@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { Spine } from '@/app/shell/layout/Spine';
 
 vi.mock('react-i18next', () => ({
@@ -45,15 +45,13 @@ describe('Spine', () => {
     expect(nav.textContent).not.toMatch(/ai.?assistant/i);
   });
 
-  it('shows expected nav items: Matters, Search, Documents, Workflows', () => {
+  it('shows the 3 primary nav items: Client Map, Ask, Workflows', () => {
     render(<Spine />);
-    // At least some core nav items should be present
     const navEl = screen.getByTestId('spine-nav');
     expect(navEl).toBeTruthy();
-    // Search nav item should be present
-    const searchBtn = screen.queryByRole('button', { name: /search/i });
-    // There's a Search button via title or label
-    expect(searchBtn !== null || navEl.textContent?.includes('Search')).toBe(true);
+    expect(screen.getByTestId('spine-nav-matters')).toBeTruthy();
+    expect(screen.getByTestId('spine-nav-search')).toBeTruthy();
+    expect(screen.getByTestId('spine-nav-workflows')).toBeTruthy();
   });
 
   it('renders without crashing with no props', () => {
@@ -61,35 +59,12 @@ describe('Spine', () => {
     expect(container.firstChild).toBeTruthy();
   });
 
-  it('renders the unit (Clients) nav item', () => {
+  it('does NOT render the demoted surfaces (Documents/Email/Activity Log/Privacy/Settings) as rail tabs', () => {
     render(<Spine />);
-    const navEl = screen.getByTestId('spine-nav');
-    // The unit label comes from useEntityLabel; the default profession is advisor, so it renders "Clients".
-    expect(navEl.textContent).toMatch(/clients/i);
-  });
-
-  it('renders a Settings nav item directly after Activity Log', () => {
-    render(<Spine />);
-    const settingsBtn = screen.getByTestId('spine-nav-settings');
-    expect(settingsBtn).toBeTruthy();
-    expect(settingsBtn.textContent).toMatch(/settings/i);
-
-    // Order: the Settings button must come after the Activity Log (audit) button.
-    const auditBtn = screen.getByTestId('spine-nav-audit');
-    const order = settingsBtn.compareDocumentPosition(auditBtn);
-    // DOCUMENT_POSITION_PRECEDING (2) on `order` means auditBtn precedes settingsBtn.
-    expect(order & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
-  });
-
-  it('Settings nav item fires onTabChange("settings") when clicked', () => {
-    const onTabChange = vi.fn();
-    render(<Spine onTabChange={onTabChange} />);
-    fireEvent.click(screen.getByTestId('spine-nav-settings'));
-    expect(onTabChange).toHaveBeenCalledWith('settings');
-  });
-
-  it('also exposes a collapsed Settings nav item', () => {
-    render(<Spine collapsed />);
-    expect(screen.getByTestId('spine-nav-collapsed-settings')).toBeTruthy();
+    expect(screen.queryByTestId('spine-nav-files')).toBeNull();
+    expect(screen.queryByTestId('spine-nav-email')).toBeNull();
+    expect(screen.queryByTestId('spine-nav-audit')).toBeNull();
+    expect(screen.queryByTestId('spine-nav-privacy')).toBeNull();
+    expect(screen.queryByTestId('spine-nav-settings')).toBeNull();
   });
 });

@@ -1,41 +1,28 @@
 /**
  * MatterHub — per-matter command-center hub.
  *
- * Full-page overview for a single matter: header with back navigation,
- * compact Ask hero with recent questions, at-a-glance summary, and four
- * panel cards (Documents, Email, Workflows, Activity).
+ * Full-page overview for a single matter: header with back navigation, a
+ * compact Ask hero with recent questions, a slim shortcut row to the relocated
+ * surfaces (Documents, Email, Workflows, Activity), and the Client Map as the
+ * hero view.
  *
  * Light theme only. Inline styles + CSS vars.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Briefcase, Lock, ChevronRight, Sparkles, FileText, Mail, GitBranch, Clock, ArrowLeft, RefreshCw, Loader2, Map } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Briefcase, Lock, Sparkles, FileText, Mail, GitBranch, Clock, ArrowLeft, Loader2, Map } from 'lucide-react';
 import { useMatters, useActiveMatterPrivileged, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import { useMatterAtAGlanceStore } from '@/platform/matter/matterAtAGlanceStore';
-import {
-  deriveMatterHubUpcomingItems,
-  generateMatterAtAGlance,
-  hasCloudKeyForGlance,
-  normalizeMatterAtAGlanceResult,
-} from '@/platform/matter/matterAtAGlance';
-import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { mailListMessages } from '@/platform/utils/mail-commands';
-import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
-import { Button, IconButton, SearchField, Chip, Badge, Eyebrow, Card } from '@/ui/kp';
+import { Button, SearchField, Chip, Badge, Eyebrow, Card } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
 import { useClientMap } from '@/features/matters/useClientMap';
-import { ClientMapView } from '@/features/matters/ClientMapView';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
-import { useNewNav } from '@/platform/flags/newNav';
 import { GuidedInterview } from '@/features/matters/GuidedInterview';
-import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
 import { ClientMapUpdatesTray } from '@/features/matters/ClientMapUpdatesTray';
-import { AddCustomSectionForm } from '@/features/matters/AddCustomSectionForm';
-import { ClientMapTemplates } from '@/features/matters/ClientMapTemplates';
 import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { useCrmStore } from '@/features/crm/crmStore';
@@ -67,14 +54,6 @@ function formatDate(iso: string): string {
   }
 }
 
-function basename(p: string): string {
-  return p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? p;
-}
-
-function hasUpcomingDates(result: MatterAtAGlanceResult | null): boolean {
-  return deriveMatterHubUpcomingItems(result).length > 0;
-}
-
 // ── Labels ─────────────────────────────────────────────────────────────────
 
 const LABEL_START_INTERVIEW = 'Start the guided interview';
@@ -100,7 +79,6 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
   });
   const { checkForUpdates } = clientMap;
   const matters = useMatters();
-  const newNav = useNewNav();
   const matter = matters.find((m) => m.id === matterId) ?? null;
   const isPrivileged = useActiveMatterPrivileged();
   const entityLabel = useEntityLabel();
@@ -110,13 +88,6 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
   const sessions = useAIChatStore((s: { sessions: Record<string, unknown> }) => s.sessions) as Record<string, { messages?: Array<{ role: string; content: string }> }>;
 
   const [askQ, setAskQ] = useState('');
-
-  // ── AI at-a-glance state ───────────────────────────────────────────────
-  const glanceStore = useMatterAtAGlanceStore();
-  type GlanceStatus = 'idle' | 'generating' | 'done' | 'empty' | 'no-key' | 'error';
-  const [glanceStatus, setGlanceStatus] = useState<GlanceStatus>('idle');
-  const [glanceResult, setGlanceResult] = useState<MatterAtAGlanceResult | null>(null);
-  const glanceAbortRef = useRef<AbortController | null>(null);
 
   // ── This client's emails (for the Email panel preview) ─────────────────────
   // Connected mail is searchable globally and tagged to a matter for retrieval,
@@ -159,77 +130,6 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
     .filter(Boolean)
     .slice(0, 3);
 
-  // ── AI at-a-glance: generation + cache wiring ──────────────────────────
-  const runGlanceGeneration = useCallback(async (mid: string, signal: AbortSignal) => {
-    setGlanceStatus('generating');
-    try {
-      const result = await generateMatterAtAGlance(
-        mid,
-        onAuditLog ? { signal, onAuditLog } : { signal },
-      );
-      if (signal.aborted) return;
-      const cleanResult = normalizeMatterAtAGlanceResult(result);
-      glanceStore.setEntry(mid, cleanResult);
-      const isEmpty =
-        cleanResult.openIssues.length === 0 &&
-        cleanResult.deadlines.length === 0 &&
-        !hasUpcomingDates(cleanResult) &&
-        cleanResult.nextActions.length === 0;
-      setGlanceResult(cleanResult);
-      setGlanceStatus(isEmpty ? 'empty' : 'done');
-    } catch {
-      if (signal.aborted) return;
-      setGlanceStatus('error');
-    }
-  }, [glanceStore, onAuditLog]);
-
-  // On mount / matterId change: load from cache or trigger generation.
-  // Guards: sample matter is always skipped; no cloud key = 'no-key'; memory
-  // disabled or no indexed content returns empty (handled inside generator).
-  useEffect(() => {
-    const isSampleMatter = matterId === SAMPLE_MATTER_ID;
-    if (isSampleMatter) return;
-
-    const abort = new AbortController();
-    glanceAbortRef.current = abort;
-
-    (async () => {
-      const hasKey = await hasCloudKeyForGlance();
-      if (abort.signal.aborted) return;
-      // A cloud key is only required when NOT in Local-only mode. In private mode
-      // the glance runs on the embedded Keepance Local AI (or Ollama) — same
-      // local-completeness fix as Workflows/Email/Client Map — so a cloud-keyless
-      // private-mode user with the embedded model still gets an AI at-a-glance
-      // instead of being told to "add a key" (Codex). Memory is always required.
-      if ((!isLocalOnlyMode() && !hasKey) || !isMemoryEnabled()) {
-        setGlanceStatus('no-key');
-        return;
-      }
-
-      // Try cache first.
-      const cached = glanceStore.getEntry(matterId);
-      if (cached) {
-        const cleanResult = normalizeMatterAtAGlanceResult(cached.result);
-        setGlanceResult(cleanResult);
-        const isEmpty =
-          cleanResult.openIssues.length === 0 &&
-          cleanResult.deadlines.length === 0 &&
-          !hasUpcomingDates(cleanResult) &&
-          cleanResult.nextActions.length === 0;
-        setGlanceStatus(isEmpty ? 'empty' : 'done');
-        return;
-      }
-
-      await runGlanceGeneration(matterId, abort.signal);
-    })().catch(() => {
-      setGlanceStatus('error');
-    });
-
-    return () => {
-      abort.abort();
-    };
-  }, [matterId]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Once a map exists, re-check for new source material. Covers BOTH a populated
   // map ('ready') AND one that was built empty ('empty') — the latter recovers a
   // map built before its content was indexed (e.g. a client opened before its
@@ -256,19 +156,6 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
     }
   }, [crmSyncStatus, checkForUpdates]);
 
-  const handleGlanceRefresh = useCallback(() => {
-    glanceAbortRef.current?.abort();
-    glanceStore.invalidate(matterId);
-    setGlanceResult(null);
-    setGlanceStatus('idle');
-
-    const abort = new AbortController();
-    glanceAbortRef.current = abort;
-    runGlanceGeneration(matterId, abort.signal).catch(() => {
-      setGlanceStatus('error');
-    });
-  }, [matterId, glanceStore, runGlanceGeneration]);
-
   const dispatchLaunch = (surface: string) => {
     window.dispatchEvent(
       new CustomEvent('keepance:matter-launch', {
@@ -278,9 +165,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
   };
 
   // ── Client Map handlers ──────────────────────────────────────────────────
-  // newNav makes the Client Map the hero of the client-detail view, so it opens
-  // expanded (no "Open Client Map" step); the legacy hub keeps it collapsed.
-  const [showClientMap, setShowClientMap] = useState(newNav);
+  // The Client Map is the hero of the client-detail view — always expanded.
   const [showInterview, setShowInterview] = useState(false);
 
   // Open the EXACT cited source (the specific document, scrolled to the cited
@@ -354,32 +239,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
   }
 
   const label = matterLabel(matter);
-  const isSample = matterId === SAMPLE_MATTER_ID;
   const displayFolderPaths = dedupeFolderPathsForDisplay(matter.folderPaths, rootPath);
-  const hubUpcomingItems = deriveMatterHubUpcomingItems(glanceResult, clientMap.map);
-
-  // ── Styles ────────────────────────────────────────────────────────────
-
-  const panelHeader: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  };
-
-  const panelPreview: React.CSSProperties = {
-    fontSize: 'var(--kp-font-xs)',
-    color: 'var(--color-muted-foreground)',
-    lineHeight: 'var(--kp-leading-relaxed)',
-  };
-
-  const panelCount: React.CSSProperties = {
-    fontSize: 'var(--kp-font-2xs)',
-    fontWeight: 'var(--kp-weight-semibold)',
-    color: 'var(--color-muted-foreground)',
-    marginLeft: 'auto',
-    marginRight: 4,
-  };
 
   return (
     <div
@@ -462,7 +322,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
               value={askQ}
               onChange={(v: string) => { setAskQ(v); }}
               onClear={() => { setAskQ(''); }}
-              placeholder={newNav ? `Ask this ${entityLabel.one}...` : `Search this ${entityLabel.one}...`}
+              placeholder={`Ask this ${entityLabel.one}...`}
               onKeyDown={handleAskKeyDown}
             />
           </div>
@@ -473,7 +333,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
             size="sm"
             onClick={handleAskSubmit}
           >
-            {newNav ? 'Ask' : 'Search'}
+            Ask
           </Button>
         </div>
 
@@ -521,406 +381,13 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
         )}
       </div>
 
-      {/* Legacy hub only: the At-a-Glance grid + the four-panel (Documents /
-          Email / Workflows / Activity) grid. newNav hides BOTH and leads with
-          the Client Map as the hero; those capabilities stay reachable via the
-          slim shortcut row below + the gear menu — relocated, never removed. */}
-      {!newNav && (
-      <>
-      {/* ── C. At a Glance ─────────────────────────────────────────────── */}
+      {/* A slim shortcut row keeps Documents / Email / Workflows / Activity one
+          click away (capabilities relocated, not removed) without making them
+          the primary view. The Client Map below is the hero. */}
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 'var(--kp-stack-gap)',
-          padding: 'var(--kp-surface-gap) var(--kp-gutter)',
-          borderBottom: '1px solid var(--color-border)',
-        }}
+        data-testid="hub-shortcut-row"
+        style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--kp-space-sm)', padding: 'var(--kp-surface-gap) var(--kp-gutter) 0' }}
       >
-        {/* Left: At a Glance */}
-        <Card variant="raised">
-          <div style={{ marginBottom: 8 }}>
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            <Eyebrow>At a Glance</Eyebrow>
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-          </div>
-
-          {isSample ? (
-            <div data-testid="hub-sample-glance" style={{ fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-relaxed)' }}>
-              <div style={{ color: 'var(--color-foreground)' }}>
-                <strong>6</strong>
-                { }
-                {' open issues'}
-                { }
-              </div>
-              <div style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', marginTop: 2 }}>
-                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                HVAC habitability - lease amendment needed - damages calculation in progress
-                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-              </div>
-              <div style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', marginTop: 4 }}>
-                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                Fee: $350/hr, $3,000 retainer deposited
-                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-              </div>
-            </div>
-          ) : glanceStatus === 'no-key' ? (
-            /* No cloud key: honest counts / recent-activity fallback */
-            <div data-testid="hub-real-glance" style={{ fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-relaxed)', color: 'var(--color-foreground)' }}>
-              {(() => {
-                const folderCount = displayFolderPaths.length;
-                const questionCount = Object.keys(sessions)
-                  .filter((k) => k.startsWith(matterSessionPrefix))
-                  .filter((k) => {
-                    const sess = sessions[k] as { messages?: Array<{ role: string }> } | undefined;
-                    return (sess?.messages ?? []).some((m) => m.role === 'user');
-                  }).length;
-
-                if (folderCount === 0 && questionCount === 0) {
-                  return (
-                    <span style={{ color: 'var(--color-muted-foreground)' }}>
-                      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                      Add documents, connect email, or ask a question to get started.
-                      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                    </span>
-                  );
-                }
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {folderCount > 0 && (
-                      <div>
-                        <strong>{String(folderCount)}</strong>
-                        { }
-                        {folderCount === 1 ? ' folder indexed' : ' folders indexed'}
-                        { }
-                      </div>
-                    )}
-                    {questionCount > 0 && (
-                      <div style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
-                        <strong>{String(questionCount)}</strong>
-                        { }
-                        {questionCount === 1 ? ' question asked' : ' questions asked'}
-                        { }
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          ) : (
-            /* Real matter + cloud key: AI at-a-glance (loading / done / empty / error) */
-            <div data-testid="hub-ai-glance" style={{ fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-relaxed)' }}>
-              {/* Header row: "Generated by AI" tag + Refresh button */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: 6,
-                }}
-              >
-                <span data-testid="hub-ai-glance-tag">
-                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                  <Badge variant="neutral" size="sm" icon={Sparkles} uppercase>Generated by AI</Badge>
-                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                </span>
-                {(glanceStatus === 'done' || glanceStatus === 'empty' || glanceStatus === 'error') && (
-                  <IconButton
-                    icon={RefreshCw}
-                    label="Refresh"
-                    variant="ghost"
-                    size="xs"
-                    data-testid="hub-ai-glance-refresh"
-                    onClick={handleGlanceRefresh}
-                  />
-                )}
-              </div>
-
-              {/* Content by status */}
-              {(glanceStatus === 'idle' || glanceStatus === 'generating') && (
-                <div
-                  data-testid="hub-ai-glance-loading"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    color: 'var(--color-muted-foreground)',
-                    fontSize: 'var(--kp-font-xs)',
-                  }}
-                >
-                  <Loader2
-                    className="animate-spin"
-                    style={{
-                      width: 'var(--kp-icon-sm)',
-                      height: 'var(--kp-icon-sm)',
-                      strokeWidth: 2,
-                    }}
-                  />
-                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                  Analyzing your documents...
-                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                </div>
-              )}
-
-              {glanceStatus === 'done' && glanceResult !== null && (
-                <div
-                  data-testid="hub-ai-glance-result"
-                  style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
-                >
-                  {glanceResult.openIssues.length > 0 && (
-                    <div>
-                      <div style={{ marginBottom: 2 }}>
-                        <Eyebrow>Open Issues</Eyebrow>
-                      </div>
-                      {glanceResult.openIssues.map((issue, i) => (
-                        <div key={i} style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-foreground)', lineHeight: 'var(--kp-leading-snug)' }}>
-                          {issue}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {glanceResult.deadlines.length > 0 && (
-                    <div>
-                      <div style={{ marginBottom: 2 }}>
-                        <Eyebrow>Key Dates</Eyebrow>
-                      </div>
-                      {glanceResult.deadlines.map((d, i) => (
-                        <div key={i} style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-foreground)', lineHeight: 'var(--kp-leading-snug)' }}>
-                          {d}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {glanceResult.nextActions.length > 0 && (
-                    <div>
-                      <div style={{ marginBottom: 2 }}>
-                        <Eyebrow>Next Actions</Eyebrow>
-                      </div>
-                      {glanceResult.nextActions.map((a, i) => (
-                        <div key={i} style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-foreground)', lineHeight: 'var(--kp-leading-snug)' }}>
-                          {a}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {glanceStatus === 'empty' && (
-                <div
-                  data-testid="hub-ai-glance-empty"
-                  style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
-                >
-                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                  Nothing notable yet. Add documents or ask a question.
-                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                </div>
-              )}
-
-              {glanceStatus === 'error' && (
-                <div
-                  data-testid="hub-ai-glance-error"
-                  style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
-                >
-                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                  Could not generate a summary. Try refreshing.
-                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                </div>
-              )}
-            </div>
-          )}
-        </Card>
-
-        {/* Right: Upcoming / Activity */}
-        <Card variant="raised">
-          <div style={{ marginBottom: 8 }}>
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            <Eyebrow>Upcoming / Activity</Eyebrow>
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-          </div>
-
-          <div data-testid="hub-activity" style={{ fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-relaxed)' }}>
-            {isSample ? (
-              <>
-                <div style={{ color: 'var(--color-foreground)' }}>
-                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                  Deadline: Lease copy from client (end of week)
-                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                </div>
-                <div style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', marginTop: 4 }}>
-                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                  Certified mail responses sent (May 25)
-                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                </div>
-              </>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ color: 'var(--color-foreground)', fontSize: 'var(--kp-font-xs)' }}>
-                  {entityLabel.One} created {formatDate(matter.createdAt)}
-                </span>
-                {hubUpcomingItems.length > 0 ? (
-                  <div data-testid="hub-upcoming-dates" style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    {hubUpcomingItems.map((item, i) => (
-                      <span key={i} style={{ color: 'var(--color-foreground)', fontSize: 'var(--kp-font-xs)' }}>
-                        {item}
-                      </span>
-                    ))}
-                  </div>
-                ) : glanceStatus === 'idle' || glanceStatus === 'generating' ? (
-                  <span style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
-                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                    Looking for upcoming dates...
-                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                  </span>
-                ) : (
-                  <span style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
-                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                    No upcoming deadlines yet. Ask the AI to find any in your documents.
-                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
-
-      {/* ── D. Four panels ─────────────────────────────────────────────── */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 'var(--kp-stack-gap)',
-          padding: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-section-gap)',
-        }}
-      >
-        {/* Documents */}
-        <Card variant="raised" data-testid="hub-panel-documents" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-stack-gap)' }}>
-          <div style={panelHeader}>
-            <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <FileText style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-              Documents
-            </Eyebrow>
-            <span style={panelCount}>
-              ({String(displayFolderPaths.length)})
-            </span>
-            <IconButton
-              icon={ChevronRight}
-              label="Open Documents"
-              variant="ghost"
-              size="sm"
-              data-testid="hub-panel-documents-open"
-              onClick={() => { dispatchLaunch('files'); }}
-            />
-          </div>
-          <div style={panelPreview}>
-            {displayFolderPaths.length === 0 ? (
-              /* eslint-disable keepance-i18n/no-hardcoded-string */
-              <span>No folders added yet</span>
-              /* eslint-enable keepance-i18n/no-hardcoded-string */
-            ) : (
-              displayFolderPaths.slice(0, 2).map((p, i) => (
-                <div key={i}>{basename(p)}</div>
-              ))
-            )}
-          </div>
-        </Card>
-
-        {/* Email */}
-        <Card variant="raised" data-testid="hub-panel-email" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-stack-gap)' }}>
-          <div style={panelHeader}>
-            <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Mail style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-              Email
-            </Eyebrow>
-            <span style={panelCount}>
-              ({String(clientEmails.length)})
-            </span>
-            <IconButton
-              icon={ChevronRight}
-              label="Open Email"
-              variant="ghost"
-              size="sm"
-              data-testid="hub-panel-email-open"
-              onClick={() => { dispatchLaunch('email'); }}
-            />
-          </div>
-          <div style={panelPreview}>
-            {clientEmails.length === 0 ? (
-              /* eslint-disable keepance-i18n/no-hardcoded-string */
-              <span>No emails for this client yet</span>
-              /* eslint-enable keepance-i18n/no-hardcoded-string */
-            ) : (
-              clientEmails.slice(0, 2).map((m, i) => (
-                <div key={i} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.subject}</div>
-              ))
-            )}
-          </div>
-        </Card>
-
-        {/* Workflows */}
-        <Card variant="raised" data-testid="hub-panel-workflows" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-stack-gap)' }}>
-          <div style={panelHeader}>
-            <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <GitBranch style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-              Workflows
-            </Eyebrow>
-            <IconButton
-              icon={ChevronRight}
-              label="Open Workflows"
-              variant="ghost"
-              size="sm"
-              data-testid="hub-panel-workflows-open"
-              onClick={() => { dispatchLaunch('workflows'); }}
-            />
-          </div>
-          <div style={panelPreview}>
-            {isSample ? (
-              <span>2 workflows available</span>
-            ) : (
-              /* eslint-disable keepance-i18n/no-hardcoded-string */
-              <span>Run a workflow on this {entityLabel.one}</span>
-              /* eslint-enable keepance-i18n/no-hardcoded-string */
-            )}
-          </div>
-        </Card>
-
-        {/* Activity */}
-        <Card variant="raised" data-testid="hub-panel-activity" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-stack-gap)' }}>
-          <div style={panelHeader}>
-            <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Clock style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-              Activity
-            </Eyebrow>
-            <IconButton
-              icon={ChevronRight}
-              label="Open Activity"
-              variant="ghost"
-              size="sm"
-              data-testid="hub-panel-activity-open"
-              onClick={() => { dispatchLaunch('audit'); }}
-            />
-          </div>
-          <div style={panelPreview}>
-            {isSample ? (
-              <span>{entityLabel.One} opened Apr 3, 2026</span>
-            ) : (
-              <span>{entityLabel.One} created {formatDate(matter.createdAt)}</span>
-            )}
-          </div>
-        </Card>
-      </div>
-      </>
-      )}
-
-      {/* newNav: a slim shortcut row keeps Documents / Email / Workflows /
-          Activity one click away (capabilities relocated, not removed) without
-          making them the primary view. The Client Map below is the hero. */}
-      {newNav && (
-        <div
-          data-testid="hub-shortcut-row"
-          style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--kp-space-sm)', padding: 'var(--kp-surface-gap) var(--kp-gutter) 0' }}
-        >
           {([
             { id: 'files', label: SHORTCUT_DOCUMENTS, Icon: FileText, count: displayFolderPaths.length, testid: 'hub-shortcut-documents' },
             { id: 'email', label: SHORTCUT_EMAIL, Icon: Mail, count: clientEmails.length, testid: 'hub-shortcut-email' },
@@ -939,8 +406,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
               {count !== null && <span style={{ color: 'var(--color-muted-foreground)' }}>{count}</span>}
             </button>
           ))}
-        </div>
-      )}
+      </div>
 
       {/* ── E. Client Map ──────────────────────────────────────────────── */}
       <div
@@ -963,28 +429,10 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
               <Map style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
               Client Map
             </Eyebrow>
-            {/* newNav keeps the Client Map permanently expanded as the hero, so
-                the collapse toggle is only shown on the legacy hub. */}
-            {!newNav && (
-              <IconButton
-                icon={ChevronRight}
-                label="Open Client Map"
-                variant="ghost"
-                size="sm"
-                data-testid="hub-panel-clientmap-open"
-                onClick={() => {
-                  if (!showClientMap && clientMap.status === 'idle') {
-                    void clientMap.generate();
-                  }
-                  setShowClientMap((v) => !v);
-                }}
-              />
-            )}
           </div>
 
-          {/* Body — only shown when expanded */}
-          {showClientMap && (
-            <div data-testid="hub-panel-clientmap-body">
+          {/* Body — the Client Map is always expanded as the hero. */}
+          <div data-testid="hub-panel-clientmap-body">
               {/* Local-only notice */}
               {isLocalOnlyMode() && (
                 <div
@@ -1073,57 +521,24 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
                       />
                     </div>
                   )}
-                  {newNav ? (
-                    // newNav: the redesigned tabbed Client Map panel absorbs the
-                    // questions list, the custom-section composer, and the
-                    // templates list — so they are NOT rendered separately here.
-                    <ClientMapPanel
-                      map={clientMap.map}
-                      onOpenSource={handleOpenSource}
-                      onEditItem={handleEditItem}
-                      onAnswerQuestion={(gap) => {
-                        const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`);
-                        if (a != null && a.trim() !== '') {
-                          answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
-                        }
-                      }}
-                      onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
-                    />
-                  ) : (
-                    <>
-                      <ClientMapView
-                        map={clientMap.map}
-                        onOpenSource={handleOpenSource}
-                        onEditItem={handleEditItem}
-                        onAnswerQuestion={(gap) => {
-                          const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`);
-                          if (a != null && a.trim() !== '') {
-                            // File the answer in the section this gap question came from,
-                            // and mark the gap resolved so it stops being asked (BUG-106).
-                            answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
-                          }
-                        }}
-                        onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
-                      />
-                      <div style={{ marginTop: 12 }}>
-                        <ClientQuestionsList matterId={matterId} />
-                      </div>
-
-                      {/* Add a custom section */}
-                      <div style={{ marginTop: 16, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
-                        <AddCustomSectionForm matterId={matterId} />
-                      </div>
-
-                      {/* Save / apply templates */}
-                      <div style={{ marginTop: 16, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
-                        <ClientMapTemplates matterId={matterId} />
-                      </div>
-                    </>
-                  )}
+                  {/* The redesigned tabbed Client Map panel absorbs the
+                      questions list, the custom-section composer, and the
+                      templates list. */}
+                  <ClientMapPanel
+                    map={clientMap.map}
+                    onOpenSource={handleOpenSource}
+                    onEditItem={handleEditItem}
+                    onAnswerQuestion={(gap) => {
+                      const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`);
+                      if (a != null && a.trim() !== '') {
+                        answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
+                      }
+                    }}
+                    onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
+                  />
                 </>
               )}
             </div>
-          )}
         </Card>
       </div>
     </div>

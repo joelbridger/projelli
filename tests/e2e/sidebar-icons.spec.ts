@@ -12,12 +12,7 @@ import { waitForTestModeLoad } from './helpers/test-utils';
 const SPINE_IDS = [
   'matters',
   'search',
-  'files',
-  'email',
   'workflows',
-  'audit',
-  'privacy',
-  'settings',
 ] as const;
 
 async function iconColor(button: Locator): Promise<string> {
@@ -37,7 +32,7 @@ test.describe('Spine nav icons', () => {
 
   test('inactive nav icons all share the same computed color', async ({ page }) => {
     const inactiveColors = await Promise.all(
-      SPINE_IDS.filter((id) => id !== 'files').map((id) =>
+      SPINE_IDS.filter((id) => id !== 'matters').map((id) =>
         iconColor(page.getByTestId(`spine-nav-${id}`))
       )
     );
@@ -50,7 +45,7 @@ test.describe('Spine nav icons', () => {
   });
 
   test('active nav icon color differs from inactive nav icon color', async ({ page }) => {
-    const activeColor = await iconColor(page.getByTestId('spine-nav-files'));
+    const activeColor = await iconColor(page.getByTestId('spine-nav-matters'));
     const inactiveColor = await iconColor(page.getByTestId('spine-nav-search'));
 
     expect(activeColor).not.toBe(inactiveColor);

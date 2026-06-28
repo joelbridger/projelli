@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Spine } from '@/app/shell/layout/Spine';
-import { NEW_NAV_FLAG_KEY } from '@/platform/flags/newNav';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -16,13 +15,7 @@ vi.mock('@/platform/rag/matterResolver', () => ({
   matterLabel: (m: unknown) => String(m),
 }));
 
-describe('Spine — newNav 3-tab shell', () => {
-  beforeEach(() => {
-    window.localStorage.setItem(NEW_NAV_FLAG_KEY, '1');
-  });
-  afterEach(() => {
-    window.localStorage.clear();
-  });
+describe('Spine — 3-tab shell', () => {
 
   it('renders exactly the 3 primary tabs: Client Map, Ask, Workflows', () => {
     render(<Spine activeTab="matters" />);

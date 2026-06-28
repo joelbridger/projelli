@@ -135,10 +135,11 @@ async function bootToWorkspaceWithShellMatter(session, { workspacePath, app, wor
 }
 
 async function openMatterHub(session, app) {
-  await app.gotoSurface(session, 'Matters');
+  await app.gotoSurface(session, 'Client Map');
   await assertActiveNav(session, 'spine-nav-matters');
 
-  if (await session.hasTestid('hub-panel-documents', 2_000)) {
+  // Already in a client hub (Client Map hero present)?
+  if (await session.hasTestid('hub-panel-clientmap', 2_000)) {
     return;
   }
 
@@ -149,10 +150,13 @@ async function openMatterHub(session, app) {
     15_000,
   );
   await session.click(row);
-  await session.testid('hub-panel-documents', 15_000);
-  await session.testid('hub-panel-email', 15_000);
-  await session.testid('hub-panel-workflows', 15_000);
-  await session.testid('hub-panel-activity', 15_000);
+  // The 3-tab IA leads with the Client Map hero; the demoted surfaces live in a
+  // slim shortcut row (relocated, not removed).
+  await session.testid('hub-panel-clientmap', 15_000);
+  await session.testid('hub-shortcut-documents', 15_000);
+  await session.testid('hub-shortcut-email', 15_000);
+  await session.testid('hub-shortcut-workflows', 15_000);
+  await session.testid('hub-shortcut-activity', 15_000);
 }
 
 export default {
@@ -195,24 +199,20 @@ export default {
       10_000,
     );
     await session.click(privacyShortcut);
+    // The TrustBar opens the standalone Privacy Center surface (it is no longer a
+    // rail tab in the 3-tab IA, so there is no active rail nav to assert).
     await session.testid('privacy-center-report-button', 15_000);
-    await assertActiveNav(session, 'spine-nav-privacy');
 
     await openMatterHub(session, app);
 
-    // Sweep every top-level spine surface.
-    const surfaces = [
-      { label: 'Matters', nav: 'spine-nav-matters', visible: ['hub-panel-documents', 'hub-panel-email', 'hub-panel-workflows', 'hub-panel-activity'], text: 'Shell Matter' },
-      { label: 'Search', nav: 'spine-nav-search', visible: ['ask-composer-input'], text: 'Every answer cites its source' },
-      { label: 'Documents', nav: 'spine-nav-files', visible: ['documents-toolbar', 'documents-tab-strip'], text: 'shell-test-alpha.md' },
-      { label: 'Email', nav: 'spine-nav-email', visible: ['email-search-input'], text: 'Email' },
+    // Sweep the 3 rail destinations (the only ones with an active rail nav).
+    const railSurfaces = [
+      { label: 'Client Map', nav: 'spine-nav-matters', visible: ['hub-panel-clientmap', 'hub-shortcut-documents', 'hub-shortcut-email', 'hub-shortcut-workflows', 'hub-shortcut-activity'], text: 'Shell Matter' },
+      { label: 'Ask', nav: 'spine-nav-search', visible: ['ask-composer-input'], text: 'Every answer cites its source' },
       { label: 'Workflows', nav: 'spine-nav-workflows', visible: ['associate-home', 'associate-toolbar'], text: 'Workflows' },
-      { label: 'Activity Log', nav: 'spine-nav-audit', visible: ['audit-home-search'], text: 'Activity Log' },
-      { label: 'Privacy Center', nav: 'spine-nav-privacy', visible: ['privacy-center-report-button'], text: 'Where your data is' },
-      { label: 'Settings', nav: 'spine-nav-settings', visible: ['settings-page', 'settings-content'], text: 'Settings' },
     ];
 
-    for (const surface of surfaces) {
+    for (const surface of railSurfaces) {
       await app.gotoSurface(session, surface.label);
       await assertActiveNav(session, surface.nav);
       for (const testid of surface.visible) {
@@ -220,6 +220,16 @@ export default {
       }
       await session.waitForBodyText(surface.text, { timeoutMs: 20_000 });
     }
+
+    // Activity Log + Privacy Center now live as nested sections inside the
+    // full-page Settings (opened via the gear), not as rail tabs.
+    await app.gotoSurface(session, 'Activity Log');
+    await session.testid('audit-home-search', 20_000);
+    await app.gotoSurface(session, 'Privacy Center');
+    await session.testid('privacy-center-report-button', 20_000);
+    await app.gotoSurface(session, 'Settings');
+    await session.testid('settings-page', 20_000);
+    await session.testid('settings-content', 20_000);
 
     // The settings gear should not stack a duplicate modal over the full Settings page.
     await session.clickTestid('settings-gear', 10_000);
@@ -242,7 +252,8 @@ export default {
     await waitForGone(session, 'account-window');
 
     // Command palette: open with Ctrl+K, filter by a command with no input testid, then run it.
-    await app.gotoSurface(session, 'Documents');
+    // (Ctrl+K is global; any rail surface works as the starting point.)
+    await app.gotoSurface(session, 'Client Map');
     await pressShortcut(session, 'k', { ctrlKey: true });
     await session.testid('command-palette-dialog', 10_000);
     const paletteInput = await session.find(
@@ -275,7 +286,8 @@ export default {
     await waitForGone(session, 'command-palette-dialog');
 
     // Quick Open via Ctrl+P finds and opens a real file from the temp workspace.
-    await app.gotoSurface(session, 'Documents');
+    // (Ctrl+P is global; any rail surface works as the starting point.)
+    await app.gotoSurface(session, 'Client Map');
     await pressShortcut(session, 'p', { ctrlKey: true });
     await session.testid('quick-open-modal', 10_000);
     await session.typeTestid('quick-open-search', 'shell-test-alpha', 10_000);
@@ -310,19 +322,15 @@ export default {
     await pressShortcut(session, 'b', { ctrlKey: true });
     await session.testid('spine-nav', 10_000);
     await pressShortcut(session, 'b', { ctrlKey: true });
-    await session.testid('spine-nav-collapsed-files', 10_000);
+    await session.testid('spine-nav-collapsed-matters', 10_000);
     await pressShortcut(session, 'b', { ctrlKey: true });
     await session.testid('spine-nav', 10_000);
 
-    // Number shortcuts jump to the documented shell surfaces.
+    // Number shortcuts jump to the 3 IA rail surfaces (Ctrl+1..3).
     const shortcutSurfaces = [
       { key: '1', nav: 'spine-nav-matters', text: 'Shell Matter' },
       { key: '2', nav: 'spine-nav-search', visible: 'ask-composer-input' },
-      { key: '3', nav: 'spine-nav-files', visible: 'documents-toolbar' },
-      { key: '4', nav: 'spine-nav-email', visible: 'email-search-input' },
-      { key: '5', nav: 'spine-nav-workflows', visible: 'associate-home' },
-      { key: '6', nav: 'spine-nav-audit', visible: 'audit-home-search' },
-      { key: '7', nav: 'spine-nav-settings', visible: 'settings-page' },
+      { key: '3', nav: 'spine-nav-workflows', visible: 'associate-home' },
     ];
 
     for (const target of shortcutSurfaces) {
@@ -332,15 +340,9 @@ export default {
       if (target.text) await session.waitForBodyText(target.text, { timeoutMs: 15_000 });
     }
 
-    // AI assistant global shortcut opens a main-panel AI tab from the document shell.
-    await pressShortcut(session, '3', { ctrlKey: true });
-    await session.testid('documents-toolbar', 15_000);
-    const alphaFile = await session.find(
-      'xpath',
-      `//button[contains(normalize-space(.), ${app.xpathLiteral('shell-test-alpha.md')})]`,
-      10_000,
-    );
-    await session.click(alphaFile);
+    // AI assistant global shortcut opens a main-panel AI tab. shell-test-alpha.md
+    // is already the active file from the Quick Open step above (in the 3-tab IA
+    // documents are reached via Quick Open / the client hub, not a rail tab).
     await session.waitForBodyText('Shell Test Alpha', { timeoutMs: 20_000 });
     await session.testid('status-bar-active-file', 15_000);
     await pressShortcut(session, 'a', { ctrlKey: true, shiftKey: true });

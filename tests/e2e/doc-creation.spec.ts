@@ -17,7 +17,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import mammoth from 'mammoth';
 
-import { hardClick, waitForTestModeLoad } from './helpers/test-utils';
+import { hardClick, waitForTestModeLoad, gotoDocuments } from './helpers/test-utils';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -58,9 +58,7 @@ async function listMockFs(page: Page): Promise<string[]> {
  * written and the tab is opened).
  */
 async function runCreateDocxFlow(page: Page, filename: string): Promise<void> {
-  await hardClick(page.getByTestId('spine-nav-files'));
-  await hardClick(page.getByRole('tab', { name: 'Files' }));
-  await expect(page.getByTestId('documents-toolbar')).toBeVisible();
+  await gotoDocuments(page);
   await hardClick(page.getByTestId('documents-toolbar').getByRole('button', { name: 'New document' }));
 
   // PromptDialog renders a single Input textbox inside a Radix dialog.
@@ -82,7 +80,7 @@ async function runCreateDocxFlow(page: Page, filename: string): Promise<void> {
 
 test.describe('Document Creation (Phase 4) — Documents toolbar', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/?testMode=true');
+    await page.goto('/?testMode=true&seedDemo=1');
     await waitForTestModeLoad(page);
   });
 
@@ -132,7 +130,7 @@ test.describe('Document Creation (Phase 4) — Documents toolbar', () => {
 
 test.describe('Document Creation (Phase 4) — Workflow markdown to Word export', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/?testMode=true');
+    await page.goto('/?testMode=true&seedDemo=1');
     await waitForTestModeLoad(page);
   });
 
@@ -142,7 +140,7 @@ test.describe('Document Creation (Phase 4) — Workflow markdown to Word export'
     // bytes so the test can round-trip through mammoth.
     await page.evaluate(() => {
       (window as unknown as {
-        __capturedExport?: { name: string; bytes: ArrayBuffer };
+        __capturedExport: { name: string; bytes: ArrayBuffer } | undefined;
       }).__capturedExport = undefined;
 
       (window as unknown as {
@@ -176,7 +174,7 @@ test.describe('Document Creation (Phase 4) — Workflow markdown to Word export'
                 off += c.byteLength;
               }
               (window as unknown as {
-                __capturedExport?: { name: string; bytes: ArrayBuffer };
+                __capturedExport: { name: string; bytes: ArrayBuffer } | undefined;
               }).__capturedExport = {
                 name: opts.suggestedName ?? 'export.docx',
                 bytes: merged,
@@ -218,6 +216,8 @@ test.describe('Document Creation (Phase 4) — Workflow markdown to Word export'
       },
       { path, name: 'march-2026-update.md', content: markdown }
     );
+    await gotoDocuments(page);
+    await hardClick(page.getByTestId('documents-tab-strip').getByRole('tab', { name: 'march-2026-update.md' }));
 
     const exportMenu = page.getByTestId('workflow-export-menu');
     await expect(exportMenu).toBeVisible();

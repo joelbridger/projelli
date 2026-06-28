@@ -2,9 +2,10 @@
  * FeatureTour unit tests — exercises the 11-step popover/dialog flow plus
  * data-integrity assertions against featureTourSteps.ts.
  *
- * The tour targets the new Spine nav: spine-nav-{matters,search,files,email,workflows,audit,privacy,settings}
- * and account-identity. On the old shell those elements are absent and FeatureTour
- * auto-advances — that is intentional and acceptable behaviour (noted in docs).
+ * The tour targets the 3-tab Spine nav (spine-nav-{matters,search,workflows}),
+ * the settings gear (settings-gear, where the relocated Activity Log / Privacy
+ * Center / Settings live), and account-identity. When an anchor is absent
+ * FeatureTour auto-advances — intentional and acceptable (noted in docs).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -18,12 +19,8 @@ function seedTargets(): () => void {
   const targets = [
     'spine-nav-matters',
     'spine-nav-search',
-    'spine-nav-files',
-    'spine-nav-email',
     'spine-nav-workflows',
-    'spine-nav-audit',
-    'spine-nav-privacy',
-    'spine-nav-settings',
+    'settings-gear',
     'account-identity',
   ];
   for (const testid of targets) {
@@ -141,27 +138,24 @@ describe('Feature tour content integrity', () => {
     expect(all).not.toMatch(/\b(leverage|seamless|empower|unlock|delve|tapestry|elevate)\b/i);
   });
 
-  it('uses new spine-nav-* selectors and account-identity', () => {
+  it('uses the 3-tab spine-nav selectors, the settings gear, and account-identity', () => {
     const selectors = FEATURE_TOUR_STEPS
       .map((s) => s.targetSelector)
       .filter((s): s is string => s !== null);
     expect(selectors.some((s) => s.includes('spine-nav-matters'))).toBe(true);
     expect(selectors.some((s) => s.includes('spine-nav-search'))).toBe(true);
-    expect(selectors.some((s) => s.includes('spine-nav-files'))).toBe(true);
-    expect(selectors.some((s) => s.includes('spine-nav-email'))).toBe(true);
     expect(selectors.some((s) => s.includes('spine-nav-workflows'))).toBe(true);
-    expect(selectors.some((s) => s.includes('spine-nav-audit'))).toBe(true);
-    expect(selectors.some((s) => s.includes('spine-nav-privacy'))).toBe(true);
-    expect(selectors.some((s) => s.includes('spine-nav-settings'))).toBe(true);
+    expect(selectors.some((s) => s.includes('settings-gear'))).toBe(true);
     expect(selectors.some((s) => s.includes('account-identity'))).toBe(true);
   });
 
-  it('has no legacy sidebar-tab-* selectors', () => {
+  it('has no demoted rail-tab selectors (files/email/audit/privacy/settings as rail tabs)', () => {
     const selectors = FEATURE_TOUR_STEPS
       .map((s) => s.targetSelector)
       .filter((s): s is string => s !== null);
     for (const sel of selectors) {
       expect(sel).not.toMatch(/sidebar-tab-/);
+      expect(sel).not.toMatch(/spine-nav-(files|email|audit|privacy|settings)/);
     }
   });
 

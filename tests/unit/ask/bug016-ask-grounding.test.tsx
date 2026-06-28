@@ -136,7 +136,7 @@ async function ask(question: string) {
   render(<Ask />);
   const input = screen.getByRole('textbox');
   fireEvent.change(input, { target: { value: question } });
-  fireEvent.click(screen.getByRole('button', { name: /^Search$/i }));
+  fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
 }
 
 describe('BUG-016 — Ask grounding', () => {

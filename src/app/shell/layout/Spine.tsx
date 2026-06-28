@@ -1,24 +1,19 @@
 /**
- * Spine — the matter-centric navy "Spine" nav, brand-matched to
- * keepance.com. A drop-in alternative to <Sidebar> that reuses the exact same
- * content panels (matters, files, search, workflows, AI, audit, trash) but
- * leads with the attorney's jobs: Matters first, "Documents" for the file,
- * "Search" for find-anything, "Workflows" for the litigation workflows, and
- * "Your defense file" for the audit log. The binder spine of the case file.
- *
- * Rendered behind the ?shell=new flag while the matter-centric experience is
- * built out, so the production shell and its tests stay untouched.
+ * Spine — the matter-centric navy "Spine" nav, brand-matched to keepance.com.
+ * The 3-tab IA: Client Map · Ask · Workflows. Documents, Email, Activity Log,
+ * Privacy Center, and Settings are reached via the gear menu, the Ask source
+ * filter, and Client Map quick actions — they stay routable content surfaces,
+ * just not rail tabs. The binder spine of the case file.
  */
 import { useRef } from 'react';
 import {
-  Briefcase, FolderTree, Sparkles, ListChecks, ShieldCheck, Mail, Settings, Lock,
+  Sparkles, ListChecks,
   Map as MapIcon, Plus, ChevronLeft, ChevronRight, type LucideIcon,
 } from 'lucide-react';
 import { useMatters, useActiveMatterId } from '@/platform/matter/matterStore';
 import { AccountIdentity } from './AccountIdentity';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { useNewNav } from '@/platform/flags/newNav';
 import { IconButton } from '@/ui/kp';
 
 type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'email' | 'settings' | 'privacy';
@@ -66,33 +61,18 @@ export function Spine({
   const matters = useMatters();
   const activeMatterId = useActiveMatterId();
   const entityLabel = useEntityLabel();
-  const newNav = useNewNav();
   const newClientLabel = `+ New ${entityLabel.one}`;
 
-  // The full 8-tab rail (default / flag-off). label/Icon + the existing content
-  // tab id it drives. UNCHANGED — this is the shipped, Windows-verified shell.
-  const fullNav: { id: SpineTab; label: string; Icon: LucideIcon }[] = [
-    { id: 'matters', label: entityLabel.Other, Icon: Briefcase },
-    { id: 'search', label: 'Search', Icon: Sparkles },
-    { id: 'files', label: 'Documents', Icon: FolderTree },
-    { id: 'email', label: 'Email', Icon: Mail },
-    { id: 'workflows', label: 'Workflows', Icon: ListChecks },
-    { id: 'audit', label: 'Activity Log', Icon: ShieldCheck },
-    { id: 'privacy', label: 'Privacy Center', Icon: Lock },
-    { id: 'settings', label: 'Settings', Icon: Settings },
-  ];
-
-  // The new 3-tab IA (flag-on). The internal ids are KEPT (matters/search/
-  // workflows) so the surface router + testids are unchanged; only the labels
-  // and placement move. Files/Email/Audit/Privacy/Settings relocate (gear menu,
-  // Ask source filter) — they stay routable, just not as rail tabs.
-  const newNavTabs: { id: SpineTab; label: string; Icon: LucideIcon }[] = [
+  // The 3-tab IA. The internal ids are KEPT (matters/search/workflows) so the
+  // surface router + testids are unchanged; only the labels and placement move.
+  // Documents/Email/Activity Log/Privacy Center/Settings are reached via the
+  // gear menu, Ask source filter, and Client Map quick actions — they stay
+  // routable content ids (see `content` below), just not rail tabs.
+  const nav: { id: SpineTab; label: string; Icon: LucideIcon }[] = [
     { id: 'matters', label: 'Client Map', Icon: MapIcon },
     { id: 'search', label: 'Ask', Icon: Sparkles },
     { id: 'workflows', label: 'Workflows', Icon: ListChecks },
   ];
-
-  const nav = newNav ? newNavTabs : fullNav;
 
   const content: Record<SpineTab, React.ReactNode> = {
     matters: mattersContent,
@@ -169,24 +149,17 @@ export function Spine({
         </div>
         {matters.length > 0 ? (
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--kp-space-2xs) 10px var(--kp-space-xs)', borderTop: '1px solid var(--kp-side-border)' }}>
-            {newNav ? (
-              // newNav: header row gains the "+ New client" affordance.
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--kp-space-xs)', padding: 'var(--kp-space-xs) 10px 6px' }}>
-                <span style={{ fontSize: 10, fontWeight: 'var(--kp-weight-bold)', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--kp-side-fg-faint)' }}>
-                  {entityLabel.Other}
-                </span>
-                <button type="button" data-testid="spine-new-client" title={newClientLabel} aria-label={newClientLabel}
-                  onClick={() => { window.dispatchEvent(new CustomEvent('keepance:open-matter-manager')); }}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 'var(--radius-md)', border: 0, background: 'transparent', color: 'var(--kp-side-fg-dim)', cursor: 'pointer', flex: 'none' }}>
-                  <Plus size={15} strokeWidth={2} />
-                </button>
-              </div>
-            ) : (
-              // Flag-off: byte-for-byte the original header markup.
-              <div style={{ fontSize: 10, fontWeight: 'var(--kp-weight-bold)', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--kp-side-fg-faint)', padding: 'var(--kp-space-xs) 10px 6px' }}>
+            {/* Header row carries the "+ New client" affordance. */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--kp-space-xs)', padding: 'var(--kp-space-xs) 10px 6px' }}>
+              <span style={{ fontSize: 10, fontWeight: 'var(--kp-weight-bold)', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--kp-side-fg-faint)' }}>
                 {entityLabel.Other}
-              </div>
-            )}
+              </span>
+              <button type="button" data-testid="spine-new-client" title={newClientLabel} aria-label={newClientLabel}
+                onClick={() => { window.dispatchEvent(new CustomEvent('keepance:open-matter-manager')); }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 'var(--radius-md)', border: 0, background: 'transparent', color: 'var(--kp-side-fg-dim)', cursor: 'pointer', flex: 'none' }}>
+                <Plus size={15} strokeWidth={2} />
+              </button>
+            </div>
             {matters.map((m) => {
               const on = m.id === activeMatterId;
               return (
@@ -204,10 +177,10 @@ export function Spine({
               );
             })}
           </div>
-        ) : newNav ? (
-          // New-nav empty state: the rail still offers "+ New client" so the
-          // client switcher is never a dead end (Client Map's no-selection
-          // state handles the main canvas).
+        ) : (
+          // Empty state: the rail still offers "+ New client" so the client
+          // switcher is never a dead end (Client Map's no-selection state
+          // handles the main canvas).
           <div style={{ flex: 1, minHeight: 0, padding: 'var(--kp-space-md) 12px', borderTop: '1px solid var(--kp-side-border)' }}>
             <button type="button" data-testid="spine-new-client" title={newClientLabel} aria-label={newClientLabel}
               onClick={() => { window.dispatchEvent(new CustomEvent('keepance:open-matter-manager')); }}
@@ -216,8 +189,6 @@ export function Spine({
               <span>{newClientLabel}</span>
             </button>
           </div>
-        ) : (
-          <div style={{ flex: 1 }} />
         )}
         <div style={{ display: 'flex', alignItems: 'stretch', borderTop: '1px solid var(--kp-side-border)', flex: 'none' }}>
           <AccountIdentity onOpen={() => { window.dispatchEvent(new CustomEvent('keepance:open-account')); }} />

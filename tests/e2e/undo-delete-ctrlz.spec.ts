@@ -13,15 +13,14 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
+import { waitForTestModeLoad, hardClick, gotoDocuments } from './helpers/test-utils';
 
 test.describe('Undo delete with Ctrl+Z (UX-29)', () => {
   test('Ctrl+Z restores the most recently deleted file', async ({ page }) => {
-    await page.goto('/?testMode=true');
+    await page.goto('/?testMode=true&seedDemo=1');
     await waitForTestModeLoad(page);
 
-    await hardClick(page.getByTestId('spine-nav-files'));
-    await hardClick(page.getByTestId('documents-tab-strip').getByRole('tab', { name: 'Files' }));
+    await gotoDocuments(page);
     await hardClick(page.getByTestId('docs-files-toggle'));
     await hardClick(page.getByTestId('docs-view-tree'));
 
@@ -73,7 +72,7 @@ test.describe('Undo delete with Ctrl+Z (UX-29)', () => {
   });
 
   test('Trash empty-state copy matches the active retention period', async ({ page }) => {
-    await page.goto('/?testMode=true');
+    await page.goto('/?testMode=true&seedDemo=1');
     await waitForTestModeLoad(page);
 
     // Clear any prior retention preference so we see the default.
@@ -84,8 +83,7 @@ test.describe('Undo delete with Ctrl+Z (UX-29)', () => {
     await page.reload();
     await waitForTestModeLoad(page);
 
-    await hardClick(page.getByTestId('spine-nav-files'));
-    await hardClick(page.getByTestId('documents-tab-strip').getByRole('tab', { name: 'Files' }));
+    await gotoDocuments(page);
     await hardClick(page.getByTestId('docs-trash-toggle'));
 
     // The default is now 30 days (UX-29); copy should reference that number.

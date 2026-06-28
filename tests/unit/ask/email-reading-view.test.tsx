@@ -10,21 +10,12 @@
  * and that a document citation keeps its (separate) editor escalation, gated on
  * onOpenFile so it's never a dead button.
  */
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { SourcePanel } from '@/features/ask/SourcePanel';
 import { CitationText } from '@/features/ask/CitationText';
 import type { AnswerCitation } from '@/features/ask/askHelpers';
 
-// The relocated citation-open actions are gated on newNav; flag-OFF keeps the
-// shipped (no-op) "Open in editor" button. Toggle the flag per test.
-const nav = vi.hoisted(() => ({ on: true }));
-vi.mock('@/platform/flags/newNav', () => ({
-  useNewNav: () => nav.on,
-  isNewNavEnabled: () => nav.on,
-}));
-
-beforeEach(() => { nav.on = true; });
 afterEach(() => { cleanup(); });
 
 const emailCite: AnswerCitation = {
@@ -87,25 +78,6 @@ describe('SourcePanel — email reading view', () => {
     };
     render(<SourcePanel cite={crmCite} />);
     expect(screen.queryByTestId('source-open-document')).not.toBeInTheDocument();
-  });
-});
-
-describe('SourcePanel — flag-OFF keeps the shipped (no-op) button', () => {
-  it('renders a single legacy "Open in editor" button and none of the new actions', () => {
-    nav.on = false;
-    render(<SourcePanel cite={docCiteWithMatter} />);
-    // The relocated newNav actions are absent.
-    expect(screen.queryByTestId('source-open-document')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('source-open-email')).not.toBeInTheDocument();
-    // The shipped button is present (no-op without onOpenFile — byte-for-byte).
-    expect(screen.getByText('Open in editor')).toBeInTheDocument();
-  });
-
-  it('flag-OFF email citation shows the shipped button, not "Open email"', () => {
-    nav.on = false;
-    render(<SourcePanel cite={emailCite} />);
-    expect(screen.queryByTestId('source-open-email')).not.toBeInTheDocument();
-    expect(screen.getByText('Open in editor')).toBeInTheDocument();
   });
 });
 

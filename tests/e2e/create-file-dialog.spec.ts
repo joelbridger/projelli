@@ -11,15 +11,13 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad, hardClick, safeFill } from './helpers/test-utils';
+import { waitForTestModeLoad, hardClick, safeFill, gotoDocuments } from './helpers/test-utils';
 
 test.describe('Create file dialog (UX-15)', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/?testMode=true');
+    await page.goto('/?testMode=true&seedDemo=1');
     await waitForTestModeLoad(page);
-    await hardClick(page.getByTestId('spine-nav-files'));
-    await hardClick(page.getByRole('tab', { name: 'Files' }));
-    await expect(page.getByTestId('documents-toolbar')).toBeVisible();
+    await gotoDocuments(page);
   });
 
   test('shows destination and live preview when creating a Word document', async ({ page }) => {

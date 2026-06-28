@@ -24,14 +24,6 @@ vi.mock('@/platform/fs/workspaceStore', () => ({
     selector({ rootPath: mockRootPath }),
 }));
 
-// newNav gates the Search→Ask surface rename. Default OFF so every existing
-// test exercises the flag-OFF ("Search") surface unchanged.
-const navState = vi.hoisted(() => ({ on: false }));
-vi.mock('@/platform/flags/newNav', () => ({
-  useNewNav: () => navState.on,
-  isNewNavEnabled: () => navState.on,
-}));
-
 let mockProfession = 'legal';
 
 vi.mock('@/platform/matter/samples/sampleMatterDemo', () => ({
@@ -131,7 +123,6 @@ vi.mock('@/platform/state/aiChatStore', () => {
 describe('Ask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    navState.on = false;
     mockActiveMatter = null;
     mockRootPath = null;
     mockProfession = 'legal';
@@ -163,23 +154,23 @@ describe('Ask', () => {
     expect(screen.getByRole('textbox')).toBeDefined();
   });
 
-  it('shows Search button in composer', () => {
+  it('shows Ask button in composer', () => {
     render(<Ask />);
-    const askBtn = screen.getByRole('button', { name: /^Search$/i });
+    const askBtn = screen.getByRole('button', { name: /^Ask$/i });
     expect(askBtn).toBeDefined();
   });
 
-  it('Search button is disabled when input is empty', () => {
+  it('Ask button is disabled when input is empty', () => {
     render(<Ask />);
-    const askBtn = screen.getByRole('button', { name: /^Search$/i });
+    const askBtn = screen.getByRole('button', { name: /^Ask$/i });
     expect((askBtn as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('Search button enables when input has text', () => {
+  it('Ask button enables when input has text', () => {
     render(<Ask />);
     const input = screen.getByRole('textbox');
     fireEvent.change(input, { target: { value: 'What are the key facts?' } });
-    const askBtn = screen.getByRole('button', { name: /^Search$/i });
+    const askBtn = screen.getByRole('button', { name: /^Ask$/i });
     expect((askBtn as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -221,12 +212,12 @@ describe('Ask', () => {
     fireEvent.change(input, { target: { value: 'Test question' } });
     // Find the submit button — after typing, it should be enabled
     const buttons = screen.getAllByRole('button');
-    const searchBtn = buttons.find((b) => b.textContent?.includes('Search') && !(b as HTMLButtonElement).disabled);
-    // If we found an enabled Search button, clicking it should not throw
-    if (searchBtn) {
-      expect(() => fireEvent.click(searchBtn)).not.toThrow();
+    const askBtn = buttons.find((b) => b.textContent?.includes('Ask') && !(b as HTMLButtonElement).disabled);
+    // If we found an enabled Ask button, clicking it should not throw
+    if (askBtn) {
+      expect(() => fireEvent.click(askBtn)).not.toThrow();
     } else {
-      // If a disabled Search button is all we found, that's still a valid state
+      // If a disabled Ask button is all we found, that's still a valid state
       expect(input).toBeDefined();
     }
   });
@@ -636,8 +627,8 @@ describe('Ask', () => {
 
     const input = screen.getByRole('textbox');
     fireEvent.change(input, { target: { value: 'Who emailed?' } });
-    const searchBtn = screen.getByRole('button', { name: /^Search$/i });
-    fireEvent.click(searchBtn);
+    const askBtn = screen.getByRole('button', { name: /^Ask$/i });
+    fireEvent.click(askBtn);
 
     // isMemoryEnabled() returns false in mock, so retrieve is NOT called.
     // The scope toggle itself (the thing under test) is verified by aria-pressed.
@@ -750,15 +741,15 @@ describe('Ask', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Fix #3 — "New search" button in composer row
+  // Fix #3 — "New question" button in composer row
   // -------------------------------------------------------------------------
 
-  it('does not show inline New search button when there are no turns', () => {
+  it('does not show inline New question button when there are no turns', () => {
     render(<Ask />);
-    // With no turns, only the header button should be absent (turns.length === 0)
-    // There should be no button with text "New search" at all
-    const newSearchBtns = screen.queryAllByRole('button', { name: /new search/i });
-    expect(newSearchBtns.length).toBe(0);
+    // With no turns, the header button should be absent (turns.length === 0)
+    // There should be no button with text "New question" at all
+    const newQuestionBtns = screen.queryAllByRole('button', { name: /new question/i });
+    expect(newQuestionBtns.length).toBe(0);
   });
 
   // -------------------------------------------------------------------------
@@ -827,26 +818,16 @@ describe('Ask', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Wave 4 — Search→Ask inner rename (newNav-gated; flag-OFF stays "Search")
+  // The surface is named "Ask" (3-tab IA)
   // -------------------------------------------------------------------------
 
-  describe('Search→Ask rename', () => {
-    it('newNav renames the surface to "Ask" (heading + composer placeholder)', () => {
-      navState.on = true;
+  describe('Ask surface naming', () => {
+    it('names the surface "Ask" (heading + composer placeholder)', () => {
       render(<Ask />);
       expect(screen.getByRole('heading', { name: 'Ask' })).toBeInTheDocument();
       expect(
         screen.getByTestId('ask-composer-input').getAttribute('placeholder'),
       ).toMatch(/^Ask /);
-    });
-
-    it('flag-OFF keeps the surface named "Search" (byte-for-byte)', () => {
-      navState.on = false;
-      render(<Ask />);
-      expect(screen.getByRole('heading', { name: 'Search' })).toBeInTheDocument();
-      expect(
-        screen.getByTestId('ask-composer-input').getAttribute('placeholder'),
-      ).toMatch(/^Search /);
     });
   });
 });

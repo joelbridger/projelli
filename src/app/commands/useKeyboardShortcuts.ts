@@ -55,7 +55,6 @@ export function useKeyboardShortcuts(deps: KeyboardShortcutDeps): void {
         setSidebarCollapsed,
         setShowShortcutsOverlay,
         setFileTree,
-        setDocumentsView,
         setSidebarActiveTab,
         handleSaveFile,
         closeTab,
@@ -250,9 +249,9 @@ export function useKeyboardShortcuts(deps: KeyboardShortcutDeps): void {
         return;
       }
 
-      // Spine tab jump: Ctrl+1..7
-      // 1=matters, 2=search, 3=files, 4=email, 5=workflows, 6=audit, 7=settings
-      if (isMod && !e.shiftKey && e.key >= '1' && e.key <= '7') {
+      // Spine tab jump: Ctrl+1..3 — the 3-tab IA rail.
+      // 1=Client Map (matters), 2=Ask (search), 3=Workflows.
+      if (isMod && !e.shiftKey && e.key >= '1' && e.key <= '3') {
         const target = e.target as HTMLElement | null;
         const tag = target?.tagName?.toLowerCase();
         const editable = target?.isContentEditable;
@@ -263,16 +262,10 @@ export function useKeyboardShortcuts(deps: KeyboardShortcutDeps): void {
         const spineTabMap: Record<string, typeof sidebarActiveTab> = {
           '1': 'matters',
           '2': 'search',
-          '3': 'files',
-          '4': 'email',
-          '5': 'workflows',
-          '6': 'audit',
-          '7': 'settings',
+          '3': 'workflows',
         };
         const nextTab = spineTabMap[e.key];
         if (nextTab) {
-          // Mirror the files special-case: landing on files tab shows the browser
-          if (nextTab === 'files') setDocumentsView('browser');
           setSidebarActiveTab(nextTab);
         }
         return;
