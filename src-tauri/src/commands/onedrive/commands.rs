@@ -292,6 +292,14 @@ fn sync_drive_ids(matter_map: &[OneDriveMatterMapEntry], available_drives: &[Dri
     drive_ids.into_iter().collect()
 }
 
+fn is_personal_drive(drive: &Drive) -> bool {
+    drive
+        .drive_type
+        .as_deref()
+        .map(|drive_type| drive_type.eq_ignore_ascii_case("personal"))
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 pub async fn onedrive_sync(
     app: AppHandle,
@@ -348,7 +356,12 @@ pub async fn onedrive_sync(
     let drive_ids = sync_drive_ids(&matter_map, &available_drives);
     let mut merged_report = OneDriveSyncReport::default();
     let result = if drive_ids.is_empty() {
-        let source = GraphDocumentSource::new(token);
+        let omit_delta_select = OneDriveClient::new(token.clone())
+            .default_drive()
+            .await
+            .map(|drive| is_personal_drive(&drive))
+            .unwrap_or(false);
+        let source = GraphDocumentSource::new_for_default_drive(token, omit_delta_select);
         sync_documents(
             &source,
             &store,
@@ -370,7 +383,13 @@ pub async fn onedrive_sync(
                 merged_report.cancelled = true;
                 break;
             }
-            let source = GraphDocumentSource::new_for_drive(token.clone(), drive_id);
+            let omit_delta_select = available_drives
+                .iter()
+                .find(|drive| drive.id == drive_id)
+                .map(is_personal_drive)
+                .unwrap_or(false);
+            let source =
+                GraphDocumentSource::new_for_drive(token.clone(), drive_id, omit_delta_select);
             match sync_documents(
                 &source,
                 &store,

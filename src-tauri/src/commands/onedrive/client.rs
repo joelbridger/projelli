@@ -37,6 +37,11 @@ impl OneDriveClient {
         self.collect_array(&url).await
     }
 
+    pub async fn default_drive(&self) -> anyhow::Result<Drive> {
+        let url = format!("{}/v1.0/me/drive", self.base());
+        Ok(serde_json::from_value(self.graph.get_json(&url).await?)?)
+    }
+
     pub async fn list_root_children(
         &self,
         drive_id: Option<&str>,
@@ -76,16 +81,23 @@ impl OneDriveClient {
         &self,
         drive_id: Option<&str>,
         cursor: Option<&str>,
+        omit_select: bool,
     ) -> anyhow::Result<DeltaPage> {
         let mut url = cursor
             .map(str::to_string)
             .unwrap_or_else(|| match drive_id {
+                Some(drive_id) if omit_select => format!(
+                    "{}/v1.0/drives/{}/root/delta",
+                    self.base(),
+                    enc_path_segment(drive_id)
+                ),
                 Some(drive_id) => format!(
                     "{}/v1.0/drives/{}/root/delta?$select={}",
                     self.base(),
                     enc_path_segment(drive_id),
                     SELECT_ITEM
                 ),
+                None if omit_select => format!("{}/v1.0/me/drive/root/delta", self.base()),
                 None => format!(
                     "{}/v1.0/me/drive/root/delta?$select={}",
                     self.base(),
