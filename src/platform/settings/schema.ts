@@ -604,6 +604,15 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     type: 'toggle',
     defaultValue: false,
   },
+  {
+    key: 'enableHybridSearch',
+    category: 'advanced',
+    label: 'Keyword + meaning search (experimental)',
+    description:
+      'Also matches the exact words in your search — names, case numbers, citations — and blends those hits with the meaning-based results, so a passage that uses your exact terms is more likely to surface. Off by default; leaving it off keeps search exactly as it is today.',
+    type: 'toggle',
+    defaultValue: false,
+  },
 
   // ── Help: Setup / Onboarding ──────────────────────────────────────────
   {

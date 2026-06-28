@@ -517,3 +517,188 @@ async fn retrieval_reranker_off_vs_on() {
         base_mrr
     );
 }
+
+/* ════════════════════ WS3d-B — HYBRID (BM25) OFF vs ON ════════════════════
+ * Measures hybrid (BM25 keyword + vector) retrieval against the SAME real
+ * shipped stack and adversarial corpus as the baseline above, using the SAME
+ * production code paths (`store::read_all_for_keyword_index`, `Bm25Index`,
+ * `store::fetch_by_ids_scoped`, `bm25_index::rrf_fuse`).
+ *
+ *   OFF — first top_k candidates in vector (cosine) order == byte-for-byte the
+ *         committed baseline path, so the OFF numbers MUST equal the frozen
+ *         `retrieval-baseline.json` — proof the flag's OFF state is a true no-op.
+ *   ON  — BM25 keyword search WITHIN the case scope, keyword-only candidates
+ *         re-fetched through the IDENTICAL scoped predicate, then fused with the
+ *         vector ranking via RRF and truncated to top_k — exactly what the
+ *         production `rag_retrieve` hybrid seam does.
+ *
+ * Only e5 is required (BM25 needs no model). The flag is NOT enabled by this
+ * test — it only measures.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/// Decrypt `path_enc` → plaintext source id for a freshly fetched StoredHit (the
+/// `nearest` helper does this for the vector pool; keyword-only candidates from
+/// `fetch_by_ids_scoped` need the same so `ranked_sources` sees clean basenames).
+fn decrypt_source_id(h: &mut store::StoredHit) {
+    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+    if let Some(enc) = h.path_enc.as_deref() {
+        if let Some(plain) = hex::decode(enc)
+            .ok()
+            .and_then(|b| decrypt_with_key(&b, &VEC_KEY).ok())
+            .and_then(|v| String::from_utf8(v).ok())
+        {
+            h.path = plain.clone();
+            h.source_id = Some(plain);
+        }
+    }
+}
+
+#[tokio::test]
+async fn retrieval_hybrid_off_vs_on() {
+    skip_without_model!();
+    use keepance_lib::commands::rag::bm25_index::{rrf_fuse, Bm25Index, RRF_K};
+
+    let dir = corpus_dir();
+    let (table, _tmp) = build_table(&dir).await;
+
+    // Build the keyword index from the real table, exactly as production does.
+    let entries = store::read_all_for_keyword_index(&table, &VEC_KEY, &[])
+        .await
+        .expect("read keyword index");
+    let version = table.version().await.unwrap_or(0);
+    let mut bm25 = Bm25Index::new();
+    bm25.rebuild_from(entries, version);
+
+    let mut off = Agg::new();
+    let mut on = Agg::new();
+    let mut case_json = Vec::new();
+
+    println!("\n══════════ WS3d-B HYBRID OFF vs ON (real e5-small + LanceDB + BM25) ══════════");
+    println!("{:<32} {:>8} {:>8}   off→on ranked sources", "case", "off RR", "on RR");
+
+    for c in cases() {
+        let q = embed(c.query).await;
+        // OVERFETCH exactly like production rag_retrieve does when hybrid is on.
+        let overfetch = c.top_k.saturating_mul(4).min(200);
+        let pool = nearest(&table, &q, overfetch, c.scope).await.expect("retrieve");
+
+        // OFF: first top_k in cosine order == the committed baseline path.
+        let off_hits: Vec<store::StoredHit> = pool.iter().take(c.top_k).cloned().collect();
+        let off_ranked = ranked_sources(&off_hits);
+        off.push(&off_ranked, c.expected);
+
+        // ON: BM25 keyword search within scope; fuse with the vector ranking.
+        let keyword_ranked: Vec<String> = bm25
+            .search(c.query, overfetch, c.scope, false, &[])
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+        let vector_ranked: Vec<String> = pool
+            .iter()
+            .filter(|h| !h.id.is_empty())
+            .map(|h| h.id.clone())
+            .collect();
+
+        // Candidate hit map by chunk id: the vector pool, plus keyword-only
+        // candidates re-fetched through the SAME scoped predicate.
+        let mut by_id: std::collections::HashMap<String, store::StoredHit> =
+            std::collections::HashMap::new();
+        for h in &pool {
+            if !h.id.is_empty() {
+                by_id.entry(h.id.clone()).or_insert_with(|| h.clone());
+            }
+        }
+        let have: std::collections::HashSet<&str> =
+            pool.iter().map(|h| h.id.as_str()).collect();
+        let keyword_only: Vec<String> = keyword_ranked
+            .iter()
+            .filter(|id| !have.contains(id.as_str()))
+            .cloned()
+            .collect();
+        if !keyword_only.is_empty() {
+            let extra = store::fetch_by_ids_scoped(&table, &keyword_only, c.scope, false, &[])
+                .await
+                .expect("fetch keyword-only candidates");
+            for mut h in extra {
+                decrypt_source_id(&mut h);
+                if !h.id.is_empty() {
+                    by_id.entry(h.id.clone()).or_insert(h);
+                }
+            }
+        }
+
+        let fused = rrf_fuse(&vector_ranked, &keyword_ranked, RRF_K);
+        let on_hits: Vec<store::StoredHit> = fused
+            .iter()
+            .filter_map(|(id, _)| by_id.get(id).cloned())
+            .take(c.top_k)
+            .collect();
+        let on_ranked = ranked_sources(&on_hits);
+        on.push(&on_ranked, c.expected);
+
+        let off_rr = reciprocal_rank(&off_ranked, c.expected);
+        let on_rr = reciprocal_rank(&on_ranked, c.expected);
+        let arrow = if on_rr > off_rr { "▲" } else if on_rr < off_rr { "▼" } else { "=" };
+        println!(
+            "{:<32} {:>8.3} {:>8.3} {}  {}",
+            c.id, off_rr, on_rr, arrow, on_ranked.join(" > ")
+        );
+
+        case_json.push(serde_json::json!({
+            "id": c.id,
+            "offRankedSources": off_ranked,
+            "onRankedSources": on_ranked,
+            "offReciprocalRank": off_rr,
+            "onReciprocalRank": on_rr,
+        }));
+    }
+
+    println!("\n── SUMMARY (n={}) ─────────────────────────────────", off.rr.len());
+    println!("            {:>10} {:>10} {:>10}", "OFF", "ON", "Δ (on-off)");
+    println!("   MRR      {:>10.4} {:>10.4} {:>+10.4}", off.mrr(), on.mrr(), on.mrr() - off.mrr());
+    println!("   NDCG@5   {:>10.4} {:>10.4} {:>+10.4}", off.ndcg(), on.ndcg(), on.ndcg() - off.ndcg());
+    println!("   Hit@1    {:>10.4} {:>10.4} {:>+10.4}", off.hit1(), on.hit1(), on.hit1() - off.hit1());
+    println!("───────────────────────────────────────────────────\n");
+
+    let report = serde_json::json!({
+        "engine": "bm25 keyword + e5-small + lancedb (real shipped stack), RRF fusion",
+        "off": off.json(),
+        "on": on.json(),
+        "cases": case_json,
+    });
+    let results_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..").join("tests").join("eval").join("ask").join("results");
+    let _ = std::fs::create_dir_all(&results_dir);
+    std::fs::write(
+        results_dir.join("retrieval-hybrid-latest.json"),
+        serde_json::to_string_pretty(&report).unwrap(),
+    )
+    .expect("write retrieval-hybrid-latest.json");
+
+    // PROOF THE FLAG'S OFF STATE IS A NO-OP: OFF == committed baseline.
+    let baseline: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("..").join("tests").join("eval").join("ask").join("retrieval-baseline.json"),
+        )
+        .expect("read retrieval-baseline.json"),
+    )
+    .expect("parse baseline");
+    let base_mrr = baseline["summary"]["mrr"].as_f64().expect("baseline summary.mrr");
+    assert!(
+        (off.mrr() - base_mrr).abs() < 1e-9,
+        "hybrid-OFF MRR {:.6} must equal the committed baseline {:.6} — the OFF path is NOT a no-op!",
+        off.mrr(),
+        base_mrr
+    );
+
+    // Hybrid ON must not MATERIALLY regress retrieval quality (small numeric
+    // jitter from fusion ties is tolerated). The headline numbers above are the
+    // real evidence; this guard only catches a true regression.
+    assert!(
+        on.mrr() >= off.mrr() - 0.05,
+        "hybrid-ON MRR {:.4} regressed materially below OFF {:.4}",
+        on.mrr(),
+        off.mrr()
+    );
+}

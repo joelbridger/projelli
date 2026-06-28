@@ -1766,6 +1766,313 @@ pub async fn nearest(
 }
 
 // ---------------------------------------------------------------------------
+// WS3d-B: hybrid (BM25 keyword) retrieval support.
+// ---------------------------------------------------------------------------
+
+/// Cap on how many ids a single `fetch_by_ids_scoped` call will interpolate. The
+/// hybrid path proposes at most a few hundred keyword candidates (the overfetch
+/// budget), so this generous cap only guards against a corrupt keyword index or a
+/// future bug feeding an unbounded id list into the SQL filter.
+const MAX_FETCH_BY_IDS: usize = 512;
+
+/// WS3d-B — strict validation for a content-addressed chunk id before it is
+/// interpolated into an `id IN (...)` predicate. A chunk id is
+/// `hex(sha256(path:paragraph_index))` — exactly 64 lowercase hex chars. Anything
+/// else (a corrupt keyword-index entry, a future-format id, an injection attempt)
+/// is rejected so it can never reach the SQL filter.
+pub fn is_valid_chunk_id(id: &str) -> bool {
+    id.len() == 64
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// WS3d-B — read EVERY non-tombstoned chunk's keyword facets for a full rebuild
+/// of the BM25 keyword index. Returns `(chunk_id, path_token, matter_id,
+/// privilege, text_plaintext)` per chunk.
+///
+/// Tombstoned rows (BUG-099) are excluded AT THE SOURCE via the shared retrieval
+/// predicate, so unsafe content never enters the keyword ranking. All matters and
+/// privilege levels ARE read (with their facets), because per-query scope
+/// filtering happens inside the keyword index using those facets; the
+/// authoritative boundary stays the scoped re-fetch (`fetch_by_ids_scoped`). The
+/// `vector` column is deliberately NOT selected (it is large and unused here). A
+/// row whose text cannot be decrypted is skipped (it simply won't be
+/// keyword-searchable) rather than failing the whole rebuild.
+pub async fn read_all_for_keyword_index(
+    table: &Table,
+    key: &[u8; 32],
+    tombstoned_tokens: &[String],
+) -> Result<Vec<(String, String, String, String, String)>> {
+    use futures_util::TryStreamExt;
+    let mut query = table.query();
+    if let Some(predicate) = build_retrieval_predicate(None, true, tombstoned_tokens)? {
+        query = query.only_if(predicate);
+    }
+    let mut stream = query
+        .select(Select::columns(&[
+            "id",
+            "path",
+            "matter_id",
+            "privilege",
+            "text",
+            "encrypted",
+        ]))
+        .execute()
+        .await
+        .context("read_all_for_keyword_index query execute failed")?;
+
+    let mut out: Vec<(String, String, String, String, String)> = Vec::new();
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("read_all_for_keyword_index stream try_next failed")?
+    {
+        let id_col = batch
+            .column_by_name("id")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        let path_col = batch
+            .column_by_name("path")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        let text_col = batch
+            .column_by_name("text")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        let (Some(id_col), Some(path_col), Some(text_col)) = (id_col, path_col, text_col) else {
+            continue;
+        };
+        let matter_col = batch
+            .column_by_name("matter_id")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        let priv_col = batch
+            .column_by_name("privilege")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        let enc_col = batch
+            .column_by_name("encrypted")
+            .and_then(|c| c.as_any().downcast_ref::<arrow_array::BooleanArray>());
+        for i in 0..batch.num_rows() {
+            if id_col.is_null(i) || path_col.is_null(i) {
+                continue;
+            }
+            let id = id_col.value(i).to_string();
+            let path_token = path_col.value(i).to_string();
+            let matter_id = matter_col
+                .filter(|c| !c.is_null(i))
+                .map(|c| c.value(i).to_string())
+                .unwrap_or_default();
+            let privilege = priv_col
+                .filter(|c| !c.is_null(i))
+                .map(|c| c.value(i).to_string())
+                .unwrap_or_else(|| PRIVILEGE_NONE.to_string());
+            let encrypted = enc_col.map(|c| !c.is_null(i) && c.value(i)).unwrap_or(false);
+            let raw = text_col.value(i);
+            let text = if encrypted {
+                match hex::decode(raw)
+                    .ok()
+                    .and_then(|b| crate::commands::mail::crypto::decrypt_with_key(&b, key).ok())
+                    .and_then(|v| String::from_utf8(v).ok())
+                {
+                    Some(t) => t,
+                    None => continue, // undecryptable → not keyword-searchable
+                }
+            } else {
+                raw.to_string()
+            };
+            out.push((id, path_token, matter_id, privilege, text));
+        }
+    }
+    Ok(out)
+}
+
+/// WS3d-B — re-fetch specific chunks BY ID, applying the IDENTICAL retrieval
+/// prefilter the vector pass uses (matter / privilege / tombstone via
+/// `build_retrieval_predicate`). THIS is the authoritative scope boundary for
+/// keyword-proposed candidates: any id that fails the predicate (wrong matter,
+/// privileged-and-not-included, tombstoned) or no longer exists is simply absent
+/// from the result. The keyword index never decides visibility; this does.
+///
+/// `ids` are validated (must be 64-hex chunk ids), de-duplicated, and capped
+/// before interpolation. The returned `StoredHit`s carry a SENTINEL `distance`
+/// of `1.0` (the worst cosine distance): these rows came from a point lookup, not
+/// a vector query, so their distance is meaningless — the hybrid caller orders
+/// them by the fused score and never by distance. The sentinel ensures that even
+/// if some path did sort by distance, a keyword-only hit can never masquerade as
+/// a perfect (distance 0) vector match.
+pub async fn fetch_by_ids_scoped(
+    table: &Table,
+    ids: &[String],
+    scope: Option<&str>,
+    include_privileged: bool,
+    tombstoned_tokens: &[String],
+) -> Result<Vec<StoredHit>> {
+    use futures_util::TryStreamExt;
+    // Validate + dedupe + cap. Invalid ids are dropped, never interpolated.
+    let mut seen: HashSet<&str> = HashSet::new();
+    let mut valid: Vec<&str> = Vec::new();
+    for id in ids {
+        if is_valid_chunk_id(id) && seen.insert(id.as_str()) {
+            valid.push(id.as_str());
+            if valid.len() >= MAX_FETCH_BY_IDS {
+                break;
+            }
+        }
+    }
+    if valid.is_empty() {
+        return Ok(Vec::new());
+    }
+    // Safe to interpolate without sql_escape: every id passed is_valid_chunk_id
+    // (64 chars of [0-9a-f] only), so it cannot contain a quote or any SQL meta.
+    let id_list = valid
+        .iter()
+        .map(|i| format!("'{i}'"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let id_clause = format!("id IN ({id_list})");
+    let predicate = match build_retrieval_predicate(scope, include_privileged, tombstoned_tokens)? {
+        Some(p) => format!("({p}) AND ({id_clause})"),
+        None => id_clause,
+    };
+    let mut stream = table
+        .query()
+        .only_if(predicate)
+        // Skip the large `vector` column; the hybrid caller needs only the
+        // citation/display columns.
+        .select(Select::columns(&[
+            "id",
+            "path",
+            "matter_id",
+            "source_id",
+            "paragraph_index",
+            "text",
+            "source_type",
+            "page_number",
+            "encrypted",
+            "privilege",
+            "extraction",
+            "extraction_confidence",
+            "locator",
+            "path_enc",
+        ]))
+        .limit(valid.len())
+        .execute()
+        .await
+        .context("fetch_by_ids_scoped query execute failed")?;
+
+    let mut out: Vec<StoredHit> = Vec::with_capacity(valid.len());
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("fetch_by_ids_scoped stream try_next failed")?
+    {
+        // Mirrors `nearest`'s row reader (kept separate so `nearest` — the merged
+        // baseline path — stays byte-for-byte untouched). The only difference is
+        // the sentinel distance, since a point lookup has no `_distance`.
+        let path_col = batch
+            .column_by_name("path")
+            .context("missing path column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("path column is not StringArray")?;
+        let id_col = batch
+            .column_by_name("id")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        let matter_col = batch
+            .column_by_name("matter_id")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        let source_col = batch
+            .column_by_name("source_id")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        let pi_col = batch
+            .column_by_name("paragraph_index")
+            .context("missing paragraph_index column")?
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .context("paragraph_index column is not UInt32Array")?;
+        let text_col = batch
+            .column_by_name("text")
+            .context("missing text column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("text column is not StringArray")?;
+        let st_col = batch
+            .column_by_name("source_type")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        let pn_col = batch
+            .column_by_name("page_number")
+            .and_then(|c| c.as_any().downcast_ref::<UInt32Array>());
+        let enc_col = batch
+            .column_by_name("encrypted")
+            .and_then(|c| c.as_any().downcast_ref::<arrow_array::BooleanArray>());
+        let priv_col = batch
+            .column_by_name("privilege")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        let ext_col = batch
+            .column_by_name("extraction")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        let ext_conf_col = batch
+            .column_by_name("extraction_confidence")
+            .and_then(|c| c.as_any().downcast_ref::<arrow_array::Float32Array>());
+        let loc_col = batch
+            .column_by_name("locator")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        let penc_col = batch
+            .column_by_name("path_enc")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+
+        for i in 0..batch.num_rows() {
+            let source_type = st_col
+                .filter(|c| !c.is_null(i))
+                .map(|c| c.value(i).to_string());
+            let page_number = pn_col.filter(|c| !c.is_null(i)).map(|c| c.value(i));
+            let encrypted = enc_col.map(|c| !c.is_null(i) && c.value(i)).unwrap_or(false);
+            let id = id_col
+                .filter(|c| !c.is_null(i))
+                .map(|c| c.value(i).to_string())
+                .unwrap_or_default();
+            let matter_id = matter_col
+                .filter(|c| !c.is_null(i))
+                .map(|c| c.value(i).to_string());
+            let source_id = source_col
+                .filter(|c| !c.is_null(i))
+                .map(|c| c.value(i).to_string());
+            let privilege = priv_col
+                .filter(|c| !c.is_null(i))
+                .map(|c| c.value(i).to_string());
+            let extraction = ext_col
+                .filter(|c| !c.is_null(i))
+                .map(|c| c.value(i).to_string());
+            let extraction_confidence = ext_conf_col.filter(|c| !c.is_null(i)).map(|c| c.value(i));
+            let locator = loc_col
+                .filter(|c| !c.is_null(i))
+                .map(|c| c.value(i).to_string());
+            let path_enc = penc_col
+                .filter(|c| !c.is_null(i))
+                .map(|c| c.value(i).to_string());
+            out.push(StoredHit {
+                id,
+                path: path_col.value(i).to_string(),
+                matter_id,
+                source_id,
+                paragraph_index: pi_col.value(i),
+                text: text_col.value(i).to_string(),
+                // Sentinel: worst cosine distance. Never used for ordering on the
+                // hybrid path (fused score governs); guards against any accidental
+                // distance-based sort treating a keyword-only hit as a perfect match.
+                distance: 1.0,
+                source_type,
+                page_number,
+                encrypted,
+                privilege,
+                extraction,
+                extraction_confidence,
+                locator,
+                path_enc,
+            });
+        }
+    }
+    Ok(out)
+}
+
+// ---------------------------------------------------------------------------
 // WS-B/C: point lookup for citation verification.
 // ---------------------------------------------------------------------------
 

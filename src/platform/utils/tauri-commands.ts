@@ -397,7 +397,12 @@ export async function ragIndexPdfChunks(
  *  DEFAULT OFF (omitted or `false`) — retrieval is byte-for-byte the vector-only
  *  path. When `true`, the backend re-orders ONLY within the already-scoped
  *  candidate set (never widening scope/privilege), and transparently falls back
- *  to vector-only if the reranker model isn't installed. */
+ *  to vector-only if the reranker model isn't installed.
+ *
+ *  `enableHybridSearch` is an OPTIONAL keyword + vector blended search pass.
+ *  DEFAULT OFF (omitted or `false`) — retrieval is the pure vector-only path.
+ *  When `true`, the backend blends BM25 keyword hits with the vector results so
+ *  exact terms (names, case numbers, citations) surface more reliably. */
 export async function ragRetrieve(
   query: string,
   topK: number,
@@ -405,6 +410,7 @@ export async function ragRetrieve(
   includePrivileged?: boolean,
   perSourceCap?: number,
   enableReranker?: boolean,
+  enableHybridSearch?: boolean,
 ): Promise<RagHit[]> {
   if (!isTauri()) {
     throw new Error('RAG is only available in the desktop app.');
@@ -416,6 +422,7 @@ export async function ragRetrieve(
     includePrivileged,
     perSourceCap,
     enableReranker,
+    enableHybridSearch,
   });
 }
 
