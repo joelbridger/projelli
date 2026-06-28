@@ -158,7 +158,7 @@ describe('matter-store merge — writes preserve all three legacy keys', () => {
     expect((matters!.state!.matters as unknown[]).length).toBe(1);
     expect(matters!.state).not.toHaveProperty('snapshots');
     expect(matters!.state).not.toHaveProperty('cache');
-    expect(matters!.version).toBe(7);
+    expect(matters!.version).toBe(8);
 
     expect((ui!.state!.snapshots as Record<string, unknown>)[m.id]).toEqual({ surface: 'workflows', activeTabPath: null });
     expect(ui!.state).not.toHaveProperty('matters');

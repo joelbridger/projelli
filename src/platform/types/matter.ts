@@ -63,16 +63,36 @@ export interface Matter {
    */
   onedriveFolderKeys?: string[];
   /**
+   * Box folder ids whose files belong to this matter.
+   */
+  boxFolderKeys?: string[];
+  /**
    * E-signature record keys whose envelopes / agreements belong to this matter.
    * The first implementation targets DocuSign, but the persisted field is
    * connector-neutral.
    */
   esignKeys?: string[];
   /**
+   * Jotform form/submission keys whose records belong to this matter.
+   */
+  jotformKeys?: string[];
+  /**
+   * ShareFile folder ids whose files belong to this matter.
+   */
+  sharefileFolderKeys?: string[];
+  /**
    * Meeting record keys whose scheduled events belong to this matter. The first
    * implementation targets Calendly, but the persisted field is connector-neutral.
    */
   meetingKeys?: string[];
+  /**
+   * Zocks meeting/intelligence keys whose records belong to this matter.
+   */
+  zocksKeys?: string[];
+  /**
+   * Addepar household/account keys whose records belong to this matter.
+   */
+  addeparKeys?: string[];
   /**
    * True when this matter's DISPLAY identity (name/client) originated from a CRM
    * connector (e.g. a Wealthbox household), as opposed to user-entered or

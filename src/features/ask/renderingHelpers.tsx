@@ -160,6 +160,11 @@ export function citationDisplayLabel(
   if (sourceType === 'onedrive') return `OneDrive - ${basename}${suffix}`;
   if (sourceType === 'esign') return `DocuSign - ${basename}${suffix}`;
   if (sourceType === 'meeting') return `Calendly - ${basename}${suffix}`;
+  if (sourceType === 'box') return `Box - ${basename}${suffix}`;
+  if (sourceType === 'jotform') return `Jotform - ${basename}${suffix}`;
+  if (sourceType === 'sharefile') return `ShareFile - ${basename}${suffix}`;
+  if (sourceType === 'zocks') return `Zocks - ${basename}${suffix}`;
+  if (sourceType === 'addepar') return `Addepar - ${basename}${suffix}`;
   return `${basename} §${String(paragraphIndex)}${suffix}`;
 }
 
