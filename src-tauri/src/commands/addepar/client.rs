@@ -1,0 +1,207 @@
+//! HTTP client for the read-only Addepar API surface used by Keepance.
+//!
+//! Addepar's Portfolio Query API uses POST for read-only analysis queries, so
+//! the POST bodies stay isolated here. No create/update/delete endpoints are
+//! exposed by this connector.
+
+use anyhow::{Context, Result};
+use serde_json::json;
+
+use crate::commands::addepar::model::{
+    AddeparCollection, AddeparConfig, AddeparEntity, AddeparEntityAttributes,
+    AddeparHouseholdRecord, AddeparPortfolioQueryResponse,
+};
+
+#[derive(Clone)]
+pub struct AddeparClient {
+    http: reqwest::Client,
+    config: AddeparConfig,
+}
+
+impl AddeparClient {
+    pub fn new(config: AddeparConfig) -> Self {
+        Self {
+            http: reqwest::Client::builder()
+                .user_agent("Keepance-Addepar-Connector/1.0")
+                .build()
+                .expect("build Addepar reqwest client"),
+            config,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn new_with_base(mut config: AddeparConfig, base_url: String) -> Self {
+        config.subdomain = base_url
+            .trim()
+            .trim_start_matches("https://")
+            .trim_start_matches("http://")
+            .trim_end_matches("/api/v1")
+            .trim_end_matches(".addepar.com")
+            .to_string();
+        Self::new(config)
+    }
+
+    pub async fn validate(&self) -> Result<()> {
+        let _: AddeparCollection<AddeparEntityAttributes> =
+            self.get_json("/entities?page[limit]=1").await?;
+        Ok(())
+    }
+
+    pub async fn list_entities(&self) -> Result<Vec<AddeparEntity>> {
+        let mut out = Vec::new();
+        let mut next: Option<String> =
+            Some("/entities?page[limit]=200&filter[model_types]=PERSON_NODE,CLIENT,HOUSEHOLD".into());
+        let mut pages = 0u32;
+        while let Some(path_or_url) = next.take() {
+            pages += 1;
+            if pages > 50 {
+                anyhow::bail!("Addepar entity pagination exceeded the safety limit");
+            }
+            let page: AddeparCollection<AddeparEntityAttributes> =
+                self.get_json(&path_or_url).await?;
+            out.extend(page.data.into_iter().filter(|entity| entity.is_household_or_client()));
+            next = page.links.and_then(|links| links.next).filter(|s| !s.trim().is_empty());
+        }
+        Ok(out)
+    }
+
+    pub async fn household_record(&self, entity: &AddeparEntity) -> Result<AddeparHouseholdRecord> {
+        let mut warnings = Vec::new();
+
+        let asset_allocation = match self
+            .portfolio_query(entity, &["value"], &["asset_class"], 365)
+            .await
+        {
+            Ok(v) => Some(v),
+            Err(e) => {
+                warnings.push(format!("Asset-allocation query unavailable: {e}"));
+                None
+            }
+        };
+
+        let performance = match self
+            .portfolio_query(entity, &["time_weighted_return", "value"], &["asset_class"], 365)
+            .await
+        {
+            Ok(v) => Some(v),
+            Err(e) => {
+                warnings.push(format!("Performance query unavailable: {e}"));
+                None
+            }
+        };
+
+        let account_list = match self
+            .portfolio_query(entity, &["value"], &["owning_account"], 365)
+            .await
+        {
+            Ok(v) => Some(v),
+            Err(e) => {
+                warnings.push(format!("Account-list query unavailable: {e}"));
+                None
+            }
+        };
+
+        Ok(AddeparHouseholdRecord {
+            entity: entity.clone(),
+            asset_allocation,
+            performance,
+            account_list,
+            warnings,
+        })
+    }
+
+    async fn portfolio_query(
+        &self,
+        entity: &AddeparEntity,
+        columns: &[&str],
+        groupings: &[&str],
+        lookback_days: i64,
+    ) -> Result<AddeparPortfolioQueryResponse> {
+        let end = chrono::Utc::now().date_naive();
+        let start = end - chrono::Duration::days(lookback_days);
+        let portfolio_id = parse_portfolio_id(&entity.id);
+        let body = json!({
+            "data": {
+                "type": "portfolio_query",
+                "attributes": {
+                    "columns": columns.iter().map(|key| json!({ "key": key })).collect::<Vec<_>>(),
+                    "groupings": groupings.iter().map(|key| json!({ "key": key })).collect::<Vec<_>>(),
+                    "portfolio_type": "ENTITY",
+                    "portfolio_id": portfolio_id,
+                    "start_date": start.format("%Y-%m-%d").to_string(),
+                    "end_date": end.format("%Y-%m-%d").to_string(),
+                    "hide_previous_holdings": true
+                }
+            }
+        });
+        self.post_json("/portfolio/query", &body).await
+    }
+
+    async fn get_json<T: serde::de::DeserializeOwned>(&self, path_or_url: &str) -> Result<T> {
+        let url = self.url(path_or_url);
+        let resp = self
+            .http
+            .get(&url)
+            .basic_auth(&self.config.api_key, Some(&self.config.api_secret))
+            .header("Addepar-Firm", self.config.firm_id.trim())
+            .header("Accept", "application/vnd.api+json")
+            .send()
+            .await
+            .context("Addepar HTTP GET send")?;
+        Self::parse_response(resp, "GET", path_or_url).await
+    }
+
+    async fn post_json<T: serde::de::DeserializeOwned>(
+        &self,
+        path_or_url: &str,
+        body: &serde_json::Value,
+    ) -> Result<T> {
+        let url = self.url(path_or_url);
+        let resp = self
+            .http
+            .post(&url)
+            .basic_auth(&self.config.api_key, Some(&self.config.api_secret))
+            .header("Addepar-Firm", self.config.firm_id.trim())
+            .header("Accept", "application/vnd.api+json")
+            .header("Content-Type", "application/vnd.api+json")
+            .json(body)
+            .send()
+            .await
+            .context("Addepar HTTP POST send")?;
+        Self::parse_response(resp, "POST", path_or_url).await
+    }
+
+    async fn parse_response<T: serde::de::DeserializeOwned>(
+        resp: reqwest::Response,
+        method: &str,
+        path: &str,
+    ) -> Result<T> {
+        let status = resp.status();
+        let body = resp.text().await.context("read Addepar response body")?;
+        if !status.is_success() {
+            log::warn!("Addepar request failed: {} {} HTTP {}", method, path, status);
+            anyhow::bail!("Addepar request failed (HTTP {})", status);
+        }
+        serde_json::from_str(&body).context("parse Addepar JSON response")
+    }
+
+    fn url(&self, path_or_url: &str) -> String {
+        if path_or_url.starts_with("http://") || path_or_url.starts_with("https://") {
+            return path_or_url.to_string();
+        }
+        let base = self.config.api_base();
+        if path_or_url.starts_with('/') {
+            format!("{base}{path_or_url}")
+        } else {
+            format!("{base}/{path_or_url}")
+        }
+    }
+}
+
+fn parse_portfolio_id(entity_id: &str) -> serde_json::Value {
+    entity_id
+        .trim()
+        .parse::<u64>()
+        .map(serde_json::Value::from)
+        .unwrap_or_else(|_| serde_json::Value::String(entity_id.trim().to_string()))
+}

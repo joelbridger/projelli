@@ -56,6 +56,7 @@ import {
 } from '@/platform/utils/tauri-commands';
 import { mailSetWorkspace } from '@/platform/utils/mail-commands';
 import { docusignSetWorkspace } from '@/platform/utils/docusign-commands';
+import { addeparSetWorkspace } from '@/platform/utils/addepar-commands';
 import { crmSetWorkspace } from '@/platform/utils/wealthbox-commands';
 import { oneDriveSetWorkspace } from '@/platform/utils/onedrive-commands';
 import { calendlySetWorkspace } from '@/platform/utils/calendly-commands';
@@ -552,6 +553,11 @@ export function useMemoryWiring(
           await docusignSetWorkspace(rootPath);
         } catch (err) {
           console.warn('docusignSetWorkspace failed; continuing workspace setup:', err);
+        }
+        try {
+          await addeparSetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('addeparSetWorkspace failed; continuing workspace setup:', err);
         }
         try {
           await calendlySetWorkspace(rootPath);
