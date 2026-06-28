@@ -356,6 +356,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // backend re-orders within the same already-scoped candidate set.
           const enableReranker =
             useSettingsStore.getState().getSetting<boolean>('enableReranker') === true;
+          const enableHybridSearch =
+            useSettingsStore.getState().getSetting<boolean>('enableHybridSearch') === true;
           const hits = await MemoryService.retrieve(
             retrievalQuery,
             DEFAULT_WORKSPACE_TOP_K,
@@ -363,6 +365,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
             includePrivileged,
             undefined,
             enableReranker,
+            enableHybridSearch,
           );
           // D1 — filter workspace retrieval results to the active folder scope
           // so @workspace searches don't surface documents from other client

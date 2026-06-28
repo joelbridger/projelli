@@ -98,6 +98,9 @@ notify = "6"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 lancedb = "0.21"
 fastembed = "4"
+# WS3d-B — pure-Rust BM25 keyword scorer for hybrid (keyword + vector) retrieval.
+# Default features only (`default_tokenizer`); no language detection / rayon.
+bm25 = "2.3.2"
 # Direct dep on the SAME hf-hub fastembed uses (same version + features, so
 # nothing new compiles). Gives us download_with_progress + the Cache lookup
 # for the visible first-run model download (Option B).

@@ -321,7 +321,11 @@ export const MemoryService = {
    *
    *  WS3d-A: `enableReranker` (default false) turns on the optional
    *  cross-encoder reranking pass. Off = byte-for-byte the vector-only path;
-   *  callers read the `enableReranker` setting and pass it here per call. */
+   *  callers read the `enableReranker` setting and pass it here per call.
+   *
+   *  `enableHybridSearch` (default false) turns on the optional keyword + vector
+   *  blended search pass. Off = pure vector-only path; callers read the
+   *  `enableHybridSearch` setting and pass it here per call. */
   async retrieve(
     query: string,
     topK: number,
@@ -329,10 +333,11 @@ export const MemoryService = {
     includePrivileged = false,
     perSourceCap?: number,
     enableReranker = false,
+    enableHybridSearch = false,
   ): Promise<RagHit[]> {
     if (!isMemoryEnabled()) return [];
     if (!query.trim() || topK <= 0) return [];
-    return ragRetrieve(query, topK, scope, includePrivileged, perSourceCap, enableReranker);
+    return ragRetrieve(query, topK, scope, includePrivileged, perSourceCap, enableReranker, enableHybridSearch);
   },
 
   /** Index a single PDF file into the RAG store. Reads bytes via the

@@ -418,6 +418,8 @@ export function useAsk({
         // WS3d-A — default-OFF reranker toggle, read per call.
         const enableReranker =
           useSettingsStore.getState().getSetting<boolean>('enableReranker') === true;
+        const enableHybridSearch =
+          useSettingsStore.getState().getSetting<boolean>('enableHybridSearch') === true;
         const rawHits = await MemoryService.retrieve(
           q,
           DEFAULT_WORKSPACE_TOP_K,
@@ -425,6 +427,7 @@ export function useAsk({
           false,
           undefined,
           enableReranker,
+          enableHybridSearch,
         );
         failedStage = 'post-retrieval';
         // Apply client-side type filter for Email/Documents scopes.

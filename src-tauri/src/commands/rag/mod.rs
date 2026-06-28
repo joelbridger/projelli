@@ -27,6 +27,7 @@
 // `Hit` is the frozen wire format from Phase 2; do NOT change its shape.
 
 pub mod chunker;
+pub mod bm25_index;
 pub mod crypto;
 pub mod embedder;
 pub mod extractor;
@@ -388,6 +389,16 @@ pub struct RagState {
     /// assume "no tombstones" and risk citing a stale row. Cleared by a clean
     /// full walk, which rewrites the tombstone file from scratch.
     pub index_integrity_unknown: Arc<AtomicBool>,
+    /// WS3d-B — the in-memory BM25 KEYWORD index for hybrid retrieval. Empty
+    /// until the first hybrid (`enableHybridSearch`) query, which lazily loads it
+    /// from disk or rebuilds it from the vector store. When the flag is OFF this
+    /// is never touched, so retrieval stays byte-for-byte the vector-only path.
+    /// The index is rebuilt whenever the LanceDB dataset version it was built at
+    /// no longer matches the live table version (any writer bumps that version),
+    /// so it self-heals without a hook in every indexing path. NOT the security
+    /// boundary — every chunk it proposes is re-fetched through the same scoped
+    /// predicate the vector pass uses.
+    pub bm25: Arc<Mutex<bm25_index::Bm25Index>>,
 }
 
 /// RAII guard that clears `RagState::indexing` on every exit path (normal
@@ -2000,6 +2011,7 @@ pub async fn rag_retrieve(
     include_privileged: Option<bool>,
     per_source_cap: Option<u32>,
     enable_reranker: Option<bool>,
+    enable_hybrid_search: Option<bool>,
 ) -> Result<Vec<Hit>, String> {
     if query.trim().is_empty() || top_k == 0 {
         return Ok(Vec::new());
@@ -2036,7 +2048,12 @@ pub async fn rag_retrieve(
     // exploration / tie order could differ. (Codex review, P2.)
     let enable_reranker = enable_reranker.unwrap_or(false);
     let want_rerank = enable_reranker && reranker::ensure_ready().await;
-    let fetch_k = if cap > 0 || want_rerank {
+    // WS3d-B: hybrid (BM25 keyword + vector) search, default OFF. When ON we
+    // overfetch the vector side too, so the fusion has depth to promote a keyword
+    // hit the vector pass ranked just outside top_k. OFF (the shipped default) is
+    // a TRUE no-op below: no keyword index touched, byte-for-byte the vector path.
+    let enable_hybrid = enable_hybrid_search.unwrap_or(false);
+    let fetch_k = if cap > 0 || want_rerank || enable_hybrid {
         (top_k as usize).saturating_mul(4).min(200)
     } else {
         top_k as usize
@@ -2106,9 +2123,9 @@ pub async fn rag_retrieve(
     // "[content unavailable]" placeholder — retrieval still works for plaintext rows.
     let enc_key = crypto::get_or_create_master_key().ok();
 
-    let mut hits: Vec<Hit> = raw
-        .into_iter()
-        .map(|h| {
+    // WS3d-B: hoisted into a named closure so the SAME decrypt → Hit mapping is
+    // reused for keyword-only candidates re-fetched on the hybrid path below.
+    let to_hit = |h: store::StoredHit| -> Hit {
             let chunk_text = if h.encrypted {
                 // WS-VEC: decrypt the hex-encoded ciphertext in memory.
                 // On any failure (bad key, tampered, keychain locked): return
@@ -2177,8 +2194,148 @@ pub async fn rag_retrieve(
                 // can read "Tr. 45:12-46:3".
                 locator: h.locator,
             }
-        })
-        .collect();
+    };
+    let mut hits: Vec<Hit> = raw.into_iter().map(&to_hit).collect();
+
+    // WS3d-B — THE HYBRID (BM25 keyword) SEAM. Default OFF: when `enable_hybrid`
+    // is false this whole block is skipped, nothing touches the keyword index, and
+    // the code below is byte-for-byte the vector-only path. When ON: (1) ensure
+    // the keyword index reflects the live LanceDB version (lazily load from disk,
+    // else rebuild from the store — covering every writer, since any write bumps
+    // the table version); (2) keyword-search WITHIN the same scope; (3) re-fetch
+    // the keyword-only candidates through the IDENTICAL scoped predicate
+    // (`fetch_by_ids_scoped` — the authoritative boundary; any out-of-scope /
+    // privileged / tombstoned / deleted id is dropped there); (4) fuse the vector
+    // and keyword rankings with RRF and write the fused score onto each hit. This
+    // can BROADEN which in-scope chunks surface (keyword recall) but can NEVER
+    // surface a chunk the vector prefilter would exclude. GRACEFUL FALLBACK: any
+    // failure (keychain locked, rebuild error, fetch error) leaves the vector-only
+    // hits untouched — an answer is never blocked on keyword search.
+    if enable_hybrid && enc_key.is_some() {
+        let ek = enc_key.as_ref().unwrap();
+        let dataset_dir = store::dataset_path(&workspace);
+        let current_version = table.version().await.ok();
+
+        let keyword_ranked: Vec<String> = {
+            let mut guard = state.bm25.lock().await;
+            // FRESH means: built at the live table version AND for THIS workspace.
+            // Pairing the version with the workspace path stops a different
+            // workspace's in-memory index (RagState is process-global) from being
+            // reused just because its table happens to share a version number.
+            let want_for = dataset_dir.as_path();
+            let is_fresh = |g: &bm25_index::Bm25Index| {
+                current_version.is_some_and(|v| g.is_fresh_for(v))
+                    && g.built_for() == Some(want_for)
+            };
+            // `usable` tracks whether the in-memory index is safe to SEARCH for
+            // this call. A stale index whose rebuild FAILS must NOT be searched —
+            // we degrade to vector-only rather than rank on a stale snapshot.
+            let mut usable = is_fresh(&guard);
+            if !usable {
+                // Warm start: load THIS workspace's on-disk index when the in-memory
+                // one is for another workspace or was never populated. (A stale
+                // same-workspace index skips disk and rebuilds directly — the disk
+                // copy would be stale too.)
+                if guard.built_for() != Some(want_for) || guard.is_empty() {
+                    let (loaded, _) = bm25_index::Bm25Index::load(&dataset_dir, ek);
+                    *guard = loaded;
+                    usable = is_fresh(&guard);
+                }
+                if !usable {
+                    match store::read_all_for_keyword_index(&table, ek, &tombstoned_tokens).await {
+                        Ok(entries) => {
+                            guard.rebuild_from(entries, current_version.unwrap_or(0));
+                            guard.note_built_for(want_for);
+                            usable = true;
+                            if let Err(e) = guard.persist(&dataset_dir, ek) {
+                                log::warn!("rag_retrieve: bm25 index persist failed ({e:#})");
+                            }
+                        }
+                        Err(e) => {
+                            // Rebuild failed: leave `usable` false so we skip the
+                            // (possibly stale) index entirely and answer vector-only.
+                            log::warn!(
+                                "rag_retrieve: bm25 index rebuild failed ({e:#}); \
+                                 keyword search skipped this call (vector-only)"
+                            );
+                        }
+                    }
+                }
+            }
+            if usable && !guard.is_empty() {
+                guard
+                    .search(
+                        &query,
+                        fetch_k,
+                        scope_filter.as_deref(),
+                        include_privileged,
+                        &tombstoned_tokens,
+                    )
+                    .into_iter()
+                    .map(|(id, _)| id)
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        };
+
+        if !keyword_ranked.is_empty() {
+            // Vector ranking = current best-first hit order (nearest returns by
+            // ascending distance = descending score).
+            let vector_ranked: Vec<String> = hits.iter().filter_map(|h| h.id.clone()).collect();
+            let have: std::collections::HashSet<&str> =
+                hits.iter().filter_map(|h| h.id.as_deref()).collect();
+            let keyword_only: Vec<String> = keyword_ranked
+                .iter()
+                .filter(|id| !have.contains(id.as_str()))
+                .cloned()
+                .collect();
+
+            // Re-fetch keyword-only candidates through the authoritative scoped
+            // predicate, then map them to Hits with the same decrypt closure.
+            if !keyword_only.is_empty() {
+                match store::fetch_by_ids_scoped(
+                    &table,
+                    &keyword_only,
+                    scope_filter.as_deref(),
+                    include_privileged,
+                    &tombstoned_tokens,
+                )
+                .await
+                {
+                    Ok(extra) => hits.extend(extra.into_iter().map(&to_hit)),
+                    Err(e) => log::warn!(
+                        "rag_retrieve: hybrid keyword re-fetch failed ({e:#}); \
+                         using vector hits only"
+                    ),
+                }
+            }
+
+            // Fuse and write the normalized fused score onto each id-bearing hit.
+            let fused = bm25_index::rrf_fuse(&vector_ranked, &keyword_ranked, bm25_index::RRF_K);
+            let max = fused
+                .iter()
+                .map(|(_, s)| *s)
+                .fold(0.0f32, f32::max)
+                .max(f32::EPSILON);
+            let fused_scores: std::collections::HashMap<String, f32> = fused.into_iter().collect();
+            for h in hits.iter_mut() {
+                if let Some(id) = h.id.as_deref() {
+                    if let Some(s) = fused_scores.get(id) {
+                        h.score = s / max;
+                    }
+                }
+            }
+            // Establish a deterministic order now (score desc, id asc); the stable
+            // sort shared with the vector/reranker paths below preserves it.
+            hits.sort_by(|a, b| {
+                b.score
+                    .partial_cmp(&a.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| a.id.cmp(&b.id))
+            });
+        }
+    }
     // WS3d-A — THE RERANKER SEAM. Default OFF: when `want_rerank` is false
     // (flag off, or the model is absent / failed to load) this whole block is
     // skipped, no overfetch happened above, and the code below is byte-for-byte

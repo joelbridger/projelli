@@ -534,6 +534,8 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
               // WS3d-A — default-OFF reranker toggle, read per call.
               const enableReranker =
                 useSettingsStore.getState().getSetting<boolean>('enableReranker') === true;
+              const enableHybridSearch =
+                useSettingsStore.getState().getSetting<boolean>('enableHybridSearch') === true;
               const hits = await MemoryService.retrieve(
                 query,
                 topK,
@@ -541,6 +543,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
                 false,
                 perSourceCap,
                 enableReranker,
+                enableHybridSearch,
               );
               // Audit (3.0 provenance) — the litigation `analyze` step runs a
               // matter-scoped, privilege-EXCLUDED retrieval (the safe default on
