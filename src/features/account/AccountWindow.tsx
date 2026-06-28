@@ -25,6 +25,7 @@ import { OneDriveConnect } from '@/features/settings/OneDriveConnect';
 import { BoxConnect } from '@/features/settings/BoxConnect';
 import { DocuSignConnect } from '@/features/settings/DocuSignConnect';
 import { ShareFileConnect } from '@/features/settings/ShareFileConnect';
+import { JotformConnect } from '@/features/settings/JotformConnect';
 import { CalendlyConnect } from '@/features/settings/CalendlyConnect';
 import { SalesforceConnect } from '@/features/settings/SalesforceConnect';
 import { RedtailConnect } from '@/features/settings/RedtailConnect';
@@ -313,6 +314,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                 <WealthboxConnect />
                 <DocuSignConnect />
                 <ShareFileConnect />
+                <JotformConnect />
                 <CalendlyConnect />
                 <SalesforceConnect />
                 <RedtailConnect />

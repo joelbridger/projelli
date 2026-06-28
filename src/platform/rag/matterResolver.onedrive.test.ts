@@ -114,7 +114,10 @@ describe('new connector matter-map shells', () => {
     ]);
     expect(buildJotformMatterMap(matters)).toEqual([
       { jotformKey: 'form-a', matterId: 'matter-a' },
+      { jotformKey: 'Acme', matterId: 'matter-a' },
+      { jotformKey: 'form-a', matterId: 'matter-b' },
       { jotformKey: 'form-b', matterId: 'matter-b' },
+      { jotformKey: 'Beta', matterId: 'matter-b' },
     ]);
     expect(buildSharefileMatterMap(matters)).toEqual([
       { folderKey: 'sf-folder-a', matterId: 'matter-a' },
