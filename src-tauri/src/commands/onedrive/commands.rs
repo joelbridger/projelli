@@ -230,20 +230,42 @@ pub async fn onedrive_list_folders() -> Result<Vec<OneDriveFolderDto>, String> {
     let client = OneDriveClient::new(token);
     let drives = client.list_drives().await.map_err(|e| e.to_string())?;
     let mut out = Vec::new();
+    let mut listed_default_drive = false;
     for drive in drives {
-        let omit_select = is_personal_drive(&drive);
+        if is_personal_drive(&drive) {
+            if listed_default_drive {
+                continue;
+            }
+            listed_default_drive = true;
+            let roots = client
+                .list_root_children(None, true)
+                .await
+                .map_err(|e| e.to_string())?;
+            collect_folders(&client, None, &drive.id, true, None, roots, &mut out).await?;
+            continue;
+        }
         let roots = client
-            .list_root_children(Some(&drive.id), omit_select)
+            .list_root_children(Some(&drive.id), false)
             .await
             .map_err(|e| e.to_string())?;
-        collect_folders(&client, &drive.id, omit_select, None, roots, &mut out).await?;
+        collect_folders(
+            &client,
+            Some(&drive.id),
+            &drive.id,
+            false,
+            None,
+            roots,
+            &mut out,
+        )
+        .await?;
     }
     Ok(out)
 }
 
 async fn collect_folders(
     client: &OneDriveClient,
-    drive_id: &str,
+    graph_drive_id: Option<&str>,
+    folder_drive_id: &str,
     omit_select: bool,
     site_id: Option<String>,
     items: Vec<DriveItem>,
@@ -258,15 +280,20 @@ async fn collect_folders(
         let item_site_id = item.site_id().or(inherited_site_id);
         let path = item_folder_path(&item);
         out.push(OneDriveFolderDto {
-            key: folder_key(DEFAULT_ACCOUNT, item_site_id.as_deref(), drive_id, &path),
-            drive_id: drive_id.to_string(),
+            key: folder_key(
+                DEFAULT_ACCOUNT,
+                item_site_id.as_deref(),
+                folder_drive_id,
+                &path,
+            ),
+            drive_id: folder_drive_id.to_string(),
             site_id: item_site_id.clone(),
             item_id: item.id.clone(),
             name: item.name.clone(),
             path: path.clone(),
         });
         let children = client
-            .list_children(drive_id, &item.id, omit_select)
+            .list_children(graph_drive_id, &item.id, omit_select)
             .await
             .map_err(|e| e.to_string())?;
         stack.extend(
