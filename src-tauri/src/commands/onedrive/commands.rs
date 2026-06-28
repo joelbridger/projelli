@@ -6,6 +6,7 @@ use serde::Serialize;
 use std::collections::BTreeSet;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::commands::mail::graph::{GraphTokenRefresh, GraphTokenRefreshFuture};
 use crate::commands::onedrive::client::OneDriveClient;
 use crate::commands::onedrive::engine::{sync_documents, OneDriveSyncReport};
 use crate::commands::onedrive::model::{
@@ -76,6 +77,16 @@ async fn fresh_access_token() -> Result<String, String> {
         TokenOutcome::Failed(e) => Err(format!("refresh failed: {e}")),
         _ => Err("unexpected refresh outcome".into()),
     }
+}
+
+fn graph_token_refresh() -> GraphTokenRefresh {
+    Arc::new(|| -> GraphTokenRefreshFuture {
+        Box::pin(async {
+            fresh_access_token()
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))
+        })
+    })
 }
 
 #[derive(Serialize, Clone)]
@@ -218,7 +229,7 @@ pub async fn onedrive_disconnect(state: State<'_, OneDriveState>) -> Result<(), 
 #[tauri::command]
 pub async fn onedrive_list_drives() -> Result<Vec<Drive>, String> {
     let token = fresh_access_token().await?;
-    OneDriveClient::new(token)
+    OneDriveClient::new_with_refresh(token, graph_token_refresh())
         .list_drives()
         .await
         .map_err(|e| e.to_string())
@@ -227,7 +238,7 @@ pub async fn onedrive_list_drives() -> Result<Vec<Drive>, String> {
 #[tauri::command]
 pub async fn onedrive_list_folders() -> Result<Vec<OneDriveFolderDto>, String> {
     let token = fresh_access_token().await?;
-    let client = OneDriveClient::new(token);
+    let client = OneDriveClient::new_with_refresh(token, graph_token_refresh());
     let drives = client.list_drives().await.map_err(|e| e.to_string())?;
     let mut out = Vec::new();
     let mut listed_default_drive = false;
@@ -374,6 +385,7 @@ pub async fn onedrive_sync(
         .clone()
         .ok_or("workspace not set")?;
     let token = fresh_access_token().await?;
+    let refresh = graph_token_refresh();
     let store = OneDriveStore::open(&workspace).map_err(|e| e.to_string())?;
     let rag_key =
         crate::commands::rag::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
@@ -399,19 +411,20 @@ pub async fn onedrive_sync(
         }
     });
 
-    let available_drives = OneDriveClient::new(token.clone())
+    let available_drives = OneDriveClient::new_with_refresh(token.clone(), refresh.clone())
         .list_drives()
         .await
         .unwrap_or_default();
     let drive_ids = sync_drive_ids(&matter_map, &available_drives);
     let mut merged_report = OneDriveSyncReport::default();
     let result = if drive_ids.is_empty() {
-        let omit_select = OneDriveClient::new(token.clone())
+        let omit_select = OneDriveClient::new_with_refresh(token.clone(), refresh.clone())
             .default_drive()
             .await
             .map(|drive| is_personal_drive(&drive))
             .unwrap_or(false);
-        let source = GraphDocumentSource::new_for_default_drive(token, omit_select);
+        let source =
+            GraphDocumentSource::new_for_default_drive_with_refresh(token, omit_select, refresh);
         sync_documents(
             &source,
             &store,
@@ -438,7 +451,12 @@ pub async fn onedrive_sync(
                 .find(|drive| drive.id == drive_id)
                 .map(is_personal_drive)
                 .unwrap_or(false);
-            let source = GraphDocumentSource::new_for_drive(token.clone(), drive_id, omit_select);
+            let source = GraphDocumentSource::new_for_drive_with_refresh(
+                token.clone(),
+                drive_id,
+                omit_select,
+                refresh.clone(),
+            );
             match sync_documents(
                 &source,
                 &store,
