@@ -734,9 +734,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
         {/* Right: Upcoming / Activity */}
         <Card variant="raised">
           <div style={{ marginBottom: 8 }}>
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
             <Eyebrow>Upcoming / Activity</Eyebrow>
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
           </div>
 
           <div data-testid="hub-activity" style={{ fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-relaxed)' }}>
@@ -1043,9 +1041,7 @@ export function MatterHub({ matterId, onBack, onAuditLog }: MatterHubProps) {
                   data-testid="hub-clientmap-error"
                   style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
                 >
-                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                   {clientMap.errorMessage ?? 'Could not build client map. Check your AI connection and try again.'}
-                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                 </div>
               )}
 
