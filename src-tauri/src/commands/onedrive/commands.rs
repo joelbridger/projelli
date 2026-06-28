@@ -241,7 +241,13 @@ pub async fn onedrive_list_folders() -> Result<Vec<OneDriveFolderDto>, String> {
                 .list_root_children(None, true)
                 .await
                 .map_err(|e| e.to_string())?;
-            collect_folders(&client, None, &drive.id, true, None, roots, &mut out).await?;
+            let folder_drive_id = client
+                .default_drive()
+                .await
+                .map(|default_drive| default_drive.id)
+                .unwrap_or_else(|_| drive.id.clone());
+            collect_folders(&client, None, &folder_drive_id, true, None, roots, &mut out)
+                .await?;
             continue;
         }
         let roots = client
