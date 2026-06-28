@@ -488,6 +488,22 @@ export function DocumentsHome({
     () => (embedded && scopeFolderPaths && scopeFolderPaths.length > 0 ? scopeFolderPaths[0]! : null),
   );
 
+  // Embedded (per-client): never let the folder target fall back to the GLOBAL
+  // workspace root. Navigating to the scoped root (the "All files" breadcrumb)
+  // sets null, which would make New document / Add files write outside the
+  // client; clamp null to the client's own folder so created/imported files
+  // always land inside the client (matter isolation). Codex P2.
+  const handleSetCurrentFolderPath = useCallback(
+    (p: string | null) => {
+      if (p === null && embedded && scopeFolderPaths && scopeFolderPaths.length > 0) {
+        setCurrentFolderPath(scopeFolderPaths[0]!);
+      } else {
+        setCurrentFolderPath(p);
+      }
+    },
+    [embedded, scopeFolderPaths],
+  );
+
   // ── Add-files / trust-note logic ─────────────────────────────────────────
 
   // BUG-014 — "Add files" now IMPORTS existing files (it previously, wrongly,
@@ -623,7 +639,12 @@ export function DocumentsHome({
             </>
           )}
 
-          {/* 2. Toggles: Files/Trash (always shown) + Tree/Grid (files view only) */}
+          {/* 2. Toggles: Files/Trash + Tree/Grid (files view only). Trash is a
+              GLOBAL, cross-client surface (you could see/restore/permanently-
+              delete other clients' deleted files), so the Files/Trash toggle is
+              hidden in the per-client embedded tab — it shows only this client's
+              live files (matter isolation). */}
+          {!embedded && (
           <div
             className="kp-segmented kp-segmented--md"
             role="group"
@@ -671,6 +692,7 @@ export function DocumentsHome({
               )}
             </button>
           </div>
+          )}
 
           {/* Tree | Grid view toggle — files view only */}
           {activeView === 'files' && (
@@ -759,30 +781,39 @@ export function DocumentsHome({
           onActivate={() => { handleTabActivate(FILES_TAB_ID); }}
         />
 
-        {/* Separator after Files tab when docs are open */}
-        {visibleTabs.length > 0 && (
-          <div
-            style={{
-              width: 1,
-              background: 'var(--color-border)',
-              margin: '8px 2px',
-              flexShrink: 0,
-            }}
-          />
-        )}
+        {/* Document tabs are the GLOBAL editor tabs (one editor across the app),
+            so a foreign client's open file could appear here. In the per-client
+            embedded tab they are hidden entirely — the strip keeps only the
+            pinned "Files" tab (back to the scoped list); navigation is the
+            scoped file tree + opening a scoped file (matter isolation). */}
+        {!embedded && (
+          <>
+            {/* Separator after Files tab when docs are open */}
+            {visibleTabs.length > 0 && (
+              <div
+                style={{
+                  width: 1,
+                  background: 'var(--color-border)',
+                  margin: '8px 2px',
+                  flexShrink: 0,
+                }}
+              />
+            )}
 
-        {/* Document tabs */}
-        {visibleTabs.map((tab) => (
-          <TabChip
-            key={tab.path}
-            label={tab.name}
-            isActive={selectedTab === tab.path}
-            isDirty={tab.isDirty}
-            icon={getTabIcon(tab)}
-            onActivate={() => { handleTabActivate(tab.path); }}
-            onClose={() => { handleTabClose(tab.path); }}
-          />
-        ))}
+            {/* Document tabs */}
+            {visibleTabs.map((tab) => (
+              <TabChip
+                key={tab.path}
+                label={tab.name}
+                isActive={selectedTab === tab.path}
+                isDirty={tab.isDirty}
+                icon={getTabIcon(tab)}
+                onActivate={() => { handleTabActivate(tab.path); }}
+                onClose={() => { handleTabClose(tab.path); }}
+              />
+            ))}
+          </>
+        )}
       </div>
 
       {/* Trust banner — one-time, dismissible */}
@@ -811,7 +842,7 @@ export function DocumentsHome({
             onDelete={onDelete}
             onMove={onMove}
             onDownload={onDownload}
-            activeView={activeView}
+            activeView={embedded ? 'files' : activeView}
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
             trashItems={trashItems}
@@ -821,7 +852,7 @@ export function DocumentsHome({
             onEmptyTrash={onEmptyTrash}
             docsView={docsView}
             currentFolderPath={currentFolderPath}
-            onSetCurrentFolderPath={setCurrentFolderPath}
+            onSetCurrentFolderPath={handleSetCurrentFolderPath}
             {...(scopedFileTree !== undefined ? { scopedFileTree } : {})}
             treeView={
               <FileTree

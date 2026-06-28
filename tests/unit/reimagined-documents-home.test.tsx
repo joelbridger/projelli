@@ -347,6 +347,61 @@ describe('DocumentsHome — file open + editor tab', () => {
     expect(onImportFiles).toHaveBeenLastCalledWith('/workspace/Client B');
   });
 
+  it('embedded mode hides the global Trash toggle (cross-client surface)', () => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    const { rerender } = render(<DocumentsHome {...buildDefaultProps()} />);
+    // Global mode shows the Files/Trash toggle.
+    expect(screen.queryByTestId('docs-trash-toggle')).toBeTruthy();
+    // Embedded (per-client) mode hides it — Trash is a global cross-client view.
+    rerender(
+      <DocumentsHome
+        {...buildDefaultProps()}
+        embedded
+        scopeFolderPaths={['/workspace/Contracts']}
+        scopeMatterId="A"
+      />,
+    );
+    expect(screen.queryByTestId('docs-trash-toggle')).toBeNull();
+    expect(screen.queryByTestId('docs-files-toggle')).toBeNull();
+  });
+
+  it('embedded mode never shows a foreign client\'s open editor tab', () => {
+    // Another client's document is the global active editor tab.
+    mockActiveTabPath = '/workspace/Other Client/secret.docx';
+    mockOpenTabs = [{ path: '/workspace/Other Client/secret.docx', name: 'secret.docx', type: 'file' }];
+    render(
+      <DocumentsHome
+        {...buildDefaultProps()}
+        embedded
+        scopeFolderPaths={['/workspace/Contracts']}
+        scopeMatterId="A"
+      />,
+    );
+    // The foreign tab chip must not be visible/clickable anywhere in the hub.
+    expect(screen.queryByText('secret.docx')).toBeNull();
+    // The pinned "Files" tab (back to the scoped list) stays.
+    expect(screen.getByTestId('documents-tab-strip').textContent).toContain('Files');
+  });
+
+  it('embedded create/import clamps to the client folder at the scoped root (no global write)', () => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    const onImportFiles = vi.fn();
+    render(
+      <DocumentsHome
+        {...buildDefaultProps({ onImportFiles })}
+        embedded
+        scopeFolderPaths={['/workspace/Contracts']}
+      />,
+    );
+    // Navigate to the scoped root via the "All files" breadcrumb (sets null).
+    fireEvent.click(screen.getByTestId('breadcrumb-crumb-0'));
+    // Add files must still target the client folder, never null/global.
+    fireEvent.click(screen.getByTestId('add-files-btn'));
+    expect(onImportFiles).toHaveBeenLastCalledWith('/workspace/Contracts');
+  });
+
   it('clicking "Files" tab from editor view returns to the grid', async () => {
     mockActiveTabPath = '/workspace/Brief.md';
     mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
