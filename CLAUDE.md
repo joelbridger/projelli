@@ -417,6 +417,12 @@ A few Claude Code skills live under `.claude/skills/` (auto-discovered in any se
 
 ---
 
+## Product Journey log
+
+**On a MAJOR product decision or directional change, append a dated, plain-language entry to [`docs/PRODUCT-JOURNEY.md`](docs/PRODUCT-JOURNEY.md)** (see that file's header for what counts as "major" and the exact format). "Major" = a strategic pivot or repositioning, a headline feature milestone shipping, a significant architecture/identity change, a go/no-go or direction call, a major release, or abandoning/replacing a major approach — NOT routine code changes. The `CHANGELOG.md` covers all notable changes; the journey log is the higher-altitude story a non-engineer can follow. The coordinator and product workers keep it current.
+
+---
+
 ## Directory Structure
 
 > **Historical (pre-3.0-reorg) layout — kept for reference only.** The current
