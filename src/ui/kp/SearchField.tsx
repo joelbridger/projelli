@@ -4,7 +4,7 @@ import { Search, X } from 'lucide-react';
 import type { IconType } from './types';
 import { IconButton } from './IconButton';
 
-type SearchSize = 'sm' | 'md';
+type SearchSize = 'sm' | 'md' | 'lg';
 
 export interface SearchFieldProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value' | 'size' | 'className' | 'type'> {
@@ -29,7 +29,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
   return (
     <div className={wrapClasses} style={style}>
       <span className="kp-search__icon">
-        <Icon size={14} strokeWidth={1.75} />
+        <Icon size={size === 'lg' ? 18 : 14} strokeWidth={1.75} />
       </span>
       <input
         ref={ref}

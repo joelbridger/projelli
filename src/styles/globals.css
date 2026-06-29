@@ -270,14 +270,24 @@
   }
   .kp-search--sm { height: var(--kp-control-sm); }
   .kp-search--md { height: var(--kp-control-md); }
+  /* Large composer field — the demo Ask input (brand.css .kpd-ci): 50px tall,
+     1.5px line-strong border, 12px radius, roomy padding, 15.5px text, accent
+     focus ring. */
+  .kp-search--lg {
+    height: 50px; border-radius: 12px; padding: 0 16px; gap: var(--kp-space-sm);
+    border-width: 1.5px; border-color: var(--kp-divider-strong);
+  }
   .kp-search:focus-within { border-color: var(--kp-navy); }
+  .kp-search--lg:focus-within { border-color: var(--kp-accent); box-shadow: 0 0 0 3px var(--kp-accent-soft); }
   .kp-search__icon { color: var(--color-muted-foreground); flex: none; display: inline-flex; }
+  .kp-search--lg .kp-search__icon { color: var(--kp-accent); }
   .kp-search__input {
     flex: 1; min-width: 0; border: none; outline: none; background: transparent;
     font-family: var(--font-sans); color: var(--color-foreground);
   }
   .kp-search--sm .kp-search__input { font-size: var(--kp-font-xs); }
   .kp-search--md .kp-search__input { font-size: var(--kp-font-sm); }
+  .kp-search--lg .kp-search__input { font-size: 15.5px; }
   .kp-search__input::placeholder { color: var(--color-muted-foreground); }
 
   /* ---- SegmentedToggle — the ONE app-wide toggle (Files/Trash, Tree/Grid,
