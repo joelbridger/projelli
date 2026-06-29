@@ -132,17 +132,27 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
     }
   }, [pendingHubTab, setPendingHubTab]);
 
-  // Count sessions belonging to this matter (key starts with `ask-${matterId}`)
+  // Recent questions for THIS matter (sessions keyed `ask-${matterId}`), taking
+  // each session's first user message. De-duplicated (case-insensitive, trimmed)
+  // so the same question asked in two sessions never shows twice in the chip row,
+  // then capped at the first 3 DISTINCT questions.
   const matterSessionPrefix = `ask-${matterId}`;
-  const recentQuestions: string[] = Object.entries(sessions)
-    .filter(([key]) => key.startsWith(matterSessionPrefix))
-    .map(([, session]) => {
-      const msgs = session.messages ?? [];
-      const first = msgs.find((msg) => msg.role === 'user');
-      return first?.content ?? '';
-    })
-    .filter(Boolean)
-    .slice(0, 3);
+  const recentQuestions: string[] = (() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const [key, session] of Object.entries(sessions)) {
+      if (!key.startsWith(matterSessionPrefix)) continue;
+      const first = (session.messages ?? []).find((msg) => msg.role === 'user');
+      const content = first?.content ?? '';
+      const norm = content.trim().toLowerCase();
+      if (!norm) continue; // skip empty AND whitespace-only first messages
+      if (seen.has(norm)) continue;
+      seen.add(norm);
+      out.push(content);
+      if (out.length === 3) break;
+    }
+    return out;
+  })();
 
   // Once a map exists, re-check for new source material. Covers BOTH a populated
   // map ('ready') AND one that was built empty ('empty') — the latter recovers a

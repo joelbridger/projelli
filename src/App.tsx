@@ -1393,6 +1393,16 @@ This file contains rules and guidelines for AI assistants in this workspace.
             if (tab === 'files') {
               setDocumentsView('browser');
             }
+            // Clicking the "Client Map" nav always lands on the clients LIST,
+            // not whichever client hub happened to be open. Closing the hub
+            // (clientMapHubId -> null) is exactly what the hub's "<- Clients"
+            // back button does. The focused client (activeMatterId / Ask scope)
+            // is left untouched. This is a real nav click (the sidebar client
+            // switcher uses a separate matter-launch event), so it never closes
+            // a hub the user just opened.
+            if (tab === 'matters') {
+              useMatterStore.getState().setClientMapHubId(null);
+            }
             setSidebarActiveTab(tab as typeof sidebarActiveTab);
           }}
           collapsed={sidebarCollapsed}
