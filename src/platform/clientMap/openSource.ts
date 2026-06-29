@@ -75,24 +75,38 @@ export function dispatchOpenSource(matterId: string, ref: SourceRef): void {
     window.dispatchEvent(new CustomEvent(OPEN_MEETING_EVENT, { detail: { sourceId: ref.ref } }));
     return;
   }
+  // The new connector panels render detail.snippet as the cited passage, so the
+  // snippet must ride along on the event (not just the opaque sourceId).
   if (ref.kind === 'box') {
-    window.dispatchEvent(new CustomEvent(OPEN_BOX_EVENT, { detail: { sourceId: ref.ref } }));
+    window.dispatchEvent(
+      new CustomEvent(OPEN_BOX_EVENT, { detail: { sourceId: ref.ref, snippet: ref.snippet } }),
+    );
     return;
   }
   if (ref.kind === 'jotform') {
-    window.dispatchEvent(new CustomEvent(OPEN_JOTFORM_EVENT, { detail: { sourceId: ref.ref } }));
+    window.dispatchEvent(
+      new CustomEvent(OPEN_JOTFORM_EVENT, { detail: { sourceId: ref.ref, snippet: ref.snippet } }),
+    );
     return;
   }
   if (ref.kind === 'sharefile') {
-    window.dispatchEvent(new CustomEvent(OPEN_SHAREFILE_EVENT, { detail: { sourceId: ref.ref } }));
+    window.dispatchEvent(
+      new CustomEvent(OPEN_SHAREFILE_EVENT, {
+        detail: { sourceId: ref.ref, snippet: ref.snippet },
+      }),
+    );
     return;
   }
   if (ref.kind === 'zocks') {
-    window.dispatchEvent(new CustomEvent(OPEN_ZOCKS_EVENT, { detail: { sourceId: ref.ref } }));
+    window.dispatchEvent(
+      new CustomEvent(OPEN_ZOCKS_EVENT, { detail: { sourceId: ref.ref, snippet: ref.snippet } }),
+    );
     return;
   }
   if (ref.kind === 'addepar') {
-    window.dispatchEvent(new CustomEvent(OPEN_ADDEPAR_EVENT, { detail: { sourceId: ref.ref } }));
+    window.dispatchEvent(
+      new CustomEvent(OPEN_ADDEPAR_EVENT, { detail: { sourceId: ref.ref, snippet: ref.snippet } }),
+    );
     return;
   }
   const source: MatterLaunchSource = { kind: 'document', ref: ref.ref };
