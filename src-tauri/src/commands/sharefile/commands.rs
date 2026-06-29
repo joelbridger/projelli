@@ -136,21 +136,30 @@ pub async fn sharefile_is_connected() -> Result<bool, String> {
 #[tauri::command]
 pub async fn sharefile_disconnect(state: State<'_, SharefileState>) -> Result<(), String> {
     state.cancel.store(true, Ordering::SeqCst);
-    delete_connection()?;
-    if let Some(ws) = state.workspace.lock().await.clone() {
-        let conn = crate::commands::rag::store::open_connection(&ws)
-            .await
-            .map_err(|e| e.to_string())?;
-        let table = crate::commands::rag::store::open_or_create_table(&conn)
-            .await
-            .map_err(|e| e.to_string())?;
-        crate::commands::rag::store::delete_source_type(&table, "sharefile")
-            .await
-            .map_err(|e| e.to_string())?;
-        SharefileStore::purge(&ws).map_err(|e| e.to_string())?;
-        let _ = SharefileStore::delete_master_key();
-    }
-    Ok(())
+    let ws = state.workspace.lock().await.clone();
+    // Purge imported data FIRST; only delete the credential once the purge
+    // succeeds, so a failed purge can't leave ShareFile chunks searchable behind a
+    // connector that now looks disconnected.
+    crate::commands::connector::purge_then_forget(
+        || async move {
+            if let Some(ws) = ws {
+                let conn = crate::commands::rag::store::open_connection(&ws)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                let table = crate::commands::rag::store::open_or_create_table(&conn)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                crate::commands::rag::store::delete_source_type(&table, "sharefile")
+                    .await
+                    .map_err(|e| e.to_string())?;
+                SharefileStore::purge(&ws).map_err(|e| e.to_string())?;
+                let _ = SharefileStore::delete_master_key();
+            }
+            Ok(())
+        },
+        delete_connection,
+    )
+    .await
 }
 
 #[tauri::command]

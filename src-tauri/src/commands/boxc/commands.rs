@@ -86,24 +86,33 @@ pub async fn box_is_connected() -> Result<bool, String> {
 #[tauri::command]
 pub async fn box_disconnect(state: State<'_, BoxState>) -> Result<(), String> {
     state.cancel.store(true, Ordering::SeqCst);
-    match token_entry()?.delete_credential() {
-        Ok(()) | Err(keyring::Error::NoEntry) => {}
-        Err(e) => return Err(e.to_string()),
-    }
-    if let Some(ws) = state.workspace.lock().await.clone() {
-        let conn = crate::commands::rag::store::open_connection(&ws)
-            .await
-            .map_err(|e| e.to_string())?;
-        let table = crate::commands::rag::store::open_or_create_table(&conn)
-            .await
-            .map_err(|e| e.to_string())?;
-        crate::commands::rag::store::delete_source_type(&table, "box")
-            .await
-            .map_err(|e| e.to_string())?;
-        BoxStore::purge(&ws).map_err(|e| e.to_string())?;
-        let _ = BoxStore::delete_master_key();
-    }
-    Ok(())
+    let ws = state.workspace.lock().await.clone();
+    // Purge imported data FIRST; only delete the token once the purge succeeds, so
+    // a failed purge can never leave Box chunks searchable behind a connector that
+    // now looks disconnected.
+    crate::commands::connector::purge_then_forget(
+        || async move {
+            if let Some(ws) = ws {
+                let conn = crate::commands::rag::store::open_connection(&ws)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                let table = crate::commands::rag::store::open_or_create_table(&conn)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                crate::commands::rag::store::delete_source_type(&table, "box")
+                    .await
+                    .map_err(|e| e.to_string())?;
+                BoxStore::purge(&ws).map_err(|e| e.to_string())?;
+                let _ = BoxStore::delete_master_key();
+            }
+            Ok(())
+        },
+        || match token_entry()?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(e.to_string()),
+        },
+    )
+    .await
 }
 
 #[tauri::command]

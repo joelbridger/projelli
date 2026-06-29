@@ -142,6 +142,14 @@ pub async fn apply_index_with_key(
     apply_index_items(items, move |item| {
         let workspace = workspace.clone();
         Box::pin(async move {
+            #[cfg(test)]
+            {
+                if let Some(result) =
+                    TEST_INDEXER.with(|slot| slot.borrow().as_ref().map(|f| f(item)))
+                {
+                    return result;
+                }
+            }
             crate::commands::connector::index_external_text_with_key_internal(
                 &workspace,
                 &item.source_id,
@@ -223,6 +231,13 @@ pub async fn sync_with_key(
     }
     report.records_indexed = apply_index_with_key(workspace, &items, rag_key).await?;
 
+    // Re-check AFTER indexing: Stop may have fired during apply_index_with_key.
+    // A cancelled run must not prune.
+    if cancel.load(Ordering::SeqCst) {
+        report.cancelled = true;
+        return Ok(report);
+    }
+
     // Prune households that vanished from Addepar entirely (no longer returned by
     // list_entities, so never added to `seen`). This only runs after a successful,
     // non-cancelled full list (a fetch error would have returned early above), so
@@ -239,6 +254,36 @@ pub async fn sync_with_key(
         }
     }
     Ok(report)
+}
+
+// Test seam: lets a test replace the per-item indexer (e.g. to flip the cancel
+// flag mid-indexing) without the embedding model. THREAD-LOCAL so a seam set by
+// one test never bleeds into a real-indexing test running on another thread
+// (#[tokio::test] uses a current-thread runtime, so the indexing future runs on
+// the same thread that set the seam).
+#[cfg(test)]
+type TestIndexer = Box<dyn Fn(&AddeparIndexItem) -> anyhow::Result<u32> + Send + Sync>;
+
+#[cfg(test)]
+thread_local! {
+    static TEST_INDEXER: std::cell::RefCell<Option<TestIndexer>> =
+        std::cell::RefCell::new(None);
+}
+
+#[cfg(test)]
+struct TestIndexerGuard;
+
+#[cfg(test)]
+impl Drop for TestIndexerGuard {
+    fn drop(&mut self) {
+        TEST_INDEXER.with(|slot| *slot.borrow_mut() = None);
+    }
+}
+
+#[cfg(test)]
+fn set_test_indexer(indexer: TestIndexer) -> TestIndexerGuard {
+    TEST_INDEXER.with(|slot| *slot.borrow_mut() = Some(indexer));
+    TestIndexerGuard
 }
 
 #[cfg(test)]
@@ -524,6 +569,57 @@ mod tests {
         assert_eq!(report.records_indexed, 0);
         assert_eq!(report.pruned, 0);
         // 222's chunks survive: a cancelled run must not prune.
+        assert!(addepar_chunk_exists(workspace.path(), "matter-beta").await);
+    }
+
+    #[tokio::test]
+    async fn cancel_during_indexing_does_not_prune() {
+        // Guard timing: if Stop fires DURING indexing (after the pre-index check),
+        // the post-index re-check must skip the prune so a vanished household's
+        // chunks are not deleted on a cancelled run.
+        if !model_is_provisioned() {
+            eprintln!("SKIP addepar cancel-during-indexing test: model not provisioned");
+            return;
+        }
+        let workspace = tempfile::TempDir::new().unwrap();
+        let rag_key = [0x74u8; 32];
+
+        // Seed a REAL chunk for household 222 that the prune WOULD delete.
+        crate::commands::connector::index_external_text_with_key_internal(
+            workspace.path(),
+            "addepar:222",
+            "Beta House portfolio summary and holdings.",
+            "matter-beta",
+            "addepar",
+            &rag_key,
+        )
+        .await
+        .unwrap();
+        assert!(addepar_chunk_exists(workspace.path(), "matter-beta").await);
+
+        // Sync where only 111 is mapped/listed (222 has vanished). The test
+        // indexer flips cancel while indexing 111, simulating Stop pressed during
+        // apply_index_with_key — after the pre-index check has already passed.
+        let cancel = std::sync::Arc::new(AtomicBool::new(false));
+        let cancel_for_indexer = cancel.clone();
+        let _guard = set_test_indexer(Box::new(move |_item| {
+            cancel_for_indexer.store(true, Ordering::SeqCst);
+            Ok(1)
+        }));
+        let source = FakeAddeparSource {
+            entities: vec![entity("111", "Alpha House")],
+        };
+        let map = vec![AddeparMatterMapEntry {
+            addepar_key: "111".into(),
+            matter_id: "matter-alpha".into(),
+        }];
+        let report = sync_with_key(&source, workspace.path(), &map, &cancel, &rag_key)
+            .await
+            .unwrap();
+
+        assert!(report.cancelled);
+        assert_eq!(report.pruned, 0);
+        // 222's chunk survives because the cancelled run skipped pruning.
         assert!(addepar_chunk_exists(workspace.path(), "matter-beta").await);
     }
 }

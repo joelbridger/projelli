@@ -199,6 +199,22 @@ pub fn assert_same_origin(base: &str, candidate: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Disconnect ordering guard: run `purge` FIRST and only run `forget_credential`
+/// if the purge SUCCEEDS. This keeps a connector's credential (so it still shows
+/// as connected and can be retried) when the data purge fails, instead of
+/// deleting the credential first and leaving imported chunks searchable behind a
+/// connector that now looks disconnected.
+#[allow(dead_code)]
+pub async fn purge_then_forget<P, Fut, D>(purge: P, forget_credential: D) -> Result<(), String>
+where
+    P: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<(), String>>,
+    D: FnOnce() -> Result<(), String>,
+{
+    purge().await?;
+    forget_credential()
+}
+
 /// Cap on concurrent external connector RAG indexing tasks.
 #[allow(dead_code)]
 static EXTERNAL_INDEX_SEMAPHORE: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
@@ -262,6 +278,43 @@ mod tests {
         ] {
             assert!(!is_valid_hostname(h), "{h:?} must be rejected");
         }
+    }
+
+    #[tokio::test]
+    async fn purge_then_forget_keeps_credential_when_purge_fails() {
+        // The credential must survive a failed purge, so a connector never looks
+        // disconnected while its imported chunks remain searchable.
+        let forgot = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let f = forgot.clone();
+        let res = purge_then_forget(
+            || async { Err::<(), String>("purge failed".to_string()) },
+            || {
+                f.store(true, std::sync::atomic::Ordering::SeqCst);
+                Ok(())
+            },
+        )
+        .await;
+        assert!(res.is_err());
+        assert!(
+            !forgot.load(std::sync::atomic::Ordering::SeqCst),
+            "credential must NOT be forgotten when the purge fails"
+        );
+    }
+
+    #[tokio::test]
+    async fn purge_then_forget_forgets_credential_when_purge_succeeds() {
+        let forgot = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let f = forgot.clone();
+        let res = purge_then_forget(
+            || async { Ok::<(), String>(()) },
+            || {
+                f.store(true, std::sync::atomic::Ordering::SeqCst);
+                Ok(())
+            },
+        )
+        .await;
+        assert!(res.is_ok());
+        assert!(forgot.load(std::sync::atomic::Ordering::SeqCst));
     }
 
     #[test]

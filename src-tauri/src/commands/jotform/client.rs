@@ -17,6 +17,9 @@ const BASE_URL: &str = "https://api.jotform.com";
 const PAGE_LIMIT: u32 = 100;
 const MAX_429_RETRIES: u32 = 6;
 const MAX_RETRY_AFTER_SECS: u64 = 120;
+/// Safety cap on form-list pagination (PAGE_LIMIT forms per page). Far above any
+/// real account; prevents an unbounded loop if the API never returns a short page.
+const MAX_FORM_PAGES: u32 = 1000;
 
 pub trait JotformReadOnlyApi {
     const WRITE_CAPABILITY: bool = false;
@@ -58,8 +61,36 @@ impl JotformClient {
     }
 
     pub async fn list_forms(&self) -> anyhow::Result<Vec<JotformForm>> {
-        let resp: JotformFormsResponse = self.get_json("/user/forms", &[]).await?;
-        Ok(resp.content)
+        // Paginate the FULL form list. If we only read the first page, a larger
+        // account's later-page forms would be invisible to a sync, and the
+        // stale-prune pass would then treat their submissions as "vanished" and
+        // delete them (silent data loss). Fetching every page keeps the prune's
+        // "complete scan" assumption true.
+        let mut out = Vec::new();
+        let mut offset = 0u32;
+        let mut pages = 0u32;
+        loop {
+            pages += 1;
+            if pages > MAX_FORM_PAGES {
+                anyhow::bail!("Jotform form pagination exceeded the safety limit");
+            }
+            let resp: JotformFormsResponse = self
+                .get_json(
+                    "/user/forms",
+                    &[
+                        ("limit", PAGE_LIMIT.to_string()),
+                        ("offset", offset.to_string()),
+                    ],
+                )
+                .await?;
+            let page_len = resp.content.len() as u32;
+            out.extend(resp.content);
+            if page_len < PAGE_LIMIT {
+                break;
+            }
+            offset += PAGE_LIMIT;
+        }
+        Ok(out)
     }
 
     pub async fn list_form_submissions(
@@ -153,5 +184,46 @@ mod tests {
             let needle = format!("{prefix}{suffix}");
             assert!(!source.contains(&needle), "found write method {needle}");
         }
+    }
+
+    #[tokio::test]
+    async fn list_forms_paginates_every_page() {
+        // P1: a larger account's forms span multiple /user/forms pages. list_forms
+        // must fetch them ALL, or a sync would miss later-page forms and the
+        // stale-prune pass would delete their submissions as "vanished".
+        use wiremock::matchers::{method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // Page 1: a FULL page (PAGE_LIMIT forms) signals "there may be more".
+        let page1: Vec<_> = (0..PAGE_LIMIT)
+            .map(|i| serde_json::json!({ "id": format!("f{i}"), "title": format!("Form {i}") }))
+            .collect();
+        Mock::given(method("GET"))
+            .and(path("/user/forms"))
+            .and(query_param("offset", "0"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "content": page1 })),
+            )
+            .mount(&server)
+            .await;
+        // Page 2: a SHORT page ends pagination.
+        let page2: Vec<_> = (PAGE_LIMIT..PAGE_LIMIT + 5)
+            .map(|i| serde_json::json!({ "id": format!("f{i}"), "title": format!("Form {i}") }))
+            .collect();
+        Mock::given(method("GET"))
+            .and(path("/user/forms"))
+            .and(query_param("offset", PAGE_LIMIT.to_string()))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "content": page2 })),
+            )
+            .mount(&server)
+            .await;
+
+        let client = JotformClient::new_with_base("k".into(), server.uri());
+        let forms = client.list_forms().await.unwrap();
+        assert_eq!(forms.len() as u32, PAGE_LIMIT + 5);
+        assert_eq!(forms.first().unwrap().form_id, "f0");
+        assert_eq!(forms.last().unwrap().form_id, format!("f{}", PAGE_LIMIT + 4));
     }
 }
