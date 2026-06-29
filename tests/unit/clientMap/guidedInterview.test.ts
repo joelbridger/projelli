@@ -12,8 +12,8 @@ beforeEach(() => {
     know: [],
     assuming: [],
     ask: [
-      { text: 'What is the trial date?', sectionKey: 'upcoming' },
-      { text: 'Who is the adjuster?', sectionKey: 'people' },
+      { text: 'What is the trial date?', sectionKey: 'followups' },
+      { text: 'Who is the adjuster?', sectionKey: 'household' },
     ],
   };
   useClientMapStore.setState({ maps: { m1: m }, clientQuestions: {} } as never);
@@ -23,8 +23,8 @@ describe('guidedInterview', () => {
   it('lists the gap questions with their target section', () => {
     const map = useClientMapStore.getState().getMap('m1')!;
     expect(interviewQuestions(map)).toEqual([
-      { text: 'What is the trial date?', sectionKey: 'upcoming' },
-      { text: 'Who is the adjuster?', sectionKey: 'people' },
+      { text: 'What is the trial date?', sectionKey: 'followups' },
+      { text: 'Who is the adjuster?', sectionKey: 'household' },
     ]);
   });
 
@@ -37,18 +37,18 @@ describe('guidedInterview', () => {
   });
 
   it('answering creates a sovereign (user-origin) item in the named section', () => {
-    answerQuestion('m1', 'upcoming', 'Trial is set for March 3');
-    const item = useClientMapStore.getState().getMap('m1')!.sections.find((s) => s.key === 'upcoming')!.items[0];
+    answerQuestion('m1', 'followups', 'Trial is set for March 3');
+    const item = useClientMapStore.getState().getMap('m1')!.sections.find((s) => s.key === 'followups')!.items[0]!;
     expect(item.text).toBe('Trial is set for March 3');
     expect(item.origin).toBe('user');
   });
 
-  it('routes an answer to the gap question target section (not always standing)', () => {
+  it('routes an answer to the gap question target section (not always money)', () => {
     const map = useClientMapStore.getState().getMap('m1')!;
-    const peopleGap: GapQuestion = interviewQuestions(map).find((q) => q.sectionKey === 'people')!;
+    const peopleGap: GapQuestion = interviewQuestions(map).find((q) => q.sectionKey === 'household')!;
     answerQuestion('m1', peopleGap.sectionKey, 'The adjuster is Pat Lee');
-    const people = useClientMapStore.getState().getMap('m1')!.sections.find((s) => s.key === 'people')!;
-    const standing = useClientMapStore.getState().getMap('m1')!.sections.find((s) => s.key === 'standing')!;
+    const people = useClientMapStore.getState().getMap('m1')!.sections.find((s) => s.key === 'household')!;
+    const standing = useClientMapStore.getState().getMap('m1')!.sections.find((s) => s.key === 'money')!;
     expect(people.items.map((i) => i.text)).toContain('The adjuster is Pat Lee');
     expect(standing.items.map((i) => i.text)).not.toContain('The adjuster is Pat Lee');
   });

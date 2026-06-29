@@ -7,7 +7,7 @@ import { emptyClientMap } from '@/platform/clientMap/types';
 
 beforeEach(() => {
   const m = emptyClientMap('m1');
-  m.completeness = { level: 'thin', know: [], assuming: [], ask: [{ text: 'What is the trial date?', sectionKey: 'upcoming' }] };
+  m.completeness = { level: 'thin', know: [], assuming: [], ask: [{ text: 'What is the trial date?', sectionKey: 'followups' }] };
   useClientMapStore.setState({ maps: { m1: m }, clientQuestions: {} } as never);
 });
 

@@ -150,13 +150,14 @@ import {
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
 import type { AuditEntry } from '@/platform/types/audit';
+import type { RagHit } from '@/platform/utils/tauri-commands';
 
 const mockRetrieve = vi.mocked(MemoryService.retrieve);
 const mockIsMemoryEnabled = vi.mocked(isMemoryEnabled);
 const mockBuildContext = vi.mocked(buildWorkspaceContextBlock);
 
 // Fake hits
-const fakeHits = [
+const fakeHits: RagHit[] = [
   {
     path: 'Lease_Agreement.docx',
     chunkText: 'The tenant disputes habitability.',
@@ -364,10 +365,10 @@ describe('matter hub at-a-glance display helpers', () => {
       matterId: 'matter_test_123',
       sections: [
         {
-          id: 'upcoming',
+          id: 'followups',
           kind: 'core' as const,
-          key: 'upcoming',
-          title: "What's coming",
+          key: 'followups',
+          title: 'Follow-ups',
           items: [
             {
               id: 'u1',

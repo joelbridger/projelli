@@ -66,7 +66,7 @@ describe('useClientMap', () => {
     const freshMap = { ...emptyClientMap('m2'), lastBuiltAt: '2026-01-02T00:00:00.000Z' };
     buildMock.mockResolvedValue(freshMap);
     const mockProposals: ProposedUpdate[] = [
-      { id: 'proposal-1', sectionKey: 'story', op: 'add', reason: 'New doc', createdAt: new Date().toISOString(),
+      { id: 'proposal-1', sectionKey: 'goals', op: 'add', reason: 'New doc', createdAt: new Date().toISOString(),
         draft: { id: 'new-item', text: 'New info', origin: 'ai', isAssumption: false, sources: [], updatedAt: new Date().toISOString() } },
     ];
     proposeUpdatesMock.mockReturnValue(mockProposals);

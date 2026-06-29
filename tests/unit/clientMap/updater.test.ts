@@ -51,9 +51,9 @@ describe('updater', () => {
 
   it('proposes adds for new facts only and never touches user-origin items', () => {
     const current: ClientMap = { ...emptyClientMap('m1') };
-    current.sections[2].items = [it1('Existing issue'), it1('My own note', 'user')];
+    current.sections[2]!.items = [it1('Existing issue'), it1('My own note', 'user')];
     const built: ClientMap = { ...emptyClientMap('m1') };
-    built.sections[2].items = [it1('Existing issue'), it1('A brand new issue'), it1('My own note')];
+    built.sections[2]!.items = [it1('Existing issue'), it1('A brand new issue'), it1('My own note')];
     const updates = proposeUpdates('m1', current, built);
     expect(updates.every((u) => u.op === 'add')).toBe(true);
     expect(updates.map((u) => u.draft?.text)).toContain('A brand new issue');
@@ -63,9 +63,9 @@ describe('updater', () => {
 
   it('suppresses reworded near-duplicate proposals against existing section items', () => {
     const current: ClientMap = { ...emptyClientMap('m1') };
-    current.sections[2].items = [it1('Robert holds a Schwab IRA for retirement income.')];
+    current.sections[2]!.items = [it1('Robert holds a Schwab IRA for retirement income.')];
     const built: ClientMap = { ...emptyClientMap('m1') };
-    built.sections[2].items = [
+    built.sections[2]!.items = [
       it1("Robert's Schwab IRA supports retirement income."),
       it1('Susan expects to retire in 2032.'),
     ];
@@ -77,9 +77,9 @@ describe('updater', () => {
 
   it('caps proposed additions to the open space in a section', () => {
     const current: ClientMap = { ...emptyClientMap('m1') };
-    current.sections[2].items = [it1('Existing insurance review is complete.'), it1('Existing cash flow note is confirmed.')];
+    current.sections[2]!.items = [it1('Existing insurance review is complete.'), it1('Existing cash flow note is confirmed.')];
     const built: ClientMap = { ...emptyClientMap('m1') };
-    built.sections[2].items = distinctFacts.map((fact) => it1(fact));
+    built.sections[2]!.items = distinctFacts.map((fact) => it1(fact));
 
     const updates = proposeUpdates('m1', current, built);
 
@@ -101,7 +101,7 @@ describe('updater', () => {
     const current: ClientMap = { ...emptyClientMap('m1') };
     const safeAdd = {
       id: 'safe',
-      sectionKey: 'standing',
+      sectionKey: 'money',
       op: 'add' as const,
       draft: it1('A sourced new fact'),
       reason: 'new source',
@@ -109,7 +109,7 @@ describe('updater', () => {
     };
     const unsourcedAdd = {
       id: 'unsourced',
-      sectionKey: 'next',
+      sectionKey: 'followups',
       op: 'add' as const,
       draft: { ...it1('Needs review'), sources: [] },
       reason: 'no source',
@@ -117,7 +117,7 @@ describe('updater', () => {
     };
     const change = {
       id: 'change',
-      sectionKey: 'standing',
+      sectionKey: 'money',
       op: 'change' as const,
       itemId: 'existing',
       draft: it1('Changed fact'),
@@ -130,17 +130,17 @@ describe('updater', () => {
       pendingUpdates: [safeAdd, unsourcedAdd, change],
     });
 
-    expect(applied.sections.find((s) => s.key === 'standing')!.items.map((i) => i.text))
+    expect(applied.sections.find((s) => s.key === 'money')!.items.map((i) => i.text))
       .toContain('A sourced new fact');
     expect(applied.pendingUpdates.map((u) => u.id)).toEqual(['unsourced', 'change']);
   });
 
   it('does not auto-apply a near-duplicate add or grow past the section cap', () => {
     const current: ClientMap = { ...emptyClientMap('m1') };
-    current.sections[2].items = [it1('Robert holds a Schwab IRA for retirement income.')];
+    current.sections[2]!.items = [it1('Robert holds a Schwab IRA for retirement income.')];
     const nearDuplicate = {
       id: 'near-duplicate',
-      sectionKey: 'standing',
+      sectionKey: 'money',
       op: 'add' as const,
       draft: it1("Robert's Schwab IRA supports retirement income."),
       reason: 'same fact',
@@ -148,15 +148,15 @@ describe('updater', () => {
     };
 
     const deduped = autoApplySafeAddUpdates({ ...current, pendingUpdates: [nearDuplicate] });
-    expect(deduped.sections[2].items.map((item) => item.text))
+    expect(deduped.sections[2]!.items.map((item) => item.text))
       .toEqual(['Robert holds a Schwab IRA for retirement income.']);
     expect(deduped.pendingUpdates.map((update) => update.id)).toEqual(['near-duplicate']);
 
     const capped: ClientMap = { ...emptyClientMap('m1') };
-    capped.sections[2].items = Array.from({ length: CLIENT_MAP_SECTION_ITEM_CAP }, (_, index) => it1(`Existing cap marker ${String(index)}`));
+    capped.sections[2]!.items = Array.from({ length: CLIENT_MAP_SECTION_ITEM_CAP }, (_, index) => it1(`Existing cap marker ${String(index)}`));
     const overflow = {
       id: 'overflow',
-      sectionKey: 'standing',
+      sectionKey: 'money',
       op: 'add' as const,
       draft: it1('New overflow item with a strong source'),
       reason: 'cap',
@@ -164,7 +164,7 @@ describe('updater', () => {
     };
 
     const afterCap = autoApplySafeAddUpdates({ ...capped, pendingUpdates: [overflow] });
-    expect(afterCap.sections[2].items).toHaveLength(CLIENT_MAP_SECTION_ITEM_CAP);
+    expect(afterCap.sections[2]!.items).toHaveLength(CLIENT_MAP_SECTION_ITEM_CAP);
     expect(afterCap.pendingUpdates.map((update) => update.id)).toEqual(['overflow']);
   });
 });

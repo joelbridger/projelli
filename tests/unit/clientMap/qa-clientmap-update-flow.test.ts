@@ -48,7 +48,7 @@ describe('Client Map — confirmed-working guarantees (KEEPANCE 5)', () => {
     const store = useClientMapStore.getState();
     store.setMap('matter-A', { ...emptyClientMap('matter-A'), lastBuiltAt: 't' });
     store.setMap('matter-B', { ...emptyClientMap('matter-B'), lastBuiltAt: 't' });
-    store.addUserItem('matter-A', 'standing', 'A-only secret detail');
+    store.addUserItem('matter-A', 'money', 'A-only secret detail');
 
     const a = useClientMapStore.getState().getMap('matter-A');
     const b = useClientMapStore.getState().getMap('matter-B');
@@ -66,7 +66,7 @@ describe('Client Map — confirmed-working guarantees (KEEPANCE 5)', () => {
       { id: 'u1', text: 'My own note', origin: 'user', isAssumption: false, sources: [], updatedAt: 't' },
     ];
     map.pendingUpdates = [
-      { id: 'p1', sectionKey: 'standing', op: 'remove', itemId: 'u1', reason: 'AI thinks it is stale', createdAt: 't' },
+      { id: 'p1', sectionKey: 'money', op: 'remove', itemId: 'u1', reason: 'AI thinks it is stale', createdAt: 't' },
     ];
     store.setMap('m1', map);
 
@@ -246,7 +246,7 @@ describe('Client Map — regression tests for fixed bugs (KEEPANCE 5)', () => {
   // interviewQuestions prunes it. Re-opening the interview no longer asks it.
   it('BUG-106: an answered gap question drops out of the interview list', () => {
     const map = emptyClientMap('m1');
-    map.completeness.ask = [{ text: 'When did the client first contact opposing counsel?', sectionKey: 'standing' }];
+    map.completeness.ask = [{ text: 'When did the client first contact opposing counsel?', sectionKey: 'money' }];
     useClientMapStore.getState().setMap('m1', map);
 
     // Before answering, the interview asks it.
@@ -254,7 +254,7 @@ describe('Client Map — regression tests for fixed bugs (KEEPANCE 5)', () => {
       .toContain('When did the client first contact opposing counsel?');
 
     // User answers it through the interview (files a user-origin item + marks the gap resolved).
-    answerQuestion('m1', 'standing', 'They first contacted opposing counsel in March.', 'When did the client first contact opposing counsel?');
+    answerQuestion('m1', 'money', 'They first contacted opposing counsel in March.', 'When did the client first contact opposing counsel?');
 
     const stillAsked = interviewQuestions(useClientMapStore.getState().getMap('m1')!).map((g) => g.text);
     // The answered gap no longer appears.
