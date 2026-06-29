@@ -144,8 +144,8 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
       if (!key.startsWith(matterSessionPrefix)) continue;
       const first = (session.messages ?? []).find((msg) => msg.role === 'user');
       const content = first?.content ?? '';
-      if (!content) continue;
       const norm = content.trim().toLowerCase();
+      if (!norm) continue; // skip empty AND whitespace-only first messages
       if (seen.has(norm)) continue;
       seen.add(norm);
       out.push(content);

@@ -150,9 +150,34 @@ describe('scopeFileTreeToFolders', () => {
       ]);
     });
 
-    it('demonstrates the bug: WITHOUT workspaceRoot the abs↔rel mismatch yields empty', () => {
-      const out = scopeFileTreeToFolders(relTree, [absFolder]);
-      expect(out).toEqual([]); // the pre-fix behavior — proves root is what saves it
+    // A matter mapped to the workspace ROOT (the onboarding SAMPLE matter is
+    // created with folderPaths: [workspaceRoot]) must LIST its files, not show an
+    // empty tab. Asserts the FIXED behavior (Codex review P2 regression guard).
+    it('root-mapped scope (folderPaths=[workspaceRoot]) lists ALL files, not empty', () => {
+      const out = scopeFileTreeToFolders(relTree, [ROOT], undefined, undefined, ROOT);
+      expect(out).toHaveLength(2); // whole tree in scope: both top-level branches
+      expect(out.map((n) => n.path)).toEqual(expect.arrayContaining(['Clients', '_Firm']));
+      const clients = out.find((n) => n.path === 'Clients')!;
+      // Caldwell's folder + her files are listed (was [] before the root-scope fix).
+      expect(clients.children?.map((c) => c.path)).toContain('Clients/Caldwell, Jennifer');
+      const caldwell = clients.children!.find((c) => c.path === 'Clients/Caldwell, Jennifer')!;
+      expect(caldwell.children?.map((c) => c.path)).toContain('Clients/Caldwell, Jennifer/Plan.pdf');
+    });
+
+    it('root-mapped scope still drops a nested foreign-client folder (isolation holds)', () => {
+      // Sample matter mapped to the root; a real client (caldwell) owns a subfolder.
+      const matters = [
+        matter('sample', [ROOT]),
+        matter('caldwell', [`${ROOT}/Clients/Caldwell, Jennifer`]),
+      ];
+      const out = scopeFileTreeToFolders(relTree, [ROOT], matters, 'sample', ROOT);
+      const flat: string[] = [];
+      (function rec(ns: FileNode[]) { for (const n of ns) { flat.push(n.path); if (n.children) rec(n.children); } })(out);
+      // The root-scoped sample matter sees everything it owns...
+      expect(flat).toContain('_Firm/policy.pdf');
+      expect(flat).toContain('Clients/Diaz, Michelle/x.pdf');
+      // ...but NOT caldwell's folder, which a more-specific matter owns.
+      expect(flat).not.toContain('Clients/Caldwell, Jennifer');
     });
 
     it('also works when the tree node paths are themselves absolute', () => {
