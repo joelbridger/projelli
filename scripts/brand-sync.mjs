@@ -120,6 +120,35 @@ const NAV_LINK_RE = /^([ \t]*)(<link\b[^>]*keepance-nav\.v2\.css[^>]*>)/im;
 const BRAND_CSS_LINK_RE = /<link\b[^>]*href=["']\/styles\/brand\.css["'][^>]*>/i;
 const stripHtmlComments = (s) => s.replace(/<!--[\s\S]*?-->/g, '');
 
+// Strip Rust // line and /* */ block comments (good enough for substring scans;
+// keychain service literals never contain comment markers).
+const stripRustComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+// Remove `#[cfg(test)] mod … { … }` blocks so a stale service string lingering in
+// a unit-test module can't mask a real change at the definition site. Brace match
+// is double-quote-aware so `"{}"` etc. inside test code don't throw off depth.
+function stripRustTestModules(src) {
+  let out = '', i = 0;
+  for (;;) {
+    const idx = src.indexOf('#[cfg(test)]', i);
+    if (idx === -1) { out += src.slice(i); break; }
+    const open = src.indexOf('{', idx);
+    // Only treat it as a test MODULE (the common container) — leave other cfg(test) items alone.
+    if (open === -1 || !/\bmod\b/.test(src.slice(idx, open))) { out += src.slice(i, idx + 12); i = idx + 12; continue; }
+    out += src.slice(i, idx);
+    let depth = 0, k = open, inStr = false, esc = false;
+    for (; k < src.length; k++) {
+      const c = src[k];
+      if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; }
+      else if (c === '"') inStr = true;
+      else if (c === '{') depth++;
+      else if (c === '}') { depth--; if (depth === 0) { k++; break; } }
+    }
+    i = k;
+  }
+  return out;
+}
+
 const ASSET_COPIES = [
   ['faviconSvg', 'public/favicon.svg'],
   ['faviconSvg', 'website/favicon.svg'],
@@ -158,9 +187,30 @@ export function detectLockedDrift(root, locked = {}) {
   const kcRoot = path.join(root, 'src-tauri', 'src');
   const services = locked.keychainServices || [];
   if (fs.existsSync(kcRoot) && services.length) {
-    const allRs = walk(kcRoot, (f) => f.endsWith('.rs')).map((f) => fs.readFileSync(f, 'utf8')).join('\n');
-    const missing = services.filter((s) => !allRs.includes(s));
-    if (missing.length) drift.push(`keychain service name(s) missing from src-tauri/src: ${missing.join(', ')} — load-bearing (orphans saved keys/tokens if changed)`);
+    // Scan only REAL code: drop test files, then strip comments + #[cfg(test)]
+    // modules. Then require each service to appear in a DEFINITION/GENERATOR
+    // context — a string literal preceded by `=` (const/static/let) or `(`
+    // (format!/Entry::new/…). This deliberately ignores the central allowlist
+    // array (bare `"svc",` elements aren't preceded by `=`/`(`), comments, and
+    // tests — so a genuine change at the call site fails even if a stale copy
+    // lingers in the allowlist/a comment/a test.
+    const isTestFile = (f) => { const p = f.replace(/\\/g, '/'); return /\/tests?\//.test(p) || /(^|\/)(test|tests)\.rs$/.test(p) || /_tests?\.rs$/.test(p); };
+    const realCode = walk(kcRoot, (f) => f.endsWith('.rs'))
+      .filter((f) => !isTestFile(f))
+      .map((f) => stripRustTestModules(stripRustComments(fs.readFileSync(f, 'utf8'))))
+      .join('\n');
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const missing = services.filter((s) => {
+      // A service ending in `.` or `-` is a PREFIX (used like `"<prefix>{id}"`),
+      // so allow continuation. A full service must match the EXACT literal
+      // (closing quote right after) — otherwise renaming `x` → `x-v2` would
+      // sneak through because the old value is a prefix of the new one.
+      const re = /[.-]$/.test(s)
+        ? new RegExp(`[=(]\\s*"[^"]*${esc(s)}`)
+        : new RegExp(`[=(]\\s*"${esc(s)}"`);
+      return !re.test(realCode);
+    });
+    if (missing.length) drift.push(`keychain service name(s) not found at a real definition/use site in src-tauri/src (only in comments/tests/allowlist, if anywhere): ${missing.join(', ')} — load-bearing (a change here orphans saved keys/tokens)`);
     else ok.push('keychain service names intact');
   }
   return { ok, drift };
