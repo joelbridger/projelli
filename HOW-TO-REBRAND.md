@@ -150,6 +150,8 @@ variable), the social PNG cards (those are images, so they always need a designe
 and two shadcn tokens — `--color-primary` and `--color-ring` in
 `src/styles/globals.css` — which are a near-navy `hsl()` the design system reads as
 a literal at build time (so they can't be a CSS variable); on a *colour* rebrand,
-update those two lines to the new primary by hand. None of these block a rebrand;
+update all **four** declarations by hand to the new primary — `--color-primary`
+and `--color-ring` in the light `@theme` block, and the same two again inside the
+`.dark` block. None of these block a rebrand;
 the name swap covers the text, and the colours there are secondary to the four
 primitives that drive the rest of the app.

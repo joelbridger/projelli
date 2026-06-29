@@ -110,6 +110,10 @@ const col = cfg.colors;
 // drift check, so `brand:check` fails if a shipped asset is stale vs brand/assets.
 // Matches a <link> to the shared nav stylesheet (which references the brand vars).
 const NAV_LINK_RE = /^([ \t]*)(<link\b[^>]*keepance-nav\.v2\.css[^>]*>)/im;
+// Matches an ACTUAL enabled <link> to brand.css (not a bare substring, so a
+// commented-out link doesn't count). Test it against comment-stripped HTML.
+const BRAND_CSS_LINK_RE = /<link\b[^>]*href=["']\/styles\/brand\.css["'][^>]*>/i;
+const stripHtmlComments = (s) => s.replace(/<!--[\s\S]*?-->/g, '');
 
 const ASSET_COPIES = [
   ['faviconSvg', 'public/favicon.svg'],
@@ -275,7 +279,7 @@ function runCheck() {
   }
   // every shared-nav page must link brand.css (so the nav's brand vars are defined)
   const navPagesMissing = walk(path.join(ROOT, 'website'), (f) => f.endsWith('.html'))
-    .filter((f) => { const t = read(f); return NAV_LINK_RE.test(t) && !/styles\/brand\.css/.test(t); });
+    .filter((f) => { const v = stripHtmlComments(read(f)); return NAV_LINK_RE.test(v) && !BRAND_CSS_LINK_RE.test(v); });
   if (navPagesMissing.length) drift.push(`${navPagesMissing.length} shared-nav page(s) don't link brand.css (run brand:sync): ${navPagesMissing.slice(0, 3).map(rel).join(', ')}${navPagesMissing.length > 3 ? ', …' : ''}`);
   else skip('all shared-nav pages link brand.css');
   if (drift.length) {
@@ -360,8 +364,9 @@ function linkWebsiteBrandCss() {
   let linked = 0, already = 0;
   for (const f of pages) {
     const text = read(f);
-    if (!NAV_LINK_RE.test(text)) continue; // page doesn't use the shared nav
-    if (/styles\/brand\.css/.test(text)) { already++; continue; }
+    const visible = stripHtmlComments(text);
+    if (!NAV_LINK_RE.test(visible)) continue; // page doesn't use the shared nav
+    if (BRAND_CSS_LINK_RE.test(visible)) { already++; continue; } // already has a real brand.css link
     const next = text.replace(NAV_LINK_RE, (_m, indent, navLink) =>
       `${indent}<link rel="stylesheet" href="/styles/brand.css" />\n${indent}${navLink}`);
     write(f, next);
