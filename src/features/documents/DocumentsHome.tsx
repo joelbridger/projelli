@@ -28,17 +28,19 @@
  * No Tailwind on layout elements — all styling via inline styles + CSS vars.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { FolderOpen, FolderTree, FileText, X, Plus, Upload, ListTree, LayoutGrid } from 'lucide-react';
 import { IconButton, Callout, Button, SearchField, SurfaceToolbar } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import { getFileIcon } from '@/platform/utils/fileIcons';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';
 import { FileTree } from '@/features/documents/workspace/FileTree';
+import { scopeFileTreeToFolders } from './scopeFileTree';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -114,6 +116,26 @@ export interface DocumentsHomeProps {
   onCreateTextFileAtRoot?: () => void;
   onCreateFolderAtRoot?: () => void;
   onSetLetterheadTemplate?: (path: string) => void;
+  /**
+   * Embedded mode — the per-client Documents sub-tab inside the Client Map hub.
+   * Hides the standalone "Documents" surface header (the hub already provides
+   * the client header) so it reads as a section of the client, not a separate
+   * destination.
+   */
+  embedded?: boolean;
+  /**
+   * When set, the file browser is scoped to THIS client's folders (the matter's
+   * `folderPaths`). The tree + grid show only files under these folders; an
+   * empty array means the client has no mapped folders yet (honest empty state).
+   * Undefined = the global, full-workspace browser.
+   */
+  scopeFolderPaths?: string[];
+  /**
+   * The id of the client being scoped. Combined with the matter list, the prune
+   * drops any nested subfolder owned by a DIFFERENT client, so this tab can
+   * never surface another client's files (matter isolation).
+   */
+  scopeMatterId?: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -315,12 +337,31 @@ export function DocumentsHome({
   onCreateTextFileAtRoot,
   onCreateFolderAtRoot,
   onSetLetterheadTemplate,
+  embedded = false,
+  scopeFolderPaths,
+  scopeMatterId,
 }: DocumentsHomeProps) {
   const activeTabPath = useEditorStore((s) => s.activeTabPath);
   const openTabs = useEditorStore((s) => s.openTabs);
   const setActiveTab = useEditorStore((s) => s.setActiveTab);
   const closeTab = useEditorStore((s) => s.closeTab);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
+  const storeFileTree = useWorkspaceStore((s) => s.fileTree);
+  // Used (only when scoping) to drop nested foreign-client folders from the tree.
+  const matters = useMatterStore((s) => s.matters);
+
+  // Per-client scoping: when `scopeFolderPaths` is provided, prune the workspace
+  // tree to just this client's folders — and, with the matter list + id, drop
+  // any subfolder owned by another client — then feed that pruned tree to both
+  // the grid and the tree views. Pure + memoized so the global store tree is
+  // never mutated and we don't reprune on every render.
+  const scopedFileTree = useMemo(
+    () =>
+      scopeFolderPaths
+        ? scopeFileTreeToFolders(storeFileTree, scopeFolderPaths, matters, scopeMatterId)
+        : undefined,
+    [scopeFolderPaths, storeFileTree, matters, scopeMatterId],
+  );
 
   // Trust banner state
   const [showTrustBanner, setShowTrustBanner] = useState(false);
@@ -345,7 +386,12 @@ export function DocumentsHome({
   // every nav, the useState initializer is the reliable place to honor the
   // intent: 'browser' => show the Files list; 'editor'/undefined => editor
   // (legacy default when the prop is absent in tests/browser).
-  const initialOnFiles = documentsView === 'browser';
+  // Embedded (per-client) ALWAYS lands on the scoped file list, never a stale
+  // editor pane that could be showing another client's open file (matter
+  // isolation). This forces only the INITIAL state; later file-open transitions
+  // (documentsView -> 'editor', or an editor-surface tab becoming active) still
+  // flip to the editor in place via the effects below.
+  const initialOnFiles = embedded || documentsView === 'browser';
   const [userOnFiles, setUserOnFiles] = useState(initialOnFiles);
   // Ref that shadows userOnFiles so we can read it synchronously in the effect
   // without capturing a stale closure.
@@ -433,7 +479,24 @@ export function DocumentsHome({
   // ── Toolbar folder state ──────────────────────────────────────────────────
   // The drilled-into folder (null = root), lifted from DocumentGridView so the
   // toolbar's create/import buttons land items in the folder you're viewing.
-  const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
+  // When embedded as a per-client tab, default into the client's mapped folder
+  // so New document / New folder / Add files land INSIDE the client rather than
+  // at the workspace root, where they'd immediately vanish from this scoped
+  // view (Codex review P2). This component remounts on each sub-tab open, so the
+  // initializer reliably re-seeds the target each time.
+  const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(
+    () => (embedded && scopeFolderPaths && scopeFolderPaths.length > 0 ? (scopeFolderPaths[0] ?? null) : null),
+  );
+
+  // Embedded (per-client): clamp only the create/import TARGET — not navigation.
+  // At the scoped root (currentFolderPath === null, e.g. the "All files"
+  // breadcrumb) New document / Add files would otherwise fall back to the GLOBAL
+  // workspace; this fallback keeps them inside the client's own folder (matter
+  // isolation). Navigation is deliberately left free (null = scoped root) so a
+  // client with MULTIPLE mapped folders can still reach the root + its sibling
+  // folders (Codex P2 — clamping navigation made those unreachable).
+  const embeddedCreateFallback =
+    embedded && scopeFolderPaths && scopeFolderPaths.length > 0 ? (scopeFolderPaths[0] ?? null) : null;
 
   // ── Add-files / trust-note logic ─────────────────────────────────────────
 
@@ -447,16 +510,21 @@ export function DocumentsHome({
       setShowTrustBanner(true);
       markTrustShown();
     }
+    // Every branch routes through the embedded fallback so a root-level create
+    // in the per-client tab lands in the client's folder, never the global
+    // workspace (matter isolation) — regardless of which create handler a parent
+    // wired up.
+    const target = currentFolderPath ?? embeddedCreateFallback ?? undefined;
     if (onImportFiles) {
-      void onImportFiles(currentFolderPath);
+      void onImportFiles(target);
     } else if (onCreateDefaultDocument) {
-      onCreateDefaultDocument();
+      onCreateDefaultDocument(target);
     } else if (onCreateDocxAtRoot) {
-      onCreateDocxAtRoot();
+      onCreateDocxAtRoot(target);
     } else {
-      onCreateFile('');
+      onCreateFile(target ?? '');
     }
-  }, [onImportFiles, currentFolderPath, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
+  }, [onImportFiles, currentFolderPath, embeddedCreateFallback, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
 
   const handleDismissTrust = useCallback(() => {
     setShowTrustBanner(false);
@@ -465,19 +533,22 @@ export function DocumentsHome({
   // ── Toolbar action handlers (lifted from DocumentGridView) ────────────────
 
   const handleCreateDocument = useCallback(() => {
-    const parentPath = currentFolderPath ?? undefined;
+    const parentPath = currentFolderPath ?? embeddedCreateFallback ?? undefined;
     if (onCreateDefaultDocument) {
       onCreateDefaultDocument(parentPath);
     } else if (onCreateDocxAtRoot) {
       onCreateDocxAtRoot(parentPath);
     } else {
-      onCreateFile(currentFolderPath ?? '');
+      // Route the generic create through the embedded fallback too, so a
+      // root-level "New document" in the per-client tab can't write to the
+      // global workspace (matter isolation).
+      onCreateFile(parentPath ?? '');
     }
-  }, [currentFolderPath, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
+  }, [currentFolderPath, embeddedCreateFallback, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
 
   const handleCreateFolder = useCallback(() => {
-    onCreateFolder(currentFolderPath ?? rootPath ?? '');
-  }, [currentFolderPath, rootPath, onCreateFolder]);
+    onCreateFolder(currentFolderPath ?? embeddedCreateFallback ?? rootPath ?? '');
+  }, [currentFolderPath, embeddedCreateFallback, rootPath, onCreateFolder]);
 
   const trashBadgeCount = trashStats.itemCount;
 
@@ -532,14 +603,17 @@ export function DocumentsHome({
         overflow: 'hidden',
       }}
     >
-      {/* Page header */}
-      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-        <SurfaceHeader
-          Icon={FolderTree}
-          title="Documents"
-          description="Your files and folders, on your computer."
-        />
-      </div>
+      {/* Page header — hidden when embedded as a per-client sub-tab (the hub
+          already shows the client header above the sub-tab bar). */}
+      {!embedded && (
+        <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+          <SurfaceHeader
+            Icon={FolderTree}
+            title="Documents"
+            description="Your files and folders, on your computer."
+          />
+        </div>
+      )}
 
       {/* ── Files toolbar — shown above the tab strip when Files tab is active */}
       {showFilesGrid && (
@@ -567,7 +641,12 @@ export function DocumentsHome({
             </>
           )}
 
-          {/* 2. Toggles: Files/Trash (always shown) + Tree/Grid (files view only) */}
+          {/* 2. Toggles: Files/Trash + Tree/Grid (files view only). Trash is a
+              GLOBAL, cross-client surface (you could see/restore/permanently-
+              delete other clients' deleted files), so the Files/Trash toggle is
+              hidden in the per-client embedded tab — it shows only this client's
+              live files (matter isolation). */}
+          {!embedded && (
           <div
             className="kp-segmented kp-segmented--md"
             role="group"
@@ -615,6 +694,7 @@ export function DocumentsHome({
               )}
             </button>
           </div>
+          )}
 
           {/* Tree | Grid view toggle — files view only */}
           {activeView === 'files' && (
@@ -703,30 +783,39 @@ export function DocumentsHome({
           onActivate={() => { handleTabActivate(FILES_TAB_ID); }}
         />
 
-        {/* Separator after Files tab when docs are open */}
-        {visibleTabs.length > 0 && (
-          <div
-            style={{
-              width: 1,
-              background: 'var(--color-border)',
-              margin: '8px 2px',
-              flexShrink: 0,
-            }}
-          />
-        )}
+        {/* Document tabs are the GLOBAL editor tabs (one editor across the app),
+            so a foreign client's open file could appear here. In the per-client
+            embedded tab they are hidden entirely — the strip keeps only the
+            pinned "Files" tab (back to the scoped list); navigation is the
+            scoped file tree + opening a scoped file (matter isolation). */}
+        {!embedded && (
+          <>
+            {/* Separator after Files tab when docs are open */}
+            {visibleTabs.length > 0 && (
+              <div
+                style={{
+                  width: 1,
+                  background: 'var(--color-border)',
+                  margin: '8px 2px',
+                  flexShrink: 0,
+                }}
+              />
+            )}
 
-        {/* Document tabs */}
-        {visibleTabs.map((tab) => (
-          <TabChip
-            key={tab.path}
-            label={tab.name}
-            isActive={selectedTab === tab.path}
-            isDirty={tab.isDirty}
-            icon={getTabIcon(tab)}
-            onActivate={() => { handleTabActivate(tab.path); }}
-            onClose={() => { handleTabClose(tab.path); }}
-          />
-        ))}
+            {/* Document tabs */}
+            {visibleTabs.map((tab) => (
+              <TabChip
+                key={tab.path}
+                label={tab.name}
+                isActive={selectedTab === tab.path}
+                isDirty={tab.isDirty}
+                icon={getTabIcon(tab)}
+                onActivate={() => { handleTabActivate(tab.path); }}
+                onClose={() => { handleTabClose(tab.path); }}
+              />
+            ))}
+          </>
+        )}
       </div>
 
       {/* Trust banner — one-time, dismissible */}
@@ -755,7 +844,7 @@ export function DocumentsHome({
             onDelete={onDelete}
             onMove={onMove}
             onDownload={onDownload}
-            activeView={activeView}
+            activeView={embedded ? 'files' : activeView}
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
             trashItems={trashItems}
@@ -766,9 +855,12 @@ export function DocumentsHome({
             docsView={docsView}
             currentFolderPath={currentFolderPath}
             onSetCurrentFolderPath={setCurrentFolderPath}
+            {...(embeddedCreateFallback ? { createFolderFallback: embeddedCreateFallback } : {})}
+            {...(scopedFileTree !== undefined ? { scopedFileTree } : {})}
             treeView={
               <FileTree
                 hideToolbar
+                {...(scopedFileTree !== undefined ? { fileTreeOverride: scopedFileTree } : {})}
                 onFileOpen={onFileOpen}
                 onCreateFile={onCreateFile}
                 onCreateFolder={onCreateFolder}

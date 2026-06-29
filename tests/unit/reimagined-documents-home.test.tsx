@@ -294,6 +294,152 @@ describe('DocumentsHome — file open + editor tab', () => {
     });
   });
 
+  it('embedded (per-client) lands on the scoped file surface, not a stale editor, even with an editor tab open', () => {
+    // Matter isolation: another client's document is the active editor tab and
+    // the shared view is 'editor'. The embedded Documents tab must still mount
+    // on the scoped file surface, never showing that foreign open file.
+    mockActiveTabPath = '/workspace/Other Client/secret.docx';
+    mockOpenTabs = [{ path: '/workspace/Other Client/secret.docx', name: 'secret.docx', type: 'file' }];
+    render(
+      <DocumentsHome
+        {...buildDefaultProps()}
+        embedded
+        scopeFolderPaths={['/workspace/Contracts']}
+        scopeMatterId="A"
+        documentsView="editor"
+      />,
+    );
+    expect(screen.getByTestId('documents-right-panel')).toBeTruthy();
+    expect(screen.queryByTestId('documents-editor-pane')).toBeNull();
+  });
+
+  it('switching clients on the Documents sub-tab remounts the surface — imports target the NEW client folder, not the old (matter isolation)', () => {
+    // Simulates open-Client-A-Documents -> switch-to-Client-B-Documents. The
+    // per-client key (applied in AppSurfaceRouter/MattersHome) remounts the
+    // surface, so Client A's currentFolderPath does NOT survive into B — without
+    // it, creating/importing from B's tab would write into A's folder.
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    const onImportFiles = vi.fn();
+
+    const { rerender } = render(
+      <DocumentsHome
+        key="A"
+        {...buildDefaultProps({ onImportFiles })}
+        embedded
+        scopeFolderPaths={['/workspace/Client A']}
+        scopeMatterId="A"
+      />,
+    );
+    fireEvent.click(screen.getByTestId('add-files-btn'));
+    expect(onImportFiles).toHaveBeenLastCalledWith('/workspace/Client A');
+
+    rerender(
+      <DocumentsHome
+        key="B"
+        {...buildDefaultProps({ onImportFiles })}
+        embedded
+        scopeFolderPaths={['/workspace/Client B']}
+        scopeMatterId="B"
+      />,
+    );
+    fireEvent.click(screen.getByTestId('add-files-btn'));
+    expect(onImportFiles).toHaveBeenLastCalledWith('/workspace/Client B');
+  });
+
+  it('embedded mode hides the global Trash toggle (cross-client surface)', () => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    const { rerender } = render(<DocumentsHome {...buildDefaultProps()} />);
+    // Global mode shows the Files/Trash toggle.
+    expect(screen.queryByTestId('docs-trash-toggle')).toBeTruthy();
+    // Embedded (per-client) mode hides it — Trash is a global cross-client view.
+    rerender(
+      <DocumentsHome
+        {...buildDefaultProps()}
+        embedded
+        scopeFolderPaths={['/workspace/Contracts']}
+        scopeMatterId="A"
+      />,
+    );
+    expect(screen.queryByTestId('docs-trash-toggle')).toBeNull();
+    expect(screen.queryByTestId('docs-files-toggle')).toBeNull();
+  });
+
+  it('embedded mode never shows a foreign client\'s open editor tab', () => {
+    // Another client's document is the global active editor tab.
+    mockActiveTabPath = '/workspace/Other Client/secret.docx';
+    mockOpenTabs = [{ path: '/workspace/Other Client/secret.docx', name: 'secret.docx', type: 'file' }];
+    render(
+      <DocumentsHome
+        {...buildDefaultProps()}
+        embedded
+        scopeFolderPaths={['/workspace/Contracts']}
+        scopeMatterId="A"
+      />,
+    );
+    // The foreign tab chip must not be visible/clickable anywhere in the hub.
+    expect(screen.queryByText('secret.docx')).toBeNull();
+    // The pinned "Files" tab (back to the scoped list) stays.
+    expect(screen.getByTestId('documents-tab-strip').textContent).toContain('Files');
+  });
+
+  it('embedded create/import clamps to the client folder at the scoped root (no global write)', () => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    const onImportFiles = vi.fn();
+    render(
+      <DocumentsHome
+        {...buildDefaultProps({ onImportFiles })}
+        embedded
+        scopeFolderPaths={['/workspace/Contracts']}
+      />,
+    );
+    // Navigate to the scoped root via the "All files" breadcrumb (sets null).
+    fireEvent.click(screen.getByTestId('breadcrumb-crumb-0'));
+    // Add files must still target the client folder, never null/global.
+    fireEvent.click(screen.getByTestId('add-files-btn'));
+    expect(onImportFiles).toHaveBeenLastCalledWith('/workspace/Contracts');
+  });
+
+  it('embedded create routes through the client folder even when only onCreateFile is wired (no global write)', () => {
+    // Codex P2: the generic create fallback must also use the embedded folder.
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    const onCreateFile = vi.fn();
+    render(
+      <DocumentsHome
+        {...buildDefaultProps({ onCreateFile })}
+        embedded
+        scopeFolderPaths={['/workspace/Contracts']}
+      />,
+    );
+    // At the scoped root, "New document" still targets the client folder, not ''.
+    fireEvent.click(screen.getByTestId('breadcrumb-crumb-0'));
+    fireEvent.click(screen.getByText('New document'));
+    expect(onCreateFile).toHaveBeenLastCalledWith('/workspace/Contracts');
+  });
+
+  it('embedded navigation can reach the scoped root (multi-folder clients can see sibling folders)', () => {
+    // The create-target clamp must NOT clamp NAVIGATION — otherwise a client with
+    // several mapped folders can never get back to the root where siblings show.
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    render(
+      <DocumentsHome
+        {...buildDefaultProps()}
+        embedded
+        scopeFolderPaths={['/workspace/Contracts']}
+      />,
+    );
+    // Starts inside the client's folder — its file is visible.
+    expect(screen.getByText('NDA.docx')).toBeTruthy();
+    // "All files" reaches the scoped root (navigation is NOT clamped back in).
+    fireEvent.click(screen.getByTestId('breadcrumb-crumb-0'));
+    expect(screen.queryByText('NDA.docx')).toBeNull();
+    expect(screen.getByText('Contracts')).toBeTruthy();
+  });
+
   it('clicking "Files" tab from editor view returns to the grid', async () => {
     mockActiveTabPath = '/workspace/Brief.md';
     mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];

@@ -11,7 +11,7 @@
  * anything that requires a CSS variable directly. Light theme; no dark mode.
  */
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Briefcase, Lock, Plus, FolderOpen, CheckCircle2, Circle, MessageSquare, FileText, Mail, ChevronUp, ChevronDown, Archive, ArchiveRestore } from 'lucide-react';
 import { useMatters, useActiveMatters, useArchivedMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
@@ -33,6 +33,14 @@ const SEARCH_THRESHOLD = 5;
 
 export interface MattersHomeProps {
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+  /**
+   * The scoped per-client surfaces for the open hub's sub-tabs, supplied by the
+   * shell (AppSurfaceRouter), which owns each surface's handler wiring. Forwarded
+   * verbatim to the MatterHub. Absent when MattersHome is rendered standalone.
+   */
+  renderClientDocuments?: () => ReactNode;
+  renderClientEmail?: () => ReactNode;
+  renderClientActivity?: () => ReactNode;
 }
 
 // ── Sort state ─────────────────────────────────────────────────────────────
@@ -598,7 +606,7 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
 
 // ── Main export ────────────────────────────────────────────────────────────
 
-export function MattersHome({ onAuditLog }: MattersHomeProps = {}) {
+export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEmail, renderClientActivity }: MattersHomeProps = {}) {
   const { t } = useTranslation();
   const activeMatters = useActiveMatters();
   const archivedMatters = useArchivedMatters();
@@ -687,9 +695,17 @@ export function MattersHome({ onAuditLog }: MattersHomeProps = {}) {
   if (hubMatterId !== null) {
     return (
       <MatterHub
+        // Remount the whole hub when the client changes, so NO per-client local
+        // state (the scoped Documents folder, Email selections, Activity detail,
+        // the Ask box) can survive an A->B switch into the next client (matter
+        // isolation — a reused instance otherwise leaks A's state into B).
+        key={hubMatterId}
         matterId={hubMatterId}
         onBack={closeHub}
         {...(onAuditLog ? { onAuditLog } : {})}
+        {...(renderClientDocuments ? { renderDocuments: renderClientDocuments } : {})}
+        {...(renderClientEmail ? { renderEmail: renderClientEmail } : {})}
+        {...(renderClientActivity ? { renderActivity: renderClientActivity } : {})}
       />
     );
   }

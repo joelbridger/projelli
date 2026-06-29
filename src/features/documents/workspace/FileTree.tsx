@@ -141,6 +141,14 @@ interface FileTreeProps {
     targetFolder: string;
     existingFilePath?: string;
   }) => Promise<void>;
+  /**
+   * When set, the tree renders THIS pre-scoped node list instead of the full
+   * workspace tree from the store. Used by the per-client Documents sub-tab so
+   * the tree shows only the client's folders. Undefined = the global tree.
+   * Selection / expand / drag state still come from the store, so the scoped
+   * tree behaves like a filtered view of the same workspace.
+   */
+  fileTreeOverride?: FileNode[];
 }
 
 export function FileTree({
@@ -165,9 +173,10 @@ export function FileTree({
   onSetLetterheadTemplate,
   onConfirm,
   onDropAIMessage,
+  fileTreeOverride,
 }: FileTreeProps) {
   const {
-    fileTree,
+    fileTree: storeFileTree,
     selectedPath,
     expandedPaths,
     selectPath,
@@ -180,6 +189,9 @@ export function FileTree({
     selectRange,
     clearSelection,
   } = useWorkspaceStore();
+  // Per-client Documents sub-tab passes a pre-scoped tree; the global tree uses
+  // the full workspace tree from the store.
+  const fileTree = fileTreeOverride ?? storeFileTree;
   const { t } = useTranslation();
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
 

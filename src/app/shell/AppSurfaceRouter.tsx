@@ -180,10 +180,159 @@ export function AppSurfaceRouter({
     },
   ];
 
+  // ── Scoped per-client surfaces (Client Map hub sub-tabs) ────────────────────
+  // Documents and Email are no longer global destinations: the hub renders them
+  // scoped to the active client as sub-tabs. These builders produce the SAME
+  // surfaces the (now programmatic-only) global `files`/`email` branches use, so
+  // there is one wiring of every handler. The global `files` branch survives as
+  // the editor host for Ctrl+P / Ask-citation document opens (editor-as-mode).
+  const documentsMainPanel = () => (
+    <MainPanel
+      onFileOpen={handleFileOpen}
+      onMove={handleMove}
+      onRename={handleRenameWithName}
+      onDownload={handleDownload}
+      apiKeys={apiKeys}
+      workspaceServiceRef={workspaceServiceRef}
+      {...(rootPath ? { rootPath } : {})}
+      onFileTreeChange={refreshFileTree}
+      onAuditLog={addAuditEntry}
+      onOpenFileAtPath={async (p, paragraphIndex, snippet) => {
+        if (!rootPath) return;
+        const absPath = p.startsWith(rootPath)
+          ? p
+          : `${rootPath}/${p}`.replace(/\/+/g, '/');
+        const name = absPath.split('/').pop() ?? absPath;
+        await handleFileOpen(absPath, name);
+        if (typeof paragraphIndex === 'number') {
+          requestScrollToParagraph({
+            path: absPath,
+            paragraphIndex,
+            ...(snippet ? { snippet } : {}),
+          });
+        }
+      }}
+      onRequestApiKeySetup={handleRequestApiKeySetup}
+      workflowExecution={currentExecution}
+      workflowTemplate={activeWorkflowTemplate}
+      workflowInterviewQuestions={showInterviewDialog ? null : interviewQuestions}
+      onWorkflowInterviewSubmit={handleInterviewSubmit}
+      onWorkflowCancel={handleInterviewCancel}
+      onWorkflowSaveAsFile={handleWorkflowSaveAsFile}
+      onWorkflowExportDocx={handleWorkflowExportDocx}
+      onWorkflowExportPptx={handleWorkflowExportPptx}
+      workflowProviderError={workflowProviderError}
+      onOpenSettings={() => openSettings('ai')}
+      hideTabBar={true}
+    />
+  );
+
+  const buildDocumentsHome = (opts: { embedded?: boolean; scopeFolderPaths?: string[]; scopeMatterId?: string }) => (
+    <DocumentsHome
+      // Per-client key so switching clients on the same sub-tab REMOUNTS this
+      // surface (fresh currentFolderPath etc.) instead of reusing the prior
+      // client's instance and writing new files into the prior client's folder
+      // (matter isolation). Undefined for the global browser.
+      key={opts.scopeMatterId}
+      // Shared documentsView is passed in both modes so a file-open inside the
+      // surface still flips to the editor. Embedded mode forces only the INITIAL
+      // landing to the scoped file list (see DocumentsHome's `embedded` handling)
+      // so it never mounts into a stale editor pane showing another client's
+      // file — without freezing later browser->editor transitions.
+      documentsView={documentsView}
+      onFileOpen={handleFileOpen}
+      onCreateFile={handleCreateFile}
+      onCreateFolder={handleCreateFolder}
+      onRename={handleRename}
+      onDelete={handleDelete}
+      onMove={handleMove}
+      onDownload={handleDownload}
+      onCreateDefaultDocument={handleCreateDefaultDocument}
+      onImportFiles={handleImportFiles}
+      onCreateDocxAtRoot={handleCreateDocxAtRoot}
+      onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
+      onCreateFolderAtRoot={handleCreateFolderAtRoot}
+      onSetLetterheadTemplate={handleSetLetterheadTemplate}
+      trashItems={trashItems}
+      trashStats={trashStats}
+      onRestore={handleRestoreFromTrash}
+      onPermanentDelete={handlePermanentDelete}
+      onEmptyTrash={handleEmptyTrash}
+      retentionPeriod={trashRetentionPeriod}
+      customRetentionDays={trashCustomRetentionDays}
+      onRetentionChange={handleTrashRetentionChange}
+      {...(opts.embedded ? { embedded: true } : {})}
+      {...(opts.scopeFolderPaths ? { scopeFolderPaths: opts.scopeFolderPaths } : {})}
+      {...(opts.scopeMatterId ? { scopeMatterId: opts.scopeMatterId } : {})}
+      mainPanelContent={documentsMainPanel()}
+    />
+  );
+
+  const buildEmailWorkspace = (opts: { embedded?: boolean; scopeMatterId?: string }) => (
+    <EmailWorkspace
+      // Per-client key — remount on client switch so Email selections / open
+      // detail don't carry from one client into the next (matter isolation).
+      key={opts.scopeMatterId}
+      onSaveToWorkspace={async (content, suggestedName) => {
+        if (!workspaceServiceRef.current || !rootPath) return;
+        // Word-first: saved email content becomes a real .docx.
+        const { resolveUniqueName } = await import('@/platform/utils/fileDrop');
+        const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/platform/utils/docx-io');
+        const firmName = (() => { try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; } })();
+        const base = suggestedName.replace(/\.(md|markdown|txt)$/i, '');
+        const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
+        const path = `${rootPath}/${finalName}`;
+        const bytes = await markdownToDocxBytes(content, finalName, { firmName });
+        const buffer = new ArrayBuffer(bytes.byteLength);
+        new Uint8Array(buffer).set(bytes);
+        await workspaceServiceRef.current.writeFileBinary(path, buffer);
+        const tree = await workspaceServiceRef.current.getFileTree();
+        setFileTree(tree);
+        openFile(path, finalName, docxBytesToDataUrl(bytes));
+      }}
+      onOpenSettings={() => {
+        window.dispatchEvent(new CustomEvent('keepance:open-account', { detail: { tab: 'connections' } }));
+      }}
+      {...(opts.embedded ? { embedded: true } : {})}
+    />
+  );
+
+  const buildActivity = (opts: { scopeMatterId?: string }) => (
+    // Error boundary: the Activity Log is the "auditable / inspectable" trust
+    // surface, so one malformed audit row must never white-screen the whole
+    // app — contain any render failure here.
+    <ErrorBoundary label="Activity Log">
+      {/* Per-client key — remount on client switch so the Activity detail panel
+          / filters don't carry from one client into the next (matter isolation). */}
+      <AuditHome
+        key={opts.scopeMatterId}
+        entries={auditEntries}
+        integrity={auditIntegrity}
+        onVerifyIntegrity={verifyAuditIntegrity}
+        {...(opts.scopeMatterId ? { scopeMatterId: opts.scopeMatterId } : {})}
+      />
+    </ErrorBoundary>
+  );
+
   return (
     <>
       {sidebarActiveTab ==='matters' ? (
-        <MattersHome onAuditLog={addAuditEntry} />
+        <MattersHome
+          onAuditLog={addAuditEntry}
+          renderClientDocuments={() =>
+            buildDocumentsHome({
+              embedded: true,
+              scopeFolderPaths: activeMatter?.folderPaths ?? [],
+              ...(activeMatter ? { scopeMatterId: activeMatter.id } : {}),
+            })
+          }
+          renderClientEmail={() =>
+            buildEmailWorkspace({ embedded: true, ...(activeMatter ? { scopeMatterId: activeMatter.id } : {}) })
+          }
+          renderClientActivity={() =>
+            buildActivity(activeMatter ? { scopeMatterId: activeMatter.id } : {})
+          }
+        />
       ) : sidebarActiveTab ==='search' ? (
         <Ask
           onSaveToDocument={async (content) => {
@@ -219,93 +368,9 @@ export function AppSurfaceRouter({
           }}
         />
       ) : sidebarActiveTab ==='email' ? (
-        <EmailWorkspace
-          onSaveToWorkspace={async (content, suggestedName) => {
-            if (!workspaceServiceRef.current || !rootPath) return;
-            // Word-first: saved email content becomes a real .docx.
-            const { resolveUniqueName } = await import('@/platform/utils/fileDrop');
-            const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/platform/utils/docx-io');
-            const firmName = (() => { try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; } })();
-            const base = suggestedName.replace(/\.(md|markdown|txt)$/i, '');
-            const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
-            const path = `${rootPath}/${finalName}`;
-            const bytes = await markdownToDocxBytes(content, finalName, { firmName });
-            const buffer = new ArrayBuffer(bytes.byteLength);
-            new Uint8Array(buffer).set(bytes);
-            await workspaceServiceRef.current.writeFileBinary(path, buffer);
-            const tree = await workspaceServiceRef.current.getFileTree();
-            setFileTree(tree);
-            openFile(path, finalName, docxBytesToDataUrl(bytes));
-          }}
-          onOpenSettings={() => {
-            window.dispatchEvent(new CustomEvent('keepance:open-account', { detail: { tab: 'connections' } }));
-          }}
-        />
+        buildEmailWorkspace({})
       ) : sidebarActiveTab ==='files' ? (
-        <DocumentsHome
-          documentsView={documentsView}
-          onFileOpen={handleFileOpen}
-          onCreateFile={handleCreateFile}
-          onCreateFolder={handleCreateFolder}
-          onRename={handleRename}
-          onDelete={handleDelete}
-          onMove={handleMove}
-          onDownload={handleDownload}
-          onCreateDefaultDocument={handleCreateDefaultDocument}
-          onImportFiles={handleImportFiles}
-          onCreateDocxAtRoot={handleCreateDocxAtRoot}
-          onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
-          onCreateFolderAtRoot={handleCreateFolderAtRoot}
-          onSetLetterheadTemplate={handleSetLetterheadTemplate}
-          trashItems={trashItems}
-          trashStats={trashStats}
-          onRestore={handleRestoreFromTrash}
-          onPermanentDelete={handlePermanentDelete}
-          onEmptyTrash={handleEmptyTrash}
-          retentionPeriod={trashRetentionPeriod}
-          customRetentionDays={trashCustomRetentionDays}
-          onRetentionChange={handleTrashRetentionChange}
-          mainPanelContent={
-            <MainPanel
-              onFileOpen={handleFileOpen}
-              onMove={handleMove}
-              onRename={handleRenameWithName}
-              onDownload={handleDownload}
-              apiKeys={apiKeys}
-              workspaceServiceRef={workspaceServiceRef}
-              {...(rootPath ? { rootPath } : {})}
-              onFileTreeChange={refreshFileTree}
-              onAuditLog={addAuditEntry}
-              onOpenFileAtPath={async (p, paragraphIndex, snippet) => {
-                if (!rootPath) return;
-                const absPath = p.startsWith(rootPath)
-                  ? p
-                  : `${rootPath}/${p}`.replace(/\/+/g, '/');
-                const name = absPath.split('/').pop() ?? absPath;
-                await handleFileOpen(absPath, name);
-                if (typeof paragraphIndex === 'number') {
-                  requestScrollToParagraph({
-                    path: absPath,
-                    paragraphIndex,
-                    ...(snippet ? { snippet } : {}),
-                  });
-                }
-              }}
-              onRequestApiKeySetup={handleRequestApiKeySetup}
-              workflowExecution={currentExecution}
-              workflowTemplate={activeWorkflowTemplate}
-              workflowInterviewQuestions={showInterviewDialog ? null : interviewQuestions}
-              onWorkflowInterviewSubmit={handleInterviewSubmit}
-              onWorkflowCancel={handleInterviewCancel}
-              onWorkflowSaveAsFile={handleWorkflowSaveAsFile}
-              onWorkflowExportDocx={handleWorkflowExportDocx}
-              onWorkflowExportPptx={handleWorkflowExportPptx}
-              workflowProviderError={workflowProviderError}
-              onOpenSettings={() => openSettings('ai')}
-              hideTabBar={true}
-            />
-          }
-        />
+        buildDocumentsHome({})
       ) : sidebarActiveTab ==='workflows' ? (
         <AssociateHome
           onStartWorkflow={handleStartWorkflow}
@@ -324,17 +389,7 @@ export function AppSurfaceRouter({
           }}
         />
       ) : sidebarActiveTab ==='audit' ? (
-        // Error boundary: the Activity Log is the "auditable / inspectable" trust
-        // surface, so one malformed audit row must never white-screen the whole
-        // app — contain any render failure here. (The data layer is also guarded
-        // against missing inputs/outputs/metadata via asRecord.)
-        <ErrorBoundary label="Activity Log">
-          <AuditHome
-            entries={auditEntries}
-            integrity={auditIntegrity}
-            onVerifyIntegrity={verifyAuditIntegrity}
-          />
-        </ErrorBoundary>
+        buildActivity({})
       ) : sidebarActiveTab ==='privacy' ? (
         <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />
       ) : sidebarActiveTab ==='settings' ? (

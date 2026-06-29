@@ -65,6 +65,10 @@ import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
  */
 export const SAMPLE_MATTER_ID = 'matter_sample_garcia_v_meridian';
 
+/** The Client Map hub's sub-tabs. A one-shot `clientMapHubTab` request lets the
+ *  client-list quick-actions open the hub on a SPECIFIC sub-tab. */
+export type ClientMapHubTab = 'overview' | 'documents' | 'email' | 'activity';
+
 /** Generate a stable matter id. Uses crypto.randomUUID when available. */
 function newMatterId(): string {
   try {
@@ -223,6 +227,14 @@ interface MatterState {
    */
   clientMapHubId: string | null;
   setClientMapHubId: (id: string | null) => void;
+  /**
+   * Ephemeral one-shot request to open a SPECIFIC hub sub-tab when the hub next
+   * renders — set by the client-list quick-actions (Documents/Email) so they
+   * land on the SCOPED per-client sub-tab instead of a global surface (the
+   * cross-client leak fix). MatterHub consumes + clears it. Never persisted.
+   */
+  clientMapHubTab: ClientMapHubTab | null;
+  setClientMapHubTab: (tab: ClientMapHubTab | null) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -816,6 +828,8 @@ export const useMatterStore = create<MatterState>()(
       // ── Client Map nav slice (ephemeral) ─────────────────────────────────
       clientMapHubId: null,
       setClientMapHubId: (id) => set({ clientMapHubId: id }),
+      clientMapHubTab: null,
+      setClientMapHubTab: (tab) => set({ clientMapHubTab: tab }),
     }),
     {
       name: 'keepance:matters',
