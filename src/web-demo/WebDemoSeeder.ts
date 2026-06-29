@@ -23,6 +23,20 @@ import sampleWorkspaceTax from './sample-workspace-tax.json';
 import sampleWorkspaceConsulting from './sample-workspace-consulting.json';
 import { WebFSBackend } from '@/platform/fs/WebFSBackend';
 
+// Pre-built PDF sample documents (committed binary assets). A browser has no JS
+// PDF *writer*, so unlike `.docx` (generated from text at seed time) these are
+// built ahead of time from src/web-demo/sample-docs/*.html via
+// `node scripts/build-demo-pdfs.mjs`, imported here as URLs, and written to OPFS
+// byte-for-byte so the file tree + PDF viewer show a real PDF.
+import beneficiaryPdfUrl from './sample-docs/beneficiary-designations.pdf?url';
+import clientIntakePdfUrl from './sample-docs/client-intake.pdf?url';
+
+/** Map a seeded PDF file path to its committed binary asset URL. */
+const PDF_ASSETS: Record<string, string> = {
+  '/Webb Household/Beneficiary Designations.pdf': beneficiaryPdfUrl,
+  '/Webb Household/Client Intake.pdf': clientIntakePdfUrl,
+};
+
 const SEED_FLAG_KEY = '__keepance_demo_seeded';
 const SEED_VERSION_KEY = '__keepance_demo_seed_version';
 
@@ -40,7 +54,22 @@ export type DemoProfession = 'advisor' | 'legal' | 'tax' | 'consulting';
 
 interface SampleFile {
   path: string;
+  /**
+   * Plain-text content. For `format: 'text'` this is written to disk verbatim.
+   * For `'docx'` it is the markdown the Word file is generated from. For `'pdf'`
+   * it is the document's text (the binary comes from a committed asset). In all
+   * three cases this is what the demo's Ask retriever indexes and cites, so it
+   * is the source of truth for the document's words.
+   */
   content: string;
+  /**
+   * How to materialise the file on disk. Defaults to `'text'` when omitted, so
+   * the legal/tax/consulting sample packs (plain markdown) need no changes.
+   *   - 'text' → write `content` as-is.
+   *   - 'docx' → generate a real Word file from `content` (markdown) at seed time.
+   *   - 'pdf'  → write the committed PDF asset mapped in PDF_ASSETS.
+   */
+  format?: 'text' | 'docx' | 'pdf';
 }
 
 interface SampleWorkspace {
@@ -122,20 +151,91 @@ export async function seedWebDemoWorkspace(): Promise<{
     return { backend, seeded: false, profession, reason: 'already-seeded' };
   }
 
+  // Re-seed wipes the prior demo workspace first, so a version bump that renames
+  // or swaps files (e.g. the .md client files becoming .docx/.pdf) doesn't leave
+  // the old files lingering next to the new ones. On a first seed the directory
+  // is empty, so this is a no-op.
+  await clearDirectory(demoDir);
+
+  let allWritten = true;
   for (const file of sample.files) {
     try {
       await ensureParentDirs(backend, file.path);
-      await backend.write(file.path, file.content);
+      await writeSampleFile(backend, file);
     } catch (err) {
+      allWritten = false;
       console.warn(`[WebDemoSeeder] failed to write ${file.path}`, err);
     }
   }
 
-  writeSeedFlag();
-  writeSeedVersion(sample.version);
-  writeSeedProfession(profession);
+  // Only mark the seed complete when EVERY file was written. A partial seed left
+  // unflagged is cleared and retried on the next load, so the retriever and the
+  // pre-seeded Client Map never cite a .docx/.pdf that isn't actually on disk
+  // (which would make its source chip fail to open).
+  if (allWritten) {
+    writeSeedFlag();
+    writeSeedVersion(sample.version);
+    writeSeedProfession(profession);
+  }
 
-  return { backend, seeded: true, profession };
+  return { backend, seeded: allWritten, profession };
+}
+
+/**
+ * Materialise one sample file on disk according to its `format`:
+ *   - 'docx' → generate a real Word document from the markdown `content`.
+ *   - 'pdf'  → write the committed PDF binary asset mapped in PDF_ASSETS.
+ *   - 'text' (default) → write `content` as a UTF-8 text file.
+ */
+async function writeSampleFile(backend: WebFSBackend, file: SampleFile): Promise<void> {
+  const format = file.format ?? 'text';
+  if (format === 'docx') {
+    const fileName = file.path.split('/').pop() ?? 'document.docx';
+    await backend.writeBinary(file.path, await generateDocxBytes(file.content, fileName));
+    return;
+  }
+  if (format === 'pdf') {
+    const url = PDF_ASSETS[file.path];
+    if (!url) throw new Error(`No PDF asset mapped for ${file.path}`);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch PDF asset for ${file.path}: HTTP ${String(res.status)}`);
+    await backend.writeBinary(file.path, await res.arrayBuffer());
+    return;
+  }
+  await backend.write(file.path, file.content);
+}
+
+/**
+ * Generate a real `.docx` byte stream from markdown. The `docx` toolchain is
+ * dynamically imported so it only loads when the demo actually seeds a Word file
+ * (and stays out of the demo's first-paint critical path). Returns an exact-size
+ * ArrayBuffer for WebFSBackend.writeBinary.
+ */
+async function generateDocxBytes(markdown: string, fileName: string): Promise<ArrayBuffer> {
+  const { markdownToDocxBytes } = await import('@/platform/utils/docx-io');
+  const bytes = await markdownToDocxBytes(markdown, fileName);
+  // bytes may be a view over a larger pooled buffer; slice() copies to an
+  // exact-size ArrayBuffer.
+  return bytes.slice().buffer as ArrayBuffer;
+}
+
+/**
+ * Remove every entry (files and subdirectories) directly under an OPFS
+ * directory handle. Names are collected before removal because an async
+ * directory iterator must not be mutated mid-iteration.
+ */
+async function clearDirectory(dir: FileSystemDirectoryHandle): Promise<void> {
+  const names: string[] = [];
+  for await (const [name] of dir.entries()) {
+    names.push(name);
+  }
+  for (const name of names) {
+    try {
+      await dir.removeEntry(name, { recursive: true });
+    } catch {
+      // Tolerate: a partially-removed entry shouldn't abort the re-seed.
+    }
+  }
 }
 
 /**
@@ -197,7 +297,7 @@ const SEED_PROFESSION_KEY = '__keepance_demo_seed_profession';
 function readSeedProfession(): DemoProfession | null {
   try {
     const raw = localStorage.getItem(SEED_PROFESSION_KEY);
-    if (raw === 'tax' || raw === 'consulting' || raw === 'legal') return raw;
+    if (raw === 'tax' || raw === 'consulting' || raw === 'legal' || raw === 'advisor') return raw;
     return null;
   } catch {
     return null;

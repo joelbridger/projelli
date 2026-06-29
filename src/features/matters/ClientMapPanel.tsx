@@ -515,6 +515,20 @@ function MissingPanel({
         </Chip>
       </PanelHeader>
 
+      {/* Coverage caveat — honest about what this map is. It's built only from
+          the files Keepance can read, so a clean map is a head-start for your
+          review, not a guarantee the whole record is complete. Stated plainly so
+          the catch (e.g. a stale beneficiary) never reads as "everything's been
+          checked." */}
+      <div
+        data-testid="clientmap-coverage-caveat"
+        style={{ ...mutedTextStyle, marginBottom: 'var(--kp-space-md)' }}
+      >
+        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+        Built from the files Keepance can read — a head-start for your review, not a guarantee the whole record is complete.
+        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+      </div>
+
       {hasGaps && (
         <div style={{ marginBottom: hasAssumptions ? 'var(--kp-space-lg)' : 0 }}>
           {c.ask.map((q, i) => (

@@ -42,6 +42,7 @@ import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { useAsk, type UseAskProps } from './useAsk';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { IS_DEMO } from '@/web-demo/demoModeFlag';
 
 /* -------------------------------------------------------------------------- */
 /* Main component                                                               */
@@ -81,6 +82,7 @@ export function Ask(props: UseAskProps) {
     handleSaveToDocument,
     onOpenFileAtPath,
     isBusy,
+    demoQuestions,
   } = useAsk(props);
 
   const isSampleMatter = activeMatter?.id === SAMPLE_MATTER_ID;
@@ -248,6 +250,51 @@ export function Ask(props: UseAskProps) {
               minWidth: 0,
             }}
           >
+            {/* Demo-only intro (empty thread): sets the two-trust-modes
+                expectation and the "negative space" positioning before the first
+                question, then gets out of the way. Demo-scoped so the desktop
+                Ask stays the clean empty surface the design system specifies. */}
+            {IS_DEMO && turns.length === 0 && !streamingTurn && (
+              <div
+                data-testid="ask-demo-intro"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--kp-space-xs)',
+                  padding: 'var(--kp-space-xs) var(--kp-space-md)',
+                  fontSize: 'var(--kp-font-xs)',
+                  color: 'var(--kp-text-dim)',
+                  lineHeight: 1.5,
+                  maxWidth: 680,
+                }}
+              >
+                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                <span>
+                  Answers here are cited to your files — Ask only answers from these documents, never the open internet, and you can click any citation to open the source. For drafting documents, use Workflows, and check current-year figures before you send.
+                </span>
+                <span>
+                  Keepance isn't a CRM or a note-taker. It sits beside your tools and reads across your files.
+                </span>
+                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                {/* Suggested questions — one click each. The last one is about
+                    something the files don't cover, so it shows Ask declining
+                    ("I couldn't find anything…") instead of guessing. */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--kp-space-xs)', marginTop: 'var(--kp-space-xs)' }}>
+                  {demoQuestions.map((q) => (
+                    <Button
+                      key={q}
+                      variant="secondary"
+                      size="sm"
+                      data-testid="ask-demo-question"
+                      onClick={() => { void handleAsk(q); }}
+                    >
+                      {q}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Indexing-off notice — a quiet line at the top of the column, only
                 when memory is off; keeps the composer clean. */}
             {!isMemoryEnabled() && (

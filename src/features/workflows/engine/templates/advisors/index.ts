@@ -12,11 +12,11 @@ import { RegBIDocumentation } from './RegBIDocumentation';
 import type { WorkflowTemplate } from '@/platform/types/workflow';
 
 export const ADVISOR_TEMPLATES: WorkflowTemplate[] = [
-  ClientFinancialPlanSummary,
-  MeetingPrepAndSuitabilityNotes,
   AnnualReviewPacket,
-  ConfidentialClientDataInventory,
+  MeetingPrepAndSuitabilityNotes,
   RegSPSafeguardsOutline,
+  ClientFinancialPlanSummary,
+  ConfidentialClientDataInventory,
   BooksRecordsRetentionNote,
   RegBIDocumentation,
 ];

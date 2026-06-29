@@ -51,10 +51,13 @@ function doc(file: string, snippet: string): SourceRef {
   return { kind: 'document', ref: `${WEBB_DIR}/${file}`, snippet };
 }
 
-const PLAN = 'Financial Plan Summary.md';
-const NOTES = 'Review Notes.md';
-const BENE = 'Beneficiary Designations.md';
-const INTAKE = 'Client Intake Summary.md';
+// File names match the realistic Word/PDF documents seeded into the Webb
+// Household folder (see sample-workspace-advisor.json). Clicking a source chip
+// opens the actual .docx / .pdf the fact came from.
+const PLAN = 'Webb Financial Plan.docx';
+const NOTES = 'Annual Review Notes - June 2026.docx';
+const BENE = 'Beneficiary Designations.pdf';
+const INTAKE = 'Client Intake.pdf';
 
 function webbSections(): ClientMapSection[] {
   // The four approved buckets: Household, Goals, Money and accounts, Follow-ups.
@@ -142,9 +145,12 @@ export function seedWebDemoClientMap(): void {
       folderPaths: [WEBB_DIR],
     });
   }
-  if (useClientMapStore.getState().getMap(WEBB_MATTER_ID) === undefined) {
-    useClientMapStore.getState().setMap(WEBB_MATTER_ID, webbClientMap());
-  }
+  // Always (re)seed the hand-authored demo map at boot. The Client Map store is
+  // persisted (localStorage), so a returning visitor's saved map can still point
+  // its source chips at the OLD .md files — which the workspace seed has since
+  // removed, breaking citation clicks. Overwriting is correct here: the demo map
+  // is deterministic seed data and the demo resets each load anyway.
+  useClientMapStore.getState().setMap(WEBB_MATTER_ID, webbClientMap());
   // Focus the client and open its hub so the Client Map is the first screen.
   matterStore.setActiveMatter(WEBB_MATTER_ID);
   matterStore.setClientMapHubId(WEBB_MATTER_ID);

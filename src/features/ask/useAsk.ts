@@ -11,7 +11,7 @@ import { flushSync } from 'react-dom';
 import { useActiveMatter, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { getDemoAnswerForWorkspace, getDemoQuestions } from '@/platform/matter/samples/sampleMatterDemo';
+import { getDemoAnswerForWorkspace, getDemoQuestions, WEB_DEMO_ADVISOR_QUESTIONS } from '@/platform/matter/samples/sampleMatterDemo';
 import { useProfessionStore } from '@/platform/profile/professionStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
@@ -91,7 +91,11 @@ export function useAsk({
   const isSampleMatterActive = activeMatter?.id === SAMPLE_MATTER_ID;
   // Profession-aware demo questions: a tax user on the sample matter sees tax
   // questions; a consultant sees consulting questions; legal is the default.
-  const demoQuestions = getDemoQuestions(profession);
+  // The WEB demo's advisor pack seeds the Webb household (not the desktop
+  // Hendricks sample), so it gets Webb-specific questions — including one that's
+  // deliberately outside the files, to show Ask declining instead of guessing.
+  const demoQuestions =
+    IS_DEMO && profession === 'advisor' ? WEB_DEMO_ADVISOR_QUESTIONS : getDemoQuestions(profession);
 
   // Derive chatId from active matter
   const baseChatId = activeMatter ? `ask-${activeMatter.id}` : 'ask-global';
