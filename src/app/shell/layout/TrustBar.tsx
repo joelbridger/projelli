@@ -15,11 +15,12 @@
  * removed; the meaning (three confidentiality states, color-coded) stays.
  */
 /* eslint-disable keepance-i18n/no-hardcoded-string */
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Briefcase, Globe, Map as MapIcon, Info, Lock } from 'lucide-react';
 import { useActiveMatter } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import {
@@ -29,37 +30,6 @@ import {
 } from '@/ui/tooltip';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
-import type { EgressProvider } from '@/platform/privacy/egress';
-
-/**
- * Derive the active AI provider for the egress pill.
- *
- * The TrustBar lives at app-shell level, outside any specific chat, so there is
- * no single "active chat provider" available. We derive the truthful pill value
- * in priority order:
- *   1. local-only mode => always "ollama" (nothing leaves regardless of config).
- *   2. First cloud provider for which the user has saved an API key in
- *      localStorage (same storage used by useApiKeys), checked in the same order
- *      the settings UI presents providers: anthropic > openai > google.
- *   3. Fallback: 'anthropic' (the most common default; resolveEgress labels it
- *      accurately, so this only fires when no key exists yet).
- */
-function useActiveEgressProvider(mode: string): EgressProvider {
-  return useMemo(() => {
-    if (mode === 'local-only') return 'ollama';
-    const order: EgressProvider[] = ['anthropic', 'openai', 'google'];
-    for (const p of order) {
-      try {
-        if (localStorage.getItem(`apiKey_${p}`)) return p;
-      } catch {
-        // localStorage may be unavailable in some environments; fall through.
-      }
-    }
-    return 'anthropic';
-  // Re-derive when the confidentiality mode changes; localStorage is not
-  // reactive, but provider selection is stable within a session.
-  }, [mode]);
-}
 
 export function TrustBar() {
   const activeMatter = useActiveMatter();

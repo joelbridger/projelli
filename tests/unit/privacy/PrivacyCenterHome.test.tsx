@@ -1,13 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { PrivacyCenterHome } from '@/features/privacy/PrivacyCenterHome';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Matter } from '@/platform/types/matter';
 
-// Mock EgressIndicator (complex deps, not under test here)
+// Mock EgressIndicator — expose `provider` so BUG-001 tests can assert on it.
 vi.mock('@/platform/privacy/ui/EgressIndicator', () => ({
-  EgressIndicator: ({ mode }: { mode: string }) => (
-    <div data-testid="egress-indicator-mock" data-mode={mode} />
+  EgressIndicator: ({ mode, provider }: { mode: string; provider: string }) => (
+    <div data-testid="egress-indicator-mock" data-mode={mode} data-provider={provider} />
   ),
 }));
 
@@ -35,6 +35,15 @@ vi.mock('@/platform/hooks/useEntityLabel', () => ({
 }));
 
 const SAMPLE_ENTRIES: AuditEntry[] = [];
+
+// Reset localStorage between tests so API-key state doesn't bleed across.
+beforeEach(() => {
+  try {
+    localStorage.clear();
+  } catch {
+    /* tolerate environments without localStorage */
+  }
+});
 
 const SAMPLE_MATTER: Matter = {
   id: 'matter_abc',
@@ -80,5 +89,21 @@ describe('PrivacyCenterHome', () => {
   it('renders the egress indicator strip', () => {
     render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
     expect(screen.getByTestId('egress-indicator-mock')).toBeTruthy();
+  });
+
+  // BUG-001: Privacy Center "Current mode" must show the RESOLVED provider,
+  // not always 'anthropic'. With only an OpenAI key configured the indicator
+  // must match the trust bar (openai), not stay hardcoded to anthropic.
+  it('BUG-001: shows resolved provider (openai) when only an OpenAI key is configured', () => {
+    localStorage.setItem('apiKey_openai', 'sk-test-openai');
+    render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
+    const indicator = screen.getByTestId('egress-indicator-mock');
+    expect(indicator.getAttribute('data-provider')).toBe('openai');
+  });
+
+  it('BUG-001: falls back to anthropic when no API keys are configured', () => {
+    render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
+    const indicator = screen.getByTestId('egress-indicator-mock');
+    expect(indicator.getAttribute('data-provider')).toBe('anthropic');
   });
 });
