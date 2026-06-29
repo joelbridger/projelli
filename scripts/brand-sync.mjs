@@ -454,7 +454,10 @@ function walk(dir, filter, out = []) {
 }
 
 function writeAppliedState() {
-  if (FLAGS.check || (FLAGS.rename && !FLAGS.apply)) return;
+  // Only advance the recorded "previous name" when --rename --apply actually
+  // swapped the static prose. A plain `brand:sync` must NOT advance it, or a
+  // later separate `brand:sync --rename` would see prev === new and skip the swap.
+  if (!(FLAGS.rename && FLAGS.apply)) return;
   write(path.join(ROOT, 'brand', '.applied.json'), JSON.stringify({ name: NAME, syncedColors: col }, null, 2) + '\n');
 }
 
