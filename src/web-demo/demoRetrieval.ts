@@ -86,7 +86,9 @@ function chunkContent(content: string): { paragraphIndex: number; text: string }
 }
 
 /** Best-effort sourceType from the file extension (cosmetic; drives citation
- *  labels). Everything the demo seeds is text/markdown except `.aichat`. */
+ *  labels). The advisor pack seeds Word (.docx) and PDF client files; other
+ *  packs seed markdown/text. The retriever indexes each file's plain-text
+ *  `content` regardless of the on-disk binary format. */
 function sourceTypeForPath(path: string): NonNullable<RagHit['sourceType']> {
   const lower = path.toLowerCase();
   if (lower.endsWith('.docx')) return 'docx';

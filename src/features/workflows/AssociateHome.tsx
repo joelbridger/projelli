@@ -306,6 +306,7 @@ function CategorySection({
   totalCount,
   searchActive,
   featuredId,
+  initialCount = 6,
   currentExecution,
   trialLocked,
   collapsed,
@@ -319,22 +320,22 @@ function CategorySection({
   /** Whether the user has an active search query (used to decide whether to show "hidden by search" hint). */
   searchActive: boolean;
   featuredId: string | null;
+  initialCount?: number;
   currentExecution: WorkflowExecution | null;
   trialLocked: boolean;
   collapsed: boolean;
   onCollapse: (key: string, collapsed: boolean) => void;
   onRun: (t: WorkflowTemplate) => void;
 }) {
-  const INITIAL_COUNT = 6;
   const [showAll, setShowAll] = useState(false);
 
   const visible = collapsed
     ? []
     : showAll
     ? templates
-    : templates.slice(0, INITIAL_COUNT);
+    : templates.slice(0, initialCount);
 
-  const hiddenCount = templates.length - INITIAL_COUNT;
+  const hiddenCount = templates.length - initialCount;
   // When a search is active and has narrowed this category, compute how many are hidden by search.
   const hiddenBySearch = searchActive ? totalCount - templates.length : 0;
 
@@ -857,6 +858,7 @@ export function AssociateHome({
               totalCount={totalCount}
               searchActive={searchActive}
               featuredId={featuredId}
+              {...(profession === 'advisor' && config.key === 'advisors' ? { initialCount: 3 } : {})}
               currentExecution={currentExecution}
               trialLocked={trialGate.isLocked}
               collapsed={collapsedCategories[config.key] === true}

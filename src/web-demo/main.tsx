@@ -87,16 +87,28 @@ async function bootstrap(): Promise<void> {
   // populated on first paint. The seeder is idempotent and fast (a handful
   // of small writes).
   try {
-    const { profession } = await seedWebDemoWorkspace();
-    // Install the browser keyword retriever over the SAME seeded files so Ask can
-    // search them (the desktop's native Tauri RAG isn't available in a browser).
-    // Built from the in-memory sample so it works even if the OPFS write degraded.
-    installDemoRetrieval(getSampleForProfession(profession).files, DEMO_WORKSPACE_ROOT);
-    // Advisor pack (the default /try): seed the Webb Household client + its
-    // fully-filled, cited Client Map and open its hub, so the demo lands on the
-    // Client Map — the first thing a visitor sees — instead of the file browser.
-    if (profession === 'advisor') {
-      seedWebDemoClientMap();
+    const { profession, ready } = await seedWebDemoWorkspace();
+    // Fail closed: only index + seed the cited Client Map when the workspace is
+    // FULLY on disk. If a seed write failed (PDF fetch / DOCX gen / OPFS quota) or
+    // OPFS is unavailable, `ready` is false and we install NEITHER the retriever
+    // NOR the Client Map — otherwise an Ask/Client Map citation could point at a
+    // file that was never written and its source chip would fail to open, which
+    // is exactly the source-click trust the demo is selling. The demo still loads
+    // (degraded: empty workspace), which is honest, rather than confidently wrong.
+    if (ready) {
+      // Install the browser keyword retriever over the SAME seeded files so Ask
+      // can search them (the desktop's native Tauri RAG isn't available here).
+      installDemoRetrieval(getSampleForProfession(profession).files, DEMO_WORKSPACE_ROOT);
+      // Advisor pack (the default /try): seed the Webb Household client + its
+      // fully-filled, cited Client Map and open its hub, so the demo lands on the
+      // Client Map — the first thing a visitor sees — instead of the file browser.
+      if (profession === 'advisor') {
+        seedWebDemoClientMap();
+      }
+    } else {
+      console.warn(
+        '[web-demo] workspace not fully seeded — skipping retrieval + Client Map so nothing cites a file that is not on disk.',
+      );
     }
   } catch (err) {
     // Seeder errors are non-fatal: the demo still loads with an empty

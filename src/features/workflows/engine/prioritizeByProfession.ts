@@ -15,6 +15,16 @@ import type { WorkflowTemplate } from '@/platform/types/workflow';
 
 export type Profession = 'legal' | 'tax' | 'consulting' | 'advisor' | 'other';
 
+const ADVISOR_LEAD_TEMPLATE_NAMES = [
+  'Annual Review Packet',
+  'Meeting Prep & Suitability Notes',
+  'Reg S-P Safeguards and Incident Response Outline',
+] as const;
+
+const ADVISOR_TEMPLATE_RANK = new Map<string, number>(
+  ADVISOR_LEAD_TEMPLATE_NAMES.map((name, index) => [name, index]),
+);
+
 /**
  * Stable-sort `templates` so the ones whose `category` matches `profession`
  * come first, preserving the original relative order within each group.
@@ -47,6 +57,11 @@ export function prioritizeByProfession(
         advisorRest.push(t);
       }
     }
+    advisorMatch.sort((a, b) => {
+      const aRank = ADVISOR_TEMPLATE_RANK.get(a.name) ?? ADVISOR_TEMPLATE_RANK.size;
+      const bRank = ADVISOR_TEMPLATE_RANK.get(b.name) ?? ADVISOR_TEMPLATE_RANK.size;
+      return aRank - bRank;
+    });
     return advisorMatch.length === 0 ? withoutLegal : [...advisorMatch, ...advisorRest];
   }
 

@@ -1,7 +1,8 @@
-import { Quote, Loader2, ShieldCheck, Save, AlertTriangle } from 'lucide-react';
+import { Quote, Loader2, ShieldCheck, Save, AlertTriangle, Info } from 'lucide-react';
 import { Button, Callout } from '@/ui/kp';
 import type { AskTurn } from './askHelpers';
 import { CitationText } from './CitationText';
+import { NO_EVIDENCE_DECLINE } from './askPrompt';
 
 /* -------------------------------------------------------------------------- */
 /* TurnBlock — renders a single completed or streaming Q+A pair               */
@@ -45,6 +46,11 @@ export function TurnBlock({
   // trigger the green banner (and that such an answer shows the uncited
   // warning instead).
   const hasGroundedCitation = turn.citations.some((c) => c.verified);
+
+  // A deliberate "I couldn't find that in your files" decline is not an uncited
+  // claim — it's the trust behaviour working. Show a calm "this is on purpose"
+  // note instead of the red "verify this" warning the uncited path uses.
+  const isDecline = turn.answer.trim() === NO_EVIDENCE_DECLINE;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>
@@ -130,11 +136,38 @@ export function TurnBlock({
           </div>
         )}
 
+        {/* Deliberate decline: Ask found nothing in the files and said so. This
+            is the trust behaviour working, not a weak answer — show a calm note
+            that it's on purpose (it only answers from your files). Takes the
+            place of the red uncited warning for this one exact answer. */}
+        {!isStreaming && isDecline && (
+          <div
+            data-testid="ask-decline-note"
+            style={{
+              padding: '9px 12px',
+              borderRadius: 10,
+              background: '#eef2f7',
+              border: '1px solid #c3ccd6',
+              display: 'flex',
+              gap: 8,
+              alignItems: 'center',
+              fontSize: '12.5px',
+              color: 'var(--kp-text-dim)',
+            }}
+          >
+            <Info size={14} strokeWidth={2} style={{ flex: 'none', color: 'var(--kp-text-dim)' }} />
+            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            This is on purpose — I only answer from your files, never from general knowledge. Ask about something in this household and I'll cite the source.
+            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          </div>
+        )}
+
         {/* WS3 (Task 3): uncited warning — upgraded from a muted one-liner to a
             visible Callout so an uncited answer looks clearly LESS trustworthy
             than a cited one. Mutually exclusive with the attestation above.
-            A2 guarantee preserved: only shown when there are no citations. */}
-        {!isStreaming && !hasGroundedCitation && turn.answer && (
+            A2 guarantee preserved: only shown when there are no citations. The
+            deliberate decline is excluded — it has its own calm note above. */}
+        {!isStreaming && !hasGroundedCitation && turn.answer && !isDecline && (
           <div data-testid="ask-uncited-warning">
             <Callout variant="warning" icon={AlertTriangle}>
               {/* eslint-disable keepance-i18n/no-hardcoded-string */}

@@ -13,7 +13,7 @@
  */
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
-import { Lock, FileText, Mail, Clock, Loader2, Map } from 'lucide-react';
+import { Lock, FileText, Mail, Clock, Loader2, Map, Users } from 'lucide-react';
 import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
@@ -295,6 +295,18 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                   <Badge variant="sample" size="sm">Sample</Badge>
                 </span>
               )}
+              {/* Client boundary — a persistent reminder that recall here is
+                  scoped to THIS household. Keepance never mixes one client's
+                  files into another client's answers (matter isolation), and
+                  making that visible is the trust story an advisor needs to see. */}
+              <span
+                data-testid="hub-scope-badge"
+                title="Recall is scoped to this household. Keepance never mixes one client's files into another client's answers."
+              >
+                <Badge variant="neutral" size="sm" icon={Users}>
+                  {(matter.name && matter.name.trim() ? matter.name : label)} only
+                </Badge>
+              </span>
               {/* AI-status pill — same dynamic badge as Ask / Workflows. */}
               <EgressIndicator provider={egressProvider} mode={confidentialityMode} variant="status" />
             </div>

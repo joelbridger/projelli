@@ -164,6 +164,36 @@ export function getDemoQuestions(profession: Profession): [string, string, strin
  */
 export const DEMO_QUESTIONS: [string, string, string, string] = DEMO_QUESTIONS_BY_PROFESSION.legal;
 
+/**
+ * Suggested questions for the WEB demo's advisor pack (keepance.com/try).
+ *
+ * The web demo seeds the Webb household (see src/web-demo/seedWebDemoClientMap),
+ * which is a DIFFERENT household from the desktop advisor sample (the
+ * Hendricks). The desktop sample's questions are answered from a canned set
+ * (ADVISOR_DEMO_ANSWERS_MAP); the web demo answers them LIVE over the seeded
+ * Webb files. So the web demo needs its own questions that match the Webb files.
+ *
+ * The fourth question is deliberately about something the files do NOT cover, so
+ * clicking it shows Ask honestly declining ("I couldn't find anything about that
+ * in your documents") instead of guessing — the trust behaviour the demo exists
+ * to show (it only answers from your files, never from general knowledge).
+ *
+ * It is phrased as a stopword-light topic ("Disability insurance coverage") on
+ * purpose: the demo's keyword retriever does fuzzy OR matching, so a normal
+ * question ("Do the Webbs have any life insurance?") still returns chunks — "the"
+ * and "have" match everywhere, and "life" even fuzzy-matches "wife" (the ex-wife
+ * on the beneficiary form). Those terms, by contrast, appear nowhere in the Webb
+ * files, so retrieval returns ZERO hits and the decline is the DETERMINISTIC
+ * retrieval-evidence gate (BUG-016) — it never calls the model, so the calm
+ * decline note shows every time, even offline.
+ */
+export const WEB_DEMO_ADVISOR_QUESTIONS: [string, string, string, string] = [
+  'Are any beneficiary designations out of date?',
+  "What are the Webbs' top goals?",
+  'What did we decide about the Roth conversion?',
+  'Disability insurance coverage?',
+];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Demo answers
 // Paths use the {WORKSPACE_ROOT} placeholder. Call resolveDemoAnswerPaths()

@@ -77,12 +77,17 @@ export function DemoExitModal({
         }}
       >
         <DialogHeader>
-          <DialogTitle>You have explored Keepance.</DialogTitle>
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          <DialogTitle>What's one caught mistake worth?</DialogTitle>
           <DialogDescription>
-            The demo gives you a taste. The desktop app gives you the full
-            tool: unlimited AI with your own key, every chat saved as real
-            files on your hard drive, and no rate limits.
+            You just watched Keepance catch a beneficiary designation still
+            pointing at an ex-spouse — the kind of miss that surfaces years
+            later, in front of a client or a regulator. Catching one of those
+            pays for the tool many times over. On your own client files, the
+            desktop app gives you unlimited AI with your own key, every answer
+            cited to its source, and nothing leaving your machine.
           </DialogDescription>
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         </DialogHeader>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">

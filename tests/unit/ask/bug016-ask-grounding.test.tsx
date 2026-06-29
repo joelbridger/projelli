@@ -157,8 +157,12 @@ describe('BUG-016 — Ask grounding', () => {
     await ask('What is the PURPLEWHALE settlement amount and when was it filed?');
 
     await waitFor(() => {
-      expect(screen.getByTestId('ask-uncited-warning')).toBeInTheDocument();
+      // A deliberate "I couldn't find that in your files" decline gets the calm
+      // "this is on purpose" note, NOT the red "verify this" uncited warning — a
+      // correct refusal is the trust behaviour working, not a weak answer.
+      expect(screen.getByTestId('ask-decline-note')).toBeInTheDocument();
     });
+    expect(screen.queryByTestId('ask-uncited-warning')).not.toBeInTheDocument();
     // No green "Answered over your own files" banner.
     expect(screen.queryByTestId('ask-cited-attestation')).not.toBeInTheDocument();
     // No fabricated figure anywhere on screen.
