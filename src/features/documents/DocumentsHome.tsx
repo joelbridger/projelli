@@ -485,7 +485,7 @@ export function DocumentsHome({
   // view (Codex review P2). This component remounts on each sub-tab open, so the
   // initializer reliably re-seeds the target each time.
   const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(
-    () => (embedded && scopeFolderPaths && scopeFolderPaths.length > 0 ? scopeFolderPaths[0]! : null),
+    () => (embedded && scopeFolderPaths && scopeFolderPaths.length > 0 ? (scopeFolderPaths[0] ?? null) : null),
   );
 
   // Embedded (per-client): clamp only the create/import TARGET — not navigation.
@@ -496,7 +496,7 @@ export function DocumentsHome({
   // client with MULTIPLE mapped folders can still reach the root + its sibling
   // folders (Codex P2 — clamping navigation made those unreachable).
   const embeddedCreateFallback =
-    embedded && scopeFolderPaths && scopeFolderPaths.length > 0 ? scopeFolderPaths[0]! : null;
+    embedded && scopeFolderPaths && scopeFolderPaths.length > 0 ? (scopeFolderPaths[0] ?? null) : null;
 
   // ── Add-files / trust-note logic ─────────────────────────────────────────
 
@@ -519,7 +519,7 @@ export function DocumentsHome({
     } else {
       onCreateFile('');
     }
-  }, [onImportFiles, currentFolderPath, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
+  }, [onImportFiles, currentFolderPath, embeddedCreateFallback, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
 
   const handleDismissTrust = useCallback(() => {
     setShowTrustBanner(false);
@@ -536,11 +536,11 @@ export function DocumentsHome({
     } else {
       onCreateFile(currentFolderPath ?? '');
     }
-  }, [currentFolderPath, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
+  }, [currentFolderPath, embeddedCreateFallback, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
 
   const handleCreateFolder = useCallback(() => {
     onCreateFolder(currentFolderPath ?? embeddedCreateFallback ?? rootPath ?? '');
-  }, [currentFolderPath, rootPath, onCreateFolder]);
+  }, [currentFolderPath, embeddedCreateFallback, rootPath, onCreateFolder]);
 
   const trashBadgeCount = trashStats.itemCount;
 

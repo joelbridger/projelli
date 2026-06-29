@@ -373,7 +373,7 @@ export function EmailWorkspace({
         clearTimeout(debounceRef.current);
       }
     };
-  }, [mode, accountsLoaded, accounts.length, query, providerFilter, dateFrom, dateTo, hasAttachments, retryCount]);
+  }, [mode, accountsLoaded, accounts.length, query, providerFilter, dateFrom, dateTo, hasAttachments, retryCount, PAGE_SIZE]);
 
   // Effect B: fires immediately when offset > 0 (load-more), but only if the
   // fingerprint hasn't changed (i.e., purely a pagination action, not a filter change).
@@ -1051,7 +1051,6 @@ export function EmailWorkspace({
                     {loadingMore && (
                       <Loader2 style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
                     )}
-                    {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
                     {loadingMore ? 'Looking...' : 'Keep looking in more email'}
                   </button>
                 )}

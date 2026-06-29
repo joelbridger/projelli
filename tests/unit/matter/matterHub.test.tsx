@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 
 // ── Mail commands (async probes used by GetStartedCard) ───────────────────────
@@ -261,7 +261,7 @@ describe('MatterHub — sub-tab workspace', () => {
     expect(screen.getByTestId('hub-subtab-unavailable')).toBeInTheDocument();
   });
 
-  it('opens directly on a requested sub-tab from the client-list quick-action signal', () => {
+  it('opens directly on a requested sub-tab from the client-list quick-action signal', async () => {
     useMatterStore.getState().createMatter({ name: 'Quick Co', client: 'Quick Co' });
     const matter = useMatterStore.getState().matters[0]!;
     // The event bus set this one-shot signal when routing a row's Email action.
@@ -275,9 +275,12 @@ describe('MatterHub — sub-tab workspace', () => {
       />,
     );
 
-    // Lands on Email (not Overview), and the one-shot signal is consumed.
+    // Lands on Email (not Overview) from the initializer...
     expect(screen.getByTestId('stub-email')).toBeInTheDocument();
     expect(screen.queryByTestId('hub-panel-clientmap')).toBeNull();
-    expect(useMatterStore.getState().clientMapHubTab).toBeNull();
+    // ...and the one-shot signal is consumed (deferred via queueMicrotask).
+    await waitFor(() => {
+      expect(useMatterStore.getState().clientMapHubTab).toBeNull();
+    });
   });
 });

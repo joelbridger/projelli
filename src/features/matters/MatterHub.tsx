@@ -111,27 +111,24 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   // sub-tab instead of a global surface.
   const pendingHubTab = useMatterStore((s) => s.clientMapHubTab);
   const setPendingHubTab = useMatterStore((s) => s.setClientMapHubTab);
+  // The initializer above seeds the sub-tab from any pending request on mount.
+  // Resetting to Overview when the CLIENT changes is handled by the per-matter
+  // key on MatterHub (MattersHome keys it by matterId, so a client switch
+  // remounts this whole component fresh) — no reset effect needed here, which
+  // also keeps the hub free of cross-client state reuse (matter isolation).
   const [subTab, setSubTab] = useState<HubTab>(() => pendingHubTab ?? 'overview');
 
-  // Reset to Overview when the client changes — UNLESS a specific sub-tab was
-  // just requested for the newly-opened client (read the live store value, which
-  // the consume effect below has not cleared yet). This effect is declared FIRST
-  // so it runs before the consume effect on mount / a client switch; otherwise it
-  // would see the just-cleared signal and stomp the requested sub-tab back to
-  // Overview.
-  useEffect(() => {
-    if (!useMatterStore.getState().clientMapHubTab) {
-      setSubTab('overview');
-    }
-  }, [matterId]);
-
   // Honor + consume a pending sub-tab request. Reactive on `pendingHubTab` so it
-  // also handles a quick-action targeting the SAME already-open client (where
-  // the matterId effect above doesn't re-run).
+  // handles a quick-action targeting the SAME already-open client (no remount).
+  // The setState is deferred out of the effect body (queueMicrotask — the
+  // codebase pattern) to avoid cascading-render warnings.
   useEffect(() => {
     if (pendingHubTab) {
-      setSubTab(pendingHubTab);
-      setPendingHubTab(null);
+      const requested = pendingHubTab;
+      queueMicrotask(() => {
+        setSubTab(requested);
+        setPendingHubTab(null);
+      });
     }
   }, [pendingHubTab, setPendingHubTab]);
 
