@@ -37,7 +37,7 @@ Every competitor below is missing at least one of those four. Most are missing t
 
 | Tool | Local-first? | BYOK? | AI native? | File format | Pricing | Target audience | Biggest gap vs Keepance |
 |---|---|---|---|---|---|---|---|
-| **Keepance** | ✅ | ✅ | ✅ | `.md` on disk | $49 / $129 / $399 one-time | Attorneys, CPAs, and consultants | n/a (mobile reader still post-v2.0) |
+| **Keepance** | ✅ | ✅ | ✅ | Word `.docx` on disk (Markdown for utility files) | $468 / $948 / $1,548-seat per year | Financial advisors (law/tax/consulting secondary) | n/a (desktop-only) |
 | **Notion AI** | ❌ cloud | ❌ Notion's keys | ✅ | Notion DB | $10/mo + $10/mo AI | Generic teams | Cloud-only, subscription, client files live on Notion's servers |
 | **Obsidian + Copilot plugin** | ✅ | ✅ | ⚠️ via plugin | `.md` on disk | $0 + $25 plugin | PKM nerds | AI is bolted-on, no founder templates, no chat-as-artifacts model |
 | **ChatGPT** | ❌ | ❌ OpenAI only | ✅ | None, chat is the artifact | $20/mo Plus | Anyone | Chats evaporate, no files, no editor, no privacy |
@@ -188,9 +188,9 @@ The point isn't to win every dimension. It's to be the only correct answer for "
 
 | Tool | Annual cost (1 year) | Annual cost (3 years) | Notes |
 |---|---|---|---|
-| **Keepance Personal** | **$49** | **$49** | One-time |
-| **Keepance Professional** | **$129** | **$129** | One-time, includes one profession pack |
-| **Keepance Practice** | **$399** | **$399** | One-time, 5 seats, all packs |
+| **Keepance Solo** | **$468** | **$1,404** | $468/yr per-seat annual subscription (updated 3.0; was a one-time $49) |
+| **Keepance Professional** | **$948** | **$2,844** | $948/yr; adds the full workflow library / all profession packs |
+| **Keepance Firm** | **$1,548/seat (min 3 = $4,644)** | **$13,932 (3 seats)** | $1,548/seat/yr, min 3 seats; shared clients, SSO, information barriers, Assured |
 | Notion + Notion AI | $240 | $720 | $10 base + $10 AI per user |
 | ChatGPT Plus | $240 | $720 | $20/mo |
 | Claude Pro | $240 | $720 | $20/mo |

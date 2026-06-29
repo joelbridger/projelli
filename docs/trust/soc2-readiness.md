@@ -31,7 +31,7 @@ For each category: what the architecture already provides, and the gap that rema
 | Boundary / data egress (CC6.6) | Local-first; the only routine outbound calls are the license check (key + machine id, no content) and update manifest fetch. In-app egress indicator and data map (`EgressIndicator.tsx`, `DataMapDialog.tsx`). Privileged Matter Mode blocks network extensions for privileged matters. | No network-security policy or firewall/segmentation documentation for the (minimal) license service infrastructure. |
 | Audit logging (CC7.2) | Append-only on-device audit log with provenance events: retrieval scope, privilege exclusion, citation verification, egress destination, blocked network-extension writes (`src/types/audit.ts`, `AuditService.ts`). | The log is the *customer's* defense file on their device, not centralized security monitoring of the *service*. No SIEM, no alerting on the license/update infrastructure. |
 | Change management (CC8.1) | Source under version control; CI build pipeline (`.github/workflows/release.yml`); code-signed releases (Azure Trusted Signing, Apple Developer ID). | No written change-management policy, no formal approval/segregation-of-duties record, no documented release-approval gate tied to evidence. |
-| Risk assessment (CC3.x) | Architecture decision records and a de-risked firm-platform decision doc with an explicit risk register (`spikes/firm-sync/DECISION.md`). | No periodic, documented enterprise risk assessment process. |
+| Risk assessment (CC3.x) | Architecture decision records and a de-risked firm-platform decision doc with an explicit risk register (`docs/archive/decisions/firm-sync/DECISION.md`). | No periodic, documented enterprise risk assessment process. |
 | Vendor management (CC9.2) | Sub-processors are few and listed (LemonSqueezy, GitHub) in `docs/legal/DPA-template.md`. | No formal vendor risk-review process or signed sub-processor agreements on file. |
 | Monitoring (CC4.x) | n/a meaningfully: little service-side surface to monitor. | No control-monitoring program; no evidence of ongoing operating effectiveness (the core of Type II). |
 
@@ -88,7 +88,7 @@ Technical controls are in reasonable shape because the architecture does a lot o
 4. Optionally obtain a **Type I** (design-only, point-in-time) report first to satisfy near-term buyers while the Type II clock runs.
 5. Begin the **Type II observation window**, collect evidence, then have the independent CPA issue the report.
 
-A useful interim move for skeptical firms, available now: point them to `docs/trust/security-overview.md` (with the source-file references), the DPA template, and (for the firm-tier inference path) the open design and intended independent audit in `spikes/firm-sync/DECISION.md`. "Here is the architecture and the code that backs each claim" is a credible bridge while a formal report is in progress, but it is **not a substitute** for the report itself, and it should never be described as one.
+A useful interim move for skeptical firms, available now: point them to `docs/trust/security-overview.md` (with the source-file references), the DPA template, and (for the firm-tier inference path) the open design and intended independent audit in `docs/archive/decisions/firm-sync/DECISION.md`. "Here is the architecture and the code that backs each claim" is a credible bridge while a formal report is in progress, but it is **not a substitute** for the report itself, and it should never be described as one.
 
 ---
 

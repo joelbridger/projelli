@@ -11,6 +11,15 @@
 > privilege / IRC §7216. For current positioning read `docs/strategy/2026-06-23-reaim-to-financial-advisors.md`
 > and `docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md`. Read the rest of
 > this doc with "advisors first, the named professions second" in mind.
+>
+> **It is also a HISTORICAL snapshot on the specifics — don't trust its details.** The
+> named tech stack (CodeMirror/SQLite, FlexSearch, Mermaid) and the "out of scope" list
+> below are outdated: the editor is now Word-native (OOXML `.docx` + TipTap), storage is
+> SQLCipher + LanceDB + minisearch (no FlexSearch), and several things it calls out-of-scope
+> have since shipped (voice input, paid subscriptions, and end-to-end-encrypted firm cloud
+> sync). For the current feature set read `docs/reference/FEATURES.md`; for the current
+> stack read the repo-root `CLAUDE.md` (§ Technology Stack) + `ARCHITECTURE.md`. Treat the
+> rest of this file as vision narrative, not a current spec.
 
 ## Executive Summary
 
