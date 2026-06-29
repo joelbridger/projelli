@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useClientMapStore, getClientMap, migratePersistedClientMaps } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
+import { proposalSignature } from '@/platform/clientMap/updater';
 import type { ProposedUpdate, ClientMapItem } from '@/platform/clientMap/types';
 
 const item = (id: string, text: string): ClientMapItem => ({
@@ -75,6 +76,49 @@ describe('migratePersistedClientMaps', () => {
     expect(map.pendingUpdates).toEqual([
       expect.objectContaining({ id: 'upd', sectionKey: 'followups' }),
     ]);
+  });
+
+  it('remaps the embedded section key inside pending-update + dismissed signatures (v2->v3)', () => {
+    // An upgrading user with a pending update AND a previously-dismissed proposal,
+    // both carrying OLD-key signatures. The live update code derives signatures
+    // from the NEW keys, so unless the migration remaps the key embedded INSIDE
+    // each signature string, (a) the dismissal stops matching and the suggestion
+    // REAPPEARS, and (b) the pending signature drifts from its remapped sectionKey.
+    const pendingSig = proposalSignature('next', 'add', 'Schedule follow-up');
+    const dismissedSig = proposalSignature('standing', 'edit', 'Schwab IRA balance');
+    const legacy = {
+      maps: {
+        m1: {
+          ...emptyClientMap('m1'),
+          sections: [
+            { id: 'standing', kind: 'core' as const, key: 'standing', title: 'Standing', items: [] },
+            { id: 'next', kind: 'core' as const, key: 'next', title: 'Next', items: [] },
+          ],
+          pendingUpdates: [
+            {
+              id: 'upd', sectionKey: 'next', op: 'add' as const, draft: item('x', 'Schedule follow-up'),
+              reason: 'r', createdAt: 't', signature: pendingSig,
+            },
+          ],
+          dismissedSignatures: [
+            { signature: dismissedSig, sourceSignature: 'src-1' },
+          ],
+        },
+      },
+    };
+
+    const out = migratePersistedClientMaps(legacy, 2);
+    const map = out.maps!['m1']!;
+
+    // The pending update's sectionKey AND the key embedded in its signature both
+    // move to followups (op + normalized text preserved exactly).
+    expect(map.pendingUpdates[0]!.sectionKey).toBe('followups');
+    expect(map.pendingUpdates[0]!.signature).toBe(proposalSignature('followups', 'add', 'Schedule follow-up'));
+
+    // The dismissed signature now equals what the live code generates under the
+    // NEW key, so the dismissal keeps suppressing the same fact (no reappearance).
+    expect(map.dismissedSignatures![0]!.signature).toBe(proposalSignature('money', 'edit', 'Schwab IRA balance'));
+    expect(map.dismissedSignatures![0]!.sourceSignature).toBe('src-1');
   });
 
   it('tolerates empty / missing persisted state', () => {

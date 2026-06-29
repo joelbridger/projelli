@@ -253,7 +253,12 @@ export function SourcePanel({
 
       {citations.map((c) => (
         <SourceCard
-          key={c.n}
+          // Key by citation IDENTITY (id/path + matterId), not just the number:
+          // switching Ask turns / Client Map sections re-renders this column, and
+          // a different source reusing the same number (n) must remount with fresh
+          // local state — otherwise a prior card's verify verdict would wrongly
+          // carry over onto the new, unchecked source.
+          key={`${String(c.n)}:${c.id ?? c.path ?? ''}:${c.matterId ?? ''}`}
           cite={c}
           selected={c.n === selectedN}
           onSelect={onSelect}

@@ -19,6 +19,20 @@ function remapSectionKey(k: string): string {
   return LEGACY_SECTION_KEY_MAP[k] ?? k;
 }
 
+/** Remap the section-key PREFIX embedded in a proposal signature
+ *  (`<sectionKey> | <op> | <normalizedText>`, see `proposalSignature`). Only the
+ *  first segment (the section key) is remapped; the op + text are preserved
+ *  byte-for-byte (the text may itself contain ' | '). A malformed signature with
+ *  no separator is left untouched. Keeps saved pending/dismissed signatures in
+ *  step with the sectionKey remap so prior dismissals still match the live
+ *  (new-key) signatures and previously-dismissed suggestions do not reappear. */
+function remapSignatureSectionKey(sig: string): string {
+  const sep = ' | ';
+  const idx = sig.indexOf(sep);
+  if (idx === -1) return sig;
+  return remapSectionKey(sig.slice(0, idx)) + sig.slice(idx);
+}
+
 interface ClientMapState {
   maps: Record<string, ClientMap>;
   clientQuestions: Record<string, ClientQuestion[]>;
@@ -133,8 +147,21 @@ export function migratePersistedClientMaps(persisted: unknown, version: number):
         }
       }
       if (Array.isArray(map.pendingUpdates)) {
-        for (const p of map.pendingUpdates as Array<{ sectionKey?: unknown }>) {
+        // Persisted JSON is untrusted — an element may be null/malformed.
+        for (const p of map.pendingUpdates as Array<{ sectionKey?: unknown; signature?: unknown } | null | undefined>) {
           if (p && typeof p.sectionKey === 'string') p.sectionKey = remapSectionKey(p.sectionKey);
+          // The stable signature embeds the section key as its first segment;
+          // remap it too, or the live (new-key) comparison would never match.
+          if (p && typeof p.signature === 'string') p.signature = remapSignatureSectionKey(p.signature);
+        }
+      }
+      // Dismissed-proposal signatures also embed the old section key. Remap them
+      // so an upgrading user's earlier dismissals keep suppressing the same
+      // facts (otherwise previously-dismissed suggestions reappear).
+      const dismissed = (map as { dismissedSignatures?: unknown }).dismissedSignatures;
+      if (Array.isArray(dismissed)) {
+        for (const d of dismissed as Array<{ signature?: unknown } | null | undefined>) {
+          if (d && typeof d.signature === 'string') d.signature = remapSignatureSectionKey(d.signature);
         }
       }
     }
