@@ -4,6 +4,17 @@
 >
 > **Last updated:** 2026-05-04 (refreshed for the v2.0 mega-release: image + PDF chat, PDF RAG, long-context [Compress], local Piper TTS, plugin runtime + marketplace, web demo, Spanish + German UI). ICP updated 2026-05-27 to attorneys/CPAs/consultants.
 > **Audience:** Internal, used as reply ammunition, not published as-is.
+>
+> **⚠️ Positioning update (2026-06-23 / 2026-06-29) — read this first.** The audience
+> below ("attorneys, CPAs, consultants") is **superseded**: Keepance now leads for
+> **financial advisors** (solo/small RIA practices), with law/tax/consulting as secondary.
+> The primary competitor to study is now **Jump** (the most-adopted standalone advisor-AI
+> tool); the 2026-06-29 board decision is to beat it by being simpler and more AI-first
+> (connect files → ask cited questions → living Client Map), where Jump is a
+> note-taker bolted to 60 integrations. The cross-tool comparisons below (Notion AI,
+> Obsidian, ChatGPT, Reflect, Tana, etc.) are still useful, but reframe the audience to
+> advisors. Full current intel: `docs/strategy/2026-06-28-strategic-advisor-memo.md` +
+> `docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md`.
 
 ---
 

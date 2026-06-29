@@ -1,5 +1,7 @@
 # Keepance — Reorientation Execution Summary (2026-06-17)
 
+> ⚠️ **ARCHIVED / SUPERSEDED — kept for history.** Part of the 2026-06-17 "product is mature, stop building" cluster, overturned by 2026-06-20 Windows testing and the 2026-06-23/29 advisor re-aim. Current direction: `docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md`. See this folder's `README.md`.
+
 > **For Jameson's review.** You asked for a full pass at everything before you looked. This is what was done, autonomously, in one session. The strategy is in `2026-06-17-keepance-master-plan.md`; this is the outcome.
 
 ## The arc

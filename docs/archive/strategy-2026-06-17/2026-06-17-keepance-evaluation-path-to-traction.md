@@ -1,3 +1,5 @@
+> ⚠️ **ARCHIVED / SUPERSEDED — kept for history.** Part of the 2026-06-17 "product is mature, stop building" cluster, overturned by 2026-06-20 Windows testing and the 2026-06-23/29 advisor re-aim. The traction analysis is still useful; the "stop building / retreat to a niche" conclusion is not. Current direction: `docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md`. See this folder's `README.md`.
+
 # Keepance — Evidence-Backed Evaluation & Shortest Path to Traction
 
 **Date:** 2026-06-17

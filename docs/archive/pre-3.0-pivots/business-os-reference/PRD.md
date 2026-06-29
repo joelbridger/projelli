@@ -1,3 +1,5 @@
+> ⚠️ **ARCHIVED — pre-v3 "Business OS" doc, superseded. Kept for history.** Current product requirements/features live in `docs/reference/FEATURES.md`; current positioning in repo-root `CLAUDE.md` + `KEEPANCE_BUSINESS_PLAN.md`. See this folder's `README.md`.
+
 # Business OS - Product Requirements Document (PRD)
 
 ## Overview

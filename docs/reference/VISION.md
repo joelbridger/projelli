@@ -1,5 +1,17 @@
 # Keepance — Vision Document
 
+> **⚠️ Audience update (2026-06-23 / 2026-06-29).** This doc was written when the ICP
+> was "attorneys, CPAs, and consultants" (locked 2026-05-27). Since then Keepance
+> **re-aimed to financial advisors** as the lead audience (solo/small RIA practices),
+> with law, tax, and consulting kept as **secondary** verticals; the 2026-06-29 board
+> decision set the direction to compete head-on as the leading advisor-AI — a simple
+> AI-first app (connect files → ask cited questions → living Client Map), not a
+> note-taker. The confidentiality thesis below still holds; it just maps to advisors'
+> obligations (Reg S-P, Reg BI; the unit is a client/household) as cleanly as it did to
+> privilege / IRC §7216. For current positioning read `docs/strategy/2026-06-23-reaim-to-financial-advisors.md`
+> and `docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md`. Read the rest of
+> this doc with "advisors first, the named professions second" in mind.
+
 ## Executive Summary
 
 Keepance is a local-first, artifact-driven workspace application designed specifically for attorneys, CPAs, and consultants who cannot use cloud AI due to confidentiality obligations. Unlike typical chat-based AI interfaces, Keepance treats AI as a collaborative tool that produces, manages, and refines tangible work artifacts — documents, research, analyses, and strategic outputs — while keeping the professional firmly in control of all decisions.

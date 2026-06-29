@@ -14,7 +14,7 @@
 >
 > **🛑 NO SHORTCUTS on the core app — build it RIGHT and robust (rule set by Jameson, 2026-06-20):** For Keepance core app development (the product itself — the desktop app, its Rust backend, its features), do **NOT** do quick fixes, partial fixes, or shortcuts. Get it correct and make it robust. When a fix can be done cheaply-but-incompletely vs. fully-but-with-more-work (more files, a backend/engine change, a longer rebuild/test cycle), **take the long route to the robust solution** — don't even propose the shortcut as the plan. Still verify rigorously (TDD, real tests, bench/live confirmation, independent/Codex review). This sharpens (does not contradict) the "lean, direct execution" default in `~/.claude/CLAUDE.md`: lean still applies to non-core work (scripts, one-off tooling, marketing, infra) and to *how* you execute once the robust approach is chosen — but for the core product the bias is **robustness over minimal effort**. See `~/.claude/projects/-home-jameson/memory/feedback_keepance_robust_no_shortcuts.md`.
 >
-> **⚠️ Reality check — the product is NOT "finished, just market it" (corrected 2026-06-20):** Recent hands-on testing on real Windows hardware found MANY unfinished and broken areas. The 2026-06-17 strategy docs (`docs/strategy/2026-06-17-keepance-master-plan.md`, `...-path-to-traction.md`, `...-build-session-handoff-...md`) concluded "the product is mature; stop building; the only binding constraint is distribution, not engineering" — **treat that conclusion as OUTDATED.** A lot is built, but finishing and hardening the product (especially on real Windows and Mac) is real, necessary work — alongside, not after, distribution. For the honest current state, trust the board dashboard (`docs/board/`) and the latest `docs/operations/*CURRENT-STATE*` over the June-17 strategy cluster.
+> **⚠️ Reality check — the product is NOT "finished, just market it" (corrected 2026-06-20):** Recent hands-on testing on real Windows hardware found MANY unfinished and broken areas. The 2026-06-17 strategy cluster (now archived at `docs/archive/strategy-2026-06-17/` — master-plan, build-session-handoff, evaluation-path-to-traction, reorientation-execution-summary) concluded "the product is mature; stop building; the only binding constraint is distribution, not engineering" — **treat that conclusion as OUTDATED** (and also superseded by the 2026-06-23/29 advisor re-aim). A lot is built, but finishing and hardening the product (especially on real Windows and Mac) is real, necessary work — alongside, not after, distribution. For the honest current state, trust the board dashboard (`docs/board/`) and the latest `docs/operations/*CURRENT-STATE*` over the June-17 strategy cluster.
 >
 > **🪟 WINDOWS (and Mac) TESTING IS THE AI's JOB — NOT JAMESON's (rule set by Jameson 2026-06-23, and it is mandatory for every Claude Code instance):** Real-OS testing of Keepance is **YOUR responsibility**, not the user's. There is an always-on **Legion Windows laptop** set up exactly for this (Tailscale device `laptop` = `james@100.127.67.22`, admin). When any change needs real-Windows verification — a smoke test, driving the app like a user, a bench run, confirming a fix live — **you bring the Legion up to the current code, run it, and drive it yourself** via `scripts/desktop-drive.mjs` (CDP over the WebView2 remote-debug port) + `scripts/legion_agent.py` (pyautogui, for native dialogs). **NEVER ask Jameson to run, install, smoke-test, or Windows-test the app himself** — he is the product designer, not your QA. The only things to ask him for are rare physical/biometric taps (a passkey, a FileVault unlock, or powering the laptop on if it is offline). Mac spot-checks use the M1 bench the same way. Full how-to: `~/.claude/projects/-home-jameson/memory/reference_keepance_desktop_control.md` + `project_keepance_dev_velocity.md` + `feedback_windows_testing_is_ai_job.md`.
 >
@@ -171,71 +171,31 @@
 | **API Key Storage** | OS Keychain (Tauri) → Encrypted file fallback |
 | **Testing** | Vitest + React Testing Library | Vite-native |
 
-> **✅ Structure reconciliation (DONE, 2026-06-17).** The 3.0 feature-first reorg is complete: `src/` is now `{app, features, platform, ui, lib}` (one folder per product surface + a cross-cutting platform layer), governed by a 5-layer dependency DAG. **The authoritative map is [`ARCHITECTURE.md`](./ARCHITECTURE.md) — read it first for anything structural.** The "Key Files" / "Directory Structure" sections below are kept only as a coarse historical reference; where they disagree with `ARCHITECTURE.md` or the code, the code wins. The data-layer rows in the table above are accurate.
+> **✅ Structure reconciliation (DONE, 2026-06-17).** The 3.0 feature-first reorg is complete: `src/` is now `{app, features, platform, ui, lib}` (one folder per product surface + a cross-cutting platform layer), governed by a 5-layer dependency DAG. **The authoritative map is [`ARCHITECTURE.md`](./ARCHITECTURE.md) — read it first for anything structural.** The "Key Files" / "Directory Structure" sections below now just point to it and to a layer map; the stale pre-3.0 per-file tables (`src/modules/…`, `src/components/…`, `src/stores/…`) that used to live there were removed (they'd send you to paths that no longer exist). The data-layer rows in the table above are accurate.
 
 ---
 
 ## Key Files
 
-> **Historical paths (pre-3.0-reorg).** Modules moved to `platform/`, components
-> to `features/`/`ui/`/`app/`, stores to `platform/`. For current locations use
-> **[`ARCHITECTURE.md`](./ARCHITECTURE.md)** or grep by symbol — the tables below
-> name the right files but their `src/...` paths are stale.
+> **The authoritative code map is [`ARCHITECTURE.md`](./ARCHITECTURE.md).** Read
+> it first for structure. The old per-file tables that used to live here named
+> `src/modules/…`, `src/components/…`, `src/stores/…`, `src/types/…` paths — all
+> of which were retired in the 3.0 feature-first reorg. They're gone, not
+> caveated, to avoid sending anyone to a path that no longer exists. Use the
+> layer map below to know *which folder* a thing lives in, then grep by symbol
+> for the exact file (the symbols themselves were preserved through the reorg).
 
-### Core Modules
+**Old layout → where it lives now** (the reorg moved files by layer, see `ARCHITECTURE.md`):
 
-| File | Purpose |
-|------|---------|
-| `src/modules/workspace/WorkspaceService.ts` | File CRUD, path validation, security |
-| `src/modules/workspace/WebFSBackend.ts` | Browser File System Access API |
-| `src/modules/workspace/TauriFSBackend.ts` | Tauri filesystem backend |
-| `src/modules/workspace/PathValidator.ts` | Path traversal blocking |
-| `src/modules/editor/EditorService.ts` | CodeMirror integration |
-| `src/modules/editor/WikiLinkParser.ts` | `[[link]]` syntax parsing |
-| `src/modules/history/HistoryService.ts` | Undo/redo command stack |
-| `src/modules/history/TrashService.ts` | Soft delete management |
-| `src/modules/workflow/WorkflowEngine.ts` | Workflow execution |
-| `src/modules/workflow/RunRecordService.ts` | Run persistence |
-| `src/modules/models/Provider.ts` | Model adapter interface |
-| `src/modules/models/ClaudeProvider.ts` | Anthropic API adapter |
-| `src/modules/models/OpenAIProvider.ts` | OpenAI API adapter |
-| `src/modules/models/ModelListService.ts` | Auto-fetch available models from provider APIs with 24h cache |
-| `src/modules/models/fetchUtils.ts` | Shared provider base URL resolution (dev proxy / production) |
-| `src/hooks/useModelList.ts` | React hook for dynamic model list fetching and caching |
-| `src/modules/audit/AuditService.ts` | Append-only action log |
-| `src/modules/research/SourceCardService.ts` | Citation management |
-| `src/modules/analysis/DocSummaryService.ts` | Document summarization |
+| Old (pre-3.0) | Now | Verified anchor examples |
+|---|---|---|
+| `src/modules/<x>/` (services, engines, providers) | `src/platform/<domain>/` or, if surface-specific, `src/features/<surface>/` | `WorkspaceService` → `src/platform/fs/WorkspaceService.ts`; `ClaudeProvider`/`OpenAIProvider`/`Provider` → `src/platform/providers/`; `AuditService` → `src/platform/audit/AuditService.ts`; `WorkflowEngine` → `src/features/workflows/engine/WorkflowEngine.ts` |
+| `src/components/<x>/` | `src/features/<surface>/`, `src/ui/`, or `src/app/shell/` | `FileTree` → under `src/features/documents/…/workspace/`; design-system primitives → `src/ui/` |
+| `src/stores/<x>` | `src/platform/state/` (shared cross-feature) or a feature/platform domain | `aiChatStore` → `src/platform/state/aiChatStore.ts`; the matter store → `src/platform/matter/matterStore.ts` |
+| `src/types/<x>` | `src/platform/types/` | `workflow.ts` (`RunRecord`, `ToolCall`) → `src/platform/types/workflow.ts` |
+| `src/hooks/<x>` | `src/platform/hooks/` or `src/app/.../hooks/` | — |
 
-### UI Components
-
-| File | Purpose |
-|------|---------|
-| `src/components/workspace/FileTree.tsx` | Folder/file navigation |
-| `src/components/editor/MarkdownEditor.tsx` | CodeMirror wrapper |
-| `src/components/editor/TabBar.tsx` | Multiple file tabs |
-| `src/components/editor/SplitPane.tsx` | Side-by-side editing |
-| `src/components/editor/DiffViewer.tsx` | Change preview |
-| `src/components/workflow/WorkflowPanel.tsx` | Workflow launcher |
-| `src/components/workflow/InterviewForm.tsx` | Q&A collection |
-
-### Zustand Stores
-
-| File | Purpose |
-|------|---------|
-| `src/stores/workspaceStore.ts` | File tree, workspace root |
-| `src/stores/editorStore.ts` | Open tabs, pane layout |
-| `src/stores/workflowStore.ts` | Running workflows, history |
-| `src/stores/settingsStore.ts` | User preferences |
-| `src/stores/aiChatStore.ts` | AI chat sessions, streaming message updates, draft input persistence |
-
-### Type Definitions
-
-| File | Purpose |
-|------|---------|
-| `src/types/workspace.ts` | FileNode, Workspace types |
-| `src/types/workflow.ts` | WorkflowTemplate, RunRecord, ToolCall |
-| `src/types/research.ts` | SourceCard |
-| `src/types/analysis.ts` | DocSummary |
+To find any file fast: `grep -rl "export ... <SymbolName>" src/` — symbols are stable; folder paths are not. The Rust backend lives under `src-tauri/src/commands/` (one folder per area) plus the `keepance-vault` / `keepance-docx` crates.
 
 ---
 
@@ -431,77 +391,42 @@ A few Claude Code skills live under `.claude/skills/` (auto-discovered in any se
 
 ## Directory Structure
 
-> **Historical (pre-3.0-reorg) layout — kept for reference only.** The current
-> tree is `src/{app, features, platform, ui, lib}` (feature-first, 5-layer DAG).
-> See **[`ARCHITECTURE.md`](./ARCHITECTURE.md)** for the authoritative map.
+> **The authoritative `src/` map is [`ARCHITECTURE.md`](./ARCHITECTURE.md).** The
+> old ASCII tree that used to live here described the pre-3.0 layer-based layout
+> (`components/`, `modules/`, `stores/`, `hooks/`, `types/`, `utils/`) — none of
+> which exists anymore. It has been removed rather than caveated. The current
+> shape, in one line:
 
 ```
 keepance/
-├── src/
-│   ├── main.tsx                    # Entry point
-│   ├── App.tsx                     # Root component
-│   ├── components/
-│   │   ├── ui/                     # shadcn/ui primitives
-│   │   ├── layout/                 # Sidebar, MainPanel, StatusBar
-│   │   ├── workspace/              # FileTree, WorkspaceSelector
-│   │   ├── editor/                 # MarkdownEditor, TabBar, SplitPane, DiffViewer
-│   │   ├── workflow/               # WorkflowPanel, InterviewForm
-│   │   ├── research/               # SourceCardPanel, CompetitorMatrix
-│   │   ├── analysis/               # ComparisonView, SynthesisPanel
-│   │   ├── settings/               # ApiKeySettings
-│   │   └── common/                 # CommandPalette, AuditLog, TrashPanel
-│   ├── modules/
-│   │   ├── workspace/              # WorkspaceService, FSBackends, PathValidator
-│   │   ├── editor/                 # EditorService, WikiLinkParser, BacklinkIndex
-│   │   ├── history/                # HistoryService, CommandStack, TrashService
-│   │   ├── workflow/               # WorkflowEngine, RunRecordService, templates/
-│   │   ├── models/                 # Provider, ClaudeProvider, OpenAIProvider, ModelListService, fetchUtils
-│   │   ├── research/               # SourceCardService, CitationParser
-│   │   ├── analysis/               # DocSummaryService, ContradictionDetector
-│   │   ├── search/                 # SearchService, IndexBuilder
-│   │   └── audit/                  # AuditService
-│   ├── tools/                      # Unified tool layer for models
-│   ├── stores/                     # Zustand stores
-│   ├── hooks/                      # React hooks
-│   ├── types/                      # TypeScript interfaces
-│   ├── utils/                      # Shared utilities
-│   ├── lib/                        # Third-party wrappers (sqlite.ts, mermaid.ts)
-│   └── styles/                     # globals.css
-├── src-tauri/                      # Tauri Rust backend
-│   ├── src/
-│   │   ├── main.rs
-│   │   ├── commands/               # fs.rs, keychain.rs
-│   │   └── lib.rs
-│   ├── Cargo.toml
-│   ├── tauri.conf.json
-│   └── icons/
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   ├── security/
-│   └── e2e/
-├── docs/
-├── public/
-├── package.json
-├── tsconfig.json
-├── tailwind.config.js
-├── vite.config.ts
-├── vitest.config.ts
-└── README.md
+├── src/                  # feature-first frontend, 5-layer DAG (lib ← ui ← platform ← features ← app)
+│   ├── app/              #   the shell that composes features (App.tsx, shell/, lifecycle/, dialogs/, …)
+│   ├── features/         #   product surfaces, one folder each (ask, documents, email, matters, firm, workflows, settings, …)
+│   ├── platform/         #   cross-cutting capabilities (providers, fs, rag, firm, matter, audit, state, types, …)
+│   ├── ui/               #   design system (shadcn primitives + ui/kp/ + brand/)
+│   └── lib/              #   domain-free leaf utilities
+├── src-tauri/            # Tauri Rust backend (commands/ one folder per area; crates: keepance-vault, keepance-docx)
+├── backend/             # firm backend (E2EE relay + SSO), deployed to api.keepance.com
+├── tests/               # Vitest (unit/integration/security) + Playwright (e2e)
+├── website/             # marketing site (deploys to keepance.com)
+├── docs/                # all project docs (see docs/README.md for the index)
+└── infra/, public/, scripts/, .github/workflows/
 ```
+
+See `ARCHITECTURE.md` for the full per-folder breakdown, the layer rules (machine-enforced by `tests/unit/architecture-boundaries.test.ts`), and the locked identifiers that must never be renamed.
 
 ---
 
 ## Current Phase
 
-**v3.0.x — launched (2026-06-09/10), full-vision quality campaign in flight.**
+**v3.3.5 — shipped on all platforms; re-aimed to financial advisors; pre-launch traction phase.**
 
-- v3.0.0 published: signed Win/Mac/Linux installers + auto-update; keepance.com on 3.0 positioning/pricing; firm backend LIVE at api.keepance.com; LemonSqueezy subscriptions live.
-- Firm desktop wiring complete (2026-06-10): shared matters with cross-member key distribution (ECDH P-256 wrap + admin escrow), live collaborative matter notes (Yjs over the E2EE relay), invite-by-email, ethical walls with key purge + epoch rotation, /org/claim self-serve activation, LS webhook provisioning, Assured routing.
-- In flight: the exhaustive usability campaign (persona study + mechanical sweep + native pass) feeding a fix wave and the v3.1.0 release. Campaign home: `docs/quality/2026-06-10-v3-usability-campaign/`; umbrella plan: `docs/superpowers/plans/2026-06-10-v3-full-vision-quality-campaign.md`.
-- Read `docs/strategy/2026-06-09-keepance-3.0-STATUS.md` and the project memory before substantive work; parts of the historical sections below (architecture tables, file lists) predate 3.0 and are being reconciled.
+- **Version:** v3.3.5 is the current release (signed Win/Mac/Linux installers + auto-update, LemonSqueezy subscriptions, firm backend live at api.keepance.com). The full 3.0 vision shipped across the 3.0→3.3 line (Word engine + AI redline, client-scoped cited recall, email + OneDrive + Wealthbox connectors, SSO, encrypted vault, OCR, live multi-user .docx co-editing).
+- **Positioning:** re-aimed to **financial advisors** (2026-06-23), and the 2026-06-29 board decision set the direction: compete head-on to be the leading advisor-AI, as a simple AI-first app (connect files → ask cited questions → living Client Map), **not** a note-taker. Law/tax/consulting are secondary verticals.
+- **Focus now:** not new features — **prove real advisors use it weekly and that one or two will pay.** A 3-tab IA (Client Map · Ask · Workflows), an advisor-first sample workspace, a live web demo, and a clean 3×-in-a-row Windows smoke are the current health signals. Nothing has shipped to outside users yet.
+- **Read first for current state:** the board dashboard ([board.jameworld.com](https://board.jameworld.com)) + [`docs/operations/2026-06-24-advisor-website-board-CURRENT-STATE.md`](docs/operations/2026-06-24-advisor-website-board-CURRENT-STATE.md), the advisor re-aim docs (`docs/strategy/2026-06-28-strategic-advisor-memo.md`, `docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md`), and the project memory. The 2026-06-17 "product is mature, stop building" strategy cluster is **superseded** and archived under `docs/archive/strategy-2026-06-17/`.
 
-**Post-launch build program:** 100% vision-document completion, zero exceptions (board Q7 revised, 2026-06-10). Plan of record: `docs/strategy/2026-06-10-vision-gap-closure-plan.md` (Option B model download → wedge proof → OCR → SSO + encrypted vault → live multi-user .docx co-editing [ship gate overridden, addendum in `spikes/firm-sync/DECISION.md`] → Clio/Office add-ins/DMS connectors, with vendor-access applications running in parallel).
+**Connectors (status, code-grounded):** shipping today — Email (Outlook/M365, Gmail, IMAP), OneDrive/SharePoint, Wealthbox (CRM), Calendly. Code-complete but gated on vendor credentials — DocuSign, Salesforce, Redtail. Five bonus connectors (Addepar, Box, Jotform, ShareFile, Zocks) are staged on un-merged feature branches, **not** in `keepance-3.0`. Roadmap, no code yet — Clio, iManage/NetDocuments, Office add-ins (vendor-access applications running in parallel). Authoritative detail: [`docs/reference/CONNECTORS.md`](docs/reference/CONNECTORS.md).
 
 ---
 
@@ -610,10 +535,19 @@ interface DocSummary {
 
 ## Sub-agent model routing
 
-Claude Code routes through a LiteLLM gateway. Two tiers:
+> **⚠️ ASPIRATIONAL — the local-gateway part is NOT wired up (verified 2026-06-11, still true).**
+> Claude Code in this repo is **not** routed through a LiteLLM gateway: there is no
+> `ANTHROPIC_BASE_URL` set, so a `model: "haiku"` sub-agent bills as **Anthropic cloud
+> Haiku ($1/$5 per MTok)**, *not* the free local RTX 5070. The local model named below
+> (Qwen2.5-7B) is also **not loaded** (only `llama3.1:8b` / `llama3.2:3b` are). Treat the
+> "free local offload" as a future setup, not current reality. Cloud Haiku is still the
+> cheapest tier, so the routing *strategy* below holds — just know `haiku` = cloud Haiku
+> today. (This matches the "Routing reality check" note in the Token-Budget section above.)
 
-- **`haiku`** → local RTX 5070 (Qwen2.5-7B, free, ~1-3s). Use for implementation sub-agents: writing boilerplate, scaffolding components, mechanical code changes, repetitive file edits.
-- **`sonnet`** → Anthropic cloud (billed). Use for reasoning-heavy work: architecture decisions, complex debugging, novel problem-solving, anything requiring broad knowledge.
-- **`opus`** → Anthropic cloud (billed, expensive). Orchestration only. Don't spawn sub-agents on opus.
+The intended (not-yet-wired) routing, once a local gateway exists — and the still-valid tiering today:
+
+- **`haiku`** → *intended:* local RTX 5070 (free). *Today:* Anthropic cloud Haiku (cheapest billed tier). Use for implementation sub-agents: boilerplate, scaffolding, mechanical edits, fixtures.
+- **`sonnet`** → Anthropic cloud Sonnet 4.6 (billed). Use for reasoning-heavy work: architecture, complex debugging, novel problem-solving.
+- **`opus`** → Anthropic cloud Opus (billed, expensive). Orchestration / review only. Don't spawn sub-agents on opus.
 
 **Rule of thumb:** If the sub-agent is executing a well-specified task, use `model: "haiku"`. If it needs to figure something out, use `model: "sonnet"`.
