@@ -54,7 +54,7 @@ export interface MatterHubProps {
 type HubTab = ClientMapHubTab;
 
 const HUB_TABS: { id: HubTab; label: string; Icon: typeof FileText }[] = [
-  { id: 'overview', label: 'Overview', Icon: Map },
+  { id: 'overview', label: 'Client Map', Icon: Map },
   { id: 'documents', label: 'Documents', Icon: FileText },
   { id: 'email', label: 'Email', Icon: Mail },
   { id: 'activity', label: 'Activity', Icon: Clock },
@@ -225,7 +225,8 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
         fontFamily: 'Satoshi, sans-serif',
       }}
     >
-      {/* ── A. Header bar ─────────────────────────────────────────────── */}
+      {/* ── A. Header row: [icon][name] on the left; the sub-tabs + the
+             guided-interview action on the right (one clean line). ───────── */}
       <div
         style={{
           padding: 'var(--kp-surface-header-pad)',
@@ -233,17 +234,50 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
           flexShrink: 0,
         }}
       >
-        {/* Reads exactly like Ask: [colored icon] + [name] + light subtitle. No
-            floating breadcrumb — back navigation is the left Client Map nav /
-            CLIENTS list. The icon is the Client-Map (map) icon in brand blue. */}
         <SurfaceHeader
           Icon={Map}
           iconColor="var(--kp-accent)"
           title={headerTitle}
           actions={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {/* Guided-interview lives here, top-right, so it never breaks
-                  the flat reading column below. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-md)' }}>
+              {/* Sub-tabs, inline to the right of the client name. Minimal
+                  selected style: a soft demo-blue tint pill (no dark fill). */}
+              <div role="tablist" aria-label="Client sections" data-testid="hub-subtab-bar" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                {HUB_TABS.map(({ id, label: tabLabel }) => {
+                  const active = subTab === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      data-testid={`hub-subtab-${id}`}
+                      onClick={() => { setSubTab(id); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '7px 13px',
+                        border: '1px solid transparent',
+                        borderRadius: 'var(--radius-md)',
+                        background: active ? 'var(--kp-accent-soft)' : 'transparent',
+                        color: active ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+                        fontWeight: active ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-medium)',
+                        fontSize: 'var(--kp-font-sm)',
+                        fontFamily: 'inherit',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--kp-accent-softer)'; }}
+                      onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      {tabLabel}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Guided-interview action (Client Map tab + ready only). */}
               {subTab === 'overview' && clientMap.status === 'ready' && (
                 <Button
                   type="button"
@@ -268,54 +302,6 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
             </div>
           }
         />
-      </div>
-
-      {/* ── B. Sub-tab bar ─────────────────────────────────────────────── */}
-      <div
-        role="tablist"
-        aria-label="Client sections"
-        data-testid="hub-subtab-bar"
-        style={{
-          display: 'flex',
-          alignItems: 'stretch',
-          gap: 2,
-          padding: '0 var(--kp-gutter)',
-          borderBottom: '1px solid var(--kp-divider)',
-          background: 'var(--color-background)',
-          flexShrink: 0,
-        }}
-      >
-        {HUB_TABS.map(({ id, label: tabLabel, Icon }) => {
-          const active = subTab === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              data-testid={`hub-subtab-${id}`}
-              onClick={() => { setSubTab(id); }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '10px 14px',
-                border: 'none',
-                borderBottom: active ? '2px solid var(--kp-navy)' : '2px solid transparent',
-                background: active ? 'rgba(10,37,64,0.04)' : 'transparent',
-                color: active ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-                fontWeight: active ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-medium)',
-                fontSize: 'var(--kp-font-sm)',
-                fontFamily: 'inherit',
-                cursor: 'pointer',
-                marginBottom: -1,
-              }}
-            >
-              <Icon style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-              <span>{tabLabel}</span>
-            </button>
-          );
-        })}
       </div>
 
       {/* ── C. Active panel ────────────────────────────────────────────── */}

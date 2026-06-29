@@ -29,6 +29,39 @@ import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { buildCustomSection } from '@/platform/clientMap/customSection';
 import { useTemplatesStore, applyTemplateToMatter } from '@/platform/clientMap/templatesStore';
 import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
+import { SourcePanel } from '@/features/ask/SourcePanel';
+import type { AnswerCitation } from '@/features/ask/askHelpers';
+
+// ── Sources column helpers ────────────────────────────────────────────────────
+// Map the Client Map's cited sources (SourceRef) onto the Ask SourcePanel's
+// AnswerCitation shape so the SAME Sources column + card design is reused.
+function sourceBasename(ref: string): string {
+  const clean = ref.split('?')[0] ?? ref;
+  const seg = clean.split('/').pop() ?? clean;
+  return seg || clean;
+}
+function sourcesForItems(items: ClientMapItem[], matterId: string): AnswerCitation[] {
+  const seen = new Set<string>();
+  const out: AnswerCitation[] = [];
+  for (const it of items) {
+    for (const s of it.sources) {
+      if (seen.has(s.ref)) continue;
+      seen.add(s.ref);
+      const c: AnswerCitation = {
+        n: out.length + 1,
+        label: s.kind === 'email' ? 'Email' : sourceBasename(s.ref),
+        excerpt: s.snippet,
+        path: s.ref,
+        locator: s.locator ?? '',
+        verified: true,
+        matterId,
+      };
+      if (s.citationId !== undefined) c.id = s.citationId;
+      out.push(c);
+    }
+  }
+  return out;
+}
 
 // ── Display strings (variables avoid hardcoded JSX text for the i18n rule) ────
 
@@ -857,6 +890,16 @@ export function ClientMapPanel({
   const activeSection = sectionList.find((s) => s.key === activeKey);
   const missingCount = map.completeness.ask.length;
 
+  // The Sources column reflects whatever the user is currently viewing: the
+  // cited sources behind the active section's facts (or, on "What I'm missing",
+  // the know/assuming facts). Empty on the "+ New section" composer.
+  const currentSources: AnswerCitation[] =
+    activeKey === NEW_KEY
+      ? []
+      : activeKey === MISSING_KEY || activeSection === undefined
+        ? sourcesForItems([...map.completeness.know, ...map.completeness.assuming], map.matterId)
+        : sourcesForItems(activeSection.items, map.matterId);
+
   return (
     <div data-testid="clientmap-panel" style={shellStyle}>
       {/* Left rail — mirrors the Ask CONVERSATIONS rail: an outlined "+ New
@@ -970,6 +1013,22 @@ export function ClientMapPanel({
             />
           )}
         </div>
+      </div>
+
+      {/* SOURCES column — the SAME component + card design as the Ask tab. Shows
+          the cited sources behind the facts the user is currently viewing, and
+          updates as they switch sections / "What I'm missing". */}
+      <div
+        style={{
+          width: 326,
+          flex: 'none',
+          borderLeft: '1px solid var(--kp-divider)',
+          background: 'var(--kp-bg-soft)',
+          overflowY: 'auto',
+          padding: 'var(--kp-surface-gap) var(--kp-card-pad)',
+        }}
+      >
+        <SourcePanel citations={currentSources} selectedN={null} onSelect={() => {}} />
       </div>
     </div>
   );
