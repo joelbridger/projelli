@@ -256,7 +256,31 @@ pub async fn index_downloaded_document_bytes(
     key: &[u8; 32],
     cancel: Option<&AtomicBool>,
 ) -> anyhow::Result<DownloadedDocumentIndexOutcome> {
+    index_downloaded_document_bytes_as_source_type(
+        table, source_id, filename, bytes, matter_id, privilege, key, cancel, "onedrive",
+    )
+    .await
+}
+
+/// Same as `index_downloaded_document_bytes`, but lets a document connector
+/// name its own source type (`onedrive`, `box`, `sharefile`, etc.) while reusing
+/// the same extraction, embedding, encryption, and stale-row deletion path.
+/// Shared by all document connectors (Box and ShareFile both call it).
+#[allow(clippy::too_many_arguments)]
+pub async fn index_downloaded_document_bytes_as_source_type(
+    table: &lancedb::Table,
+    source_id: &str,
+    filename: &str,
+    bytes: &[u8],
+    matter_id: &str,
+    privilege: &str,
+    key: &[u8; 32],
+    cancel: Option<&AtomicBool>,
+    source_type: &str,
+) -> anyhow::Result<DownloadedDocumentIndexOutcome> {
     use anyhow::Context;
+
+    store::validate_external_source_type(source_type).context("validate downloaded source_type")?;
 
     if let Some(flag) = cancel {
         if flag.load(Ordering::SeqCst) {
@@ -286,8 +310,24 @@ pub async fn index_downloaded_document_bytes(
         "rtf" => office::extract_rtf_text(bytes).context("extract downloaded rtf")?,
         "txt" | "text" | "md" | "markdown" => String::from_utf8(bytes.to_vec())
             .map_err(|_| anyhow::anyhow!("downloaded text document is not valid UTF-8"))?,
-        "pdf" => return Ok(DownloadedDocumentIndexOutcome::PendingPdf),
-        _ => return Ok(DownloadedDocumentIndexOutcome::Unsupported),
+        // These two arms are DETERMINISTIC (no extraction step that could fail),
+        // so deleting stale chunks first is safe and necessary: a source that
+        // used to be indexable (e.g. a .docx) and is now a scanned PDF or an
+        // unsupported type must not keep its old chunks searchable. (The text
+        // arms below delete only after a SUCCESSFUL extraction, so an extraction
+        // error can never wipe a previously-good index.)
+        "pdf" => {
+            store::delete_path(table, source_id, key)
+                .await
+                .context("delete stale chunks for now-pending PDF")?;
+            return Ok(DownloadedDocumentIndexOutcome::PendingPdf);
+        }
+        _ => {
+            store::delete_path(table, source_id, key)
+                .await
+                .context("delete stale chunks for now-unsupported document")?;
+            return Ok(DownloadedDocumentIndexOutcome::Unsupported);
+        }
     };
 
     store::delete_path(table, source_id, key)
@@ -314,7 +354,7 @@ pub async fn index_downloaded_document_bytes(
         return Ok(DownloadedDocumentIndexOutcome::Indexed(0));
     }
 
-    let batch = store::build_batch_external(&rows, key, matter_id, privilege, "onedrive")
+    let batch = store::build_batch_external(&rows, key, matter_id, privilege, source_type)
         .context("build downloaded document batch")?;
     let schema = batch.schema();
     use arrow_array::RecordBatchIterator;

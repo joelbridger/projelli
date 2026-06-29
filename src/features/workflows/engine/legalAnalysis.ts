@@ -39,7 +39,7 @@ export interface RetrievedChunk {
   sourceId?: string;
   /** VG-2b widens the union with the office formats; VG-3c with certified
    *  transcripts; Phase 1A adds 'crm' (mirrors `RagHit`). */
-  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf' | 'transcript' | 'crm' | 'onedrive' | 'esign' | 'meeting';
+  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf' | 'transcript' | 'crm' | 'onedrive' | 'esign' | 'meeting' | 'box' | 'jotform' | 'sharefile' | 'zocks' | 'addepar';
   pageNumber?: number;
   /** VG-3c: page:line locator for certified transcript chunks
    *  (`"startPage:startLine-endPage:endLine"`, mirrors `RagHit`); finder
@@ -226,6 +226,21 @@ function sourceLocator(c: RetrievedChunk): string {
   }
   if (c.sourceType === 'meeting') {
     return `Calendly - ${base}`;
+  }
+  if (c.sourceType === 'box') {
+    return `Box - ${base}`;
+  }
+  if (c.sourceType === 'jotform') {
+    return `Jotform - ${base}`;
+  }
+  if (c.sourceType === 'sharefile') {
+    return `ShareFile - ${base}`;
+  }
+  if (c.sourceType === 'zocks') {
+    return `Zocks - ${base}`;
+  }
+  if (c.sourceType === 'addepar') {
+    return `Addepar - ${base}`;
   }
   return `${base} paragraph ${String(c.paragraphIndex)}${suffix}`;
 }

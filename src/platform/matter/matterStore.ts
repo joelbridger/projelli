@@ -106,10 +106,20 @@ export interface CreateMatterInput {
   crmHouseholdKeys?: string[];
   /** OneDrive / SharePoint folder ids to link at creation time. */
   onedriveFolderKeys?: string[];
+  /** Box folder ids to link at creation time. */
+  boxFolderKeys?: string[];
   /** E-signature record keys to link at creation time. */
   esignKeys?: string[];
+  /** Jotform form/submission keys to link at creation time. */
+  jotformKeys?: string[];
+  /** ShareFile folder ids to link at creation time. */
+  sharefileFolderKeys?: string[];
   /** Meeting record keys to link at creation time. */
   meetingKeys?: string[];
+  /** Zocks record keys to link at creation time. */
+  zocksKeys?: string[];
+  /** Addepar record keys to link at creation time. */
+  addeparKeys?: string[];
   /** Mark this matter's display name/client as CRM-derived (e.g. created purely
    *  from a Wealthbox household), so a Wealthbox disconnect can scrub it. */
   createdFromCrm?: boolean;
@@ -152,6 +162,12 @@ interface MatterState {
 
   // OneDrive / SharePoint folder mapping.
   addOneDriveFolderKey: (id: string, folderKey: string) => void;
+  // Box folder mapping.
+  addBoxFolderKey: (id: string, folderKey: string) => void;
+  // ShareFile folder mapping.
+  addSharefileFolderKey: (id: string, folderKey: string) => void;
+  // Addepar household/account mapping.
+  addAddeparKey: (id: string, addeparKey: string) => void;
   /**
    * Remove every trace of Wealthbox from local matters after a disconnect:
    *   - pure-CRM matters (no user files/mail) are deleted;
@@ -252,7 +268,7 @@ interface PersistedMatterState {
 const MATTERS_KEY = 'keepance:matters';
 const UI_KEY = 'keepance:matter-ui-snapshots';
 const GLANCE_KEY = 'keepance:matter-at-a-glance';
-const MATTERS_VERSION = 7;
+const MATTERS_VERSION = 8;
 
 type MatterAuditEmitter = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 
@@ -391,11 +407,26 @@ export const useMatterStore = create<MatterState>()(
           onedriveFolderKeys: Array.from(
             new Set((input.onedriveFolderKeys ?? []).filter(Boolean))
           ),
+          boxFolderKeys: Array.from(
+            new Set((input.boxFolderKeys ?? []).filter(Boolean))
+          ),
           esignKeys: Array.from(
             new Set((input.esignKeys ?? []).filter(Boolean))
           ),
+          jotformKeys: Array.from(
+            new Set((input.jotformKeys ?? []).filter(Boolean))
+          ),
+          sharefileFolderKeys: Array.from(
+            new Set((input.sharefileFolderKeys ?? []).filter(Boolean))
+          ),
           meetingKeys: Array.from(
             new Set((input.meetingKeys ?? []).filter(Boolean))
+          ),
+          zocksKeys: Array.from(
+            new Set((input.zocksKeys ?? []).filter(Boolean))
+          ),
+          addeparKeys: Array.from(
+            new Set((input.addeparKeys ?? []).filter(Boolean))
           ),
           privileged: input.privileged ?? false,
           mcpAccessGranted: input.mcpAccessGranted ?? false,
@@ -621,6 +652,66 @@ export const useMatterStore = create<MatterState>()(
         }));
       },
 
+      addBoxFolderKey: (id, folderKey) => {
+        const key = folderKey.trim();
+        if (!key) return;
+        set((state) => ({
+          matters: state.matters.map((m) => {
+            if (m.id === id) {
+              const existing = m.boxFolderKeys ?? [];
+              return existing.includes(key)
+                ? m
+                : { ...m, boxFolderKeys: [...existing, key] };
+            }
+            // A Box folder belongs to exactly ONE matter. Move the key off any
+            // old matter so the backend never indexes one cloud folder under two
+            // client boundaries at once.
+            const others = m.boxFolderKeys ?? [];
+            return others.includes(key)
+              ? { ...m, boxFolderKeys: others.filter((k) => k !== key) }
+              : m;
+          }),
+        }));
+      },
+
+      addSharefileFolderKey: (id, folderKey) => {
+        const key = folderKey.trim();
+        if (!key) return;
+        set((state) => ({
+          matters: state.matters.map((m) => {
+            if (m.id === id) {
+              const existing = m.sharefileFolderKeys ?? [];
+              return existing.includes(key)
+                ? m
+                : { ...m, sharefileFolderKeys: [...existing, key] };
+            }
+            const others = m.sharefileFolderKeys ?? [];
+            return others.includes(key)
+              ? { ...m, sharefileFolderKeys: others.filter((k) => k !== key) }
+              : m;
+          }),
+        }));
+      },
+
+      addAddeparKey: (id, addeparKey) => {
+        const key = addeparKey.trim();
+        if (!key) return;
+        set((state) => ({
+          matters: state.matters.map((m) => {
+            if (m.id === id) {
+              const existing = m.addeparKeys ?? [];
+              return existing.includes(key)
+                ? m
+                : { ...m, addeparKeys: [...existing, key] };
+            }
+            const others = m.addeparKeys ?? [];
+            return others.includes(key)
+              ? { ...m, addeparKeys: others.filter((k) => k !== key) }
+              : m;
+          }),
+        }));
+      },
+
       scrubWealthboxFromMatters: () => {
         const { matters, deleteMatter, invalidate } = get();
         const affected: string[] = [];
@@ -841,6 +932,8 @@ export const useMatterStore = create<MatterState>()(
       // explicit MCP access grant. v5 -> v6: matters gained `crmHouseholdKeys`
       // for the Wealthbox connector. v6 -> v7: matters gained additive external
       // connector slots (`onedriveFolderKeys`, `esignKeys`, `meetingKeys`).
+      // v7 -> v8: matters gained additive connector mapping slots for Box,
+      // Jotform, ShareFile, Zocks, and Addepar.
       // Backfill defaults so older persisted matters parse cleanly (missing
       // values are tolerated by readers, but normalising here keeps the shape
       // consistent). Only the `matters` slice is versioned;
@@ -897,6 +990,18 @@ export const useMatterStore = create<MatterState>()(
             onedriveFolderKeys: m.onedriveFolderKeys ?? [],
             esignKeys: m.esignKeys ?? [],
             meetingKeys: m.meetingKeys ?? [],
+          }));
+        }
+        if (version < 8) {
+          // v7 -> v8: more additive connector mapping slots. These are no-op
+          // shells until each connector branch supplies real mapping logic.
+          state.matters = state.matters.map((m) => ({
+            ...m,
+            boxFolderKeys: m.boxFolderKeys ?? [],
+            jotformKeys: m.jotformKeys ?? [],
+            sharefileFolderKeys: m.sharefileFolderKeys ?? [],
+            zocksKeys: m.zocksKeys ?? [],
+            addeparKeys: m.addeparKeys ?? [],
           }));
         }
         return state as PersistedMatterState;

@@ -22,7 +22,12 @@ import { MailImapConnect } from '@/features/settings/MailImapConnect';
 import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
 import { WealthboxConnect } from '@/features/settings/WealthboxConnect';
 import { OneDriveConnect } from '@/features/settings/OneDriveConnect';
+import { BoxConnect } from '@/features/settings/BoxConnect';
 import { DocuSignConnect } from '@/features/settings/DocuSignConnect';
+import { ShareFileConnect } from '@/features/settings/ShareFileConnect';
+import { JotformConnect } from '@/features/settings/JotformConnect';
+import { ZocksConnect } from '@/features/settings/ZocksConnect';
+import { AddeparConnect } from '@/features/settings/AddeparConnect';
 import { CalendlyConnect } from '@/features/settings/CalendlyConnect';
 import { SalesforceConnect } from '@/features/settings/SalesforceConnect';
 import { RedtailConnect } from '@/features/settings/RedtailConnect';
@@ -307,8 +312,13 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                 <MailImapConnect />
                 <MailGmailConnect />
                 <OneDriveConnect />
+                <BoxConnect />
                 <WealthboxConnect />
+                <AddeparConnect />
                 <DocuSignConnect />
+                <ShareFileConnect />
+                <JotformConnect />
+                <ZocksConnect />
                 <CalendlyConnect />
                 <SalesforceConnect />
                 <RedtailConnect />

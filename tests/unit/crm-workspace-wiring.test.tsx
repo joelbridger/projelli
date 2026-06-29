@@ -46,6 +46,11 @@ const docusignMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/platform/utils/docusign-commands', () => docusignMocks);
+const addeparMocks = vi.hoisted(() => ({
+  addeparSetWorkspace: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/platform/utils/addepar-commands', () => addeparMocks);
 const calendlyMocks = vi.hoisted(() => ({
   calendlySetWorkspace: vi.fn().mockResolvedValue(undefined),
 }));
@@ -145,6 +150,7 @@ describe('useMemoryWiring — connector workspace wiring', () => {
       expect(mailMocks.mailSetWorkspace).toHaveBeenCalledWith(root);
       expect(crmMocks.crmSetWorkspace).toHaveBeenCalledWith(root);
       expect(docusignMocks.docusignSetWorkspace).toHaveBeenCalledWith(root);
+      expect(addeparMocks.addeparSetWorkspace).toHaveBeenCalledWith(root);
       expect(calendlyMocks.calendlySetWorkspace).toHaveBeenCalledWith(root);
     });
   });
@@ -158,6 +164,7 @@ describe('useMemoryWiring — connector workspace wiring', () => {
     await waitFor(() => {
       expect(crmMocks.crmSetWorkspace).toHaveBeenCalledWith(root1);
       expect(docusignMocks.docusignSetWorkspace).toHaveBeenCalledWith(root1);
+      expect(addeparMocks.addeparSetWorkspace).toHaveBeenCalledWith(root1);
     });
 
     vi.clearAllMocks();
@@ -166,6 +173,7 @@ describe('useMemoryWiring — connector workspace wiring', () => {
     await waitFor(() => {
       expect(crmMocks.crmSetWorkspace).toHaveBeenCalledWith(root2);
       expect(docusignMocks.docusignSetWorkspace).toHaveBeenCalledWith(root2);
+      expect(addeparMocks.addeparSetWorkspace).toHaveBeenCalledWith(root2);
     });
   });
 
@@ -185,6 +193,16 @@ describe('useMemoryWiring — connector workspace wiring', () => {
     // The DocuSign connector is optional; if its setup throws, file-watching
     // and memory indexing must still be wired for the user.
     docusignMocks.docusignSetWorkspace.mockRejectedValueOnce(new Error('docusign backend unavailable'));
+    const root = '/home/user/Northcrest';
+    render(<Harness root={root} />);
+
+    await waitFor(() => {
+      expect(tauriCmdMocks.watchWorkspace).toHaveBeenCalledWith(root);
+    });
+  });
+
+  it('an addeparSetWorkspace failure does not break the rest of workspace wiring', async () => {
+    addeparMocks.addeparSetWorkspace.mockRejectedValueOnce(new Error('addepar backend unavailable'));
     const root = '/home/user/Northcrest';
     render(<Harness root={root} />);
 

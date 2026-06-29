@@ -431,9 +431,9 @@ export function useAsk({
         failedStage = 'retrieval';
         // WS3d-A — default-OFF reranker toggle, read per call.
         const enableReranker =
-          useSettingsStore.getState().getSetting<boolean>('enableReranker') === true;
+          useSettingsStore.getState().getSetting<boolean>('enableReranker');
         const enableHybridSearch =
-          useSettingsStore.getState().getSetting<boolean>('enableHybridSearch') === true;
+          useSettingsStore.getState().getSetting<boolean>('enableHybridSearch');
         const rawHits = await MemoryService.retrieve(
           q,
           DEFAULT_WORKSPACE_TOP_K,

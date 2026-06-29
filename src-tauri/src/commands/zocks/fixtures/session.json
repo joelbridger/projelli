@@ -1,0 +1,44 @@
+{
+  "id": "sess_123",
+  "title": "Quarterly review with Amelia Rivera",
+  "clientName": "Amelia Rivera",
+  "clientEmail": "amelia@example.com",
+  "startedAt": "2026-06-20T15:00:00Z",
+  "endedAt": "2026-06-20T15:45:00Z",
+  "updatedAt": "2026-06-20T16:00:00Z",
+  "participants": [
+    {
+      "name": "Amelia Rivera",
+      "email": "amelia@example.com",
+      "role": "client"
+    },
+    {
+      "name": "Jordan Advisor",
+      "email": "jordan@example-ria.com",
+      "role": "advisor"
+    }
+  ],
+  "summary": "Reviewed cash reserves, Roth conversion timing, and next-quarter beneficiary updates.",
+  "notes": "Amelia wants a clearer reserve target before increasing 529 contributions.",
+  "keyPoints": [
+    "Cash reserve target should stay near nine months until the bonus is paid.",
+    "Roth conversion estimate needs an updated tax projection.",
+    "Beneficiary forms should be reviewed before the September meeting."
+  ],
+  "actionItems": [
+    {
+      "text": "Increase Roth conversion estimate after CPA sends updated projection.",
+      "owner": "Jordan Advisor",
+      "dueDate": "2026-07-05",
+      "status": "open"
+    },
+    {
+      "text": "Send Amelia the beneficiary form checklist.",
+      "owner": "Jordan Advisor",
+      "dueDate": "2026-06-27",
+      "status": "open"
+    }
+  ],
+  "transcript": "Jordan: Amelia asked about cash reserves before increasing 529 contributions. Amelia: I want to keep enough cash for the business taxes and college planning before we lock in more. Jordan: We will run the Roth conversion estimate again after the CPA sends the updated projection.",
+  "tags": ["review", "tax planning"]
+}

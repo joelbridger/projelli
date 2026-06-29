@@ -10,10 +10,16 @@ pub mod http;
 pub mod keychain;
 // Keepance 3.0 — SQLCipher-encrypted, append-only audit "defense file" store.
 pub mod audit;
+// Read-only Addepar portfolio connector — household holdings/performance into RAG.
+pub mod addepar;
 // Wealthbox CRM connector (Phase 1A) — CRM RAG ingestion bridge.
 pub mod crm;
 // Read-only DocuSign connector — completed envelopes + signing audit trail.
 pub mod docusign;
+// Read-only Jotform connector — intake/KYC submissions into client memory.
+pub mod jotform;
+// Read-only Zocks connector — meeting notes/transcripts into client memory.
+pub mod zocks;
 // Calendly connector — read-only scheduled events + invitee intake into meeting RAG.
 pub mod calendly;
 // Shared additive connector foundation — generic external RAG ingestion bridge.
@@ -22,6 +28,10 @@ pub mod connector;
 pub mod mail;
 // Read-only OneDrive / SharePoint document connector.
 pub mod onedrive;
+// Read-only Box document connector.
+pub mod boxc;
+// Read-only ShareFile document connector.
+pub mod sharefile;
 // Phase 4 M4 (v1.5 Flag 2) — host-side bridge for the Keepance MCP sidecar:
 // list pending write approvals, record the user's decision, resolve the
 // platform `.mcpb` bundle path.

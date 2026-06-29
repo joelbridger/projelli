@@ -272,8 +272,33 @@ export interface OneDriveMatterMapEntry {
   matterId: string;
 }
 
+export interface BoxMatterMapEntry {
+  folderKey: string;
+  matterId: string;
+}
+
 export interface EsignMatterMapEntry {
   esignKey: string;
+  matterId: string;
+}
+
+export interface JotformMatterMapEntry {
+  jotformKey: string;
+  matterId: string;
+}
+
+export interface SharefileMatterMapEntry {
+  folderKey: string;
+  matterId: string;
+}
+
+export interface ZocksMatterMapEntry {
+  zocksKey: string;
+  matterId: string;
+}
+
+export interface AddeparMatterMapEntry {
+  addeparKey: string;
   matterId: string;
 }
 
@@ -299,6 +324,22 @@ export interface MeetingMatterMapEntry {
 
 export function normalizeMeetingKey(key: string): string {
   return key.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * Normalize a Zocks key exactly like the Rust backend's `zocks::engine::normalize_key`
+ * (lowercase, replace `< > " ' , ;` with spaces, collapse whitespace) so the
+ * frontend's ambiguity pre-filter and the backend's matcher agree on which keys
+ * collide. Without the punctuation pass, the frontend would treat `Smith, John`
+ * and `Smith John` as distinct while the backend treats them as the same key.
+ */
+function normalizeZocksKey(key: string): string {
+  return key
+    .toLowerCase()
+    .replace(/[<>"',;]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(' ');
 }
 
 function buildConnectorMatterMap<T extends { matterId: string }>(
@@ -333,7 +374,104 @@ export function buildOneDriveMatterMap(
   );
 }
 
+export function buildBoxMatterMap(matters: Matter[]): BoxMatterMapEntry[] {
+  return buildConnectorMatterMap(
+    matters,
+    (m) => m.boxFolderKeys,
+    (folderKey, matterId) => ({ folderKey, matterId })
+  );
+}
+
+export function buildJotformMatterMap(
+  matters: Matter[]
+): JotformMatterMapEntry[] {
+  const out: JotformMatterMapEntry[] = [];
+  for (const matter of matters) {
+    if (matter.id === UNASSIGNED_MATTER_ID) continue;
+    const seenForMatter = new Set<string>();
+    const keys = [
+      ...(matter.jotformKeys ?? []),
+      matter.client,
+      matter.name,
+    ];
+    for (const rawKey of keys) {
+      const key = rawKey.trim();
+      const normalized = normalizeEsignKey(key);
+      if (!key || !normalized || seenForMatter.has(normalized)) continue;
+      seenForMatter.add(normalized);
+      out.push({ jotformKey: key, matterId: matter.id });
+    }
+  }
+  return out;
+}
+
+export function buildSharefileMatterMap(
+  matters: Matter[]
+): SharefileMatterMapEntry[] {
+  return buildConnectorMatterMap(
+    matters,
+    (m) => m.sharefileFolderKeys,
+    (folderKey, matterId) => ({ folderKey, matterId })
+  ).sort(
+    (a, b) =>
+      connectorFolderPathLength(b.folderKey) -
+      connectorFolderPathLength(a.folderKey)
+  );
+}
+
+export function buildZocksMatterMap(matters: Matter[]): ZocksMatterMapEntry[] {
+  // First pass: count the DISTINCT matters that claim each normalized key. A key
+  // claimed by 2+ matters (e.g. two matters sharing a client name) is ambiguous
+  // and must NOT map anywhere — otherwise a Zocks meeting matching only that
+  // shared key gets silently indexed under whichever matter was processed first
+  // (a matter-isolation bug). Ambiguous meetings are left for manual assignment.
+  const mattersPerKey = new Map<string, Set<string>>();
+  for (const m of matters) {
+    if (m.id === UNASSIGNED_MATTER_ID) continue;
+    for (const rawKey of [...(m.zocksKeys ?? []), m.client, m.name]) {
+      const normalized = normalizeZocksKey(rawKey.trim());
+      if (!normalized) continue;
+      let set = mattersPerKey.get(normalized);
+      if (!set) {
+        set = new Set<string>();
+        mattersPerKey.set(normalized, set);
+      }
+      set.add(m.id);
+    }
+  }
+
+  // Second pass: emit one entry per unambiguous key, de-duplicated per key.
+  const out: ZocksMatterMapEntry[] = [];
+  const emitted = new Set<string>();
+  for (const m of matters) {
+    if (m.id === UNASSIGNED_MATTER_ID) continue;
+    for (const rawKey of [...(m.zocksKeys ?? []), m.client, m.name]) {
+      const zocksKey = rawKey.trim();
+      const normalized = normalizeZocksKey(zocksKey);
+      if (!zocksKey || !normalized || emitted.has(normalized)) continue;
+      if ((mattersPerKey.get(normalized)?.size ?? 0) > 1) continue; // ambiguous
+      emitted.add(normalized);
+      out.push({ zocksKey, matterId: m.id });
+    }
+  }
+  return out;
+}
+
+export function buildAddeparMatterMap(
+  matters: Matter[]
+): AddeparMatterMapEntry[] {
+  return buildConnectorMatterMap(
+    matters,
+    (m) => m.addeparKeys,
+    (addeparKey, matterId) => ({ addeparKey, matterId })
+  );
+}
+
 function oneDriveFolderPathLength(folderKey: string): number {
+  return connectorFolderPathLength(folderKey);
+}
+
+function connectorFolderPathLength(folderKey: string): number {
   const colon = folderKey.lastIndexOf(':');
   return colon >= 0 ? folderKey.slice(colon + 1).length : folderKey.length;
 }
@@ -427,6 +565,75 @@ export function resolveMatterForOneDriveFolder(
       if (
         match &&
         (match.onedriveFolderKeys ?? []).length === 0 &&
+        !claimedMatterIds.has(match.id)
+      ) {
+        return { matterId: match.id, action: 'link', name: match.name };
+      }
+    }
+  }
+
+  // Priority 3: no clear match. Do not create a matter from a cloud folder.
+  return { matterId: '', action: 'unassigned', name: folderName };
+}
+
+export interface BoxFolderResolution {
+  matterId: string;
+  action: 'reuse' | 'link' | 'unassigned';
+  name: string;
+}
+
+/**
+ * A Box folder is a "top-level client folder" when its path is exactly
+ * `/clients/<name>` (two segments, first segment "clients", case-insensitive) —
+ * the same convention used for OneDrive auto-linking.
+ */
+export function isTopLevelBoxClientFolder(folder: { path: string }): boolean {
+  const segments = normalize(folder.path)
+    .split('/')
+    .filter(Boolean);
+  return segments.length === 2 && (segments[0]?.toLowerCase() ?? '') === 'clients';
+}
+
+function boxFolderLeafName(folder: { name: string; path: string }): string {
+  const leaf = normalize(folder.path).split('/').filter(Boolean).pop()?.trim();
+  return leaf || folder.name.trim();
+}
+
+/**
+ * Resolve a Box folder against existing matters, mirroring the OneDrive matcher:
+ * reuse an existing Box-folder link, link one unambiguous same-name matter that
+ * has no Box folder yet, otherwise leave it unassigned. Never creates a matter
+ * from a cloud folder. `folder` is structural (key/name/path) so this module
+ * does not import box-commands (which imports BoxMatterMapEntry from here).
+ */
+export function resolveMatterForBoxFolder(
+  matters: Matter[],
+  folder: { key: string; name: string; path: string },
+  claimedMatterIds: ReadonlySet<string> = new Set()
+): BoxFolderResolution {
+  // Priority 1: already linked by Box folder key.
+  for (const matter of matters) {
+    if ((matter.boxFolderKeys ?? []).includes(folder.key)) {
+      return { matterId: matter.id, action: 'reuse', name: matter.name };
+    }
+  }
+
+  // Priority 2: unambiguous name-based link. Judge ambiguity over ALL matters
+  // before filtering out already-linked / claimed ones, like the OneDrive and
+  // Wealthbox matchers.
+  const folderName = boxFolderLeafName(folder);
+  const normalizedFolderName = normalizeClientName(folderName);
+  if (normalizedFolderName) {
+    const matches = matters.filter(
+      (m) =>
+        normalizeClientName(m.name) === normalizedFolderName ||
+        normalizeClientName(m.client) === normalizedFolderName
+    );
+    if (matches.length === 1) {
+      const match = matches[0];
+      if (
+        match &&
+        (match.boxFolderKeys ?? []).length === 0 &&
         !claimedMatterIds.has(match.id)
       ) {
         return { matterId: match.id, action: 'link', name: match.name };
@@ -570,7 +777,9 @@ export function resolveEsignMatterForEnvelope(
   }
 
   if (matches.size === 1) {
-    return { matterId: [...matches][0]!, needsAssignment: false, reason: '' };
+    for (const only of matches) {
+      return { matterId: only, needsAssignment: false, reason: '' };
+    }
   }
   return {
     matterId: UNASSIGNED_MATTER_ID,

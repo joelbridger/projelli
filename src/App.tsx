@@ -107,6 +107,11 @@ import { CrmSourcePanel } from '@/features/crm/CrmSourcePanel';
 import { OneDriveSourcePanel } from '@/features/onedrive/OneDriveSourcePanel';
 import { DocusignSourcePanel } from '@/features/docusign/DocusignSourcePanel';
 import { MeetingSourcePanel } from '@/features/calendly/MeetingSourcePanel';
+import { BoxSourcePanel } from '@/features/box/BoxSourcePanel';
+import { SharefileSourcePanel } from '@/features/sharefile/SharefileSourcePanel';
+import { JotformSourcePanel } from '@/features/jotform/JotformSourcePanel';
+import { ZocksSourcePanel } from '@/features/zocks/ZocksSourcePanel';
+import { AddeparSourcePanel } from '@/features/addepar/AddeparSourcePanel';
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
@@ -121,7 +126,7 @@ const IS_TEST_MODE =
 declare const __KEEPANCE_DEMO__: boolean | undefined;
 const IS_DEMO_MODE =
   typeof window !== 'undefined' &&
-  ((typeof __KEEPANCE_DEMO__ !== 'undefined' && __KEEPANCE_DEMO__ === true) ||
+  ((typeof __KEEPANCE_DEMO__ !== 'undefined' && __KEEPANCE_DEMO__) ||
     (window as unknown as { __keepanceDemo?: boolean }).__keepanceDemo === true);
 
 function App() {
@@ -1540,6 +1545,13 @@ This file contains rules and guidelines for AI assistants in this workspace.
       <OneDriveSourcePanel />
       <DocusignSourcePanel />
       <MeetingSourcePanel />
+      {/* Bonus connector citation viewers — each listens for its
+          keepance:open-<connector> event dispatched from a Client Map source link. */}
+      <BoxSourcePanel />
+      <SharefileSourcePanel />
+      <JotformSourcePanel />
+      <ZocksSourcePanel />
+      <AddeparSourcePanel />
     </div>
   );
 }

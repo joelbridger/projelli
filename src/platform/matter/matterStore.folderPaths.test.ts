@@ -29,4 +29,22 @@ describe('matterStore folder path normalization', () => {
       'C:/workspaces/Northcrest/Clients/Hollings Family',
     ]);
   });
+
+  it('initializes new connector mapping fields when creating a matter', () => {
+    const matter = useMatterStore.getState().createMatter({
+      name: 'Hollings',
+      client: 'Hollings',
+      boxFolderKeys: ['box-a', 'box-a', ''],
+      jotformKeys: ['form-a'],
+      sharefileFolderKeys: ['sf-a'],
+      zocksKeys: ['zocks-a'],
+      addeparKeys: ['addepar-a'],
+    });
+
+    expect(matter.boxFolderKeys).toEqual(['box-a']);
+    expect(matter.jotformKeys).toEqual(['form-a']);
+    expect(matter.sharefileFolderKeys).toEqual(['sf-a']);
+    expect(matter.zocksKeys).toEqual(['zocks-a']);
+    expect(matter.addeparKeys).toEqual(['addepar-a']);
+  });
 });

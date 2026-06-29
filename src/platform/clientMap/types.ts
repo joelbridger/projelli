@@ -29,7 +29,7 @@ export const CORE_SECTION_TITLE: Record<CoreSectionKey, string> = {
 };
 
 export interface SourceRef {
-  kind: 'document' | 'email' | 'crm' | 'onedrive' | 'esign' | 'meeting';
+  kind: 'document' | 'email' | 'crm' | 'onedrive' | 'esign' | 'meeting' | 'box' | 'jotform' | 'sharefile' | 'zocks' | 'addepar';
   /** Resolvable origin: a workspace path, `mail:<id>`, `crm:<kind>:<id>`, or another connector source id. */
   ref: string;
   /** The supporting quote (from RagHit.chunkText). */
@@ -159,7 +159,17 @@ export function sourceRefFromRagHit(hit: RagHit): SourceRef {
             ? 'esign'
             : hit.sourceType === 'meeting'
               ? 'meeting'
-              : 'document';
+              : hit.sourceType === 'box'
+                ? 'box'
+                : hit.sourceType === 'jotform'
+                  ? 'jotform'
+                  : hit.sourceType === 'sharefile'
+                    ? 'sharefile'
+                    : hit.sourceType === 'zocks'
+                      ? 'zocks'
+                      : hit.sourceType === 'addepar'
+                        ? 'addepar'
+                        : 'document';
   const locator = locatorFromRagHit(hit);
   const out: SourceRef = { kind, ref, snippet: hit.chunkText };
   if (hit.id !== undefined) out.citationId = hit.id;

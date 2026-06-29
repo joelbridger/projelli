@@ -8,7 +8,14 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  buildAddeparMatterMap,
+  buildBoxMatterMap,
+  buildJotformMatterMap,
   buildOneDriveFolderKey,
+  buildSharefileMatterMap,
+  buildZocksMatterMap,
+  isTopLevelBoxClientFolder,
+  resolveMatterForBoxFolder,
   resolveMatterForOneDriveFolder,
 } from './matterResolver';
 import type { Matter } from '@/platform/types/matter';
@@ -75,6 +82,128 @@ describe('buildOneDriveFolderKey', () => {
         path: 'root:/Clients/Acme',
       })
     ).toBe('m365/default/site-1/drive-a:/clients/acme');
+  });
+});
+
+describe('new connector matter-map shells', () => {
+  it('flattens new connector fields and skips duplicate or blank keys', () => {
+    const matters: Matter[] = [
+      makeMatter({
+        id: 'matter-a',
+        name: 'Acme',
+        client: 'Acme',
+        boxFolderKeys: ['box-folder-a', ''],
+        jotformKeys: ['form-a'],
+        sharefileFolderKeys: ['sf-folder-a'],
+        zocksKeys: ['zocks-a'],
+        addeparKeys: ['addepar-a'],
+      }),
+      makeMatter({
+        id: 'matter-b',
+        name: 'Beta',
+        client: 'Beta',
+        boxFolderKeys: ['box-folder-a', 'box-folder-b'],
+        jotformKeys: ['form-a', 'form-b'],
+        sharefileFolderKeys: ['sf-folder-a', 'sf-folder-b'],
+        zocksKeys: ['zocks-a', 'zocks-b'],
+        addeparKeys: ['addepar-a', 'addepar-b'],
+      }),
+    ];
+
+    expect(buildBoxMatterMap(matters)).toEqual([
+      { folderKey: 'box-folder-a', matterId: 'matter-a' },
+      { folderKey: 'box-folder-b', matterId: 'matter-b' },
+    ]);
+    expect(buildJotformMatterMap(matters)).toEqual([
+      { jotformKey: 'form-a', matterId: 'matter-a' },
+      { jotformKey: 'Acme', matterId: 'matter-a' },
+      { jotformKey: 'form-a', matterId: 'matter-b' },
+      { jotformKey: 'form-b', matterId: 'matter-b' },
+      { jotformKey: 'Beta', matterId: 'matter-b' },
+    ]);
+    expect(buildSharefileMatterMap(matters)).toEqual([
+      { folderKey: 'sf-folder-a', matterId: 'matter-a' },
+      { folderKey: 'sf-folder-b', matterId: 'matter-b' },
+    ]);
+    // `zocks-a` is claimed by BOTH matter-a and matter-b, so it is ambiguous and
+    // dropped (a meeting matching only it is left for manual assignment). The
+    // unambiguous keys still map.
+    expect(buildZocksMatterMap(matters)).toEqual([
+      { zocksKey: 'Acme', matterId: 'matter-a' },
+      { zocksKey: 'zocks-b', matterId: 'matter-b' },
+      { zocksKey: 'Beta', matterId: 'matter-b' },
+    ]);
+    expect(buildAddeparMatterMap(matters)).toEqual([
+      { addeparKey: 'addepar-a', matterId: 'matter-a' },
+      { addeparKey: 'addepar-b', matterId: 'matter-b' },
+    ]);
+  });
+
+  it('drops Zocks keys (incl. shared client names) claimed by two matters', () => {
+    const matters: Matter[] = [
+      makeMatter({ id: 'matter-a', name: 'Smith Trust', client: 'Smith Family' }),
+      makeMatter({ id: 'matter-b', name: 'Smith Estate', client: 'Smith Family' }),
+      makeMatter({ id: 'matter-c', name: 'Jones', client: 'Jones LLC' }),
+    ];
+
+    const map = buildZocksMatterMap(matters);
+    // The shared client "Smith Family" is ambiguous -> not mapped to either.
+    expect(map.find((e) => e.zocksKey === 'Smith Family')).toBeUndefined();
+    // Distinct matter names still resolve cleanly.
+    expect(map).toContainEqual({ zocksKey: 'Smith Trust', matterId: 'matter-a' });
+    expect(map).toContainEqual({ zocksKey: 'Smith Estate', matterId: 'matter-b' });
+    expect(map).toContainEqual({ zocksKey: 'Jones', matterId: 'matter-c' });
+    expect(map).toContainEqual({ zocksKey: 'Jones LLC', matterId: 'matter-c' });
+  });
+
+  it('treats Zocks keys differing only by punctuation as the same (matches backend)', () => {
+    // The Rust backend strips `,` etc. before matching, so "Smith, John" and
+    // "Smith John" are the SAME key. The frontend ambiguity pre-filter must agree
+    // and drop both when two matters claim them.
+    const matters: Matter[] = [
+      makeMatter({ id: 'matter-a', name: 'Smith, John', client: 'Smith, John' }),
+      makeMatter({ id: 'matter-b', name: 'Smith John', client: 'Smith John' }),
+    ];
+    const map = buildZocksMatterMap(matters);
+    expect(map.find((e) => e.matterId === 'matter-a')).toBeUndefined();
+    expect(map.find((e) => e.matterId === 'matter-b')).toBeUndefined();
+  });
+
+  it('keeps a Zocks key one matter repeats (client === name is not ambiguous)', () => {
+    const matters: Matter[] = [
+      makeMatter({ id: 'matter-a', name: 'Webb Household', client: 'Webb Household' }),
+    ];
+    expect(buildZocksMatterMap(matters)).toEqual([
+      { zocksKey: 'Webb Household', matterId: 'matter-a' },
+    ]);
+  });
+
+  it('sorts ShareFile folder mappings by most specific path first', () => {
+    const matters: Matter[] = [
+      makeMatter({
+        id: 'matter-parent',
+        name: 'Acme',
+        client: 'Acme',
+        sharefileFolderKeys: ['sharefile/default/fo-parent:/clients/acme'],
+      }),
+      makeMatter({
+        id: 'matter-child',
+        name: 'Acme Pleadings',
+        client: 'Acme',
+        sharefileFolderKeys: ['sharefile/default/fo-child:/clients/acme/pleadings'],
+      }),
+    ];
+
+    expect(buildSharefileMatterMap(matters)).toEqual([
+      {
+        folderKey: 'sharefile/default/fo-child:/clients/acme/pleadings',
+        matterId: 'matter-child',
+      },
+      {
+        folderKey: 'sharefile/default/fo-parent:/clients/acme',
+        matterId: 'matter-parent',
+      },
+    ]);
   });
 });
 
@@ -216,5 +345,60 @@ describe('resolveMatterForOneDriveFolder', () => {
     expect(linked).toHaveLength(26);
     expect(linked.every((r) => r.action === 'link')).toBe(true);
     expect(new Set(linked.map((r) => r.matterId)).size).toBe(26);
+  });
+});
+
+describe('Box folder auto-linking', () => {
+  function boxFolder(name: string, path = `/Clients/${name}`, key?: string) {
+    return { key: key ?? `box/default/id-${name}:${path}`, name, path };
+  }
+
+  it('flags only two-segment /clients/<name> folders as top-level client folders', () => {
+    expect(isTopLevelBoxClientFolder({ path: '/Clients/Acme' })).toBe(true);
+    expect(isTopLevelBoxClientFolder({ path: '/clients/acme' })).toBe(true);
+    expect(isTopLevelBoxClientFolder({ path: '/Clients' })).toBe(false);
+    expect(isTopLevelBoxClientFolder({ path: '/Clients/Acme/Tax' })).toBe(false);
+    expect(isTopLevelBoxClientFolder({ path: '/Matters/Acme' })).toBe(false);
+  });
+
+  it('links an unambiguous same-name matter', () => {
+    const matters: Matter[] = [
+      makeMatter({ id: 'm-acme', name: 'Acme', client: 'Acme' }),
+      makeMatter({ id: 'm-beta', name: 'Beta', client: 'Beta' }),
+    ];
+    const res = resolveMatterForBoxFolder(matters, boxFolder('Acme'));
+    expect(res.action).toBe('link');
+    expect(res.matterId).toBe('m-acme');
+  });
+
+  it('reuses a matter already linked to the folder key', () => {
+    const folder = boxFolder('Acme');
+    const matters: Matter[] = [
+      makeMatter({ id: 'm-acme', name: 'Acme', client: 'Acme', boxFolderKeys: [folder.key] }),
+    ];
+    const res = resolveMatterForBoxFolder(matters, folder);
+    expect(res.action).toBe('reuse');
+    expect(res.matterId).toBe('m-acme');
+  });
+
+  it('leaves ambiguous or unmatched folders unassigned', () => {
+    const matters: Matter[] = [
+      makeMatter({ id: 'm-a', name: 'Smith', client: 'Smith' }),
+      makeMatter({ id: 'm-b', name: 'Smith', client: 'Smith' }),
+    ];
+    expect(resolveMatterForBoxFolder(matters, boxFolder('Smith')).action).toBe('unassigned');
+    expect(resolveMatterForBoxFolder(matters, boxFolder('Nobody')).action).toBe('unassigned');
+  });
+
+  it('does not link a matter that already owns a different Box folder', () => {
+    const matters: Matter[] = [
+      makeMatter({
+        id: 'm-acme',
+        name: 'Acme',
+        client: 'Acme',
+        boxFolderKeys: ['box/default/other:/x'],
+      }),
+    ];
+    expect(resolveMatterForBoxFolder(matters, boxFolder('Acme')).action).toBe('unassigned');
   });
 });

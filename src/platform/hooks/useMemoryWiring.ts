@@ -56,8 +56,13 @@ import {
 } from '@/platform/utils/tauri-commands';
 import { mailSetWorkspace } from '@/platform/utils/mail-commands';
 import { docusignSetWorkspace } from '@/platform/utils/docusign-commands';
+import { jotformSetWorkspace } from '@/platform/utils/jotform-commands';
+import { zocksSetWorkspace } from '@/platform/utils/zocks-commands';
+import { addeparSetWorkspace } from '@/platform/utils/addepar-commands';
 import { crmSetWorkspace } from '@/platform/utils/wealthbox-commands';
 import { oneDriveSetWorkspace } from '@/platform/utils/onedrive-commands';
+import { boxSetWorkspace } from '@/platform/utils/box-commands';
+import { sharefileSetWorkspace } from '@/platform/utils/sharefile-commands';
 import { calendlySetWorkspace } from '@/platform/utils/calendly-commands';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/platform/types/workspace';
@@ -546,12 +551,37 @@ export function useMemoryWiring(
         } catch (err) {
           console.warn('oneDriveSetWorkspace failed; continuing workspace setup:', err);
         }
+        try {
+          await boxSetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('boxSetWorkspace failed; continuing workspace setup:', err);
+        }
+        try {
+          await sharefileSetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('sharefileSetWorkspace failed; continuing workspace setup:', err);
+        }
         // Best-effort: DocuSign sync/list/disconnect commands also need the
         // active workspace path before they can read/write local connector data.
         try {
           await docusignSetWorkspace(rootPath);
         } catch (err) {
           console.warn('docusignSetWorkspace failed; continuing workspace setup:', err);
+        }
+        try {
+          await jotformSetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('jotformSetWorkspace failed; continuing workspace setup:', err);
+        }
+        try {
+          await zocksSetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('zocksSetWorkspace failed; continuing workspace setup:', err);
+        }
+        try {
+          await addeparSetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('addeparSetWorkspace failed; continuing workspace setup:', err);
         }
         try {
           await calendlySetWorkspace(rootPath);

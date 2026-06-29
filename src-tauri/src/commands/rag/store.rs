@@ -191,6 +191,11 @@ pub const EXTERNAL_SOURCE_TYPE_ALLOWLIST: &[&str] = &[
     "onedrive",
     "esign",
     "meeting",
+    "box",
+    "jotform",
+    "sharefile",
+    "zocks",
+    "addepar",
 ];
 
 pub fn validate_external_source_type(source_type: &str) -> Result<&str> {
@@ -1109,6 +1114,56 @@ pub async fn delete_source_type(table: &Table, source_type: &str) -> Result<()> 
         .await
         .with_context(|| format!("delete failed for source_type {}", source_type))?;
     Ok(())
+}
+
+/// List the DISTINCT plaintext source ids currently indexed under `source_type`.
+///
+/// The queryable `source_id` column is tokenized (VG-6e), so this scans matching
+/// rows and decrypts each `path_enc` (the encrypted plaintext path, which equals
+/// the source id by construction) in memory. Store-less connectors (e.g. Addepar,
+/// which re-fetches everything each sync and keeps no local record table) use this
+/// to find chunks whose remote source has vanished, so they can be pruned. The
+/// returned ids are plaintext and can be passed straight to [`delete_path`].
+pub async fn list_external_source_ids(
+    table: &Table,
+    source_type: &str,
+    key: &[u8; 32],
+) -> Result<Vec<String>> {
+    use futures_util::TryStreamExt;
+
+    let predicate = format!("source_type = '{}'", sql_escape(source_type));
+    let mut stream = table
+        .query()
+        .only_if(&predicate)
+        .select(Select::columns(&["path_enc"]))
+        .execute()
+        .await
+        .context("list_external_source_ids query execute failed")?;
+
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("list_external_source_ids stream try_next failed")?
+    {
+        let path_enc_col = batch
+            .column_by_name("path_enc")
+            .context("missing path_enc column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("path_enc column is not StringArray")?;
+        for i in 0..batch.num_rows() {
+            if path_enc_col.is_null(i) {
+                continue;
+            }
+            let plain = decrypt_path_enc_for_provider_scan(path_enc_col.value(i), key)?;
+            if seen.insert(plain.clone()) {
+                out.push(plain);
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// Build the predicate for [`delete_crm_for_matters`]: delete every CRM chunk
@@ -3886,6 +3941,37 @@ mod tests {
             build_batch_external(&rows, &TEST_KEY, "matter-acme", PRIVILEGE_NONE, "unknown")
                 .is_err(),
             "unknown connector source_type must be rejected"
+        );
+    }
+
+    #[test]
+    fn build_batch_external_accepts_new_connector_source_kinds() {
+        use arrow_array::cast::AsArray;
+        let plaintext = "Box folder document for the Acme matter.";
+        let rows = vec![(
+            Chunk {
+                path: "box:folder:file-123".into(),
+                paragraph_index: 0,
+                text: plaintext.to_string(),
+                start_offset: 0,
+                end_offset: plaintext.len(),
+                locator: None,
+            },
+            vec![0.1f32; EMBEDDING_DIM],
+        )];
+
+        let batch = build_batch_external(&rows, &TEST_KEY, "matter-acme", PRIVILEGE_NONE, "box")
+            .expect("box should be accepted as an external source kind");
+        let st_col = batch
+            .column_by_name("source_type")
+            .expect("st col")
+            .as_string::<i32>();
+        assert_eq!(st_col.value(0), "box");
+
+        assert!(
+            build_batch_external(&rows, &TEST_KEY, "matter-acme", PRIVILEGE_NONE, "not-real")
+                .is_err(),
+            "unknown connector source_type must still be rejected"
         );
     }
 

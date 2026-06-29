@@ -181,6 +181,24 @@ pub fn run() {
             commands::onedrive::commands::onedrive_sync,
             commands::onedrive::commands::onedrive_cancel,
             commands::onedrive::commands::onedrive_status,
+            // Box document connector (read-only Developer Token import).
+            commands::boxc::commands::box_set_workspace,
+            commands::boxc::commands::box_connect,
+            commands::boxc::commands::box_is_connected,
+            commands::boxc::commands::box_disconnect,
+            commands::boxc::commands::box_list_folders,
+            commands::boxc::commands::box_sync,
+            commands::boxc::commands::box_cancel,
+            commands::boxc::commands::box_status,
+            // ShareFile document connector (read-only portal import).
+            commands::sharefile::commands::sharefile_set_workspace,
+            commands::sharefile::commands::sharefile_connect,
+            commands::sharefile::commands::sharefile_is_connected,
+            commands::sharefile::commands::sharefile_disconnect,
+            commands::sharefile::commands::sharefile_list_folders,
+            commands::sharefile::commands::sharefile_sync,
+            commands::sharefile::commands::sharefile_cancel,
+            commands::sharefile::commands::sharefile_status,
             // Read-only DocuSign connector — completed envelopes + signing timeline.
             commands::docusign::commands::docusign_set_workspace,
             commands::docusign::commands::docusign_connect,
@@ -190,6 +208,35 @@ pub fn run() {
             commands::docusign::commands::docusign_cancel_sync,
             commands::docusign::commands::docusign_sync_status,
             commands::docusign::commands::docusign_list_unassigned,
+            // Read-only Jotform connector — intake/KYC submissions.
+            commands::jotform::commands::jotform_set_workspace,
+            commands::jotform::commands::jotform_connect,
+            commands::jotform::commands::jotform_is_connected,
+            commands::jotform::commands::jotform_disconnect,
+            commands::jotform::commands::jotform_list_forms,
+            commands::jotform::commands::jotform_sync,
+            commands::jotform::commands::jotform_cancel,
+            commands::jotform::commands::jotform_status,
+            commands::jotform::commands::jotform_list_unassigned,
+            // Read-only Zocks connector — meeting notes/transcripts into client memory.
+            commands::zocks::commands::zocks_set_workspace,
+            commands::zocks::commands::zocks_connect,
+            commands::zocks::commands::zocks_is_connected,
+            commands::zocks::commands::zocks_disconnect,
+            commands::zocks::commands::zocks_list_sessions,
+            commands::zocks::commands::zocks_sync,
+            commands::zocks::commands::zocks_cancel,
+            commands::zocks::commands::zocks_status,
+            commands::zocks::commands::zocks_list_unassigned,
+            // Read-only Addepar portfolio connector — household holdings/performance.
+            commands::addepar::commands::addepar_set_workspace,
+            commands::addepar::commands::addepar_connect,
+            commands::addepar::commands::addepar_is_connected,
+            commands::addepar::commands::addepar_disconnect,
+            commands::addepar::commands::addepar_list_entities,
+            commands::addepar::commands::addepar_sync,
+            commands::addepar::commands::addepar_cancel,
+            commands::addepar::commands::addepar_status,
             // Calendly connector — read-only scheduled events + invitee Q&A.
             commands::calendly::commands::calendly_set_workspace,
             commands::calendly::commands::calendly_connect,
@@ -240,8 +287,18 @@ pub fn run() {
             commands::crm::commands::manage_state(app);
             // OneDrive / SharePoint connector state.
             commands::onedrive::commands::manage_state(app);
+            // Box connector state.
+            commands::boxc::commands::manage_state(app);
+            // ShareFile connector state.
+            commands::sharefile::commands::manage_state(app);
             // Read-only DocuSign connector state.
             commands::docusign::commands::manage_state(app);
+            // Read-only Jotform connector state.
+            commands::jotform::commands::manage_state(app);
+            // Read-only Zocks connector state.
+            commands::zocks::commands::manage_state(app);
+            // Read-only Addepar connector state.
+            commands::addepar::commands::manage_state(app);
             // Calendly connector — manage workspace, single-flight sync, and progress.
             commands::calendly::commands::manage_state(app);
             // Keepance 3.0 — manage encrypted audit-store state (active workspace).
