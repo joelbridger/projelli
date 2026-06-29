@@ -32,6 +32,7 @@ import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
 
 // ── Display strings (variables avoid hardcoded JSX text for the i18n rule) ────
 
+const LABEL_SECTIONS = 'Sections';
 const LABEL_WHAT_MISSING = "What I'm missing";
 const LABEL_NEW_SECTION = 'New section';
 const EDIT_LABEL = 'Edit';
@@ -78,41 +79,52 @@ function tabStorageKey(matterId: string): string {
 
 // ── CSS tokens ────────────────────────────────────────────────────────────────
 
+// Flat, full-bleed two-pane shell — no border, no card, no shadow. It fills
+// its surface like the Ask screen; the only structure is the single hairline
+// between the calm left rail and the breathing content pane.
 const shellStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'stretch',
-  border: 'var(--kp-border-width) solid var(--color-border)',
-  borderRadius: 'var(--radius-lg)',
-  overflow: 'hidden',
-  background: 'var(--color-background)',
-  minHeight: 400,
-  boxShadow: 'var(--kp-shadow-1)',
+  width: '100%',
+  flex: 1,
+  minHeight: 0,
 };
 
+// The section rail mirrors the Ask ConversationsRail exactly: a quiet
+// secondary-tinted column with one right hairline and roomy, pill-shaped rows.
 const railStyle: CSSProperties = {
-  width: 232,
+  width: 248,
   flex: 'none',
-  borderRight: 'var(--kp-border-width) solid var(--color-border)',
-  background: 'var(--color-muted)',
-  padding: 'var(--kp-space-xs)',
+  borderRight: '1px solid var(--color-border)',
+  background: 'var(--color-secondary)',
+  padding: 'var(--kp-space-sm)',
   display: 'flex',
   flexDirection: 'column',
-  gap: 'var(--kp-space-2xs)',
+  gap: 2,
 };
 
+// Content gets the full surface gutter (32px) so it breathes like Ask; the
+// reading column is capped and centered (the ChatGPT message-column feel).
 const contentStyle: CSSProperties = {
   flex: 1,
   minWidth: 0,
-  padding: 'var(--kp-card-pad)',
+  padding: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-space-3xl)',
   overflowY: 'auto',
+};
+
+const contentInnerStyle: CSSProperties = {
+  maxWidth: 760,
+  margin: '0 auto',
+  width: '100%',
 };
 
 const panelTitleStyle: CSSProperties = {
   margin: 0,
-  fontSize: 'var(--kp-font-xl)',
+  fontSize: 'var(--kp-font-2xl)',
   fontWeight: 'var(--kp-weight-bold)',
   color: 'var(--kp-navy)',
   fontFamily: 'var(--font-sans)',
+  letterSpacing: '-0.01em',
   lineHeight: 'var(--kp-leading-tight)',
 };
 
@@ -127,8 +139,7 @@ const itemRowStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'flex-start',
   gap: 'var(--kp-space-sm)',
-  padding: 'var(--kp-space-sm) 0',
-  borderBottom: 'var(--kp-border-width) solid var(--color-border)',
+  padding: '10px 0',
 };
 
 const itemTextStyle: CSSProperties = {
@@ -306,28 +317,20 @@ function TabButton({
         width: '100%',
         textAlign: 'left',
         padding: 'var(--kp-space-xs) var(--kp-space-sm)',
-        border: 0,
+        border: '1px solid transparent',
         borderRadius: 'var(--radius-md)',
         cursor: 'pointer',
-        position: 'relative',
-        background: active ? 'var(--color-background)' : 'transparent',
-        boxShadow: active ? 'var(--kp-shadow-1)' : 'none',
+        background: active ? 'rgba(10, 37, 64, 0.09)' : 'transparent',
         fontFamily: 'var(--font-sans)',
+        transition: 'background 0.1s',
+      }}
+      onMouseEnter={(e) => {
+        if (!active) e.currentTarget.style.background = 'rgba(10, 37, 64, 0.05)';
+      }}
+      onMouseLeave={(e) => {
+        if (!active) e.currentTarget.style.background = 'transparent';
       }}
     >
-      {active && (
-        <span
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 'var(--kp-space-xs)',
-            bottom: 'var(--kp-space-xs)',
-            width: 3,
-            borderRadius: 3,
-            background: 'var(--kp-grad)',
-          }}
-        />
-      )}
       <span
         style={{
           flex: 1,
@@ -369,7 +372,7 @@ function PanelHeader({
         display: 'flex',
         alignItems: 'center',
         gap: 'var(--kp-space-sm)',
-        marginBottom: 'var(--kp-space-md)',
+        marginBottom: 'var(--kp-space-lg)',
       }}
     >
       <h3 style={panelTitleStyle}>{title}</h3>
@@ -857,8 +860,11 @@ export function ClientMapPanel({
 
   return (
     <div data-testid="clientmap-panel" style={shellStyle}>
-      {/* Left rail — vertical section tabs */}
+      {/* Left rail — vertical section tabs (Ask ConversationsRail styling) */}
       <div style={railStyle} role="tablist" aria-label="Client map sections">
+        <Eyebrow style={{ margin: '2px 0 6px', padding: '0 var(--kp-space-sm)' }}>
+          {LABEL_SECTIONS}
+        </Eyebrow>
         {sectionList.map((s) => (
           <TabButton
             key={s.key}
@@ -896,7 +902,7 @@ export function ClientMapPanel({
           }}
         />
 
-        {/* Dashed "+ New section" tab */}
+        {/* "+ New section" — a quiet rail row with a plus, not a dashed box */}
         <button
           type="button"
           data-testid="clientmap-tab-add"
@@ -911,65 +917,73 @@ export function ClientMapPanel({
             width: '100%',
             textAlign: 'left',
             padding: 'var(--kp-space-xs) var(--kp-space-sm)',
-            marginTop: 'var(--kp-space-2xs)',
-            border: 'var(--kp-border-width) dashed var(--color-border)',
+            border: '1px solid transparent',
             borderRadius: 'var(--radius-md)',
             cursor: 'pointer',
-            background: activeKey === NEW_KEY ? 'var(--color-background)' : 'transparent',
-            color: 'var(--kp-navy)',
+            background: activeKey === NEW_KEY ? 'rgba(10, 37, 64, 0.09)' : 'transparent',
+            color: 'var(--color-muted-foreground)',
             fontFamily: 'var(--font-sans)',
             fontSize: 'var(--kp-font-sm)',
-            fontWeight: 'var(--kp-weight-semibold)',
+            fontWeight: 'var(--kp-weight-medium)',
+            transition: 'background 0.1s',
+          }}
+          onMouseEnter={(e) => {
+            if (activeKey !== NEW_KEY) e.currentTarget.style.background = 'rgba(10, 37, 64, 0.05)';
+          }}
+          onMouseLeave={(e) => {
+            if (activeKey !== NEW_KEY) e.currentTarget.style.background = 'transparent';
           }}
         >
-          <Plus size={15} strokeWidth={2.25} style={{ flex: 'none' }} />
+          <Plus size={15} strokeWidth={2} style={{ flex: 'none', opacity: 0.7 }} />
           <span>{LABEL_NEW_SECTION}</span>
         </button>
       </div>
 
-      {/* Right reading pane */}
+      {/* Right reading pane — breathing, centered reading column (Ask shape) */}
       <div style={contentStyle}>
-        {activeKey === NEW_KEY ? (
-          <AddSectionPanel
-            matterId={map.matterId}
-            onCreated={(key) => {
-              select(key);
-            }}
-          />
-        ) : activeKey === MISSING_KEY || activeSection === undefined ? (
-          <MissingPanel
-            map={map}
-            onOpenSource={onOpenSource}
-            onAnswerQuestion={onAnswerQuestion}
-            onFlagForClient={onFlagForClient}
-          />
-        ) : (
-          <SectionPanel
-            section={activeSection}
-            onOpenSource={onOpenSource}
-            onEdit={(itemId) => {
-              onEditItem(activeSection.key, itemId);
-            }}
-            onSaveTemplate={
-              activeSection.kind === 'custom'
-                ? () => {
-                    saveTemplate(
-                      activeSection.title,
-                      activeSection.prompt ?? activeSection.title,
-                    );
-                  }
-                : undefined
-            }
-            onDelete={
-              activeSection.kind === 'custom'
-                ? () => {
-                    removeSection(map.matterId, activeSection.id);
-                    select(MISSING_KEY);
-                  }
-                : undefined
-            }
-          />
-        )}
+        <div style={contentInnerStyle}>
+          {activeKey === NEW_KEY ? (
+            <AddSectionPanel
+              matterId={map.matterId}
+              onCreated={(key) => {
+                select(key);
+              }}
+            />
+          ) : activeKey === MISSING_KEY || activeSection === undefined ? (
+            <MissingPanel
+              map={map}
+              onOpenSource={onOpenSource}
+              onAnswerQuestion={onAnswerQuestion}
+              onFlagForClient={onFlagForClient}
+            />
+          ) : (
+            <SectionPanel
+              section={activeSection}
+              onOpenSource={onOpenSource}
+              onEdit={(itemId) => {
+                onEditItem(activeSection.key, itemId);
+              }}
+              onSaveTemplate={
+                activeSection.kind === 'custom'
+                  ? () => {
+                      saveTemplate(
+                        activeSection.title,
+                        activeSection.prompt ?? activeSection.title,
+                      );
+                    }
+                  : undefined
+              }
+              onDelete={
+                activeSection.kind === 'custom'
+                  ? () => {
+                      removeSection(map.matterId, activeSection.id);
+                      select(MISSING_KEY);
+                    }
+                  : undefined
+              }
+            />
+          )}
+        </div>
       </div>
     </div>
   );

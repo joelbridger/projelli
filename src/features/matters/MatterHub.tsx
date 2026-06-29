@@ -19,7 +19,7 @@ import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { Button, SearchField, Chip, Badge, Eyebrow, Card } from '@/ui/kp';
+import { Button, SearchField, Chip, Badge } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
 import { useClientMap } from '@/features/matters/useClientMap';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
@@ -451,31 +451,21 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
               )}
             </div>
 
-            {/* Client Map */}
+            {/* Client Map — flat & full-bleed (no card), matching the Ask
+                surface: a calm section rail + a breathing reading column, with
+                no box-in-a-box nesting. */}
             <div
               data-testid="hub-panel-clientmap"
-              style={{
-                padding: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-section-gap)',
-              }}
+              style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
             >
-              <Card variant="raised" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-stack-gap)' }}>
-                {/* Header row */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 8,
-                  }}
-                >
-                  <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Map style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-                    Client Map
-                  </Eyebrow>
-                </div>
-
-                {/* Body — the Client Map is always expanded as the hero. */}
-                <div data-testid="hub-panel-clientmap-body">
+              <div
+                data-testid="hub-panel-clientmap-body"
+                style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+              >
+                {/* Control strip — local notice, build states, and (when ready)
+                    the updates tray + interview button — all sit in the gutter.
+                    The panel below is full-bleed and provides its own padding. */}
+                <div style={{ padding: 'var(--kp-surface-gap) var(--kp-gutter) 0' }}>
                   {/* Local-only notice */}
                   {isLocalOnlyMode() && (
                     <div
@@ -564,25 +554,27 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                           />
                         </div>
                       )}
-                      {/* The redesigned tabbed Client Map panel absorbs the
-                          questions list, the custom-section composer, and the
-                          templates list. */}
-                      <ClientMapPanel
-                        map={clientMap.map}
-                        onOpenSource={handleOpenSource}
-                        onEditItem={handleEditItem}
-                        onAnswerQuestion={(gap) => {
-                          const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`);
-                          if (a != null && a.trim() !== '') {
-                            answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
-                          }
-                        }}
-                        onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
-                      />
                     </>
                   )}
                 </div>
-              </Card>
+
+                {/* The flat, full-bleed Client Map panel absorbs the questions
+                    list, the custom-section composer, and the templates list. */}
+                {clientMap.status === 'ready' && clientMap.map !== undefined && (
+                  <ClientMapPanel
+                    map={clientMap.map}
+                    onOpenSource={handleOpenSource}
+                    onEditItem={handleEditItem}
+                    onAnswerQuestion={(gap) => {
+                      const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`);
+                      if (a != null && a.trim() !== '') {
+                        answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
+                      }
+                    }}
+                    onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
+                  />
+                )}
+              </div>
             </div>
           </div>
         )}
