@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Ask — smart agent (design mockup)</title>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="file:///home/jameson/kp-ask-smart/marketing-demo/render/brand.css">
+<style>
+  /* ---- mockup page scaffold (not shipped; just to render the Ask surface statically) ---- */
+  html,body { margin:0; background:var(--d-bg-soft); font-family:var(--d-font); -webkit-font-smoothing:antialiased; }
+  .mock-wrap { padding:34px; display:flex; justify-content:center; }
+  .mock-window {
+    width:1280px; background:#fff; border:1px solid var(--d-line);
+    border-radius:18px; overflow:hidden; box-shadow:0 24px 80px rgba(10,37,64,0.16);
+    display:flex; min-height:0;
+  }
+  /* app spine (3-tab IA) */
+  .mock-spine { width:76px; flex:none; background:var(--d-navy); display:flex; flex-direction:column; align-items:center; padding:18px 0; gap:6px; }
+  .mock-spine .mark { width:38px; height:38px; border-radius:11px; background:linear-gradient(135deg,#1f74c4,#5dc6ff); margin-bottom:18px; box-shadow:0 6px 18px rgba(31,116,196,0.45); }
+  .mock-spine .nav { width:60px; padding:9px 0 7px; border-radius:12px; display:flex; flex-direction:column; align-items:center; gap:5px; color:rgba(255,255,255,0.62); font-size:10px; font-weight:600; }
+  .mock-spine .nav svg { width:21px; height:21px; }
+  .mock-spine .nav.on { background:rgba(255,255,255,0.12); color:#fff; }
+  /* make the Ask surface lay out as a full document (override the demo's absolute fill) */
+  #kpd-ask { position:relative; left:auto; top:auto; width:auto; height:auto; flex:1; min-width:0; opacity:1; }
+  #kpd-ask .kpd-ask-body { height:auto; }
+  #kpd-ask .kpd-thread { overflow:visible; }
+  #kpd-ask .kpd-turns { overflow:visible !important; }
+  #kpd-ask .kpd-srcpanel { overflow:visible; }
+  .kpd-turn, .kpd-srccard, .kpd-attest, .kpd-cite, .kpd-convo { opacity:1 !important; transform:none !important; }
+  .kpd-cite { transform:scale(1) !important; }
+
+  /* egress chip in the header (always-visible privacy indicator) */
+  .kpd-ask-head { display:flex; align-items:flex-start; justify-content:space-between; }
+  .egress { display:inline-flex; align-items:center; gap:7px; padding:7px 12px; border-radius:999px; background:var(--d-success-bg); border:1px solid var(--d-success-line); color:var(--d-local); font-size:12px; font-weight:600; white-space:nowrap; }
+  .egress .dot { width:7px; height:7px; border-radius:50%; background:var(--d-success); }
+
+  /* ===== NEW: block-level source labels (the core of this proposal) ===== */
+  .kpd-block { display:flex; flex-direction:column; gap:9px; padding:2px 0; }
+  .kpd-block + .kpd-block { margin-top:6px; padding-top:16px; border-top:1px dashed var(--d-line-strong); }
+  .kpd-blocklabel { display:inline-flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; padding:4px 10px; border-radius:999px; width:fit-content; }
+  .kpd-blocklabel svg { width:13px; height:13px; }
+  .kpd-blocklabel.files   { color:#166534; background:#f0fdf4; border:1px solid rgba(74,222,128,0.7); }
+  .kpd-blocklabel.general { color:#475569; background:#f1f5f9; border:1px solid #cbd5e1; }
+  .kpd-blocklabel.draft   { color:var(--d-accent); background:var(--d-accent-soft); border:1px solid rgba(31,116,196,0.4); }
+  .kpd-verify-line { font-size:12px; line-height:1.5; color:#64748b; display:flex; gap:7px; align-items:flex-start; }
+  .kpd-verify-line svg { width:14px; height:14px; flex:none; margin-top:1px; color:#94a3b8; }
+  /* slate (general) attestation variant */
+  .kpd-attest.general { background:#f1f5f9; border-color:#cbd5e1; color:#475569; }
+  .kpd-attest.general svg { color:#64748b; }
+  .kpd-attest.draftft { background:var(--d-accent-soft); border-color:rgba(31,116,196,0.4); color:var(--d-accent); }
+  .kpd-attest.draftft svg { color:var(--d-accent); }
+  /* a row of two pill-attestations for a mixed answer */
+  .kpd-attestrow { display:flex; gap:10px; flex-wrap:wrap; }
+  /* files-only lock toggle in the composer */
+  .kpd-lock { display:inline-flex; align-items:center; gap:8px; margin-left:auto; font-size:12.5px; font-weight:600; color:var(--d-dim); }
+  .kpd-lock .sw { width:34px; height:20px; border-radius:999px; background:var(--d-line-strong); position:relative; }
+  .kpd-lock .sw::after { content:''; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.2); }
+  .rail-note { font-size:11px; color:var(--d-faint); margin:14px 4px 6px; line-height:1.4; }
+  .legacy { margin-top:10px; border-radius:9px; padding:10px 12px; font-size:13px; color:var(--d-dim); display:flex; flex-direction:column; gap:2px; }
+  .legacy .sub { font-size:11.5px; color:var(--d-faint); }
+  .mode-caption { width:1280px; margin:0 auto 14px; color:var(--d-dim); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="mock-wrap" style="flex-direction:column; align-items:center;">
+  <div class="mode-caption"><strong>Keepance · Ask — proposed "smart agent" design.</strong> One conversation. Every answer shows what it's built from: <span style="color:#166534;font-weight:700">your files (cited)</span>, <span style="color:#475569;font-weight:700">general knowledge</span>, or a <span style="color:#1f74c4;font-weight:700">draft</span>. Static design mockup — not the running app.</div>
+  <div class="mock-window">
+    <!-- app spine: the 3-tab IA -->
+    <div class="mock-spine">
+      <div class="mark"></div>
+      <div class="nav"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="9" r="3.2" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Clients</div>
+      <div class="nav on"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l1.7 4.9L18 9.5l-4.3 1.6L12 16l-1.7-4.9L6 9.5l4.3-1.6L12 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>Ask</div>
+      <div class="nav"><svg viewBox="0 0 24 24" fill="none"><path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Workflows</div>
+    </div>
+
+    <!-- the Ask surface -->
+    <div id="kpd-ask">
+      <div class="kpd-ask-head">
+        <div>
+          <div class="kpd-ask-title"><span class="kpd-ask-spark"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.7 4.9L18 9.5l-4.3 1.6L12 16l-1.7-4.9L6 9.5l4.3-1.6L12 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="6.5" cy="17.5" r="1.4" stroke="currentColor" stroke-width="1.3"/></svg></span>Ask</div>
+          <div class="kpd-ask-sub">Your private practice assistant. Answers from your files are cited; general help is clearly marked.</div>
+        </div>
+        <div class="egress"><span class="dot"></span>Private · runs on this Mac, nothing sent out</div>
+      </div>
+
+      <div class="kpd-ask-body">
+        <!-- conversations rail -->
+        <div class="kpd-rail">
+          <div class="kpd-rail-h">Conversations</div>
+          <div class="kpd-newq"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> New question</div>
+          <div class="kpd-convo"><div>Webb Household · meeting prep</div><div class="kpd-convo-sub">just now</div></div>
+          <div class="rail-note">Older AI chats moved here</div>
+          <div class="legacy"><div>Roth strategy notes</div><div class="sub">from AI Chat · 3 days ago</div></div>
+          <div class="legacy"><div>Quarterly letter draft</div><div class="sub">from AI Chat · last week</div></div>
+        </div>
+
+        <!-- thread + composer -->
+        <div class="kpd-main">
+          <div class="kpd-thread">
+            <div class="kpd-turns">
+
+              <!-- TURN 1 — pure file-grounded, cited -->
+              <div class="kpd-turn">
+                <div class="kpd-q"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 7h4v4c0 2-1.5 3.5-3.5 4M13 7h4v4c0 2-1.5 3.5-3.5 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>What should I know before my next meeting with the Webb household?</span></div>
+                <div class="kpd-a">
+                  <div class="kpd-block">
+                    <span class="kpd-blocklabel files"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>From your files</span>
+                    <p class="kpd-ans"><b>Where things stand.</b> The Webbs want to retire at 60 and put both kids through college; the plan is moderate-growth, rebalanced once a year. <span class="kpd-cite kpd-pop"><span style="display:inline-flex"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M8.5 12.2l2.3 2.3 4.6-4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>1</span><br><br>
+                    <b>What changed since last meeting.</b> Tanya got a raise, so they can add $400/month to savings, and the old employer 401(k) (about $96k) still hasn't been rolled over. <span class="kpd-cite kpd-pop"><span style="display:inline-flex"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M8.5 12.2l2.3 2.3 4.6-4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>2</span><br><br>
+                    <b>Watch this.</b> <span class="kpd-warnote">The old 401(k) still names Marcus's ex-wife, Jessica Reyes, as the sole beneficiary, dated 2019.</span> If it isn't fixed before the rollover, that account would pass to her, not Tanya. <span class="kpd-cite kpd-pop"><span style="display:inline-flex"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M8.5 12.2l2.3 2.3 4.6-4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>3</span></p>
+                  </div>
+                  <div class="kpd-attest kpd-in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Answered over the Webbs' files. Every cited claim can be checked against the source.</div>
+                </div>
+              </div>
+
+              <!-- TURN 2 — MIXED: file-grounded block + general-knowledge block (the centerpiece) -->
+              <div class="kpd-turn">
+                <div class="kpd-q"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 7h4v4c0 2-1.5 3.5-3.5 4M13 7h4v4c0 2-1.5 3.5-3.5 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>Would a backdoor Roth make sense for them, and what should I watch out for?</span></div>
+                <div class="kpd-a">
+                  <div class="kpd-block">
+                    <span class="kpd-blocklabel files"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>From your files</span>
+                    <p class="kpd-ans">Their 2024 income put the Webbs above the direct Roth contribution limit, and they still hold about $96k in a pre-tax 401(k) that hasn't been rolled over yet. <span class="kpd-cite kpd-pop"><span style="display:inline-flex"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M8.5 12.2l2.3 2.3 4.6-4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>4</span> <span class="kpd-cite kpd-pop"><span style="display:inline-flex"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M8.5 12.2l2.3 2.3 4.6-4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>5</span></p>
+                  </div>
+                  <div class="kpd-block">
+                    <span class="kpd-blocklabel general"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v5M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>General guidance</span>
+                    <p class="kpd-ans">A backdoor Roth lets higher earners fund a Roth indirectly — contribute to a traditional IRA, then convert it. The big thing to flag for them: the IRS <b>pro-rata rule</b> counts existing pre-tax IRA money toward the conversion, so a large pre-tax balance can make most of the converted amount taxable. That's why the <b>sequence</b> matters — rolling that old 401(k) into a new employer plan first (instead of an IRA) can keep the backdoor clean.</p>
+                    <div class="kpd-verify-line"><svg viewBox="0 0 24 24" fill="none"><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/></svg> General knowledge, not from the Webbs' files. Contribution limits and rules change — confirm current figures before you advise.</div>
+                  </div>
+                  <div class="kpd-attestrow">
+                    <div class="kpd-attest kpd-in" style="margin:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> 2 claims cited from your files</div>
+                    <div class="kpd-attest general kpd-in" style="margin:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v5M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> 1 general explanation · verify current rules</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- TURN 3 — a draft -->
+              <div class="kpd-turn">
+                <div class="kpd-q"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 7h4v4c0 2-1.5 3.5-3.5 4M13 7h4v4c0 2-1.5 3.5-3.5 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>Draft a short note to Marcus explaining we should do the rollover first.</span></div>
+                <div class="kpd-a">
+                  <div class="kpd-block">
+                    <span class="kpd-blocklabel draft"><svg viewBox="0 0 24 24" fill="none"><path d="M4 20h4l10-10-4-4L4 16v4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" stroke="currentColor" stroke-width="1.7"/></svg>Draft</span>
+                    <div class="kpd-email">
+                      <div class="kpd-email-bar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M4 7l8 6 8-6" stroke="currentColor" stroke-width="1.7"/></svg> To: Marcus Webb</div>
+                      <div class="kpd-email-body"><div class="kpd-subj">Quick item before we finalize your rollover</div>Hi Marcus,<br><br>Before we move your old 401(k) into your IRA, I want to confirm one detail on the current account. Our records show the beneficiary there still lists a name from before your 2019 update. Could you confirm the latest beneficiary form for that account?<br><br>Once that's set, the rollover puts everything under the right designations.<br><br>Thanks,<br>[Your name]</div>
+                    </div>
+                  </div>
+                  <div class="kpd-attest draftft kpd-in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 20h4l10-10-4-4L4 16v4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg> Draft for you to review — grounded in the beneficiary note in your files. Nothing is sent automatically.</div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- composer -->
+            <div style="display:flex;flex-direction:column;gap:12px;padding-top:8px">
+              <div class="kpd-scope">
+                <div class="kpd-pill sel">This client</div>
+                <div class="kpd-pill">All clients</div>
+                <div class="kpd-pill">Email</div>
+                <div class="kpd-pill">Documents</div>
+                <div class="kpd-lock"><span class="sw"></span>Files-only mode</div>
+              </div>
+              <div class="kpd-composer">
+                <div class="kpd-ci"><span style="color:var(--d-accent);display:inline-flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.7 4.9L18 9.5l-4.3 1.6L12 16l-1.7-4.9L6 9.5l4.3-1.6L12 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="6.5" cy="17.5" r="1.4" stroke="currentColor" stroke-width="1.3"/></svg></span><span class="kpd-ph">Ask about the Webbs — or anything else…</span></div>
+                <div class="kpd-ask-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Ask</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- sources panel -->
+          <div class="kpd-srcpanel">
+            <div class="kpd-src-h"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Sources · from your files only</div>
+            <div>
+              <div class="kpd-srccard kpd-in"><div class="kpd-src-file"><span class="kpd-src-n">1</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"/></svg><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Financial Plan Summary.md</span></div><div class="kpd-src-quote">Goals: retire at 60, fund both kids' college… Hold the moderate-growth allocation; rebalance once a year.</div><div class="kpd-src-verify"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Verified against source</div></div>
+              <div class="kpd-srccard kpd-in"><div class="kpd-src-file"><span class="kpd-src-n">2</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"/></svg><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Review Notes.md</span></div><div class="kpd-src-quote">Tanya got a raise. They can push another $400/month into savings… the $96k old 401(k) is still at the prior custodian.</div><div class="kpd-src-verify"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Verified against source</div></div>
+              <div class="kpd-srccard kpd-in"><div class="kpd-src-file"><span class="kpd-src-n">3</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"/></svg><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Beneficiary Designations.md</span></div><div class="kpd-src-quote">The old 401(k) still lists Jessica Reyes, Marcus's first wife, as the sole primary beneficiary, dated 2019.</div><div class="kpd-src-verify"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Verified against source</div></div>
+              <div class="kpd-srccard kpd-in"><div class="kpd-src-file"><span class="kpd-src-n">4</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"/></svg><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">2024 Tax Return.pdf</span></div><div class="kpd-src-quote">Adjusted gross income places the household above the direct Roth IRA phase-out for married-filing-jointly.</div><div class="kpd-src-verify"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Verified against source</div></div>
+              <div class="kpd-srccard kpd-in"><div class="kpd-src-file"><span class="kpd-src-n">5</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v5h5" stroke="currentColor" stroke-width="1.7"/></svg><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Review Notes.md</span></div><div class="kpd-src-quote">$96k pre-tax balance still sitting in the old employer 401(k); not yet rolled over.</div><div class="kpd-src-verify"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Verified against source</div></div>
+              <div style="font-size:11.5px;color:var(--d-faint);line-height:1.5;padding:4px 2px;margin-top:4px">General-knowledge answers have no source card — that's the point. The Sources panel only ever fills with <b>your</b> files.</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

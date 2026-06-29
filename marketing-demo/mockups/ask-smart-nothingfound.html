@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Ask — "nothing found in files" (design mockup)</title>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="file:///home/jameson/kp-ask-smart/marketing-demo/render/brand.css">
+<style>
+  html,body { margin:0; background:var(--d-bg-soft); font-family:var(--d-font); -webkit-font-smoothing:antialiased; }
+  .mock-wrap { padding:34px; display:flex; flex-direction:column; align-items:center; }
+  .mock-window { width:1280px; background:#fff; border:1px solid var(--d-line); border-radius:18px; overflow:hidden; box-shadow:0 24px 80px rgba(10,37,64,0.16); display:flex; }
+  .mock-spine { width:76px; flex:none; background:var(--d-navy); display:flex; flex-direction:column; align-items:center; padding:18px 0; gap:6px; }
+  .mock-spine .mark { width:38px; height:38px; border-radius:11px; background:linear-gradient(135deg,#1f74c4,#5dc6ff); margin-bottom:18px; box-shadow:0 6px 18px rgba(31,116,196,0.45); }
+  .mock-spine .nav { width:60px; padding:9px 0 7px; border-radius:12px; display:flex; flex-direction:column; align-items:center; gap:5px; color:rgba(255,255,255,0.62); font-size:10px; font-weight:600; }
+  .mock-spine .nav svg { width:21px; height:21px; }
+  .mock-spine .nav.on { background:rgba(255,255,255,0.12); color:#fff; }
+  #kpd-ask { position:relative; left:auto; top:auto; width:auto; height:auto; flex:1; min-width:0; opacity:1; }
+  #kpd-ask .kpd-ask-body { height:auto; }
+  #kpd-ask .kpd-thread { overflow:visible; }
+  #kpd-ask .kpd-turns { overflow:visible !important; }
+  .kpd-turn, .kpd-attest, .kpd-convo { opacity:1 !important; transform:none !important; }
+  .kpd-ask-head { display:flex; align-items:flex-start; justify-content:space-between; }
+  .egress { display:inline-flex; align-items:center; gap:7px; padding:7px 12px; border-radius:999px; background:var(--d-success-bg); border:1px solid var(--d-success-line); color:var(--d-local); font-size:12px; font-weight:600; white-space:nowrap; }
+  .egress .dot { width:7px; height:7px; border-radius:50%; background:var(--d-success); }
+  .kpd-block { display:flex; flex-direction:column; gap:9px; padding:2px 0; }
+  .kpd-block + .kpd-block { margin-top:6px; padding-top:16px; border-top:1px dashed var(--d-line-strong); }
+  .kpd-blocklabel { display:inline-flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; padding:4px 10px; border-radius:999px; width:fit-content; }
+  .kpd-blocklabel svg { width:13px; height:13px; }
+  .kpd-blocklabel.files { color:#166534; background:#f0fdf4; border:1px solid rgba(74,222,128,0.7); }
+  .kpd-blocklabel.filesempty { color:#64748b; background:#f8fafc; border:1px solid #e2e8f0; }
+  .kpd-blocklabel.general { color:#475569; background:#f1f5f9; border:1px solid #cbd5e1; }
+  .kpd-verify-line { font-size:12px; line-height:1.5; color:#64748b; display:flex; gap:7px; align-items:flex-start; }
+  .kpd-verify-line svg { width:14px; height:14px; flex:none; margin-top:1px; color:#94a3b8; }
+  .kpd-attest.general { background:#f1f5f9; border-color:#cbd5e1; color:#475569; }
+  .kpd-attest.general svg { color:#64748b; }
+  .empty-note { font-size:15px; color:var(--d-dim); line-height:1.5; }
+  .searched { font-size:12px; color:var(--d-faint); display:flex; align-items:center; gap:7px; }
+  .searched svg { width:13px; height:13px; }
+  .suggest-row { display:flex; gap:10px; flex-wrap:wrap; margin-top:4px; }
+  .suggest { display:inline-flex; align-items:center; gap:7px; padding:8px 14px; border-radius:999px; border:1.5px solid var(--d-line-strong); background:#fff; font-size:13px; font-weight:600; color:var(--d-navy); }
+  .suggest svg { width:14px; height:14px; color:var(--d-accent); }
+  .mode-caption { width:1280px; margin:0 auto 14px; color:var(--d-dim); font-size:13px; }
+  .kpd-srcpanel-empty { width:326px; flex:none; border-left:1px solid var(--d-line); padding:22px 20px; background:var(--d-bg-soft); display:flex; flex-direction:column; }
+  .kpd-srcpanel-empty .eb { margin-top:18px; border:1px dashed var(--d-line-strong); border-radius:12px; padding:20px 16px; text-align:center; color:var(--d-faint); font-size:12.5px; line-height:1.55; }
+</style>
+</head>
+<body>
+<div class="mock-wrap">
+  <div class="mode-caption"><strong>Ask — the "nothing in your files" moment, redesigned.</strong> Today Ask hits a dead end ("I couldn't find anything in your documents"). Proposed: it leads with the honest absence, then offers labeled general help and a way forward. Static mockup.</div>
+  <div class="mock-window">
+    <div class="mock-spine">
+      <div class="mark"></div>
+      <div class="nav"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="9" r="3.2" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Clients</div>
+      <div class="nav on"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l1.7 4.9L18 9.5l-4.3 1.6L12 16l-1.7-4.9L6 9.5l4.3-1.6L12 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>Ask</div>
+      <div class="nav"><svg viewBox="0 0 24 24" fill="none"><path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Workflows</div>
+    </div>
+    <div id="kpd-ask">
+      <div class="kpd-ask-head">
+        <div>
+          <div class="kpd-ask-title"><span class="kpd-ask-spark"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.7 4.9L18 9.5l-4.3 1.6L12 16l-1.7-4.9L6 9.5l4.3-1.6L12 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="6.5" cy="17.5" r="1.4" stroke="currentColor" stroke-width="1.3"/></svg></span>Ask</div>
+          <div class="kpd-ask-sub">Your private practice assistant. Answers from your files are cited; general help is clearly marked.</div>
+        </div>
+        <div class="egress"><span class="dot"></span>Private · runs on this Mac, nothing sent out</div>
+      </div>
+      <div class="kpd-ask-body">
+        <div class="kpd-rail">
+          <div class="kpd-rail-h">Conversations</div>
+          <div class="kpd-newq"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> New question</div>
+          <div class="kpd-convo"><div>Webb Household · planning</div><div class="kpd-convo-sub">just now</div></div>
+        </div>
+        <div class="kpd-main">
+          <div class="kpd-thread">
+            <div class="kpd-turns">
+              <div class="kpd-turn">
+                <div class="kpd-q"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 7h4v4c0 2-1.5 3.5-3.5 4M13 7h4v4c0 2-1.5 3.5-3.5 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>What did the Webbs decide about long-term care insurance?</span></div>
+                <div class="kpd-a">
+                  <div class="kpd-block">
+                    <span class="kpd-blocklabel filesempty"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>From your files — nothing found</span>
+                    <p class="empty-note">I didn't find anything in the Webbs' files about a long-term care insurance decision. So I'm not guessing or putting words in their mouth.</p>
+                    <div class="searched"><svg viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg> Searched 14 documents and 38 emails for this client.</div>
+                  </div>
+                  <div class="kpd-block">
+                    <span class="kpd-blocklabel general"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v5M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>General guidance</span>
+                    <p class="kpd-ans">If you want to raise it with them, here's how advisors usually frame a long-term care conversation: weigh the household's <b>cash flow and assets</b> against the cost of care, look at <b>family health history and ages</b>, and compare the main routes — traditional LTC insurance, hybrid life/LTC policies, or self-funding. The goal is matching coverage to the gap they'd actually face, not over-insuring.</p>
+                    <div class="kpd-verify-line"><svg viewBox="0 0 24 24" fill="none"><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/></svg> General knowledge, not from the Webbs' files. This is educational framing — confirm specifics and current product details before advising.</div>
+                  </div>
+                  <div class="suggest-row">
+                    <div class="suggest"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Look across all clients</div>
+                    <div class="suggest"><svg viewBox="0 0 24 24" fill="none"><path d="M4 20h4l10-10-4-4L4 16v4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg> Draft a question to ask them</div>
+                  </div>
+                  <div class="kpd-attest general kpd-in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v5M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Nothing found in your files. The guidance above is general knowledge, clearly marked — not from the Webbs' records.</div>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px;padding-top:8px">
+              <div class="kpd-scope">
+                <div class="kpd-pill sel">This client</div>
+                <div class="kpd-pill">All clients</div>
+                <div class="kpd-pill">Email</div>
+                <div class="kpd-pill">Documents</div>
+              </div>
+              <div class="kpd-composer">
+                <div class="kpd-ci"><span style="color:var(--d-accent);display:inline-flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.7 4.9L18 9.5l-4.3 1.6L12 16l-1.7-4.9L6 9.5l4.3-1.6L12 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="6.5" cy="17.5" r="1.4" stroke="currentColor" stroke-width="1.3"/></svg></span><span class="kpd-ph">Ask about the Webbs — or anything else…</span></div>
+                <div class="kpd-ask-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Ask</div>
+              </div>
+            </div>
+          </div>
+          <div class="kpd-srcpanel-empty">
+            <div class="kpd-src-h" style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--d-faint);text-transform:uppercase;display:flex;align-items:center;gap:7px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg> Sources</div>
+            <div class="eb">No file sources for this answer.<br><br>The general guidance came from the model's knowledge, so there's nothing in your files to cite. When an answer <i>does</i> use your files, the cited sources appear here.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
