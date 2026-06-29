@@ -2,21 +2,40 @@
  * scopeFileTree — prune a workspace file tree to a single client's folders.
  *
  * The Client Map hub's "Documents" sub-tab shows THIS client's files, not the
- * whole workspace. A matter owns one or more absolute `folderPaths`
- * (`Matter.folderPaths`); this helper returns a new tree containing only:
+ * whole workspace. A matter owns one or more `folderPaths` (`Matter.folderPaths`);
+ * this helper returns a new tree containing only:
  *   - the subtree rooted at each of the matter's folders (its full contents),
  *   - plus the ancestor folders needed to reach them (so the path is navigable).
  *
  * Everything outside the matter's folders is dropped. The function is PURE
  * (returns new nodes; never mutates the input) so it is safe to call inside a
  * render/useMemo, and so the unscoped store tree the rest of the app uses is
- * never altered.
+ * never altered. The original node `path` values are preserved unchanged.
  *
- * Matching reuses the app's canonical folder logic (`isPathInFolder` /
- * `normalize` from the matter resolver — the SAME check `resolveMatterId` uses),
- * so the pruned view agrees exactly with how files are assigned to matters, and
- * Windows backslash paths + trailing slashes are handled identically. Matching
- * is whole-segment, so `/ws/Brennan` does NOT match `/ws/Brennan Two`.
+ * **Single source of truth for ownership (the bugs this guards against):**
+ *   1. The store file tree's node paths are workspace-RELATIVE (`Clients/Acme/…`,
+ *      from the FS backend's `list()`), while a matter's `folderPaths` are
+ *      ABSOLUTE (`C:/WS/Clients/Acme`). A raw compare matches NOTHING across the
+ *      two shapes, which made every client's Documents tab show empty. We bridge
+ *      that by resolving each tree node path to an absolute path under
+ *      `workspaceRoot` (`toAbsolute`) before comparing.
+ *   2. Matching/ownership then reuses the EXACT functions the indexer and chat
+ *      use — `isPathInFolder` and `resolveMatterId` — which are CASE-SENSITIVE
+ *      (`normalize` only swaps separators / strips a trailing slash; it does NOT
+ *      lowercase). Using those same functions guarantees the Documents tab agrees
+ *      byte-for-byte with how files are actually assigned to matters, so on a
+ *      case-sensitive filesystem two clients whose folders differ only by case
+ *      (`/Clients/Acme` vs `/Clients/acme`) stay SEPARATE — no cross-client bleed.
+ *      (A previous revision compared via a lowercasing canonical key, which could
+ *      have conflated such folders; that is fixed here by reusing the resolver.)
+ *   3. A matter mapped to the workspace ROOT (e.g. the onboarding sample matter,
+ *      `folderPaths: [workspaceRoot]`) is naturally an include-EVERYTHING scope:
+ *      `isPathInFolder(node, root)` is true for every node, and `resolveMatterId`
+ *      gives it longest-match ownership of anything no deeper matter claims — so
+ *      that client's Documents tab lists all its files (minus nested
+ *      foreign-client folders), never empty.
+ *
+ * Matching is whole-segment, so `/ws/Acme` never matches `/ws/Acme Two`.
  */
 import type { FileNode } from '@/platform/types/workspace';
 import type { Matter } from '@/platform/types/matter';
@@ -29,43 +48,76 @@ function isAncestorOf(path: string, folder: string): boolean {
 }
 
 /**
- * Return a pruned copy of `tree` limited to the given absolute `folderPaths`.
+ * Resolve a possibly-relative tree node path to an absolute path under the
+ * workspace root, so it can be compared against the matters' absolute
+ * `folderPaths` with the SAME case-sensitive logic the resolver/indexer use.
+ *
+ * - No `workspaceRoot` (back-compat / tests that use one path shape on both
+ *   sides) → the path is compared as-is.
+ * - Already absolute (equals the root or sits under it) → normalized as-is.
+ * - Relative → joined under the normalized root.
+ *
+ * Case is preserved (we only normalize separators / trailing slash), so the
+ * comparison stays consistent with `resolveMatterId`.
+ */
+function toAbsolute(p: string, workspaceRoot?: string | null): string {
+  const np = normalize(p);
+  if (!workspaceRoot) return np;
+  const nr = normalize(workspaceRoot);
+  if (np === nr || np.startsWith(`${nr}/`)) return np;
+  return `${nr}/${np.replace(/^\/+/, '')}`;
+}
+
+/**
+ * Return a pruned copy of `tree` limited to the given `folderPaths`.
  *
  * - `folderPaths` empty → returns `[]` (a client with no mapped folders has no
  *   scoped documents; the caller shows an honest empty state).
+ * - A folder mapped to the workspace ROOT is an INCLUDE-EVERYTHING scope (see the
+ *   module doc): it returns the whole tree, still minus nested foreign-client
+ *   folders when ownership context is supplied.
  * - A node at/under any folder path is included; an ancestor folder is kept only
  *   for the branch leading down to a scoped folder.
  * - **Matter isolation:** when `matters` + `scopeMatterId` are supplied, a
- *   descendant owned by a DIFFERENT matter (a subfolder mapped to another
- *   client, nested inside this client's folder) is DROPPED — using the same
- *   longest-match ownership `resolveMatterId` uses — so one client's tab can
+ *   descendant whose longest-match owner is a DIFFERENT matter (a subfolder
+ *   mapped to another client, nested inside this client's folder) is DROPPED —
+ *   using the shared, case-sensitive `resolveMatterId` — so one client's tab can
  *   never surface another client's files. Without that context the prune is
  *   purely folder-based (back-compat).
+ * - `workspaceRoot` (when known) bridges absolute matter folders against relative
+ *   tree node paths. Always pass it from the live workspace; omit only in pure
+ *   tests that use one path shape on both sides.
  */
 export function scopeFileTreeToFolders(
   tree: FileNode[],
   folderPaths: string[],
   matters?: Matter[],
   scopeMatterId?: string,
+  workspaceRoot?: string | null,
 ): FileNode[] {
-  if (folderPaths.length === 0) return [];
   const folders = folderPaths.filter(Boolean);
+  if (folders.length === 0) return [];
   const ownershipAware = matters !== undefined && scopeMatterId !== undefined;
 
   function prune(node: FileNode): FileNode | null {
-    // Inside one of the matter's folders (path-wise).
-    if (folders.some((f) => isPathInFolder(node.path, f))) {
+    // Compare the node in the SAME (absolute, case-sensitive) space as the
+    // matters' folderPaths and the resolver/indexer.
+    const abs = toAbsolute(node.path, workspaceRoot);
+
+    // Inside one of the matter's folders (a root-mapped folder matches all).
+    if (folders.some((f) => isPathInFolder(abs, f))) {
       if (!ownershipAware) {
         // Folder-based only: keep the whole subtree.
         return node;
       }
       // Ownership-aware: a node whose longest-match owner is a DIFFERENT matter
       // (a nested foreign-client subfolder/file) must be dropped, not leaked.
-      if (resolveMatterId(node.path, matters) !== scopeMatterId) {
+      // Reuses the exact case-sensitive resolver the indexer uses.
+      if (resolveMatterId(abs, matters) !== scopeMatterId) {
         return null;
       }
-      // Ours — but recurse folders, since a deeper subfolder could be mapped to
-      // another matter even though this level is ours.
+      // Ours — recurse folders, since a deeper subfolder could belong to another
+      // matter even though this level is ours.
       if (node.type === 'folder') {
         const children = (node.children ?? [])
           .map(prune)
@@ -74,13 +126,15 @@ export function scopeFileTreeToFolders(
       }
       return node;
     }
+
     // A folder above a scoped folder: keep only the branch that reaches it.
-    if (node.type === 'folder' && folders.some((f) => isAncestorOf(node.path, f))) {
+    if (node.type === 'folder' && folders.some((f) => isAncestorOf(abs, f))) {
       const children = (node.children ?? [])
         .map(prune)
         .filter((c): c is FileNode => c !== null);
       return { ...node, children };
     }
+
     // Unrelated to every scoped folder: drop it.
     return null;
   }

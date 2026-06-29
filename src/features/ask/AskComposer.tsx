@@ -95,6 +95,7 @@ export function AskComposer({
         aria-label={
           status === 'retrieving' ? 'Searching your documents' : status === 'answering' ? 'Answering' : undefined
         }
+        data-testid="ask-composer-submit"
         style={{ flexShrink: 0 }}
       >
         <span role={isBusy ? 'status' : undefined}>{submitText}</span>

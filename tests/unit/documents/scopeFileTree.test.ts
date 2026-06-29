@@ -113,4 +113,138 @@ describe('scopeFileTreeToFolders', () => {
     expect(out).toHaveLength(1);
     expect(out[0]!.path).toBe('C:/WS/Clients/Acme');
   });
+
+  // ── BUG-1 regression (Phase C bench, 2026-06-29) ────────────────────────
+  // The live store file tree's node paths are workspace-RELATIVE (from the FS
+  // backend's list()), but a matter's folderPaths are ABSOLUTE. With no shared
+  // root the two shapes never matched, so EVERY client's Documents tab showed
+  // empty even though the files were loaded. Passing `workspaceRoot` must
+  // collapse the shapes and scope correctly. Output paths stay as-is (relative).
+  describe('BUG-1: relative tree node paths vs absolute matter folderPaths', () => {
+    // Relative tree (exactly what the FS backend produces), absolute matter folders.
+    const relTree: FileNode[] = [
+      folder('Clients', [
+        folder('Clients/Caldwell, Jennifer', [
+          folder('Clients/Caldwell, Jennifer/Agreements', [
+            file('Clients/Caldwell, Jennifer/Agreements/IAA.pdf'),
+          ]),
+          file('Clients/Caldwell, Jennifer/Plan.pdf'),
+        ]),
+        folder('Clients/Diaz, Michelle', [file('Clients/Diaz, Michelle/x.pdf')]),
+      ]),
+      folder('_Firm', [file('_Firm/policy.pdf')]),
+    ];
+    const ROOT = 'C:/keepance-demo-northcrest/Northcrest Wealth Partners';
+    const absFolder = `${ROOT}/Clients/Caldwell, Jennifer`;
+
+    it('scopes a relative tree to an absolute folder when workspaceRoot is given', () => {
+      const out = scopeFileTreeToFolders(relTree, [absFolder], undefined, undefined, ROOT);
+      // Keeps the ancestor "Clients" branch leading to Caldwell, drops _Firm + Diaz.
+      expect(out.map((n) => n.path)).toEqual(['Clients']);
+      expect(out[0]!.children?.map((c) => c.path)).toEqual(['Clients/Caldwell, Jennifer']);
+      const caldwell = out[0]!.children![0]!;
+      // Caldwell's full subtree (relative paths preserved unchanged) survives.
+      expect(caldwell.children?.map((c) => c.path)).toEqual([
+        'Clients/Caldwell, Jennifer/Agreements',
+        'Clients/Caldwell, Jennifer/Plan.pdf',
+      ]);
+    });
+
+    // A matter mapped to the workspace ROOT (the onboarding SAMPLE matter is
+    // created with folderPaths: [workspaceRoot]) must LIST its files, not show an
+    // empty tab. Asserts the FIXED behavior (Codex review P2 regression guard).
+    it('root-mapped scope (folderPaths=[workspaceRoot]) lists ALL files, not empty', () => {
+      const out = scopeFileTreeToFolders(relTree, [ROOT], undefined, undefined, ROOT);
+      expect(out).toHaveLength(2); // whole tree in scope: both top-level branches
+      expect(out.map((n) => n.path)).toEqual(expect.arrayContaining(['Clients', '_Firm']));
+      const clients = out.find((n) => n.path === 'Clients')!;
+      // Caldwell's folder + her files are listed (was [] before the root-scope fix).
+      expect(clients.children?.map((c) => c.path)).toContain('Clients/Caldwell, Jennifer');
+      const caldwell = clients.children!.find((c) => c.path === 'Clients/Caldwell, Jennifer')!;
+      expect(caldwell.children?.map((c) => c.path)).toContain('Clients/Caldwell, Jennifer/Plan.pdf');
+    });
+
+    it('root-mapped scope still drops a nested foreign-client folder (isolation holds)', () => {
+      // Sample matter mapped to the root; a real client (caldwell) owns a subfolder.
+      const matters = [
+        matter('sample', [ROOT]),
+        matter('caldwell', [`${ROOT}/Clients/Caldwell, Jennifer`]),
+      ];
+      const out = scopeFileTreeToFolders(relTree, [ROOT], matters, 'sample', ROOT);
+      const flat: string[] = [];
+      (function rec(ns: FileNode[]) { for (const n of ns) { flat.push(n.path); if (n.children) rec(n.children); } })(out);
+      // The root-scoped sample matter sees everything it owns...
+      expect(flat).toContain('_Firm/policy.pdf');
+      expect(flat).toContain('Clients/Diaz, Michelle/x.pdf');
+      // ...but NOT caldwell's folder, which a more-specific matter owns.
+      expect(flat).not.toContain('Clients/Caldwell, Jennifer');
+    });
+
+    it('also works when the tree node paths are themselves absolute', () => {
+      const absTree: FileNode[] = [
+        folder(`${ROOT}/Clients`, [
+          folder(`${ROOT}/Clients/Caldwell, Jennifer`, [file(`${ROOT}/Clients/Caldwell, Jennifer/Plan.pdf`)]),
+          folder(`${ROOT}/Clients/Diaz, Michelle`, [file(`${ROOT}/Clients/Diaz, Michelle/x.pdf`)]),
+        ]),
+      ];
+      const out = scopeFileTreeToFolders(absTree, [absFolder], undefined, undefined, ROOT);
+      expect(out[0]!.children?.map((c) => c.path)).toEqual([`${ROOT}/Clients/Caldwell, Jennifer`]);
+    });
+
+    it('keeps matter isolation with relative tree + absolute matter folders', () => {
+      // Caldwell (scope) owns her folder; a nested foreign client folder must not leak.
+      const nested: FileNode[] = [
+        folder('Clients', [
+          folder('Clients/Caldwell, Jennifer', [
+            file('Clients/Caldwell, Jennifer/own.pdf'),
+            folder('Clients/Caldwell, Jennifer/Shared-Beta', [
+              file('Clients/Caldwell, Jennifer/Shared-Beta/secret.pdf'),
+            ]),
+          ]),
+        ]),
+      ];
+      const matters = [
+        matter('caldwell', [`${ROOT}/Clients/Caldwell, Jennifer`]),
+        matter('beta', [`${ROOT}/Clients/Caldwell, Jennifer/Shared-Beta`]),
+      ];
+      const out = scopeFileTreeToFolders(
+        nested,
+        [`${ROOT}/Clients/Caldwell, Jennifer`],
+        matters,
+        'caldwell',
+        ROOT,
+      );
+      const caldwell = out[0]!.children![0]!;
+      const childPaths = caldwell.children?.map((c) => c.path) ?? [];
+      expect(childPaths).toContain('Clients/Caldwell, Jennifer/own.pdf');
+      // Beta's nested folder must NOT leak into Caldwell's scoped view.
+      expect(childPaths).not.toContain('Clients/Caldwell, Jennifer/Shared-Beta');
+    });
+
+    // Case-sensitivity (Codex review round 2). On a case-sensitive filesystem
+    // (Linux) two clients can own folders that differ ONLY by case. Ownership
+    // must stay case-sensitive — exactly like the shared resolveMatterId the
+    // indexer uses — so one client's Documents tab never surfaces the other's
+    // files. (A lowercasing comparison would conflate them = a real leak.)
+    it('keeps two case-differing client folders separate (no case-fold bleed)', () => {
+      const tree: FileNode[] = [
+        folder('Clients', [
+          folder('Clients/Acme', [file('Clients/Acme/upper.pdf')]),
+          folder('Clients/acme', [file('Clients/acme/lower.pdf')]),
+        ]),
+      ];
+      const matters = [
+        matter('upper', [`${ROOT}/Clients/Acme`]),
+        matter('lower', [`${ROOT}/Clients/acme`]),
+      ];
+      // Scope to the UPPER-case client.
+      const out = scopeFileTreeToFolders(tree, [`${ROOT}/Clients/Acme`], matters, 'upper', ROOT);
+      const flat: string[] = [];
+      (function rec(ns: FileNode[]) { for (const n of ns) { flat.push(n.path); if (n.children) rec(n.children); } })(out);
+      expect(flat).toContain('Clients/Acme/upper.pdf');
+      // The lower-case client's folder + file must NOT bleed in.
+      expect(flat).not.toContain('Clients/acme/lower.pdf');
+      expect(flat).not.toContain('Clients/acme');
+    });
+  });
 });

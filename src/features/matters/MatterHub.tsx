@@ -112,7 +112,6 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
     }
   }, [pendingHubTab, setPendingHubTab]);
 
-
   // Once a map exists, re-check for new source material. Covers BOTH a populated
   // map ('ready') AND one that was built empty ('empty') — the latter recovers a
   // map built before its content was indexed (e.g. a client opened before its

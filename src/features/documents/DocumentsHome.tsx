@@ -358,9 +358,9 @@ export function DocumentsHome({
   const scopedFileTree = useMemo(
     () =>
       scopeFolderPaths
-        ? scopeFileTreeToFolders(storeFileTree, scopeFolderPaths, matters, scopeMatterId)
+        ? scopeFileTreeToFolders(storeFileTree, scopeFolderPaths, matters, scopeMatterId, rootPath)
         : undefined,
-    [scopeFolderPaths, storeFileTree, matters, scopeMatterId],
+    [scopeFolderPaths, storeFileTree, matters, scopeMatterId, rootPath],
   );
 
   // Trust banner state
