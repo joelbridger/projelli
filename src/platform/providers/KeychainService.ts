@@ -8,7 +8,13 @@ export type KeyProvider = 'anthropic' | 'openai' | 'google';
 
 const KEY_PROVIDERS: KeyProvider[] = ['anthropic', 'openai', 'google'];
 const LEGACY_API_KEY_PREFIX = 'apiKey_';
-const API_KEY_MIGRATION_SENTINEL = 'keepance_apikeys_migrated_v1';
+// v2 supersedes v1: the v1 migration assumed the legacy value was base64 and
+// ran on desktop only, so it silently skipped the real-world RAW plaintext keys
+// (atob throws on the `-` in `sk-ant-`/`sk-` keys) and left them in localStorage.
+// v2 handles both raw and base64 legacy values and runs in the browser too, so
+// it must re-run once for everyone — hence a fresh sentinel.
+const API_KEY_MIGRATION_SENTINEL_V1 = 'keepance_apikeys_migrated_v1';
+const API_KEY_MIGRATION_SENTINEL = 'keepance_apikeys_migrated_v2';
 const KEYCHAIN_METADATA_KEY = 'bos_key_metadata';
 
 export interface StoredKey {
@@ -239,40 +245,92 @@ function upsertStoredKeyMetadata(provider: KeyProvider, key: string): void {
 }
 
 /**
- * One-time desktop migration for API keys saved by older builds under
- * `apiKey_<provider>` in renderer localStorage.
+ * Does this string plausibly look like a real key for the given provider?
+ * Used ONLY to disambiguate a raw legacy value from a base64-encoded one during
+ * migration — never to reject a key. Google has no enforced prefix elsewhere,
+ * but real Google AI / Gemini keys start with "AIza"; using that here lets us
+ * tell a raw Google key from a base64-encoded legacy blob (whose first bytes
+ * would be different) so the base64 fallback in decodeLegacyApiKey is actually
+ * reachable for Google, consistent with anthropic/openai. Anything that doesn't
+ * match still falls back to the raw value, so no key is ever lost.
+ */
+function looksLikeProviderKey(provider: KeyProvider, key: string): boolean {
+  if (key.length < 20) return false;
+  switch (provider) {
+    case 'anthropic':
+      return key.startsWith('sk-ant-');
+    case 'openai':
+      return key.startsWith('sk-');
+    case 'google':
+      return key.startsWith('AIza');
+  }
+}
+
+/**
+ * Decode a legacy `apiKey_<provider>` value. The real legacy writer (the old
+ * useApiKeys hook) stored the RAW key; a hypothetical even-older build may have
+ * base64-encoded it. Prefer the interpretation that looks like a real key, and
+ * default to the raw value so we never lose or corrupt a user's credential.
+ */
+function decodeLegacyApiKey(provider: KeyProvider, stored: string): string {
+  if (looksLikeProviderKey(provider, stored)) return stored;
+  try {
+    const decoded = atob(stored);
+    if (looksLikeProviderKey(provider, decoded)) return decoded;
+  } catch {
+    // Not base64 — fall through to the raw value.
+  }
+  return stored;
+}
+
+/**
+ * One-time migration for API keys saved by older builds under
+ * `apiKey_<provider>` in renderer localStorage. Moves them into the keychain
+ * (the OS keychain on desktop, base64-obfuscated localStorage in the browser)
+ * and deletes the plaintext copy. Runs on both desktop and browser so no raw
+ * key is ever left sitting in plain localStorage. Sentinel-gated so it runs at
+ * most once per install; if any key fails to migrate the sentinel is withheld
+ * so the next launch retries.
  */
 export async function migrateLocalStorageApiKeysToKeychain(): Promise<void> {
-  if (!isTauri()) return;
   if (typeof localStorage === 'undefined') return;
   if (localStorage.getItem(API_KEY_MIGRATION_SENTINEL)) return;
 
-  const backend = new TauriKeychainBackend();
+  const backend: KeyStorageBackend = isTauri()
+    ? new TauriKeychainBackend()
+    : new LocalStorageBackend();
   let migrationComplete = true;
+  let migratedAny = false;
 
   for (const provider of KEY_PROVIDERS) {
     const legacyStorageKey = `${LEGACY_API_KEY_PREFIX}${provider}`;
-    const encodedKey = localStorage.getItem(legacyStorageKey);
-    if (encodedKey === null) continue;
-
-    let decodedKey: string;
-    try {
-      decodedKey = atob(encodedKey);
-    } catch {
-      migrationComplete = false;
-      continue;
-    }
+    const stored = localStorage.getItem(legacyStorageKey);
+    if (stored === null) continue;
 
     try {
-      await backend.set(provider, decodedKey);
+      // If the keychain ALREADY has a key for this provider (e.g. the user
+      // re-added it via Settings after the upgrade — Settings writes only
+      // through the keychain), never roll it back to the older legacy value.
+      // Just clean up the stale plaintext and move on. (The broken v1 migration
+      // could leave a plaintext entry behind even when a good keychain key
+      // exists.)
+      const existing = await backend.get(provider);
+      if (existing !== null) {
+        localStorage.removeItem(legacyStorageKey);
+        continue;
+      }
+
+      const key = decodeLegacyApiKey(provider, stored);
+      await backend.set(provider, key);
       const verifiedKey = await backend.get(provider);
-      if (verifiedKey !== decodedKey) {
+      if (verifiedKey !== key) {
         migrationComplete = false;
         continue;
       }
 
-      upsertStoredKeyMetadata(provider, decodedKey);
+      upsertStoredKeyMetadata(provider, key);
       localStorage.removeItem(legacyStorageKey);
+      migratedAny = true;
     } catch {
       migrationComplete = false;
     }
@@ -280,6 +338,15 @@ export async function migrateLocalStorageApiKeysToKeychain(): Promise<void> {
 
   if (migrationComplete) {
     localStorage.setItem(API_KEY_MIGRATION_SENTINEL, 'true');
+    // The v1 sentinel is obsolete once v2 has run cleanly.
+    localStorage.removeItem(API_KEY_MIGRATION_SENTINEL_V1);
+  }
+
+  // If we moved any plaintext key into the keychain, broadcast the change so
+  // live key state (useApiKeys) and the egress badge re-read it in THIS
+  // session — an upgrading user gets a working AI provider without a restart.
+  if (migratedAny) {
+    notifyEgressConfigChange();
   }
 }
 
@@ -336,7 +403,11 @@ export class KeychainService {
 
     await this.backend.set(provider, key);
 
-    // Update metadata
+    // Refresh from the localStorage source of truth before mutating so we MERGE
+    // (never clobber) entries added by another KeychainService instance or by
+    // the one-time legacy migration. Without this, a long-lived instance whose
+    // cache was loaded before those writes would overwrite them on save.
+    this.loadMetadata();
     this.metadata.set(provider, {
       provider,
       keyPrefix: key.slice(0, 8),
@@ -353,6 +424,9 @@ export class KeychainService {
    */
   async deleteKey(provider: KeyProvider): Promise<void> {
     await this.backend.delete(provider);
+    // Refresh before mutating (see setKey) so deleting one key can't clobber
+    // others added elsewhere since this instance was constructed.
+    this.loadMetadata();
     this.metadata.delete(provider);
     this.saveMetadata();
     notifyEgressConfigChange();
@@ -369,16 +443,24 @@ export class KeychainService {
   }
 
   /**
-   * Get all stored key metadata (without the actual keys)
+   * Get all stored key metadata (without the actual keys).
+   *
+   * Reads from the localStorage source of truth on every call so a long-lived
+   * instance reflects keys added by another instance or by the one-time legacy
+   * migration — the "Manage AI Account Keys" settings screen must show a
+   * migrated key in the SAME session, without an app reload.
    */
   getStoredKeys(): StoredKey[] {
+    this.loadMetadata();
     return Array.from(this.metadata.values());
   }
 
   /**
-   * Get key metadata for a provider
+   * Get key metadata for a provider (fresh from the localStorage source of
+   * truth — see getStoredKeys).
    */
   getKeyMetadata(provider: KeyProvider): StoredKey | undefined {
+    this.loadMetadata();
     return this.metadata.get(provider);
   }
 
@@ -458,6 +540,9 @@ export class KeychainService {
    * Update last used timestamp
    */
   private updateLastUsed(provider: KeyProvider): void {
+    // Refresh before mutating so bumping one key's lastUsed can't clobber
+    // entries added elsewhere since this instance was constructed.
+    this.loadMetadata();
     const meta = this.metadata.get(provider);
     if (meta) {
       meta.lastUsed = new Date();
