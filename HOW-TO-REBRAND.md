@@ -144,6 +144,12 @@ the homepage / nav / press kit, and the website/email name swap via `--rename`.
 
 Still hand-edited (works fine, just not yet pulled through the config — a future
 pass): the long tail of in-app copy that mentions the name (mostly workflow
-templates and help text), the blog's per-post inline color blocks, and the social
-PNG cards (those are images, so they always need a designer). None of these block
-a rebrand; the name swap covers the text, and the colors there are secondary.
+templates and help text), the blog's per-post inline color blocks, the inline-SVG
+logo gradient stops on a few web pages (SVG gradient `stop-color` can't read a CSS
+variable), the social PNG cards (those are images, so they always need a designer),
+and two shadcn tokens — `--color-primary` and `--color-ring` in
+`src/styles/globals.css` — which are a near-navy `hsl()` the design system reads as
+a literal at build time (so they can't be a CSS variable); on a *colour* rebrand,
+update those two lines to the new primary by hand. None of these block a rebrand;
+the name swap covers the text, and the colours there are secondary to the four
+primitives that drive the rest of the app.

@@ -108,6 +108,9 @@ const col = cfg.colors;
 
 // Source-asset → distributed-destination map. Used by BOTH the copy step and the
 // drift check, so `brand:check` fails if a shipped asset is stale vs brand/assets.
+// Matches a <link> to the shared nav stylesheet (which references the brand vars).
+const NAV_LINK_RE = /^([ \t]*)(<link\b[^>]*keepance-nav\.v2\.css[^>]*>)/im;
+
 const ASSET_COPIES = [
   ['faviconSvg', 'public/favicon.svg'],
   ['faviconSvg', 'website/favicon.svg'],
@@ -270,6 +273,11 @@ function runCheck() {
     else if (!fs.readFileSync(s).equals(fs.readFileSync(d))) drift.push(`${dest} is stale vs brand/${src}`);
     else skip(`${dest} matches brand/${src}`);
   }
+  // every shared-nav page must link brand.css (so the nav's brand vars are defined)
+  const navPagesMissing = walk(path.join(ROOT, 'website'), (f) => f.endsWith('.html'))
+    .filter((f) => { const t = read(f); return NAV_LINK_RE.test(t) && !/styles\/brand\.css/.test(t); });
+  if (navPagesMissing.length) drift.push(`${navPagesMissing.length} shared-nav page(s) don't link brand.css (run brand:sync): ${navPagesMissing.slice(0, 3).map(rel).join(', ')}${navPagesMissing.length > 3 ? ', …' : ''}`);
+  else skip('all shared-nav pages link brand.css');
   if (drift.length) {
     console.error(`\n${C.red}✗ generated brand files are out of sync:${C.reset}\n   - ${drift.join('\n   - ')}\n\nRun  ${C.cyn}npm run brand:sync${C.reset}  to regenerate them.\n`);
     process.exit(1);
@@ -348,14 +356,13 @@ async function importSharp() { return (await import('sharp')).default; }
  */
 function linkWebsiteBrandCss() {
   log(`\n${C.bold}Website brand.css links${C.reset}`);
-  const navRe = /^([ \t]*)(<link\b[^>]*keepance-nav\.v2\.css[^>]*>)/im;
   const pages = walk(path.join(ROOT, 'website'), (f) => f.endsWith('.html'));
   let linked = 0, already = 0;
   for (const f of pages) {
     const text = read(f);
-    if (!navRe.test(text)) continue; // page doesn't use the shared nav
+    if (!NAV_LINK_RE.test(text)) continue; // page doesn't use the shared nav
     if (/styles\/brand\.css/.test(text)) { already++; continue; }
-    const next = text.replace(navRe, (_m, indent, navLink) =>
+    const next = text.replace(NAV_LINK_RE, (_m, indent, navLink) =>
       `${indent}<link rel="stylesheet" href="/styles/brand.css" />\n${indent}${navLink}`);
     write(f, next);
     linked++;
