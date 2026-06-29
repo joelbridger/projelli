@@ -220,5 +220,31 @@ describe('scopeFileTreeToFolders', () => {
       // Beta's nested folder must NOT leak into Caldwell's scoped view.
       expect(childPaths).not.toContain('Clients/Caldwell, Jennifer/Shared-Beta');
     });
+
+    // Case-sensitivity (Codex review round 2). On a case-sensitive filesystem
+    // (Linux) two clients can own folders that differ ONLY by case. Ownership
+    // must stay case-sensitive — exactly like the shared resolveMatterId the
+    // indexer uses — so one client's Documents tab never surfaces the other's
+    // files. (A lowercasing comparison would conflate them = a real leak.)
+    it('keeps two case-differing client folders separate (no case-fold bleed)', () => {
+      const tree: FileNode[] = [
+        folder('Clients', [
+          folder('Clients/Acme', [file('Clients/Acme/upper.pdf')]),
+          folder('Clients/acme', [file('Clients/acme/lower.pdf')]),
+        ]),
+      ];
+      const matters = [
+        matter('upper', [`${ROOT}/Clients/Acme`]),
+        matter('lower', [`${ROOT}/Clients/acme`]),
+      ];
+      // Scope to the UPPER-case client.
+      const out = scopeFileTreeToFolders(tree, [`${ROOT}/Clients/Acme`], matters, 'upper', ROOT);
+      const flat: string[] = [];
+      (function rec(ns: FileNode[]) { for (const n of ns) { flat.push(n.path); if (n.children) rec(n.children); } })(out);
+      expect(flat).toContain('Clients/Acme/upper.pdf');
+      // The lower-case client's folder + file must NOT bleed in.
+      expect(flat).not.toContain('Clients/acme/lower.pdf');
+      expect(flat).not.toContain('Clients/acme');
+    });
   });
 });
