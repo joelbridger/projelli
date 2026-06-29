@@ -48,48 +48,49 @@ export function TurnBlock({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>
-      {/* User bubble */}
+      {/* The question, echoed at the top in grey italic with a quote mark. */}
       <div
         style={{
           display: 'flex',
           alignItems: 'flex-start',
-          gap: 'var(--kp-space-xs)',
+          gap: 9,
         }}
       >
         <Quote
           size={14}
           strokeWidth={1.75}
-          style={{ color: 'var(--color-muted-foreground)', marginTop: 3, flex: 'none' }}
+          style={{ color: 'var(--kp-text-faint)', marginTop: 4, flex: 'none' }}
         />
         <span
           style={{
-            fontSize: 'var(--kp-font-sm)',
-            color: 'var(--color-muted-foreground)',
+            fontSize: '14.5px',
+            color: 'var(--kp-text-dim)',
             fontStyle: 'italic',
-            lineHeight: 'var(--kp-leading-normal)',
+            lineHeight: 1.5,
           }}
         >
           {turn.question}
         </span>
       </div>
 
-      {/* Answer */}
+      {/* Answer — sections with bold lead-ins, green numbered citation chips,
+          and (for drafts) a clean email card. */}
       <div
         style={{
-          paddingLeft: 22,
+          paddingLeft: 23,
           display: 'flex',
           flexDirection: 'column',
-          gap: 'var(--kp-space-sm)',
+          gap: 13,
         }}
       >
         {isStreaming && !turn.answer ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--kp-text-dim)', fontSize: '14.5px' }}>
             <Loader2 size={14} strokeWidth={2} className="animate-spin" />
             <span>Answering…</span>
           </div>
-        ) : isPersisted || turn.citations.length === 0 ? (
-          // Persisted turns or no-citation turns: plain text
-          <p style={{ fontSize: 'var(--kp-font-md)', lineHeight: 'var(--kp-leading-relaxed)', color: 'var(--color-foreground)', margin: 0 }}>
+        ) : isPersisted ? (
+          // Persisted (loaded history) turns: plain text.
+          <p style={{ fontSize: '15.5px', lineHeight: 1.62, color: 'var(--kp-navy)', margin: 0, whiteSpace: 'pre-wrap' }}>
             {turn.answer}
           </p>
         ) : (
@@ -111,17 +112,18 @@ export function TurnBlock({
             data-testid="ask-cited-attestation"
             style={{
               padding: '9px 12px',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--kp-local-bg)',
-              border: '1px solid var(--kp-local-line)',
+              borderRadius: 10,
+              background: '#e6f5ee',
+              border: '1px solid #8fc9b0',
               display: 'flex',
               gap: 8,
               alignItems: 'center',
-              fontSize: 'var(--kp-font-2xs)',
-              color: 'var(--kp-local)',
+              fontSize: '12.5px',
+              fontWeight: 600,
+              color: '#16654a',
             }}
           >
-            <ShieldCheck size={14} strokeWidth={2} style={{ flex: 'none' }} />
+            <ShieldCheck size={14} strokeWidth={2} style={{ flex: 'none', color: '#16654a' }} />
             {/* eslint-disable keepance-i18n/no-hardcoded-string */}
             Answered over your own files. Every cited claim can be checked against the source.
             {/* eslint-enable keepance-i18n/no-hardcoded-string */}

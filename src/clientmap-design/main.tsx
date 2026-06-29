@@ -18,7 +18,8 @@ import { ClientMapView } from '@/features/matters/ClientMapView';
 import { Badge } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { SourcePanel } from '@/features/ask/SourcePanel';
-import type { AnswerCitation } from '@/features/ask/askHelpers';
+import { TurnBlock } from '@/features/ask/TurnBlock';
+import type { AnswerCitation, AskTurn } from '@/features/ask/askHelpers';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { answerQuestion, flagForClient } from '@/platform/clientMap/guidedInterview';
 import type { SourceRef } from '@/platform/clientMap/types';
@@ -202,7 +203,77 @@ function SourcesPreview() {
   );
 }
 
+// ── Answer-formatting preview (?answer=1) — renders the REAL TurnBlock /
+// CitationText against a fabricated Webb answer (the web-demo Webb client can't
+// trigger a live cited answer without an AI key). Mirrors the demo refs.
+function cite(n: number, label: string, excerpt: string): AnswerCitation {
+  return { n, label, excerpt, path: `/Webb Household/${label}`, locator: '', verified: true, matterId: DESIGN_MATTER_ID };
+}
+const ANSWER_TURNS: AskTurn[] = [
+  {
+    question: 'What should I know before my next meeting with the Webb household?',
+    answer:
+      "**Where things stand.** The Webbs want to retire at 60 and put both kids through college; the plan is moderate-growth, rebalanced once a year. {1}\n\n" +
+      "**What changed since last meeting.** Tanya got a raise, so they can add $400/month to savings, and the old employer 401(k) (about $96k) still hasn't been rolled over. {2}\n\n" +
+      "**Watch this.** ==The old 401(k) still names Marcus's ex-wife, Jessica Reyes, as the sole beneficiary, dated 2019.== If it isn't fixed before the rollover, that account would pass to her, not Tanya. {3}\n\n" +
+      '**Talking points.** Start the rollover (it also fixes the beneficiary gap), confirm the Roth conversion amount before December, and raise the brokerage auto-contribution. {1}',
+    citations: [
+      cite(1, 'Financial Plan Summary.md', 'Goals: retire at 60, fund both kids’ college. Hold the moderate-growth allocation; rebalance once a year.'),
+      cite(2, 'Review Notes.md', 'Tanya got a raise. They can push another $400/month into savings. The $96k old 401(k) is still at the prior custodian.'),
+      cite(3, 'Beneficiary Designations.md', 'The old 401(k) still lists Jessica Reyes, Marcus’s first wife, as the sole primary beneficiary, dated 2019.'),
+    ],
+    sources: [],
+  },
+  {
+    question: 'Draft a follow-up email asking for the missing beneficiary information.',
+    answer:
+      "Here's a short draft you can send.\n\n" +
+      '```email\n' +
+      'To: Marcus Webb\n' +
+      'Subject: Quick item before we finalize your rollover\n\n' +
+      'Hi Marcus,\n\n' +
+      'Before we move your old 401(k) into your IRA, I want to confirm one detail on the current account. Our records show the beneficiary there still lists a name from before your 2019 update. Could you confirm the latest beneficiary form for that account?\n\n' +
+      "Once that's set, the rollover puts everything under the right designations.\n\n" +
+      'Thanks,\n' +
+      '[Your name]\n' +
+      '```',
+    citations: [cite(3, 'Beneficiary Designations.md', 'The old 401(k) still lists Jessica Reyes as the sole primary beneficiary, dated 2019.')],
+    sources: [],
+  },
+];
+
+function AnswerPreview() {
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--color-background)', fontFamily: 'var(--font-sans)' }}>
+      <div
+        style={{
+          maxWidth: 820,
+          margin: '0 auto',
+          padding: '26px 30px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 22,
+        }}
+      >
+        {ANSWER_TURNS.map((turn, i) => (
+          <TurnBlock
+            key={i}
+            turn={turn}
+            turnIdx={i}
+            selectedTurnIdx={null}
+            selected={null}
+            onCitationSelect={() => {}}
+            isSaving={false}
+            isPersisted={false}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const showSources = params.get('sources') === '1';
+const showAnswer = params.get('answer') === '1';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -210,6 +281,6 @@ if (!rootElement) {
 }
 createRoot(rootElement).render(
   <StrictMode>
-    {showSources ? <SourcesPreview /> : <HubMockup />}
+    {showAnswer ? <AnswerPreview /> : showSources ? <SourcesPreview /> : <HubMockup />}
   </StrictMode>,
 );
