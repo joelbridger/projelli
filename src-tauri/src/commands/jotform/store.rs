@@ -205,6 +205,29 @@ impl JotformStore {
         Ok(rows)
     }
 
+    /// Source ids of submissions that are still active (not soft-deleted). Used to
+    /// find submissions that have vanished from Jotform so they can be pruned.
+    pub fn list_active_source_ids(&self) -> Result<Vec<String>> {
+        let c = self.conn.lock().unwrap();
+        let mut stmt =
+            c.prepare("SELECT source_id FROM jotform_submissions WHERE deleted = 0")?;
+        let rows = stmt
+            .query_map([], |r| r.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    /// Soft-delete a submission row (its RAG chunks are removed separately by the
+    /// caller). Idempotent.
+    pub fn mark_deleted(&self, source_id: &str) -> Result<()> {
+        let c = self.conn.lock().unwrap();
+        c.execute(
+            "UPDATE jotform_submissions SET deleted = 1 WHERE source_id = ?1",
+            [source_id],
+        )?;
+        Ok(())
+    }
+
     pub fn list_unassigned(&self) -> Result<Vec<JotformUnassignedRow>> {
         let c = self.conn.lock().unwrap();
         let mut stmt = c.prepare(

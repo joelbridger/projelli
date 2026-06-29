@@ -44,6 +44,9 @@ pub struct AddeparSyncReport {
     pub households_processed: u32,
     pub records_indexed: u32,
     pub needs_assignment: Vec<AddeparNeedsAssignment>,
+    /// Chunks deleted for households that vanished from Addepar entirely (no
+    /// longer returned by list_entities) since the last sync.
+    pub pruned: u32,
     pub cancelled: bool,
 }
 
@@ -166,12 +169,16 @@ pub async fn sync_with_key(
         ..Default::default()
     };
     let mut items = Vec::new();
+    // Every household Addepar still returns this sync — used after a successful
+    // full list to prune chunks for households that have vanished entirely.
+    let mut seen: HashSet<String> = HashSet::new();
 
     for entity in entities {
         if cancel.load(Ordering::SeqCst) {
             report.cancelled = true;
             break;
         }
+        seen.insert(crate::commands::addepar::render::household_source_id(&entity.id));
         let assignment = resolve_entity_matter(&entity, matter_map);
         if assignment.needs_assignment {
             // The household no longer maps to any matter. If it was indexed under
@@ -205,6 +212,22 @@ pub async fn sync_with_key(
         return Ok(report);
     }
     report.records_indexed = apply_index_with_key(workspace, &items, rag_key).await?;
+
+    // Prune households that vanished from Addepar entirely (no longer returned by
+    // list_entities, so never added to `seen`). This only runs after a successful,
+    // non-cancelled full list (a fetch error would have returned early above), so
+    // a partial/failed sync can never mass-delete. Addepar keeps no local record
+    // table, so the indexed source ids are read back from the RAG store.
+    let conn = crate::commands::rag::store::open_connection(workspace).await?;
+    let table = crate::commands::rag::store::open_or_create_table(&conn).await?;
+    let existing =
+        crate::commands::rag::store::list_external_source_ids(&table, "addepar", rag_key).await?;
+    for source_id in existing {
+        if !seen.contains(&source_id) {
+            crate::commands::rag::store::delete_path(&table, &source_id, rag_key).await?;
+            report.pruned += 1;
+        }
+    }
     Ok(report)
 }
 
@@ -295,7 +318,6 @@ mod tests {
 
     struct FakeAddeparSource {
         entities: Vec<AddeparEntity>,
-        record: AddeparHouseholdRecord,
     }
 
     #[async_trait]
@@ -305,9 +327,9 @@ mod tests {
         }
         async fn household_record(
             &self,
-            _entity: &AddeparEntity,
+            entity: &AddeparEntity,
         ) -> anyhow::Result<AddeparHouseholdRecord> {
-            Ok(self.record.clone())
+            Ok(fake_household_record(&entity.id, &entity.name()))
         }
     }
 
@@ -348,7 +370,6 @@ mod tests {
         let rag_key = [0x71u8; 32];
         let source = FakeAddeparSource {
             entities: vec![entity("329263", "Northcrest Family Household")],
-            record: fake_household_record("329263", "Northcrest Family Household"),
         };
 
         // First sync: household is mapped, so it gets indexed under the matter.
@@ -382,5 +403,49 @@ mod tests {
         assert_eq!(report2.records_indexed, 0);
         assert_eq!(report2.needs_assignment.len(), 1);
         assert!(!addepar_chunk_exists(workspace.path(), "matter-northcrest").await);
+    }
+
+    #[tokio::test]
+    async fn vanished_household_chunks_are_pruned() {
+        // A household that disappears from list_entities() entirely must have its
+        // chunks pruned after a successful full sync (matter-isolation/privacy).
+        if !model_is_provisioned() {
+            eprintln!("SKIP addepar prune test: e5-small model cache not provisioned");
+            return;
+        }
+        let workspace = tempfile::TempDir::new().unwrap();
+        let rag_key = [0x72u8; 32];
+        let map = vec![
+            AddeparMatterMapEntry {
+                addepar_key: "111".into(),
+                matter_id: "matter-alpha".into(),
+            },
+            AddeparMatterMapEntry {
+                addepar_key: "222".into(),
+                matter_id: "matter-beta".into(),
+            },
+        ];
+
+        // First sync: households 111 and 222 both exist and are indexed.
+        let source1 = FakeAddeparSource {
+            entities: vec![entity("111", "Alpha House"), entity("222", "Beta House")],
+        };
+        let r1 = sync_with_key(&source1, workspace.path(), &map, &AtomicBool::new(false), &rag_key)
+            .await
+            .unwrap();
+        assert_eq!(r1.households_processed, 2);
+        assert!(addepar_chunk_exists(workspace.path(), "matter-alpha").await);
+        assert!(addepar_chunk_exists(workspace.path(), "matter-beta").await);
+
+        // Second sync: household 222 has vanished from Addepar entirely.
+        let source2 = FakeAddeparSource {
+            entities: vec![entity("111", "Alpha House")],
+        };
+        let r2 = sync_with_key(&source2, workspace.path(), &map, &AtomicBool::new(false), &rag_key)
+            .await
+            .unwrap();
+        assert_eq!(r2.pruned, 1);
+        assert!(addepar_chunk_exists(workspace.path(), "matter-alpha").await);
+        assert!(!addepar_chunk_exists(workspace.path(), "matter-beta").await);
     }
 }

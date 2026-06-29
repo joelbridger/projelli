@@ -220,6 +220,26 @@ impl ZocksStore {
             .collect())
     }
 
+    /// `(store id, session id)` for every active (non-deleted) session. Used to
+    /// find sessions that vanished from Zocks so they can be pruned.
+    pub fn list_active(&self) -> Result<Vec<(String, String)>> {
+        let c = self.conn.lock().unwrap();
+        let mut stmt =
+            c.prepare("SELECT id, session_id FROM zocks_sessions WHERE deleted = 0")?;
+        let rows = stmt
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    /// Soft-delete a session row by its store id (its RAG chunks are removed
+    /// separately by the caller). Idempotent.
+    pub fn mark_deleted(&self, id: &str) -> Result<()> {
+        let c = self.conn.lock().unwrap();
+        c.execute("UPDATE zocks_sessions SET deleted = 1 WHERE id = ?1", [id])?;
+        Ok(())
+    }
+
     pub fn list_unassigned(&self) -> Result<Vec<ZocksUnassignedRow>> {
         let c = self.conn.lock().unwrap();
         let mut stmt = c.prepare(

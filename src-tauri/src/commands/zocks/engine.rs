@@ -24,6 +24,13 @@ pub struct ZocksIngestReport {
     /// are intentionally left un-stored so the next sync retries them, rather
     /// than indexing the incomplete list-page stub.
     pub fetch_failures: u32,
+    /// Store ids (`session:<id>`) of every session Zocks still returned this run.
+    pub seen_store_ids: Vec<String>,
+    /// True only when this run was a complete fresh scan (started with no resume
+    /// cursor, reached the end, no cancel, no fetch failures). Pruning of vanished
+    /// sessions runs ONLY when this is true, so a partial/resumed run never
+    /// mass-deletes.
+    pub full_scan: bool,
     pub cancelled: bool,
 }
 
@@ -44,6 +51,8 @@ pub struct ZocksSyncReport {
     pub records_indexed: u32,
     pub needs_assignment: u32,
     pub fetch_failures: u32,
+    /// Sessions pruned this sync because they vanished from Zocks.
+    pub pruned: u32,
     pub cancelled: bool,
 }
 
@@ -121,6 +130,11 @@ pub async fn ingest(
     let mut cursor = store
         .get_cursor("sessions")?
         .filter(|value| !value.trim().is_empty());
+    // A non-empty resume cursor (left by a prior interrupted/failed sync) means
+    // this run would only see PART of the sessions, so pruning must not run.
+    let started_fresh = cursor.is_none();
+    let mut reached_end = false;
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     loop {
         if cancel.load(Ordering::SeqCst) {
@@ -173,6 +187,7 @@ pub async fn ingest(
                 assignment.needs_assignment,
                 &assignment.reason,
             )?;
+            seen.insert(format!("session:{session_id}"));
             report.sessions_fetched += 1;
             if changed {
                 report.sessions_changed += 1;
@@ -195,11 +210,16 @@ pub async fn ingest(
 
         if next_cursor.is_empty() {
             store.set_cursor("sessions", "")?;
+            reached_end = true;
             break;
         }
         store.set_cursor("sessions", &next_cursor)?;
         cursor = Some(next_cursor);
     }
+
+    report.seen_store_ids = seen.into_iter().collect();
+    report.full_scan =
+        started_fresh && reached_end && report.fetch_failures == 0 && !report.cancelled;
 
     Ok(report)
 }
@@ -285,6 +305,31 @@ pub async fn backfill(
     };
     let (records, index_cancelled) =
         apply_index_with_key(store, workspace, &items, cancel, rag_key, progress).await?;
+
+    // Prune sessions that vanished from Zocks. Only runs after a complete fresh
+    // scan (ingest.full_scan: started with no resume cursor, reached the end, no
+    // cancel, no fetch failures) and a non-cancelled index, so a partial/resumed
+    // run can never mass-delete.
+    let mut pruned = 0u32;
+    if ingest.full_scan && !index_cancelled {
+        let seen: std::collections::HashSet<String> =
+            ingest.seen_store_ids.iter().cloned().collect();
+        let conn = crate::commands::rag::store::open_connection(workspace).await?;
+        let table = crate::commands::rag::store::open_or_create_table(&conn).await?;
+        for (store_id, session_id) in store.list_active()? {
+            if !seen.contains(&store_id) {
+                store.mark_deleted(&store_id)?;
+                crate::commands::rag::store::delete_path(
+                    &table,
+                    &zocks_source_id(&session_id),
+                    rag_key,
+                )
+                .await?;
+                pruned += 1;
+            }
+        }
+    }
+
     Ok(ZocksSyncReport {
         sessions_fetched: ingest.sessions_fetched,
         sessions_changed: ingest.sessions_changed,
@@ -292,6 +337,7 @@ pub async fn backfill(
         records_indexed: records,
         needs_assignment: ingest.needs_assignment,
         fetch_failures: ingest.fetch_failures,
+        pruned,
         cancelled: ingest.cancelled || index_cancelled,
     })
 }
@@ -686,5 +732,144 @@ mod tests {
                 .indexed_hash,
             ""
         );
+    }
+
+    fn source_with(sessions: &[(&str, &str, &str)]) -> FakeZocksSource {
+        let listed: Vec<ZocksSession> = sessions
+            .iter()
+            .map(|(id, _, _)| ZocksSession {
+                id: (*id).to_string(),
+                ..Default::default()
+            })
+            .collect();
+        let details: HashMap<String, ZocksSession> = sessions
+            .iter()
+            .map(|(id, name, email)| (id.to_string(), session(id, name, email)))
+            .collect();
+        FakeZocksSource {
+            pages: HashMap::from([(
+                None,
+                ZocksSessionsPage {
+                    sessions: listed,
+                    ..Default::default()
+                },
+            )]),
+            details,
+        }
+    }
+
+    #[tokio::test]
+    async fn fresh_complete_scan_is_a_full_scan() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ZocksStore::open_with_key(dir.path(), &STORE_KEY).unwrap();
+        let report = ingest(
+            &source_with(&[("sess_a", "Alice", "a@x.com"), ("sess_b", "Bob", "b@x.com")]),
+            &store,
+            &HashMap::new(),
+            &AtomicBool::new(false),
+        )
+        .await
+        .unwrap();
+        assert!(report.full_scan);
+        assert_eq!(report.seen_store_ids.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn resuming_from_a_cursor_is_not_a_full_scan() {
+        // A non-empty resume cursor (left by a prior interrupted sync) means this
+        // run does NOT see every session, so pruning must be disabled.
+        let dir = tempfile::tempdir().unwrap();
+        let store = ZocksStore::open_with_key(dir.path(), &STORE_KEY).unwrap();
+        store.set_cursor("sessions", "resume-token").unwrap();
+        let report = ingest(
+            &source_with(&[("sess_a", "Alice", "a@x.com")]),
+            &store,
+            &HashMap::new(),
+            &AtomicBool::new(false),
+        )
+        .await
+        .unwrap();
+        assert!(!report.full_scan);
+    }
+
+    #[tokio::test]
+    async fn backfill_prunes_vanished_sessions_but_not_present_ones() {
+        // Uses the test indexer seam so no embedding model is needed; the prune's
+        // chunk delete still exercises the real (empty) vector store harmlessly.
+        let dir = tempfile::tempdir().unwrap();
+        let store = ZocksStore::open_with_key(dir.path(), &STORE_KEY).unwrap();
+        let _guard = set_test_indexer(Box::new(|_ws, _item, _key| Ok(1)));
+
+        // First full sync: sessions A and B exist.
+        backfill(
+            &source_with(&[("sess_a", "Alice", "a@x.com"), ("sess_b", "Bob", "b@x.com")]),
+            &store,
+            dir.path(),
+            &HashMap::new(),
+            &AtomicBool::new(false),
+            &[0x5A; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+        let active: Vec<String> = store.list_active().unwrap().into_iter().map(|(id, _)| id).collect();
+        assert!(active.contains(&"session:sess_a".to_string()));
+        assert!(active.contains(&"session:sess_b".to_string()));
+
+        // Second full sync: only A remains; B vanished from Zocks.
+        let report = backfill(
+            &source_with(&[("sess_a", "Alice", "a@x.com")]),
+            &store,
+            dir.path(),
+            &HashMap::new(),
+            &AtomicBool::new(false),
+            &[0x5A; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+        assert_eq!(report.pruned, 1);
+        let active2: Vec<String> = store.list_active().unwrap().into_iter().map(|(id, _)| id).collect();
+        assert!(active2.contains(&"session:sess_a".to_string()));
+        assert!(!active2.contains(&"session:sess_b".to_string()));
+    }
+
+    #[tokio::test]
+    async fn resumed_sync_does_not_prune() {
+        // Guard: a resumed (non-fresh) sync must NOT mass-delete sessions it
+        // didn't see this run.
+        let dir = tempfile::tempdir().unwrap();
+        let store = ZocksStore::open_with_key(dir.path(), &STORE_KEY).unwrap();
+        let _guard = set_test_indexer(Box::new(|_ws, _item, _key| Ok(1)));
+
+        // Seed A and B with a fresh full sync.
+        backfill(
+            &source_with(&[("sess_a", "Alice", "a@x.com"), ("sess_b", "Bob", "b@x.com")]),
+            &store,
+            dir.path(),
+            &HashMap::new(),
+            &AtomicBool::new(false),
+            &[0x5A; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+
+        // Now simulate a RESUMED sync (cursor set) that only sees A.
+        store.set_cursor("sessions", "resume-token").unwrap();
+        let report = backfill(
+            &source_with(&[("sess_a", "Alice", "a@x.com")]),
+            &store,
+            dir.path(),
+            &HashMap::new(),
+            &AtomicBool::new(false),
+            &[0x5A; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+        assert_eq!(report.pruned, 0);
+        let active: Vec<String> = store.list_active().unwrap().into_iter().map(|(id, _)| id).collect();
+        assert!(active.contains(&"session:sess_b".to_string()), "B must survive a resumed sync");
     }
 }

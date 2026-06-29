@@ -72,7 +72,12 @@ pub fn resolve_matter_for_file(file: &BoxFileItem, matter_map: &[BoxMatterMapEnt
         if !id_match && !path_prefix_matches(&file.parent_path, &parts.path) {
             continue;
         }
-        let len = parts.path.len().max(parts.folder_id.len());
+        // Rank overlapping mappings by folder-PATH specificity (deepest path
+        // wins), exactly like OneDrive/ShareFile. The previous metric mixed in
+        // folder_id.len(), so a shallow parent folder with a long id string could
+        // outrank a deeper child folder and file the child's docs under the wrong
+        // matter (matter-isolation bug).
+        let len = crate::commands::boxc::model::normalize_box_path(&parts.path).len();
         if best.map(|(_, best_len)| len > best_len).unwrap_or(true) {
             best = Some((entry.matter_id.as_str(), len));
         }
@@ -434,6 +439,45 @@ mod tests {
         let map = vec![
             BoxMatterMapEntry {
                 folder_key: folder_key(DEFAULT_ACCOUNT, "acme", "/clients/acme"),
+                matter_id: "parent".into(),
+            },
+            BoxMatterMapEntry {
+                folder_key: folder_key(DEFAULT_ACCOUNT, "tax", "/clients/acme/tax"),
+                matter_id: "child".into(),
+            },
+        ];
+        assert_eq!(resolve_matter_for_file(&file, &map), "child");
+    }
+
+    #[test]
+    fn ranks_by_path_specificity_not_folder_id_length() {
+        // The parent folder has a LONG id string and the child a short one. The
+        // deeper child PATH must win regardless of folder_id length, or the
+        // child's docs get filed under the parent matter (matter-isolation bug).
+        let file = BoxFileItem {
+            id: "file-1".into(),
+            name: "memo.txt".into(),
+            parent_folder_id: "tax".into(),
+            parent_path: "/clients/acme/tax".into(),
+            ancestor_folder_ids: vec![
+                "0".into(),
+                "clients".into(),
+                "acme-very-long-folder-id-000000000000".into(),
+                "tax".into(),
+            ],
+            etag: None,
+            sha1: None,
+            size: None,
+            modified_at: None,
+            web_url: None,
+        };
+        let map = vec![
+            BoxMatterMapEntry {
+                folder_key: folder_key(
+                    DEFAULT_ACCOUNT,
+                    "acme-very-long-folder-id-000000000000",
+                    "/clients/acme",
+                ),
                 matter_id: "parent".into(),
             },
             BoxMatterMapEntry {
