@@ -62,12 +62,11 @@ const INTAKE = 'Client Intake Summary.md';
 
 // ── The five core sections ────────────────────────────────────────────────────
 function coreSections(): ClientMapSection[] {
-  // Bucketed into the researched, non-overlapping advisor categories. Internal
-  // keys unchanged; meaning follows the TITLE (people=The household, story=What
-  // they want, standing=Money & accounts, upcoming=Coming up, next=Follow-ups).
+  // The four approved buckets: Household, Goals, Money and accounts, Follow-ups
+  // (the dated "Coming up" events were folded into Follow-ups).
   const byKey: Record<CoreSectionKey, ClientMapItem[]> = {
-    // The household — who they are, their life, and the people around them.
-    people: [
+    // Household — who they are, their life, and the people around them.
+    household: [
       item('Marcus (38) and Tanya (37) Webb — married, with two young children, Caleb (8) and Ava (5).', [doc(PLAN, 'Clients: Marcus Webb (38) and Tanya Webb (37). Dependents: Caleb (8), Ava (5)', 'p. 1')]),
       item('Marcus changed employers last year — the job change kicked off the rollover, and he is the primary decision-maker.', [email('Now that the new job is settled, can we finally deal with the old 401(k)?')]),
       item('They switched advisors after a friend’s planner missed a beneficiary problem — trust is the whole reason they moved.', [meeting('Came in burned by the last advisor; they want someone who catches the things they would miss.')]),
@@ -75,16 +74,16 @@ function coreSections(): ClientMapSection[] {
       item('Jessica Reyes — Marcus’s first wife (divorced 2019); still named on the old 401(k).', [doc(BENE, 'Old 401(k) (prior employer) | Marcus | Jessica Reyes (100%) … dated 2019')]),
       item('Tanya’s mother (78) may need care help in the next few years — mentioned once, not yet planned for.', [meeting('Tanya brought up her mom’s health; could become a cost down the road.')], { isAssumption: true }),
     ],
-    // What they want — goals, priorities, values, risk (no dates, no balances).
-    story: [
+    // Goals — what they want, values, and risk attitude (no dates, no balances).
+    goals: [
       item('Retire by 60.', [doc(INTAKE, 'Goal: retire by 60.')]),
       item('Get both kids through college without loans.', [doc(INTAKE, 'Get both kids through college without loans.')]),
       item('Pay off the house early.', [doc(PLAN, 'Goals: retire at 60, fund both kids’ college, pay off the house early')]),
       item('Stop worrying every market dip — moderate-growth risk profile confirmed on the March 2026 questionnaire.', [doc(PLAN, 'Risk profile: Moderate growth (completed questionnaire, March 2026)', 'p. 3')]),
       item('They want plain-English explanations, not jargon — they read every statement together.', [meeting('Both of them read every statement. Keep it in plain language.')]),
     ],
-    // Money & accounts — where the money stands today (facts; the fix-its are Follow-ups).
-    standing: [
+    // Money and accounts — where the money stands today (facts; fix-its are Follow-ups).
+    money: [
       item('Marcus’s 401(k): $412,000, contributing 12% with a 4% match.', [doc(PLAN, 'Marcus 401(k): $412,000, contributing 12% plus a 4% match', 'p. 4')]),
       item('Old employer 401(k): $96,000 still at the prior custodian, not yet rolled over.', [doc(PLAN, 'Old employer 401(k) of $96,000 still sitting at the prior custodian, not yet rolled over')]),
       item('Tanya’s 403(b): $188,000 at 9%; joint brokerage $145,000, mostly index funds.', [doc(PLAN, 'Tanya 403(b): $188,000, contributing 9%. Joint brokerage: $145,000, mostly index funds')]),
@@ -93,16 +92,13 @@ function coreSections(): ClientMapSection[] {
       item('Stale beneficiary: the old 401(k) still names Marcus’s ex-wife, not Tanya.', [doc(BENE, 'still lists Jessica Reyes, Marcus’s first wife, as the sole primary beneficiary, dated 2019')]),
       item('Combined income looks to be around $245,000; the effective tax bracket is still pending the CPA’s confirmation.', [email('Ballpark our bracket for the Roth math — Dana to confirm the exact number.')], { isAssumption: true }),
     ],
-    // Coming up — dated, calendar-able events (not open-ended goals, not my to-dos).
-    upcoming: [
+    // Follow-ups — the advisor's open items, promises, and dated next steps.
+    followups: [
       item('Year-end: decide the Roth conversion amount with the CPA.', [doc(PLAN, 'Decide on the Roth conversion amount before year-end.')]),
       item('Before December: top up the 529s to capture the state tax deduction.', [doc(PLAN, 'Top up the 529s before December to capture the state tax deduction.')]),
       item('Fall: the next scheduled annual review.', [email('Book the fall review; send the agenda early so they come prepared.')]),
       item('This quarter: close out the old-401(k) rollover.', [doc(NOTES, 'The old 401(k) rollover is the priority, it’s been sitting too long.')]),
       item('Fall meeting: review term-life coverage levels — likely light for two kids and a mortgage.', [email('Add life insurance to the fall agenda; I think they’re under-covered.')]),
-    ],
-    // Follow-ups — the advisor's own open items and promises.
-    next: [
       item('Start the rollover paperwork and confirm the receiving IRA.', [doc(PLAN, 'Confirm the rollover paperwork and the receiving account.')]),
       item('Send Marcus the beneficiary-change form for the old 401(k).', [doc(BENE, 'If he died before the rollover, that account would pass to his ex-spouse, not to Tanya.')]),
       item('Confirm every beneficiary row against the custodian’s record, not the client’s memory.', [doc(BENE, 'Confirm every row against the custodian, not the client’s memory.')]),
@@ -168,10 +164,10 @@ export function buildDesignClientMap(): ClientMap {
       know: knowItems(),
       assuming: assumingItems(),
       ask: [
-        { text: 'Confirm the receiving IRA custodian for the old-401(k) rollover.', sectionKey: 'next' },
-        { text: 'Does Tanya’s employer offer long-term disability coverage?', sectionKey: 'standing' },
-        { text: 'Has an estate attorney been engaged for the will and guardianship?', sectionKey: 'people' },
-        { text: 'Confirm the household’s effective tax bracket with the CPA.', sectionKey: 'standing' },
+        { text: 'Confirm the receiving IRA custodian for the old-401(k) rollover.', sectionKey: 'followups' },
+        { text: 'Does Tanya’s employer offer long-term disability coverage?', sectionKey: 'money' },
+        { text: 'Has an estate attorney been engaged for the will and guardianship?', sectionKey: 'household' },
+        { text: 'Confirm the household’s effective tax bracket with the CPA.', sectionKey: 'money' },
         { text: 'Do they want an umbrella liability policy quote?', sectionKey: 'sec_insurance' },
       ],
     },

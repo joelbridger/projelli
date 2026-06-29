@@ -57,28 +57,26 @@ const BENE = 'Beneficiary Designations.md';
 const INTAKE = 'Client Intake Summary.md';
 
 function webbSections(): ClientMapSection[] {
-  // Re-bucketed (2026-06-29) into the researched, non-overlapping advisor
-  // categories. Internal keys are unchanged; the meaning is the new TITLE:
-  //   people = The household, story = What they want, standing = Money & accounts,
-  //   upcoming = Coming up, next = Follow-ups.
+  // The four approved buckets: Household, Goals, Money and accounts, Follow-ups.
+  // The dated "Coming up" events were folded into Follow-ups.
   const byKey: Record<CoreSectionKey, ClientMapItem[]> = {
-    // The household — who they are, their life, and the people around them.
-    people: [
+    // Household — who they are, their life, and the people around them.
+    household: [
       mkItem('Marcus (38) and Tanya (37) Webb — married, with two young children, Caleb (8) and Ava (5).', [doc(PLAN, 'Clients: Marcus Webb (38) and Tanya Webb (37). Dependents: Caleb (8), Ava (5)')]),
       mkItem('Marcus changed employers last year — the job change is what triggered the rollover; he is the primary decision-maker.', [doc(NOTES, 'Marcus changed jobs last year. The $96k from the old employer 401(k) is still at the prior custodian.')]),
       mkItem('They switched to us after a friend’s advisor missed a beneficiary problem — trust is the reason they moved.', [doc(INTAKE, 'Came in wary after a prior advisor missed a beneficiary issue; wants someone who catches what they would miss.')]),
       mkItem('Their CPA coordinates tax timing; no estate attorney is engaged yet.', [doc(INTAKE, 'Coordinate the Roth conversion timing with their CPA before executing. No estate attorney on file.')]),
       mkItem("Jessica Reyes — Marcus's first wife (divorced 2019); still named on the old 401(k).", [doc(BENE, 'Old 401(k) (prior employer) | Marcus | Jessica Reyes (100%) … dated 2019')]),
     ],
-    // What they want — goals, priorities, and risk attitude (no dates, no balances).
-    story: [
+    // Goals — what they want and how they feel about risk (no dates, no balances).
+    goals: [
       mkItem('Retire by 60.', [doc(INTAKE, 'Goal: retire by 60.')]),
       mkItem('Get both kids through college without loans.', [doc(INTAKE, 'Get both kids through college without loans.')]),
       mkItem('Pay off the house early.', [doc(PLAN, 'Goals: retire at 60, fund both kids’ college, pay off the house early')]),
       mkItem('Stop worrying every market dip — moderate-growth risk profile confirmed on the March 2026 questionnaire.', [doc(PLAN, 'Risk profile: Moderate growth (completed questionnaire, March 2026)')]),
     ],
-    // Money & accounts — where the money stands today (facts; the fix-its are Follow-ups).
-    standing: [
+    // Money and accounts — where the money stands today (facts; the fix-its are Follow-ups).
+    money: [
       mkItem("Marcus's 401(k): $412,000, contributing 12% with a 4% match.", [doc(PLAN, 'Marcus 401(k): $412,000, contributing 12% plus a 4% match')]),
       mkItem('Old employer 401(k): $96,000 still at the prior custodian, not yet rolled over.', [doc(PLAN, 'Old employer 401(k) of $96,000 still sitting at the prior custodian, not yet rolled over')]),
       mkItem("Tanya's 403(b): $188,000 at 9%; joint brokerage $145,000, mostly index funds.", [doc(PLAN, 'Tanya 403(b): $188,000, contributing 9%. Joint brokerage: $145,000, mostly index funds')]),
@@ -86,20 +84,15 @@ function webbSections(): ClientMapSection[] {
       mkItem('Cash reserve $55,000 (about five months); mortgage $318,000 at 5.1% with 26 years left.', [doc(PLAN, 'Cash reserve: $55,000 (about 5 months of expenses). Mortgage: $318,000 at 5.1%, 26 years left')]),
       mkItem("Stale beneficiary: the old 401(k) still names Marcus's ex-wife, not Tanya.", [doc(BENE, 'still lists Jessica Reyes, Marcus’s first wife, as the sole primary beneficiary, dated 2019')]),
     ],
-    // Coming up — dated, calendar-able events (not open-ended goals, not my to-dos).
-    upcoming: [
-      mkItem('Year-end: decide the Roth conversion amount with the CPA.', [doc(PLAN, 'Decide on the Roth conversion amount before year-end.')]),
-      mkItem('Before December: top up the 529s to capture the state tax deduction.', [doc(PLAN, 'Top up the 529 plans before December for the state tax deduction.')]),
-      mkItem('Fall: the next scheduled annual review.', [doc(NOTES, 'Next review booked for the fall.')]),
-      mkItem('This quarter: close out the old-401(k) rollover.', [doc(NOTES, "The old 401(k) rollover is the priority, it's been sitting too long.")]),
-    ],
-    // Follow-ups — the advisor's own open items and promises.
-    next: [
-      mkItem('Start the rollover paperwork and confirm the receiving IRA.', [doc(PLAN, 'Confirm the rollover paperwork and the receiving account.')]),
+    // Follow-ups — the advisor's open items, promises, and dated next steps.
+    followups: [
+      mkItem('Start the rollover paperwork and confirm the receiving IRA — it has been sitting too long.', [doc(PLAN, 'Confirm the rollover paperwork and the receiving account.')]),
       mkItem('Send the beneficiary-change form for the old 401(k).', [doc(BENE, "If he died before the rollover, that account would pass to his ex-spouse, not to Tanya.")]),
       mkItem("Confirm every beneficiary row against the custodian's record, not the client's memory.", [doc(BENE, 'Confirm every row against the custodian, not the client\'s memory.')]),
       mkItem('Set up the $400/month brokerage auto-contribution after Tanya’s raise.', [doc(NOTES, 'Increase the joint brokerage auto-contribution by $400/month.')]),
-      mkItem('Settle the Roth conversion amount before December.', [doc(NOTES, 'Revisit the Roth conversion before December.')]),
+      mkItem('Year-end: settle the Roth conversion amount with the CPA before December.', [doc(NOTES, 'Revisit the Roth conversion before December.')]),
+      mkItem('Before December: top up the 529s to capture the state tax deduction.', [doc(PLAN, 'Top up the 529 plans before December for the state tax deduction.')]),
+      mkItem('Book the next annual review for the fall.', [doc(NOTES, 'Next review booked for the fall.')]),
     ],
   };
   return CORE_SECTION_ORDER.map((key) => ({

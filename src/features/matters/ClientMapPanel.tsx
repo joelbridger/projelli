@@ -67,6 +67,19 @@ function sourcesForItems(items: ClientMapItem[], matterId: string): AnswerCitati
 
 const LABEL_WHAT_MISSING = "What I'm missing";
 const LABEL_NEW_SECTION = 'New section';
+const LABEL_START_INTERVIEW = 'Start the guided interview';
+
+// Shared OUTLINED style for the two rail-bottom action buttons (New section +
+// Start the guided interview), matching the Ask "New question" button.
+const railActionButtonStyle: CSSProperties = {
+  justifyContent: 'flex-start',
+  height: 'auto',
+  padding: '11px 13px',
+  fontSize: '14px',
+  fontWeight: 600,
+  borderRadius: 10,
+  borderColor: 'var(--kp-divider-strong)',
+};
 const EDIT_LABEL = 'Edit';
 const LABEL_STILL_MISSING = "What I'm still missing";
 const LABEL_MAP_COMPLETE = 'Nothing outstanding — this map looks complete.';
@@ -833,12 +846,15 @@ export function ClientMapPanel({
   onEditItem,
   onAnswerQuestion,
   onFlagForClient,
+  onStartInterview,
 }: {
   map: ClientMap;
   onOpenSource: (r: SourceRef) => void;
   onEditItem: (sectionKey: string, itemId: string) => void;
   onAnswerQuestion?: (question: GapQuestion) => void;
   onFlagForClient?: (question: GapQuestion) => void;
+  /** Toggle the guided-interview panel — rendered as a button at the rail bottom. */
+  onStartInterview?: () => void;
 }) {
   const removeSection = useClientMapStore((s) => s.removeSection);
   const saveTemplate = useTemplatesStore((s) => s.saveTemplate);
@@ -902,34 +918,10 @@ export function ClientMapPanel({
 
   return (
     <div data-testid="clientmap-panel" style={shellStyle}>
-      {/* Left rail — mirrors the Ask CONVERSATIONS rail: an outlined "+ New
-          section" button at the TOP, the sections below it, then the special
-          "What I'm missing" view. No caps label. */}
+      {/* Left rail — the sections list, then "What I'm missing", then (pinned to
+          the BOTTOM) the two outlined action buttons: "+ New section" and below
+          it "Start the guided interview". */}
       <div style={railStyle} role="tablist" aria-label="Client map sections">
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft={Plus}
-          fullWidth
-          data-testid="clientmap-tab-add"
-          onClick={() => {
-            select(NEW_KEY);
-          }}
-          // Match the Ask "New question" button exactly (brand.css .kpd-newq).
-          style={{
-            justifyContent: 'flex-start',
-            height: 'auto',
-            padding: '11px 13px',
-            fontSize: '14px',
-            fontWeight: 600,
-            borderRadius: 10,
-            borderColor: 'var(--kp-divider-strong)',
-            marginBottom: 'var(--kp-space-xs)',
-          }}
-        >
-          {LABEL_NEW_SECTION}
-        </Button>
-
         {sectionList.map((s) => (
           <TabButton
             key={s.key}
@@ -966,6 +958,38 @@ export function ClientMapPanel({
             select(MISSING_KEY);
           }}
         />
+
+        {/* Spacer pushes the action buttons to the bottom of the rail. */}
+        <div style={{ flex: 1 }} />
+
+        <Button
+          variant="secondary"
+          size="sm"
+          iconLeft={Plus}
+          fullWidth
+          data-testid="clientmap-tab-add"
+          onClick={() => {
+            select(NEW_KEY);
+          }}
+          style={{ ...railActionButtonStyle, marginBottom: 'var(--kp-space-2xs)' }}
+        >
+          {LABEL_NEW_SECTION}
+        </Button>
+
+        {onStartInterview && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            iconLeft={Sparkles}
+            fullWidth
+            data-testid="clientmap-start-interview"
+            onClick={onStartInterview}
+            style={railActionButtonStyle}
+          >
+            {LABEL_START_INTERVIEW}
+          </Button>
+        )}
       </div>
 
       {/* Right reading pane — left-aligned, breathing reading column (Ask shape) */}

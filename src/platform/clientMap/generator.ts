@@ -17,9 +17,9 @@ import type { AuditEntry } from '@/platform/types/audit';
 
 // Gap questions are tagged with the section their answer belongs to so the
 // Guided Interview can file the answer in the right section. Unknown / missing
-// section names fall back to 'standing'.
+// section names fall back to 'money'.
 const VALID_GAP_SECTIONS = new Set<string>(CORE_SECTION_ORDER);
-const DEFAULT_GAP_SECTION = 'standing';
+const DEFAULT_GAP_SECTION = 'money';
 const SECTION_NAME_LIST = CORE_SECTION_ORDER.join(', ');
 
 /** Parse the gap-questions AI response. Accepts both the section-tagged shape
@@ -53,11 +53,10 @@ export function parseGapQuestions(content: string): GapQuestion[] {
 }
 
 const SECTION_QUERIES: Record<CoreSectionKey, string> = {
-  story: 'overview background who the client is goals priorities retirement timeline objectives concerns',
-  people: 'household members spouse children beneficiaries key contacts CPA estate attorney',
-  standing: 'accounts assets liabilities net worth holdings custodian Schwab portfolio risk tolerance risk profile time horizon',
-  upcoming: 'upcoming reviews meetings deadlines key dates next actions required minimum distributions',
-  next: 'prior advice recommendations decisions Roth conversion rebalancing next steps follow up',
+  household: 'household members spouse children dependents beneficiaries key contacts CPA estate attorney prior advisor life situation job change who the client is',
+  goals: 'goals priorities objectives what they want retirement timeline values concerns risk tolerance risk profile',
+  money: 'accounts assets liabilities net worth holdings balances custodian Schwab portfolio insurance estate documents beneficiary designations mortgage cash reserve time horizon',
+  followups: 'prior advice recommendations decisions next steps follow up open items promises to do tasks rollover Roth conversion rebalancing upcoming reviews meetings deadlines key dates required minimum distributions',
 };
 const ASK_QUERY = 'what key facts are still unknown or unclear about this client';
 const TOP_K = 8;
@@ -169,7 +168,7 @@ export async function buildClientMap(
     // Same race guard immediately before the gap-questions send.
     assertLocalOnlyAllowsSend(resolvedProvider.providerId);
     const res = await provider.sendMessage('List the gap questions.', {
-      systemPrompt: `Given this client context, list up to 5 short questions whose answers are missing and that you would need to ask the client. For each question name the section its answer belongs to: one of ${SECTION_NAME_LIST}. ${ctx} Return ONLY JSON (no fences): {"questions":[{"text":"...","section":"standing"}]}. No em dashes.`,
+      systemPrompt: `Given this client context, list up to 5 short questions whose answers are missing and that you would need to ask the client. For each question name the section its answer belongs to: one of ${SECTION_NAME_LIST}. ${ctx} Return ONLY JSON (no fences): {"questions":[{"text":"...","section":"money"}]}. No em dashes.`,
       maxTokens: 400,
     });
     emitAiAudit('gap_questions', res);

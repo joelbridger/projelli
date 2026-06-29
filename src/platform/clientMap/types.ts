@@ -5,32 +5,27 @@ export type CompletenessLevel = 'thin' | 'getting-there' | 'solid';
 export type ItemOrigin = 'ai' | 'user';
 export type SectionScope = 'matter' | 'personal-template'; // 'firm' added in v2
 
-/** The five core CONTENT sections, in display order. "What I'm missing"
+/** The four core CONTENT sections, in display order. "What I'm missing"
  *  (Context Completeness) is rendered from ClientMap.completeness, not from a
- *  section in this list. */
-// NOTE (2026-06-29): the USER-FACING category set was redesigned from research
-// into how advisors actually organize a household (CFP data-gathering, Wealthbox
-// / Redtail / FSC record models, Kitces review prep). The five sharp, non-
-// overlapping buckets are WHO → WHY → WHAT-NOW → WHEN → MY-TO-DOS:
-//   household = The household, story = What they want, standing = Money & accounts,
-//   upcoming = Coming up, next = Follow-ups.
-// The internal KEYS are intentionally left unchanged for now (a clean key rename
-// + AI-prompt/gap-default alignment is the follow-up once the set is confirmed),
-// so only the display TITLE + ORDER move here.
-export type CoreSectionKey = 'story' | 'people' | 'standing' | 'upcoming' | 'next';
+ *  section in this list.
+ *
+ *  The set (approved 2026-06-29) is grounded in how advisors actually organize a
+ *  household (CFP data-gathering, Wealthbox / Redtail / FSC record models, Kitces
+ *  review prep): WHO → WHY → WHAT-NOW → MY-TO-DOS. The old fifth bucket
+ *  ("Coming up" / dated events) was folded into Follow-ups. The KEYS were
+ *  renamed to match the labels (was people/story/standing/upcoming/next). */
+export type CoreSectionKey = 'household' | 'goals' | 'money' | 'followups';
 export const CORE_SECTION_ORDER: CoreSectionKey[] = [
-  'people', // The household
-  'story', // What they want
-  'standing', // Money & accounts
-  'upcoming', // Coming up
-  'next', // Follow-ups
+  'household',
+  'goals',
+  'money',
+  'followups',
 ];
 export const CORE_SECTION_TITLE: Record<CoreSectionKey, string> = {
-  people: 'The household',
-  story: 'What they want',
-  standing: 'Money & accounts',
-  upcoming: 'Coming up',
-  next: 'Follow-ups',
+  household: 'Household',
+  goals: 'Goals',
+  money: 'Money and accounts',
+  followups: 'Follow-ups',
 };
 
 export interface SourceRef {

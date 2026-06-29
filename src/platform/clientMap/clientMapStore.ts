@@ -1,8 +1,23 @@
 // src/platform/clientMap/clientMapStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { ClientMap, ClientMapSection, ClientQuestion, DismissedSignature, ProposedUpdate, GapQuestion } from './types';
+import type { ClientMap, ClientMapSection, ClientQuestion, DismissedSignature, ProposedUpdate, GapQuestion, CoreSectionKey } from './types';
+import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from './types';
 import { proposalSignature } from './updater';
+
+/** v2 -> v3: the 5 core section keys were renamed to 4 sharper buckets (and the
+ *  dated-events "Coming up" bucket was folded into Follow-ups). Remap any legacy
+ *  key so persisted maps keep their content after the rename. */
+const LEGACY_SECTION_KEY_MAP: Record<string, string> = {
+  people: 'household',
+  story: 'goals',
+  standing: 'money',
+  upcoming: 'followups',
+  next: 'followups',
+};
+function remapSectionKey(k: string): string {
+  return LEGACY_SECTION_KEY_MAP[k] ?? k;
+}
 
 interface ClientMapState {
   maps: Record<string, ClientMap>;
@@ -52,14 +67,14 @@ interface PersistedClientMapState {
 function coerceGapQuestion(q: unknown): GapQuestion | null {
   if (typeof q === 'string') {
     const text = q.trim();
-    return text ? { text, sectionKey: 'standing' } : null;
+    return text ? { text, sectionKey: 'money' } : null;
   }
   if (q && typeof q === 'object') {
     const rawText = (q as { text?: unknown }).text;
     const text = typeof rawText === 'string' ? rawText.trim() : '';
     if (!text) return null;
     const rawKey = (q as { sectionKey?: unknown }).sectionKey;
-    const sectionKey = typeof rawKey === 'string' && rawKey ? rawKey : 'standing';
+    const sectionKey = remapSectionKey(typeof rawKey === 'string' && rawKey ? rawKey : 'money');
     return { text, sectionKey };
   }
   return null;
@@ -76,6 +91,52 @@ export function migratePersistedClientMaps(persisted: unknown, version: number):
       completeness.ask = (completeness.ask as unknown[])
         .map(coerceGapQuestion)
         .filter((q): q is GapQuestion => q !== null);
+    }
+  }
+  if (version < 3 && state.maps) {
+    // The 5 core section keys were renamed to 4. Remap legacy keys so persisted
+    // maps keep their content, MERGING the two buckets that fold into Follow-ups
+    // (upcoming + next) by concatenating their items.
+    for (const map of Object.values(state.maps) as Array<ClientMap | null | undefined>) {
+      if (!map) continue;
+      if (Array.isArray(map.sections)) {
+        const mergedCore = new Map<string, ClientMapSection>();
+        const customs: ClientMapSection[] = [];
+        for (const sec of map.sections) {
+          if (sec.kind === 'core') {
+            const newKey = remapSectionKey(sec.key);
+            const existing = mergedCore.get(newKey);
+            if (existing) {
+              existing.items = [...existing.items, ...sec.items];
+            } else {
+              mergedCore.set(newKey, {
+                ...sec,
+                key: newKey,
+                id: newKey,
+                title: CORE_SECTION_TITLE[newKey as CoreSectionKey] ?? sec.title,
+              });
+            }
+          } else {
+            customs.push(sec);
+          }
+        }
+        map.sections = [
+          ...CORE_SECTION_ORDER.map((k) => mergedCore.get(k)).filter((s): s is ClientMapSection => s !== undefined),
+          ...customs,
+        ];
+      }
+      // Remap gap + pending-update section keys onto the new bucket names.
+      const ask = map.completeness?.ask;
+      if (Array.isArray(ask)) {
+        for (const g of ask as Array<{ sectionKey?: unknown }>) {
+          if (g && typeof g.sectionKey === 'string') g.sectionKey = remapSectionKey(g.sectionKey);
+        }
+      }
+      if (Array.isArray(map.pendingUpdates)) {
+        for (const p of map.pendingUpdates as Array<{ sectionKey?: unknown }>) {
+          if (p && typeof p.sectionKey === 'string') p.sectionKey = remapSectionKey(p.sectionKey);
+        }
+      }
     }
   }
   return state;
@@ -282,7 +343,7 @@ export const useClientMapStore = create<ClientMapState>()(
     }),
     {
       name: 'keepance:client-maps',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ maps: state.maps, clientQuestions: state.clientQuestions }),
       migrate: (persisted, version) =>

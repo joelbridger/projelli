@@ -18,7 +18,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { Button, Badge } from '@/ui/kp';
+import { Badge } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
@@ -65,7 +65,6 @@ const HUB_TABS: { id: HubTab; label: string; Icon: typeof FileText }[] = [
 
 // ── Labels ─────────────────────────────────────────────────────────────────
 
-const LABEL_START_INTERVIEW = 'Start the guided interview';
 const LABEL_YOUR_ANSWER_PROMPT = 'Your answer to:';
 
 // ── MatterHub ──────────────────────────────────────────────────────────────
@@ -284,18 +283,8 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                 })}
               </div>
 
-              {/* Guided-interview action (Client Map tab + ready only). */}
-              {subTab === 'overview' && clientMap.status === 'ready' && (
-                <Button
-                  type="button"
-                  data-testid="clientmap-start-interview"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => { setShowInterview((v) => !v); }}
-                >
-                  {LABEL_START_INTERVIEW}
-                </Button>
-              )}
+              {/* The guided-interview button moved to the BOTTOM of the Client
+                  Map section rail (below "+ New section"). */}
               {(isPrivileged || matter.privileged) && (
                 <span data-testid="hub-isolated-badge">
                   <Badge variant="privilege" size="sm" icon={Lock}>Isolated</Badge>
@@ -438,6 +427,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                       }
                     }}
                     onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
+                    onStartInterview={() => { setShowInterview((v) => !v); }}
                   />
                 )}
               </div>
