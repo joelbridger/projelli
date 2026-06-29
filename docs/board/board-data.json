@@ -3,11 +3,314 @@
     "title": "Keepance — Board Dashboard",
     "subtitle": "The private client-intelligence layer for a financial-advisory practice",
     "framing": "Jameson = Board of Directors  ·  Claude = CEO reporting in",
-    "lastUpdated": "June 25, 2026",
-    "headline": "PROOF SPRINT (2026-06-25): after a full CEO evaluation, the call is to go ALL-IN ON FIRST USERS for about two months. Freeze big new features and use the demo to turn a handful of real advisors into weekly users — starting with the design partner (Jameson's wife), then her firm, then peers. The advisor bet counts as validated only when 3-5 advisors use it weekly with 1-2 paying, within ~45-60 days. An independent Codex review reached the SAME verdict as our own research: the product is impressive but pre-traction, and the real work is distribution + trust, not more features. New on the board to read: the full evaluation, the demo session plan, the FutureVault competitor read, and an honest 'where your data goes' trust sheet (see Strategy, Competitive, and Sales).",
+    "lastUpdated": "June 28, 2026",
+    "headline": "NEW (2026-06-28) — STRATEGIC ADVISOR MEMO: a full investor-grade, 20-section read of the real Keepance is now on the board (see the 'Strategic Memo' tab), pressure-tested by an independent Codex pass told to argue the opposite. Verdict: an unusually good product chasing an unproven need — NARROW to one bulletproof job (the cited Client Map for pre-meeting prep) and run a hard 60-day demand test (10-15 advisor talks → 5 demos → 3 real-data pilots → 3-5 weekly users, 1-2 paying), with ZERO speculative features. If it fails, don't re-pivot a sixth time — park it or go services. This deepens, and agrees with, the PROOF SPRINT call below. ——— PROOF SPRINT (2026-06-25): after a full CEO evaluation, the call is to go ALL-IN ON FIRST USERS for about two months. Freeze big new features and use the demo to turn a handful of real advisors into weekly users — starting with the design partner (Jameson's wife), then her firm, then peers. An independent Codex review reached the SAME verdict as our own research: the product is impressive but pre-traction, and the real work is distribution + trust, not more features. Also on the board: the full evaluation, the demo session plan, the FutureVault competitor read, and an honest 'where your data goes' trust sheet (see Strategy, Competitive, and Sales).",
     "updateRule": "High bar: a Claude session only updates this for a MAJOR decision, a validated insight, a strategy shift, or a real milestone. Routine work never touches it. Jameson maintains it freely."
   },
   "sections": [
+    {
+      "id": "memo",
+      "type": "memo",
+      "icon": "📝",
+      "title": "Strategic Advisor Memo",
+      "status": "Verdict: narrow + test",
+      "now": "A hard-nosed, investor-grade read of the REAL Keepance (built from the code, the docs, fresh market research, and an independent Codex pass told to argue the opposite). It exists to answer one question: can this become a real company that creates meaningful wealth in five years? It is intentionally tough on the idea because the product is good enough to deserve a real test, not another build cycle. Every section below is the full memo, just made scannable; a longer source version and the action-plan companion are also saved in the Keepance project for the team.",
+      "intro": "Bottom line up front: an unusually good product chasing an unproven need. The advisor direction is the soundest of its five re-aims, but it rests on a single advisor's pain signal, and the privacy wedge is a trust-accelerator, not a must-buy. The only correct move is to narrow to one bulletproof job and let real, arm's-length advisors prove or disprove demand in 60 days.",
+      "blocks": [
+        {
+          "n": "1",
+          "title": "One-sentence verdict",
+          "tone": "warn",
+          "tag": "NARROW + TEST",
+          "lead": "Keepance is an unusually good product chasing an unproven need: narrow to ONE bulletproof job and run a hard 60-day demand test (10-15 advisor talks → 5 demos → 3 real-data pilots → 3-5 weekly users, 1-2 paying or signed letters of intent, zero speculative features). If it fails, do NOT re-pivot to a sixth target — park it or switch to a done-for-you services motion.",
+          "body": [
+            "An independent Codex pass, told to argue the opposite, reached the SAME call: narrow, not kill and not build-harder. It sharpened three things — lead with the pain (privacy is the permission to try, not the reason to buy), say 'less to vet' not 'nothing to vet', and keep one sales-unlocking integration in scope even during the feature freeze."
+          ]
+        },
+        {
+          "n": "★",
+          "title": "First-principles gut-check — is this a real business?",
+          "tone": "info",
+          "tag": "the blunt test",
+          "lead": "Real problem (mild) · real person (narrow) · real budget (already spent) · real promise (unproven) · real advantage (not in distribution) · real-but-modest scale. That clears the bar for a 60-day test. It does NOT clear the bar for another year of building.",
+          "bullets": [
+            "1) The real problem: 'walk into every meeting already knowing the whole household, without digging through scattered files and a search box that doesn't work.' The job is retrieval/recall, not drafting. The one real pain signal on record is exactly this. Honest caveat: it's an annoyance, not a bleeding wound — and 'annoying but survivable' is the hardest pain to sell against.",
+            "2) Who's affected: the small independent fee-only RIA (roughly 1-20 people) where client context is scattered and nobody owns it — NOT 'advisors' broadly, not wirehouses, not big firms. The 3-20 person firms may feel the pain MORE than solos. Lead with the pain; privacy is the permission to try.",
+            "3) What they pay now: a small RIA spends ~3.8-6% of revenue on tech (~$300-600 per advisor per month for CRM + planning + portfolio), plus $49-120/mo for a single AI notetaker. Real budget exists — but it's already fully allocated, and 'AI that knows my client' is starting to arrive bundled at $49/mo inside tools they already pay for.",
+            "4) The unique promise: 'one private, cited brief of everything you know about a household — built automatically from your own files, that never leaves your computer.' Synthesis + local. No competitor credibly says both today. Real sentence; not yet proven to be a BUYER's deciding sentence.",
+            "5) The unfair advantage: design taste + AI-leveraged build speed + a live in-household advisor (the wife, a CFP) + a hard-to-copy architecture. Honest limit: none of it is a DISTRIBUTION advantage, and distribution is the whole game.",
+            "6) Can it scale: base case is a cash-flow business (~95% margin; 150-350 customers ≈ $300K/yr; ~1,000 ≈ $1M/yr) — a great solo outcome. Venture-scale as a standalone app means a capital war it loses; the one real venture path is licensing the engine to a CRM/custodian. Plan for cash-flow; treat the rest as upside."
+          ]
+        },
+        {
+          "n": "⚑",
+          "title": "Reality check — what's real vs. what drifted",
+          "tone": "gap",
+          "tag": "source-of-truth drift",
+          "lead": "The product engine is genuinely built; the story it tells about itself is not consistent across surfaces. That inconsistency is itself a trust problem for a trust product.",
+          "bullets": [
+            "REAL (code-verified): the 3-tab app (Client Map · Ask · Workflows), the auto-built cited Client Map, cited Q&A over the client's own files (real local search + citation-checking), the in-house Word engine with tracked changes, local-first + bring-your-own-key, and the OneDrive + Wealthbox connectors.",
+            "NOT what the brief said: Box / ShareFile / Jotform / Zocks connectors do NOT exist in code (only one placeholder logo). The 'embedded local model' is still aspirational (external Ollama only today).",
+            "DRIFT (fix before any advisor sees it): the live site is reportedly advisor-framed now, but the pricing config still says 'attorney / litigator', the in-repo homepage still says 'law practice', and the features doc is two pivots stale. The pricing config reaches the in-app checkout, where the law copy AND a $99-vs-$948 price inconsistency are live.",
+            "Nothing advisor-polished has SHIPPED yet — the Client Map + advisor re-aim are finished in code but not packaged into an installer a customer can download."
+          ]
+        },
+        {
+          "n": "2",
+          "title": "The strongest version of the idea",
+          "tone": "good",
+          "lead": "Not 'a private AI workspace for advisors.' It's: 'the thing that reads the pile of files you already have on a household and hands you back one cited brief you can trust in a meeting — and because it runs on your machine, your compliance officer has nothing to vet.'",
+          "body": [
+            "One person, one job, one trust story. It wins by being the deepest at synthesis-across-documents (the least-crowded angle in the whole landscape) and the only one that is truly local. Demo-led, founder-sold, priced as a serious tool ($1,500-3,000/yr, not $99), and ruthlessly NOT a notetaker."
+          ]
+        },
+        {
+          "n": "3",
+          "title": "The weakest version (the one that fails)",
+          "tone": "gap",
+          "lead": "'A privacy-first AI assistant for financial advisors.' It fails because 'AI assistant' is the most crowded sentence in the category, 'privacy-first' is now claimed by everyone and maps to no legal mandate, and it's a horizontal tool an advisor has to learn and change their workflow for.",
+          "body": [
+            "That version is 'yet another login', and advisors drop those. Today's public surface is dangerously close to it — except worse, because parts of it still say 'law practice.'"
+          ]
+        },
+        {
+          "n": "4",
+          "title": "Market diagnosis & ICP ranking",
+          "tone": "warn",
+          "lead": "The market is real but FLAT — a share-shift game, not a growth wave (~33,000 RIA firms; advisor headcount ~283,000, flat for a decade). You win by taking share. The one tailwind is AI adoption itself (advisor gen-AI use jumped 41%→52% in a year).",
+          "table": {
+            "headers": ["Rank", "ICP", "Why", "Verdict"],
+            "rows": [
+              ["1", "Solo / small fee-only RIA (1-20p) where context is scattered", "Buyer=user=compliance owner at the small end; no staff to mask the pain; local-first lands hardest; warm access exists", "First wedge"],
+              ["2", "Estate / multi-doc-heavy advisors", "Most documents per household = most synthesis pain", "Niche expansion"],
+              ["3", "Solo CPAs / tax pros / EAs", "Adjacent, doc-heavy, privacy-minded; but Holistiplan owns tax-doc reading", "Adjacent later"],
+              ["4", "Multi-family offices / large RIAs", "Real money & pain, but demand SOC 2 / DPA / entity Keepance lacks", "Avoid early"],
+              ["5", "Wirehouse / broker-dealer advisors", "Largest headcount, but the firm dictates the stack — can't buy", "Avoid"],
+              ["—", "Solo / small-firm attorneys (the OLD ICP)", "Never validated; legal AI is ~10x more capitalized (Harvey $11B)", "Deprioritized"]
+            ]
+          },
+          "body": [
+            "The honest tension: the #1 wedge (privacy-caring + small + acutely feels synthesis pain) may be a small intersection. Sizing it is the single most important unknown the 60-day test must resolve."
+          ]
+        },
+        {
+          "n": "5",
+          "title": "Core customer pain — sorted honestly",
+          "tone": "info",
+          "lead": "Sell the one urgent job; don't fight the solved ones.",
+          "bullets": [
+            "Real & urgent: 'I can't quickly find what I know about this household before a meeting.' (The validated signal. The beachhead.)",
+            "Nice-to-have: auto-drafting the review note / Reg BI rationale. Useful, but ChatGPT already does the blank page; not a switch-driver alone.",
+            "Fake-but-sounds-good: 'advisors are desperate for privacy-first AI.' They're cautious about cloud AI (real); desperation is the founder's projection.",
+            "Already solved (don't fight): meeting notes (Jump/Zocks/Wealthbox), tax-return reading (Holistiplan), estate docs (Vanilla).",
+            "Won't-trust-AI-with-yet: anything that ACTS on client data autonomously. Keepance's 'AI proposes, human decides, everything cited' posture is correctly conservative."
+          ]
+        },
+        {
+          "n": "6",
+          "title": "Wedge recommendation",
+          "tone": "good",
+          "lead": "The solo/small RIA's pre-meeting prep. Trigger: a review meeting on the calendar. Workaround today: re-reading the plan + scrolling the CRM + a broken email search. Why Keepance is 10x: it reads the household's OWN files and produces a cited brief — no migration, point it at the folder they already have.",
+          "body": [
+            "The wedge IS the Client Map. Everything else (drafting, the Reg BI note, a shared firm brain) is a later expansion that only earns its place once one advisor can't live without the first job."
+          ]
+        },
+        {
+          "n": "7",
+          "title": "Product strategy — what to be FIRST",
+          "tone": "warn",
+          "lead": "Be the Client Map, on local data, bulletproof — and nothing else for 60 days. The hero loop is REAL today; the work is reliability and onboarding, not new capability.",
+          "bullets": [
+            "Essential v1 (the one loop): point at a client folder → Client Map builds itself (cited, gaps flagged) → ask a pre-meeting question, click the source → draft one review note.",
+            "Freeze (impressive, near-zero willingness-to-pay today): the firm/team encrypted tier, live multi-user co-editing, single sign-on, the embedded local model, every connector beyond OneDrive + Wealthbox, and any new vertical.",
+            "Fix before any advisor sees it (credibility, not features): the pricing config's law copy + the $99-vs-$948 inconsistency; the stale in-repo homepage and features doc; the dev email still wired into the demo machine."
+          ]
+        },
+        {
+          "n": "8",
+          "title": "Trust & adoption barriers",
+          "tone": "warn",
+          "lead": "The trust gap is the firm-sale gate — but most of it is manageable if you sell solos first and stay scrupulously honest.",
+          "table": {
+            "headers": ["Barrier", "Read"],
+            "rows": [
+              ["No SOC 2 / DPA / legal entity", "Fatal for firms, manageable for solos (who are their own compliance owner). Form the LLC now; defer SOC 2 until a deal demands it."],
+              ["The 'private' claim has a cloud asterisk", "Manageable → selling point IF honest. True only in local mode; bring-your-own-key still sends the query to the AI provider (never to a Keepance server). Say 'less to vet,' not 'nothing to vet.'"],
+              ["Reg S-P vendor oversight (small-RIA deadline June 3, 2026)", "Selling point: a genuine diligence-reducer for no-compliance-officer firms — but a convenience, not a legal mandate (the rule assumes vendors; the SEC's AI/cyber proposals were withdrawn)."],
+              ["Recordkeeping (5-yr retention of AI work)", "Must-address: local must still log / retain / export AI work product, or it trades one gap for another."],
+              ["'Looks like a one-person app'", "Real: a fiduciary equates a certified vendor with safety. Counter with design polish + a case study + the entity."],
+              ["Hallucination / liability", "Already handled well: cited answers + 'refuse rather than bluff.' Lead with it."]
+            ]
+          }
+        },
+        {
+          "n": "9",
+          "title": "Positioning & messaging",
+          "tone": "info",
+          "lead": "Own the category 'private client-intelligence' (not 'AI assistant', not 'notetaker', not 'document vault'). Lead 70% outcome, 30% privacy.",
+          "bullets": [
+            "Homepage headline: 'Walk into every meeting already knowing the whole household.'",
+            "Subheadline: 'Keepance reads the files you already have and builds one cited brief of each client — on your own computer, so there's far less for compliance to vet (and in local mode, nothing leaves at all).'",
+            "10-sec pitch: 'It turns the pile of files on a client into one trustworthy, cited brief you can ask anything — and it all stays on your machine.'",
+            "Skeptical-advisor pitch: 'You already have the documents. You already pay for a CRM. This isn't another system to migrate into — it reads what you have, runs on your machine, and your compliance officer has nothing new to approve.'",
+            "Language to avoid: 'compliant', 'guaranteed', bare 'secure', 'revolutionary/seamless/transform', 'AI assistant', and anything implying it gives financial advice (SEC is fining AI-washing)."
+          ]
+        },
+        {
+          "n": "10",
+          "title": "Competitive landscape — where it can win, and can't",
+          "tone": "warn",
+          "lead": "The commodity layer (notes) is being absorbed by CRMs at ~$50/mo. Keepance's only defensible lane is cross-document cited SYNTHESIS — the one brief that the per-document specialists, the CRMs, and generic ChatGPT all fail to deliver.",
+          "bullets": [
+            "Do-nothing / ChatGPT-or-Copilot by hand (the REAL default): win on cited answers over their own files with no copy-paste + local privacy. Lose if their firm already standardized on Microsoft Copilot (enterprise data protection erodes the privacy argument).",
+            "Notetakers (Jump ~$105M / ~27k advisors; Zocks ~$65M): do NOT fight. Position as complementary; the notes race is over.",
+            "CRMs embedding AI (Wealthbox AI $49/mo, 25k advisors, $200M raised; Orion Denali; Salesforce): the most dangerous trend ('already in your stack'). Win only on depth + local; the Wealthbox connector is smart, competing with Wealthbox's AI is not.",
+            "Doc specialists (Holistiplan tax; Vanilla estate; FP Alpha; Powder): they own per-document-type; win on cross-document synthesis into one brief.",
+            "FutureVault (closest competitor): same 'documents → cited intelligence' promise, but cloud, enterprise-only, SOC 2, blue-chip logos. The answer Jameson must be able to say: 'FutureVault puts your clients' lives in their cloud; Keepance keeps them on your machine — and a solo can start this afternoon.'"
+          ]
+        },
+        {
+          "n": "11",
+          "title": "Defensibility — graded honestly (2-3 / 5)",
+          "tone": "warn",
+          "lead": "Enough for a cash-flow niche business; not enough to hold off a funded land-grab if one targets the local-first wedge.",
+          "bullets": [
+            "Trust/architecture moat (the real one, moderate): true local-first + in-house Word engine + the Client Map is genuinely hard for cloud incumbents to copy because it fights their business model. A moat of positioning, not patents.",
+            "Workflow lock-in (weak now, strong later): once a book's institutional memory lives in the Client Maps, switching cost is high. Doesn't exist until weekly use.",
+            "Data moat: none — by design the data stays the customer's and local. Privacy and data-network-effects are in tension; accept it.",
+            "Distribution moat: none. This is the gap that decides everything.",
+            "Founder insight (real): an in-household CFP + a designer who can ship."
+          ]
+        },
+        {
+          "n": "12",
+          "title": "Business model & pricing",
+          "tone": "gap",
+          "lead": "Fix the self-inflicted wound first: the pricing config says $468/$948/$1,548 with ATTORNEY copy while the advisor page floats $99/yr — a 10x inconsistency on a trust product. Then test HIGHER, not lower.",
+          "bullets": [
+            "Recommended first-wedge pricing (test, don't assume): Solo ~$1,800/yr (~$150/mo); small-firm ~$1,200/seat/yr (3+ seats); a premium 'with-onboarding' pilot at $2,500-3,000. Advisors spend $3,600-7,200/yr on the core stack; $99 signals 'not for real practices.'",
+            "Model: per-seat ANNUAL (matches advisor budgeting + the ~95% bring-your-own-key margin); founder-led PAID pilots first; no self-serve funnel until the demo is reliable and a price is validated.",
+            "The margin truth: bring-your-own-key = customer pays inference = ~95% gross margin. Break-even is ~150 customers, not thousands."
+          ]
+        },
+        {
+          "n": "13",
+          "title": "Go-to-market (low-budget, founder-led)",
+          "tone": "warn",
+          "lead": "Founder-led hand-selling, not a funnel. The first paying customer must be a STRANGER, not the wife's firm.",
+          "bullets": [
+            "First 20 conversations: arm's-length solo RIAs via XYPN forums, NAPFA, fee-only advisor groups, FinTwit — plus warm intros the design partner makes to PEERS at other firms. Use Mom-Test discovery (workflow questions, not demos).",
+            "Distribution kingmakers: Kitces (get on the AdvisorTech map), XYPN (apply to XYPN LIVE), T3, and custodian marketplaces (Altruist/Schwab/Fidelity) once there's a reference customer.",
+            "Services-first on-ramp (an angle the memo was underweighting): early buyers often want the OUTCOME done for them, not software. Offer a paid 'private client-intelligence setup' — clean their folders, connect their tools, build their first Client Maps — charge a setup fee PLUS subscription. The concierge work IS the validation, and can be the whole business if software-only stalls.",
+            "Local-Utah angle: the design partner's firm + the local advisor chapter for warm, in-person first demos."
+          ]
+        },
+        {
+          "n": "14",
+          "title": "Validation plan (before any more building)",
+          "tone": "info",
+          "lead": "Test the demand, not the code. The funnel: 10-15 conversations → 5 demos → 3 real-data pilots → 3-5 weekly users → 1-2 paying or signed letters of intent. Measure your selling behavior as closely as the market's response.",
+          "bullets": [
+            "H1 — is the pain acute enough to pay? 10 Mom-Test calls with arm's-length solos. Validating: they describe it unprompted + ask 'when can I have it.' Invalidating: polite interest, no urgency.",
+            "H2 — does the Client Map wow on THEIR messy files (not just the demo household)? Build a map live from a pilot's real folder.",
+            "H3 — is local-first a reason to BUY or just a comfort? A/B the pitch (outcome-led vs privacy-led).",
+            "H4 — will they pay ~$1,500+? Ask for a paid pilot ($500-1,500 / 90 days). A signed pilot from a stranger is the proof.",
+            "H5 — does weekly use stick? Track real logins over 4 weeks.",
+            "Concierge MVP: for one pilot, build their first 5 Client Maps by hand — prove value before trusting the automation."
+          ]
+        },
+        {
+          "n": "15",
+          "title": "Five-year wealth path",
+          "tone": "info",
+          "lead": "Base case is a cash-flow business, not a venture rocket — but 'venture is impossible' is too strong: there's a narrow infrastructure-licensing path. Plan for cash-flow; treat the rest as upside.",
+          "table": {
+            "headers": ["Path", "Probability", "Upside", "Main failure mode"],
+            "rows": [
+              ["Bootstrapped cash-flow (recommended)", "Medium-High", "$300K-1M/yr", "Never builds distribution; stays at 0"],
+              ["Services-wedge (concierge → product)", "Medium", "$150-400K/yr near-term", "Becomes a consultancy, not a product"],
+              ["Strategic acquisition / acqui-hire", "Low-Medium", "$1-10M", "No traction = nothing to buy"],
+              ["Venture: license the engine to a CRM/custodian", "Low (but real)", "$20-100M", "No reference traction = no partner wants it"],
+              ["Venture: standalone advisor-AI app", "Very Low", "$50M+", "Outgunned by Jump / Wealthbox / Orion"]
+            ]
+          }
+        },
+        {
+          "n": "16",
+          "title": "Founder-specific strategy",
+          "tone": "warn",
+          "lead": "The unfair advantage is design taste + a working product + unusually close access to one real advisor workflow. The biggest weakness is the BUILD TRAP — and five re-aims is the tell.",
+          "bullets": [
+            "The build trap: each pivot was a new BUILD, not a new set of customers. A designer's instinct under uncertainty is to make the thing better; the job now is to make someone buy it.",
+            "The warm-path risk: the wife is design partner #1 but her firm 'can't be first to buy' (her career depends on it). So the warmest asset is compromised as a validation source. Use her for workflow truth, vocabulary, sample data, and peer intros — not as proof. The first paying customer must be a stranger.",
+            "The fix: commit 50%+ of Keepance time to CUSTOMERS (discovery, demos, pilots); let the AI do the building. The one thing only Jameson can do is sell."
+          ]
+        },
+        {
+          "n": "17",
+          "title": "Brutal risks — the top of the list",
+          "tone": "gap",
+          "lead": "The two that matter most: the pain isn't acute enough to pay for, and the build trap recurs (a sixth pivot instead of selling). Both are High severity, High likelihood.",
+          "table": {
+            "headers": ["Risk", "Severity", "Likelihood", "Leading warning sign"],
+            "rows": [
+              ["Pain real but not acute enough to pay", "High", "High", "Discovery calls = polite interest, no urgency"],
+              ["Build trap recurs (6th pivot, not selling)", "High", "High", "A new positioning doc appears before 3 paying customers"],
+              ["Privacy wedge doesn't drive purchase", "High", "Medium", "Privacy gets nods; outcome closes"],
+              ["Client Map underwhelms on real messy files", "High", "Medium", "Maps thin/wrong outside the demo sample"],
+              ["A funded incumbent ships true local", "High", "Low-Med", "Competitor announces on-prem / self-serve small-RIA tier"],
+              ["Source-of-truth drift burns trust", "Medium", "High (today)", "Demo, checkout price, and docs tell different stories"],
+              ["No distribution; never gets in front of advisors", "High", "Medium", "Months pass, conversation count flat"]
+            ]
+          }
+        },
+        {
+          "n": "18",
+          "title": "Decision memo",
+          "tone": "warn",
+          "lead": "NARROW + TEST. Not kill (the product + the in-household signal are too good to walk away unproven). Not build-harder (no evidence justifies it). Narrow to the one loop, fix the surface, and let arm's-length advisors decide in 60 days.",
+          "bullets": [
+            "Best first ICP: solo / small (1-20p) independent fee-only RIA on Windows where context is scattered.",
+            "Best first workflow: pre-meeting prep → the cited Client Map → ask-a-question → draft one review note.",
+            "Best first product shape: the existing desktop app, advisor-default, the one loop bulletproof, OneDrive + Wealthbox only.",
+            "Best pricing hypothesis: ~$1,800/yr solo (test the flinch); kill the $99 line.",
+            "If the test fails: do NOT re-pivot to a sixth ICP — park it, or convert to the services/concierge motion."
+          ]
+        },
+        {
+          "n": "19",
+          "title": "Concrete action plan",
+          "tone": "good",
+          "lead": "Today and this week is cleanup + conversations, NOT building.",
+          "bullets": [
+            "Today: write the one-sentence FutureVault answer; start the Utah LLC; draft the advisor homepage headline; disconnect the dev email from the demo machine.",
+            "This week: fix the pricing config copy + resolve $99-vs-$948 to ONE advisor price; replace the law homepage with advisor framing; book 10 Mom-Test discovery calls; one clean end-to-end demo rehearsal on a fresh Windows build.",
+            "Next 2 weeks: run the 10 calls; build one Client Map live from a real (sanitized) advisor folder; make the paid-pilot OR done-for-you ask to the 3 most-pained, landing ≥1 stranger; stand up one advisor landing page + demo-request capture.",
+            "Next 30 days: 2-3 paid real-data pilots used weekly; draft the design-partner case study; get on the Kitces map + apply to XYPN LIVE; verify the Wealthbox paste-key on the design partner's real paid account.",
+            "Next 90 days: 3-5 weekly-active + 1-2 paying/LOI, or park/services. Decide on real usage data, not feelings."
+          ]
+        },
+        {
+          "n": "20",
+          "title": "The 10 questions to answer before investing months more",
+          "tone": "info",
+          "lead": "If you can't answer these with evidence, you're not ready to spend another quarter on it.",
+          "bullets": [
+            "1. Is the recall pain acute enough that an arm's-length advisor pays $1,500+ — or is it 'annoying but survivable'?",
+            "2. Does the Client Map actually wow on a real advisor's messy files, or only on the curated demo?",
+            "3. Is 'local-first' a reason a buyer CHOOSES you, or just a comfort they nod at while buying on outcome?",
+            "4. Can you get 5 arm's-length advisors in the room at all — i.e., do you have, or can you build, distribution?",
+            "5. Will a stranger pay before the wife's firm does?",
+            "6. Does the Wealthbox paste-key actually work on a paid account — does the 'fits your stack' story hold?",
+            "7. What's the real price — does $1,800/yr close, or only $99? What does that say about perceived value?",
+            "8. Are you willing to spend 50%+ of your time selling, not building — and to stop at the 6th-pivot temptation?",
+            "9. What's the honest 5-year goal — a $300K-1M/yr cash-flow business (likely) or a venture rocket (unlikely)?",
+            "10. If, in 60 days, 3-5 advisors are NOT using it weekly with 1-2 paying, will you actually stop — or rewrite the story again?"
+          ]
+        }
+      ],
+      "links": []
+    },
     {
       "id": "strategy",
       "title": "Strategy & Vision",

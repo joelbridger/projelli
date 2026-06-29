@@ -98,13 +98,15 @@
 
 ## What Keepance is
 
-**Keepance** (3.0, repositioned 2026-06-09) is **the private intelligence layer for a law practice**: the place a lawyer's confidential work lives (documents, email, matters), kept provably private, that answers questions across all of it with citations you can verify. Word (.docx) is the first-class format via an in-house OOXML engine with tracked changes and AI redline; Markdown never appears in user-facing copy. Recall is matter-scoped with cryptographic isolation; an always-visible egress indicator, a printable Data Map, and a Local-only / BYOK-direct / Assured confidentiality spectrum make the trust story honest and inspectable. North star: `docs/strategy/2026-06-09-keepance-3.0-roadmap.md` + `docs/research/2026-06-08-ux-attorney-v2.5.1/vision-most-viable-keepance.md`.
+**Keepance** (3.0, re-aimed 2026-06-23 to FINANCIAL ADVISORS) is **the private intelligence layer for a financial advisory practice**: the place an advisor's confidential client work lives (documents, email, client files), kept provably private, that answers questions across all of it with citations you can verify. Word (.docx) is the first-class format via an in-house OOXML engine with tracked changes and AI redline; Markdown never appears in user-facing copy. Recall is client-scoped with cryptographic isolation; an always-visible egress indicator, a printable Data Map, and a Local-only / BYOK-direct / Assured confidentiality spectrum make the trust story honest and inspectable. North star: the advisor re-aim docs `docs/strategy/2026-06-28-strategic-advisor-memo.md` + `KEEPANCE_STRATEGIC_ADVISOR_ACTION_PLAN.md` (these supersede the 2026-06-09 attorney positioning in `docs/strategy/2026-06-09-keepance-3.0-roadmap.md`).
+
+> **Facade note (do not break):** the engine keeps the internal name `matter` / the `Matter` type and `matter_id` on the wire — **never rename them.** Only USER-FACING copy becomes client/household. "Client-scoped" above is the user-facing name for the same matter-isolation engine.
 
 **The pitch in one sentence:** *The private place your whole practice lives and answers you back: your clients' data never leaves your control, and every answer is cited.*
 
-**The differentiator:** local-first + BYOK + Word-native + matter isolation + a firm tier whose collaboration is end-to-end encrypted (the relay only ever stores ciphertext; ethical walls are enforced by key denial, not UI hiding). AI requests go directly from the user's machine to their provider (or through the firm's zero-retention proxy in Assured mode), never via a Keepance content server.
+**The differentiator:** local-first + BYOK + Word-native + per-client isolation (matter isolation internally) + a firm tier whose collaboration is end-to-end encrypted (the relay only ever stores ciphertext; information barriers are enforced by key denial, not UI hiding). AI requests go directly from the user's machine to their provider (or through the firm's zero-retention proxy in Assured mode), never via a Keepance content server.
 
-**ICP (locked 2026-05-27, sharpened 2026-06-09):** litigation-heavy solos and small/mid law firms first (ABA Op 512, U.S. v. Heppner); tax and consulting packs exist but law leads.
+**ICP (re-aimed 2026-06-23):** solo and small/mid RIA and financial-advisory practices first, where the buyer is confidentiality-anxious about client data (Reg S-P, Reg BI; unit = client/household). The law, tax, and consulting packs still exist as adjacent verticals (law is kept as a secondary segment), but advisors now lead.
 
 **Pricing (3.0, live):** per-seat ANNUAL subscriptions via LemonSqueezy: Solo $468/yr (wire code `personal`), Professional $948/yr (`professional`), Firm $1,548/seat/yr (`practice`, min 3 seats enforced server-side). Pre-3.0 one-time buyers are grandfathered forever (entitlement layer guarantees data access is never gated). Canonical config: `src/config/pricing.ts`.
 
@@ -414,6 +416,12 @@ A few Claude Code skills live under `.claude/skills/` (auto-discovered in any se
   - Implementation detail
   - Files modified: `WorkspaceService.ts`, `FileTree.tsx`
 ```
+
+---
+
+## Product Journey log
+
+**On a MAJOR product decision or directional change, append a dated, plain-language entry to [`docs/PRODUCT-JOURNEY.md`](docs/PRODUCT-JOURNEY.md)** (see that file's header for what counts as "major" and the exact format). "Major" = a strategic pivot or repositioning, a headline feature milestone shipping, a significant architecture/identity change, a go/no-go or direction call, a major release, or abandoning/replacing a major approach — NOT routine code changes. The `CHANGELOG.md` covers all notable changes; the journey log is the higher-altitude story a non-engineer can follow. The coordinator and product workers keep it current.
 
 ---
 

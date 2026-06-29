@@ -75,7 +75,7 @@ export const PRICING_TIERS: readonly PricingTier[] = [
   {
     code: 'personal',
     displayName: 'Solo',
-    audience: 'A single attorney',
+    audience: 'A solo advisor',
     annualPerMonth: 39,
     annualPerYear: 468,
     monthlyPerMonth: 49,
@@ -87,8 +87,8 @@ export const PRICING_TIERS: readonly PricingTier[] = [
       'The complete confidential workspace',
       'The Word-native editor',
       'AI redlining with tracked changes',
-      'Confidential matter-scoped cited recall across email and documents',
-      'Privilege controls',
+      'Confidential client-scoped cited recall across email and documents',
+      'Confidentiality controls',
       'Local model or your own AI key',
       'The trust layer',
     ],
@@ -96,7 +96,7 @@ export const PRICING_TIERS: readonly PricingTier[] = [
   {
     code: 'professional',
     displayName: 'Professional',
-    audience: 'The serious solo or small-firm litigator',
+    audience: 'The established solo or growing advisory practice',
     annualPerMonth: 79,
     annualPerYear: 948,
     monthlyPerMonth: 99,
@@ -106,7 +106,7 @@ export const PRICING_TIERS: readonly PricingTier[] = [
     featured: false,
     features: [
       'Everything in Solo',
-      'The legal workflow library: deposition contradiction-finder, timelines, discovery triage, privilege-log drafter',
+      'The Advisor Practice Pack: client financial-plan summaries, meeting-prep and suitability notes, annual-review packets, Reg BI and Reg S-P documentation',
       'Version history',
       'All practice packs',
       'Priority support',
@@ -115,7 +115,7 @@ export const PRICING_TIERS: readonly PricingTier[] = [
   {
     code: 'practice',
     displayName: 'Firm',
-    audience: 'Firms of roughly 5 to 50 attorneys',
+    audience: 'Advisory firms of roughly 5 to 50 people',
     annualPerMonth: 129,
     annualPerYear: 1548,
     monthlyPerMonth: 159,
@@ -126,7 +126,7 @@ export const PRICING_TIERS: readonly PricingTier[] = [
     dimmed: true,
     features: [
       'Everything in Professional',
-      'Shared matters and collaboration',
+      'Shared client work and collaboration',
       'Admin console with SSO, information barriers, and seat management',
       'The assured zero-retention option',
       'Open, inspectable architecture you can verify (independent SOC 2 and a DPA are on our roadmap, not yet in place)',
@@ -183,7 +183,7 @@ export const BYOK_FRAMING = {
     'You bring your own AI key and pay the provider directly, usually $5 to $15 a month for a solo. We take zero markup on AI usage. Prefer that nothing leaves your machine? Run a local model with Ollama and pay nothing for AI.',
   /** Full paragraph for the pricing page. */
   long:
-    'You bring your own AI key and pay the provider directly (usually $5 to $15 a month for a solo). We take zero markup on AI usage, and you see exactly what it costs. Prefer that nothing leaves your machine at all? Run a local model with Ollama and pay nothing for AI. Either way, your subscription covers the platform: the Word editor, AI redlining, confidential cited recall, privilege controls, encryption, updates, and support. It does not cover the AI tokens, and we never mark them up.',
+    'You bring your own AI key and pay the provider directly (usually $5 to $15 a month for a solo). We take zero markup on AI usage, and you see exactly what it costs. Prefer that nothing leaves your machine at all? Run a local model with Ollama and pay nothing for AI. Either way, your subscription covers the platform: the Word editor, AI redlining, confidential cited recall, confidentiality controls, encryption, updates, and support. It does not cover the AI tokens, and we never mark them up.',
 } as const;
 
 /**
@@ -193,7 +193,7 @@ export const BYOK_FRAMING = {
 export const DATA_OWNERSHIP_GUARANTEE = {
   heading: 'Your files are always yours.',
   body:
-    'They are real Word and PDF files in your own folders. If you ever cancel, you keep every document, email, and matter you have made. A lapsed subscription turns off the AI features and updates, not your data. Nothing is ever held hostage.',
+    'They are real Word and PDF files in your own folders. If you ever cancel, you keep every document, email, and client file you have made. A lapsed subscription turns off the AI features and updates, not your data. Nothing is ever held hostage.',
 } as const;
 
 /**
@@ -203,28 +203,28 @@ export const DATA_OWNERSHIP_GUARANTEE = {
 export const COMPETITOR_CONTEXT = {
   /** The headline framing line. */
   story:
-    'A fraction of CoCounsel, and the only one where your client files never leave your control.',
+    'A fraction of the cost of cloud advisor-AI tools, and the only one where your client files never leave your control.',
   /** Supporting rows for a comparison strip (per seat). */
   rows: [
     {
-      product: 'Thomson Reuters CoCounsel Core',
-      price: '$225/seat/mo (about $4,500/yr)',
-      position: 'Keepance Firm is roughly half to one-third the price',
+      product: 'Jump / Zocks (AI meeting notes)',
+      price: 'about $75 to $175/advisor/mo',
+      position: 'A different job (meeting capture and CRM sync); Keepance is the private layer for confidential drafting and analysis',
     },
     {
-      product: 'Westlaw + CoCounsel',
-      price: '$428 to $639/seat/mo',
-      position: 'Keepance Firm is one-third to one-fifth the price',
+      product: 'eMoney / MoneyGuidePro AI (bundled)',
+      price: 'bundled into the planning suite',
+      position: 'A planning-tool add-on that runs in the vendor cloud; Keepance keeps client data on your machine',
     },
     {
-      product: 'Clio / MyCase (practice management)',
-      price: '$39 to $149/seat/mo annual',
-      position: 'Comparable, but Keepance is the private AI layer beside Clio, not a replacement',
+      product: 'ChatGPT (free / Plus)',
+      price: '$0 to $20/mo',
+      position: 'Generic and cloud-only; with Keepance on a local model no client data leaves your machine',
     },
     {
       product: 'Microsoft 365 Copilot',
       price: '$21 to $30/mo add-on (needs base M365)',
-      position: 'Keepance Solo is at or above, with legal-specific depth and no required base subscription',
+      position: 'Keepance Solo is at or above, with advisor-specific depth and no required base subscription',
     },
   ],
 } as const;
