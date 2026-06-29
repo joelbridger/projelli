@@ -121,25 +121,35 @@ fn normalize_key(value: &str) -> String {
 
 type IndexOneFuture<'a> = Pin<Box<dyn Future<Output = anyhow::Result<u32>> + Send + 'a>>;
 
-async fn apply_index_items<F>(items: &[AddeparIndexItem], mut index_one: F) -> anyhow::Result<u32>
+async fn apply_index_items<F>(
+    items: &[AddeparIndexItem],
+    cancel: &AtomicBool,
+    mut index_one: F,
+) -> anyhow::Result<(u32, bool)>
 where
     F: for<'a> FnMut(&'a AddeparIndexItem) -> IndexOneFuture<'a> + Send,
 {
     let mut count = 0;
     for item in items {
+        // Check cancel BETWEEN writes so Stop stops indexing promptly instead of
+        // writing every queued household first.
+        if cancel.load(Ordering::SeqCst) {
+            return Ok((count, true));
+        }
         count += index_one(item).await?;
     }
-    Ok(count)
+    Ok((count, false))
 }
 
 pub async fn apply_index_with_key(
     workspace: &Path,
     items: &[AddeparIndexItem],
+    cancel: &AtomicBool,
     key: &[u8; 32],
-) -> anyhow::Result<u32> {
+) -> anyhow::Result<(u32, bool)> {
     let workspace = workspace.to_path_buf();
     let key = *key;
-    apply_index_items(items, move |item| {
+    apply_index_items(items, cancel, move |item| {
         let workspace = workspace.clone();
         Box::pin(async move {
             #[cfg(test)]
@@ -229,11 +239,12 @@ pub async fn sync_with_key(
         report.cancelled = true;
         return Ok(report);
     }
-    report.records_indexed = apply_index_with_key(workspace, &items, rag_key).await?;
+    let (records, index_cancelled) = apply_index_with_key(workspace, &items, cancel, rag_key).await?;
+    report.records_indexed = records;
 
-    // Re-check AFTER indexing: Stop may have fired during apply_index_with_key.
-    // A cancelled run must not prune.
-    if cancel.load(Ordering::SeqCst) {
+    // A cancel observed DURING indexing (between writes) or right after must skip
+    // the prune, so a cancelled run never deletes vanished-household chunks.
+    if index_cancelled || cancel.load(Ordering::SeqCst) {
         report.cancelled = true;
         return Ok(report);
     }
@@ -621,5 +632,47 @@ mod tests {
         assert_eq!(report.pruned, 0);
         // 222's chunk survives because the cancelled run skipped pruning.
         assert!(addepar_chunk_exists(workspace.path(), "matter-beta").await);
+    }
+
+    #[tokio::test]
+    async fn cancel_mid_index_stops_writing() {
+        // Cancel threaded into the index loop: with two mapped households queued,
+        // a Stop after the FIRST write must stop indexing the second one (not
+        // write every queued household first). Model-free via the test seam.
+        let workspace = tempfile::TempDir::new().unwrap();
+        let rag_key = [0x75u8; 32];
+        let cancel = std::sync::Arc::new(AtomicBool::new(false));
+        let cancel_for_indexer = cancel.clone();
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let calls_for_indexer = calls.clone();
+        let _guard = set_test_indexer(Box::new(move |_item| {
+            calls_for_indexer.fetch_add(1, Ordering::SeqCst);
+            cancel_for_indexer.store(true, Ordering::SeqCst); // Stop after first write
+            Ok(1)
+        }));
+        let source = FakeAddeparSource {
+            entities: vec![entity("111", "Alpha House"), entity("222", "Beta House")],
+        };
+        let map = vec![
+            AddeparMatterMapEntry {
+                addepar_key: "111".into(),
+                matter_id: "matter-a".into(),
+            },
+            AddeparMatterMapEntry {
+                addepar_key: "222".into(),
+                matter_id: "matter-b".into(),
+            },
+        ];
+        let report = sync_with_key(&source, workspace.path(), &map, &cancel, &rag_key)
+            .await
+            .unwrap();
+
+        assert!(report.cancelled);
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            1,
+            "indexing must stop after the cancel — the second household must not be written"
+        );
+        assert_eq!(report.pruned, 0);
     }
 }

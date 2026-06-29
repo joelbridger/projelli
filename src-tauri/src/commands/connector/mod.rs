@@ -215,6 +215,41 @@ where
     forget_credential()
 }
 
+/// Disconnect that is SAFE against an in-flight sync. Acquires the connector's
+/// `is_syncing` lock the same way the sync command does (compare-and-swap); if a
+/// sync currently holds it, REFUSES — an in-flight sync still holds token/store/
+/// RAG handles and could write chunks AFTER a purge. Callers set the cancel flag
+/// before calling this so the running sync stops and the user can retry. On a
+/// successful acquire the lock is held across the purge (so a new sync can't start
+/// mid-purge) and released on exit (incl. panic), then `purge_then_forget` runs.
+#[allow(dead_code)]
+pub async fn purge_then_forget_guarded<P, Fut, D>(
+    is_syncing: &std::sync::atomic::AtomicBool,
+    purge: P,
+    forget_credential: D,
+) -> Result<(), String>
+where
+    P: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<(), String>>,
+    D: FnOnce() -> Result<(), String>,
+{
+    use std::sync::atomic::Ordering;
+    if is_syncing
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err("a sync is in progress; stop it and try disconnecting again".into());
+    }
+    struct Release<'a>(&'a std::sync::atomic::AtomicBool);
+    impl Drop for Release<'_> {
+        fn drop(&mut self) {
+            self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+    let _release = Release(is_syncing);
+    purge_then_forget(purge, forget_credential).await
+}
+
 /// Cap on concurrent external connector RAG indexing tasks.
 #[allow(dead_code)]
 static EXTERNAL_INDEX_SEMAPHORE: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
@@ -278,6 +313,63 @@ mod tests {
         ] {
             assert!(!is_valid_hostname(h), "{h:?} must be rejected");
         }
+    }
+
+    #[tokio::test]
+    async fn guarded_disconnect_rejects_and_purges_nothing_while_syncing() {
+        // A disconnect must REFUSE while a sync is active: neither the purge nor
+        // the credential deletion may run, and the sync's lock is left intact.
+        let is_syncing = std::sync::atomic::AtomicBool::new(true);
+        let purged = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let forgot = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let (p, f) = (purged.clone(), forgot.clone());
+        let res = purge_then_forget_guarded(
+            &is_syncing,
+            || async move {
+                p.store(true, std::sync::atomic::Ordering::SeqCst);
+                Ok(())
+            },
+            || {
+                f.store(true, std::sync::atomic::Ordering::SeqCst);
+                Ok(())
+            },
+        )
+        .await;
+        assert!(res.is_err());
+        assert!(
+            !purged.load(std::sync::atomic::Ordering::SeqCst),
+            "purge must NOT run while a sync is active"
+        );
+        assert!(
+            !forgot.load(std::sync::atomic::Ordering::SeqCst),
+            "credential must NOT be deleted while a sync is active"
+        );
+        assert!(
+            is_syncing.load(std::sync::atomic::Ordering::SeqCst),
+            "the active sync's lock must be left untouched"
+        );
+    }
+
+    #[tokio::test]
+    async fn guarded_disconnect_purges_and_releases_when_idle() {
+        let is_syncing = std::sync::atomic::AtomicBool::new(false);
+        let purged = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let p = purged.clone();
+        let res = purge_then_forget_guarded(
+            &is_syncing,
+            || async move {
+                p.store(true, std::sync::atomic::Ordering::SeqCst);
+                Ok(())
+            },
+            || Ok(()),
+        )
+        .await;
+        assert!(res.is_ok());
+        assert!(purged.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(
+            !is_syncing.load(std::sync::atomic::Ordering::SeqCst),
+            "the lock must be released after a successful disconnect"
+        );
     }
 
     #[tokio::test]

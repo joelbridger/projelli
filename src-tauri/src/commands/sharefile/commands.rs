@@ -135,12 +135,17 @@ pub async fn sharefile_is_connected() -> Result<bool, String> {
 
 #[tauri::command]
 pub async fn sharefile_disconnect(state: State<'_, SharefileState>) -> Result<(), String> {
+    // Tell any in-flight sync to stop, then refuse to disconnect while one is
+    // still running (it holds the token/store/RAG handles and could write chunks
+    // after we purge). purge_then_forget_guarded acquires the same is_syncing lock
+    // the sync uses; if a sync holds it the user just retries once it has stopped.
     state.cancel.store(true, Ordering::SeqCst);
     let ws = state.workspace.lock().await.clone();
     // Purge imported data FIRST; only delete the credential once the purge
     // succeeds, so a failed purge can't leave ShareFile chunks searchable behind a
     // connector that now looks disconnected.
-    crate::commands::connector::purge_then_forget(
+    crate::commands::connector::purge_then_forget_guarded(
+        &state.is_syncing,
         || async move {
             if let Some(ws) = ws {
                 let conn = crate::commands::rag::store::open_connection(&ws)
