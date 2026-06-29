@@ -53,6 +53,7 @@ const DEFAULT_SORT: SortState = { key: 'name', dir: 'asc' };
 function GetStartedCard() {
   const matters = useMatters();
   const { apiKeys } = useApiKeys();
+  const entityLabel = useEntityLabel();
   const aiConnected = apiKeys.some((k) => k.isValid);
   const [emailConnected, setEmailConnected] = useState<boolean | null>(null);
   const [dismissed, setDismissed] = useState<boolean>(() => {
@@ -129,7 +130,7 @@ function GetStartedCard() {
             : <Circle style={iconTodo} />
           }
           {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
-          <span style={stepLabel}>Create your first matter</span>
+          <span style={stepLabel}>Create your first {entityLabel.one}</span>
           {!hasMatter && (
             <Button
               variant="secondary"
