@@ -158,6 +158,11 @@ pub async fn sync_documents(
         if !crate::commands::boxc::model::is_supported_office_or_text(&file.name)
             && !crate::commands::boxc::model::is_pending_pdf(&file.name)
         {
+            // P2-D: if this file was previously indexed and has now changed to an
+            // unsupported type, its old chunks must be deleted, or stale text
+            // stays searchable under the prior matter. delete_path is a no-op when
+            // there are no chunks, so this is safe to call unconditionally.
+            rag_store::delete_path(&table, &source_id, rag_key).await?;
             store.upsert_item(
                 &source_id,
                 &file.id,
@@ -517,5 +522,84 @@ mod tests {
         let path = String::from_utf8(decrypt_with_key(&hex::decode(path_enc).unwrap(), &rag_key).unwrap())
             .unwrap();
         assert_eq!(path, "box:file-1");
+    }
+
+    async fn box_chunk_exists(workspace: &std::path::Path, matter_id: &str) -> bool {
+        let conn = rag_store::open_connection(workspace).await.unwrap();
+        let table = rag_store::open_or_create_table(&conn).await.unwrap();
+        let hits = rag_store::nearest(
+            &table,
+            &vec![0.1f32; EMBEDDING_DIM],
+            10,
+            Some(matter_id),
+            false,
+            &[],
+        )
+        .await
+        .unwrap();
+        hits.iter().any(|h| h.source_type.as_deref() == Some("box"))
+    }
+
+    #[tokio::test]
+    async fn file_changing_to_unsupported_type_deletes_its_chunks() {
+        // P2-D: a previously-indexed file that changes to an unsupported
+        // extension must have its old chunks deleted, not left searchable.
+        if !model_is_provisioned() {
+            eprintln!("SKIP box unsupported-rename test: e5-small model cache not provisioned");
+            return;
+        }
+        let workspace = TempDir::new().expect("temp workspace");
+        let store = BoxStore::open_with_key(workspace.path(), &[0x34u8; 32]).expect("box store");
+        let rag_key = [0x67u8; 32];
+        let map = vec![BoxMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, "acme", "/clients/acme"),
+            matter_id: "matter-acme".into(),
+        }];
+
+        // First sync: a supported .txt file is indexed under the matter.
+        let mut folders = HashMap::new();
+        folders.insert(ROOT_FOLDER_ID.to_string(), vec![folder("clients", "Clients")]);
+        folders.insert("clients".to_string(), vec![folder("acme", "Acme")]);
+        folders.insert("acme".to_string(), vec![file("file-1", "memo.txt", "v1")]);
+        let mut downloads = HashMap::new();
+        downloads.insert(
+            "file-1".to_string(),
+            b"Box memo for Acme about household billing.".to_vec(),
+        );
+        let report1 = sync_documents(
+            &FakeBoxSource { folders, downloads },
+            &store,
+            workspace.path(),
+            &map,
+            &AtomicBool::new(false),
+            &rag_key,
+            &AtomicU32::new(0),
+        )
+        .await
+        .expect("first sync");
+        assert!(report1.indexed > 0);
+        assert!(box_chunk_exists(workspace.path(), "matter-acme").await);
+
+        // Second sync: the SAME file id now carries an unsupported extension.
+        let mut folders2 = HashMap::new();
+        folders2.insert(ROOT_FOLDER_ID.to_string(), vec![folder("clients", "Clients")]);
+        folders2.insert("clients".to_string(), vec![folder("acme", "Acme")]);
+        folders2.insert("acme".to_string(), vec![file("file-1", "memo.xyz", "v2")]);
+        let report2 = sync_documents(
+            &FakeBoxSource {
+                folders: folders2,
+                downloads: HashMap::new(),
+            },
+            &store,
+            workspace.path(),
+            &map,
+            &AtomicBool::new(false),
+            &rag_key,
+            &AtomicU32::new(0),
+        )
+        .await
+        .expect("second sync");
+        assert_eq!(report2.unsupported, 1);
+        assert!(!box_chunk_exists(workspace.path(), "matter-acme").await);
     }
 }

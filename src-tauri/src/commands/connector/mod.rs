@@ -151,6 +151,54 @@ pub async fn delete_external_source_with_key_internal(
         .context("delete external connector source chunks")
 }
 
+/// True if `host` is a syntactically valid DNS hostname: one or more
+/// dot-separated labels of `[A-Za-z0-9-]`, each 1..=63 chars, not starting or
+/// ending with a hyphen, total length <= 253. Crucially this REJECTS slashes,
+/// `@`, `:`, whitespace, and every other character that could smuggle a path,
+/// userinfo, or port into a host position — e.g. a connector "subdomain" of
+/// `attacker.example/foo` that would otherwise build
+/// `https://attacker.example/foo.<vendor>.com/...` and send credentials to
+/// `attacker.example`. Connectors must validate their user-supplied host with
+/// this BEFORE attaching any credential.
+#[allow(dead_code)]
+pub fn is_valid_hostname(host: &str) -> bool {
+    if host.is_empty() || host.len() > 253 {
+        return false;
+    }
+    host.split('.').all(|label| {
+        !label.is_empty()
+            && label.len() <= 63
+            && !label.starts_with('-')
+            && !label.ends_with('-')
+            && label.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+    })
+}
+
+/// Verify a request URL targets the SAME origin (scheme + host + port) as the
+/// connector's configured `base`, so a connector never attaches its credentials
+/// to an unexpected host. Used to vet absolute pagination links (ShareFile
+/// `odata.nextLink`, Addepar `links.next`) before following them with the user's
+/// bearer/Basic token. Same-origin (not hardcoded-https) keeps test harnesses
+/// that point a connector at a local mock server working.
+#[allow(dead_code)]
+pub fn assert_same_origin(base: &str, candidate: &str) -> anyhow::Result<()> {
+    use anyhow::Context;
+    let base_url = reqwest::Url::parse(base).context("parse connector base url")?;
+    let cand = reqwest::Url::parse(candidate).context("parse connector request url")?;
+    let same = cand.scheme() == base_url.scheme()
+        && cand.host_str().is_some()
+        && cand.host_str() == base_url.host_str()
+        && cand.port_or_known_default() == base_url.port_or_known_default();
+    if !same {
+        anyhow::bail!(
+            "refusing to send connector credentials to a different origin: {} (expected base host {})",
+            cand.host_str().unwrap_or("<none>"),
+            base_url.host_str().unwrap_or("<none>")
+        );
+    }
+    Ok(())
+}
+
 /// Cap on concurrent external connector RAG indexing tasks.
 #[allow(dead_code)]
 static EXTERNAL_INDEX_SEMAPHORE: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
@@ -178,4 +226,57 @@ pub fn spawn_external_rag_index(
             );
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn valid_hostnames_accepted() {
+        for h in [
+            "acme",
+            "acme.sf-api.com",
+            "my-firm.addepar.com",
+            "a.b.c.d",
+            "x1-2y",
+        ] {
+            assert!(is_valid_hostname(h), "{h} should be a valid hostname");
+        }
+    }
+
+    #[test]
+    fn invalid_hostnames_rejected() {
+        for h in [
+            "",
+            "attacker.example/foo",          // path smuggling (Addepar P1-B)
+            "attacker.example/x.sf-api.com", // path smuggling (ShareFile P1-B)
+            "evil.com:8443",                 // port
+            "user@evil.com",                 // userinfo
+            "has space",
+            "-leadinghyphen",
+            "trailinghyphen-",
+            "double..dot",
+            "under_score",
+            "back\\slash",
+        ] {
+            assert!(!is_valid_hostname(h), "{h:?} must be rejected");
+        }
+    }
+
+    #[test]
+    fn same_origin_accepts_matching_and_rejects_foreign() {
+        let base = "https://acme.sf-api.com/sf/v3";
+        // Same host (any path) is accepted.
+        assert!(assert_same_origin(base, "https://acme.sf-api.com/sf/v3/Items?$top=1").is_ok());
+        // Different host with the user's token attached must be refused.
+        assert!(assert_same_origin(base, "https://evil.example.com/sf/v3/Items").is_err());
+        // Scheme downgrade to the same host must be refused.
+        assert!(assert_same_origin(base, "http://acme.sf-api.com/sf/v3/Items").is_err());
+        // A look-alike host is refused.
+        assert!(assert_same_origin(base, "https://acme.sf-api.com.evil.com/x").is_err());
+        // Local mock-server origins (http) still validate against an http base.
+        assert!(assert_same_origin("http://127.0.0.1:9000", "http://127.0.0.1:9000/page2").is_ok());
+        assert!(assert_same_origin("http://127.0.0.1:9000", "http://127.0.0.1:9999/page2").is_err());
+    }
 }

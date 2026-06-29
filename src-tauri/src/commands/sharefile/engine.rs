@@ -187,6 +187,11 @@ pub async fn sync_documents(
         if !crate::commands::sharefile::model::is_supported_office_or_text(&name)
             && !crate::commands::sharefile::model::is_pending_pdf(&name)
         {
+            // P2-D: if this file was previously indexed and has now changed to an
+            // unsupported type, its old chunks must be deleted, or stale text
+            // stays searchable under the prior matter. delete_path is a no-op when
+            // there are no chunks, so it is safe to call unconditionally.
+            rag_store::delete_path(&table, &key.source_id, rag_key).await?;
             store.upsert_item(
                 &key.source_id,
                 &key.item_id,
@@ -505,4 +510,69 @@ mod tests {
         assert_eq!(source.download_count.load(Ordering::SeqCst), 0);
     }
 
+    async fn sharefile_chunk_exists(workspace: &std::path::Path, matter_id: &str) -> bool {
+        let conn = rag_store::open_connection(workspace).await.unwrap();
+        let table = rag_store::open_or_create_table(&conn).await.unwrap();
+        let hits = rag_store::nearest(
+            &table,
+            &vec![0.2f32; EMBEDDING_DIM],
+            10,
+            Some(matter_id),
+            false,
+            &[],
+        )
+        .await
+        .unwrap();
+        hits.iter()
+            .any(|h| h.source_type.as_deref() == Some("sharefile"))
+    }
+
+    #[tokio::test]
+    async fn file_changing_to_unsupported_type_deletes_its_chunks() {
+        // P2-D: a previously-indexed ShareFile document that changes to an
+        // unsupported extension must have its old chunks deleted.
+        let dir = TempDir::new().unwrap();
+        let store = SharefileStore::open_with_key(dir.path(), &[0x36; 32]).unwrap();
+        let matter_map = vec![SharefileMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, "fo-acme", "/acme"),
+            matter_id: "matter-acme".into(),
+        }];
+        let rag_key = [0x37; 32];
+
+        // First sync: supported file is indexed.
+        let source1 = FakeSource::new(vec![folder("fo-acme", "Acme")])
+            .with_children("fo-acme", vec![file("fi-memo", "memo.txt", "sig-a")])
+            .with_download("fi-memo", b"ShareFile agreement text for Acme.")
+            .await;
+        let r1 = sync_documents(
+            &source1,
+            &store,
+            dir.path(),
+            &matter_map,
+            &AtomicBool::new(false),
+            &rag_key,
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+        assert_eq!(r1.indexed, 1);
+        assert!(sharefile_chunk_exists(dir.path(), "matter-acme").await);
+
+        // Second sync: same item id, now an unsupported extension.
+        let source2 = FakeSource::new(vec![folder("fo-acme", "Acme")])
+            .with_children("fo-acme", vec![file("fi-memo", "memo.xyz", "sig-b")]);
+        let r2 = sync_documents(
+            &source2,
+            &store,
+            dir.path(),
+            &matter_map,
+            &AtomicBool::new(false),
+            &rag_key,
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+        assert_eq!(r2.unsupported, 1);
+        assert!(!sharefile_chunk_exists(dir.path(), "matter-acme").await);
+    }
 }

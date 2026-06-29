@@ -576,6 +576,75 @@ export function resolveMatterForOneDriveFolder(
   return { matterId: '', action: 'unassigned', name: folderName };
 }
 
+export interface BoxFolderResolution {
+  matterId: string;
+  action: 'reuse' | 'link' | 'unassigned';
+  name: string;
+}
+
+/**
+ * A Box folder is a "top-level client folder" when its path is exactly
+ * `/clients/<name>` (two segments, first segment "clients", case-insensitive) —
+ * the same convention used for OneDrive auto-linking.
+ */
+export function isTopLevelBoxClientFolder(folder: { path: string }): boolean {
+  const segments = normalize(folder.path)
+    .split('/')
+    .filter(Boolean);
+  return segments.length === 2 && (segments[0]?.toLowerCase() ?? '') === 'clients';
+}
+
+function boxFolderLeafName(folder: { name: string; path: string }): string {
+  const leaf = normalize(folder.path).split('/').filter(Boolean).pop()?.trim();
+  return leaf || folder.name.trim();
+}
+
+/**
+ * Resolve a Box folder against existing matters, mirroring the OneDrive matcher:
+ * reuse an existing Box-folder link, link one unambiguous same-name matter that
+ * has no Box folder yet, otherwise leave it unassigned. Never creates a matter
+ * from a cloud folder. `folder` is structural (key/name/path) so this module
+ * does not import box-commands (which imports BoxMatterMapEntry from here).
+ */
+export function resolveMatterForBoxFolder(
+  matters: Matter[],
+  folder: { key: string; name: string; path: string },
+  claimedMatterIds: ReadonlySet<string> = new Set()
+): BoxFolderResolution {
+  // Priority 1: already linked by Box folder key.
+  for (const matter of matters) {
+    if ((matter.boxFolderKeys ?? []).includes(folder.key)) {
+      return { matterId: matter.id, action: 'reuse', name: matter.name };
+    }
+  }
+
+  // Priority 2: unambiguous name-based link. Judge ambiguity over ALL matters
+  // before filtering out already-linked / claimed ones, like the OneDrive and
+  // Wealthbox matchers.
+  const folderName = boxFolderLeafName(folder);
+  const normalizedFolderName = normalizeClientName(folderName);
+  if (normalizedFolderName) {
+    const matches = matters.filter(
+      (m) =>
+        normalizeClientName(m.name) === normalizedFolderName ||
+        normalizeClientName(m.client) === normalizedFolderName
+    );
+    if (matches.length === 1) {
+      const match = matches[0];
+      if (
+        match &&
+        (match.boxFolderKeys ?? []).length === 0 &&
+        !claimedMatterIds.has(match.id)
+      ) {
+        return { matterId: match.id, action: 'link', name: match.name };
+      }
+    }
+  }
+
+  // Priority 3: no clear match. Do not create a matter from a cloud folder.
+  return { matterId: '', action: 'unassigned', name: folderName };
+}
+
 function folderPathLeafName(folderPath: string): string {
   return normalize(folderPath).split('/').filter(Boolean).pop()?.trim() ?? '';
 }

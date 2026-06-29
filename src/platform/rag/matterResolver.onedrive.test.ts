@@ -14,6 +14,8 @@ import {
   buildOneDriveFolderKey,
   buildSharefileMatterMap,
   buildZocksMatterMap,
+  isTopLevelBoxClientFolder,
+  resolveMatterForBoxFolder,
   resolveMatterForOneDriveFolder,
 } from './matterResolver';
 import type { Matter } from '@/platform/types/matter';
@@ -343,5 +345,60 @@ describe('resolveMatterForOneDriveFolder', () => {
     expect(linked).toHaveLength(26);
     expect(linked.every((r) => r.action === 'link')).toBe(true);
     expect(new Set(linked.map((r) => r.matterId)).size).toBe(26);
+  });
+});
+
+describe('Box folder auto-linking', () => {
+  function boxFolder(name: string, path = `/Clients/${name}`, key?: string) {
+    return { key: key ?? `box/default/id-${name}:${path}`, name, path };
+  }
+
+  it('flags only two-segment /clients/<name> folders as top-level client folders', () => {
+    expect(isTopLevelBoxClientFolder({ path: '/Clients/Acme' })).toBe(true);
+    expect(isTopLevelBoxClientFolder({ path: '/clients/acme' })).toBe(true);
+    expect(isTopLevelBoxClientFolder({ path: '/Clients' })).toBe(false);
+    expect(isTopLevelBoxClientFolder({ path: '/Clients/Acme/Tax' })).toBe(false);
+    expect(isTopLevelBoxClientFolder({ path: '/Matters/Acme' })).toBe(false);
+  });
+
+  it('links an unambiguous same-name matter', () => {
+    const matters: Matter[] = [
+      makeMatter({ id: 'm-acme', name: 'Acme', client: 'Acme' }),
+      makeMatter({ id: 'm-beta', name: 'Beta', client: 'Beta' }),
+    ];
+    const res = resolveMatterForBoxFolder(matters, boxFolder('Acme'));
+    expect(res.action).toBe('link');
+    expect(res.matterId).toBe('m-acme');
+  });
+
+  it('reuses a matter already linked to the folder key', () => {
+    const folder = boxFolder('Acme');
+    const matters: Matter[] = [
+      makeMatter({ id: 'm-acme', name: 'Acme', client: 'Acme', boxFolderKeys: [folder.key] }),
+    ];
+    const res = resolveMatterForBoxFolder(matters, folder);
+    expect(res.action).toBe('reuse');
+    expect(res.matterId).toBe('m-acme');
+  });
+
+  it('leaves ambiguous or unmatched folders unassigned', () => {
+    const matters: Matter[] = [
+      makeMatter({ id: 'm-a', name: 'Smith', client: 'Smith' }),
+      makeMatter({ id: 'm-b', name: 'Smith', client: 'Smith' }),
+    ];
+    expect(resolveMatterForBoxFolder(matters, boxFolder('Smith')).action).toBe('unassigned');
+    expect(resolveMatterForBoxFolder(matters, boxFolder('Nobody')).action).toBe('unassigned');
+  });
+
+  it('does not link a matter that already owns a different Box folder', () => {
+    const matters: Matter[] = [
+      makeMatter({
+        id: 'm-acme',
+        name: 'Acme',
+        client: 'Acme',
+        boxFolderKeys: ['box/default/other:/x'],
+      }),
+    ];
+    expect(resolveMatterForBoxFolder(matters, boxFolder('Acme')).action).toBe('unassigned');
   });
 });

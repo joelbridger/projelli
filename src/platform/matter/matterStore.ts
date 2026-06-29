@@ -158,6 +158,8 @@ interface MatterState {
 
   // OneDrive / SharePoint folder mapping.
   addOneDriveFolderKey: (id: string, folderKey: string) => void;
+  // Box folder mapping.
+  addBoxFolderKey: (id: string, folderKey: string) => void;
   // ShareFile folder mapping.
   addSharefileFolderKey: (id: string, folderKey: string) => void;
   // Addepar household/account mapping.
@@ -633,6 +635,28 @@ export const useMatterStore = create<MatterState>()(
             const others = m.onedriveFolderKeys ?? [];
             return others.includes(key)
               ? { ...m, onedriveFolderKeys: others.filter((k) => k !== key) }
+              : m;
+          }),
+        }));
+      },
+
+      addBoxFolderKey: (id, folderKey) => {
+        const key = folderKey.trim();
+        if (!key) return;
+        set((state) => ({
+          matters: state.matters.map((m) => {
+            if (m.id === id) {
+              const existing = m.boxFolderKeys ?? [];
+              return existing.includes(key)
+                ? m
+                : { ...m, boxFolderKeys: [...existing, key] };
+            }
+            // A Box folder belongs to exactly ONE matter. Move the key off any
+            // old matter so the backend never indexes one cloud folder under two
+            // client boundaries at once.
+            const others = m.boxFolderKeys ?? [];
+            return others.includes(key)
+              ? { ...m, boxFolderKeys: others.filter((k) => k !== key) }
               : m;
           }),
         }));

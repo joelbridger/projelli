@@ -138,7 +138,7 @@ impl AddeparClient {
     }
 
     async fn get_json<T: serde::de::DeserializeOwned>(&self, path_or_url: &str) -> Result<T> {
-        let url = self.url(path_or_url);
+        let url = self.url(path_or_url)?;
         let resp = self
             .http
             .get(&url)
@@ -156,7 +156,7 @@ impl AddeparClient {
         path_or_url: &str,
         body: &serde_json::Value,
     ) -> Result<T> {
-        let url = self.url(path_or_url);
+        let url = self.url(path_or_url)?;
         let resp = self
             .http
             .post(&url)
@@ -185,15 +185,20 @@ impl AddeparClient {
         serde_json::from_str(&body).context("parse Addepar JSON response")
     }
 
-    fn url(&self, path_or_url: &str) -> String {
+    fn url(&self, path_or_url: &str) -> Result<String> {
+        // api_base() validates the configured host (P1-B) and fails closed.
+        let base = self.config.api_base()?;
         if path_or_url.starts_with("http://") || path_or_url.starts_with("https://") {
-            return path_or_url.to_string();
+            // Absolute links come from `links.next` in the API response; never
+            // send the Basic-auth credentials off the configured Addepar origin
+            // (P1-C).
+            crate::commands::connector::assert_same_origin(&base, path_or_url)?;
+            return Ok(path_or_url.to_string());
         }
-        let base = self.config.api_base();
         if path_or_url.starts_with('/') {
-            format!("{base}{path_or_url}")
+            Ok(format!("{base}{path_or_url}"))
         } else {
-            format!("{base}/{path_or_url}")
+            Ok(format!("{base}/{path_or_url}"))
         }
     }
 }
@@ -204,4 +209,46 @@ fn parse_portfolio_id(entity_id: &str) -> serde_json::Value {
         .parse::<u64>()
         .map(serde_json::Value::from)
         .unwrap_or_else(|_| serde_json::Value::String(entity_id.trim().to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn client(subdomain: &str) -> AddeparClient {
+        AddeparClient::new(AddeparConfig {
+            api_key: "k".into(),
+            api_secret: "s".into(),
+            subdomain: subdomain.into(),
+            firm_id: "1".into(),
+        })
+    }
+
+    #[test]
+    fn url_builds_relative_paths_against_configured_host() {
+        let c = client("acme");
+        assert_eq!(
+            c.url("/entities").unwrap(),
+            "https://acme.addepar.com/api/v1/entities"
+        );
+    }
+
+    #[test]
+    fn url_rejects_absolute_links_to_a_foreign_origin() {
+        // P1-C: a links.next pointing off the configured Addepar host must be
+        // refused before the Basic-auth credentials are attached.
+        let c = client("acme");
+        assert!(c
+            .url("https://acme.addepar.com/api/v1/entities?page[after]=2")
+            .is_ok());
+        assert!(c.url("https://evil.example.com/api/v1/entities").is_err());
+        assert!(c.url("http://acme.addepar.com/api/v1/entities").is_err());
+    }
+
+    #[test]
+    fn url_fails_closed_on_invalid_subdomain() {
+        // P1-B propagates through url(): an unusable host can't produce a request.
+        let c = client("attacker.example/foo");
+        assert!(c.url("/entities").is_err());
+    }
 }

@@ -24,7 +24,7 @@ pub struct AddeparConfig {
 }
 
 impl AddeparConfig {
-    pub fn api_base(&self) -> String {
+    pub fn api_base(&self) -> anyhow::Result<String> {
         let host = self
             .subdomain
             .trim()
@@ -33,7 +33,17 @@ impl AddeparConfig {
             .trim_start_matches("http://")
             .trim_end_matches("/api/v1")
             .trim_end_matches(".addepar.com");
-        format!("https://{host}.addepar.com/api/v1")
+        // P1-B: the subdomain becomes the URL host, so a value like
+        // `attacker.example/foo` would build
+        // `https://attacker.example/foo.addepar.com/...` and send the API
+        // key/secret to attacker.example during validation. Require a bare
+        // hostname (no slashes, ports, or userinfo) before the host is used.
+        if !crate::commands::connector::is_valid_hostname(host) {
+            anyhow::bail!(
+                "Addepar subdomain is not a valid hostname (no slashes, ports, or special characters)"
+            );
+        }
+        Ok(format!("https://{host}.addepar.com/api/v1"))
     }
 }
 
@@ -190,5 +200,37 @@ mod tests {
         assert_eq!(parsed.data.id, "329263");
         assert_eq!(parsed.data.name(), "Northcrest Family Household");
         assert!(parsed.data.is_household_or_client());
+    }
+
+    #[test]
+    fn api_base_accepts_a_bare_subdomain() {
+        let cfg = AddeparConfig {
+            subdomain: "acme".into(),
+            ..Default::default()
+        };
+        assert_eq!(cfg.api_base().unwrap(), "https://acme.addepar.com/api/v1");
+
+        let cfg2 = AddeparConfig {
+            subdomain: "https://acme.addepar.com/api/v1".into(),
+            ..Default::default()
+        };
+        assert_eq!(cfg2.api_base().unwrap(), "https://acme.addepar.com/api/v1");
+    }
+
+    #[test]
+    fn api_base_rejects_a_host_smuggling_subdomain() {
+        // P1-B: a subdomain with a slash would build
+        // https://attacker.example/foo.addepar.com/... and send credentials to
+        // attacker.example. Reject before any request is made.
+        for bad in ["attacker.example/foo", "evil.com:8443", "user@evil", "a b", ""] {
+            let cfg = AddeparConfig {
+                subdomain: bad.into(),
+                ..Default::default()
+            };
+            assert!(
+                cfg.api_base().is_err(),
+                "subdomain {bad:?} must be rejected"
+            );
+        }
     }
 }

@@ -118,6 +118,11 @@ impl SharefileClient {
     }
 
     async fn get_json_url<T: serde::de::DeserializeOwned>(&self, url: &str) -> anyhow::Result<T> {
+        // Never attach the access token to a URL off the configured ShareFile
+        // origin. Absolute odata.nextLink values come straight from the API
+        // response, so a malformed/compromised link could otherwise exfiltrate
+        // the bearer token (P1-C).
+        self.ensure_same_origin(url)?;
         for attempt in 0..MAX_429_RETRIES {
             self.rate_gate().await;
             let resp = self
@@ -150,6 +155,7 @@ impl SharefileClient {
 
     async fn get_bytes(&self, path: &str) -> anyhow::Result<Vec<u8>> {
         let url = self.url(path);
+        self.ensure_same_origin(&url)?;
         for attempt in 0..MAX_429_RETRIES {
             self.rate_gate().await;
             let resp = self
@@ -188,6 +194,12 @@ impl SharefileClient {
             format!("{}/{}", self.api_base, path_or_url)
         }
     }
+
+    /// Refuse to issue a token-bearing request to anything off the configured
+    /// ShareFile origin (scheme + host + port).
+    fn ensure_same_origin(&self, url: &str) -> anyhow::Result<()> {
+        crate::commands::connector::assert_same_origin(&self.api_base, url)
+    }
 }
 
 pub fn normalize_api_base(subdomain: &str) -> anyhow::Result<String> {
@@ -206,6 +218,15 @@ pub fn normalize_api_base(subdomain: &str) -> anyhow::Result<String> {
         raw = format!("{host}.sf-api.com");
     } else if !raw.contains('.') {
         raw = format!("{raw}.sf-api.com");
+    }
+    // Reject anything that isn't a bare hostname BEFORE the suffix check: a value
+    // like `attacker.example/x.sf-api.com` ends with `.sf-api.com` but its real
+    // URL host is `attacker.example`, which would receive the access token during
+    // validation (P1-B). is_valid_hostname denies slashes/ports/userinfo.
+    if !crate::commands::connector::is_valid_hostname(&raw) {
+        anyhow::bail!(
+            "ShareFile subdomain is not a valid hostname (no slashes, ports, or special characters)"
+        );
     }
     if !raw.ends_with(".sf-api.com") {
         anyhow::bail!("ShareFile subdomain must be like yourfirm or yourfirm.sf-api.com");
@@ -254,5 +275,27 @@ mod tests {
             "https://acme.sf-api.com/sf/v3"
         );
         assert!(normalize_api_base("example.com").is_err());
+    }
+
+    #[test]
+    fn rejects_subdomain_that_smuggles_a_foreign_host() {
+        // P1-B: a slash-bearing value whose suffix is .sf-api.com but whose real
+        // URL host is the attacker's must be rejected before any token is sent.
+        assert!(normalize_api_base("attacker.example/x.sf-api.com").is_err());
+        assert!(normalize_api_base("attacker.example/acme").is_err());
+        assert!(normalize_api_base("acme.sf-api.com:8443").is_err());
+        assert!(normalize_api_base("user@acme.sf-api.com").is_err());
+    }
+
+    #[test]
+    fn refuses_token_bearing_request_to_foreign_origin() {
+        // P1-C: an absolute odata.nextLink to a different host must be refused
+        // before the bearer token is attached.
+        let client =
+            SharefileClient::new_with_base("tok".into(), "https://acme.sf-api.com/sf/v3".into())
+                .unwrap();
+        assert!(client.ensure_same_origin("https://acme.sf-api.com/sf/v3/Items?p=2").is_ok());
+        assert!(client.ensure_same_origin("https://evil.example.com/sf/v3/Items").is_err());
+        assert!(client.ensure_same_origin("http://acme.sf-api.com/sf/v3/Items").is_err());
     }
 }

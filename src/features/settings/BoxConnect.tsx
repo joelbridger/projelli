@@ -9,13 +9,18 @@ import {
   boxConnect,
   boxDisconnect,
   boxIsConnected,
+  boxListFolders,
   boxStatus,
   boxSync,
   type BoxSyncProgress,
   type BoxSyncReport,
 } from '@/platform/utils/box-commands';
-import { getMatters } from '@/platform/matter/matterStore';
-import { buildBoxMatterMap } from '@/platform/rag/matterResolver';
+import { getMatters, useMatterStore } from '@/platform/matter/matterStore';
+import {
+  buildBoxMatterMap,
+  isTopLevelBoxClientFolder,
+  resolveMatterForBoxFolder,
+} from '@/platform/rag/matterResolver';
 import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { Button } from '@/ui/kp';
 
@@ -27,6 +32,7 @@ export function BoxConnect() {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<BoxSyncReport | null>(null);
+  const addBoxFolderKey = useMatterStore((s) => s.addBoxFolderKey);
 
   useEffect(() => {
     boxIsConnected()
@@ -88,12 +94,31 @@ export function BoxConnect() {
     }
     setSyncing(true);
     try {
+      // Link Box client folders to matters FIRST so the matter map isn't empty;
+      // otherwise every Box file would import into the unassigned bucket and
+      // never surface in client-scoped search or citations.
+      await autoLinkBoxFolders();
       const result = await boxSync(buildBoxMatterMap(getMatters()));
       setReport(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSyncing(false);
+    }
+  }
+
+  // Auto-link top-level Box client folders (`/clients/<name>`) to matching
+  // matters by name before sync, mirroring OneDrive. One unambiguous same-name
+  // match links; ambiguous or already-linked folders are left alone.
+  async function autoLinkBoxFolders(): Promise<void> {
+    const folders = await boxListFolders();
+    const claimed = new Set<string>();
+    for (const folder of folders) {
+      if (!isTopLevelBoxClientFolder(folder)) continue;
+      const resolution = resolveMatterForBoxFolder(getMatters(), folder, claimed);
+      if (resolution.action !== 'link') continue;
+      addBoxFolderKey(resolution.matterId, folder.key);
+      claimed.add(resolution.matterId);
     }
   }
 

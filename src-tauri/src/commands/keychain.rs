@@ -33,6 +33,17 @@ const INTERNAL_EXACT_SERVICES: &[&str] = &[
     // CRM connector legacy Wealthbox token slot (pre-`keepance-crm-` naming).
     // The live slots all use the `keepance-crm-` prefix below.
     "keepance-wealthbox",
+    // Bonus connector token slots (Box / ShareFile / Jotform / Zocks / Addepar).
+    // Each connector's API token / access token / dev token lives under its exact
+    // service name; the matching SQLCipher master keys (`keepance-<name>-enc`) and
+    // any future per-connector secret are covered by the prefixes below. All are
+    // Rust-owned and read via keyring::Entry directly — the renderer bridge must
+    // never read, write, or delete them.
+    "keepance-box",
+    "keepance-sharefile",
+    "keepance-jotform",
+    "keepance-zocks",
+    "keepance-addepar",
 ];
 const INTERNAL_SERVICE_PREFIXES: &[&str] = &[
     // Vault VMKs are Rust-owned. Firm collaboration keys use
@@ -48,6 +59,16 @@ const INTERNAL_SERVICE_PREFIXES: &[&str] = &[
     // (`keepance-onedrive-enc`) and any future OneDrive-scoped secret. The
     // refresh token's exact service `keepance-docs-ms` is listed above.
     "keepance-onedrive-",
+    // Bonus connector namespaces. Each covers the connector's SQLCipher master
+    // key (`keepance-<name>-enc`) plus any future per-connector secret. The bare
+    // token slots (`keepance-<name>`) are listed in the exact set above. These
+    // do not collide with renderer-owned services (which use the `com.keepance.*`
+    // namespace).
+    "keepance-box-",
+    "keepance-sharefile-",
+    "keepance-jotform-",
+    "keepance-zocks-",
+    "keepance-addepar-",
 ];
 
 /// Structured error returned to the frontend. Separating "not found" from
@@ -231,9 +252,21 @@ mod tests {
             "keepance-crm-redtail",
             "keepance-crm-enc", // SQLCipher master key
             "keepance-wealthbox", // legacy Wealthbox slot (exact)
+            // Bonus connectors: token slot (exact) + SQLCipher DB key (prefix).
+            "keepance-box",
+            "keepance-box-enc",
+            "keepance-sharefile",
+            "keepance-sharefile-enc",
+            "keepance-jotform",
+            "keepance-jotform-enc",
+            "keepance-zocks",
+            "keepance-zocks-enc",
+            "keepance-addepar",
             // Future connectors under the same namespaces must be denied by default.
             "keepance-crm-newprovider",
             "keepance-onedrive-future-secret",
+            "keepance-box-future-secret",
+            "keepance-addepar-enc",
         ];
         for svc in denied {
             assert!(
