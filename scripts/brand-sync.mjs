@@ -106,6 +106,17 @@ validate(cfg);
 const NAME = cfg.name;
 const col = cfg.colors;
 
+// Source-asset → distributed-destination map. Used by BOTH the copy step and the
+// drift check, so `brand:check` fails if a shipped asset is stale vs brand/assets.
+const ASSET_COPIES = [
+  ['faviconSvg', 'public/favicon.svg'],
+  ['faviconSvg', 'website/favicon.svg'],
+  ['logoSvg', 'public/onboarding/keepance-logo.svg'],
+  ['logoSvg', 'public/logo.svg'],
+  ['ogImage', 'website/og-image.png'],
+  ['iconSource', 'src-tauri/icons/icon.png'],
+];
+
 // ── locked-identifier safety assertions (read-only; runs in every mode) ───────
 function assertLocked() {
   log(`\n${C.bold}Locked identifiers (read-only safety check)${C.reset}`);
@@ -248,6 +259,17 @@ function runCheck() {
     else if (cur.trim() !== want.trim()) drift.push('globals.css @brand:colors block is out of date');
     else skip('globals.css @brand:colors block up to date');
   }
+  // copied assets: a shipped logo/favicon/OG must match its source in brand/assets
+  for (const [k, dest] of ASSET_COPIES) {
+    const src = cfg.assets?.[k];
+    if (!src) continue;
+    const s = path.join(ROOT, 'brand', src);
+    const d = path.join(ROOT, dest);
+    if (!exists(s)) { drift.push(`source asset brand/${src} is missing`); continue; }
+    if (!exists(d)) drift.push(`${dest} has not been synced from brand/${src}`);
+    else if (!fs.readFileSync(s).equals(fs.readFileSync(d))) drift.push(`${dest} is stale vs brand/${src}`);
+    else skip(`${dest} matches brand/${src}`);
+  }
   if (drift.length) {
     console.error(`\n${C.red}✗ generated brand files are out of sync:${C.reset}\n   - ${drift.join('\n   - ')}\n\nRun  ${C.cyn}npm run brand:sync${C.reset}  to regenerate them.\n`);
     process.exit(1);
@@ -293,12 +315,7 @@ async function distributeAssets() {
     if (!FLAGS.check) { fs.mkdirSync(path.dirname(d), { recursive: true }); fs.copyFileSync(s, d); }
     ok(`copied ${A[k]} → ${dest}`);
   };
-  copy('faviconSvg', 'public/favicon.svg');
-  copy('faviconSvg', 'website/favicon.svg');
-  copy('logoSvg', 'public/onboarding/keepance-logo.svg');
-  copy('logoSvg', 'public/logo.svg');
-  copy('ogImage', 'website/og-image.png');
-  copy('iconSource', 'src-tauri/icons/icon.png');
+  for (const [k, dest] of ASSET_COPIES) copy(k, dest);
 
   // Derived raster favicons + app icons (optional / best-effort).
   log(`\n${C.bold}Derived images${C.reset}`);
@@ -321,6 +338,32 @@ async function distributeAssets() {
 }
 // sharp is optional; import lazily so the script has zero hard deps.
 async function importSharp() { return (await import('sharp')).default; }
+
+/**
+ * Ensure every website page that uses the shared nav (keepance-nav.v2.css, which
+ * references the brand colour vars) also links the generated brand.css BEFORE it,
+ * so the vars are defined when the nav uses them. Self-healing: new pages get the
+ * link on the next sync. (The nav CSS also carries a hardcoded fallback, so a page
+ * is never broken even if this hasn't run.)
+ */
+function linkWebsiteBrandCss() {
+  log(`\n${C.bold}Website brand.css links${C.reset}`);
+  const navRe = /^([ \t]*)(<link\b[^>]*keepance-nav\.v2\.css[^>]*>)/im;
+  const pages = walk(path.join(ROOT, 'website'), (f) => f.endsWith('.html'));
+  let linked = 0, already = 0;
+  for (const f of pages) {
+    const text = read(f);
+    if (!navRe.test(text)) continue; // page doesn't use the shared nav
+    if (/styles\/brand\.css/.test(text)) { already++; continue; }
+    const next = text.replace(navRe, (_m, indent, navLink) =>
+      `${indent}<link rel="stylesheet" href="/styles/brand.css" />\n${indent}${navLink}`);
+    write(f, next);
+    linked++;
+  }
+  if (linked) ok(`linked brand.css into ${linked} nav page(s)`);
+  if (already) skip(`${already} nav page(s) already link brand.css`);
+  if (!linked && !already) skip('no shared-nav pages found');
+}
 
 function updateDisplayMetadata() {
   log(`\n${C.bold}Display metadata (load-bearing ids untouched)${C.reset}`);
@@ -424,6 +467,7 @@ function summary() {
   if (FLAGS.check) { log(''); runCheck(); return; }
   regenerateArtifacts();
   await distributeAssets();
+  linkWebsiteBrandCss();
   updateDisplayMetadata();
   if (FLAGS.rename) renameProse();
   writeAppliedState();
