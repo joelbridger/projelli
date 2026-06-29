@@ -253,7 +253,11 @@ mod tests {
     #[test]
     fn find_sidecar_hits_first_match() {
         let dir = tempfile::tempdir().unwrap();
-        let name = if cfg!(windows) { "whisper.exe" } else { "whisper" };
+        let name = if cfg!(windows) {
+            "whisper.exe"
+        } else {
+            "whisper"
+        };
         let expected = dir.path().join(name);
         fs::write(&expected, b"fake binary").unwrap();
         let found = find_sidecar_in(dir.path(), &["parakeet", "whisper"]);

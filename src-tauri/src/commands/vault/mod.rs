@@ -92,12 +92,10 @@ pub(crate) fn delete_vmk(workspace_id: &str) -> Result<(), VaultCommandError> {
 fn load_vmk(workspace_id: &str) -> Result<ZeroizedVmk, VaultCommandError> {
     let mut b64 = get_vmk_b64(workspace_id)?
         .ok_or_else(|| VaultCommandError::Locked("vault is locked — no VMK in keychain".into()))?;
-    let mut bytes = BASE64
-        .decode(&b64)
-        .map_err(|e| {
-            b64.zeroize();
-            VaultCommandError::Internal(format!("VMK base64 decode failed: {e}"))
-        })?;
+    let mut bytes = BASE64.decode(&b64).map_err(|e| {
+        b64.zeroize();
+        VaultCommandError::Internal(format!("VMK base64 decode failed: {e}"))
+    })?;
     if bytes.len() != 32 {
         let err = VaultCommandError::Internal(format!(
             "VMK has unexpected length {} (expected 32)",
@@ -509,8 +507,7 @@ pub async fn vault_read_file(
     let id = vault_id_for(root)?;
     let vmk = load_vmk(&id)?;
 
-    let plaintext = decrypt_file_at(&abs_path, vmk.as_bytes())
-        .map_err(VaultCommandError::from)?;
+    let plaintext = decrypt_file_at(&abs_path, vmk.as_bytes()).map_err(VaultCommandError::from)?;
 
     // vmk is dropped (and thus zeroized) at the end of this scope.
     Ok(plaintext)
@@ -576,8 +573,9 @@ pub async fn vault_unlock_with_recovery(
     let root = Path::new(&workspace);
 
     // 1. Read metadata (vault must be enabled).
-    let meta = VaultMetadata::read_from(root)
-        .map_err(|e| VaultCommandError::Io(format!("vault not enabled or metadata unreadable: {e}")))?;
+    let meta = VaultMetadata::read_from(root).map_err(|e| {
+        VaultCommandError::Io(format!("vault not enabled or metadata unreadable: {e}"))
+    })?;
 
     // 2. Decode the recovery wrap from JSON base64 fields to binary.
     let wrap = meta.recovery.to_wrap().map_err(|e| {
@@ -626,9 +624,7 @@ pub async fn vault_unlock_with_recovery(
 /// - The returned string is short-lived in JS memory; TS callers must not persist it.
 /// - The vault must already be unlocked; this command never touches the recovery phrase.
 #[tauri::command]
-pub async fn vault_export_vmk_for_escrow(
-    workspace: String,
-) -> Result<String, VaultCommandError> {
+pub async fn vault_export_vmk_for_escrow(workspace: String) -> Result<String, VaultCommandError> {
     let root = Path::new(&workspace);
 
     // Load the vault_id from metadata. Returns an error if vault is not enabled.
@@ -662,8 +658,9 @@ pub async fn vault_set_escrow_wraps(
     let root = Path::new(&workspace);
 
     // Read the current metadata — vault must already exist.
-    let mut meta = VaultMetadata::read_from(root)
-        .map_err(|e| VaultCommandError::Io(format!("vault not enabled or metadata unreadable: {e}")))?;
+    let mut meta = VaultMetadata::read_from(root).map_err(|e| {
+        VaultCommandError::Io(format!("vault not enabled or metadata unreadable: {e}"))
+    })?;
 
     // Replace the escrow section atomically.
     meta.escrow = Some(EscrowJson {
@@ -808,7 +805,9 @@ fn emit_progress(app: &tauri::AppHandle, done: usize, total: usize) {
 /// Returns 0 on any I/O error (best-effort; the walk itself will surface errors).
 fn count_eligible_files(root: &Path) -> usize {
     fn count_dir(dir: &Path) -> usize {
-        let Ok(rd) = std::fs::read_dir(dir) else { return 0; };
+        let Ok(rd) = std::fs::read_dir(dir) else {
+            return 0;
+        };
         let mut n = 0usize;
         for entry in rd.flatten() {
             let name = entry.file_name();
@@ -816,7 +815,9 @@ fn count_eligible_files(root: &Path) -> usize {
             if name_str == ".keepance-vault.json" || name_str.starts_with(".kpv-tmp-") {
                 continue;
             }
-            let Ok(ft) = entry.file_type() else { continue; };
+            let Ok(ft) = entry.file_type() else {
+                continue;
+            };
             if ft.is_dir() {
                 if name_str != ".keepance" {
                     n += count_dir(&entry.path());
@@ -844,7 +845,9 @@ fn find_any_encrypted_file(root: &Path) -> Result<Option<PathBuf>, VaultCommandE
             if name_str == ".keepance-vault.json" || name_str.starts_with(".kpv-tmp-") {
                 continue;
             }
-            let Ok(ft) = entry.file_type() else { continue; };
+            let Ok(ft) = entry.file_type() else {
+                continue;
+            };
             if ft.is_dir() {
                 if name_str != ".keepance" {
                     if let Some(p) = scan_dir(&entry.path())? {
@@ -871,7 +874,9 @@ fn find_any_encrypted_file(root: &Path) -> Result<Option<PathBuf>, VaultCommandE
 /// `has_vault_magic` safely without propagating read errors for individual files.
 fn read_header_bytes(path: &Path) -> Vec<u8> {
     use std::io::Read;
-    let Ok(mut f) = std::fs::File::open(path) else { return vec![]; };
+    let Ok(mut f) = std::fs::File::open(path) else {
+        return vec![];
+    };
     let mut buf = [0u8; 4];
     let n = f.read(&mut buf).unwrap_or(0);
     buf[..n].to_vec()
@@ -883,8 +888,9 @@ fn read_header_bytes(path: &Path) -> Vec<u8> {
 ///
 /// Returns an error if the vault is not enabled (no metadata file).
 fn vault_id_for(root: &Path) -> Result<String, VaultCommandError> {
-    let meta = VaultMetadata::read_from(root)
-        .map_err(|e| VaultCommandError::Io(format!("vault not enabled or metadata unreadable: {e}")))?;
+    let meta = VaultMetadata::read_from(root).map_err(|e| {
+        VaultCommandError::Io(format!("vault not enabled or metadata unreadable: {e}"))
+    })?;
     Ok(meta.vault_id)
 }
 
@@ -949,7 +955,10 @@ mod tests {
         let tmp2 = tempfile::tempdir().unwrap();
         let id1 = workspace_id(tmp1.path());
         let id2 = workspace_id(tmp2.path());
-        assert_ne!(id1, id2, "distinct paths must produce distinct workspace ids");
+        assert_ne!(
+            id1, id2,
+            "distinct paths must produce distinct workspace ids"
+        );
     }
 
     /// The id is a 64-char lowercase hex string (SHA-256 = 32 bytes = 64 hex chars).
@@ -959,7 +968,8 @@ mod tests {
         let id = workspace_id(tmp.path());
         assert_eq!(id.len(), 64, "workspace_id must be 64 hex chars");
         assert!(
-            id.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()),
+            id.chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()),
             "workspace_id must be lowercase hex"
         );
     }
@@ -1013,7 +1023,10 @@ mod tests {
         std::fs::create_dir_all(root.join("docs")).unwrap();
         std::fs::write(root.join("docs/contract.docx"), b"content").unwrap();
         let result = resolve_and_guard(root, "docs/contract.docx");
-        assert!(result.is_ok(), "legitimate rel_path must be accepted: {result:?}");
+        assert!(
+            result.is_ok(),
+            "legitimate rel_path must be accepted: {result:?}"
+        );
         let resolved = result.unwrap();
         assert!(
             resolved.starts_with(root.canonicalize().unwrap()),
@@ -1028,7 +1041,10 @@ mod tests {
         let root = tmp.path();
         std::fs::write(root.join("file.txt"), b"hi").unwrap();
         let result = resolve_and_guard(root, "/file.txt");
-        assert!(result.is_ok(), "leading slash should be stripped: {result:?}");
+        assert!(
+            result.is_ok(),
+            "leading slash should be stripped: {result:?}"
+        );
     }
 
     /// A filename that legitimately contains `..` as part of its name
@@ -1127,7 +1143,11 @@ mod tests {
 
         store_vmk(id, &vmk_b64).expect("store_vmk should succeed");
         let got = get_vmk_b64(id).expect("get_vmk_b64 should succeed");
-        assert_eq!(got, Some(vmk_b64.clone()), "VMK should round-trip through keychain");
+        assert_eq!(
+            got,
+            Some(vmk_b64.clone()),
+            "VMK should round-trip through keychain"
+        );
 
         delete_vmk(id).expect("delete_vmk should succeed");
         let after_delete = get_vmk_b64(id).expect("get_vmk_b64 after delete should succeed");
@@ -1152,7 +1172,8 @@ mod tests {
         let verifier_bytes = make_verifier(&vmk).expect("make_verifier should succeed");
 
         // Recover VMK from phrase + wrap.
-        let recovered = recover_vmk(&phrase, &wrap).expect("recover_vmk should succeed with correct phrase");
+        let recovered =
+            recover_vmk(&phrase, &wrap).expect("recover_vmk should succeed with correct phrase");
         assert_eq!(recovered, vmk, "recovered VMK must match original");
 
         // Verifier must pass against the recovered VMK.
@@ -1195,7 +1216,8 @@ mod tests {
         let (_phrase, wrap) = create_recovery(&vmk).expect("create_recovery should succeed");
 
         // A different checksum-VALID phrase (different entropy, different vault).
-        let (other_phrase, _) = create_recovery(&[0x55u8; 32]).expect("create_recovery should succeed");
+        let (other_phrase, _) =
+            create_recovery(&[0x55u8; 32]).expect("create_recovery should succeed");
 
         match recover_vmk(&other_phrase, &wrap) {
             Err(RecoveryError::DecryptFailed) => {} // expected
@@ -1239,13 +1261,11 @@ mod tests {
 
         // Call the internal logic of vault_set_escrow_wraps by exercising metadata directly.
         // (The Tauri command itself requires an async runtime; test the logic path.)
-        let wraps_to_set = vec![
-            AdminWrapJson {
-                user_id: "admin-user-1".into(),
-                device_id: "device-abc".into(),
-                wrapped_b64: "c29tZXdyYXBwZWRieXRlcw==".into(), // dummy base64
-            },
-        ];
+        let wraps_to_set = vec![AdminWrapJson {
+            user_id: "admin-user-1".into(),
+            device_id: "device-abc".into(),
+            wrapped_b64: "c29tZXdyYXBwZWRieXRlcw==".into(), // dummy base64
+        }];
 
         // Replicate the command's logic (read → set escrow → write).
         let mut updated = VaultMetadata::read_from(root).unwrap();
@@ -1257,7 +1277,9 @@ mod tests {
 
         // Read back and verify.
         let back = VaultMetadata::read_from(root).unwrap();
-        let escrow = back.escrow.expect("escrow section must be present after set");
+        let escrow = back
+            .escrow
+            .expect("escrow section must be present after set");
         assert_eq!(escrow.epoch, 1);
         assert_eq!(escrow.admin_wraps.len(), 1);
         assert_eq!(escrow.admin_wraps[0].user_id, "admin-user-1");
@@ -1325,8 +1347,8 @@ mod tests {
         use keepance_vault::{
             metadata::{RecoveryWrapJson, VaultMetadata},
             recovery::create_recovery,
-            verifier::make_verifier,
             vault::{decrypt_all, encrypt_all},
+            verifier::make_verifier,
         };
 
         let dir = tempfile::tempdir().unwrap();
@@ -1358,7 +1380,11 @@ mod tests {
 
         // Verify the files are actually encrypted now.
         let bytes = std::fs::read(root.join("doc1.txt")).unwrap();
-        assert_eq!(&bytes[..4], b"KPV1", "doc1.txt must be KPV1-encrypted after encrypt_all");
+        assert_eq!(
+            &bytes[..4],
+            b"KPV1",
+            "doc1.txt must be KPV1-encrypted after encrypt_all"
+        );
 
         // find_any_encrypted_file must find a KPV1 file.
         let found = find_any_encrypted_file(root).expect("scan should not error");
@@ -1390,11 +1416,17 @@ mod tests {
 
         // Verify files are decrypted.
         let bytes2 = std::fs::read(root.join("doc1.txt")).unwrap();
-        assert_eq!(bytes2, b"hello world", "doc1.txt must be plaintext after decrypt_all");
+        assert_eq!(
+            bytes2, b"hello world",
+            "doc1.txt must be plaintext after decrypt_all"
+        );
 
         // find_any_encrypted_file must return None.
         let clean = find_any_encrypted_file(root).expect("scan should not error");
-        assert!(clean.is_none(), "find_any_encrypted_file must return None after decrypt_all");
+        assert!(
+            clean.is_none(),
+            "find_any_encrypted_file must return None after decrypt_all"
+        );
 
         // vault_disable logic: no encrypted files → delete metadata + (keychain if present).
         // Directly simulate the disable (no async runtime, no keychain).

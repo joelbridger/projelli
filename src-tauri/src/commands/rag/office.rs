@@ -664,9 +664,7 @@ pub fn extract_rtf_text(bytes: &[u8]) -> Result<String> {
                             b"par" | b"line" | b"row" => {
                                 emit(&mut out, '\n', suppressed, &mut pending_skip)
                             }
-                            b"tab" | b"cell" => {
-                                emit(&mut out, '\t', suppressed, &mut pending_skip)
-                            }
+                            b"tab" | b"cell" => emit(&mut out, '\t', suppressed, &mut pending_skip),
                             b"u" => {
                                 // \uN — signed 16-bit code point. A new \u
                                 // means any previous fallback never appeared.
@@ -848,7 +846,9 @@ mod tests {
         let sections =
             extract_xlsx_sections(&read_corpus("damages-model.xlsx")).expect("extract xlsx");
         assert!(
-            sections[0].text.contains("Estimate — two PM peers received"),
+            sections[0]
+                .text
+                .contains("Estimate — two PM peers received"),
             "numeric character reference dropped:\n{}",
             sections[0].text
         );
@@ -944,9 +944,7 @@ mod tests {
                 if n >= total {
                     break;
                 }
-                rows.push_str(&format!(
-                    r#"<c t="inlineStr"><is><t>cell{n}</t></is></c>"#
-                ));
+                rows.push_str(&format!(r#"<c t="inlineStr"><is><t>cell{n}</t></is></c>"#));
                 n += 1;
             }
             rows.push_str("</row>");
@@ -1038,7 +1036,8 @@ mod tests {
 
     #[test]
     fn rtf_minimal_document_extracts_lines() {
-        let rtf = br"{\rtf1\ansi{\fonttbl{\f0 Arial;}}\f0 First line.\par Second {\b bold} line.\par}";
+        let rtf =
+            br"{\rtf1\ansi{\fonttbl{\f0 Arial;}}\f0 First line.\par Second {\b bold} line.\par}";
         assert_eq!(
             extract_rtf_text(rtf).expect("extract rtf"),
             "First line.\nSecond bold line."

@@ -188,7 +188,9 @@ impl SinkProgress {
 
 fn cached_file_len(cache_dir: &Path, file: &str) -> Option<u64> {
     let cache = hf_hub::Cache::new(cache_dir.to_path_buf());
-    let p = cache.repo(hf_hub::Repo::model(MODEL_REPO.to_string())).get(file)?;
+    let p = cache
+        .repo(hf_hub::Repo::model(MODEL_REPO.to_string()))
+        .get(file)?;
     std::fs::metadata(&p).ok().map(|m| m.len())
 }
 
@@ -204,12 +206,11 @@ fn download_all(
     // from_cache (not new().with_cache_dir(...)): `new()` reads the token
     // from the DEFAULT ~/.cache/huggingface and with_cache_dir doesn't reset
     // it — a stale user-level HF token could 401 where anonymous succeeds.
-    let api = hf_hub::api::sync::ApiBuilder::from_cache(hf_hub::Cache::new(
-        cache_dir.to_path_buf(),
-    ))
-    .with_progress(false) // no terminal bar; we emit our own events
-    .build()
-    .context("hf-hub api init")?;
+    let api =
+        hf_hub::api::sync::ApiBuilder::from_cache(hf_hub::Cache::new(cache_dir.to_path_buf()))
+            .with_progress(false) // no terminal bar; we emit our own events
+            .build()
+            .context("hf-hub api init")?;
     let repo = api.model(MODEL_REPO.to_string());
 
     let mut done_before: u64 = 0;
@@ -290,10 +291,9 @@ pub async fn model_status() -> Result<String, String> {
     }
     // resolve_cache_dir itself probes candidate dirs (a dozen fs syscalls),
     // so it belongs inside the blocking closure too.
-    let ready =
-        tokio::task::spawn_blocking(|| model_files_cached(&embedder::resolve_cache_dir()))
-            .await
-            .map_err(|e| e.to_string())?;
+    let ready = tokio::task::spawn_blocking(|| model_files_cached(&embedder::resolve_cache_dir()))
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(if ready { "ready" } else { "absent" }.into())
 }
 

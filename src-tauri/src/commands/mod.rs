@@ -39,3 +39,5 @@ pub mod docx;
 pub mod firm;
 // Wave 3b encrypted vault — create/status/read/write + keychain VMK integration.
 pub mod vault;
+// Advisor CRM connector — direct local calls to Wealthbox, no Keepance server.
+pub mod wealthbox;

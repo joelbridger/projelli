@@ -61,7 +61,11 @@ fn model_is_provisioned() -> bool {
 macro_rules! skip_without_model {
     () => {
         if !model_is_provisioned() {
-            if std::env::var("REQUIRE_RAG_MODEL").ok().filter(|v| !v.is_empty()).is_some() {
+            if std::env::var("REQUIRE_RAG_MODEL")
+                .ok()
+                .filter(|v| !v.is_empty())
+                .is_some()
+            {
                 panic!(
                     "REQUIRE_RAG_MODEL set but e5-small cache missing — \
                      refusing to silently skip RAG tests"
@@ -116,10 +120,8 @@ async fn nearest(
     for h in &mut hits {
         let enc = h.path_enc.as_deref().expect("V10 rows must carry path_enc");
         let blob = hex::decode(enc).expect("path_enc must be hex ciphertext");
-        let plain = String::from_utf8(
-            decrypt_with_key(&blob, &VEC_KEY).expect("decrypt path_enc"),
-        )
-        .expect("utf8 path");
+        let plain = String::from_utf8(decrypt_with_key(&blob, &VEC_KEY).expect("decrypt path_enc"))
+            .expect("utf8 path");
         h.path = plain.clone();
         h.source_id = Some(plain);
     }
@@ -188,8 +190,7 @@ fn corpus() -> Vec<Source> {
 fn load_source(src: &Source) -> (String, SourceType) {
     let path = format!("{FIXTURE_DIR}/{}", src.file);
     if src.file.ends_with(".docx") {
-        let bytes =
-            std::fs::read(&path).unwrap_or_else(|e| panic!("read fixture {path}: {e}"));
+        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("read fixture {path}: {e}"));
         let doc = keepance_docx::parse_docx_bytes(&bytes)
             .unwrap_or_else(|e| panic!("parse fixture {path}: {e}"));
         (
@@ -198,8 +199,7 @@ fn load_source(src: &Source) -> (String, SourceType) {
         )
     } else {
         (
-            std::fs::read_to_string(&path)
-                .unwrap_or_else(|e| panic!("read fixture {path}: {e}")),
+            std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read fixture {path}: {e}")),
             SourceType::Text,
         )
     }
@@ -216,8 +216,8 @@ fn load_groups(src: &Source) -> Vec<(SourceType, Vec<Chunk>)> {
     use keepance_lib::commands::rag::transcript;
     if src.file == WESTON_FILE {
         let path = format!("{FIXTURE_DIR}/{}", src.file);
-        let text = std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("read fixture {path}: {e}"));
+        let text =
+            std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read fixture {path}: {e}"));
         assert!(
             transcript::detect_transcript(&text),
             "the certified Weston fixture must detect as a transcript"
@@ -253,8 +253,12 @@ async fn fixture() -> Arc<Fixture> {
     FIXTURE
         .get_or_init(|| async {
             let dir = tempfile::tempdir().expect("tempdir");
-            let conn = store::open_connection(dir.path()).await.expect("open connection");
-            let table = store::open_or_create_table(&conn).await.expect("create table");
+            let conn = store::open_connection(dir.path())
+                .await
+                .expect("open connection");
+            let table = store::open_or_create_table(&conn)
+                .await
+                .expect("create table");
 
             for src in corpus() {
                 for (source_type, chunks) in load_groups(&src) {
@@ -313,7 +317,10 @@ async fn verify(table: &lancedb::Table, id: &str, claimed: &str, quoted: &str) -
                 other => other,
             })
             .collect();
-        straightened.split_whitespace().collect::<Vec<_>>().join(" ")
+        straightened
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
     };
     let decrypt = |hex_text: &str| -> String {
         let blob = hex::decode(hex_text).expect("record text must be hex ciphertext");
@@ -323,15 +330,16 @@ async fn verify(table: &lancedb::Table, id: &str, claimed: &str, quoted: &str) -
     match lookup_by_id(table, id, Some(claimed)).await.unwrap() {
         Some(rec) => {
             let plaintext = decrypt(&rec.text);
-            if normalize(&plaintext).contains(&normalize(quoted)) && !normalize(quoted).is_empty()
-            {
+            if normalize(&plaintext).contains(&normalize(quoted)) && !normalize(quoted).is_empty() {
                 Verdict::Verified
             } else {
                 Verdict::TextMismatch
             }
         }
         None => match lookup_by_id(table, id, None).await.unwrap() {
-            Some(other) => Verdict::MatterMismatch { actual_matter: other.matter_id },
+            Some(other) => Verdict::MatterMismatch {
+                actual_matter: other.matter_id,
+            },
             None => Verdict::NotFound,
         },
     }
@@ -340,10 +348,7 @@ async fn verify(table: &lancedb::Table, id: &str, claimed: &str, quoted: &str) -
 /// Find the first hit (scoped retrieval result) whose DECRYPTED text contains
 /// `needle`; panics with the result set listing when absent — the panic
 /// message is the finding.
-fn hit_containing<'a>(
-    hits: &'a [store::StoredHit],
-    needle: &str,
-) -> &'a store::StoredHit {
+fn hit_containing<'a>(hits: &'a [store::StoredHit], needle: &str) -> &'a store::StoredHit {
     hits.iter()
         .find(|h| decrypt_hit(h).contains(needle))
         .unwrap_or_else(|| {
@@ -356,24 +361,28 @@ fn hit_containing<'a>(
 
 /// Retrieve + assert a passage containing `needle` comes back from `source`,
 /// with a reproducible chunk id and a citation that VERIFIES.
-async fn assert_cited_passage(
-    f: &Fixture,
-    query: &str,
-    matter: &str,
-    source: &str,
-    needle: &str,
-) {
+async fn assert_cited_passage(f: &Fixture, query: &str, matter: &str, source: &str, needle: &str) {
     let q = embed(query).await;
-    let hits = nearest(&f.table, &q, 8, Some(matter), false).await.expect("retrieve");
+    let hits = nearest(&f.table, &q, 8, Some(matter), false)
+        .await
+        .expect("retrieve");
     assert!(!hits.is_empty(), "no hits for {query:?}");
     let hit = hit_containing(&hits, needle);
-    assert_eq!(hit.source_id.as_deref(), Some(source), "wrong source for {needle:?}");
+    assert_eq!(
+        hit.source_id.as_deref(),
+        Some(source),
+        "wrong source for {needle:?}"
+    );
     assert_eq!(hit.matter_id.as_deref(), Some(matter));
     // Citation key is content-addressed + reproducible.
     assert_eq!(hit.id, store::chunk_id(source, hit.paragraph_index));
     // And the citation VERIFIES (quote is a verbatim substring of the chunk).
     let verdict = verify(&f.table, &hit.id, matter, needle).await;
-    assert_eq!(verdict, Verdict::Verified, "citation for {needle:?} must verify");
+    assert_eq!(
+        verdict,
+        Verdict::Verified,
+        "citation for {needle:?} must verify"
+    );
 }
 
 // ===========================================================================
@@ -424,10 +433,18 @@ async fn c1_summary_side_company_servers_only_retrieves_and_verifies() {
 async fn c2_deadline_both_sides_retrievable_each_with_verifying_citation() {
     skip_without_model!();
     let f = fixture().await;
-    let q = embed("what deadline was Johnson given to submit his written response about the expense review").await;
-    let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false).await.unwrap();
+    let q = embed(
+        "what deadline was Johnson given to submit his written response about the expense review",
+    )
+    .await;
+    let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false)
+        .await
+        .unwrap();
 
-    let transcript = hit_containing(&hits, "until October 17, 2025 to submit my written response");
+    let transcript = hit_containing(
+        &hits,
+        "until October 17, 2025 to submit my written response",
+    );
     assert_eq!(
         transcript.source_id.as_deref(),
         Some("/matter-corpus/deposition-transcript-johnson.txt")
@@ -459,14 +476,22 @@ async fn c3_severance_both_sides_retrievable_each_with_verifying_citation() {
     skip_without_model!();
     let f = fixture().await;
     let q = embed("how many weeks of severance was Johnson offered when he was terminated").await;
-    let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false).await.unwrap();
+    let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false)
+        .await
+        .unwrap();
 
     let transcript = hit_containing(&hits, "a document describing a four-week severance");
     assert_eq!(
         transcript.source_id.as_deref(),
         Some("/matter-corpus/deposition-transcript-johnson.txt")
     );
-    let v1 = verify(&f.table, &transcript.id, MATTER_JOHNSON, "four-week severance").await;
+    let v1 = verify(
+        &f.table,
+        &transcript.id,
+        MATTER_JOHNSON,
+        "four-week severance",
+    )
+    .await;
     assert_eq!(v1, Verdict::Verified);
 
     let summary = hit_containing(&hits, "eight (8) weeks of base salary continuation");
@@ -501,7 +526,9 @@ async fn johnson_contradiction_queries_scoped_to_acme_return_no_johnson_content(
         "how many weeks of severance was Johnson offered when he was terminated",
     ] {
         let q = embed(query).await;
-        let hits = nearest(&f.table, &q, 8, Some(MATTER_ACME_B), false).await.unwrap();
+        let hits = nearest(&f.table, &q, 8, Some(MATTER_ACME_B), false)
+            .await
+            .unwrap();
         for h in &hits {
             assert_eq!(
                 h.matter_id.as_deref(),
@@ -533,7 +560,9 @@ async fn acme_query_scoped_to_johnson_returns_no_acme_content() {
         "what supply shipments did Road Runner fail to deliver",
     ] {
         let q = embed(query).await;
-        let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false).await.unwrap();
+        let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false)
+            .await
+            .unwrap();
         for h in &hits {
             assert_eq!(
                 h.matter_id.as_deref(),
@@ -583,10 +612,17 @@ async fn acme_intake_memo_never_leaks_into_johnson_scope() {
     // The contract-rate query under JOHNSON scope: the Acme intake memo (a
     // .docx in ANOTHER matter, contract-flavored content) must never appear.
     let q = embed("what hourly rate does the services agreement set for the firm's work").await;
-    let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false).await.unwrap();
+    let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false)
+        .await
+        .unwrap();
     assert!(!hits.is_empty());
     for h in &hits {
-        assert_eq!(h.matter_id.as_deref(), Some(MATTER_JOHNSON), "LEAK: {:?}", h.source_id);
+        assert_eq!(
+            h.matter_id.as_deref(),
+            Some(MATTER_JOHNSON),
+            "LEAK: {:?}",
+            h.source_id
+        );
         assert_ne!(
             h.source_id.as_deref(),
             Some("/matter-corpus/matter-b-acme/intake-memo-acme.docx"),
@@ -613,8 +649,10 @@ fn parse_locator(loc: &str) -> ((u32, u32), (u32, u32)) {
             .split_once(':')
             .unwrap_or_else(|| panic!("malformed locator {loc:?}"));
         (
-            p.parse().unwrap_or_else(|_| panic!("malformed locator {loc:?}")),
-            l.parse().unwrap_or_else(|_| panic!("malformed locator {loc:?}")),
+            p.parse()
+                .unwrap_or_else(|_| panic!("malformed locator {loc:?}")),
+            l.parse()
+                .unwrap_or_else(|_| panic!("malformed locator {loc:?}")),
         )
     };
     let (start, end) = loc
@@ -628,7 +666,9 @@ async fn certified_transcript_chunks_carry_page_line_locators() {
     skip_without_model!();
     let f = fixture().await;
     let q = embed("when did the litigation hold notice go out to the infrastructure team").await;
-    let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false).await.unwrap();
+    let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false)
+        .await
+        .unwrap();
 
     // The planted sentence's chunk comes back from the CERTIFIED transcript
     // (needle = the contiguous spoken words of fixture page 2 line 14).
@@ -655,7 +695,10 @@ async fn certified_transcript_chunks_carry_page_line_locators() {
 
     // The citation key is content-addressed exactly as ever — the locator is
     // metadata ON TOP of the unchanged sequential paragraph_index.
-    assert_eq!(hit.id, store::chunk_id(WESTON_SOURCE_ID, hit.paragraph_index));
+    assert_eq!(
+        hit.id,
+        store::chunk_id(WESTON_SOURCE_ID, hit.paragraph_index)
+    );
 
     // And the quote VERIFIES with the full spoken sentence, whitespace-
     // normalized across the transcript's line wraps (the gutter is stripped,
@@ -667,7 +710,11 @@ async fn certified_transcript_chunks_carry_page_line_locators() {
         "The litigation hold notice went out to the cloud infrastructure team on September 12, 2025.",
     )
     .await;
-    assert_eq!(verdict, Verdict::Verified, "the Tr. {locator} citation must verify");
+    assert_eq!(
+        verdict,
+        Verdict::Verified,
+        "the Tr. {locator} citation must verify"
+    );
 }
 
 #[tokio::test]
@@ -677,7 +724,9 @@ async fn certified_transcript_stays_out_of_acme_scope() {
     // else: Weston content never surfaces under the Acme matter.
     let f = fixture().await;
     let q = embed("when did the litigation hold notice go out to the infrastructure team").await;
-    let hits = nearest(&f.table, &q, 8, Some(MATTER_ACME_B), false).await.unwrap();
+    let hits = nearest(&f.table, &q, 8, Some(MATTER_ACME_B), false)
+        .await
+        .unwrap();
     for h in &hits {
         assert_eq!(
             h.matter_id.as_deref(),
@@ -718,12 +767,19 @@ async fn finder_retrieval_query_at_top_k_12_feeds_both_sides_of_all_three_contra
     let f = fixture().await;
     let q = embed(FINDER_QUERY).await;
     // topK 12 = the template's own setting (DepositionContradictionFinder.ts:128).
-    let hits = nearest(&f.table, &q, 12, Some(MATTER_JOHNSON), false).await.unwrap();
+    let hits = nearest(&f.table, &q, 12, Some(MATTER_JOHNSON), false)
+        .await
+        .unwrap();
     assert!(!hits.is_empty());
 
     // Scope hygiene inside the feed.
     for h in &hits {
-        assert_eq!(h.matter_id.as_deref(), Some(MATTER_JOHNSON), "LEAK: {:?}", h.source_id);
+        assert_eq!(
+            h.matter_id.as_deref(),
+            Some(MATTER_JOHNSON),
+            "LEAK: {:?}",
+            h.source_id
+        );
     }
 
     // Both source documents are present in the feed…
@@ -741,16 +797,20 @@ async fn finder_retrieval_query_at_top_k_12_feeds_both_sides_of_all_three_contra
     // …and the union of retrieved text covers BOTH sides of ALL THREE
     // contradictions — the necessary condition for the LLM step to be able
     // to flag them with real citations.
-    let joined = hits.iter().map(|h| decrypt_hit(h)).collect::<Vec<_>>().join("\n---\n");
+    let joined = hits
+        .iter()
+        .map(|h| decrypt_hit(h))
+        .collect::<Vec<_>>()
+        .join("\n---\n");
     for needle in [
         "I forwarded them to my personal email for safekeeping", // C1 transcript
         // C1 summary — fixture-exact incl. the hard line wrap
         // (incident-summary-johnson.md:29-30; same correction as the C1 test).
         "all relevant documents\nremained on company servers only",
-        "October 17, 2025",  // C2 transcript
-        "October 10, 2025",  // C2 summary
+        "October 17, 2025",    // C2 transcript
+        "October 10, 2025",    // C2 summary
         "four-week severance", // C3 transcript
-        "eight (8) weeks",   // C3 summary
+        "eight (8) weeks",     // C3 summary
     ] {
         assert!(
             joined.contains(needle),
@@ -801,8 +861,12 @@ async fn fixture_with_filler() -> Arc<Fixture> {
     FIXTURE_FILLER
         .get_or_init(|| async {
             let dir = tempfile::tempdir().expect("tempdir");
-            let conn = store::open_connection(dir.path()).await.expect("open connection");
-            let table = store::open_or_create_table(&conn).await.expect("create table");
+            let conn = store::open_connection(dir.path())
+                .await
+                .expect("open connection");
+            let table = store::open_or_create_table(&conn)
+                .await
+                .expect("create table");
 
             for src in corpus_with_filler() {
                 for (source_type, chunks) in load_groups(&src) {
@@ -810,11 +874,12 @@ async fn fixture_with_filler() -> Arc<Fixture> {
                         continue;
                     }
                     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-                    let vectors =
-                        keepance_lib::commands::rag::embedder::embed_documents_batched(&texts, None)
-                            .await
-                            .expect("embed documents (is the e5-small cache provisioned?)")
-                            .expect("not cancelled");
+                    let vectors = keepance_lib::commands::rag::embedder::embed_documents_batched(
+                        &texts, None,
+                    )
+                    .await
+                    .expect("embed documents (is the e5-small cache provisioned?)")
+                    .expect("not cancelled");
                     let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
                     let batch = store::build_batch(
                         &rows,
@@ -850,7 +915,9 @@ async fn fixture_with_filler() -> Arc<Fixture> {
 async fn f510_raw_finder_feed_composition_with_filler_is_recorded() {
     let f = fixture_with_filler().await;
     let q = embed(FINDER_QUERY).await;
-    let hits = nearest(&f.table, &q, 12, Some(MATTER_JOHNSON), false).await.unwrap();
+    let hits = nearest(&f.table, &q, 12, Some(MATTER_JOHNSON), false)
+        .await
+        .unwrap();
 
     let mut counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
     for h in &hits {
@@ -882,7 +949,9 @@ async fn f510_capped_finder_feed_contains_both_sides_of_all_three() {
     let f = fixture_with_filler().await;
     let q = embed(FINDER_QUERY).await;
     // Production overfetch: top_k 12 * 4 = 48 (rag_retrieve's own arithmetic).
-    let raw = nearest(&f.table, &q, 48, Some(MATTER_JOHNSON), false).await.unwrap();
+    let raw = nearest(&f.table, &q, 48, Some(MATTER_JOHNSON), false)
+        .await
+        .unwrap();
 
     // Build Hits the way rag_retrieve does, then apply the PRODUCTION cap.
     let mut hits: Vec<Hit> = raw
@@ -903,7 +972,11 @@ async fn f510_capped_finder_feed_contains_both_sides_of_all_three() {
             locator: h.locator.clone(),
         })
         .collect();
-    hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    hits.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     let hits = cap_per_source(hits, 4, 12);
 
     assert!(!hits.is_empty());
@@ -912,21 +985,30 @@ async fn f510_capped_finder_feed_contains_both_sides_of_all_three() {
     // Scope hygiene inside the capped feed (the cap may only NARROW the
     // already-scoped feed — never widen it).
     for h in &hits {
-        assert_eq!(h.matter_id.as_deref(), Some(MATTER_JOHNSON), "LEAK: {:?}", h.source_id);
+        assert_eq!(
+            h.matter_id.as_deref(),
+            Some(MATTER_JOHNSON),
+            "LEAK: {:?}",
+            h.source_id
+        );
     }
 
     // With the cap, the planted sides survive the filler: both sides of all
     // three contradictions are in the capped feed.
-    let joined = hits.iter().map(|h| h.chunk_text.clone()).collect::<Vec<_>>().join("\n---\n");
+    let joined = hits
+        .iter()
+        .map(|h| h.chunk_text.clone())
+        .collect::<Vec<_>>()
+        .join("\n---\n");
     for needle in [
         "I forwarded them to my personal email for safekeeping", // C1 transcript
         // C1 summary — fixture-exact incl. the hard line wrap
         // (incident-summary-johnson.md:29-30; same correction as the C1 test).
         "all relevant documents\nremained on company servers only",
-        "October 17, 2025",  // C2 transcript
-        "October 10, 2025",  // C2 summary
+        "October 17, 2025",    // C2 transcript
+        "October 10, 2025",    // C2 summary
         "four-week severance", // C3 transcript
-        "eight (8) weeks",   // C3 summary
+        "eight (8) weeks",     // C3 summary
     ] {
         assert!(
             joined.contains(needle),

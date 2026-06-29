@@ -44,15 +44,13 @@
 ///
 /// Total size: ~465 MB (ONNX + tokenizer + config files). Not committed to git.
 /// The .gitignore excludes the populated directory; only .gitkeep is committed.
-
 use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 use std::path::PathBuf;
 
 fn main() -> anyhow::Result<()> {
     // Derive the resources/embeddings path relative to the CWD so this binary
     // works when `cargo run --bin prefetch_model` is invoked from `src-tauri/`.
-    let cwd = std::env::current_dir()
-        .expect("could not read current directory");
+    let cwd = std::env::current_dir().expect("could not read current directory");
     let cache_dir = cwd.join("resources").join("embeddings");
     std::fs::create_dir_all(&cache_dir)?;
 
@@ -122,14 +120,18 @@ fn resolve_symlinks(dir: &PathBuf) -> anyhow::Result<usize> {
 
 fn print_tree(dir: &PathBuf, depth: usize) {
     let indent = "  ".repeat(depth);
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
     let mut entries: Vec<_> = entries.flatten().collect();
     entries.sort_by_key(|e| e.path());
     for entry in entries {
         let path = entry.path();
         let name = path.file_name().unwrap_or_default().to_string_lossy();
         if path.is_symlink() {
-            let target = std::fs::read_link(&path).map(|t| t.display().to_string()).unwrap_or("?".into());
+            let target = std::fs::read_link(&path)
+                .map(|t| t.display().to_string())
+                .unwrap_or("?".into());
             println!("{indent}{name}  -> {target}  [SYMLINK — will be resolved]");
         } else if path.is_dir() {
             println!("{indent}{name}/");
@@ -142,16 +144,21 @@ fn print_tree(dir: &PathBuf, depth: usize) {
 }
 
 fn dir_size(dir: &PathBuf) -> u64 {
-    let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
-    entries.flatten().map(|e| {
-        let p = e.path();
-        if p.is_symlink() {
-            // Should not happen after resolve_symlinks(), but handle gracefully.
-            0
-        } else if p.is_dir() {
-            dir_size(&p)
-        } else {
-            std::fs::metadata(&p).map(|m| m.len()).unwrap_or(0)
-        }
-    }).sum()
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .map(|e| {
+            let p = e.path();
+            if p.is_symlink() {
+                // Should not happen after resolve_symlinks(), but handle gracefully.
+                0
+            } else if p.is_dir() {
+                dir_size(&p)
+            } else {
+                std::fs::metadata(&p).map(|m| m.len()).unwrap_or(0)
+            }
+        })
+        .sum()
 }

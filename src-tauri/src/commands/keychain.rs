@@ -25,6 +25,7 @@ const INTERNAL_EXACT_SERVICES: &[&str] = &[
     "keepance-mail-ms",
     "keepance-mail-imap",
     "keepance-mail-gmail",
+    "keepance-wealthbox",
 ];
 const INTERNAL_SERVICE_PREFIXES: &[&str] = &[
     // Vault VMKs are Rust-owned. Firm collaboration keys use

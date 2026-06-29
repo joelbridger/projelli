@@ -26,13 +26,9 @@ pub async fn extract_tarball(
         .map_err(|e| format!("join error: {}", e))?
 }
 
-fn extract_tarball_blocking(
-    tarball_path: &str,
-    dest_path: &str,
-) -> Result<Vec<String>, String> {
+fn extract_tarball_blocking(tarball_path: &str, dest_path: &str) -> Result<Vec<String>, String> {
     let dest = PathBuf::from(dest_path);
-    std::fs::create_dir_all(&dest)
-        .map_err(|e| format!("create dest {}: {}", dest.display(), e))?;
+    std::fs::create_dir_all(&dest).map_err(|e| format!("create dest {}: {}", dest.display(), e))?;
     let dest_canonical = dest
         .canonicalize()
         .map_err(|e| format!("canonicalize dest {}: {}", dest.display(), e))?;
@@ -171,7 +167,11 @@ mod tests {
                 .append_data(&mut header, name, &mut std::io::Cursor::new(*data))
                 .expect("append");
         }
-        builder.into_inner().expect("finish").finish().expect("gz finish");
+        builder
+            .into_inner()
+            .expect("finish")
+            .finish()
+            .expect("gz finish");
         path
     }
 
@@ -194,7 +194,10 @@ mod tests {
             // Overwrite the raw name field after the header is otherwise set up.
             let gnu = header.as_gnu_mut().expect("gnu header");
             let bytes = name.as_bytes();
-            assert!(bytes.len() <= gnu.name.len(), "raw name too long for fixture");
+            assert!(
+                bytes.len() <= gnu.name.len(),
+                "raw name too long for fixture"
+            );
             gnu.name[..bytes.len()].copy_from_slice(bytes);
         }
         // Checksum must be computed after the name is written.
@@ -204,7 +207,11 @@ mod tests {
         builder
             .append(&header, std::io::Cursor::new(data))
             .expect("append raw entry");
-        builder.into_inner().expect("finish").finish().expect("gz finish");
+        builder
+            .into_inner()
+            .expect("finish")
+            .finish()
+            .expect("gz finish");
         path
     }
 
@@ -212,10 +219,7 @@ mod tests {
     fn extracts_clean_tarball() {
         let dir = tempdir().expect("tmp");
         let dest = dir.path().join("dest");
-        let tar = build_tarball(
-            dir.path(),
-            &[("a.txt", b"hello"), ("sub/b.txt", b"world")],
-        );
+        let tar = build_tarball(dir.path(), &[("a.txt", b"hello"), ("sub/b.txt", b"world")]);
         let got = extract_tarball_blocking(tar.to_str().unwrap(), dest.to_str().unwrap())
             .expect("extract");
         assert_eq!(got.len(), 2);
@@ -259,14 +263,16 @@ mod tests {
         header.set_entry_type(tar::EntryType::Symlink);
         header.set_size(0);
         header.set_mode(0o777);
-        header
-            .set_link_name("/etc/passwd")
-            .expect("link name");
+        header.set_link_name("/etc/passwd").expect("link name");
         header.set_cksum();
         builder
             .append_data(&mut header, "evil", &mut std::io::empty())
             .expect("append");
-        builder.into_inner().expect("finish").finish().expect("gz finish");
+        builder
+            .into_inner()
+            .expect("finish")
+            .finish()
+            .expect("gz finish");
 
         let res = extract_tarball_blocking(path.to_str().unwrap(), dest.to_str().unwrap());
         assert!(res.is_err(), "expected refusal, got {:?}", res);
@@ -276,12 +282,8 @@ mod tests {
     fn creates_nested_directories_for_files() {
         let dir = tempdir().expect("tmp");
         let dest = dir.path().join("dest");
-        let tar = build_tarball(
-            dir.path(),
-            &[("deep/nested/leaf.txt", b"abc")],
-        );
-        extract_tarball_blocking(tar.to_str().unwrap(), dest.to_str().unwrap())
-            .expect("extract");
+        let tar = build_tarball(dir.path(), &[("deep/nested/leaf.txt", b"abc")]);
+        extract_tarball_blocking(tar.to_str().unwrap(), dest.to_str().unwrap()).expect("extract");
         assert!(dest.join("deep/nested/leaf.txt").exists());
     }
 

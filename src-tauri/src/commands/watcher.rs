@@ -55,9 +55,9 @@ pub fn map_event_kind(kind: &EventKind) -> Option<ChangeKind> {
         EventKind::Create(CreateKind::File | CreateKind::Folder | CreateKind::Any) => {
             Some(ChangeKind::Create)
         }
-        EventKind::Modify(ModifyKind::Name(RenameMode::To | RenameMode::From | RenameMode::Both)) => {
-            Some(ChangeKind::Rename)
-        }
+        EventKind::Modify(ModifyKind::Name(
+            RenameMode::To | RenameMode::From | RenameMode::Both,
+        )) => Some(ChangeKind::Rename),
         EventKind::Modify(_) => Some(ChangeKind::Modify),
         EventKind::Remove(RemoveKind::File | RemoveKind::Folder | RemoveKind::Any) => {
             Some(ChangeKind::Delete)
@@ -153,7 +153,9 @@ pub async fn watch_workspace(app: AppHandle, path: String) -> Result<(), String>
         .map_err(|e| format!("failed to start watcher: {}", e))?;
 
     // Replace any existing watcher AFTER the new one is live.
-    let mut slot = WATCHER_SLOT.lock().map_err(|e| format!("watcher slot poisoned: {}", e))?;
+    let mut slot = WATCHER_SLOT
+        .lock()
+        .map_err(|e| format!("watcher slot poisoned: {}", e))?;
     *slot = Some(ActiveWatcher {
         _watcher: watcher,
         _debouncer: debouncer,

@@ -58,8 +58,7 @@ pub fn decrypt_with_key(blob: &[u8], key: &[u8; KEY_LEN]) -> Result<Vec<u8>> {
 /// Get the master key from the OS keychain, creating and storing it on first call.
 /// Returns the 32-byte key as a fixed-size array.
 pub fn get_or_create_master_key() -> Result<[u8; KEY_LEN]> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_KEY)
-        .context("keychain entry")?;
+    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_KEY).context("keychain entry")?;
     match entry.get_password() {
         Ok(hex) => {
             let bytes = hex::decode(hex.trim()).context("decode master key hex")?;

@@ -13,11 +13,11 @@
 //! current implementation tries the same host and returns a clear error if it
 //! fails — the user can diagnose from the error message.
 
-use anyhow::Context as _;
 use crate::commands::mail::AttachmentInput;
+use anyhow::Context as _;
 use lettre::{
-    message::{Attachment, Mailboxes, MultiPart, SinglePart},
     message::header::ContentType as LettreContentType,
+    message::{Attachment, Mailboxes, MultiPart, SinglePart},
     transport::smtp::authentication::Credentials,
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
 };
@@ -92,8 +92,7 @@ pub async fn smtp_send(
             .context("build RFC822 message for SMTP")?
     } else {
         use base64::Engine;
-        let mut mixed = MultiPart::mixed()
-            .singlepart(SinglePart::plain(body.to_string()));
+        let mut mixed = MultiPart::mixed().singlepart(SinglePart::plain(body.to_string()));
         for att in attachments {
             let bytes = base64::engine::general_purpose::STANDARD
                 .decode(&att.content_base64)
@@ -141,7 +140,11 @@ mod tests {
 
         let email = Message::builder()
             .from("sender@example.com".parse().unwrap())
-            .to(Mailboxes::from_str("recipient@example.com").unwrap().into_iter().next().unwrap())
+            .to(Mailboxes::from_str("recipient@example.com")
+                .unwrap()
+                .into_iter()
+                .next()
+                .unwrap())
             .subject("Test reply")
             .in_reply_to("<original@mail.example.com>".to_string())
             .references("<original@mail.example.com>".to_string())
@@ -150,8 +153,17 @@ mod tests {
 
         let formatted = email.formatted();
         let raw = String::from_utf8_lossy(&formatted);
-        assert!(raw.contains("In-Reply-To:"), "missing In-Reply-To header: {raw}");
-        assert!(raw.contains("References:"), "missing References header: {raw}");
-        assert!(raw.contains("Subject: Test reply"), "missing Subject: {raw}");
+        assert!(
+            raw.contains("In-Reply-To:"),
+            "missing In-Reply-To header: {raw}"
+        );
+        assert!(
+            raw.contains("References:"),
+            "missing References header: {raw}"
+        );
+        assert!(
+            raw.contains("Subject: Test reply"),
+            "missing Subject: {raw}"
+        );
     }
 }

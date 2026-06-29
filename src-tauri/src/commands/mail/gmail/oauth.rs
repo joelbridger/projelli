@@ -73,12 +73,21 @@ pub(crate) fn urlencoding_encode(s: &str) -> String {
     let mut out = String::with_capacity(s.len() * 3);
     for b in s.bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
-            | b'-' | b'.' | b'_' | b'~' => out.push(b as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                out.push(b as char)
+            }
             _ => {
                 out.push('%');
-                out.push(char::from_digit((b >> 4) as u32, 16).unwrap().to_ascii_uppercase());
-                out.push(char::from_digit((b & 0xf) as u32, 16).unwrap().to_ascii_uppercase());
+                out.push(
+                    char::from_digit((b >> 4) as u32, 16)
+                        .unwrap()
+                        .to_ascii_uppercase(),
+                );
+                out.push(
+                    char::from_digit((b & 0xf) as u32, 16)
+                        .unwrap()
+                        .to_ascii_uppercase(),
+                );
             }
         }
     }
@@ -179,7 +188,12 @@ impl GoogleOAuth {
             .connect_timeout(Duration::from_secs(15))
             .build()
             .expect("build reqwest client");
-        Self { client_id, client_secret, base, http }
+        Self {
+            client_id,
+            client_secret,
+            base,
+            http,
+        }
     }
 
     /// Exchange an authorization code (plus PKCE verifier) for tokens.
@@ -231,10 +245,7 @@ impl GoogleOAuth {
 /// Shared token-response parser. Mirrors the empty-token guard in M365 oauth.rs.
 fn parse_token_response(status: u16, v: &serde_json::Value) -> anyhow::Result<GoogleTokens> {
     if status == 200 {
-        let access = v
-            .get("access_token")
-            .and_then(|s| s.as_str())
-            .unwrap_or("");
+        let access = v.get("access_token").and_then(|s| s.as_str()).unwrap_or("");
         if access.is_empty() {
             return Err(anyhow!("token response had no access_token"));
         }
@@ -244,10 +255,7 @@ fn parse_token_response(status: u16, v: &serde_json::Value) -> anyhow::Result<Go
                 .get("refresh_token")
                 .and_then(|s| s.as_str())
                 .map(String::from),
-            expires_in: v
-                .get("expires_in")
-                .and_then(|x| x.as_u64())
-                .unwrap_or(3600),
+            expires_in: v.get("expires_in").and_then(|x| x.as_u64()).unwrap_or(3600),
         });
     }
     let err = v
@@ -407,7 +415,9 @@ mod tests {
         assert_eq!(verifier.len(), 64, "verifier must be 64 chars");
         // Must be URL-safe base64 (no +, /, or =).
         assert!(
-            verifier.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'),
+            verifier
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'),
             "verifier must be URL-safe base64url chars: {verifier}"
         );
 
@@ -415,7 +425,10 @@ mod tests {
         let expected_hash = Sha256::digest(verifier.as_bytes());
         let expected_challenge =
             base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(expected_hash);
-        assert_eq!(challenge, expected_challenge, "challenge must be S256 of verifier");
+        assert_eq!(
+            challenge, expected_challenge,
+            "challenge must be S256 of verifier"
+        );
     }
 
     #[test]
@@ -441,25 +454,36 @@ mod tests {
         // redirect_uri is percent-encoded
         assert!(url.contains("127.0.0.1"), "missing redirect host");
         assert!(url.contains("challenge_abc"), "missing code_challenge");
-        assert!(url.contains("code_challenge_method=S256"), "missing S256 method");
+        assert!(
+            url.contains("code_challenge_method=S256"),
+            "missing S256 method"
+        );
         assert!(url.contains("state_xyz"), "missing state");
         // gmail.readonly scope (encoded)
         assert!(
             url.contains("gmail.readonly"),
             "gmail.readonly scope missing from URL: {url}"
         );
-        assert!(url.contains("gmail.send"), "gmail.send scope missing from URL: {url}");
-        assert!(url.contains("access_type=offline"), "missing access_type=offline");
+        assert!(
+            url.contains("gmail.send"),
+            "gmail.send scope missing from URL: {url}"
+        );
+        assert!(
+            url.contains("access_type=offline"),
+            "missing access_type=offline"
+        );
         assert!(url.contains("prompt=consent"), "missing prompt=consent");
-        assert!(url.contains("response_type=code"), "missing response_type=code");
+        assert!(
+            url.contains("response_type=code"),
+            "missing response_type=code"
+        );
     }
 
     // ── Redirect parser ───────────────────────────────────────────────────
 
     #[test]
     fn parse_redirect_query_happy_path() {
-        let result =
-            parse_redirect_query("GET /?code=abc&state=xyz HTTP/1.1");
+        let result = parse_redirect_query("GET /?code=abc&state=xyz HTTP/1.1");
         assert_eq!(result, Some(("abc".to_string(), "xyz".to_string())));
     }
 
@@ -544,7 +568,10 @@ mod tests {
             .expect("refresh should succeed");
 
         assert_eq!(tokens.access, "AT_refreshed");
-        assert!(tokens.refresh.is_none(), "refresh may not return a new refresh_token");
+        assert!(
+            tokens.refresh.is_none(),
+            "refresh may not return a new refresh_token"
+        );
         assert_eq!(tokens.expires_in, 3600);
     }
 
@@ -571,7 +598,10 @@ mod tests {
             .await;
         assert!(result.is_err(), "missing access_token must be an error");
         let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("access_token"), "error message should mention access_token: {msg}");
+        assert!(
+            msg.contains("access_token"),
+            "error message should mention access_token: {msg}"
+        );
     }
 
     #[tokio::test]
@@ -619,14 +649,17 @@ mod tests {
             .await;
         assert!(result.is_err(), "non-200 must be an error");
         let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("invalid_grant"), "error should surface google error: {msg}");
+        assert!(
+            msg.contains("invalid_grant"),
+            "error should surface google error: {msg}"
+        );
     }
 
     // ── client_secret is sent in both exchange and refresh ────────────────────
 
     #[tokio::test]
     async fn exchange_code_sends_client_secret() {
-        use wiremock::matchers::{method, path, body_string_contains};
+        use wiremock::matchers::{body_string_contains, method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let server = MockServer::start().await;
@@ -648,12 +681,16 @@ mod tests {
         let result = auth
             .exchange_code("code123", "verifier123", "http://127.0.0.1:1234")
             .await;
-        assert!(result.is_ok(), "exchange_code must succeed when client_secret is present: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "exchange_code must succeed when client_secret is present: {:?}",
+            result.err()
+        );
     }
 
     #[tokio::test]
     async fn refresh_sends_client_secret() {
-        use wiremock::matchers::{method, path, body_string_contains};
+        use wiremock::matchers::{body_string_contains, method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let server = MockServer::start().await;
@@ -672,7 +709,11 @@ mod tests {
         let token_url = format!("{}/token", server.uri());
         let auth = GoogleOAuth::new_with_base("client-abc".into(), "my-secret".into(), token_url);
         let result = auth.refresh("old-rt").await;
-        assert!(result.is_ok(), "refresh must succeed when client_secret is present: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "refresh must succeed when client_secret is present: {:?}",
+            result.err()
+        );
     }
 
     // ── Loopback redirect — connection-reset regression test ─────────────────
@@ -700,7 +741,9 @@ mod tests {
         ));
 
         // Act as the browser: connect and write a complete realistic HTTP request.
-        let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).await.unwrap();
+        let mut stream = TcpStream::connect(format!("127.0.0.1:{port}"))
+            .await
+            .unwrap();
         let request = format!(
             "GET /?code=TESTCODE&state={} HTTP/1.1\r\nHost: 127.0.0.1\r\nUser-Agent: test\r\nAccept: */*\r\n\r\n",
             expected_state
@@ -711,14 +754,22 @@ mod tests {
         // Read the ENTIRE response until EOF. This proves the server sent a
         // complete, well-formed response and shut down cleanly (FIN, not RST).
         let mut response = Vec::new();
-        stream.read_to_end(&mut response).await
+        stream
+            .read_to_end(&mut response)
+            .await
             .expect("read_to_end must not error — a TCP RST would produce an error here");
 
         let response_str = String::from_utf8_lossy(&response);
 
         // The authorization code must be returned by the task.
-        let code = task.await.unwrap().expect("await_redirect_code must succeed");
-        assert_eq!(code, "TESTCODE", "returned code must match the query parameter");
+        let code = task
+            .await
+            .unwrap()
+            .expect("await_redirect_code must succeed");
+        assert_eq!(
+            code, "TESTCODE",
+            "returned code must match the query parameter"
+        );
 
         // Response must be 200 OK.
         assert!(
@@ -739,7 +790,8 @@ mod tests {
         );
 
         // Content-Length must equal the actual body byte length.
-        let header_end = response_str.find("\r\n\r\n")
+        let header_end = response_str
+            .find("\r\n\r\n")
             .expect("response must have header/body separator");
         let body = &response_str[header_end + 4..];
         let cl_line = response_str
@@ -772,16 +824,22 @@ mod tests {
         let redirect = "http://127.0.0.1:7777";
         if let Ok(code) = std::env::var("GMAIL_CODE") {
             let verifier = std::env::var("GMAIL_VERIFIER").expect("set GMAIL_VERIFIER");
-            let secret =
-                std::env::var("KEEPANCE_GMAIL_CLIENT_SECRET").expect("set KEEPANCE_GMAIL_CLIENT_SECRET");
-            match GoogleOAuth::new(cid, secret).exchange_code(&code, &verifier, redirect).await {
+            let secret = std::env::var("KEEPANCE_GMAIL_CLIENT_SECRET")
+                .expect("set KEEPANCE_GMAIL_CLIENT_SECRET");
+            match GoogleOAuth::new(cid, secret)
+                .exchange_code(&code, &verifier, redirect)
+                .await
+            {
                 Ok(t) => eprintln!("GMAIL_RESULT=OK refresh_present={}", t.refresh.is_some()),
                 Err(e) => eprintln!("GMAIL_RESULT=FAIL err={e}"),
             }
         } else {
             let (verifier, challenge) = gen_pkce();
             eprintln!("GMAIL_VERIFIER={verifier}");
-            eprintln!("GMAIL_AUTH_URL={}", build_auth_url(&cid, redirect, &challenge, "smoke"));
+            eprintln!(
+                "GMAIL_AUTH_URL={}",
+                build_auth_url(&cid, redirect, &challenge, "smoke")
+            );
         }
     }
 
@@ -809,19 +867,27 @@ mod tests {
             Err(_) => {
                 let (verifier, challenge) = gen_pkce();
                 eprintln!("GMAIL_VERIFIER={verifier}");
-                eprintln!("GMAIL_AUTH_URL={}", build_auth_url(&cid, redirect, &challenge, "import"));
+                eprintln!(
+                    "GMAIL_AUTH_URL={}",
+                    build_auth_url(&cid, redirect, &challenge, "import")
+                );
                 return;
             }
         };
         let verifier = std::env::var("GMAIL_VERIFIER").expect("set GMAIL_VERIFIER");
-        let secret = std::env::var("KEEPANCE_GMAIL_CLIENT_SECRET").expect("set KEEPANCE_GMAIL_CLIENT_SECRET");
+        let secret = std::env::var("KEEPANCE_GMAIL_CLIENT_SECRET")
+            .expect("set KEEPANCE_GMAIL_CLIENT_SECRET");
 
         // 1. Exchange for a real access token.
         let tokens = GoogleOAuth::new(cid, secret)
             .exchange_code(&code, &verifier, redirect)
             .await
             .expect("token exchange failed");
-        eprintln!("IMPORT: token OK (access_len={}, refresh_present={})", tokens.access.len(), tokens.refresh.is_some());
+        eprintln!(
+            "IMPORT: token OK (access_len={}, refresh_present={})",
+            tokens.access.len(),
+            tokens.refresh.is_some()
+        );
 
         // 2. Real provider + a throwaway encrypted workspace (fixed key, no keychain).
         let provider = GmailProvider::new(tokens.access.clone(), "default".to_string());
@@ -839,22 +905,42 @@ mod tests {
         let noop_index = |_id: &str, _t: &str, _m: &str| {};
         let noop_tomb = |_id: &str| {};
         let noop_emit = |_w: u32, _r: u32| {};
-        let folder_cap: usize = std::env::var("IMPORT_FOLDER_CAP").ok()
-            .and_then(|s| s.parse().ok()).unwrap_or(usize::MAX);
+        let folder_cap: usize = std::env::var("IMPORT_FOLDER_CAP")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(usize::MAX);
         let mut grand_written = 0u32;
         let mut folder_errors = 0u32;
         for (i, folder) in folders.iter().enumerate() {
-            if i >= folder_cap { eprintln!("IMPORT: stopping at folder cap {folder_cap}"); break; }
+            if i >= folder_cap {
+                eprintln!("IMPORT: stopping at folder cap {folder_cap}");
+                break;
+            }
             match sync_folder_provider(
-                &provider, &store, workspace, folder, "default", UNASSIGNED_MATTER,
-                &key, &noop_emit, &noop_index, &noop_tomb,
-            ).await {
+                &provider,
+                &store,
+                workspace,
+                folder,
+                "default",
+                UNASSIGNED_MATTER,
+                &key,
+                &noop_emit,
+                &noop_index,
+                &noop_tomb,
+            )
+            .await
+            {
                 Ok(stats) => {
-                    eprintln!("IMPORT: '{}' ({}) -> written={} removed={}",
-                        folder.display_name, folder.id, stats.written, stats.removed);
+                    eprintln!(
+                        "IMPORT: '{}' ({}) -> written={} removed={}",
+                        folder.display_name, folder.id, stats.written, stats.removed
+                    );
                     grand_written += stats.written;
                 }
-                Err(e) => { eprintln!("IMPORT: '{}' ERROR: {e:#}", folder.display_name); folder_errors += 1; }
+                Err(e) => {
+                    eprintln!("IMPORT: '{}' ERROR: {e:#}", folder.display_name);
+                    folder_errors += 1;
+                }
             }
         }
         eprintln!("IMPORT: total writes={grand_written} (incl. label overlap), folder_errors={folder_errors}");
@@ -863,39 +949,73 @@ mod tests {
         let store_count = store.count().expect("count");
         eprintln!("VERIFY: unique store row count={store_count}");
         let q = |keyword: Option<String>, limit: i64| MailListQuery {
-            keyword, folder_id: None, provider: None, account: None,
-            date_from: None, date_to: None, has_attachments: None,
-            sort_by: "date".into(), sort_desc: true, limit, offset: 0,
+            keyword,
+            folder_id: None,
+            provider: None,
+            account: None,
+            date_from: None,
+            date_to: None,
+            has_attachments: None,
+            sort_by: "date".into(),
+            sort_desc: true,
+            limit,
+            offset: 0,
         };
         let page = store.list_messages(&q(None, 12)).expect("list");
-        eprintln!("VERIFY: list total={} (showing {})", page.total, page.items.len());
+        eprintln!(
+            "VERIFY: list total={} (showing {})",
+            page.total,
+            page.items.len()
+        );
         let mut empty_subject = 0u32;
         let mut empty_from = 0u32;
         let mut null_date = 0u32;
         let mut with_attach = 0u32;
         for it in &page.items {
-            if it.subject.trim().is_empty() { empty_subject += 1; }
-            if it.from_addr.trim().is_empty() && it.from_name.trim().is_empty() { empty_from += 1; }
-            if it.received_date_time.is_none() { null_date += 1; }
-            if it.has_attachments { with_attach += 1; }
-            eprintln!("  - [{}] \"{}\" | {} <{}> | folder={} | attach={} | snippet={:?}",
+            if it.subject.trim().is_empty() {
+                empty_subject += 1;
+            }
+            if it.from_addr.trim().is_empty() && it.from_name.trim().is_empty() {
+                empty_from += 1;
+            }
+            if it.received_date_time.is_none() {
+                null_date += 1;
+            }
+            if it.has_attachments {
+                with_attach += 1;
+            }
+            eprintln!(
+                "  - [{}] \"{}\" | {} <{}> | folder={} | attach={} | snippet={:?}",
                 it.received_date_time.as_deref().unwrap_or("NULL"),
-                it.subject, it.from_name, it.from_addr, it.folder_id, it.has_attachments,
-                it.snippet.chars().take(60).collect::<String>());
+                it.subject,
+                it.from_name,
+                it.from_addr,
+                it.folder_id,
+                it.has_attachments,
+                it.snippet.chars().take(60).collect::<String>()
+            );
         }
         eprintln!("HEALTH(first page): empty_subject={empty_subject} empty_from={empty_from} null_date={null_date} with_attach={with_attach}");
 
         if let Ok(kw) = std::env::var("IMPORT_SEARCH") {
-            let hits = store.list_messages(&q(Some(kw.clone()), 5)).expect("search");
+            let hits = store
+                .list_messages(&q(Some(kw.clone()), 5))
+                .expect("search");
             eprintln!("SEARCH '{kw}': {} hits", hits.total);
             for it in &hits.items {
-                eprintln!("  > \"{}\" | {} <{}>", it.subject, it.from_name, it.from_addr);
+                eprintln!(
+                    "  > \"{}\" | {} <{}>",
+                    it.subject, it.from_name, it.from_addr
+                );
             }
         }
 
         // Hard checks: import produced searchable mail; the list returns every stored row.
         assert!(grand_written > 0, "no mail was imported");
         assert!(store_count > 0, "store is empty after import");
-        assert_eq!(page.total, store_count, "list total != unique store rows (list query drops rows)");
+        assert_eq!(
+            page.total, store_count,
+            "list total != unique store rows (list query drops rows)"
+        );
     }
 }

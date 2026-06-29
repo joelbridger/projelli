@@ -112,19 +112,19 @@ impl PiperSidecar {
     }
 
     async fn spawn(&mut self) -> Result<()> {
-        use tokio::process::Command;
         use crate::util::proc::hide_console_tokio;
+        use tokio::process::Command;
 
         let mut cmd = Command::new(&self.binary);
         cmd.args([
-                "--model",
-                self.model.to_str().unwrap_or_default(),
-                "--json-input",
-                "--output-raw",
-            ])
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
+            "--model",
+            self.model.to_str().unwrap_or_default(),
+            "--json-input",
+            "--output-raw",
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
         hide_console_tokio(&mut cmd);
         let child = cmd.spawn()?;
 
@@ -174,7 +174,9 @@ impl PiperSidecar {
             // Process may have crashed; mark for restart next call.
             self.process = None;
             self.restart_count += 1;
-            return Err(anyhow!("piper produced no output (crash or empty response)"));
+            return Err(anyhow!(
+                "piper produced no output (crash or empty response)"
+            ));
         }
 
         Ok(wav_bytes)

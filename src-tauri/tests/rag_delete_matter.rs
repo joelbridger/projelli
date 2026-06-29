@@ -15,8 +15,15 @@ const DIM: usize = 384; // e5-small embedding dimension (FixedSizeList<Float32, 
 async fn add_matter(table: &lancedb::Table, source: &str, text: &str, matter_id: &str) {
     let chunks = chunk_text(source, text);
     let rows: Vec<_> = chunks.into_iter().map(|c| (c, vec![0.1f32; DIM])).collect();
-    let batch = store::build_batch(&rows, SourceType::Text, matter_id, PRIVILEGE_NONE, None, &VEC_KEY)
-        .expect("build batch");
+    let batch = store::build_batch(
+        &rows,
+        SourceType::Text,
+        matter_id,
+        PRIVILEGE_NONE,
+        None,
+        &VEC_KEY,
+    )
+    .expect("build batch");
     let schema = batch.schema();
     table
         .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
@@ -27,7 +34,9 @@ async fn add_matter(table: &lancedb::Table, source: &str, text: &str, matter_id:
 
 async fn matter_ids(table: &lancedb::Table) -> std::collections::HashSet<String> {
     let q = vec![0.1f32; DIM];
-    let hits = store::nearest(table, &q, 100, None, false, &[]).await.expect("nearest");
+    let hits = store::nearest(table, &q, 100, None, false, &[])
+        .await
+        .expect("nearest");
     hits.into_iter().filter_map(|h| h.matter_id).collect()
 }
 
@@ -53,28 +62,56 @@ async fn all_matter_plaintexts(table: &lancedb::Table) -> Vec<String> {
 #[tokio::test]
 async fn delete_matter_removes_only_that_matter() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let conn = store::open_connection(dir.path()).await.expect("open connection");
-    let table = store::open_or_create_table(&conn).await.expect("create table");
+    let conn = store::open_connection(dir.path())
+        .await
+        .expect("open connection");
+    let table = store::open_or_create_table(&conn)
+        .await
+        .expect("create table");
 
-    add_matter(&table, "/ws/A/a.md", "alpha contract terms and conditions go here", "matter-a").await;
-    add_matter(&table, "/ws/B/b.md", "bravo settlement figures and key dates go here", "matter-b").await;
+    add_matter(
+        &table,
+        "/ws/A/a.md",
+        "alpha contract terms and conditions go here",
+        "matter-a",
+    )
+    .await;
+    add_matter(
+        &table,
+        "/ws/B/b.md",
+        "bravo settlement figures and key dates go here",
+        "matter-b",
+    )
+    .await;
 
     let before = matter_ids(&table).await;
     assert!(before.contains("matter-a"), "setup: matter-a present");
     assert!(before.contains("matter-b"), "setup: matter-b present");
 
-    store::delete_matter(&table, "matter-b").await.expect("delete matter-b");
+    store::delete_matter(&table, "matter-b")
+        .await
+        .expect("delete matter-b");
 
     let after = matter_ids(&table).await;
-    assert!(!after.contains("matter-b"), "matter-b chunks must be gone after delete");
-    assert!(after.contains("matter-a"), "matter-a chunks must remain (isolation)");
+    assert!(
+        !after.contains("matter-b"),
+        "matter-b chunks must be gone after delete"
+    );
+    assert!(
+        after.contains("matter-a"),
+        "matter-a chunks must remain (isolation)"
+    );
 }
 
 #[tokio::test]
 async fn delete_matter_purges_deleted_content_from_all_matters_retrieval() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let conn = store::open_connection(dir.path()).await.expect("open connection");
-    let table = store::open_or_create_table(&conn).await.expect("create table");
+    let conn = store::open_connection(dir.path())
+        .await
+        .expect("open connection");
+    let table = store::open_or_create_table(&conn)
+        .await
+        .expect("create table");
 
     let deleted_secret = "ACME_DELETE_PURGE_SECRET_0417";
     let survivor_secret = "BRAVO_SURVIVES_PURGE_SECRET_0924";
@@ -95,10 +132,18 @@ async fn delete_matter_purges_deleted_content_from_all_matters_retrieval() {
     .await;
 
     let before = all_matter_plaintexts(&table).await.join("\n");
-    assert!(before.contains(deleted_secret), "setup: matter-a content is retrievable");
-    assert!(before.contains(survivor_secret), "setup: matter-b content is retrievable");
+    assert!(
+        before.contains(deleted_secret),
+        "setup: matter-a content is retrievable"
+    );
+    assert!(
+        before.contains(survivor_secret),
+        "setup: matter-b content is retrievable"
+    );
 
-    store::delete_matter(&table, "matter-a").await.expect("delete matter-a");
+    store::delete_matter(&table, "matter-a")
+        .await
+        .expect("delete matter-a");
 
     let after_hits = store::nearest(&table, &[0.1f32; DIM], 100, None, false, &[])
         .await
@@ -128,13 +173,26 @@ async fn delete_matter_purges_deleted_content_from_all_matters_retrieval() {
 #[tokio::test]
 async fn delete_matter_refuses_the_unassigned_bucket() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let conn = store::open_connection(dir.path()).await.expect("open connection");
-    let table = store::open_or_create_table(&conn).await.expect("create table");
+    let conn = store::open_connection(dir.path())
+        .await
+        .expect("open connection");
+    let table = store::open_or_create_table(&conn)
+        .await
+        .expect("create table");
 
-    add_matter(&table, "/ws/loose.md", "uncategorized loose content here", UNASSIGNED_MATTER).await;
+    add_matter(
+        &table,
+        "/ws/loose.md",
+        "uncategorized loose content here",
+        UNASSIGNED_MATTER,
+    )
+    .await;
 
     let res = store::delete_matter(&table, UNASSIGNED_MATTER).await;
-    assert!(res.is_err(), "must refuse to wipe the entire unassigned bucket");
+    assert!(
+        res.is_err(),
+        "must refuse to wipe the entire unassigned bucket"
+    );
 
     // The unassigned content must still be present.
     assert!(matter_ids(&table).await.contains(UNASSIGNED_MATTER));
@@ -143,10 +201,17 @@ async fn delete_matter_refuses_the_unassigned_bucket() {
 #[tokio::test]
 async fn delete_matter_rejects_malformed_id() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let conn = store::open_connection(dir.path()).await.expect("open connection");
-    let table = store::open_or_create_table(&conn).await.expect("create table");
+    let conn = store::open_connection(dir.path())
+        .await
+        .expect("open connection");
+    let table = store::open_or_create_table(&conn)
+        .await
+        .expect("create table");
 
-    assert!(store::delete_matter(&table, "").await.is_err(), "empty id rejected");
+    assert!(
+        store::delete_matter(&table, "").await.is_err(),
+        "empty id rejected"
+    );
     assert!(
         store::delete_matter(&table, "bad\0id").await.is_err(),
         "control-char id rejected",

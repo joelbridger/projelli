@@ -139,8 +139,7 @@ pub fn author_revision_core(
     needle: Option<&str>,
     date: &str,
 ) -> Result<DocumentJson, String> {
-    let mut document: Document =
-        document_from_value(document_json).map_err(|e| e.to_string())?;
+    let mut document: Document = document_from_value(document_json).map_err(|e| e.to_string())?;
 
     match kind {
         "insertion" | "insert" => {
@@ -156,13 +155,7 @@ pub fn author_revision_core(
         }
         "insertParagraph" | "insert_paragraph" => {
             let text = text.ok_or("insertParagraph requires `text`")?;
-            author::insert_paragraph_after(
-                &mut document,
-                paragraph_index,
-                text,
-                author_name,
-                date,
-            );
+            author::insert_paragraph_after(&mut document, paragraph_index, text, author_name, date);
         }
         "deletion" | "delete" => {
             let needle = needle.ok_or("deletion requires `needle` (text to delete)")?;
@@ -245,26 +238,20 @@ fn edit_input_to_edit(e: EditInput) -> Result<Edit, String> {
         "insert" => Ok(Edit::Insert {
             paragraph_index: e.paragraph_index,
             anchor_text: e.anchor_text,
-            new_text: e
-                .new_text
-                .ok_or("insert edit requires `newText`")?,
+            new_text: e.new_text.ok_or("insert edit requires `newText`")?,
         }),
         "delete" => Ok(Edit::Delete {
             paragraph_index: e.paragraph_index,
-            anchor_text: e
-                .anchor_text
-                .ok_or("delete edit requires `anchorText`")?,
+            anchor_text: e.anchor_text.ok_or("delete edit requires `anchorText`")?,
         }),
         "replace" => Ok(Edit::Replace {
             paragraph_index: e.paragraph_index,
-            anchor_text: e
-                .anchor_text
-                .ok_or("replace edit requires `anchorText`")?,
-            new_text: e
-                .new_text
-                .ok_or("replace edit requires `newText`")?,
+            anchor_text: e.anchor_text.ok_or("replace edit requires `anchorText`")?,
+            new_text: e.new_text.ok_or("replace edit requires `newText`")?,
         }),
-        other => Err(format!("unknown edit op {other:?} (expected insert/delete/replace)")),
+        other => Err(format!(
+            "unknown edit op {other:?} (expected insert/delete/replace)"
+        )),
     }
 }
 
@@ -290,8 +277,7 @@ pub fn author_revisions_core(
         edits.push(edit_input_to_edit(input)?);
     }
 
-    let mut document: Document =
-        document_from_value(document_json).map_err(|e| e.to_string())?;
+    let mut document: Document = document_from_value(document_json).map_err(|e| e.to_string())?;
     let results = author::apply_edits(&mut document, &edits, author_name, date);
     let document = document_to_value(&document).map_err(|e| e.to_string())?;
     Ok(AuthorRevisionsResult {
@@ -304,8 +290,9 @@ pub fn author_revisions_core(
 /// or a user-facing error. Shared by the resolve-one and resolve-all cores so
 /// both reject the same way.
 fn parse_action(action: &str) -> Result<ResolveAction, String> {
-    ResolveAction::from_str_action(action)
-        .ok_or_else(|| format!("unknown resolve action {action:?} (expected \"accept\" or \"reject\")"))
+    ResolveAction::from_str_action(action).ok_or_else(|| {
+        format!("unknown resolve action {action:?} (expected \"accept\" or \"reject\")")
+    })
 }
 
 /// Accept or reject a SINGLE tracked change (every inline whose revision id
@@ -563,9 +550,7 @@ pub fn export_clean_copy_bytes(src: &Path, accept_all_changes: bool) -> Result<V
         strip_document_metadata: true,
         accept_all_changes,
     };
-    opened
-        .clean_copy_bytes(options)
-        .map_err(|e| e.to_string())
+    opened.clean_copy_bytes(options).map_err(|e| e.to_string())
 }
 
 /// Export a faithful Word (`.docx`) copy of the document at `src_path` to
@@ -576,8 +561,7 @@ pub fn export_clean_copy_bytes(src: &Path, accept_all_changes: bool) -> Result<V
 pub async fn docx_export_copy(src_path: String, dest_path: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         let bytes = export_copy_bytes(Path::new(&src_path))?;
-        std::fs::write(&dest_path, bytes)
-            .map_err(|e| format!("write {dest_path}: {e}"))
+        std::fs::write(&dest_path, bytes).map_err(|e| format!("write {dest_path}: {e}"))
     })
     .await
     .map_err(|e| format!("task join error: {e}"))?
@@ -596,8 +580,7 @@ pub async fn docx_export_clean_copy(
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         let bytes = export_clean_copy_bytes(Path::new(&src_path), accept_all_changes)?;
-        std::fs::write(&dest_path, bytes)
-            .map_err(|e| format!("write {dest_path}: {e}"))
+        std::fs::write(&dest_path, bytes).map_err(|e| format!("write {dest_path}: {e}"))
     })
     .await
     .map_err(|e| format!("task join error: {e}"))?
@@ -790,7 +773,10 @@ mod tests {
             .expect("batch author");
         // Both edits applied.
         assert_eq!(out.results.len(), 2);
-        assert!(out.results.iter().all(|r| r.applied), "all edits should apply");
+        assert!(
+            out.results.iter().all(|r| r.applied),
+            "all edits should apply"
+        );
         // Distinct revision ids across the two edits.
         assert_ne!(out.results[0].revision_id, out.results[1].revision_id);
         // Reparse the DOM and confirm the tracked changes are present + attributed.
@@ -799,12 +785,18 @@ mod tests {
         // replace = del+ins (2) + delete (1) = 3 revision elements.
         assert_eq!(revs.len(), 3);
         assert!(revs.iter().all(|(m, _, _)| m.author == "Keepance AI"));
-        assert!(revs.iter().any(|(_, k, r)| *k == keepance_docx::RevisionKind::Insertion
-            && r.iter().any(|x| x.text.contains("Vendor"))));
-        assert!(revs.iter().any(|(_, k, r)| *k == keepance_docx::RevisionKind::Deletion
-            && r.iter().any(|x| x.text == "Company")));
-        assert!(revs.iter().any(|(_, k, r)| *k == keepance_docx::RevisionKind::Deletion
-            && r.iter().any(|x| x.text == "for all losses")));
+        assert!(revs
+            .iter()
+            .any(|(_, k, r)| *k == keepance_docx::RevisionKind::Insertion
+                && r.iter().any(|x| x.text.contains("Vendor"))));
+        assert!(revs
+            .iter()
+            .any(|(_, k, r)| *k == keepance_docx::RevisionKind::Deletion
+                && r.iter().any(|x| x.text == "Company")));
+        assert!(revs
+            .iter()
+            .any(|(_, k, r)| *k == keepance_docx::RevisionKind::Deletion
+                && r.iter().any(|x| x.text == "for all losses")));
     }
 
     #[test]
@@ -817,7 +809,11 @@ mod tests {
         let out = author_revisions_core(json, edits, "Keepance AI", "2026-06-09T00:00:00Z")
             .expect("batch author");
         assert!(!out.results[0].applied);
-        assert!(out.results[0].error.as_deref().unwrap().contains("not found"));
+        assert!(out.results[0]
+            .error
+            .as_deref()
+            .unwrap()
+            .contains("not found"));
         assert!(out.results[1].applied);
     }
 
@@ -856,7 +852,10 @@ mod tests {
         let reopened = super::docx_open(path_str).await.expect("reopen");
         let doc = keepance_docx::document_from_value(reopened).unwrap();
         assert_eq!(doc.revisions().len(), 3, "2 originals + 1 AI insertion");
-        assert!(doc.revisions().iter().any(|(m, _, _)| m.author == "Keepance AI"));
+        assert!(doc
+            .revisions()
+            .iter()
+            .any(|(m, _, _)| m.author == "Keepance AI"));
         assert!(doc.comments.contains_key("1"), "comment preserved");
     }
 
@@ -1046,20 +1045,37 @@ mod tests {
         // Faithful Word copy: revisions + comment preserved.
         let copy = export_copy_bytes(&src).expect("export copy");
         let copy_doc = parse_docx_bytes(&copy).expect("parse copy");
-        assert_eq!(copy_doc.revisions().len(), 2, "Word copy must keep tracked changes");
-        assert!(copy_doc.comments.contains_key("1"), "Word copy dropped the comment");
+        assert_eq!(
+            copy_doc.revisions().len(),
+            2,
+            "Word copy must keep tracked changes"
+        );
+        assert!(
+            copy_doc.comments.contains_key("1"),
+            "Word copy dropped the comment"
+        );
 
         // Clean copy (metadata-only): still keeps revisions + comment.
         let clean = export_clean_copy_bytes(&src, false).expect("clean copy");
         let clean_doc = parse_docx_bytes(&clean).expect("parse clean");
-        assert_eq!(clean_doc.revisions().len(), 2, "metadata-only clean copy must keep changes");
+        assert_eq!(
+            clean_doc.revisions().len(),
+            2,
+            "metadata-only clean copy must keep changes"
+        );
         assert!(clean_doc.comments.contains_key("1"));
 
         // Clean copy final (accept-all + strip comments): flat document.
         let final_clean = export_clean_copy_bytes(&src, true).expect("final clean copy");
         let final_doc = parse_docx_bytes(&final_clean).expect("parse final clean");
-        assert!(final_doc.revisions().is_empty(), "final clean copy must accept all changes");
-        assert!(final_doc.comments.is_empty(), "final clean copy must remove comments");
+        assert!(
+            final_doc.revisions().is_empty(),
+            "final clean copy must accept all changes"
+        );
+        assert!(
+            final_doc.comments.is_empty(),
+            "final clean copy must remove comments"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -1074,7 +1090,10 @@ mod tests {
     fn open_to_json_rejects_relative_path() {
         let rel = std::path::Path::new("docs/The Supreme Court.docx");
         let result = open_to_json(rel);
-        assert!(result.is_err(), "relative path must be rejected by open_to_json");
+        assert!(
+            result.is_err(),
+            "relative path must be rejected by open_to_json"
+        );
         let err = result.unwrap_err();
         assert!(
             err.contains("absolute path"),
@@ -1090,7 +1109,9 @@ mod tests {
         // the relative-path guard does NOT fire for an absolute path.
         // NOTE: "/nonexistent/..." is NOT absolute on Windows; use temp_dir() instead
         // so the path is platform-absolute on all OSes.
-        let abs_buf = std::env::temp_dir().join("kp_nonexistent_dir").join("file.docx");
+        let abs_buf = std::env::temp_dir()
+            .join("kp_nonexistent_dir")
+            .join("file.docx");
         let abs = abs_buf.as_path();
         let result = open_to_json(abs);
         // Must be Err (file doesn't exist) but NOT the "relative path" error.
@@ -1119,7 +1140,10 @@ mod tests {
             "comments": {}
         });
         let result = save_from_json(rel, json);
-        assert!(result.is_err(), "relative path must be rejected by save_from_json");
+        assert!(
+            result.is_err(),
+            "relative path must be rejected by save_from_json"
+        );
         let err = result.unwrap_err();
         assert!(
             err.contains("absolute path"),
@@ -1134,10 +1158,13 @@ mod tests {
     fn save_from_json_accepts_absolute_path() {
         // NOTE: "/nonexistent/..." is NOT absolute on Windows; use temp_dir() instead
         // so the path is platform-absolute on all OSes.
-        let abs_buf = std::env::temp_dir().join("kp_nonexistent_dir").join("matter.docx");
+        let abs_buf = std::env::temp_dir()
+            .join("kp_nonexistent_dir")
+            .join("matter.docx");
         let abs = abs_buf.as_path();
         // The body is valid JSON — only the path is tested here.
-        let json = keepance_docx::document_to_value(&keepance_docx::fixture::build_fixture_model()).unwrap();
+        let json = keepance_docx::document_to_value(&keepance_docx::fixture::build_fixture_model())
+            .unwrap();
         let result = save_from_json(abs, json);
         // Must be Err (file doesn't exist → synthesize path, which may succeed
         // or error on write, but NOT on the relative-path guard).
@@ -1156,7 +1183,10 @@ mod tests {
     fn export_copy_bytes_rejects_relative_path() {
         let rel = std::path::Path::new("docs/matter.docx");
         let result = export_copy_bytes(rel);
-        assert!(result.is_err(), "relative path must be rejected by export_copy_bytes");
+        assert!(
+            result.is_err(),
+            "relative path must be rejected by export_copy_bytes"
+        );
         let err = result.unwrap_err();
         assert!(
             err.contains("absolute path"),
@@ -1169,7 +1199,10 @@ mod tests {
     fn export_clean_copy_bytes_rejects_relative_path() {
         let rel = std::path::Path::new("docs/matter.docx");
         let result = export_clean_copy_bytes(rel, false);
-        assert!(result.is_err(), "relative path must be rejected by export_clean_copy_bytes");
+        assert!(
+            result.is_err(),
+            "relative path must be rejected by export_clean_copy_bytes"
+        );
         let err = result.unwrap_err();
         assert!(
             err.contains("absolute path"),

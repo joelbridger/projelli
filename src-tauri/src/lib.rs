@@ -147,6 +147,12 @@ pub fn run() {
             commands::mail::outlook_connect,
             // Email send — compose and send from any connected provider (M365/Gmail/IMAP).
             commands::mail::mail_send,
+            // Advisor CRM connector — Wealthbox token auth + local RAG ingestion.
+            commands::wealthbox::wealthbox_connect,
+            commands::wealthbox::wealthbox_is_connected,
+            commands::wealthbox::wealthbox_disconnect,
+            commands::wealthbox::wealthbox_list_contacts,
+            commands::wealthbox::wealthbox_sync,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
             // Wave 3b encrypted vault — per-workspace AES-256-GCM at-rest encryption.

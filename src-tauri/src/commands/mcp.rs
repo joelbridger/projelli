@@ -153,9 +153,7 @@ pub async fn mcp_approve_write(token: String, approved: bool) -> Result<(), Stri
 /// Returns `None` when neither file is found so the UI can show a "run
 /// `npm run build:mcpb` first" hint instead of a scary error.
 #[tauri::command]
-pub async fn mcp_bundle_path(
-    app: tauri::AppHandle,
-) -> Result<Option<String>, String> {
+pub async fn mcp_bundle_path(app: tauri::AppHandle) -> Result<Option<String>, String> {
     use tauri::Manager;
     let target = current_target_triple();
     let candidate_name = format!("keepance-{target}.mcpb");
@@ -241,7 +239,9 @@ mod tests {
         // We rely on the real requests_dir() but bail if it's currently
         // populated — skip rather than fail.
         let existing = mcp_list_pending_approvals().await.unwrap();
-        assert!(existing.iter().all(|a| a.token.chars().all(|c| c.is_ascii_hexdigit())));
+        assert!(existing
+            .iter()
+            .all(|a| a.token.chars().all(|c| c.is_ascii_hexdigit())));
     }
 
     #[tokio::test]

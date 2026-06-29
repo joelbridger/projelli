@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Wealthbox CRM connector for advisor Memory.** Added a desktop-only Wealthbox connection that validates a personal access token with `GET /me` before saving it in the OS keychain, lists lightweight contact and household choices, maps selected Wealthbox records to existing or newly-created Keepance matters, and syncs contacts, notes, tasks, and events directly from the user's machine to the local encrypted RAG index. CRM text never crosses renderer IPC; Rust fetches it, renders it to plaintext in memory, and indexes it under the existing `matter_id` isolation key. The shared connector text-ingestion helper now powers both mail and Wealthbox indexing.
+  - Files added/modified: `src-tauri/src/commands/wealthbox/mod.rs`, `src-tauri/src/commands/rag/text_ingest.rs`, `src-tauri/src/commands/{mod.rs,keychain.rs,mail/mod.rs,rag/mod.rs,rag/store.rs}`, `src-tauri/src/lib.rs`, `src/platform/utils/wealthbox-commands.ts`, `src/platform/wealthbox/wealthboxMatterSync.ts`, `src/features/settings/WealthboxConnect.tsx`, `src/features/account/AccountWindow.tsx`, `src-tauri/tests/rag_matter_scope.rs`
+  - Tests added: Wealthbox API pagination/429 retry unit tests, Wealthbox command wrapper tests, contact-to-matter mapping tests, and a RAG isolation regression proving a Wealthbox chunk indexed for one matter is not retrievable from another matter's scope.
+
 ### Fixed
 - **Firm backend provisioning now supports the advisor profession pack.** Backend and frontend firm contracts now accept `advisor`, pack validation preserves it, dev/test seeded firm orgs include it, and LemonSqueezy Firm purchases now provision unclaimed advisor firms by default because advisor is the lead vertical.
 - **Client Map hardening — BUG-100 through BUG-108 (adversarial QA, KEEPANCE 5).** Nine confirmed Client Map defects fixed at the root with TDD; every bug-documenting `it.fails` test was flipped to a passing regression test.

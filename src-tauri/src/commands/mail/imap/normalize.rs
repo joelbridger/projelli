@@ -47,14 +47,8 @@ pub fn from_rfc822(id: &str, account: &str, mailbox: &str, raw: &[u8]) -> Option
         .unwrap_or((None, None));
 
     // To / Cc
-    let to = msg
-        .to()
-        .map(|a| addr_to_recipients(a))
-        .unwrap_or_default();
-    let cc = msg
-        .cc()
-        .map(|a| addr_to_recipients(a))
-        .unwrap_or_default();
+    let to = msg.to().map(|a| addr_to_recipients(a)).unwrap_or_default();
+    let cc = msg.cc().map(|a| addr_to_recipients(a)).unwrap_or_default();
 
     // Message-ID (mail-parser 0.11 already strips the surrounding <>)
     let internet_message_id = msg

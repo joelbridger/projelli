@@ -17,7 +17,12 @@ use self::normalize::from_rfc822;
 /// Maximum messages fetched per `fetch_changes` call.
 const BATCH: u32 = 200;
 
-pub(crate) fn imap_message_id(account: &str, folder_id: &str, uidvalidity: u32, uid: u32) -> String {
+pub(crate) fn imap_message_id(
+    account: &str,
+    folder_id: &str,
+    uidvalidity: u32,
+    uid: u32,
+) -> String {
     let folder_key = hex::encode(folder_id.as_bytes());
     format!("imap:{account}:{folder_key}:{uidvalidity}:{uid}")
 }
@@ -63,7 +68,11 @@ pub fn compute_batch_range(
     current_uidvalidity: u32,
     uid_next: u32,
 ) -> Option<(u32, u32, bool)> {
-    let effective_last = if stored_uidvalidity != current_uidvalidity { 0 } else { last_uid };
+    let effective_last = if stored_uidvalidity != current_uidvalidity {
+        0
+    } else {
+        last_uid
+    };
     let first = effective_last.saturating_add(1);
     let highest_existing = uid_next.saturating_sub(1);
     if first > highest_existing {
@@ -141,22 +150,30 @@ impl MailProvider for ImapProvider {
         let current_uidvalidity = info.uid_validity;
 
         // ── Compute the next UID batch (handles UIDVALIDITY reset + paging) ─
-        let (first_new, batch_last, done) =
-            match compute_batch_range(stored_uidvalidity, last_uid, current_uidvalidity, info.uid_next) {
-                Some(range) => range,
-                None => {
-                    // Already caught up. Record the current validity so a future
-                    // sync does not re-detect a "change" against a stale 0.
-                    let resume = if stored_uidvalidity != current_uidvalidity { 0 } else { last_uid };
-                    let _ = session.logout().await;
-                    return Ok(ChangePage {
-                        messages: vec![],
-                        removed_ids: vec![],
-                        next: Some(format_cursor(current_uidvalidity, resume)),
-                        done: true,
-                    });
-                }
-            };
+        let (first_new, batch_last, done) = match compute_batch_range(
+            stored_uidvalidity,
+            last_uid,
+            current_uidvalidity,
+            info.uid_next,
+        ) {
+            Some(range) => range,
+            None => {
+                // Already caught up. Record the current validity so a future
+                // sync does not re-detect a "change" against a stale 0.
+                let resume = if stored_uidvalidity != current_uidvalidity {
+                    0
+                } else {
+                    last_uid
+                };
+                let _ = session.logout().await;
+                return Ok(ChangePage {
+                    messages: vec![],
+                    removed_ids: vec![],
+                    next: Some(format_cursor(current_uidvalidity, resume)),
+                    done: true,
+                });
+            }
+        };
 
         // ── UID FETCH ─────────────────────────────────────────────────────
         let raw_pairs = uid_fetch_range(&mut session, first_new, batch_last)
@@ -267,7 +284,10 @@ mod tests {
         let inbox = imap_message_id("lawyer@example.com", "INBOX", 123, 42);
         let sent = imap_message_id("lawyer@example.com", "Sent", 123, 42);
 
-        assert_ne!(inbox, sent, "same UID in different folders must not collapse");
+        assert_ne!(
+            inbox, sent,
+            "same UID in different folders must not collapse"
+        );
         assert!(
             inbox.contains("494e424f58"),
             "folder id must be encoded into the stable id"

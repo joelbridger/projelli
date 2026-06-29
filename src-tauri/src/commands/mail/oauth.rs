@@ -1,9 +1,7 @@
 pub const SCOPES: &str = "offline_access openid User.Read Mail.Read Mail.Send";
 
-const MS_AUTH_ENDPOINT: &str =
-    "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
-pub const MS_TOKEN_ENDPOINT: &str =
-    "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+const MS_AUTH_ENDPOINT: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
+pub const MS_TOKEN_ENDPOINT: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 
 // ── Microsoft loopback auth-code + PKCE flow ──────────────────────────────
 
@@ -79,10 +77,7 @@ pub struct MsTokens {
 
 fn parse_ms_token_response(status: u16, v: &serde_json::Value) -> anyhow::Result<MsTokens> {
     if status == 200 {
-        let access = v
-            .get("access_token")
-            .and_then(|s| s.as_str())
-            .unwrap_or("");
+        let access = v.get("access_token").and_then(|s| s.as_str()).unwrap_or("");
         if access.is_empty() {
             return Err(anyhow::anyhow!("MS token response had no access_token"));
         }
@@ -98,22 +93,27 @@ fn parse_ms_token_response(status: u16, v: &serde_json::Value) -> anyhow::Result
         return Ok(MsTokens {
             access: access.to_string(),
             refresh: refresh.to_string(),
-            expires_in: v
-                .get("expires_in")
-                .and_then(|x| x.as_u64())
-                .unwrap_or(3600),
+            expires_in: v.get("expires_in").and_then(|x| x.as_u64()).unwrap_or(3600),
         });
     }
     let err = v
         .get("error")
         .and_then(|s| s.as_str())
         .unwrap_or("unknown error");
-    Err(anyhow::anyhow!("MS token request failed (http {status}): {err}"))
+    Err(anyhow::anyhow!(
+        "MS token request failed (http {status}): {err}"
+    ))
 }
 
-pub struct OAuth { client_id: String, base: String, http: reqwest::Client }
+pub struct OAuth {
+    client_id: String,
+    base: String,
+    http: reqwest::Client,
+}
 impl OAuth {
-    pub fn new(client_id: String) -> Self { Self::new_with_base(client_id, "https://login.microsoftonline.com".into()) }
+    pub fn new(client_id: String) -> Self {
+        Self::new_with_base(client_id, "https://login.microsoftonline.com".into())
+    }
     pub fn new_with_base(client_id: String, base: String) -> Self {
         // Bound device-code polling / refresh requests so a hung connection
         // can't stall the sign-in loop indefinitely.
@@ -122,23 +122,37 @@ impl OAuth {
             .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .expect("build reqwest client");
-        Self { client_id, base, http }
+        Self {
+            client_id,
+            base,
+            http,
+        }
     }
     pub async fn request_device_code(&self) -> anyhow::Result<DeviceCode> {
         let url = format!("{}/common/oauth2/v2.0/devicecode", self.base);
-        let v: serde_json::Value = self.http.post(&url)
+        let v: serde_json::Value = self
+            .http
+            .post(&url)
             .form(&[("client_id", self.client_id.as_str()), ("scope", SCOPES)])
-            .send().await?.json().await?;
+            .send()
+            .await?
+            .json()
+            .await?;
         DeviceCode::from_json(&v).ok_or_else(|| anyhow::anyhow!("bad devicecode response"))
     }
     /// Poll the token endpoint once. Caller loops on Pending/SlowDown.
     pub async fn poll_token(&self, device_code: &str) -> anyhow::Result<TokenOutcome> {
         let url = format!("{}/common/oauth2/v2.0/token", self.base);
-        let resp = self.http.post(&url).form(&[
-            ("grant_type","urn:ietf:params:oauth:grant-type:device_code"),
-            ("client_id", self.client_id.as_str()),
-            ("device_code", device_code),
-        ]).send().await?;
+        let resp = self
+            .http
+            .post(&url)
+            .form(&[
+                ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
+                ("client_id", self.client_id.as_str()),
+                ("device_code", device_code),
+            ])
+            .send()
+            .await?;
         let status = resp.status().as_u16();
         let v: serde_json::Value = resp.json().await?;
         Ok(TokenOutcome::from_json(status, &v))
@@ -146,12 +160,17 @@ impl OAuth {
     /// Exchange a stored refresh token for a fresh access token.
     pub async fn refresh(&self, refresh_token: &str) -> anyhow::Result<TokenOutcome> {
         let url = format!("{}/common/oauth2/v2.0/token", self.base);
-        let resp = self.http.post(&url).form(&[
-            ("grant_type","refresh_token"),
-            ("client_id", self.client_id.as_str()),
-            ("scope", SCOPES),
-            ("refresh_token", refresh_token),
-        ]).send().await?;
+        let resp = self
+            .http
+            .post(&url)
+            .form(&[
+                ("grant_type", "refresh_token"),
+                ("client_id", self.client_id.as_str()),
+                ("scope", SCOPES),
+                ("refresh_token", refresh_token),
+            ])
+            .send()
+            .await?;
         let status = resp.status().as_u16();
         let v: serde_json::Value = resp.json().await?;
         Ok(TokenOutcome::from_json(status, &v))
@@ -160,8 +179,11 @@ impl OAuth {
 
 #[derive(Debug, Clone)]
 pub struct DeviceCode {
-    pub device_code: String, pub user_code: String,
-    pub verification_uri: String, pub interval_secs: u64, pub expires_in_secs: u64,
+    pub device_code: String,
+    pub user_code: String,
+    pub verification_uri: String,
+    pub interval_secs: u64,
+    pub expires_in_secs: u64,
 }
 impl DeviceCode {
     pub fn from_json(v: &serde_json::Value) -> Option<DeviceCode> {
@@ -177,7 +199,11 @@ impl DeviceCode {
 
 #[derive(Debug)]
 pub enum TokenOutcome {
-    Tokens { access: String, refresh: Option<String>, expires_in: u64 },
+    Tokens {
+        access: String,
+        refresh: Option<String>,
+        expires_in: u64,
+    },
     Pending,
     SlowDown,
     Failed(String),
@@ -194,7 +220,10 @@ impl TokenOutcome {
             }
             return TokenOutcome::Tokens {
                 access: access.to_string(),
-                refresh: v.get("refresh_token").and_then(|s| s.as_str()).map(String::from),
+                refresh: v
+                    .get("refresh_token")
+                    .and_then(|s| s.as_str())
+                    .map(String::from),
                 expires_in: v.get("expires_in").and_then(|x| x.as_u64()).unwrap_or(3600),
             };
         }
@@ -213,8 +242,8 @@ mod tests {
 
     #[tokio::test]
     async fn requests_device_code_from_endpoint() {
-        use wiremock::{Mock, MockServer, ResponseTemplate};
         use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
         let server = MockServer::start().await;
         Mock::given(method("POST")).and(path("/common/oauth2/v2.0/devicecode"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -240,24 +269,44 @@ mod tests {
     fn parses_token_response_and_pending() {
         let ok = serde_json::json!({ "access_token":"AT","refresh_token":"RT","expires_in":3600 });
         match TokenOutcome::from_json(200, &ok) {
-            TokenOutcome::Tokens { access, refresh, .. } => { assert_eq!(access,"AT"); assert_eq!(refresh.as_deref(),Some("RT")); }
+            TokenOutcome::Tokens {
+                access, refresh, ..
+            } => {
+                assert_eq!(access, "AT");
+                assert_eq!(refresh.as_deref(), Some("RT"));
+            }
             _ => panic!("expected tokens"),
         }
         let pending = serde_json::json!({ "error": "authorization_pending" });
-        assert!(matches!(TokenOutcome::from_json(400, &pending), TokenOutcome::Pending));
+        assert!(matches!(
+            TokenOutcome::from_json(400, &pending),
+            TokenOutcome::Pending
+        ));
         let slow = serde_json::json!({ "error": "slow_down" });
-        assert!(matches!(TokenOutcome::from_json(400, &slow), TokenOutcome::SlowDown));
+        assert!(matches!(
+            TokenOutcome::from_json(400, &slow),
+            TokenOutcome::SlowDown
+        ));
         let denied = serde_json::json!({ "error": "authorization_declined" });
-        assert!(matches!(TokenOutcome::from_json(400, &denied), TokenOutcome::Failed(_)));
+        assert!(matches!(
+            TokenOutcome::from_json(400, &denied),
+            TokenOutcome::Failed(_)
+        ));
     }
 
     #[test]
     fn empty_access_token_is_treated_as_failure() {
         // A 200 with a missing or empty access_token must not yield Tokens.
         let missing = serde_json::json!({ "refresh_token": "RT", "expires_in": 3600 });
-        assert!(matches!(TokenOutcome::from_json(200, &missing), TokenOutcome::Failed(_)));
+        assert!(matches!(
+            TokenOutcome::from_json(200, &missing),
+            TokenOutcome::Failed(_)
+        ));
         let empty = serde_json::json!({ "access_token": "", "refresh_token": "RT" });
-        assert!(matches!(TokenOutcome::from_json(200, &empty), TokenOutcome::Failed(_)));
+        assert!(matches!(
+            TokenOutcome::from_json(200, &empty),
+            TokenOutcome::Failed(_)
+        ));
     }
 
     // ── MS loopback auth-code + PKCE flow ────────────────────────────────────
@@ -270,16 +319,37 @@ mod tests {
             "challenge_abc",
             "state_xyz",
         );
-        assert!(url.starts_with(MS_AUTH_ENDPOINT), "URL must start with MS auth endpoint");
+        assert!(
+            url.starts_with(MS_AUTH_ENDPOINT),
+            "URL must start with MS auth endpoint"
+        );
         assert!(url.contains("my-ms-client"), "missing client_id");
-        assert!(url.contains("127.0.0.1"), "missing loopback host in redirect_uri");
-        assert!(url.contains("response_type=code"), "missing response_type=code");
+        assert!(
+            url.contains("127.0.0.1"),
+            "missing loopback host in redirect_uri"
+        );
+        assert!(
+            url.contains("response_type=code"),
+            "missing response_type=code"
+        );
         assert!(url.contains("challenge_abc"), "missing code_challenge");
-        assert!(url.contains("code_challenge_method=S256"), "missing S256 method");
+        assert!(
+            url.contains("code_challenge_method=S256"),
+            "missing S256 method"
+        );
         assert!(url.contains("state_xyz"), "missing state");
-        assert!(url.contains("prompt=select_account"), "missing prompt=select_account");
-        assert!(url.contains("offline_access"), "missing offline_access scope");
-        assert!(!url.contains("client_secret"), "client_secret must NOT be in the authorize URL");
+        assert!(
+            url.contains("prompt=select_account"),
+            "missing prompt=select_account"
+        );
+        assert!(
+            url.contains("offline_access"),
+            "missing offline_access scope"
+        );
+        assert!(
+            !url.contains("client_secret"),
+            "client_secret must NOT be in the authorize URL"
+        );
     }
 
     #[tokio::test]
@@ -334,9 +404,15 @@ mod tests {
             .await;
 
         let token_endpoint = format!("{}/common/oauth2/v2.0/token", server.uri());
-        ms_exchange_code("client-ms", "code", "verifier", "http://127.0.0.1:1234", &token_endpoint)
-            .await
-            .expect("ms_exchange_code should succeed");
+        ms_exchange_code(
+            "client-ms",
+            "code",
+            "verifier",
+            "http://127.0.0.1:1234",
+            &token_endpoint,
+        )
+        .await
+        .expect("ms_exchange_code should succeed");
 
         // Inspect the recorded request body to assert no client_secret was sent.
         let received = server.received_requests().await.unwrap();
@@ -365,12 +441,19 @@ mod tests {
 
         let token_endpoint = format!("{}/common/oauth2/v2.0/token", server.uri());
         let result = ms_exchange_code(
-            "client-ms", "bad-code", "verifier", "http://127.0.0.1:1234", &token_endpoint,
+            "client-ms",
+            "bad-code",
+            "verifier",
+            "http://127.0.0.1:1234",
+            &token_endpoint,
         )
         .await;
         assert!(result.is_err(), "error response must propagate as Err");
         let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("invalid_grant"), "error message must surface MS error: {msg}");
+        assert!(
+            msg.contains("invalid_grant"),
+            "error message must surface MS error: {msg}"
+        );
     }
 
     #[tokio::test]
@@ -391,12 +474,19 @@ mod tests {
 
         let token_endpoint = format!("{}/common/oauth2/v2.0/token", server.uri());
         let result = ms_exchange_code(
-            "client-ms", "code", "verifier", "http://127.0.0.1:1234", &token_endpoint,
+            "client-ms",
+            "code",
+            "verifier",
+            "http://127.0.0.1:1234",
+            &token_endpoint,
         )
         .await;
         assert!(result.is_err(), "missing refresh_token must be Err");
         let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("refresh_token"), "error must mention refresh_token: {msg}");
+        assert!(
+            msg.contains("refresh_token"),
+            "error must mention refresh_token: {msg}"
+        );
     }
 
     // Live OAuth smoke test for server-side connector validation (no signed build
@@ -421,7 +511,10 @@ mod tests {
         } else {
             let (verifier, challenge) = gen_pkce();
             eprintln!("MS_VERIFIER={verifier}");
-            eprintln!("MS_AUTH_URL={}", build_ms_auth_url(&cid, redirect, &challenge, "smoke"));
+            eprintln!(
+                "MS_AUTH_URL={}",
+                build_ms_auth_url(&cid, redirect, &challenge, "smoke")
+            );
         }
     }
 
@@ -451,7 +544,10 @@ mod tests {
             Err(_) => {
                 let (verifier, challenge) = gen_pkce();
                 eprintln!("MS_VERIFIER={verifier}");
-                eprintln!("MS_AUTH_URL={}", build_ms_auth_url(&cid, redirect, &challenge, "import"));
+                eprintln!(
+                    "MS_AUTH_URL={}",
+                    build_ms_auth_url(&cid, redirect, &challenge, "import")
+                );
                 return;
             }
         };
@@ -461,7 +557,11 @@ mod tests {
         let tokens = ms_exchange_code(&cid, &code, &verifier, redirect, MS_TOKEN_ENDPOINT)
             .await
             .expect("token exchange failed");
-        eprintln!("IMPORT: token OK (access_len={}, refresh_len={})", tokens.access.len(), tokens.refresh.len());
+        eprintln!(
+            "IMPORT: token OK (access_len={}, refresh_len={})",
+            tokens.access.len(),
+            tokens.refresh.len()
+        );
 
         // 2. Real provider + a throwaway encrypted workspace (fixed key, no keychain).
         let provider = GraphProvider::new(tokens.access.clone());
@@ -477,22 +577,42 @@ mod tests {
         let noop_index = |_id: &str, _t: &str, _m: &str| {};
         let noop_tomb = |_id: &str| {};
         let noop_emit = |_w: u32, _r: u32| {};
-        let folder_cap: usize = std::env::var("IMPORT_FOLDER_CAP").ok()
-            .and_then(|s| s.parse().ok()).unwrap_or(usize::MAX);
+        let folder_cap: usize = std::env::var("IMPORT_FOLDER_CAP")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(usize::MAX);
         let mut grand_written = 0u32;
         let mut folder_errors = 0u32;
         for (i, folder) in folders.iter().enumerate() {
-            if i >= folder_cap { eprintln!("IMPORT: stopping at folder cap {folder_cap}"); break; }
+            if i >= folder_cap {
+                eprintln!("IMPORT: stopping at folder cap {folder_cap}");
+                break;
+            }
             match sync_folder_provider(
-                &provider, &store, workspace, folder, "default", UNASSIGNED_MATTER,
-                &key, &noop_emit, &noop_index, &noop_tomb,
-            ).await {
+                &provider,
+                &store,
+                workspace,
+                folder,
+                "default",
+                UNASSIGNED_MATTER,
+                &key,
+                &noop_emit,
+                &noop_index,
+                &noop_tomb,
+            )
+            .await
+            {
                 Ok(stats) => {
-                    eprintln!("IMPORT: '{}' ({}) -> written={} removed={}",
-                        folder.display_name, folder.id, stats.written, stats.removed);
+                    eprintln!(
+                        "IMPORT: '{}' ({}) -> written={} removed={}",
+                        folder.display_name, folder.id, stats.written, stats.removed
+                    );
                     grand_written += stats.written;
                 }
-                Err(e) => { eprintln!("IMPORT: '{}' ERROR: {e:#}", folder.display_name); folder_errors += 1; }
+                Err(e) => {
+                    eprintln!("IMPORT: '{}' ERROR: {e:#}", folder.display_name);
+                    folder_errors += 1;
+                }
             }
         }
         eprintln!("IMPORT: total written={grand_written}, folder_errors={folder_errors}");
@@ -501,41 +621,78 @@ mod tests {
         let store_count = store.count().expect("count");
         eprintln!("VERIFY: store row count={store_count}");
         let q = |keyword: Option<String>, limit: i64| MailListQuery {
-            keyword, folder_id: None, provider: None, account: None,
-            date_from: None, date_to: None, has_attachments: None,
-            sort_by: "date".into(), sort_desc: true, limit, offset: 0,
+            keyword,
+            folder_id: None,
+            provider: None,
+            account: None,
+            date_from: None,
+            date_to: None,
+            has_attachments: None,
+            sort_by: "date".into(),
+            sort_desc: true,
+            limit,
+            offset: 0,
         };
         let page = store.list_messages(&q(None, 12)).expect("list");
-        eprintln!("VERIFY: list total={} (showing {})", page.total, page.items.len());
+        eprintln!(
+            "VERIFY: list total={} (showing {})",
+            page.total,
+            page.items.len()
+        );
         // Data-health counters across the first page.
         let mut empty_subject = 0u32;
         let mut empty_from = 0u32;
         let mut null_date = 0u32;
         let mut with_attach = 0u32;
         for it in &page.items {
-            if it.subject.trim().is_empty() { empty_subject += 1; }
-            if it.from_addr.trim().is_empty() && it.from_name.trim().is_empty() { empty_from += 1; }
-            if it.received_date_time.is_none() { null_date += 1; }
-            if it.has_attachments { with_attach += 1; }
-            eprintln!("  - [{}] \"{}\" | {} <{}> | folder={} | attach={} | snippet={:?}",
+            if it.subject.trim().is_empty() {
+                empty_subject += 1;
+            }
+            if it.from_addr.trim().is_empty() && it.from_name.trim().is_empty() {
+                empty_from += 1;
+            }
+            if it.received_date_time.is_none() {
+                null_date += 1;
+            }
+            if it.has_attachments {
+                with_attach += 1;
+            }
+            eprintln!(
+                "  - [{}] \"{}\" | {} <{}> | folder={} | attach={} | snippet={:?}",
                 it.received_date_time.as_deref().unwrap_or("NULL"),
-                it.subject, it.from_name, it.from_addr, it.folder_id, it.has_attachments,
-                it.snippet.chars().take(60).collect::<String>());
+                it.subject,
+                it.from_name,
+                it.from_addr,
+                it.folder_id,
+                it.has_attachments,
+                it.snippet.chars().take(60).collect::<String>()
+            );
         }
         eprintln!("HEALTH(first page): empty_subject={empty_subject} empty_from={empty_from} null_date={null_date} with_attach={with_attach}");
 
         // 5. Keyword search (exercise the search path that powers the Email tab).
         if let Ok(kw) = std::env::var("IMPORT_SEARCH") {
-            let hits = store.list_messages(&q(Some(kw.clone()), 5)).expect("search");
+            let hits = store
+                .list_messages(&q(Some(kw.clone()), 5))
+                .expect("search");
             eprintln!("SEARCH '{kw}': {} hits", hits.total);
             for it in &hits.items {
-                eprintln!("  > \"{}\" | {} <{}>", it.subject, it.from_name, it.from_addr);
+                eprintln!(
+                    "  > \"{}\" | {} <{}>",
+                    it.subject, it.from_name, it.from_addr
+                );
             }
         }
 
         // Hard assertions: the import must have produced searchable mail.
         assert!(grand_written > 0, "no mail was imported");
-        assert_eq!(store_count as u32, grand_written, "store row count != written (lost rows)");
-        assert_eq!(page.total as u32, grand_written, "list total != written (list query drops rows)");
+        assert_eq!(
+            store_count as u32, grand_written,
+            "store row count != written (lost rows)"
+        );
+        assert_eq!(
+            page.total as u32, grand_written,
+            "list total != written (list query drops rows)"
+        );
     }
 }

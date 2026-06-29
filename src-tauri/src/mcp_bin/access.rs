@@ -275,7 +275,11 @@ mod tests {
 
         assert_eq!(state.allowed_matter_ids_owned(), vec!["a".to_string()]);
         assert!(state.decide_path(Path::new("/ws/Acme/allowed.md")).allowed);
-        assert!(!state.decide_path(Path::new("/ws/Beta/active-but-denied.md")).allowed);
+        assert!(
+            !state
+                .decide_path(Path::new("/ws/Beta/active-but-denied.md"))
+                .allowed
+        );
     }
 
     #[test]

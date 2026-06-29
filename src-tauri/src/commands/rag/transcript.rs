@@ -112,12 +112,12 @@ pub fn chunk_transcript(path: &str, text: &str) -> Vec<Chunk> {
     let mut chunk_idx: u32 = 0;
 
     let flush = |buf: &mut String,
-                     buf_start: &mut Option<(u32, u32)>,
-                     buf_end: (u32, u32),
-                     start_offset: usize,
-                     end_offset: usize,
-                     chunk_idx: &mut u32,
-                     out: &mut Vec<Chunk>| {
+                 buf_start: &mut Option<(u32, u32)>,
+                 buf_end: (u32, u32),
+                 start_offset: usize,
+                 end_offset: usize,
+                 chunk_idx: &mut u32,
+                 out: &mut Vec<Chunk>| {
         if buf.trim().is_empty() {
             buf.clear();
             *buf_start = None;
@@ -184,8 +184,7 @@ pub fn chunk_transcript(path: &str, text: &str) -> Vec<Chunk> {
         // Break BEFORE adding this line when it would overflow the budget,
         // or — preferentially — when it opens a new Q./A. exchange and the
         // chunk is already mostly full.
-        let would_overflow =
-            !buf.is_empty() && buf.len() + content.len() + 1 > TARGET_BYTES;
+        let would_overflow = !buf.is_empty() && buf.len() + content.len() + 1 > TARGET_BYTES;
         let qa_boundary = (content.starts_with("Q.") || content.starts_with("A."))
             && buf.len() >= SOFT_BREAK_BYTES;
         if would_overflow || qa_boundary {
@@ -378,14 +377,18 @@ fn main() {
     fn weston_chunks_have_well_formed_strictly_ordered_locators() {
         let text = read_fixture("deposition-transcript-weston-certified.txt");
         let chunks = chunk_transcript("/t/weston.txt", &text);
-        assert!(chunks.len() >= 2, "4 certified pages must span several chunks");
+        assert!(
+            chunks.len() >= 2,
+            "4 certified pages must span several chunks"
+        );
 
         let mut prev_end: Option<(u32, u32)> = None;
         for (i, c) in chunks.iter().enumerate() {
             assert_eq!(c.paragraph_index, i as u32, "sequential paragraph_index");
-            let loc = c.locator.as_deref().unwrap_or_else(|| {
-                panic!("chunk {i} missing locator")
-            });
+            let loc = c
+                .locator
+                .as_deref()
+                .unwrap_or_else(|| panic!("chunk {i} missing locator"));
             // ^\d+:\d+-\d+:\d+$ — parse_locator panics on anything else.
             let ((sp, sl), (ep, el)) = parse_locator(loc);
             assert!(
@@ -416,10 +419,15 @@ fn main() {
         assert!(
             (sp, sl) <= (2, 14) && (2, 16) <= (ep, el),
             "locator {}:{}-{}:{} must cover 2:14-2:16",
-            sp, sl, ep, el
+            sp,
+            sl,
+            ep,
+            el
         );
         // The spoken words survive across the line wraps.
-        assert!(c.text.contains("the cloud infrastructure team on September"));
+        assert!(c
+            .text
+            .contains("the cloud infrastructure team on September"));
         assert!(c.text.contains("12, 2025."));
     }
 

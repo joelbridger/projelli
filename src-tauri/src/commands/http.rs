@@ -77,10 +77,7 @@ fn decode_common_entities(input: &str) -> String {
         if bytes[i] == b'&' {
             // Find next ';' within 10 bytes (any legitimate entity is short).
             let lookahead_end = (i + 10).min(bytes.len());
-            if let Some(semi_rel) = bytes[i + 1..lookahead_end]
-                .iter()
-                .position(|&c| c == b';')
-            {
+            if let Some(semi_rel) = bytes[i + 1..lookahead_end].iter().position(|&c| c == b';') {
                 let entity = &input[i + 1..i + 1 + semi_rel];
                 match entity {
                     "amp" => out.push('&'),
@@ -272,10 +269,7 @@ mod tests {
     #[test]
     fn mixed_case_tags() {
         let html = "<HTML><HEAD><TiTlE>Case Test</TITLE></HEAD>";
-        assert_eq!(
-            extract_title_from_html(html).as_deref(),
-            Some("Case Test")
-        );
+        assert_eq!(extract_title_from_html(html).as_deref(), Some("Case Test"));
     }
 
     #[test]
@@ -299,10 +293,7 @@ mod tests {
     #[test]
     fn decodes_numeric_entities() {
         let html = "<title>A&#38;B &#x26; C</title>";
-        assert_eq!(
-            extract_title_from_html(html).as_deref(),
-            Some("A&B & C")
-        );
+        assert_eq!(extract_title_from_html(html).as_deref(), Some("A&B & C"));
     }
 
     #[test]

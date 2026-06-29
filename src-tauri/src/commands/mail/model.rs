@@ -182,8 +182,8 @@ mod tests {
     fn from_graph_sets_provenance_fields() {
         let m = MailMessage::from_graph(&sample_graph_json()).expect("parse");
         assert_eq!(m.provider, "m365");
-        assert_eq!(m.thread_id.as_deref(), Some("conv-9"));   // from conversationId
-        assert!(m.folders.is_empty());                         // folder is assigned by the sync layer
-        assert_eq!(m.account, "");                             // account is assigned by the sync layer
+        assert_eq!(m.thread_id.as_deref(), Some("conv-9")); // from conversationId
+        assert!(m.folders.is_empty()); // folder is assigned by the sync layer
+        assert_eq!(m.account, ""); // account is assigned by the sync layer
     }
 }

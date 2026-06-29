@@ -34,6 +34,7 @@ pub mod model_download;
 pub mod office;
 pub mod pdf_indexer;
 pub mod store;
+pub mod text_ingest;
 pub mod transcript;
 
 use serde::{Deserialize, Serialize};
@@ -388,7 +389,10 @@ where
     let (outcome, extracted) = match tokio::time::timeout(timeout, &mut handle).await {
         Ok(Ok(Ok(data))) => (FileIndexOutcome::Indexed, data),
         Ok(Ok(Err(e))) => (FileIndexOutcome::Failed(format!("{e:#}")), None),
-        Ok(Err(e)) => (FileIndexOutcome::Failed(format!("extract task join failed: {e}")), None),
+        Ok(Err(e)) => (
+            FileIndexOutcome::Failed(format!("extract task join failed: {e}")),
+            None,
+        ),
         Err(_) => {
             handle.abort();
             (FileIndexOutcome::TimedOut, None)
@@ -557,10 +561,7 @@ async fn require_workspace(state: &RagState) -> Result<PathBuf, String> {
 /// Set or replace the active workspace root the RAG indexer points at.
 /// Called when the user opens a workspace, before any indexing.
 #[tauri::command]
-pub async fn rag_set_workspace(
-    state: State<'_, RagState>,
-    path: String,
-) -> Result<(), String> {
+pub async fn rag_set_workspace(state: State<'_, RagState>, path: String) -> Result<(), String> {
     let target = PathBuf::from(&path);
     if !target.exists() {
         return Err(format!("workspace path does not exist: {}", path));
@@ -678,7 +679,11 @@ pub async fn rag_index_file(
     // F-501: cancel is `None` here ON PURPOSE — `rag_cancel_indexing` leaves
     // the shared flag true until the next walk resets it, and a stale `true`
     // would silently skip every watcher-triggered single-file index.
-    match index_one_file(&table, &file_path, &matter, &privilege, &key, None, vault_vmk).await {
+    match index_one_file(
+        &table, &file_path, &matter, &privilege, &key, None, vault_vmk,
+    )
+    .await
+    {
         Ok(()) => {
             // vault_vmk_holder is dropped (and ZeroizedVmk zeroizes) at fn exit.
             // BUG-099 tombstone self-heal: the file watcher's per-file re-index
@@ -756,7 +761,9 @@ fn resolve_privilege(privilege: Option<&str>) -> Result<String, String> {
 /// produce a bad extraction and log a warning in the caller. We never silently
 /// swallow crypto errors: the caller's existing error-handling path covers it.
 fn decrypt_if_vaulted(bytes: Vec<u8>, vault_vmk: Option<&[u8; 32]>) -> Vec<u8> {
-    let Some(vmk) = vault_vmk else { return bytes; };
+    let Some(vmk) = vault_vmk else {
+        return bytes;
+    };
     if !keepance_vault::format::has_vault_magic(&bytes) {
         return bytes;
     }
@@ -930,8 +937,12 @@ async fn extract_embed_one_file(
                 return Ok(None); // cancelled
             };
             let source_type_for = |number: u32| match kind {
-                extractor::IndexKind::Xlsx => store::SourceType::Xlsx { sheet_number: number },
-                _ => store::SourceType::Pptx { slide_number: number },
+                extractor::IndexKind::Xlsx => store::SourceType::Xlsx {
+                    sheet_number: number,
+                },
+                _ => store::SourceType::Pptx {
+                    slide_number: number,
+                },
             };
             let mut vectors = vectors.into_iter();
             let groups: Vec<(store::SourceType, Vec<(chunker::Chunk, Vec<f32>)>)> = banded
@@ -961,7 +972,10 @@ async fn extract_embed_plain_text(
 ) -> anyhow::Result<Option<ExtractedFileData>> {
     let chunks = chunker::chunk_text(path_str, text);
     if chunks.is_empty() {
-        return Ok(Some(ExtractedFileData::Flat { rows: Vec::new(), source_type }));
+        return Ok(Some(ExtractedFileData::Flat {
+            rows: Vec::new(),
+            source_type,
+        }));
     }
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
     let Some(vectors) = embedder::embed_documents_batched(&texts, cancel).await? else {
@@ -1025,14 +1039,28 @@ async fn write_extracted_file(
             Ok(true)
         }
         ExtractedFileData::Flat { rows, source_type } => {
-            store::upsert_chunks_for_path(table, path_str, rows, source_type, matter_id, privilege, key)
-                .await?;
+            store::upsert_chunks_for_path(
+                table,
+                path_str,
+                rows,
+                source_type,
+                matter_id,
+                privilege,
+                key,
+            )
+            .await?;
             Ok(false)
         }
         ExtractedFileData::Grouped { groups } => {
             // Build the wire shape upsert_grouped expects: groups with extraction=None.
-            let wire: Vec<(store::SourceType, Option<(&str, f32)>, Vec<(chunker::Chunk, Vec<f32>)>)> =
-                groups.into_iter().map(|(st, rows)| (st, None, rows)).collect();
+            let wire: Vec<(
+                store::SourceType,
+                Option<(&str, f32)>,
+                Vec<(chunker::Chunk, Vec<f32>)>,
+            )> = groups
+                .into_iter()
+                .map(|(st, rows)| (st, None, rows))
+                .collect();
             store::upsert_grouped(table, path_str, wire, matter_id, privilege, key).await?;
             Ok(false)
         }
@@ -1153,7 +1181,14 @@ async fn index_one_file(
                 _ => store::SourceType::Rtf,
             };
             index_plain_text(
-                table, &path_str, &text, source_type, matter_id, privilege, key, cancel,
+                table,
+                &path_str,
+                &text,
+                source_type,
+                matter_id,
+                privilege,
+                key,
+                cancel,
             )
             .await
         }
@@ -1197,11 +1232,19 @@ async fn index_one_file(
             };
             let mut vectors = vectors.into_iter();
             let source_type_for = |number: u32| match kind {
-                extractor::IndexKind::Xlsx => store::SourceType::Xlsx { sheet_number: number },
-                _ => store::SourceType::Pptx { slide_number: number },
+                extractor::IndexKind::Xlsx => store::SourceType::Xlsx {
+                    sheet_number: number,
+                },
+                _ => store::SourceType::Pptx {
+                    slide_number: number,
+                },
             };
             // VG-2: office sections are never OCR-extracted — extraction None.
-            let groups: Vec<(store::SourceType, Option<(&str, f32)>, Vec<(chunker::Chunk, Vec<f32>)>)> = banded
+            let groups: Vec<(
+                store::SourceType,
+                Option<(&str, f32)>,
+                Vec<(chunker::Chunk, Vec<f32>)>,
+            )> = banded
                 .into_iter()
                 .map(|(number, chunks)| {
                     let rows: Vec<(chunker::Chunk, Vec<f32>)> = chunks
@@ -1254,11 +1297,20 @@ async fn index_transcript(
         grouped.entry(page).or_default().push((chunk, vec));
     }
     // Transcripts are native text — never OCR-extracted (extraction None).
-    let groups: Vec<(store::SourceType, Option<(&str, f32)>, Vec<(chunker::Chunk, Vec<f32>)>)> =
-        grouped
-            .into_iter()
-            .map(|(page, rows)| (store::SourceType::Transcript { start_page: page }, None, rows))
-            .collect();
+    let groups: Vec<(
+        store::SourceType,
+        Option<(&str, f32)>,
+        Vec<(chunker::Chunk, Vec<f32>)>,
+    )> = grouped
+        .into_iter()
+        .map(|(page, rows)| {
+            (
+                store::SourceType::Transcript { start_page: page },
+                None,
+                rows,
+            )
+        })
+        .collect();
     store::upsert_grouped(table, path_str, groups, matter_id, privilege, key).await?;
     Ok(())
 }
@@ -1289,8 +1341,16 @@ async fn index_plain_text(
         return Ok(());
     };
     let rows: Vec<(chunker::Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
-    store::upsert_chunks_for_path(table, path_str, rows, source_type, matter_id, privilege, key)
-        .await?;
+    store::upsert_chunks_for_path(
+        table,
+        path_str,
+        rows,
+        source_type,
+        matter_id,
+        privilege,
+        key,
+    )
+    .await?;
     Ok(())
 }
 
@@ -1349,11 +1409,9 @@ pub async fn rag_index_workspace(
     // reports ready and still get the full walk.
     {
         let dir = embedder::resolve_cache_dir();
-        let cached = tokio::task::spawn_blocking(move || {
-            model_download::model_files_cached(&dir)
-        })
-        .await
-        .map_err(|e| e.to_string())?;
+        let cached = tokio::task::spawn_blocking(move || model_download::model_files_cached(&dir))
+            .await
+            .map_err(|e| e.to_string())?;
         if !cached {
             return Err(format!(
                 "{}: indexing deferred until the model downloads",
@@ -1520,19 +1578,16 @@ pub async fn rag_index_workspace(
         let file_for_task = file.clone();
         let cancel_for_task = cancel.clone();
         let vault_vmk_for_task = vault_vmk;
-        let (outcome, extracted) = run_file_extract_task(
-            file.clone(),
-            WORKSPACE_FILE_INDEX_TIMEOUT,
-            async move {
+        let (outcome, extracted) =
+            run_file_extract_task(file.clone(), WORKSPACE_FILE_INDEX_TIMEOUT, async move {
                 extract_embed_one_file(
                     &file_for_task,
                     Some(cancel_for_task.as_ref()),
                     vault_vmk_for_task.as_ref(),
                 )
                 .await
-            },
-        )
-        .await;
+            })
+            .await;
 
         // Parent is sole DB writer: on success write the extracted data; on skip
         // the write is skipped (stale rows are purged below via purge_stale_rows_on_skip).
@@ -1599,7 +1654,10 @@ pub async fn rag_index_workspace(
                         // for it — including after an app restart. If the durable
                         // persist ALSO fails, mark the walk so it does not stamp
                         // completion (next launch re-runs).
-                        if tombstone_path(&state, &workspace, &path_str, &key).await.is_err() {
+                        if tombstone_path(&state, &workspace, &path_str, &key)
+                            .await
+                            .is_err()
+                        {
                             durable_tombstone_failed = true;
                         }
                         cleanup_failed_files += 1;
@@ -1668,7 +1726,10 @@ pub async fn rag_index_workspace(
                 // excludes it until a successful re-index clears the tombstone —
                 // the fail-closed exclusion survives an app restart. If the durable
                 // persist ALSO fails, mark the walk so it does not stamp completion.
-                if tombstone_path(&state, &workspace, &path_str, &key).await.is_err() {
+                if tombstone_path(&state, &workspace, &path_str, &key)
+                    .await
+                    .is_err()
+                {
                     durable_tombstone_failed = true;
                 }
                 log::error!(
@@ -1836,10 +1897,7 @@ pub fn cap_per_source(hits: Vec<Hit>, cap: usize, top_k: usize) -> Vec<Hit> {
         if out.len() >= top_k {
             break;
         }
-        let key = hit
-            .source_id
-            .clone()
-            .unwrap_or_else(|| hit.path.clone());
+        let key = hit.source_id.clone().unwrap_or_else(|| hit.path.clone());
         let count = admitted.entry(key).or_insert(0);
         if *count < cap {
             *count += 1;
@@ -2056,7 +2114,11 @@ pub async fn rag_retrieve(
         .collect();
     // LanceDB returns by ascending distance, which corresponds to
     // descending score, but sort defensively.
-    hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    hits.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     // F-510: apply the per-source diversity cap AFTER decrypt/sort, over the
     // already-scoped overfetched candidates, then truncate to the caller's
     // top_k. No cap requested = the overfetch never happened (fetch_k ==
@@ -2210,7 +2272,10 @@ fn text_contains_normalized(stored: &str, quoted: &str) -> bool {
                 other => other,
             })
             .collect();
-        straightened.split_whitespace().collect::<Vec<_>>().join(" ")
+        straightened
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
     }
     let q = canon(quoted);
     if q.is_empty() {
@@ -2245,10 +2310,7 @@ pub async fn rag_cancel_indexing(state: State<'_, RagState>) -> Result<(), Strin
 /// frontend doesn't usually need to call this directly, but exposing the
 /// command keeps the test surface symmetric with `rag_index_file`.
 #[tauri::command]
-pub async fn rag_delete_path(
-    state: State<'_, RagState>,
-    path: String,
-) -> Result<(), String> {
+pub async fn rag_delete_path(state: State<'_, RagState>, path: String) -> Result<(), String> {
     let workspace = require_workspace(&state).await?;
     let conn = store::open_connection(&workspace)
         .await
@@ -2481,8 +2543,12 @@ mod tests {
     #[test]
     fn cap_per_source_keeps_score_order_and_caps_dominant_sources() {
         let hits = vec![
-            mini_hit("/a", 0.9), mini_hit("/a", 0.89), mini_hit("/a", 0.88),
-            mini_hit("/b", 0.87), mini_hit("/a", 0.86), mini_hit("/c", 0.85),
+            mini_hit("/a", 0.9),
+            mini_hit("/a", 0.89),
+            mini_hit("/a", 0.88),
+            mini_hit("/b", 0.87),
+            mini_hit("/a", 0.86),
+            mini_hit("/c", 0.85),
             mini_hit("/a", 0.84),
         ];
         let out = cap_per_source(hits, 2, 4);
@@ -2595,11 +2661,20 @@ mod tests {
         // THE F-301 REGRESSION: re-opening the SAME workspace (every reload calls
         // setWorkspace) must NOT re-arm — otherwise the reload-storm re-triggers
         // the destructive full re-index repeatedly and runs memory away.
-        assert!(!set_workspace_rearms(Some(&a), &a), "same workspace never re-arms");
-        assert!(!set_workspace_rearms(Some(&a), &a), "...no matter how many times");
+        assert!(
+            !set_workspace_rearms(Some(&a), &a),
+            "same workspace never re-arms"
+        );
+        assert!(
+            !set_workspace_rearms(Some(&a), &a),
+            "...no matter how many times"
+        );
 
         // A real switch to a DIFFERENT workspace re-arms so it gets indexed once.
-        assert!(set_workspace_rearms(Some(&a), &b), "switching workspaces arms");
+        assert!(
+            set_workspace_rearms(Some(&a), &b),
+            "switching workspaces arms"
+        );
         assert!(!set_workspace_rearms(Some(&b), &b), "then stable again");
     }
 
@@ -2627,7 +2702,10 @@ mod tests {
         // drops and frees the slot so future walks can run.
         drop(guard);
         assert!(!indexing.load(Ordering::SeqCst), "slot freed on exit");
-        assert!(acquire_indexing(&indexing), "a later, non-overlapping walk runs");
+        assert!(
+            acquire_indexing(&indexing),
+            "a later, non-overlapping walk runs"
+        );
     }
 
     #[test]
@@ -2744,7 +2822,9 @@ mod tests {
 
     #[test]
     fn retrieval_scope_matter_round_trips_with_kind_tag() {
-        let scope = RetrievalScope::Matter { matter_id: "matter-acme".into() };
+        let scope = RetrievalScope::Matter {
+            matter_id: "matter-acme".into(),
+        };
         let s = serde_json::to_string(&scope).expect("serialize");
         assert!(s.contains("\"kind\":\"matter\""), "got {}", s);
         assert!(s.contains("\"matterId\":\"matter-acme\""), "got {}", s);
@@ -2786,7 +2866,11 @@ mod tests {
         })
         .unwrap();
         assert!(mm.contains("\"verdict\":\"matterMismatch\""), "got {}", mm);
-        assert!(mm.contains("\"actualMatter\":\"matter-globex\""), "got {}", mm);
+        assert!(
+            mm.contains("\"actualMatter\":\"matter-globex\""),
+            "got {}",
+            mm
+        );
 
         let tm = serde_json::to_string(&Verdict::TextMismatch).unwrap();
         assert!(tm.contains("\"verdict\":\"textMismatch\""), "got {}", tm);
@@ -2865,7 +2949,10 @@ mod tests {
             section(2, "After", "Short tail sheet."),
         ];
         let banded = build_section_chunks("/w/big.xlsx", &sections);
-        assert!(banded[0].1.len() >= 2, "long section must split into chunks");
+        assert!(
+            banded[0].1.len() >= 2,
+            "long section must split into chunks"
+        );
         for c in &banded[0].1 {
             assert!(
                 c.paragraph_index < pdf_indexer::MAX_CHUNKS_PER_PAGE,
@@ -2874,7 +2961,10 @@ mod tests {
             );
         }
         // The next section starts exactly at its own band.
-        assert_eq!(banded[1].1[0].paragraph_index, pdf_indexer::MAX_CHUNKS_PER_PAGE);
+        assert_eq!(
+            banded[1].1[0].paragraph_index,
+            pdf_indexer::MAX_CHUNKS_PER_PAGE
+        );
     }
 
     #[test]
@@ -2886,10 +2976,16 @@ mod tests {
     #[test]
     fn text_contains_normalized_matches_across_whitespace() {
         let stored = "The closing date  shall be\nMarch 14, 2026.";
-        assert!(text_contains_normalized(stored, "closing date shall be March 14, 2026"));
+        assert!(text_contains_normalized(
+            stored,
+            "closing date shall be March 14, 2026"
+        ));
         assert!(text_contains_normalized(stored, "March 14, 2026"));
         // Misquote fails.
-        assert!(!text_contains_normalized(stored, "the price is ten billion dollars"));
+        assert!(!text_contains_normalized(
+            stored,
+            "the price is ten billion dollars"
+        ));
         // Empty quote is not verifiable.
         assert!(!text_contains_normalized(stored, "   "));
     }
@@ -2898,12 +2994,24 @@ mod tests {
     fn text_contains_normalized_is_case_and_curly_quote_insensitive_but_not_fuzzy() {
         let stored = "He said, \u{201C}I forwarded them to my personal email\u{201D} on Sept 9.";
         // Case drift verifies.
-        assert!(text_contains_normalized(stored, "i FORWARDED them to my personal email"));
+        assert!(text_contains_normalized(
+            stored,
+            "i FORWARDED them to my personal email"
+        ));
         // Curly/straight quote drift verifies (both directions of the drift).
-        assert!(text_contains_normalized(stored, "\"I forwarded them to my personal email\""));
-        assert!(text_contains_normalized("plain 'quote' here", "plain \u{2018}quote\u{2019} here"));
+        assert!(text_contains_normalized(
+            stored,
+            "\"I forwarded them to my personal email\""
+        ));
+        assert!(text_contains_normalized(
+            "plain 'quote' here",
+            "plain \u{2018}quote\u{2019} here"
+        ));
         // NOT fuzzy: a content change still fails.
-        assert!(!text_contains_normalized(stored, "I forwarded them to my work email"));
+        assert!(!text_contains_normalized(
+            stored,
+            "I forwarded them to my work email"
+        ));
         // Quote characters are CONTENT — canonicalized, never stripped. A quote
         // normalizing to just `""` is non-empty; it fails here by honest
         // containment (stored has no adjacent quote pair), not by the empty rule.
@@ -3038,7 +3146,10 @@ mod tests {
             skipped_paths: Vec::new(),
         };
         let s = serde_json::to_string(&p).unwrap();
-        assert!(!s.contains("skippedPaths"), "empty paths must be omitted: {s}");
+        assert!(
+            !s.contains("skippedPaths"),
+            "empty paths must be omitted: {s}"
+        );
         assert!(s.contains("\"skipped\":0"), "got {s}");
     }
 
@@ -3052,7 +3163,9 @@ mod tests {
         let key = [0x42u8; 32];
         let dir = tempfile::TempDir::new().unwrap();
         let conn = store::open_connection(dir.path()).await.expect("open conn");
-        let table = store::open_or_create_table(&conn).await.expect("open table");
+        let table = store::open_or_create_table(&conn)
+            .await
+            .expect("open table");
 
         let path = "/w/contract.docx";
         let mk_rows = |text: &str| {
@@ -3072,7 +3185,12 @@ mod tests {
         let present = |table: &lancedb::Table| {
             let q = q.clone();
             let table = table.clone();
-            async move { !store::nearest(&table, &q, 10, None, false, &[]).await.unwrap().is_empty() }
+            async move {
+                !store::nearest(&table, &q, 10, None, false, &[])
+                    .await
+                    .unwrap()
+                    .is_empty()
+            }
         };
 
         // Seed v1 — the file's rows now exist.
@@ -3094,15 +3212,26 @@ mod tests {
         let purge =
             purge_stale_rows_on_skip(&table, Path::new(path), &key, &FileIndexOutcome::Indexed)
                 .await;
-        assert_eq!(purge, PurgeOutcome::NotNeeded, "indexed files must not be purged");
+        assert_eq!(
+            purge,
+            PurgeOutcome::NotNeeded,
+            "indexed files must not be purged"
+        );
         assert!(present(&table).await, "indexed file's rows must remain");
 
         // A TIMED-OUT outcome drops the stale rows cleanly (table is healthy).
         let purge =
             purge_stale_rows_on_skip(&table, Path::new(path), &key, &FileIndexOutcome::TimedOut)
                 .await;
-        assert_eq!(purge, PurgeOutcome::PurgedCleanly, "timed-out files must be purged cleanly");
-        assert!(!present(&table).await, "stale rows must be gone after a timeout skip");
+        assert_eq!(
+            purge,
+            PurgeOutcome::PurgedCleanly,
+            "timed-out files must be purged cleanly"
+        );
+        assert!(
+            !present(&table).await,
+            "stale rows must be gone after a timeout skip"
+        );
 
         // A FAILED outcome likewise purges (re-seed, then fail).
         store::upsert_chunks_for_path(
@@ -3123,8 +3252,15 @@ mod tests {
             &FileIndexOutcome::Failed("forced extraction failure".into()),
         )
         .await;
-        assert_eq!(purge, PurgeOutcome::PurgedCleanly, "failed files must be purged cleanly");
-        assert!(!present(&table).await, "stale rows must be gone after a failed skip");
+        assert_eq!(
+            purge,
+            PurgeOutcome::PurgedCleanly,
+            "failed files must be purged cleanly"
+        );
+        assert!(
+            !present(&table).await,
+            "stale rows must be gone after a failed skip"
+        );
     }
 
     /// Gap 4: the guard must time out on GENUINELY BLOCKING work — a file whose
@@ -3278,7 +3414,9 @@ mod tests {
         let key = [0xABu8; 32];
         let dir = tempfile::TempDir::new().unwrap();
         let conn = store::open_connection(dir.path()).await.expect("open conn");
-        let table = store::open_or_create_table(&conn).await.expect("open table");
+        let table = store::open_or_create_table(&conn)
+            .await
+            .expect("open table");
 
         let path = "/w/corrupt.docx";
         let q = vec![0.11f32; embedder::EMBEDDING_DIM];
@@ -3317,7 +3455,10 @@ mod tests {
         )
         .await
         .expect("seed stale row");
-        assert!(is_visible(&table).await, "precondition: stale row is visible");
+        assert!(
+            is_visible(&table).await,
+            "precondition: stale row is visible"
+        );
 
         // Lock the LanceDB dataset directory to make delete fail with an IO error.
         // LanceDB's delete must write a deletion fragment file; this prevents that.
@@ -3327,13 +3468,9 @@ mod tests {
             .expect("set read-only");
 
         // Attempt purge — must return PurgeFailed because the IO write is blocked.
-        let purge = purge_stale_rows_on_skip(
-            &table,
-            Path::new(path),
-            &key,
-            &FileIndexOutcome::TimedOut,
-        )
-        .await;
+        let purge =
+            purge_stale_rows_on_skip(&table, Path::new(path), &key, &FileIndexOutcome::TimedOut)
+                .await;
 
         // Restore permissions immediately (before any assert so cleanup is guaranteed).
         std::fs::set_permissions(&vectors_dir, orig_perms).expect("restore permissions");
@@ -3435,7 +3572,11 @@ mod tests {
 
         // While tombstoned, retrieval feeds the token set straight to the prefilter.
         let tokens: Vec<String> = unsafe_tokens.lock().await.iter().cloned().collect();
-        assert_eq!(tokens, vec![token.clone()], "exactly the one tombstone token while unsafe");
+        assert_eq!(
+            tokens,
+            vec![token.clone()],
+            "exactly the one tombstone token while unsafe"
+        );
 
         // 2. Successful re-index (full walk OR watcher rag_index_file) → remove it.
         unsafe_tokens.lock().await.remove(&token);
@@ -3496,7 +3637,10 @@ mod tests {
             }
         }
         let final_set = live.lock().await;
-        assert!(final_set.contains("other-ws-token"), "switch loads the new ws tombstones");
+        assert!(
+            final_set.contains("other-ws-token"),
+            "switch loads the new ws tombstones"
+        );
         assert!(
             !final_set.contains("live-only-token"),
             "a real switch must not carry the old workspace's tombstones forward"
@@ -3521,15 +3665,26 @@ mod tests {
         let purge = PurgeOutcome::PurgedCleanly;
         match outcome {
             FileIndexOutcome::Indexed => {}
-            FileIndexOutcome::Failed(_) => { skipped += 1; failed += 1; }
-            FileIndexOutcome::TimedOut => { skipped += 1; timed_out += 1; }
+            FileIndexOutcome::Failed(_) => {
+                skipped += 1;
+                failed += 1;
+            }
+            FileIndexOutcome::TimedOut => {
+                skipped += 1;
+                timed_out += 1;
+            }
         }
         match purge {
             PurgeOutcome::NotNeeded | PurgeOutcome::PurgedCleanly => {}
-            PurgeOutcome::PurgeFailed => { cleanup_failed += 1; }
+            PurgeOutcome::PurgeFailed => {
+                cleanup_failed += 1;
+            }
         }
-        assert_eq!((skipped, failed, timed_out, cleanup_failed), (1, 0, 1, 0),
-            "TimedOut+PurgedCleanly: skipped=1, no double-count");
+        assert_eq!(
+            (skipped, failed, timed_out, cleanup_failed),
+            (1, 0, 1, 0),
+            "TimedOut+PurgedCleanly: skipped=1, no double-count"
+        );
 
         // Case 2: Failed + PurgedCleanly
         let (mut skipped, mut failed, mut timed_out, mut cleanup_failed) = (0u32, 0u32, 0u32, 0u32);
@@ -3537,15 +3692,26 @@ mod tests {
         let purge = PurgeOutcome::PurgedCleanly;
         match outcome {
             FileIndexOutcome::Indexed => {}
-            FileIndexOutcome::Failed(_) => { skipped += 1; failed += 1; }
-            FileIndexOutcome::TimedOut => { skipped += 1; timed_out += 1; }
+            FileIndexOutcome::Failed(_) => {
+                skipped += 1;
+                failed += 1;
+            }
+            FileIndexOutcome::TimedOut => {
+                skipped += 1;
+                timed_out += 1;
+            }
         }
         match purge {
             PurgeOutcome::NotNeeded | PurgeOutcome::PurgedCleanly => {}
-            PurgeOutcome::PurgeFailed => { cleanup_failed += 1; }
+            PurgeOutcome::PurgeFailed => {
+                cleanup_failed += 1;
+            }
         }
-        assert_eq!((skipped, failed, timed_out, cleanup_failed), (1, 1, 0, 0),
-            "Failed+PurgedCleanly: skipped=1, no double-count");
+        assert_eq!(
+            (skipped, failed, timed_out, cleanup_failed),
+            (1, 1, 0, 0),
+            "Failed+PurgedCleanly: skipped=1, no double-count"
+        );
 
         // Case 3: TimedOut + PurgeFailed — the bug was skipped=2; must be skipped=1.
         let (mut skipped, mut failed, mut timed_out, mut cleanup_failed) = (0u32, 0u32, 0u32, 0u32);
@@ -3553,15 +3719,26 @@ mod tests {
         let purge = PurgeOutcome::PurgeFailed;
         match outcome {
             FileIndexOutcome::Indexed => {}
-            FileIndexOutcome::Failed(_) => { skipped += 1; failed += 1; }
-            FileIndexOutcome::TimedOut => { skipped += 1; timed_out += 1; }
+            FileIndexOutcome::Failed(_) => {
+                skipped += 1;
+                failed += 1;
+            }
+            FileIndexOutcome::TimedOut => {
+                skipped += 1;
+                timed_out += 1;
+            }
         }
         match purge {
             PurgeOutcome::NotNeeded | PurgeOutcome::PurgedCleanly => {}
-            PurgeOutcome::PurgeFailed => { cleanup_failed += 1; }
+            PurgeOutcome::PurgeFailed => {
+                cleanup_failed += 1;
+            }
         }
-        assert_eq!((skipped, failed, timed_out, cleanup_failed), (1, 0, 1, 1),
-            "TimedOut+PurgeFailed: skipped=1 (not 2), cleanup_failed=1 (separate counter)");
+        assert_eq!(
+            (skipped, failed, timed_out, cleanup_failed),
+            (1, 0, 1, 1),
+            "TimedOut+PurgeFailed: skipped=1 (not 2), cleanup_failed=1 (separate counter)"
+        );
     }
 
     /// BLOCKER 2: single-writer invariant — a timed-out child task cannot reach
@@ -3598,10 +3775,15 @@ mod tests {
         )
         .await;
 
-        assert_eq!(outcome, FileIndexOutcome::TimedOut,
-            "blocking child must be reported as timed out");
-        assert!(data.is_none(),
-            "timed-out child must return None data — parent has nothing to write");
+        assert_eq!(
+            outcome,
+            FileIndexOutcome::TimedOut,
+            "blocking child must be reported as timed out"
+        );
+        assert!(
+            data.is_none(),
+            "timed-out child must return None data — parent has nothing to write"
+        );
         assert!(
             started.elapsed() < Duration::from_millis(500),
             "parent must return promptly; child block must not freeze the walk"
@@ -3623,15 +3805,15 @@ mod tests {
         let key = [0x55u8; 32];
         let dir = tempfile::TempDir::new().unwrap();
         let conn = store::open_connection(dir.path()).await.expect("open conn");
-        let table = store::open_or_create_table(&conn).await.expect("open table");
+        let table = store::open_or_create_table(&conn)
+            .await
+            .expect("open table");
 
         let path_str = "/w/notes.md";
 
         // Simulate a successful extraction returning a Flat result.
-        let (outcome, data) = run_file_extract_task(
-            PathBuf::from(path_str),
-            Duration::from_secs(10),
-            async {
+        let (outcome, data) =
+            run_file_extract_task(PathBuf::from(path_str), Duration::from_secs(10), async {
                 let chunks = chunker::chunk_text(path_str, "Meeting notes: discuss budget.");
                 let rows: Vec<(chunker::Chunk, Vec<f32>)> = chunks
                     .into_iter()
@@ -3641,22 +3823,36 @@ mod tests {
                     rows,
                     source_type: store::SourceType::Text,
                 }))
-            },
-        )
-        .await;
+            })
+            .await;
 
         assert_eq!(outcome, FileIndexOutcome::Indexed);
-        assert!(data.is_some(), "successful extraction must return Some(data)");
+        assert!(
+            data.is_some(),
+            "successful extraction must return Some(data)"
+        );
 
         // Parent writes the data — it is the SOLE DB writer.
-        write_extracted_file(&table, path_str, data.unwrap(), store::UNASSIGNED_MATTER, store::PRIVILEGE_NONE, &key)
-            .await
-            .expect("parent DB write must succeed");
+        write_extracted_file(
+            &table,
+            path_str,
+            data.unwrap(),
+            store::UNASSIGNED_MATTER,
+            store::PRIVILEGE_NONE,
+            &key,
+        )
+        .await
+        .expect("parent DB write must succeed");
 
         // Confirm the data is now in the index.
         let q = vec![0.42f32; embedder::EMBEDDING_DIM];
-        let hits = store::nearest(&table, &q, 10, None, false, &[]).await.expect("nearest");
-        assert!(!hits.is_empty(), "indexed data must be retrievable after parent write");
+        let hits = store::nearest(&table, &q, 10, None, false, &[])
+            .await
+            .expect("nearest");
+        assert!(
+            !hits.is_empty(),
+            "indexed data must be retrievable after parent write"
+        );
     }
 
     /// `try_load_vault_vmk` returns None for a workspace with no vault metadata.

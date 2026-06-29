@@ -33,12 +33,7 @@ impl GmailClient {
     /// status-only error (never echoes body to caller).
     async fn get_json(&self, url: &str) -> anyhow::Result<serde_json::Value> {
         for attempt in 0..8u32 {
-            let resp = self
-                .http
-                .get(url)
-                .bearer_auth(&self.token)
-                .send()
-                .await?;
+            let resp = self.http.get(url).bearer_auth(&self.token).send().await?;
             if resp.status().as_u16() == 429 {
                 let ra = resp
                     .headers()
@@ -259,14 +254,17 @@ impl GmailClient {
         attachments: &[crate::commands::mail::AttachmentInput],
     ) -> anyhow::Result<String> {
         use base64::Engine;
-        use lettre::message::{Attachment, Mailboxes, MultiPart, SinglePart};
         use lettre::message::header::ContentType as LettreContentType;
+        use lettre::message::{Attachment, Mailboxes, MultiPart, SinglePart};
         use lettre::Message;
         use std::str::FromStr;
 
         // Build the message using lettre's typed builder.
         let mut builder = Message::builder()
-            .from(from.parse().map_err(|e| anyhow::anyhow!("invalid From address {from:?}: {e}"))?)
+            .from(
+                from.parse()
+                    .map_err(|e| anyhow::anyhow!("invalid From address {from:?}: {e}"))?,
+            )
             .subject(subject);
 
         for addr in to {
@@ -303,14 +301,14 @@ impl GmailClient {
                 .body(body.to_string())
                 .map_err(|e| anyhow::anyhow!("build RFC822 message: {e}"))?
         } else {
-            let mut mixed = MultiPart::mixed()
-                .singlepart(SinglePart::plain(body.to_string()));
+            let mut mixed = MultiPart::mixed().singlepart(SinglePart::plain(body.to_string()));
             for att in attachments {
                 let bytes = base64::engine::general_purpose::STANDARD
                     .decode(&att.content_base64)
                     .map_err(|e| anyhow::anyhow!("decode attachment {:?}: {e}", att.name))?;
-                let ct = LettreContentType::parse(&att.content_type)
-                    .unwrap_or_else(|_| LettreContentType::parse("application/octet-stream").unwrap());
+                let ct = LettreContentType::parse(&att.content_type).unwrap_or_else(|_| {
+                    LettreContentType::parse("application/octet-stream").unwrap()
+                });
                 mixed = mixed.singlepart(Attachment::new(att.name.clone()).body(bytes, ct));
             }
             builder
@@ -390,7 +388,9 @@ mod tests {
         assert!(!encoded.contains('+'), "must be URL-safe base64 (no +)");
         assert!(!encoded.contains('/'), "must be URL-safe base64 (no /)");
         // Decode round-trip
-        let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(&encoded).unwrap();
+        let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(&encoded)
+            .unwrap();
         assert_eq!(decoded, raw);
     }
 
@@ -494,7 +494,10 @@ mod tests {
             .list_message_ids("INBOX", None)
             .await
             .expect("list_message_ids empty");
-        assert!(ids.is_empty(), "expected empty vec when messages key absent");
+        assert!(
+            ids.is_empty(),
+            "expected empty vec when messages key absent"
+        );
         assert!(next.is_none(), "expected no page token");
     }
 
@@ -548,7 +551,10 @@ mod tests {
             .await;
 
         let client = GmailClient::new_with_base("AT".into(), server.uri());
-        let hid = client.get_profile_history_id().await.expect("get_profile_history_id");
+        let hid = client
+            .get_profile_history_id()
+            .await
+            .expect("get_profile_history_id");
         assert_eq!(hid, "12345");
     }
 
@@ -563,9 +569,7 @@ mod tests {
         // First call: 429 with Retry-After: 0 (so the test doesn't actually sleep).
         Mock::given(method("GET"))
             .and(path("/gmail/v1/users/me/labels"))
-            .respond_with(
-                ResponseTemplate::new(429).insert_header("Retry-After", "0"),
-            )
+            .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "0"))
             .up_to_n_times(1)
             .mount(&server)
             .await;
@@ -579,7 +583,10 @@ mod tests {
             .await;
 
         let client = GmailClient::new_with_base("AT".into(), server.uri());
-        let labels = client.list_labels().await.expect("should succeed after retry");
+        let labels = client
+            .list_labels()
+            .await
+            .expect("should succeed after retry");
         assert_eq!(labels.len(), 1);
         assert_eq!(labels[0].0, "INBOX");
     }

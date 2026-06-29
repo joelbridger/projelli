@@ -164,7 +164,10 @@ mod open_in_explorer_tests {
         let tmp = std::env::temp_dir();
         let result = validate_explorer_path(&tmp);
         assert!(result.is_ok(), "expected Ok for existing dir, got Err");
-        assert!(!result.unwrap(), "temp dir should not be reported as a file");
+        assert!(
+            !result.unwrap(),
+            "temp dir should not be reported as a file"
+        );
     }
 
     #[test]
@@ -180,7 +183,10 @@ mod open_in_explorer_tests {
         let result = validate_explorer_path(&tmp);
         let _ = std::fs::remove_file(&tmp); // clean up regardless of outcome
         assert!(result.is_ok(), "expected Ok for existing file, got Err");
-        assert!(result.unwrap(), "existing file should be reported as is_file=true");
+        assert!(
+            result.unwrap(),
+            "existing file should be reported as is_file=true"
+        );
     }
 
     /// Call the REAL `open_in_explorer` Tauri command with a nonexistent path:
@@ -190,7 +196,10 @@ mod open_in_explorer_tests {
     #[test]
     fn open_in_explorer_with_nonexistent_path_returns_err() {
         let result = open_in_explorer("/this/does/not/exist/keepance-explorer-guard");
-        assert!(result.is_err(), "open_in_explorer must Err for missing path");
+        assert!(
+            result.is_err(),
+            "open_in_explorer must Err for missing path"
+        );
         let msg = result.unwrap_err();
         assert!(msg.contains("could not find"), "got: {msg}");
     }
@@ -290,8 +299,8 @@ pub fn detect_libreoffice() -> Result<Option<String>, String> {
 /// - the expected output file wasn't produced
 #[tauri::command]
 pub fn convert_doc_to_docx(input_path: String) -> Result<String, String> {
-    let soffice = detect_libreoffice()?
-        .ok_or_else(|| "LibreOffice not found on this system.".to_string())?;
+    let soffice =
+        detect_libreoffice()?.ok_or_else(|| "LibreOffice not found on this system.".to_string())?;
 
     let input = Path::new(&input_path);
     if !input.exists() {
@@ -308,15 +317,15 @@ pub fn convert_doc_to_docx(input_path: String) -> Result<String, String> {
         .map(|e| e.eq_ignore_ascii_case("doc"))
         .unwrap_or(false);
     if !ext_ok {
-        return Err(format!(
-            "Expected a .doc file, got: {}",
-            input.display()
-        ));
+        return Err(format!("Expected a .doc file, got: {}", input.display()));
     }
 
-    let parent = input
-        .parent()
-        .ok_or_else(|| format!("Could not determine parent directory of {}", input.display()))?;
+    let parent = input.parent().ok_or_else(|| {
+        format!(
+            "Could not determine parent directory of {}",
+            input.display()
+        )
+    })?;
 
     let output = {
         use crate::util::proc::hide_console;
@@ -328,7 +337,8 @@ pub fn convert_doc_to_docx(input_path: String) -> Result<String, String> {
             .arg(parent)
             .arg(input);
         hide_console(&mut cmd);
-        cmd.output().map_err(|e| format!("Failed to spawn LibreOffice: {}", e))?
+        cmd.output()
+            .map_err(|e| format!("Failed to spawn LibreOffice: {}", e))?
     };
 
     if !output.status.success() {
@@ -379,9 +389,7 @@ pub fn convert_doc_to_docx(input_path: String) -> Result<String, String> {
 fn djb2_hash(bytes: &[u8]) -> u64 {
     let mut hash: u64 = 5381;
     for b in bytes {
-        hash = hash
-            .wrapping_mul(33)
-            .wrapping_add(u64::from(*b));
+        hash = hash.wrapping_mul(33).wrapping_add(u64::from(*b));
     }
     hash
 }
@@ -410,8 +418,8 @@ fn djb2_hash(bytes: &[u8]) -> u64 {
 /// - the expected output file wasn't produced / couldn't be moved
 #[tauri::command]
 pub fn convert_ppt_to_pdf(input_path: String) -> Result<String, String> {
-    let soffice = detect_libreoffice()?
-        .ok_or_else(|| "LibreOffice not found on this system.".to_string())?;
+    let soffice =
+        detect_libreoffice()?.ok_or_else(|| "LibreOffice not found on this system.".to_string())?;
 
     let input = Path::new(&input_path);
     if !input.exists() {
@@ -493,7 +501,8 @@ pub fn convert_ppt_to_pdf(input_path: String) -> Result<String, String> {
             .arg(&cache_dir)
             .arg(&canonical);
         hide_console(&mut cmd);
-        cmd.output().map_err(|e| format!("Failed to spawn LibreOffice: {}", e))?
+        cmd.output()
+            .map_err(|e| format!("Failed to spawn LibreOffice: {}", e))?
     };
 
     if !output.status.success() {
@@ -640,7 +649,8 @@ pub fn convert_docx_to_pdf(input_path: String) -> Result<String, String> {
             .arg(&cache_dir)
             .arg(&canonical);
         hide_console(&mut cmd);
-        cmd.output().map_err(|e| format!("Failed to spawn LibreOffice: {}", e))?
+        cmd.output()
+            .map_err(|e| format!("Failed to spawn LibreOffice: {}", e))?
     };
 
     if !output.status.success() {

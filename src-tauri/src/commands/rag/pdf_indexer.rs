@@ -57,8 +57,7 @@ pub fn build_pdf_chunks(path: &str, pages: &[String]) -> Vec<Chunk> {
             // the correct paragraph_index band.
             let sub_chunks = chunk_text(path, trimmed);
             for (sub_idx, mut c) in sub_chunks.into_iter().enumerate() {
-                c.paragraph_index =
-                    page_idx as u32 * MAX_CHUNKS_PER_PAGE + sub_idx as u32;
+                c.paragraph_index = page_idx as u32 * MAX_CHUNKS_PER_PAGE + sub_idx as u32;
                 all_chunks.push(c);
             }
         }
@@ -151,7 +150,9 @@ pub async fn index_pdf_chunks(
         .into_iter()
         .map(|(page_num, rows)| {
             (
-                SourceType::Pdf { page_number: page_num },
+                SourceType::Pdf {
+                    page_number: page_num,
+                },
                 extraction_for_page(page_confidences, page_num),
                 rows,
             )
@@ -183,7 +184,11 @@ mod tests {
         let long_page = "word ".repeat(500); // > TARGET_BYTES
         let pages = vec![long_page];
         let chunks = build_pdf_chunks("/b.pdf", &pages);
-        assert!(chunks.len() >= 2, "expected multiple chunks, got {}", chunks.len());
+        assert!(
+            chunks.len() >= 2,
+            "expected multiple chunks, got {}",
+            chunks.len()
+        );
         // All chunks must be in page 0's band (0..MAX_CHUNKS_PER_PAGE).
         for c in &chunks {
             assert!(

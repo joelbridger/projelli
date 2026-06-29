@@ -54,8 +54,8 @@ pub fn detect() -> FdeStatus {
     }
     #[cfg(target_os = "windows")]
     {
-        use std::process::Command;
         use crate::util::proc::hide_console;
+        use std::process::Command;
         // `manage-bde -status C:` — 0 exit + "Protection On" = encrypted.
         let out = {
             let mut cmd = Command::new("manage-bde");
@@ -70,9 +70,7 @@ pub fn detect() -> FdeStatus {
                     || s.contains("protection on")
                 {
                     FdeState::On
-                } else if s.contains("protection off")
-                    || s.contains("percentage encrypted: 0")
-                {
+                } else if s.contains("protection off") || s.contains("percentage encrypted: 0") {
                     FdeState::Off
                 } else {
                     FdeState::Unknown
@@ -183,7 +181,10 @@ mod tests {
             detail: Some("test detail".into()),
         };
         let json = serde_json::to_string(&s).expect("serialize");
-        assert!(json.contains("\"off\""), "FdeState::Off must serialize as \"off\"");
+        assert!(
+            json.contains("\"off\""),
+            "FdeState::Off must serialize as \"off\""
+        );
         assert!(json.contains("\"status\""), "must have status field");
     }
 
@@ -195,6 +196,9 @@ mod tests {
             detail: None,
         };
         let json = serde_json::to_string(&s).expect("serialize");
-        assert!(json.contains("\"unknown\""), "FdeState::Unknown must serialize as \"unknown\"");
+        assert!(
+            json.contains("\"unknown\""),
+            "FdeState::Unknown must serialize as \"unknown\""
+        );
     }
 }

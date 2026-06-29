@@ -30,7 +30,13 @@ fn peak_rss_gib() -> Option<f64> {
 /// Procedurally generate distinct, realistic-ish legal-memo text for file `i`,
 /// so every file embeds real, NON-identical content (no dedup/caching shortcut).
 fn synth_file(i: usize, paras: usize) -> String {
-    let kinds = ["purchase", "operating", "settlement", "licensing", "employment"];
+    let kinds = [
+        "purchase",
+        "operating",
+        "settlement",
+        "licensing",
+        "employment",
+    ];
     let mut s = format!("# Matter memo {i}\n\nClient file {i}. Internal work product.\n\n");
     for p in 0..paras {
         s.push_str(&format!(

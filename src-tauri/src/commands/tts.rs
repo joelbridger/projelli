@@ -89,10 +89,7 @@ pub fn resolve_voice_model(app: &AppHandle, voice_id: &str) -> Option<PathBuf> {
 
     // Bundled voices live in resource_dir/voices/<voice-id>/
     if let Ok(resource_dir) = app.path().resource_dir() {
-        let bundled = resource_dir
-            .join("voices")
-            .join(voice_id)
-            .join(&onnx_name);
+        let bundled = resource_dir.join("voices").join(voice_id).join(&onnx_name);
         if bundled.exists() {
             return Some(bundled);
         }
@@ -118,8 +115,7 @@ pub fn resolve_voice_model(app: &AppHandle, voice_id: &str) -> Option<PathBuf> {
 /// and the "Read aloud" button.
 #[tauri::command]
 pub async fn tts_sidecar_available(app: AppHandle) -> bool {
-    resolve_piper_binary(&app).is_some()
-        && resolve_voice_model(&app, "en_US-amy-medium").is_some()
+    resolve_piper_binary(&app).is_some() && resolve_voice_model(&app, "en_US-amy-medium").is_some()
 }
 
 /// Synthesize text and return WAV bytes.

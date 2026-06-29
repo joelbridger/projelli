@@ -189,7 +189,11 @@ impl MailView {
         }
 
         // Trim leading blank lines left between the heading and the body.
-        while body_lines.first().map(|l| l.trim().is_empty()).unwrap_or(false) {
+        while body_lines
+            .first()
+            .map(|l| l.trim().is_empty())
+            .unwrap_or(false)
+        {
             body_lines.remove(0);
         }
         let body = body_lines.join("\n").trim_end().to_string();
@@ -228,10 +232,19 @@ mod tests {
             from_name: Some("Pat H".into()),
             from_address: Some("pat@hender.com".into()),
             to: vec![
-                Recipient { name: Some("Me".into()), address: Some("me@firm.com".into()) },
-                Recipient { name: None, address: Some("legal@firm.com".into()) },
+                Recipient {
+                    name: Some("Me".into()),
+                    address: Some("me@firm.com".into()),
+                },
+                Recipient {
+                    name: None,
+                    address: Some("legal@firm.com".into()),
+                },
             ],
-            cc: vec![Recipient { name: Some("Boss".into()), address: Some("boss@firm.com".into()) }],
+            cc: vec![Recipient {
+                name: Some("Boss".into()),
+                address: Some("boss@firm.com".into()),
+            }],
             folders: vec![],
             thread_id: Some("conv-9".into()),
             provider: "m365".into(),

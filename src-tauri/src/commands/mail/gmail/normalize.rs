@@ -39,10 +39,7 @@ pub fn from_gmail(account: &str, v: &serde_json::Value) -> Option<MailMessage> {
     let id = format!("gmail:{}:{}", account, gmail_id);
 
     // ── thread_id ────────────────────────────────────────────────────────────
-    let thread_id = v
-        .get("threadId")
-        .and_then(|t| t.as_str())
-        .map(String::from);
+    let thread_id = v.get("threadId").and_then(|t| t.as_str()).map(String::from);
 
     // ── folders (labelIds) ───────────────────────────────────────────────────
     let folders: Vec<String> = v
@@ -108,8 +105,7 @@ pub fn from_gmail(account: &str, v: &serde_json::Value) -> Option<MailMessage> {
 
     // ── Walk the MIME tree for body + attachments ────────────────────────────
     let payload = v.get("payload");
-    let (body_text, body_content_type, has_attachments) =
-        extract_body_and_attachments(payload);
+    let (body_text, body_content_type, has_attachments) = extract_body_and_attachments(payload);
 
     Some(MailMessage {
         id,
@@ -167,14 +163,8 @@ fn walk_parts(
         None => return,
     };
 
-    let mime_type = node
-        .get("mimeType")
-        .and_then(|m| m.as_str())
-        .unwrap_or("");
-    let filename = node
-        .get("filename")
-        .and_then(|f| f.as_str())
-        .unwrap_or("");
+    let mime_type = node.get("mimeType").and_then(|m| m.as_str()).unwrap_or("");
+    let filename = node.get("filename").and_then(|f| f.as_str()).unwrap_or("");
 
     // A part with a non-empty filename is an attachment.
     if !filename.is_empty() {
@@ -400,14 +390,20 @@ mod tests {
         assert_eq!(m.id, "gmail:user@gmail.com:abc123");
         assert_eq!(m.provider, "gmail");
         assert_eq!(m.account, "user@gmail.com");
-        assert!(m.conversation_id.is_none(), "conversation_id is always None for Gmail");
+        assert!(
+            m.conversation_id.is_none(),
+            "conversation_id is always None for Gmail"
+        );
     }
 
     #[test]
     fn parses_thread_id_and_folders() {
         let m = from_gmail("user@gmail.com", &sample_full_message()).expect("parse");
         assert_eq!(m.thread_id.as_deref(), Some("thread456"));
-        assert_eq!(m.folders, vec!["INBOX".to_string(), "IMPORTANT".to_string()]);
+        assert_eq!(
+            m.folders,
+            vec!["INBOX".to_string(), "IMPORTANT".to_string()]
+        );
     }
 
     #[test]
@@ -472,7 +468,10 @@ mod tests {
     #[test]
     fn detects_attachment() {
         let m = from_gmail("user@gmail.com", &sample_full_message()).expect("parse");
-        assert!(m.has_attachments, "contract.pdf part must set has_attachments");
+        assert!(
+            m.has_attachments,
+            "contract.pdf part must set has_attachments"
+        );
     }
 
     #[test]
@@ -508,8 +507,11 @@ mod tests {
         let m = from_gmail("user@gmail.com", &v).expect("parse html-only");
         assert_eq!(m.body_content_type, BodyContentType::Html);
         assert!(!m.body_text.is_empty(), "HTML body should be decoded");
-        assert!(m.body_text.contains("Hi there") || m.body_text.starts_with("<p>"),
-            "decoded HTML body: {:?}", m.body_text);
+        assert!(
+            m.body_text.contains("Hi there") || m.body_text.starts_with("<p>"),
+            "decoded HTML body: {:?}",
+            m.body_text
+        );
         assert!(!m.has_attachments);
         // Message-Id (case variant) must still be stripped.
         assert_eq!(m.internet_message_id.as_deref(), Some("html1@x.com"));

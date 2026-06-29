@@ -62,7 +62,11 @@ fn model_is_provisioned() -> bool {
 macro_rules! skip_without_model {
     () => {
         if !model_is_provisioned() {
-            if std::env::var("REQUIRE_RAG_MODEL").ok().filter(|v| !v.is_empty()).is_some() {
+            if std::env::var("REQUIRE_RAG_MODEL")
+                .ok()
+                .filter(|v| !v.is_empty())
+                .is_some()
+            {
                 panic!(
                     "REQUIRE_RAG_MODEL set but e5-small cache missing — \
                      refusing to silently skip RAG tests"
@@ -114,10 +118,8 @@ async fn nearest(
     for h in &mut hits {
         let enc = h.path_enc.as_deref().expect("V10 rows must carry path_enc");
         let blob = hex::decode(enc).expect("path_enc must be hex ciphertext");
-        let plain = String::from_utf8(
-            decrypt_with_key(&blob, &VEC_KEY).expect("decrypt path_enc"),
-        )
-        .expect("utf8 path");
+        let plain = String::from_utf8(decrypt_with_key(&blob, &VEC_KEY).expect("decrypt path_enc"))
+            .expect("utf8 path");
         h.path = plain.clone();
         h.source_id = Some(plain);
     }
@@ -130,7 +132,7 @@ struct Source {
     /// In production `source_id` == `path` (the Chunk.path). For docs this is a
     /// file path; for mail it is "mail:<id>".
     source_id: &'static str,
-    source_type: &'static str, // "document" | "mail"
+    source_type: &'static str, // "document" | "mail" | "wealthbox"
     /// WS-PRIV: privilege status for this source.
     privilege: &'static str,
     text: &'static str,
@@ -173,6 +175,15 @@ fn corpus() -> Vec<Source> {
                 Confirming the wire instructions for closing. Please send the $4.2M to our \
                 escrow account at First National (routing 021000021, account ending 4477) \
                 no later than the morning of March 14.",
+        },
+        Source {
+            matter_id: MATTER_ACME,
+            source_id: "wealthbox:note:acme-retirement-income",
+            source_type: "wealthbox",
+            privilege: PRIVILEGE_NONE,
+            text: "Wealthbox note for Acme. Retirement income plan uses a bucket strategy \
+                with a distinctive Ravencrest annuity review scheduled before the March \
+                closing. This CRM-only fact must stay inside the Acme matter scope.",
         },
         // WS-PRIV — THE ADVERSARIAL PRIVILEGED DOC. An attorney-client privileged
         // strategy memo about the SAME Acme closing/purchase price. For a privilege-
@@ -259,19 +270,37 @@ async fn fixture() -> Arc<Fixture> {
                 .expect("create table");
 
             for src in corpus() {
-                let chunks = keepance_lib::commands::rag::chunker::chunk_text(src.source_id, src.text);
+                let chunks =
+                    keepance_lib::commands::rag::chunker::chunk_text(src.source_id, src.text);
                 let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
                 let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts)
                     .await
                     .expect("embed documents");
                 let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
 
-                let batch = if src.source_type == "mail" {
-                    store::build_batch_mail(&rows, &VEC_KEY, src.matter_id, src.privilege)
-                        .expect("build mail batch")
-                } else {
-                    store::build_batch(&rows, SourceType::Text, src.matter_id, src.privilege, None, &VEC_KEY)
-                        .expect("build batch")
+                let batch = match src.source_type {
+                    "mail" => {
+                        store::build_batch_mail(&rows, &VEC_KEY, src.matter_id, src.privilege)
+                            .expect("build mail batch")
+                    }
+                    "wealthbox" => store::build_batch(
+                        &rows,
+                        SourceType::Wealthbox,
+                        src.matter_id,
+                        src.privilege,
+                        None,
+                        &VEC_KEY,
+                    )
+                    .expect("build wealthbox batch"),
+                    _ => store::build_batch(
+                        &rows,
+                        SourceType::Text,
+                        src.matter_id,
+                        src.privilege,
+                        None,
+                        &VEC_KEY,
+                    )
+                    .expect("build batch"),
                 };
                 let schema = batch.schema();
                 use arrow_array::RecordBatchIterator;
@@ -304,15 +333,23 @@ async fn p1_document_query_returns_exact_source_with_citation() {
     let f = fixture().await;
     let q = embed("what is the purchase price in the share purchase agreement").await;
     // Unscoped here just to confirm recall of the right document; isolation is P2.
-    let hits = nearest(&f.table, &q, 5, None, false).await.expect("retrieve");
+    let hits = nearest(&f.table, &q, 5, None, false)
+        .await
+        .expect("retrieve");
     assert!(!hits.is_empty(), "expected at least one hit");
     let top = &hits[0];
     assert_eq!(top.source_id.as_deref(), Some("/acme/acme-spa.md"));
     assert_eq!(top.matter_id.as_deref(), Some(MATTER_ACME));
     // WS-VEC: the store returns ciphertext; decrypt (as the command does) to read the fact.
-    assert!(decrypt_hit(top).contains("4,200,000"), "retrieved chunk must contain the cited fact");
+    assert!(
+        decrypt_hit(top).contains("4,200,000"),
+        "retrieved chunk must contain the cited fact"
+    );
     // The citation key is content-addressed and reproducible from (path, para).
-    assert_eq!(top.id, store::chunk_id("/acme/acme-spa.md", top.paragraph_index));
+    assert_eq!(
+        top.id,
+        store::chunk_id("/acme/acme-spa.md", top.paragraph_index)
+    );
 }
 
 #[tokio::test]
@@ -322,14 +359,21 @@ async fn p1_email_source_is_retrievable_and_carries_matter_scope() {
     // Wire/routing content lives only in an email; confirm mail chunks are
     // reachable and carry matter_id + a "mail:" source_id.
     let q = embed("where do we send the wire and what is the routing number").await;
-    let hits = nearest(&f.table, &q, 5, None, false).await.expect("retrieve");
-    let top = hits.iter().find(|h| h.source_type.as_deref() == Some("mail"))
+    let hits = nearest(&f.table, &q, 5, None, false)
+        .await
+        .expect("retrieve");
+    let top = hits
+        .iter()
+        .find(|h| h.source_type.as_deref() == Some("mail"))
         .expect("a mail hit should surface for a wire-instructions query");
     assert_eq!(top.source_id.as_deref(), Some("mail:acme-0001"));
     assert_eq!(top.matter_id.as_deref(), Some(MATTER_ACME));
     // Mail text is stored encrypted — the store returns ciphertext (the Tauri
     // command decrypts in memory; the store layer does not).
-    assert!(top.encrypted, "mail chunk must be marked encrypted at the store layer");
+    assert!(
+        top.encrypted,
+        "mail chunk must be marked encrypted at the store layer"
+    );
 }
 
 // ===========================================================================
@@ -341,8 +385,13 @@ async fn p2_scoped_query_returns_only_in_scope_matter() {
     skip_without_model!();
     let f = fixture().await;
     let q = embed("deposit and security at closing").await;
-    let hits = nearest(&f.table, &q, 8, Some(MATTER_ACME), false).await.expect("retrieve");
-    assert!(!hits.is_empty(), "scoped query should still return Acme hits");
+    let hits = nearest(&f.table, &q, 8, Some(MATTER_ACME), false)
+        .await
+        .expect("retrieve");
+    assert!(
+        !hits.is_empty(),
+        "scoped query should still return Acme hits"
+    );
     for h in &hits {
         assert_eq!(
             h.matter_id.as_deref(),
@@ -372,14 +421,24 @@ async fn p2_adversarial_confusable_term_does_not_leak_across_matters() {
     assert!(
         globex_unscoped,
         "precondition: unscoped search should surface the Globex closing; got {:?}",
-        unscoped.iter().map(|h| h.source_id.clone()).collect::<Vec<_>>()
+        unscoped
+            .iter()
+            .map(|h| h.source_id.clone())
+            .collect::<Vec<_>>()
     );
 
     // Scoped to Acme: Globex must NEVER appear; Acme's March date must.
-    let scoped = nearest(&f.table, &q, 8, Some(MATTER_ACME), false).await.unwrap();
+    let scoped = nearest(&f.table, &q, 8, Some(MATTER_ACME), false)
+        .await
+        .unwrap();
     assert!(!scoped.is_empty());
     for h in &scoped {
-        assert_eq!(h.matter_id.as_deref(), Some(MATTER_ACME), "LEAK: {:?}", h.source_id);
+        assert_eq!(
+            h.matter_id.as_deref(),
+            Some(MATTER_ACME),
+            "LEAK: {:?}",
+            h.source_id
+        );
         assert_ne!(
             h.source_id.as_deref(),
             Some("/globex/globex-lease.md"),
@@ -393,9 +452,16 @@ async fn p2_adversarial_confusable_term_does_not_leak_across_matters() {
     assert!(decrypt_hit(acme).contains("March 14, 2026"));
 
     // Symmetric: scope to Globex → only Globex, September date.
-    let scoped_g = nearest(&f.table, &q, 8, Some(MATTER_GLOBEX), false).await.unwrap();
+    let scoped_g = nearest(&f.table, &q, 8, Some(MATTER_GLOBEX), false)
+        .await
+        .unwrap();
     for h in &scoped_g {
-        assert_eq!(h.matter_id.as_deref(), Some(MATTER_GLOBEX), "LEAK: {:?}", h.source_id);
+        assert_eq!(
+            h.matter_id.as_deref(),
+            Some(MATTER_GLOBEX),
+            "LEAK: {:?}",
+            h.source_id
+        );
         assert_ne!(h.source_id.as_deref(), Some("/acme/acme-spa.md"));
     }
     assert!(scoped_g
@@ -411,15 +477,61 @@ async fn p2_isolation_holds_with_large_top_k_covering_whole_corpus() {
     // other matter (the prefilter shrinks the candidate set; it does not pad from
     // out-of-scope rows to reach the limit).
     let q = embed("the").await;
-    let hits = nearest(&f.table, &q, 100, Some(MATTER_GLOBEX), false).await.unwrap();
+    let hits = nearest(&f.table, &q, 100, Some(MATTER_GLOBEX), false)
+        .await
+        .unwrap();
     assert!(!hits.is_empty());
-    let in_scope = hits.iter().filter(|h| h.matter_id.as_deref() == Some(MATTER_GLOBEX)).count();
-    assert_eq!(in_scope, hits.len(), "every returned row must be in scope even with huge top_k");
+    let in_scope = hits
+        .iter()
+        .filter(|h| h.matter_id.as_deref() == Some(MATTER_GLOBEX))
+        .count();
+    assert_eq!(
+        in_scope,
+        hits.len(),
+        "every returned row must be in scope even with huge top_k"
+    );
     // Should have returned all 3 Globex sources, proving prefilter returns ALL
     // in-scope matches, not a truncated/padded subset.
     let distinct: std::collections::HashSet<_> =
         hits.iter().filter_map(|h| h.source_id.clone()).collect();
-    assert!(distinct.len() >= 3, "expected all Globex sources, got {:?}", distinct);
+    assert!(
+        distinct.len() >= 3,
+        "expected all Globex sources, got {:?}",
+        distinct
+    );
+}
+
+#[tokio::test]
+async fn p2_wealthbox_source_does_not_leak_across_matter_scope() {
+    skip_without_model!();
+    let f = fixture().await;
+    let q = embed("Ravencrest annuity review retirement income bucket strategy").await;
+
+    let acme = nearest(&f.table, &q, 8, Some(MATTER_ACME), false)
+        .await
+        .unwrap();
+    let crm_hit = acme
+        .iter()
+        .find(|h| h.source_id.as_deref() == Some("wealthbox:note:acme-retirement-income"))
+        .expect("Acme scope should retrieve the Wealthbox CRM note");
+    assert_eq!(crm_hit.matter_id.as_deref(), Some(MATTER_ACME));
+    assert_eq!(crm_hit.source_type.as_deref(), Some("wealthbox"));
+
+    let globex = nearest(&f.table, &q, 100, Some(MATTER_GLOBEX), false)
+        .await
+        .unwrap();
+    assert!(
+        globex
+            .iter()
+            .all(|h| h.source_id.as_deref() != Some("wealthbox:note:acme-retirement-income")),
+        "LEAK: Wealthbox note filed to Acme surfaced under Globex scope"
+    );
+    assert!(
+        globex
+            .iter()
+            .all(|h| h.matter_id.as_deref() == Some(MATTER_GLOBEX)),
+        "Globex scope must never return another matter's chunks"
+    );
 }
 
 #[tokio::test]
@@ -428,8 +540,14 @@ async fn p2_scope_is_required_at_the_type_level() {
     // has no default — an empty/unnamed object cannot decode to a silent
     // all-matters search. A caller MUST name Matter or AllMatters.
     assert!(serde_json::from_str::<RetrievalScope>("{}").is_err());
-    let m: RetrievalScope = serde_json::from_str(r#"{"kind":"matter","matterId":"matter-acme"}"#).unwrap();
-    assert_eq!(m, RetrievalScope::Matter { matter_id: MATTER_ACME.into() });
+    let m: RetrievalScope =
+        serde_json::from_str(r#"{"kind":"matter","matterId":"matter-acme"}"#).unwrap();
+    assert_eq!(
+        m,
+        RetrievalScope::Matter {
+            matter_id: MATTER_ACME.into()
+        }
+    );
     let a: RetrievalScope = serde_json::from_str(r#"{"kind":"allMatters"}"#).unwrap();
     assert_eq!(a, RetrievalScope::AllMatters);
 }
@@ -456,11 +574,15 @@ async fn verify(table: &lancedb::Table, id: &str, claimed: &str, quoted: &str) -
                 other => other,
             })
             .collect();
-        straightened.split_whitespace().collect::<Vec<_>>().join(" ")
+        straightened
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
     };
     let decrypt = |hex_text: &str| -> String {
         let blob = hex::decode(hex_text).expect("record text must be hex ciphertext (WS-VEC)");
-        String::from_utf8(decrypt_with_key(&blob, &VEC_KEY).expect("decrypt record text")).expect("utf8")
+        String::from_utf8(decrypt_with_key(&blob, &VEC_KEY).expect("decrypt record text"))
+            .expect("utf8")
     };
     match lookup_by_id(table, id, Some(claimed)).await.unwrap() {
         Some(rec) => {
@@ -472,7 +594,9 @@ async fn verify(table: &lancedb::Table, id: &str, claimed: &str, quoted: &str) -
             }
         }
         None => match lookup_by_id(table, id, None).await.unwrap() {
-            Some(other) => Verdict::MatterMismatch { actual_matter: other.matter_id },
+            Some(other) => Verdict::MatterMismatch {
+                actual_matter: other.matter_id,
+            },
             None => Verdict::NotFound,
         },
     }
@@ -483,7 +607,9 @@ async fn p3_valid_citation_verifies() {
     skip_without_model!();
     let f = fixture().await;
     let q = embed("purchase price share purchase agreement").await;
-    let hits = nearest(&f.table, &q, 3, Some(MATTER_ACME), false).await.unwrap();
+    let hits = nearest(&f.table, &q, 3, Some(MATTER_ACME), false)
+        .await
+        .unwrap();
     let h = &hits[0];
     let verdict = verify(
         &f.table,
@@ -492,7 +618,11 @@ async fn p3_valid_citation_verifies() {
         "Four Million Two Hundred Thousand Dollars",
     )
     .await;
-    assert_eq!(verdict, Verdict::Verified, "a faithful citation must verify");
+    assert_eq!(
+        verdict,
+        Verdict::Verified,
+        "a faithful citation must verify"
+    );
 }
 
 #[tokio::test]
@@ -514,7 +644,9 @@ async fn p3_misquoted_text_fails_verification() {
     skip_without_model!();
     let f = fixture().await;
     let q = embed("purchase price").await;
-    let hits = nearest(&f.table, &q, 3, Some(MATTER_ACME), false).await.unwrap();
+    let hits = nearest(&f.table, &q, 3, Some(MATTER_ACME), false)
+        .await
+        .unwrap();
     let h = &hits[0];
     let verdict = verify(
         &f.table,
@@ -533,15 +665,25 @@ async fn p3_citation_against_wrong_matter_is_rejected() {
     // A real Globex chunk, but the citation claims it is an Acme chunk. Even if
     // the quote would match, the cross-matter claim must be rejected.
     let q = embed("sublease assignment closing security deposit").await;
-    let hits = nearest(&f.table, &q, 5, Some(MATTER_GLOBEX), false).await.unwrap();
+    let hits = nearest(&f.table, &q, 5, Some(MATTER_GLOBEX), false)
+        .await
+        .unwrap();
     let g = hits
         .iter()
         .find(|h| h.source_id.as_deref() == Some("/globex/globex-lease.md"))
         .expect("globex lease chunk");
-    let verdict = verify(&f.table, &g.id, MATTER_ACME /* the lie */, "September 2, 2026").await;
+    let verdict = verify(
+        &f.table,
+        &g.id,
+        MATTER_ACME, /* the lie */
+        "September 2, 2026",
+    )
+    .await;
     assert_eq!(
         verdict,
-        Verdict::MatterMismatch { actual_matter: MATTER_GLOBEX.to_string() },
+        Verdict::MatterMismatch {
+            actual_matter: MATTER_GLOBEX.to_string()
+        },
         "a citation claiming the wrong matter must be MatterMismatch"
     );
 }
@@ -556,16 +698,28 @@ async fn p3_scoped_lookup_is_prefiltered_not_postfiltered() {
     // and comparing. (lookup_by_id with the wrong scope returns None; with the
     // right scope returns the row.)
     let q = embed("sublease assignment closing").await;
-    let hits = nearest(&f.table, &q, 5, Some(MATTER_GLOBEX), false).await.unwrap();
+    let hits = nearest(&f.table, &q, 5, Some(MATTER_GLOBEX), false)
+        .await
+        .unwrap();
     let g = hits
         .iter()
         .find(|h| h.source_id.as_deref() == Some("/globex/globex-lease.md"))
         .expect("globex lease chunk");
 
-    let wrong_scope = lookup_by_id(&f.table, &g.id, Some(MATTER_ACME)).await.unwrap();
-    assert!(wrong_scope.is_none(), "scoped lookup must not return an out-of-scope row");
-    let right_scope = lookup_by_id(&f.table, &g.id, Some(MATTER_GLOBEX)).await.unwrap();
-    assert!(right_scope.is_some(), "scoped lookup must return the in-scope row");
+    let wrong_scope = lookup_by_id(&f.table, &g.id, Some(MATTER_ACME))
+        .await
+        .unwrap();
+    assert!(
+        wrong_scope.is_none(),
+        "scoped lookup must not return an out-of-scope row"
+    );
+    let right_scope = lookup_by_id(&f.table, &g.id, Some(MATTER_GLOBEX))
+        .await
+        .unwrap();
+    assert!(
+        right_scope.is_some(),
+        "scoped lookup must return the in-scope row"
+    );
 }
 
 // ===========================================================================
@@ -595,7 +749,9 @@ async fn scoped_query_uses_prefilter_excludes_out_of_scope_from_candidate_set() 
         "precondition: the single best match is the Globex chunk"
     );
 
-    let scoped = nearest(&f.table, &q, 1, Some(MATTER_ACME), false).await.unwrap();
+    let scoped = nearest(&f.table, &q, 1, Some(MATTER_ACME), false)
+        .await
+        .unwrap();
     assert_eq!(
         scoped.len(),
         1,
@@ -641,18 +797,41 @@ async fn unassigned_sentinel_is_scopeable() {
     let text = "An uncategorized note about a quarterly tax filing deadline.";
     let chunks = keepance_lib::commands::rag::chunker::chunk_text("/inbox/note.md", text);
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-    let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
+    let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts)
+        .await
+        .unwrap();
     let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
-    let batch = store::build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &VEC_KEY).unwrap();
+    let batch = store::build_batch(
+        &rows,
+        SourceType::Text,
+        UNASSIGNED_MATTER,
+        PRIVILEGE_NONE,
+        None,
+        &VEC_KEY,
+    )
+    .unwrap();
     let schema = batch.schema();
     use arrow_array::RecordBatchIterator;
-    table.add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema))).execute().await.unwrap();
+    table
+        .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+        .execute()
+        .await
+        .unwrap();
 
     let q = embed("tax filing deadline").await;
-    let found = nearest(&table, &q, 5, Some(UNASSIGNED_MATTER), false).await.unwrap();
-    assert!(found.iter().any(|h| h.source_id.as_deref() == Some("/inbox/note.md")));
-    let other = nearest(&table, &q, 5, Some("matter-acme"), false).await.unwrap();
-    assert!(other.is_empty(), "unassigned content must not leak into a real matter scope");
+    let found = nearest(&table, &q, 5, Some(UNASSIGNED_MATTER), false)
+        .await
+        .unwrap();
+    assert!(found
+        .iter()
+        .any(|h| h.source_id.as_deref() == Some("/inbox/note.md")));
+    let other = nearest(&table, &q, 5, Some("matter-acme"), false)
+        .await
+        .unwrap();
+    assert!(
+        other.is_empty(),
+        "unassigned content must not leak into a real matter scope"
+    );
 }
 
 // ===========================================================================
@@ -676,17 +855,24 @@ async fn priv_privileged_doc_is_not_returned_by_default_even_when_top_hit() {
     // Precondition: with privilege INCLUDED, the privileged memo IS the top hit
     // under Acme scope — proving it is genuinely the most relevant row, so its
     // absence by default is exclusion, not a recall miss.
-    let included = nearest(&f.table, &q, 8, Some(MATTER_ACME), true).await.unwrap();
+    let included = nearest(&f.table, &q, 8, Some(MATTER_ACME), true)
+        .await
+        .unwrap();
     assert_eq!(
         included[0].source_id.as_deref(),
         Some("/acme/acme-strategy-memo.md"),
         "precondition: the privileged memo should be the single best Acme match; got {:?}",
-        included.iter().map(|h| h.source_id.clone()).collect::<Vec<_>>()
+        included
+            .iter()
+            .map(|h| h.source_id.clone())
+            .collect::<Vec<_>>()
     );
 
     // DEFAULT (include_privileged = false), scoped to Acme: the privileged memo
     // must NEVER appear, and every returned row must be privilege = "none".
-    let default_hits = nearest(&f.table, &q, 8, Some(MATTER_ACME), false).await.unwrap();
+    let default_hits = nearest(&f.table, &q, 8, Some(MATTER_ACME), false)
+        .await
+        .unwrap();
     for h in &default_hits {
         assert_ne!(
             h.source_id.as_deref(),
@@ -709,7 +895,9 @@ async fn priv_include_privileged_true_returns_privileged_content() {
     let f = fixture().await;
     let q = embed("attorney-client privileged litigation strategy memo settlement range").await;
     // Opt-in: the privileged memo is retrievable and correctly labelled.
-    let hits = nearest(&f.table, &q, 8, Some(MATTER_ACME), true).await.unwrap();
+    let hits = nearest(&f.table, &q, 8, Some(MATTER_ACME), true)
+        .await
+        .unwrap();
     let memo = hits
         .iter()
         .find(|h| h.source_id.as_deref() == Some("/acme/acme-strategy-memo.md"))
@@ -722,10 +910,13 @@ async fn priv_include_privileged_true_returns_privileged_content() {
 async fn priv_work_product_excluded_by_default_included_on_opt_in() {
     skip_without_model!();
     let f = fixture().await;
-    let q = embed("attorney work product mental impressions litigation theory CAM overcharges").await;
+    let q =
+        embed("attorney work product mental impressions litigation theory CAM overcharges").await;
 
     // Default scoped to Globex: the work-product doc is excluded.
-    let default_hits = nearest(&f.table, &q, 8, Some(MATTER_GLOBEX), false).await.unwrap();
+    let default_hits = nearest(&f.table, &q, 8, Some(MATTER_GLOBEX), false)
+        .await
+        .unwrap();
     assert!(
         default_hits
             .iter()
@@ -733,12 +924,16 @@ async fn priv_work_product_excluded_by_default_included_on_opt_in() {
         "LEAK: work-product doc surfaced in default retrieval"
     );
     assert!(
-        default_hits.iter().all(|h| h.privilege.as_deref() == Some(PRIVILEGE_NONE)),
+        default_hits
+            .iter()
+            .all(|h| h.privilege.as_deref() == Some(PRIVILEGE_NONE)),
         "default retrieval must only return non-privileged rows"
     );
 
     // Opt-in: it is retrievable.
-    let included = nearest(&f.table, &q, 8, Some(MATTER_GLOBEX), true).await.unwrap();
+    let included = nearest(&f.table, &q, 8, Some(MATTER_GLOBEX), true)
+        .await
+        .unwrap();
     assert!(
         included
             .iter()
@@ -754,14 +949,19 @@ async fn priv_exclusion_holds_with_large_top_k() {
     // Even asking for the whole corpus, default retrieval never pads with a
     // privileged row to reach the limit.
     let q = embed("the").await;
-    let hits = nearest(&f.table, &q, 100, Some(MATTER_ACME), false).await.unwrap();
+    let hits = nearest(&f.table, &q, 100, Some(MATTER_ACME), false)
+        .await
+        .unwrap();
     assert!(!hits.is_empty());
     assert!(
-        hits.iter().all(|h| h.privilege.as_deref() == Some(PRIVILEGE_NONE)),
+        hits.iter()
+            .all(|h| h.privilege.as_deref() == Some(PRIVILEGE_NONE)),
         "huge top_k must not spill privileged rows into default retrieval"
     );
     // Sanity: the privileged memo IS in the Acme corpus (so its absence is exclusion).
-    let included = nearest(&f.table, &q, 100, Some(MATTER_ACME), true).await.unwrap();
+    let included = nearest(&f.table, &q, 100, Some(MATTER_ACME), true)
+        .await
+        .unwrap();
     assert!(
         included
             .iter()
@@ -779,7 +979,8 @@ async fn priv_default_excludes_privileged_even_cross_matter() {
     let q = embed("privileged litigation strategy and attorney work product").await;
     let hits = nearest(&f.table, &q, 20, None, false).await.unwrap();
     assert!(
-        hits.iter().all(|h| h.privilege.as_deref() == Some(PRIVILEGE_NONE)),
+        hits.iter()
+            .all(|h| h.privilege.as_deref() == Some(PRIVILEGE_NONE)),
         "cross-matter default retrieval must still exclude privileged content; got {:?}",
         hits.iter()
             .map(|h| (h.source_id.clone(), h.privilege.clone()))
@@ -810,13 +1011,17 @@ async fn priv_composed_prefilter_is_matter_and_privilege() {
         "candid litigation strategy and private settlement range on the $4,200,000 purchase price",
     )
     .await;
-    let included_top = nearest(&f.table, &q, 1, Some(MATTER_ACME), true).await.unwrap();
+    let included_top = nearest(&f.table, &q, 1, Some(MATTER_ACME), true)
+        .await
+        .unwrap();
     assert_eq!(
         included_top[0].source_id.as_deref(),
         Some("/acme/acme-strategy-memo.md"),
         "precondition: the single best Acme match is the privileged memo"
     );
-    let default_top = nearest(&f.table, &q, 1, Some(MATTER_ACME), false).await.unwrap();
+    let default_top = nearest(&f.table, &q, 1, Some(MATTER_ACME), false)
+        .await
+        .unwrap();
     assert_eq!(
         default_top.len(),
         1,
@@ -843,18 +1048,34 @@ async fn priv_retag_flips_exclusion_in_place() {
     let text = "Settlement terms: the parties agree to a confidential payment schedule.";
     let chunks = keepance_lib::commands::rag::chunker::chunk_text(path, text);
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-    let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
+    let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts)
+        .await
+        .unwrap();
     let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
     // Index initially as non-privileged.
-    let batch = store::build_batch(&rows, SourceType::Text, MATTER_ACME, PRIVILEGE_NONE, None, &VEC_KEY).unwrap();
+    let batch = store::build_batch(
+        &rows,
+        SourceType::Text,
+        MATTER_ACME,
+        PRIVILEGE_NONE,
+        None,
+        &VEC_KEY,
+    )
+    .unwrap();
     let schema = batch.schema();
     use arrow_array::RecordBatchIterator;
-    table.add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema))).execute().await.unwrap();
+    table
+        .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+        .execute()
+        .await
+        .unwrap();
 
     let q = embed("confidential settlement payment schedule").await;
 
     // Before re-tag: returned by default retrieval.
-    let before = nearest(&table, &q, 5, Some(MATTER_ACME), false).await.unwrap();
+    let before = nearest(&table, &q, 5, Some(MATTER_ACME), false)
+        .await
+        .unwrap();
     assert!(
         before.iter().any(|h| h.source_id.as_deref() == Some(path)),
         "non-privileged doc should be returned by default before re-tag"
@@ -863,18 +1084,28 @@ async fn priv_retag_flips_exclusion_in_place() {
     // Re-tag as attorney-client privileged (in place, no re-embed).
     // VG-6e: the retag takes the plaintext path + key and matches the
     // tokenized predicate internally.
-    let updated = store::retag_privilege_for_path(&table, path, PRIVILEGE_ATTORNEY_CLIENT, &VEC_KEY)
-        .await
-        .unwrap();
-    assert!(updated >= 1, "expected at least one chunk re-tagged, got {updated}");
+    let updated =
+        store::retag_privilege_for_path(&table, path, PRIVILEGE_ATTORNEY_CLIENT, &VEC_KEY)
+            .await
+            .unwrap();
+    assert!(
+        updated >= 1,
+        "expected at least one chunk re-tagged, got {updated}"
+    );
 
     // After re-tag: EXCLUDED from default retrieval, but present with opt-in.
-    let after_default = nearest(&table, &q, 5, Some(MATTER_ACME), false).await.unwrap();
+    let after_default = nearest(&table, &q, 5, Some(MATTER_ACME), false)
+        .await
+        .unwrap();
     assert!(
-        after_default.iter().all(|h| h.source_id.as_deref() != Some(path)),
+        after_default
+            .iter()
+            .all(|h| h.source_id.as_deref() != Some(path)),
         "doc must be excluded from default retrieval after being marked privileged"
     );
-    let after_included = nearest(&table, &q, 5, Some(MATTER_ACME), true).await.unwrap();
+    let after_included = nearest(&table, &q, 5, Some(MATTER_ACME), true)
+        .await
+        .unwrap();
     let hit = after_included
         .iter()
         .find(|h| h.source_id.as_deref() == Some(path))
@@ -907,13 +1138,27 @@ async fn vec_chunk_text_is_encrypted_on_disk() {
     let path = "/acme/secret-terms.md";
     let chunks = keepance_lib::commands::rag::chunker::chunk_text(path, &doc);
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-    let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
+    let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts)
+        .await
+        .unwrap();
     let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
     // DOCUMENT path (build_batch) — the formerly-plaintext path.
-    let batch = store::build_batch(&rows, SourceType::Text, MATTER_ACME, PRIVILEGE_NONE, None, &VEC_KEY).unwrap();
+    let batch = store::build_batch(
+        &rows,
+        SourceType::Text,
+        MATTER_ACME,
+        PRIVILEGE_NONE,
+        None,
+        &VEC_KEY,
+    )
+    .unwrap();
     let schema = batch.schema();
     use arrow_array::RecordBatchIterator;
-    table.add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema))).execute().await.unwrap();
+    table
+        .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+        .execute()
+        .await
+        .unwrap();
     drop(table);
     drop(conn);
 
@@ -921,7 +1166,10 @@ async fn vec_chunk_text_is_encrypted_on_disk() {
     // secret bytes appear in NONE of them (it lives only inside the AES-GCM blob).
     let dataset_dir = store::dataset_path(dir.path());
     let mut files_scanned = 0usize;
-    for entry in walkdir::WalkDir::new(&dataset_dir).into_iter().filter_map(|e| e.ok()) {
+    for entry in walkdir::WalkDir::new(&dataset_dir)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         if entry.file_type().is_file() {
             let bytes = std::fs::read(entry.path()).unwrap_or_default();
             files_scanned += 1;
@@ -932,7 +1180,10 @@ async fn vec_chunk_text_is_encrypted_on_disk() {
             );
         }
     }
-    assert!(files_scanned > 0, "expected to scan at least one on-disk LanceDB file");
+    assert!(
+        files_scanned > 0,
+        "expected to scan at least one on-disk LanceDB file"
+    );
 }
 
 /// Retrieval returns the correct DECRYPTED chunk text for a DOCUMENT chunk:
@@ -943,13 +1194,18 @@ async fn vec_retrieval_returns_correct_decrypted_text() {
     skip_without_model!();
     let f = fixture().await;
     let q = embed("what is the purchase price in the share purchase agreement").await;
-    let hits = nearest(&f.table, &q, 5, Some(MATTER_ACME), false).await.unwrap();
+    let hits = nearest(&f.table, &q, 5, Some(MATTER_ACME), false)
+        .await
+        .unwrap();
     let top = hits
         .iter()
         .find(|h| h.source_id.as_deref() == Some("/acme/acme-spa.md"))
         .expect("acme spa chunk");
     // Store layer: the raw text is encrypted (hex ciphertext, not the plaintext).
-    assert!(top.encrypted, "WS-VEC: every chunk must be marked encrypted at the store layer");
+    assert!(
+        top.encrypted,
+        "WS-VEC: every chunk must be marked encrypted at the store layer"
+    );
     assert!(
         !top.text.contains("4,200,000") && !top.text.contains("Closing Date"),
         "WS-VEC: the store must return ciphertext, never plaintext"
@@ -971,8 +1227,12 @@ async fn matter_for_path_reads_filed_matter_and_follows_retag() {
     use arrow_array::RecordBatchIterator;
 
     let dir = tempfile::tempdir().expect("tempdir");
-    let conn = store::open_connection(dir.path()).await.expect("open connection");
-    let table = store::open_or_create_table(&conn).await.expect("create table");
+    let conn = store::open_connection(dir.path())
+        .await
+        .expect("open connection");
+    let table = store::open_or_create_table(&conn)
+        .await
+        .expect("create table");
 
     // Index one mail message filed to ACME.
     let path = "mail:bug013-0001";

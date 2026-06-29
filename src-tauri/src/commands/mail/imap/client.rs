@@ -40,9 +40,12 @@ pub async fn connect(
     username: &str,
     password: &str,
 ) -> anyhow::Result<ImapSession> {
-    timeout(CONNECT_TIMEOUT, connect_inner(host, port, username, password))
-        .await
-        .map_err(|_| anyhow::anyhow!("IMAP connect to {host}:{port} timed out"))?
+    timeout(
+        CONNECT_TIMEOUT,
+        connect_inner(host, port, username, password),
+    )
+    .await
+    .map_err(|_| anyhow::anyhow!("IMAP connect to {host}:{port} timed out"))?
 }
 
 async fn connect_inner(
@@ -123,7 +126,10 @@ pub async fn select_mailbox(
 /// LIST all mailboxes and return their names.
 pub async fn list_mailboxes(session: &mut ImapSession) -> anyhow::Result<Vec<String>> {
     let collect = async {
-        let names_stream = session.list(Some(""), Some("*")).await.context("IMAP LIST")?;
+        let names_stream = session
+            .list(Some(""), Some("*"))
+            .await
+            .context("IMAP LIST")?;
         let names: Vec<Name> = names_stream
             .try_collect()
             .await

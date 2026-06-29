@@ -25,8 +25,7 @@ use std::path::Path;
 /// creates retrieval feedback loops (a chat retrieving its own first turn
 /// was observed live). Full-text search still sees them via the frontend.
 pub const TEXT_EXTENSIONS: &[&str] = &[
-    "md", "markdown", "txt", "text", "json", "csv",
-    "log", "yml", "yaml", "toml",
+    "md", "markdown", "txt", "text", "json", "csv", "log", "yml", "yaml", "toml",
 ];
 
 /// VG-2b — office formats the Rust indexer extracts natively (docx via the

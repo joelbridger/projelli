@@ -85,10 +85,7 @@ struct StartReq<'a> {
 /// Returns the backend's `LoginResponse` JSON as a string so the frontend
 /// can parse it and run the identical post-login path as password sign-in.
 #[tauri::command]
-pub async fn firm_sso_authenticate(
-    backend_base: String,
-    email: String,
-) -> Result<String, String> {
+pub async fn firm_sso_authenticate(backend_base: String, email: String) -> Result<String, String> {
     run(backend_base, email).await.map_err(|e| e.to_string())
 }
 
@@ -162,7 +159,8 @@ async fn await_sso_redirect(
     listener: tokio::net::TcpListener,
     timeout: Duration,
 ) -> anyhow::Result<String> {
-    let body_ok = b"<html><body>Signed in. You can close this tab and return to Keepance.</body></html>";
+    let body_ok =
+        b"<html><body>Signed in. You can close this tab and return to Keepance.</body></html>";
     let body_err = b"<html><body>Sign-in failed. Return to Keepance and try again.</body></html>";
 
     tokio::time::timeout(timeout, async move {

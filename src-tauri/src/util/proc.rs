@@ -50,7 +50,10 @@ pub fn open_url(url: &str) {
 
         // NUL-terminated UTF-16 for the Win32 W-API.
         let to_wide = |s: &str| -> Vec<u16> {
-            OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
+            OsStr::new(s)
+                .encode_wide()
+                .chain(std::iter::once(0))
+                .collect()
         };
         let verb = to_wide("open");
         let file = to_wide(url);
@@ -68,7 +71,10 @@ pub fn open_url(url: &str) {
         };
         // ShellExecuteW returns a value > 32 on success (it's a legacy HINSTANCE).
         if (result as isize) <= 32 {
-            log::warn!("ShellExecuteW failed to open URL (code {})", result as isize);
+            log::warn!(
+                "ShellExecuteW failed to open URL (code {})",
+                result as isize
+            );
         }
     }
     #[cfg(not(target_os = "windows"))]

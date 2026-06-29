@@ -85,9 +85,7 @@ async fn get_embedder() -> Result<Arc<TextEmbedding>> {
             .await
             .context("model presence check join failed")?;
             if !cached {
-                anyhow::bail!(
-                    "{MODEL_NOT_READY}: the search model is not downloaded yet"
-                );
+                anyhow::bail!("{MODEL_NOT_READY}: the search model is not downloaded yet");
             }
             // (No create_dir_all here: the presence gate above guarantees the
             // cache dir exists and is fully populated.)
@@ -266,10 +264,7 @@ mod tests {
         let bundled = exe_dir.join("resources").join("embeddings");
 
         // Populate a complete model layout: existence alone must not win.
-        super::model_download::write_fake_layout(
-            &bundled,
-            &super::model_download::REQUIRED_FILES,
-        );
+        super::model_download::write_fake_layout(&bundled, &super::model_download::REQUIRED_FILES);
 
         let result = resolve_cache_dir();
 

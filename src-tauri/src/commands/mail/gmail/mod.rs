@@ -1,11 +1,11 @@
-pub mod oauth;
 pub mod api;
 pub mod normalize;
+pub mod oauth;
 
-use async_trait::async_trait;
-use crate::commands::mail::provider::{ChangePage, Cursor, MailProvider, RemoteFolder};
 use crate::commands::mail::gmail::api::GmailClient;
 use crate::commands::mail::gmail::normalize::from_gmail;
+use crate::commands::mail::provider::{ChangePage, Cursor, MailProvider, RemoteFolder};
+use async_trait::async_trait;
 
 /// A parsed, typed Gmail sync cursor.
 #[derive(Debug, PartialEq)]
@@ -136,16 +136,19 @@ impl MailProvider for GmailProvider {
             GmailCursor::Backfill => self.fetch_backfill_page(&folder.id, None).await,
             // ── Backfill: continue at the given page token ────────────────────
             GmailCursor::Page(page_token) => {
-                let pt = if page_token.is_empty() { None } else { Some(page_token.as_str()) };
+                let pt = if page_token.is_empty() {
+                    None
+                } else {
+                    Some(page_token.as_str())
+                };
                 self.fetch_backfill_page(&folder.id, pt).await
             }
             // ── Incremental: history from a historyId, first page ─────────────
-            GmailCursor::Hist(hist_id) => {
-                self.fetch_history_page(&hist_id, None).await
-            }
+            GmailCursor::Hist(hist_id) => self.fetch_history_page(&hist_id, None).await,
             // ── Incremental: continue a history page ──────────────────────────
             GmailCursor::HistPage(hist_id, page_token) => {
-                self.fetch_history_page(&hist_id, Some(page_token.as_str())).await
+                self.fetch_history_page(&hist_id, Some(page_token.as_str()))
+                    .await
             }
         }
     }
@@ -216,7 +219,8 @@ impl GmailProvider {
                     log::warn!(
                         "gmail history: historyId {} expired for account {}; \
                          resetting cursor for a full re-backfill on the next sync",
-                        start_history_id, self.account
+                        start_history_id,
+                        self.account
                     );
                     return Ok(ChangePage {
                         messages: vec![],
@@ -246,15 +250,15 @@ impl GmailProvider {
                             .and_then(|m| m.get("labelIds"))
                             .and_then(|l| l.as_array())
                             .map(|labels| {
-                                labels.iter().any(|l| matches!(l.as_str(), Some("SPAM") | Some("TRASH")))
+                                labels
+                                    .iter()
+                                    .any(|l| matches!(l.as_str(), Some("SPAM") | Some("TRASH")))
                             })
                             .unwrap_or(false);
                         if in_junk {
                             continue;
                         }
-                        if let Some(id) = message
-                            .and_then(|m| m.get("id"))
-                            .and_then(|s| s.as_str())
+                        if let Some(id) = message.and_then(|m| m.get("id")).and_then(|s| s.as_str())
                         {
                             added_ids.push(id.to_string());
                         }
@@ -374,8 +378,11 @@ mod tests {
         // Gmail is synced as one All-Mail pass, so list_folders returns a single
         // synthetic folder regardless of how many labels the account has (it does
         // not even call labels.list — no network).
-        let provider =
-            GmailProvider::new_with_base("AT".into(), "user@gmail.com".into(), "http://unused.invalid".into());
+        let provider = GmailProvider::new_with_base(
+            "AT".into(),
+            "user@gmail.com".into(),
+            "http://unused.invalid".into(),
+        );
         let folders = provider.list_folders().await.expect("list_folders");
         assert_eq!(folders.len(), 1);
         assert_eq!(folders[0].id, ALL_MAIL_FOLDER);
@@ -432,10 +439,16 @@ mod tests {
             .await;
 
         let provider = GmailProvider::new_with_base("AT".into(), "default".into(), server.uri());
-        let folder = RemoteFolder { id: ALL_MAIL_FOLDER.into(), display_name: "All Mail".into() };
+        let folder = RemoteFolder {
+            id: ALL_MAIL_FOLDER.into(),
+            display_name: "All Mail".into(),
+        };
         // If list_all_message_ids sent a labelIds param, the mock above would not
         // match and this call would fail — so the assertion is implicit + explicit.
-        let page = provider.fetch_changes(&folder, &Cursor::Backfill).await.expect("backfill");
+        let page = provider
+            .fetch_changes(&folder, &Cursor::Backfill)
+            .await
+            .expect("backfill");
         assert_eq!(page.messages.len(), 1);
         assert!(page.done, "single-page All-Mail backfill must be done=true");
         assert_eq!(page.next, Some("hist:12345".into()));
@@ -490,9 +503,16 @@ mod tests {
             .mount(&server)
             .await;
 
-        let provider = GmailProvider::new_with_base("AT".into(), "user@gmail.com".into(), server.uri());
-        let folder = RemoteFolder { id: "INBOX".into(), display_name: "INBOX".into() };
-        let page = provider.fetch_changes(&folder, &Cursor::Backfill).await.expect("fetch_changes");
+        let provider =
+            GmailProvider::new_with_base("AT".into(), "user@gmail.com".into(), server.uri());
+        let folder = RemoteFolder {
+            id: "INBOX".into(),
+            display_name: "INBOX".into(),
+        };
+        let page = provider
+            .fetch_changes(&folder, &Cursor::Backfill)
+            .await
+            .expect("fetch_changes");
 
         assert_eq!(page.messages.len(), 1);
         assert_eq!(page.messages[0].id, "gmail:user@gmail.com:msg1");
@@ -541,9 +561,16 @@ mod tests {
             .mount(&server)
             .await;
 
-        let provider = GmailProvider::new_with_base("AT".into(), "user@gmail.com".into(), server.uri());
-        let folder = RemoteFolder { id: "INBOX".into(), display_name: "INBOX".into() };
-        let page = provider.fetch_changes(&folder, &Cursor::Backfill).await.expect("fetch_changes");
+        let provider =
+            GmailProvider::new_with_base("AT".into(), "user@gmail.com".into(), server.uri());
+        let folder = RemoteFolder {
+            id: "INBOX".into(),
+            display_name: "INBOX".into(),
+        };
+        let page = provider
+            .fetch_changes(&folder, &Cursor::Backfill)
+            .await
+            .expect("fetch_changes");
 
         assert_eq!(page.messages.len(), 1);
         assert!(!page.done, "must be done=false when nextPageToken present");
@@ -598,14 +625,24 @@ mod tests {
             .mount(&server)
             .await;
 
-        let provider = GmailProvider::new_with_base("AT".into(), "user@gmail.com".into(), server.uri());
-        let folder = RemoteFolder { id: "INBOX".into(), display_name: "INBOX".into() };
+        let provider =
+            GmailProvider::new_with_base("AT".into(), "user@gmail.com".into(), server.uri());
+        let folder = RemoteFolder {
+            id: "INBOX".into(),
+            display_name: "INBOX".into(),
+        };
         let cursor = Cursor::Resume("hist:100".into());
-        let page = provider.fetch_changes(&folder, &cursor).await.expect("fetch_changes");
+        let page = provider
+            .fetch_changes(&folder, &cursor)
+            .await
+            .expect("fetch_changes");
 
         assert_eq!(page.messages.len(), 1);
         assert_eq!(page.messages[0].id, "gmail:user@gmail.com:new_msg_1");
-        assert_eq!(page.removed_ids, vec!["gmail:user@gmail.com:del_msg_1".to_string()]);
+        assert_eq!(
+            page.removed_ids,
+            vec!["gmail:user@gmail.com:del_msg_1".to_string()]
+        );
         assert!(page.done, "must be done=true when no nextPageToken");
         assert_eq!(page.next, Some("hist:103".into()));
     }

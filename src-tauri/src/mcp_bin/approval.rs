@@ -213,8 +213,8 @@ pub fn wait_for_response(approval_dir: &Path, token: &str) -> Result<bool, Strin
         if resp_path.exists() {
             let body = std::fs::read_to_string(&resp_path)
                 .map_err(|e| format!("read approval response: {e}"))?;
-            let parsed: ApprovalResponse = serde_json::from_str(&body)
-                .map_err(|e| format!("parse approval response: {e}"))?;
+            let parsed: ApprovalResponse =
+                serde_json::from_str(&body).map_err(|e| format!("parse approval response: {e}"))?;
             // Best-effort cleanup — not fatal if either unlink fails.
             let _ = std::fs::remove_file(&resp_path);
             let _ = std::fs::remove_file(&req_path);
@@ -285,10 +285,7 @@ mod tests {
 
     #[test]
     fn wait_returns_true_when_response_file_says_approved() {
-        let base = std::env::temp_dir().join(format!(
-            "keepance-mcp-test-{}",
-            std::process::id()
-        ));
+        let base = std::env::temp_dir().join(format!("keepance-mcp-test-{}", std::process::id()));
         std::fs::create_dir_all(base.join("responses")).unwrap();
         std::fs::create_dir_all(base.join("requests")).unwrap();
         let token = "deadbeef";
@@ -305,10 +302,8 @@ mod tests {
 
     #[test]
     fn wait_returns_false_when_response_file_says_denied() {
-        let base = std::env::temp_dir().join(format!(
-            "keepance-mcp-test-deny-{}",
-            std::process::id()
-        ));
+        let base =
+            std::env::temp_dir().join(format!("keepance-mcp-test-deny-{}", std::process::id()));
         std::fs::create_dir_all(base.join("responses")).unwrap();
         std::fs::create_dir_all(base.join("requests")).unwrap();
         let token = "feedface";

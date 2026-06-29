@@ -81,9 +81,9 @@ impl ParakeetSidecar {
         wav_bytes: Vec<u8>,
         model: Option<&str>,
     ) -> Result<TranscribeOutput> {
+        use crate::util::proc::hide_console_tokio;
         use tokio::process::Command;
         use tokio::time::timeout;
-        use crate::util::proc::hide_console_tokio;
 
         let args = self.build_args(model);
         let started = Instant::now();

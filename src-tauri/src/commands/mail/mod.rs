@@ -1,23 +1,23 @@
-pub mod model;
-pub mod normalize;
-pub mod provider;
-pub mod store;
-pub mod graph;
-pub mod oauth;
-pub mod sync;
 pub mod crypto;
 pub mod fde;
-pub mod imap;
 pub mod gmail;
+pub mod graph;
+pub mod imap;
+pub mod model;
+pub mod normalize;
+pub mod oauth;
+pub mod provider;
+pub mod store;
+pub mod sync;
 pub mod view;
 
+use crate::commands::mail::oauth::{OAuth, TokenOutcome};
+use crate::commands::mail::provider::MailProvider;
+use crate::commands::mail::store::{EncryptedMailStore, MailListPage, MailListQuery, MailStore};
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
-use crate::commands::mail::oauth::{OAuth, TokenOutcome};
-use crate::commands::mail::provider::MailProvider;
-use crate::commands::mail::store::{EncryptedMailStore, MailListPage, MailListQuery, MailStore};
 
 const KEYCHAIN_SERVICE: &str = "keepance-mail-ms";
 const KEYCHAIN_REFRESH_KEY: &str = "ms-refresh-token";
@@ -37,14 +37,18 @@ fn gmail_client_id() -> String {
     // Injected at build time from the KEEPANCE_GMAIL_CLIENT_ID secret (CI job
     // env in .github/workflows/release.yml). Kept out of source so it is never
     // committed; set the env locally for `tauri dev` Gmail testing.
-    option_env!("KEEPANCE_GMAIL_CLIENT_ID").unwrap_or("").to_string()
+    option_env!("KEEPANCE_GMAIL_CLIENT_ID")
+        .unwrap_or("")
+        .to_string()
 }
 
 fn gmail_client_secret() -> String {
     // Google requires the client_secret at its token endpoint for Desktop-type
     // OAuth clients (even with PKCE). Injected at build time from the
     // KEEPANCE_GMAIL_CLIENT_SECRET secret; never committed to source.
-    option_env!("KEEPANCE_GMAIL_CLIENT_SECRET").unwrap_or("").to_string()
+    option_env!("KEEPANCE_GMAIL_CLIENT_SECRET")
+        .unwrap_or("")
+        .to_string()
 }
 pub const SYNC_PROGRESS_EVENT: &str = "mail-sync-progress";
 /// G5: per-message event that carries decrypted text to the renderer for
@@ -241,10 +245,7 @@ fn load_imap_config() -> Option<(ImapConfig, String)> {
 }
 
 #[tauri::command]
-pub async fn mail_set_workspace(
-    state: State<'_, MailState>,
-    path: String,
-) -> Result<(), String> {
+pub async fn mail_set_workspace(state: State<'_, MailState>, path: String) -> Result<(), String> {
     *state.workspace.lock().await = Some(std::path::PathBuf::from(path));
     Ok(())
 }
@@ -269,8 +270,8 @@ fn get_message_with_key(
     use anyhow::Context;
     // Tolerate a "mail:" prefix so callers can pass the citation source id.
     let id = id.strip_prefix("mail:").unwrap_or(id);
-    let store = EncryptedMailStore::open_with_key(workspace, key)
-        .context("open encrypted mail store")?;
+    let store =
+        EncryptedMailStore::open_with_key(workspace, key).context("open encrypted mail store")?;
     let rec = match store.get_record(id)? {
         Some(r) => r,
         None => return Ok(None),
@@ -335,8 +336,8 @@ pub async fn mail_get_message(
         .await
         .clone()
         .ok_or("workspace not set")?;
-    let key = crate::commands::mail::crypto::get_or_create_master_key()
-        .map_err(|e| e.to_string())?;
+    let key =
+        crate::commands::mail::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
     // Decrypt + DB read are blocking fs/sqlite work; run off the async runtime.
     let ws_for_view = workspace.clone();
     let id_for_lookup = id.clone();
@@ -365,9 +366,14 @@ pub async fn mail_get_message(
 async fn folder_matter_from_rag(workspace: &std::path::Path, id: &str) -> Option<String> {
     let raw_id = id.strip_prefix("mail:").unwrap_or(id);
     let path_key = format!("mail:{}", raw_id);
-    let conn = crate::commands::rag::store::open_connection(workspace).await.ok()?;
+    let conn = crate::commands::rag::store::open_connection(workspace)
+        .await
+        .ok()?;
     let names = conn.table_names().execute().await.ok()?;
-    if !names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
+    if !names
+        .iter()
+        .any(|n| n == crate::commands::rag::store::TABLE_NAME)
+    {
         return None;
     }
     let table = conn
@@ -397,8 +403,8 @@ pub async fn mail_list_messages(
         .await
         .clone()
         .ok_or("workspace not set")?;
-    let key = crate::commands::mail::crypto::get_or_create_master_key()
-        .map_err(|e| e.to_string())?;
+    let key =
+        crate::commands::mail::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
     // SQLite work is blocking; run off the async runtime.
     tokio::task::spawn_blocking(move || {
         let store =
@@ -438,8 +444,8 @@ pub async fn mail_retag_folder_matter(
     // matter override, from the encrypted metadata store (one open).
     let ws_for_ids = workspace.clone();
     let (provider2, account2, folder2) = (provider.clone(), account.clone(), folder_id.clone());
-    let ids_and_overrides: Vec<(String, Option<String>)> = tokio::task::spawn_blocking(
-        move || -> anyhow::Result<Vec<(String, Option<String>)>> {
+    let ids_and_overrides: Vec<(String, Option<String>)> =
+        tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<(String, Option<String>)>> {
             let store = EncryptedMailStore::open(&ws_for_ids)?;
             let ids = store.ids_in_folder(&provider2, &account2, &folder2)?;
             let mut out = Vec::with_capacity(ids.len());
@@ -448,11 +454,10 @@ pub async fn mail_retag_folder_matter(
                 out.push((id, ov));
             }
             Ok(out)
-        },
-    )
-    .await
-    .map_err(|e| format!("join: {e}"))?
-    .map_err(|e| e.to_string())?;
+        })
+        .await
+        .map_err(|e| format!("join: {e}"))?
+        .map_err(|e| e.to_string())?;
 
     if ids_and_overrides.is_empty() {
         return Ok(0);
@@ -468,7 +473,10 @@ pub async fn mail_retag_folder_matter(
         .execute()
         .await
         .map_err(|e| format!("list tables: {e}"))?;
-    if !names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
+    if !names
+        .iter()
+        .any(|n| n == crate::commands::rag::store::TABLE_NAME)
+    {
         return Ok(0); // nothing indexed yet
     }
     let table = conn
@@ -494,7 +502,10 @@ pub async fn mail_retag_folder_matter(
         let effective_matter =
             resolve_effective_matter(override_matter.as_deref(), matter_id.as_str());
         match crate::commands::rag::store::retag_matter_for_path(
-            &table, &path_key, &effective_matter, &vec_key,
+            &table,
+            &path_key,
+            &effective_matter,
+            &vec_key,
         )
         .await
         {
@@ -525,10 +536,18 @@ pub async fn mail_retag_message_matter(
 ) -> Result<(), String> {
     crate::commands::rag::store::validate_matter_id(&matter_id)
         .map_err(|e| format!("invalid matter id: {e}"))?;
-    let workspace = state.workspace.lock().await.clone().ok_or("workspace not set")?;
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("workspace not set")?;
 
     // Tolerate a "mail:" prefix so callers can pass the citation source id directly.
-    let raw_id = message_id.strip_prefix("mail:").unwrap_or(&message_id).to_string();
+    let raw_id = message_id
+        .strip_prefix("mail:")
+        .unwrap_or(&message_id)
+        .to_string();
 
     // 1. Durable source of truth: persist the manual filing in the mail DB. This
     //    is the success criterion — once it's written the email IS filed, even if
@@ -567,10 +586,17 @@ pub async fn mail_retag_message_matter(
         }
     };
     let names = conn.table_names().execute().await.unwrap_or_default();
-    if !names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
+    if !names
+        .iter()
+        .any(|n| n == crate::commands::rag::store::TABLE_NAME)
+    {
         return Ok(()); // nothing indexed yet — durable filing already persisted
     }
-    let table = match conn.open_table(crate::commands::rag::store::TABLE_NAME).execute().await {
+    let table = match conn
+        .open_table(crate::commands::rag::store::TABLE_NAME)
+        .execute()
+        .await
+    {
         Ok(t) => t,
         Err(e) => {
             log::warn!("file-to-matter: RAG mirror skipped (open table: {e})");
@@ -587,7 +613,8 @@ pub async fn mail_retag_message_matter(
     };
     let path_key = format!("mail:{}", raw_id);
     if let Err(e) =
-        crate::commands::rag::store::retag_matter_for_path(&table, &path_key, &matter_id, &vec_key).await
+        crate::commands::rag::store::retag_matter_for_path(&table, &path_key, &matter_id, &vec_key)
+            .await
     {
         log::warn!("file-to-matter: RAG mirror retag for {path_key} failed: {e}");
     }
@@ -740,8 +767,8 @@ pub async fn mail_backfill_rag(
         return Ok(0);
     }
 
-    let enc_key = crate::commands::mail::crypto::get_or_create_master_key()
-        .map_err(|e| e.to_string())?;
+    let enc_key =
+        crate::commands::mail::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
 
     // Fast no-op #2: marker absent → nothing to heal (one row read).
     let ws_probe = workspace.clone();
@@ -912,8 +939,10 @@ pub async fn mail_backfill_rag(
         // into the folder's matter).
         let folder_default =
             resolve_mail_matter(&matter_map, &rec.provider, &rec.account, &rec.folder_id);
-        let matter =
-            resolve_effective_matter(store.get_message_matter(&rec.id).ok().flatten().as_deref(), &folder_default);
+        let matter = resolve_effective_matter(
+            store.get_message_matter(&rec.id).ok().flatten().as_deref(),
+            &folder_default,
+        );
 
         match index_mail_text_internal(&workspace, &path_key, &text, &matter).await {
             Ok(_) => indexed += 1,
@@ -982,7 +1011,7 @@ pub async fn mail_backfill_rag(
 #[tauri::command]
 pub async fn outlook_connect() -> Result<(), String> {
     use crate::commands::mail::gmail::oauth::{
-        bind_loopback_host, gen_pkce, gen_state, open_browser, await_redirect_code,
+        await_redirect_code, bind_loopback_host, gen_pkce, gen_state, open_browser,
     };
     use crate::commands::mail::oauth::{build_ms_auth_url, ms_exchange_code, MS_TOKEN_ENDPOINT};
 
@@ -994,15 +1023,23 @@ pub async fn outlook_connect() -> Result<(), String> {
     // listener is on whatever address the browser resolves "localhost" to — on
     // Windows that's ::1 (IPv6), and binding 127.0.0.1 there gave the user
     // "localhost refused to connect" and a timeout (BUG-010).
-    let (listener, redirect_uri) = bind_loopback_host("localhost").await.map_err(|e| e.to_string())?;
+    let (listener, redirect_uri) = bind_loopback_host("localhost")
+        .await
+        .map_err(|e| e.to_string())?;
     let url = build_ms_auth_url(&client_id(), &redirect_uri, &challenge, &state_token);
     open_browser(&url);
     let code = await_redirect_code(listener, &state_token, std::time::Duration::from_secs(300))
         .await
         .map_err(|e| e.to_string())?;
-    let tokens = ms_exchange_code(&client_id(), &code, &verifier, &redirect_uri, MS_TOKEN_ENDPOINT)
-        .await
-        .map_err(|e| e.to_string())?;
+    let tokens = ms_exchange_code(
+        &client_id(),
+        &code,
+        &verifier,
+        &redirect_uri,
+        MS_TOKEN_ENDPOINT,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
     keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
         .map_err(|e| e.to_string())?
         .set_password(&tokens.refresh)
@@ -1013,7 +1050,10 @@ pub async fn outlook_connect() -> Result<(), String> {
 #[tauri::command]
 pub async fn mail_begin_login() -> Result<DeviceCodePrompt, String> {
     let auth = OAuth::new(client_id());
-    let dc = auth.request_device_code().await.map_err(|e| e.to_string())?;
+    let dc = auth
+        .request_device_code()
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(DeviceCodePrompt {
         user_code: dc.user_code,
         verification_uri: dc.verification_uri,
@@ -1031,8 +1071,14 @@ pub async fn mail_begin_login() -> Result<DeviceCodePrompt, String> {
 #[tauri::command]
 pub async fn mail_poll_login(device_code: String) -> Result<String, String> {
     let auth = OAuth::new(client_id());
-    match auth.poll_token(&device_code).await.map_err(|e| e.to_string())? {
-        TokenOutcome::Tokens { refresh: Some(rt), .. } => {
+    match auth
+        .poll_token(&device_code)
+        .await
+        .map_err(|e| e.to_string())?
+    {
+        TokenOutcome::Tokens {
+            refresh: Some(rt), ..
+        } => {
             let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
                 .map_err(|e| e.to_string())?;
             entry.set_password(&rt).map_err(|e| e.to_string())?;
@@ -1047,8 +1093,8 @@ pub async fn mail_poll_login(device_code: String) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn mail_is_connected() -> Result<bool, String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
-        .map_err(|e| e.to_string())?;
+    let entry =
+        keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY).map_err(|e| e.to_string())?;
     Ok(entry.get_password().is_ok())
 }
 
@@ -1059,8 +1105,8 @@ pub async fn mail_is_connected() -> Result<bool, String> {
 /// re-authenticated. Imported mail in the local DB is left intact.
 #[tauri::command]
 pub async fn mail_disconnect() -> Result<(), String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
-        .map_err(|e| e.to_string())?;
+    let entry =
+        keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY).map_err(|e| e.to_string())?;
     // Surface a genuine deletion failure instead of swallowing it — otherwise the
     // UI could claim "disconnected" while the token actually remains. Already-gone
     // (NoEntry) is success (idempotent).
@@ -1071,12 +1117,16 @@ pub async fn mail_disconnect() -> Result<(), String> {
 }
 
 async fn fresh_access_token() -> Result<String, String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
-        .map_err(|e| e.to_string())?;
-    let rt = entry.get_password().map_err(|_| "not connected".to_string())?;
+    let entry =
+        keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY).map_err(|e| e.to_string())?;
+    let rt = entry
+        .get_password()
+        .map_err(|_| "not connected".to_string())?;
     let auth = OAuth::new(client_id());
     match auth.refresh(&rt).await.map_err(|e| e.to_string())? {
-        TokenOutcome::Tokens { access, refresh, .. } => {
+        TokenOutcome::Tokens {
+            access, refresh, ..
+        } => {
             if let Some(new_rt) = refresh {
                 let _ = entry.set_password(&new_rt); // refresh-token rotation
             }
@@ -1114,12 +1164,22 @@ pub async fn mail_imap_connect(
         account: username.clone(),
     };
     // Validate the connection (also rejects bad host/credentials up front).
-    provider.list_folders().await.map_err(|e| format!("Could not connect: {e}"))?;
-    let cfg = ImapConfig { account: username.clone(), host, port, username };
+    provider
+        .list_folders()
+        .await
+        .map_err(|e| format!("Could not connect: {e}"))?;
+    let cfg = ImapConfig {
+        account: username.clone(),
+        host,
+        port,
+        username,
+    };
     let cfg_json = serde_json::to_string(&cfg).map_err(|e| e.to_string())?;
     let cfg_entry =
         keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_CONFIG_KEY).map_err(|e| e.to_string())?;
-    cfg_entry.set_password(&cfg_json).map_err(|e| e.to_string())?;
+    cfg_entry
+        .set_password(&cfg_json)
+        .map_err(|e| e.to_string())?;
     let pw_entry =
         keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_PASSWORD_KEY).map_err(|e| e.to_string())?;
     if let Err(e) = pw_entry.set_password(&password) {
@@ -1194,29 +1254,48 @@ pub async fn mail_imap_disconnect() -> Result<(), String> {
 /// until the user finishes in the browser (or a 5-minute timeout).
 #[tauri::command]
 pub async fn gmail_connect() -> Result<(), String> {
-    use crate::commands::mail::gmail::oauth::{bind_loopback, build_auth_url, gen_pkce, gen_state, open_browser, await_redirect_code, GoogleOAuth};
+    use crate::commands::mail::gmail::oauth::{
+        await_redirect_code, bind_loopback, build_auth_url, gen_pkce, gen_state, open_browser,
+        GoogleOAuth,
+    };
     let (verifier, challenge) = gen_pkce();
     let state = gen_state();
     let (listener, redirect_uri) = bind_loopback().await.map_err(|e| e.to_string())?;
     let url = build_auth_url(&gmail_client_id(), &redirect_uri, &challenge, &state);
     open_browser(&url);
-    let code = await_redirect_code(listener, &state, std::time::Duration::from_secs(300)).await.map_err(|e| e.to_string())?;
+    let code = await_redirect_code(listener, &state, std::time::Duration::from_secs(300))
+        .await
+        .map_err(|e| e.to_string())?;
     let oauth = GoogleOAuth::new(gmail_client_id(), gmail_client_secret());
-    let tokens = oauth.exchange_code(&code, &verifier, &redirect_uri).await.map_err(|e| e.to_string())?;
-    let refresh = tokens.refresh.ok_or("Google did not return a refresh token; try again")?;
-    keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY).map_err(|e| e.to_string())?
-        .set_password(&refresh).map_err(|e| e.to_string())?;
+    let tokens = oauth
+        .exchange_code(&code, &verifier, &redirect_uri)
+        .await
+        .map_err(|e| e.to_string())?;
+    let refresh = tokens
+        .refresh
+        .ok_or("Google did not return a refresh token; try again")?;
+    keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY)
+        .map_err(|e| e.to_string())?
+        .set_password(&refresh)
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
 pub async fn gmail_is_connected() -> Result<bool, String> {
-    Ok(keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY).map_err(|e| e.to_string())?.get_password().is_ok())
+    Ok(
+        keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY)
+            .map_err(|e| e.to_string())?
+            .get_password()
+            .is_ok(),
+    )
 }
 
 #[tauri::command]
 pub async fn gmail_disconnect() -> Result<(), String> {
-    if let Ok(e) = keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY) { let _ = e.delete_credential(); }
+    if let Ok(e) = keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY) {
+        let _ = e.delete_credential();
+    }
     Ok(())
 }
 
@@ -1227,8 +1306,13 @@ pub async fn gmail_disconnect() -> Result<(), String> {
 async fn fresh_gmail_access_token() -> Result<String, String> {
     let entry = keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY)
         .map_err(|e| e.to_string())?;
-    let rt = entry.get_password().map_err(|_| "not connected".to_string())?;
-    let oauth = crate::commands::mail::gmail::oauth::GoogleOAuth::new(gmail_client_id(), gmail_client_secret());
+    let rt = entry
+        .get_password()
+        .map_err(|_| "not connected".to_string())?;
+    let oauth = crate::commands::mail::gmail::oauth::GoogleOAuth::new(
+        gmail_client_id(),
+        gmail_client_secret(),
+    );
     match oauth.refresh(&rt).await {
         Ok(tokens) => Ok(tokens.access),
         Err(e) => {
@@ -1261,66 +1345,14 @@ async fn index_mail_text_internal(
     plaintext: &str,
     matter_id: &str,
 ) -> anyhow::Result<u32> {
-    use anyhow::Context;
-    if plaintext.trim().is_empty() {
-        return Ok(0);
-    }
-    // WS-VEC: the RAG-index copy of the mail text is encrypted at rest under the
-    // dedicated VECTOR-STORE key (not the mail-body key), so the whole `chunks`
-    // table decrypts under one key. The canonical encrypted mail body lives in
-    // the mail store under the mail key; this is a derived copy.
-    let key = crate::commands::rag::crypto::get_or_create_master_key()
-        .context("vectors master key for mail RAG index")?;
-    let conn = crate::commands::rag::store::open_connection(workspace)
-        .await
-        .context("open lancedb for mail indexing")?;
-    let table = crate::commands::rag::store::open_or_create_table(&conn)
-        .await
-        .context("open/create chunks table")?;
-
-    let chunks = crate::commands::rag::chunker::chunk_text(path_key, plaintext);
-
-    // Delete stale rows before inserting (idempotent). VG-6e: the delete
-    // matches the tokenized path column via the vector key.
-    crate::commands::rag::store::delete_path(&table, path_key, &key)
-        .await
-        .context("delete stale mail chunks")?;
-
-    if chunks.is_empty() {
-        return Ok(0);
-    }
-
-    let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-    // F-501-class hardening: bounded batches even for a pathological multi-MB
-    // plaintext body. No cancel flag on the mail path, so Some is guaranteed.
-    let vectors = crate::commands::rag::embedder::embed_documents_batched(&texts, None)
-        .await
-        .context("embed mail chunks")?
-        .unwrap_or_default();
-    let rows: Vec<(crate::commands::rag::chunker::Chunk, Vec<f32>)> =
-        chunks.into_iter().zip(vectors).collect();
-
-    // WS-PRIV: mail is indexed at PRIVILEGE_NONE (the default). Mail sync runs
-    // from the server and has no privilege signal of its own; the user marks a
-    // message privileged in the UI, which writes the privilege store and re-tags
-    // these chunks in place via `rag_retag_privilege` (parallel to how a mail's
-    // matter is assigned after indexing, not at sync time).
-    let batch = crate::commands::rag::store::build_batch_mail(
-        &rows,
-        &key,
+    crate::commands::rag::text_ingest::index_text(
+        workspace,
+        path_key,
+        plaintext,
         matter_id,
-        crate::commands::rag::store::PRIVILEGE_NONE,
+        crate::commands::rag::store::SourceType::Mail,
     )
-    .context("build mail batch")?;
-    let schema = batch.schema();
-    use arrow_array::RecordBatchIterator;
-    table
-        .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
-        .execute()
-        .await
-        .context("add mail chunks to lancedb")?;
-
-    Ok(rows.len() as u32)
+    .await
 }
 
 /// Marker key in the encrypted mail store's `meta` table: set when one or more
@@ -1379,10 +1411,7 @@ static MARKED_THIS_SESSION: AtomicBool = AtomicBool::new(false);
 /// Persist the "mail needs a RAG backfill" marker for `workspace`. Idempotent;
 /// one row in the encrypted mail store's meta table, written at most once per
 /// session (see `MARKED_THIS_SESSION`).
-fn mark_rag_backfill_needed(
-    workspace: &std::path::Path,
-    key: &[u8; 32],
-) -> anyhow::Result<()> {
+fn mark_rag_backfill_needed(workspace: &std::path::Path, key: &[u8; 32]) -> anyhow::Result<()> {
     // Claim the session latch first so concurrent failures collapse to one
     // write.
     if MARKED_THIS_SESSION.swap(true, Ordering::SeqCst) {
@@ -1429,18 +1458,14 @@ fn spawn_mail_rag_index(
         // call; if the semaphore is ever closed (it never is — it's a static)
         // we still proceed rather than silently dropping the message.
         let _permit = MAIL_INDEX_SEMAPHORE.acquire().await.ok();
-        if let Err(e) =
-            index_mail_text_internal(&workspace, &path_key, &text, &matter_id).await
-        {
+        if let Err(e) = index_mail_text_internal(&workspace, &path_key, &text, &matter_id).await {
             // {:#} = full anyhow chain, so the log shows root causes and the
             // model-not-ready marker survives any .context() wrapping.
             log::warn!("mail RAG index failed for {}: {:#}", path_key, e);
             if embed_error_is_model_not_ready(&e) {
                 let ws = workspace.clone();
-                match tokio::task::spawn_blocking(move || {
-                    mark_rag_backfill_needed(&ws, &enc_key)
-                })
-                .await
+                match tokio::task::spawn_blocking(move || mark_rag_backfill_needed(&ws, &enc_key))
+                    .await
                 {
                     Ok(Ok(())) => {}
                     Ok(Err(me)) => {
@@ -1526,7 +1551,10 @@ fn make_tombstone_callback(workspace: std::path::PathBuf) -> impl Fn(&str) + Sen
             match crate::commands::rag::store::open_connection(&ws).await {
                 Ok(conn) => {
                     let names = conn.table_names().execute().await.unwrap_or_default();
-                    if names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
+                    if names
+                        .iter()
+                        .any(|n| n == crate::commands::rag::store::TABLE_NAME)
+                    {
                         if let Ok(table) = conn
                             .open_table(crate::commands::rag::store::TABLE_NAME)
                             .execute()
@@ -1667,15 +1695,27 @@ async fn sync_m365_section(
         let provider = crate::commands::mail::graph::GraphProvider::new(token);
         let folder_matter = resolve_mail_matter(matter_map, "m365", M365_ACCOUNT, &folder.id);
         let s = sync_one_folder(
-            app, "m365", &provider, store, workspace, &folder, M365_ACCOUNT, &folder_matter,
-            enc_key, base.written, base.removed,
+            app,
+            "m365",
+            &provider,
+            store,
+            workspace,
+            &folder,
+            M365_ACCOUNT,
+            &folder_matter,
+            enc_key,
+            base.written,
+            base.removed,
         )
         .await
         .map_err(|e| e.to_string())?;
         base.written += s.written;
         base.removed += s.removed;
     }
-    Ok(SectionOutcome::Done { written: base.written, removed: base.removed })
+    Ok(SectionOutcome::Done {
+        written: base.written,
+        removed: base.removed,
+    })
 }
 
 /// Sync every folder of the configured IMAP account. One provider instance for
@@ -1690,7 +1730,12 @@ async fn sync_imap_section(
 ) -> Result<SectionOutcome, String> {
     let (imap_cfg, imap_pw) = match load_imap_config() {
         Some(v) => v,
-        None => return Ok(SectionOutcome::Done { written: 0, removed: 0 }),
+        None => {
+            return Ok(SectionOutcome::Done {
+                written: 0,
+                removed: 0,
+            })
+        }
     };
     use crate::commands::mail::imap::ImapProvider;
     let provider = ImapProvider {
@@ -1708,15 +1753,27 @@ async fn sync_imap_section(
         }
         let folder_matter = resolve_mail_matter(matter_map, "imap", &imap_cfg.account, &folder.id);
         let s = sync_one_folder(
-            app, "imap", &provider, store, workspace, &folder, &imap_cfg.account, &folder_matter,
-            enc_key, base.written, base.removed,
+            app,
+            "imap",
+            &provider,
+            store,
+            workspace,
+            &folder,
+            &imap_cfg.account,
+            &folder_matter,
+            enc_key,
+            base.written,
+            base.removed,
         )
         .await
         .map_err(|e| e.to_string())?;
         base.written += s.written;
         base.removed += s.removed;
     }
-    Ok(SectionOutcome::Done { written: base.written, removed: base.removed })
+    Ok(SectionOutcome::Done {
+        written: base.written,
+        removed: base.removed,
+    })
 }
 
 /// Sync every folder/label of the Gmail account. The token is refreshed before
@@ -1745,15 +1802,27 @@ async fn sync_gmail_section(
         let provider = GmailProvider::new(token, GMAIL_ACCOUNT.to_string());
         let folder_matter = resolve_mail_matter(matter_map, "gmail", GMAIL_ACCOUNT, &folder.id);
         let s = sync_one_folder(
-            app, "gmail", &provider, store, workspace, &folder, GMAIL_ACCOUNT, &folder_matter,
-            enc_key, base.written, base.removed,
+            app,
+            "gmail",
+            &provider,
+            store,
+            workspace,
+            &folder,
+            GMAIL_ACCOUNT,
+            &folder_matter,
+            enc_key,
+            base.written,
+            base.removed,
         )
         .await
         .map_err(|e| e.to_string())?;
         base.written += s.written;
         base.removed += s.removed;
     }
-    Ok(SectionOutcome::Done { written: base.written, removed: base.removed })
+    Ok(SectionOutcome::Done {
+        written: base.written,
+        removed: base.removed,
+    })
 }
 
 /// Enumerate folders then sync each to its deltaLink, emitting provider-tagged
@@ -1776,7 +1845,8 @@ pub async fn mail_sync_all(
 ) -> Result<(), String> {
     // Atomically claim the sync slot; reject if a sync is already running.
     // We do NOT reset `cancel` if we bail here — an in-flight sync owns it.
-    if state.is_syncing
+    if state
+        .is_syncing
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
     {
@@ -1821,8 +1891,8 @@ async fn mail_sync_all_inner(
     sync::migrate_plaintext(&workspace);
 
     let store = EncryptedMailStore::open(&workspace).map_err(|e| e.to_string())?;
-    let enc_key = crate::commands::mail::crypto::get_or_create_master_key()
-        .map_err(|e| e.to_string())?;
+    let enc_key =
+        crate::commands::mail::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
 
     // Each provider runs only if it is in scope (see `only_provider`) AND actually
     // connected/configured — so connecting one account never reaches into
@@ -1901,9 +1971,46 @@ pub async fn mail_send(
     );
 
     match provider.as_str() {
-        "m365" => send_m365(state, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
-        "gmail" => send_gmail(state, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
-        "imap" => send_imap(state, account, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
+        "m365" => {
+            send_m365(
+                state,
+                to,
+                cc,
+                bcc,
+                subject,
+                body,
+                in_reply_to_id,
+                attachments.unwrap_or_default(),
+            )
+            .await
+        }
+        "gmail" => {
+            send_gmail(
+                state,
+                to,
+                cc,
+                bcc,
+                subject,
+                body,
+                in_reply_to_id,
+                attachments.unwrap_or_default(),
+            )
+            .await
+        }
+        "imap" => {
+            send_imap(
+                state,
+                account,
+                to,
+                cc,
+                bcc,
+                subject,
+                body,
+                in_reply_to_id,
+                attachments.unwrap_or_default(),
+            )
+            .await
+        }
         other => Err(format!("unknown provider: {other}")),
     }
 }
@@ -1996,16 +2103,7 @@ async fn send_m365(
     // conversation_id is not stored in MailRecord; pass None for now.
     // Threading for M365 replies can be added when conversationId is stored.
     client
-        .send_message(
-            &to,
-            &cc,
-            &bcc,
-            &subject,
-            &body,
-            None,
-            true,
-            &attachments,
-        )
+        .send_message(&to, &cc, &bcc, &subject, &body, None, true, &attachments)
         .await
         .map_err(|e| e.to_string())
 }
@@ -2032,11 +2130,9 @@ async fn send_gmail(
             let ws2 = ws.clone();
             let key2 = key;
             let raw_id2 = raw_id.clone();
-            tokio::task::spawn_blocking(move || {
-                resolve_threading_headers(&ws2, &raw_id2, &key2)
-            })
-            .await
-            .unwrap_or((None, None))
+            tokio::task::spawn_blocking(move || resolve_threading_headers(&ws2, &raw_id2, &key2))
+                .await
+                .unwrap_or((None, None))
         } else {
             (None, None)
         }
@@ -2087,11 +2183,9 @@ async fn send_imap(
         if let Some(ws) = workspace {
             let key = crate::commands::mail::crypto::get_or_create_master_key()
                 .map_err(|e| e.to_string())?;
-            tokio::task::spawn_blocking(move || {
-                resolve_threading_headers(&ws, &raw_id, &key)
-            })
-            .await
-            .unwrap_or((None, None))
+            tokio::task::spawn_blocking(move || resolve_threading_headers(&ws, &raw_id, &key))
+                .await
+                .unwrap_or((None, None))
         } else {
             (None, None)
         }
@@ -2124,7 +2218,10 @@ async fn send_imap(
 
 #[cfg(test)]
 mod tests {
-    use super::{frontmatter_subject, get_message_with_key, resolve_effective_matter, resolve_mail_matter, should_sync_provider, yaml_unescape, MailMatterMapEntry};
+    use super::{
+        frontmatter_subject, get_message_with_key, resolve_effective_matter, resolve_mail_matter,
+        should_sync_provider, yaml_unescape, MailMatterMapEntry,
+    };
     use crate::commands::mail::store::EncryptedMailStore;
     use crate::commands::rag::store::UNASSIGNED_MATTER;
 
@@ -2191,23 +2288,38 @@ mod tests {
             resolve_mail_matter(&map, "m365", "default", "sent"),
             UNASSIGNED_MATTER
         );
-        assert_eq!(resolve_mail_matter(&[], "m365", "default", "inbox"), UNASSIGNED_MATTER);
+        assert_eq!(
+            resolve_mail_matter(&[], "m365", "default", "inbox"),
+            UNASSIGNED_MATTER
+        );
     }
 
     #[test]
     fn resolve_mail_matter_matches_exact_folder() {
         let map = vec![entry("m365", "default", "inbox", "matter_a")];
-        assert_eq!(resolve_mail_matter(&map, "m365", "default", "inbox"), "matter_a");
+        assert_eq!(
+            resolve_mail_matter(&map, "m365", "default", "inbox"),
+            "matter_a"
+        );
     }
 
     #[test]
     fn resolve_mail_matter_account_level_matches_any_folder() {
         // Empty folder_id == account-level mapping for every folder in the account.
         let map = vec![entry("gmail", "default", "", "matter_g")];
-        assert_eq!(resolve_mail_matter(&map, "gmail", "default", "INBOX"), "matter_g");
-        assert_eq!(resolve_mail_matter(&map, "gmail", "default", "Label_42"), "matter_g");
+        assert_eq!(
+            resolve_mail_matter(&map, "gmail", "default", "INBOX"),
+            "matter_g"
+        );
+        assert_eq!(
+            resolve_mail_matter(&map, "gmail", "default", "Label_42"),
+            "matter_g"
+        );
         // Different account is not covered.
-        assert_eq!(resolve_mail_matter(&map, "gmail", "other", "INBOX"), UNASSIGNED_MATTER);
+        assert_eq!(
+            resolve_mail_matter(&map, "gmail", "other", "INBOX"),
+            UNASSIGNED_MATTER
+        );
     }
 
     #[test]
@@ -2222,7 +2334,10 @@ mod tests {
             "matter_litigation"
         );
         // Other folders fall back to the account-level mapping.
-        assert_eq!(resolve_mail_matter(&map, "m365", "default", "inbox"), "matter_account");
+        assert_eq!(
+            resolve_mail_matter(&map, "m365", "default", "inbox"),
+            "matter_account"
+        );
     }
 
     #[test]
@@ -2243,7 +2358,10 @@ mod tests {
             received_date_time: Some("2026-05-01T14:30:00Z".into()),
             from_name: Some("Pat H".into()),
             from_address: Some("pat@hender.com".into()),
-            to: vec![Recipient { name: Some("Me".into()), address: Some("me@firm.com".into()) }],
+            to: vec![Recipient {
+                name: Some("Me".into()),
+                address: Some("me@firm.com".into()),
+            }],
             cc: vec![],
             folders: vec![],
             thread_id: Some("c1".into()),
@@ -2255,7 +2373,9 @@ mod tests {
         };
         let markdown = to_markdown(&msg);
         // Write the encrypted blob + register the record (mirrors apply_messages_enc).
-        let rel = store.write_blob_with_key("AAMk-xyz", markdown.as_bytes(), &key).unwrap();
+        let rel = store
+            .write_blob_with_key("AAMk-xyz", markdown.as_bytes(), &key)
+            .unwrap();
         store
             .upsert(&MailRecord {
                 id: "AAMk-xyz".into(),

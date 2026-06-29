@@ -165,8 +165,8 @@ fn query_list_messages(conn: &Connection, q: &MailListQuery) -> Result<MailListP
     // Map sort_by to a whitelisted column name; default to received_date_time.
     let order_col = match q.sort_by.as_str() {
         "subject" => "subject",
-        "from"    => "from_name",
-        _         => "received_date_time",
+        "from" => "from_name",
+        _ => "received_date_time",
     };
     let dir = if q.sort_desc { "DESC" } else { "ASC" };
 
@@ -301,12 +301,7 @@ pub trait MailStore: Send + Sync {
     /// or `provider` filter matches any value for that column, so an
     /// account-level mapping (provider/account, empty folder) can re-tag every
     /// folder in that account.
-    fn ids_in_folder(
-        &self,
-        provider: &str,
-        account: &str,
-        folder_id: &str,
-    ) -> Result<Vec<String>>;
+    fn ids_in_folder(&self, provider: &str, account: &str, folder_id: &str) -> Result<Vec<String>>;
     /// Total number of tracked messages (useful for tests + diagnostics).
     fn count(&self) -> Result<i64>;
     /// Retrieve the per-folder MS Graph delta-link cursor, or `None` if not yet set.
@@ -366,8 +361,7 @@ impl SqliteMailStore {
         if let Some(parent) = p.parent() {
             std::fs::create_dir_all(parent).ok();
         }
-        let conn =
-            Connection::open(&p).with_context(|| format!("open {}", p.display()))?;
+        let conn = Connection::open(&p).with_context(|| format!("open {}", p.display()))?;
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS messages (
                 id                   TEXT PRIMARY KEY,
@@ -488,12 +482,10 @@ impl MailStore for SqliteMailStore {
 
     fn contains(&self, id: &str) -> Result<bool> {
         let c = self.conn.lock().unwrap();
-        Ok(c.query_row(
-            "SELECT 1 FROM messages WHERE id = ?1",
-            [id],
-            |_| Ok(()),
+        Ok(
+            c.query_row("SELECT 1 FROM messages WHERE id = ?1", [id], |_| Ok(()))
+                .is_ok(),
         )
-        .is_ok())
     }
 
     fn get_record(&self, id: &str) -> Result<Option<MailRecord>> {
@@ -510,12 +502,7 @@ impl MailStore for SqliteMailStore {
         Ok(rec)
     }
 
-    fn ids_in_folder(
-        &self,
-        provider: &str,
-        account: &str,
-        folder_id: &str,
-    ) -> Result<Vec<String>> {
+    fn ids_in_folder(&self, provider: &str, account: &str, folder_id: &str) -> Result<Vec<String>> {
         let c = self.conn.lock().unwrap();
         query_ids_in_folder(&c, provider, account, folder_id)
     }
@@ -596,8 +583,7 @@ impl EncryptedMailStore {
         if let Some(parent) = p.parent() {
             std::fs::create_dir_all(parent).ok();
         }
-        let conn = Connection::open(&p)
-            .with_context(|| format!("open enc db {}", p.display()))?;
+        let conn = Connection::open(&p).with_context(|| format!("open enc db {}", p.display()))?;
 
         // SQLCipher requires the key to be set before any DDL.
         // Use hex-encoded raw key via `PRAGMA key = "x'<hex>'"` — the raw-hex
@@ -671,15 +657,10 @@ impl EncryptedMailStore {
 
     /// Decrypt and return the contents of an encrypted blob at `rel`
     /// (relative to `root`).
-    pub fn read_blob_with_key(
-        &self,
-        rel: &str,
-        root: &Path,
-        key: &[u8; 32],
-    ) -> Result<Vec<u8>> {
+    pub fn read_blob_with_key(&self, rel: &str, root: &Path, key: &[u8; 32]) -> Result<Vec<u8>> {
         let abs = root.join(rel);
-        let encrypted = std::fs::read(&abs)
-            .with_context(|| format!("read blob {}", abs.display()))?;
+        let encrypted =
+            std::fs::read(&abs).with_context(|| format!("read blob {}", abs.display()))?;
         decrypt_with_key(&encrypted, key)
     }
 
@@ -708,10 +689,10 @@ impl EncryptedMailStore {
     pub fn get_meta(&self, key: &str) -> Result<Option<String>> {
         use rusqlite::OptionalExtension;
         let c = self.conn.lock().unwrap();
-        Ok(c.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| {
-            r.get(0)
-        })
-        .optional()?)
+        Ok(
+            c.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0))
+                .optional()?,
+        )
     }
 
     /// Set (upsert) one meta value. Idempotent.
@@ -804,9 +785,17 @@ impl MailStore for EncryptedMailStore {
                 snippet             = ?11,
                 has_attachments     = ?12",
             rusqlite::params![
-                rec.id, rec.folder_id, rec.internet_message_id,
-                rec.relative_path, rec.received_date_time, rec.provider, rec.account,
-                rec.subject, rec.from_addr, rec.from_name, rec.snippet,
+                rec.id,
+                rec.folder_id,
+                rec.internet_message_id,
+                rec.relative_path,
+                rec.received_date_time,
+                rec.provider,
+                rec.account,
+                rec.subject,
+                rec.from_addr,
+                rec.from_name,
+                rec.snippet,
                 rec.has_attachments as i64,
             ],
         )?;
@@ -833,12 +822,10 @@ impl MailStore for EncryptedMailStore {
 
     fn contains(&self, id: &str) -> Result<bool> {
         let c = self.conn.lock().unwrap();
-        Ok(c.query_row(
-            "SELECT 1 FROM messages WHERE id = ?1",
-            [id],
-            |_| Ok(()),
+        Ok(
+            c.query_row("SELECT 1 FROM messages WHERE id = ?1", [id], |_| Ok(()))
+                .is_ok(),
         )
-        .is_ok())
     }
 
     fn get_record(&self, id: &str) -> Result<Option<MailRecord>> {
@@ -855,12 +842,7 @@ impl MailStore for EncryptedMailStore {
         Ok(rec)
     }
 
-    fn ids_in_folder(
-        &self,
-        provider: &str,
-        account: &str,
-        folder_id: &str,
-    ) -> Result<Vec<String>> {
+    fn ids_in_folder(&self, provider: &str, account: &str, folder_id: &str) -> Result<Vec<String>> {
         let c = self.conn.lock().unwrap();
         query_ids_in_folder(&c, provider, account, folder_id)
     }
@@ -1070,13 +1052,17 @@ mod tests {
     fn enc_upsert_is_idempotent_by_id() {
         let (_d, s) = enc_store();
         let rec = MailRecord {
-            id: "m1".into(), folder_id: "inbox".into(),
+            id: "m1".into(),
+            folder_id: "inbox".into(),
             internet_message_id: Some("<x@y>".into()),
             relative_path: ".keepance/mail/blobs/m1.enc".into(),
             received_date_time: Some("2026-05-01T00:00:00Z".into()),
-            provider: "m365".into(), account: "default".into(),
-            subject: String::new(), from_addr: String::new(),
-            from_name: String::new(), snippet: String::new(),
+            provider: "m365".into(),
+            account: "default".into(),
+            subject: String::new(),
+            from_addr: String::new(),
+            from_name: String::new(),
+            snippet: String::new(),
             has_attachments: false,
         };
         s.upsert(&rec).unwrap();
@@ -1108,7 +1094,10 @@ mod tests {
         assert_eq!(acct, vec!["a", "b", "c"]);
 
         // Different provider is isolated.
-        assert_eq!(s.ids_in_folder("gmail", "default", "INBOX").unwrap(), vec!["d"]);
+        assert_eq!(
+            s.ids_in_folder("gmail", "default", "INBOX").unwrap(),
+            vec!["d"]
+        );
     }
 
     #[test]
@@ -1121,13 +1110,17 @@ mod tests {
         assert!(blob_abs.exists(), "blob must exist after write");
 
         let rec = MailRecord {
-            id: "m1".into(), folder_id: "inbox".into(),
+            id: "m1".into(),
+            folder_id: "inbox".into(),
             internet_message_id: None,
             relative_path: rel.clone(),
             received_date_time: None,
-            provider: "m365".into(), account: "default".into(),
-            subject: String::new(), from_addr: String::new(),
-            from_name: String::new(), snippet: String::new(),
+            provider: "m365".into(),
+            account: "default".into(),
+            subject: String::new(),
+            from_addr: String::new(),
+            from_name: String::new(),
+            snippet: String::new(),
             has_attachments: false,
         };
         s.upsert(&rec).unwrap();
@@ -1178,9 +1171,15 @@ mod tests {
             assert_eq!(s.get_message_matter("AAMk-1").unwrap(), None);
             // Set + read back; re-file overwrites.
             s.set_message_matter("AAMk-1", "matter-acme").unwrap();
-            assert_eq!(s.get_message_matter("AAMk-1").unwrap().as_deref(), Some("matter-acme"));
+            assert_eq!(
+                s.get_message_matter("AAMk-1").unwrap().as_deref(),
+                Some("matter-acme")
+            );
             s.set_message_matter("AAMk-1", "matter-globex").unwrap();
-            assert_eq!(s.get_message_matter("AAMk-1").unwrap().as_deref(), Some("matter-globex"));
+            assert_eq!(
+                s.get_message_matter("AAMk-1").unwrap().as_deref(),
+                Some("matter-globex")
+            );
 
             // The clobber guard: a sync upsert of the SAME message must NOT touch
             // the override (this is what makes a manual filing survive re-sync).
@@ -1199,7 +1198,10 @@ mod tests {
                 has_attachments: false,
             })
             .unwrap();
-            assert_eq!(s.get_message_matter("AAMk-1").unwrap().as_deref(), Some("matter-globex"));
+            assert_eq!(
+                s.get_message_matter("AAMk-1").unwrap().as_deref(),
+                Some("matter-globex")
+            );
 
             // Clear (unfile) is idempotent.
             s.clear_message_matter("AAMk-1").unwrap();
@@ -1211,13 +1213,17 @@ mod tests {
         }
         // Survives close + reopen with the same key (durable across restarts).
         let s2 = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
-        assert_eq!(s2.get_message_matter("AAMk-2").unwrap().as_deref(), Some("matter-acme"));
+        assert_eq!(
+            s2.get_message_matter("AAMk-2").unwrap().as_deref(),
+            Some("matter-acme")
+        );
     }
 
     #[test]
     fn enc_message_matter_reads_legacy_imap_override_after_folder_scoped_id_change() {
         let (_dir, s) = enc_store();
-        s.set_message_matter("imap:lawyer@example.com:123:42", "matter-acme").unwrap();
+        s.set_message_matter("imap:lawyer@example.com:123:42", "matter-acme")
+            .unwrap();
 
         let current_id = "imap:lawyer@example.com:494e424f58:123:42";
         assert_eq!(
@@ -1246,12 +1252,24 @@ mod tests {
 
         // The two acme filings are now explicit "unassigned" tombstones (NOT
         // deleted — a plain delete would let them fall back to the folder matter).
-        assert_eq!(s.get_message_matter("MSG-1").unwrap().as_deref(), Some(unassigned));
-        assert_eq!(s.get_message_matter("MSG-2").unwrap().as_deref(), Some(unassigned));
+        assert_eq!(
+            s.get_message_matter("MSG-1").unwrap().as_deref(),
+            Some(unassigned)
+        );
+        assert_eq!(
+            s.get_message_matter("MSG-2").unwrap().as_deref(),
+            Some(unassigned)
+        );
         // ...the other matter's filing is untouched...
-        assert_eq!(s.get_message_matter("MSG-3").unwrap().as_deref(), Some("matter-globex"));
+        assert_eq!(
+            s.get_message_matter("MSG-3").unwrap().as_deref(),
+            Some("matter-globex")
+        );
         // ...and an unrelated meta row is untouched.
-        assert_eq!(s.get_meta("rag_backfill_needed").unwrap().as_deref(), Some("1"));
+        assert_eq!(
+            s.get_meta("rag_backfill_needed").unwrap().as_deref(),
+            Some("1")
+        );
 
         // Idempotent: the now-"unassigned" rows no longer match this matter id.
         assert_eq!(s.clear_message_matter_for_matter("matter-acme").unwrap(), 0);
@@ -1279,7 +1297,8 @@ mod tests {
     fn enc_cursor_roundtrips_per_folder() {
         let (_d, s) = enc_store();
         assert_eq!(s.get_cursor("inbox").unwrap(), None);
-        s.set_cursor("inbox", "https://graph/delta?$deltatoken=abc").unwrap();
+        s.set_cursor("inbox", "https://graph/delta?$deltatoken=abc")
+            .unwrap();
         assert_eq!(
             s.get_cursor("inbox").unwrap().as_deref(),
             Some("https://graph/delta?$deltatoken=abc")
@@ -1299,8 +1318,10 @@ mod tests {
 
         // The raw bytes on disk must NOT be the plaintext.
         let raw = std::fs::read(&abs).unwrap();
-        assert!(!raw.windows(plaintext.len()).any(|w| w == plaintext),
-            "plaintext must not appear in the .enc blob");
+        assert!(
+            !raw.windows(plaintext.len()).any(|w| w == plaintext),
+            "plaintext must not appear in the .enc blob"
+        );
 
         // read_blob must decrypt to the original.
         let recovered = s.read_blob_with_key(&rel, dir.path(), &key).unwrap();
@@ -1311,7 +1332,9 @@ mod tests {
     fn write_blob_path_uses_safe_id() {
         let (_d, s) = enc_store();
         let key = [0x42u8; 32];
-        let rel = s.write_blob_with_key("AAMk-123/../../etc", b"x", &key).unwrap();
+        let rel = s
+            .write_blob_with_key("AAMk-123/../../etc", b"x", &key)
+            .unwrap();
         // Path-traversal chars must be sanitized; blob must land under blobs/.
         assert!(rel.starts_with(".keepance/mail/blobs/"));
         assert!(!rel.contains(".."));
@@ -1350,15 +1373,18 @@ mod tests {
         // Verify the DB file is NOT plain SQLite — the header must not match.
         let (dir, s) = enc_store();
         // Write something to ensure the DB is non-empty.
-        s.upsert(&mk_rec("hdr-check", "f", "m365", "default")).unwrap();
+        s.upsert(&mk_rec("hdr-check", "f", "m365", "default"))
+            .unwrap();
         drop(s); // close the connection so file is flushed
 
         let db_path = EncryptedMailStore::db_path(dir.path());
         let raw = std::fs::read(&db_path).expect("read db file");
         // Plain SQLite header starts with "SQLite format 3\0"
         let plain_header = b"SQLite format 3\x00";
-        assert!(!raw.starts_with(plain_header),
-            "SQLCipher DB must NOT start with the plain SQLite header");
+        assert!(
+            !raw.starts_with(plain_header),
+            "SQLCipher DB must NOT start with the plain SQLite header"
+        );
     }
 
     #[test]
@@ -1369,20 +1395,28 @@ mod tests {
         {
             let s = EncryptedMailStore::open_with_key(dir.path(), &key).expect("first open");
             s.upsert(&MailRecord {
-                id: "persisted".into(), folder_id: "inbox".into(),
+                id: "persisted".into(),
+                folder_id: "inbox".into(),
                 internet_message_id: Some("<persisted@test>".into()),
                 relative_path: ".keepance/mail/blobs/persisted.enc".into(),
                 received_date_time: Some("2026-06-06T00:00:00Z".into()),
-                provider: "m365".into(), account: "default".into(),
-                subject: String::new(), from_addr: String::new(),
-                from_name: String::new(), snippet: String::new(),
+                provider: "m365".into(),
+                account: "default".into(),
+                subject: String::new(),
+                from_addr: String::new(),
+                from_name: String::new(),
+                snippet: String::new(),
                 has_attachments: false,
-            }).unwrap();
+            })
+            .unwrap();
         } // connection dropped / closed
 
         // Reopen with the same key — record must survive.
         let s2 = EncryptedMailStore::open_with_key(dir.path(), &key).expect("second open");
-        assert!(s2.contains("persisted").unwrap(), "record must survive close+reopen");
+        assert!(
+            s2.contains("persisted").unwrap(),
+            "record must survive close+reopen"
+        );
         assert_eq!(s2.count().unwrap(), 1);
     }
 
@@ -1405,21 +1439,64 @@ mod tests {
     #[test]
     fn list_sort_by_date_asc_and_desc() {
         let (_d, s) = store();
-        s.upsert(&mk_full("a", "inbox", "m365", "def", "Alpha", "a@x", "Alice",
-            "snip", "2026-01-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("b", "inbox", "m365", "def", "Beta", "b@x", "Bob",
-            "snip", "2026-03-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("c", "inbox", "m365", "def", "Gamma", "c@x", "Carol",
-            "snip", "2026-02-01T00:00:00Z", false)).unwrap();
+        s.upsert(&mk_full(
+            "a",
+            "inbox",
+            "m365",
+            "def",
+            "Alpha",
+            "a@x",
+            "Alice",
+            "snip",
+            "2026-01-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "b",
+            "inbox",
+            "m365",
+            "def",
+            "Beta",
+            "b@x",
+            "Bob",
+            "snip",
+            "2026-03-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "c",
+            "inbox",
+            "m365",
+            "def",
+            "Gamma",
+            "c@x",
+            "Carol",
+            "snip",
+            "2026-02-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
 
         // Ascending by date.
-        let page = s.list_messages(&MailListQuery { sort_desc: false, ..default_query() }).unwrap();
+        let page = s
+            .list_messages(&MailListQuery {
+                sort_desc: false,
+                ..default_query()
+            })
+            .unwrap();
         let ids: Vec<&str> = page.items.iter().map(|i| i.id.as_str()).collect();
         assert_eq!(ids, vec!["a", "c", "b"]);
         assert_eq!(page.total, 3);
 
         // Descending by date (newest first).
-        let page2 = s.list_messages(&MailListQuery { sort_desc: true, ..default_query() }).unwrap();
+        let page2 = s
+            .list_messages(&MailListQuery {
+                sort_desc: true,
+                ..default_query()
+            })
+            .unwrap();
         let ids2: Vec<&str> = page2.items.iter().map(|i| i.id.as_str()).collect();
         assert_eq!(ids2, vec!["b", "c", "a"]);
     }
@@ -1427,19 +1504,60 @@ mod tests {
     #[test]
     fn list_sort_by_subject_asc_and_desc() {
         let (_d, s) = store();
-        s.upsert(&mk_full("a", "inbox", "m365", "def", "Zebra", "a@x", "Alice",
-            "", "2026-01-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("b", "inbox", "m365", "def", "Apple", "b@x", "Bob",
-            "", "2026-02-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("c", "inbox", "m365", "def", "Mango", "c@x", "Carol",
-            "", "2026-03-01T00:00:00Z", false)).unwrap();
+        s.upsert(&mk_full(
+            "a",
+            "inbox",
+            "m365",
+            "def",
+            "Zebra",
+            "a@x",
+            "Alice",
+            "",
+            "2026-01-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "b",
+            "inbox",
+            "m365",
+            "def",
+            "Apple",
+            "b@x",
+            "Bob",
+            "",
+            "2026-02-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "c",
+            "inbox",
+            "m365",
+            "def",
+            "Mango",
+            "c@x",
+            "Carol",
+            "",
+            "2026-03-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
 
-        let q_asc = MailListQuery { sort_by: "subject".into(), sort_desc: false, ..default_query() };
+        let q_asc = MailListQuery {
+            sort_by: "subject".into(),
+            sort_desc: false,
+            ..default_query()
+        };
         let page = s.list_messages(&q_asc).unwrap();
         let ids: Vec<&str> = page.items.iter().map(|i| i.id.as_str()).collect();
         assert_eq!(ids, vec!["b", "c", "a"]); // Apple, Mango, Zebra
 
-        let q_desc = MailListQuery { sort_by: "subject".into(), sort_desc: true, ..default_query() };
+        let q_desc = MailListQuery {
+            sort_by: "subject".into(),
+            sort_desc: true,
+            ..default_query()
+        };
         let page2 = s.list_messages(&q_desc).unwrap();
         let ids2: Vec<&str> = page2.items.iter().map(|i| i.id.as_str()).collect();
         assert_eq!(ids2, vec!["a", "c", "b"]); // Zebra, Mango, Apple
@@ -1448,19 +1566,60 @@ mod tests {
     #[test]
     fn list_sort_by_from_asc_and_desc() {
         let (_d, s) = store();
-        s.upsert(&mk_full("a", "inbox", "m365", "def", "S1", "a@x", "Zelda",
-            "", "2026-01-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("b", "inbox", "m365", "def", "S2", "b@x", "Aaron",
-            "", "2026-02-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("c", "inbox", "m365", "def", "S3", "c@x", "Mike",
-            "", "2026-03-01T00:00:00Z", false)).unwrap();
+        s.upsert(&mk_full(
+            "a",
+            "inbox",
+            "m365",
+            "def",
+            "S1",
+            "a@x",
+            "Zelda",
+            "",
+            "2026-01-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "b",
+            "inbox",
+            "m365",
+            "def",
+            "S2",
+            "b@x",
+            "Aaron",
+            "",
+            "2026-02-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "c",
+            "inbox",
+            "m365",
+            "def",
+            "S3",
+            "c@x",
+            "Mike",
+            "",
+            "2026-03-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
 
-        let q = MailListQuery { sort_by: "from".into(), sort_desc: false, ..default_query() };
+        let q = MailListQuery {
+            sort_by: "from".into(),
+            sort_desc: false,
+            ..default_query()
+        };
         let page = s.list_messages(&q).unwrap();
         let names: Vec<&str> = page.items.iter().map(|i| i.from_name.as_str()).collect();
         assert_eq!(names, vec!["Aaron", "Mike", "Zelda"]);
 
-        let q2 = MailListQuery { sort_by: "from".into(), sort_desc: true, ..default_query() };
+        let q2 = MailListQuery {
+            sort_by: "from".into(),
+            sort_desc: true,
+            ..default_query()
+        };
         let page2 = s.list_messages(&q2).unwrap();
         let names2: Vec<&str> = page2.items.iter().map(|i| i.from_name.as_str()).collect();
         assert_eq!(names2, vec!["Zelda", "Mike", "Aaron"]);
@@ -1469,31 +1628,65 @@ mod tests {
     #[test]
     fn list_keyword_case_insensitive_and_matches_subject_addr_name() {
         let (_d, s) = store();
-        s.upsert(&mk_full("a", "inbox", "m365", "def", "Contract Review", "bob@firm.com",
-            "Bob Smith", "see attachment", "2026-01-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("b", "inbox", "m365", "def", "Weekly Update", "carol@firm.com",
-            "Carol Jones", "agenda attached", "2026-02-01T00:00:00Z", false)).unwrap();
+        s.upsert(&mk_full(
+            "a",
+            "inbox",
+            "m365",
+            "def",
+            "Contract Review",
+            "bob@firm.com",
+            "Bob Smith",
+            "see attachment",
+            "2026-01-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "b",
+            "inbox",
+            "m365",
+            "def",
+            "Weekly Update",
+            "carol@firm.com",
+            "Carol Jones",
+            "agenda attached",
+            "2026-02-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
 
         // Keyword hits the subject (case-insensitive).
-        let q = MailListQuery { keyword: Some("contract".into()), ..default_query() };
+        let q = MailListQuery {
+            keyword: Some("contract".into()),
+            ..default_query()
+        };
         let page = s.list_messages(&q).unwrap();
         assert_eq!(page.total, 1);
         assert_eq!(page.items[0].id, "a");
 
         // Keyword hits from_addr.
-        let q2 = MailListQuery { keyword: Some("CAROL@FIRM".into()), ..default_query() };
+        let q2 = MailListQuery {
+            keyword: Some("CAROL@FIRM".into()),
+            ..default_query()
+        };
         let page2 = s.list_messages(&q2).unwrap();
         assert_eq!(page2.total, 1);
         assert_eq!(page2.items[0].id, "b");
 
         // Keyword hits from_name.
-        let q3 = MailListQuery { keyword: Some("smith".into()), ..default_query() };
+        let q3 = MailListQuery {
+            keyword: Some("smith".into()),
+            ..default_query()
+        };
         let page3 = s.list_messages(&q3).unwrap();
         assert_eq!(page3.total, 1);
         assert_eq!(page3.items[0].id, "a");
 
         // Keyword that matches nothing.
-        let q4 = MailListQuery { keyword: Some("zzz".into()), ..default_query() };
+        let q4 = MailListQuery {
+            keyword: Some("zzz".into()),
+            ..default_query()
+        };
         let page4 = s.list_messages(&q4).unwrap();
         assert_eq!(page4.total, 0);
     }
@@ -1502,13 +1695,38 @@ mod tests {
     fn list_keyword_percent_literal_not_wildcard() {
         // A literal % in the keyword must match a literal % in subject, not everything.
         let (_d, s) = store();
-        s.upsert(&mk_full("a", "inbox", "m365", "def", "100% done", "a@x", "A",
-            "", "2026-01-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("b", "inbox", "m365", "def", "Half done", "b@x", "B",
-            "", "2026-02-01T00:00:00Z", false)).unwrap();
+        s.upsert(&mk_full(
+            "a",
+            "inbox",
+            "m365",
+            "def",
+            "100% done",
+            "a@x",
+            "A",
+            "",
+            "2026-01-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "b",
+            "inbox",
+            "m365",
+            "def",
+            "Half done",
+            "b@x",
+            "B",
+            "",
+            "2026-02-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
 
         // Searching for the literal "%" must find "100% done" and not match everything.
-        let q = MailListQuery { keyword: Some("%".into()), ..default_query() };
+        let q = MailListQuery {
+            keyword: Some("%".into()),
+            ..default_query()
+        };
         let page = s.list_messages(&q).unwrap();
         assert_eq!(page.total, 1, "literal %% must not act as a SQL wildcard");
         assert_eq!(page.items[0].id, "a");
@@ -1518,12 +1736,37 @@ mod tests {
     fn list_keyword_underscore_literal_not_wildcard() {
         // A literal _ in the keyword must match literally, not any single char.
         let (_d, s) = store();
-        s.upsert(&mk_full("a", "inbox", "m365", "def", "snake_case note", "a@x", "A",
-            "", "2026-01-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("b", "inbox", "m365", "def", "No underscore", "b@x", "B",
-            "", "2026-02-01T00:00:00Z", false)).unwrap();
+        s.upsert(&mk_full(
+            "a",
+            "inbox",
+            "m365",
+            "def",
+            "snake_case note",
+            "a@x",
+            "A",
+            "",
+            "2026-01-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "b",
+            "inbox",
+            "m365",
+            "def",
+            "No underscore",
+            "b@x",
+            "B",
+            "",
+            "2026-02-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
 
-        let q = MailListQuery { keyword: Some("snake_case".into()), ..default_query() };
+        let q = MailListQuery {
+            keyword: Some("snake_case".into()),
+            ..default_query()
+        };
         let page = s.list_messages(&q).unwrap();
         assert_eq!(page.total, 1, "literal _ must not act as a SQL wildcard");
         assert_eq!(page.items[0].id, "a");
@@ -1532,12 +1775,37 @@ mod tests {
     #[test]
     fn list_filter_by_folder() {
         let (_d, s) = store();
-        s.upsert(&mk_full("a", "inbox", "m365", "def", "S1", "a@x", "A",
-            "", "2026-01-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("b", "sent", "m365", "def", "S2", "b@x", "B",
-            "", "2026-02-01T00:00:00Z", false)).unwrap();
+        s.upsert(&mk_full(
+            "a",
+            "inbox",
+            "m365",
+            "def",
+            "S1",
+            "a@x",
+            "A",
+            "",
+            "2026-01-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "b",
+            "sent",
+            "m365",
+            "def",
+            "S2",
+            "b@x",
+            "B",
+            "",
+            "2026-02-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
 
-        let q = MailListQuery { folder_id: Some("inbox".into()), ..default_query() };
+        let q = MailListQuery {
+            folder_id: Some("inbox".into()),
+            ..default_query()
+        };
         let page = s.list_messages(&q).unwrap();
         assert_eq!(page.total, 1);
         assert_eq!(page.items[0].id, "a");
@@ -1546,12 +1814,37 @@ mod tests {
     #[test]
     fn list_filter_by_provider() {
         let (_d, s) = store();
-        s.upsert(&mk_full("a", "inbox", "m365", "def", "S1", "a@x", "A",
-            "", "2026-01-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("b", "INBOX", "gmail", "def", "S2", "b@x", "B",
-            "", "2026-02-01T00:00:00Z", false)).unwrap();
+        s.upsert(&mk_full(
+            "a",
+            "inbox",
+            "m365",
+            "def",
+            "S1",
+            "a@x",
+            "A",
+            "",
+            "2026-01-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "b",
+            "INBOX",
+            "gmail",
+            "def",
+            "S2",
+            "b@x",
+            "B",
+            "",
+            "2026-02-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
 
-        let q = MailListQuery { provider: Some("gmail".into()), ..default_query() };
+        let q = MailListQuery {
+            provider: Some("gmail".into()),
+            ..default_query()
+        };
         let page = s.list_messages(&q).unwrap();
         assert_eq!(page.total, 1);
         assert_eq!(page.items[0].id, "b");
@@ -1560,12 +1853,37 @@ mod tests {
     #[test]
     fn list_filter_by_account() {
         let (_d, s) = store();
-        s.upsert(&mk_full("a", "inbox", "m365", "acct1", "S1", "a@x", "A",
-            "", "2026-01-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("b", "inbox", "m365", "acct2", "S2", "b@x", "B",
-            "", "2026-02-01T00:00:00Z", false)).unwrap();
+        s.upsert(&mk_full(
+            "a",
+            "inbox",
+            "m365",
+            "acct1",
+            "S1",
+            "a@x",
+            "A",
+            "",
+            "2026-01-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "b",
+            "inbox",
+            "m365",
+            "acct2",
+            "S2",
+            "b@x",
+            "B",
+            "",
+            "2026-02-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
 
-        let q = MailListQuery { account: Some("acct1".into()), ..default_query() };
+        let q = MailListQuery {
+            account: Some("acct1".into()),
+            ..default_query()
+        };
         let page = s.list_messages(&q).unwrap();
         assert_eq!(page.total, 1);
         assert_eq!(page.items[0].id, "a");
@@ -1574,16 +1892,49 @@ mod tests {
     #[test]
     fn list_filter_date_range() {
         let (_d, s) = store();
-        s.upsert(&mk_full("old",  "inbox", "m365", "def", "Old", "a@x", "A",
-            "", "2025-12-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("mid",  "inbox", "m365", "def", "Mid", "b@x", "B",
-            "", "2026-03-15T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("new",  "inbox", "m365", "def", "New", "c@x", "C",
-            "", "2026-06-01T00:00:00Z", false)).unwrap();
+        s.upsert(&mk_full(
+            "old",
+            "inbox",
+            "m365",
+            "def",
+            "Old",
+            "a@x",
+            "A",
+            "",
+            "2025-12-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "mid",
+            "inbox",
+            "m365",
+            "def",
+            "Mid",
+            "b@x",
+            "B",
+            "",
+            "2026-03-15T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "new",
+            "inbox",
+            "m365",
+            "def",
+            "New",
+            "c@x",
+            "C",
+            "",
+            "2026-06-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
 
         let q = MailListQuery {
             date_from: Some("2026-01-01T00:00:00Z".into()),
-            date_to:   Some("2026-05-01T00:00:00Z".into()),
+            date_to: Some("2026-05-01T00:00:00Z".into()),
             ..default_query()
         };
         let page = s.list_messages(&q).unwrap();
@@ -1594,17 +1945,45 @@ mod tests {
     #[test]
     fn list_filter_has_attachments() {
         let (_d, s) = store();
-        s.upsert(&mk_full("plain", "inbox", "m365", "def", "No Attach", "a@x", "A",
-            "", "2026-01-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("att",   "inbox", "m365", "def", "Has Attach", "b@x", "B",
-            "", "2026-02-01T00:00:00Z", true)).unwrap();
+        s.upsert(&mk_full(
+            "plain",
+            "inbox",
+            "m365",
+            "def",
+            "No Attach",
+            "a@x",
+            "A",
+            "",
+            "2026-01-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "att",
+            "inbox",
+            "m365",
+            "def",
+            "Has Attach",
+            "b@x",
+            "B",
+            "",
+            "2026-02-01T00:00:00Z",
+            true,
+        ))
+        .unwrap();
 
-        let q_att = MailListQuery { has_attachments: Some(true), ..default_query() };
+        let q_att = MailListQuery {
+            has_attachments: Some(true),
+            ..default_query()
+        };
         let page_att = s.list_messages(&q_att).unwrap();
         assert_eq!(page_att.total, 1);
         assert_eq!(page_att.items[0].id, "att");
 
-        let q_no_att = MailListQuery { has_attachments: Some(false), ..default_query() };
+        let q_no_att = MailListQuery {
+            has_attachments: Some(false),
+            ..default_query()
+        };
         let page_no_att = s.list_messages(&q_no_att).unwrap();
         assert_eq!(page_no_att.total, 1);
         assert_eq!(page_no_att.items[0].id, "plain");
@@ -1615,27 +1994,49 @@ mod tests {
         let (_d, s) = store();
         for i in 0..10u32 {
             s.upsert(&mk_full(
-                &format!("m{i}"), "inbox", "m365", "def",
-                &format!("Subject {i}"), "a@x", "A", "",
+                &format!("m{i}"),
+                "inbox",
+                "m365",
+                "def",
+                &format!("Subject {i}"),
+                "a@x",
+                "A",
+                "",
                 &format!("2026-{:02}-01T00:00:00Z", i + 1),
                 false,
-            )).unwrap();
+            ))
+            .unwrap();
         }
 
         // First page (limit=4, offset=0).
-        let q1 = MailListQuery { limit: 4, offset: 0, sort_desc: false, ..default_query() };
+        let q1 = MailListQuery {
+            limit: 4,
+            offset: 0,
+            sort_desc: false,
+            ..default_query()
+        };
         let page1 = s.list_messages(&q1).unwrap();
         assert_eq!(page1.total, 10, "total must count all matching rows");
         assert_eq!(page1.items.len(), 4);
 
         // Second page.
-        let q2 = MailListQuery { limit: 4, offset: 4, sort_desc: false, ..default_query() };
+        let q2 = MailListQuery {
+            limit: 4,
+            offset: 4,
+            sort_desc: false,
+            ..default_query()
+        };
         let page2 = s.list_messages(&q2).unwrap();
         assert_eq!(page2.total, 10);
         assert_eq!(page2.items.len(), 4);
 
         // Third page (partial).
-        let q3 = MailListQuery { limit: 4, offset: 8, sort_desc: false, ..default_query() };
+        let q3 = MailListQuery {
+            limit: 4,
+            offset: 8,
+            sort_desc: false,
+            ..default_query()
+        };
         let page3 = s.list_messages(&q3).unwrap();
         assert_eq!(page3.total, 10);
         assert_eq!(page3.items.len(), 2);
@@ -1675,8 +2076,15 @@ mod tests {
             .unwrap();
 
         assert_eq!(page.total, 250);
-        assert_eq!(page.items.len(), 1, "negative limit must clamp, not become unbounded");
-        assert_eq!(page.items[0].id, "m000", "negative offset must clamp to zero");
+        assert_eq!(
+            page.items.len(),
+            1,
+            "negative limit must clamp, not become unbounded"
+        );
+        assert_eq!(
+            page.items[0].id, "m000",
+            "negative offset must clamp to zero"
+        );
     }
 
     #[test]
@@ -1698,12 +2106,45 @@ mod tests {
     // -----------------------------------------------------------------------
 
     fn seed_parity_data(s: &dyn MailStore) {
-        s.upsert(&mk_full("p1", "inbox", "m365", "default", "Alpha", "a@x", "Alice",
-            "hello", "2026-01-01T00:00:00Z", false)).unwrap();
-        s.upsert(&mk_full("p2", "sent", "m365", "default", "Beta 100%", "b@x", "Bob",
-            "world", "2026-02-01T00:00:00Z", true)).unwrap();
-        s.upsert(&mk_full("p3", "inbox", "gmail", "default", "Gamma", "c@x", "Carol",
-            "test", "2026-03-01T00:00:00Z", false)).unwrap();
+        s.upsert(&mk_full(
+            "p1",
+            "inbox",
+            "m365",
+            "default",
+            "Alpha",
+            "a@x",
+            "Alice",
+            "hello",
+            "2026-01-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "p2",
+            "sent",
+            "m365",
+            "default",
+            "Beta 100%",
+            "b@x",
+            "Bob",
+            "world",
+            "2026-02-01T00:00:00Z",
+            true,
+        ))
+        .unwrap();
+        s.upsert(&mk_full(
+            "p3",
+            "inbox",
+            "gmail",
+            "default",
+            "Gamma",
+            "c@x",
+            "Carol",
+            "test",
+            "2026-03-01T00:00:00Z",
+            false,
+        ))
+        .unwrap();
     }
 
     #[test]
@@ -1713,7 +2154,11 @@ mod tests {
         seed_parity_data(&s_plain);
         seed_parity_data(&s_enc);
 
-        let q = MailListQuery { sort_by: "date".into(), sort_desc: false, ..default_query() };
+        let q = MailListQuery {
+            sort_by: "date".into(),
+            sort_desc: false,
+            ..default_query()
+        };
         let plain_page = s_plain.list_messages(&q).unwrap();
         let enc_page = s_enc.list_messages(&q).unwrap();
 
@@ -1751,13 +2196,22 @@ mod tests {
 
         // "Beta 100%" has a literal percent — should match with keyword "100%"
         // but NOT match every row.
-        let q = MailListQuery { keyword: Some("100%".into()), ..default_query() };
+        let q = MailListQuery {
+            keyword: Some("100%".into()),
+            ..default_query()
+        };
         let plain = s_plain.list_messages(&q).unwrap();
         let enc = s_enc.list_messages(&q).unwrap();
-        assert_eq!(plain.total, 1, "SqliteMailStore: literal % must not act as wildcard");
-        assert_eq!(enc.total,   1, "EncryptedMailStore: literal % must not act as wildcard");
+        assert_eq!(
+            plain.total, 1,
+            "SqliteMailStore: literal % must not act as wildcard"
+        );
+        assert_eq!(
+            enc.total, 1,
+            "EncryptedMailStore: literal % must not act as wildcard"
+        );
         assert_eq!(plain.items[0].id, "p2");
-        assert_eq!(enc.items[0].id,   "p2");
+        assert_eq!(enc.items[0].id, "p2");
     }
 
     #[test]
@@ -1767,12 +2221,15 @@ mod tests {
         seed_parity_data(&s_plain);
         seed_parity_data(&s_enc);
 
-        let q = MailListQuery { has_attachments: Some(true), ..default_query() };
+        let q = MailListQuery {
+            has_attachments: Some(true),
+            ..default_query()
+        };
         let plain = s_plain.list_messages(&q).unwrap();
         let enc = s_enc.list_messages(&q).unwrap();
         assert_eq!(plain.total, enc.total);
         assert_eq!(plain.total, 1);
         assert_eq!(plain.items[0].id, "p2");
-        assert_eq!(enc.items[0].id,   "p2");
+        assert_eq!(enc.items[0].id, "p2");
     }
 }

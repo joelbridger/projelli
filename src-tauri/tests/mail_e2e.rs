@@ -24,7 +24,10 @@ const CLIENT_ID: &str = "845ddba0-70ab-4f90-88ba-e3522157e37a";
 async fn live_inbox_first_page_import() {
     let auth = OAuth::new(CLIENT_ID.to_string());
 
-    let dc = auth.request_device_code().await.expect("request device code");
+    let dc = auth
+        .request_device_code()
+        .await
+        .expect("request device code");
     // Markers the controller greps for:
     println!("\n===E2E=== VERIFY_URL: {}", dc.verification_uri);
     println!("===E2E=== DEVICE_CODE: {}", dc.user_code);
@@ -34,7 +37,10 @@ async fn live_inbox_first_page_import() {
     let mut access: Option<String> = None;
     for _ in 0..170 {
         match auth.poll_token(&dc.device_code).await.expect("poll") {
-            TokenOutcome::Tokens { access: a, .. } => { access = Some(a); break; }
+            TokenOutcome::Tokens { access: a, .. } => {
+                access = Some(a);
+                break;
+            }
             TokenOutcome::Pending | TokenOutcome::SlowDown => {
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             }
@@ -42,19 +48,33 @@ async fn live_inbox_first_page_import() {
         }
     }
     let access = access.expect("===E2E=== TIMED OUT waiting for authorization");
-    println!("===E2E=== AUTHORIZED ok (got access token, {} chars)", access.len());
+    println!(
+        "===E2E=== AUTHORIZED ok (got access token, {} chars)",
+        access.len()
+    );
 
     // Real Graph client; pull the first delta page of the Inbox (well-known folder).
     let client = GraphClient::new(access);
     let url = format!("{}/v1.0/me/mailFolders/inbox/messages/delta", client.base());
-    let page = client.get_json(&url).await.expect("fetch inbox delta page 1");
-    let n = page.get("value").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    let page = client
+        .get_json(&url)
+        .await
+        .expect("fetch inbox delta page 1");
+    let n = page
+        .get("value")
+        .and_then(|v| v.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0);
     println!("===E2E=== inbox delta page 1 returned {n} message(s)");
 
     // Run the REAL messages through the production parse + render pipeline —
     // the same MailMessage::from_graph -> to_markdown path mail sync uses — so
     // this proves real provider data flows through our code end to end.
-    let items = page.get("value").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let items = page
+        .get("value")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
     let mut parsed = 0usize;
     let mut sample = String::new();
     for item in &items {
@@ -73,6 +93,9 @@ async fn live_inbox_first_page_import() {
         println!("===E2E=== SAMPLE MESSAGE (Markdown):\n{sample}\n===E2E=== (truncated)");
     }
 
-    assert!(parsed > 0 || n == 0, "expected to parse messages into Markdown when the inbox returned any");
+    assert!(
+        parsed > 0 || n == 0,
+        "expected to parse messages into Markdown when the inbox returned any"
+    );
     println!("===E2E=== PASS");
 }

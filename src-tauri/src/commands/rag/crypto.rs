@@ -45,13 +45,11 @@ const PATH_TOKEN_DOMAIN: &[u8] = b"keepance-path-token-v1";
 pub fn path_token(master_key: &[u8; KEY_LEN], path: &str) -> String {
     type HmacSha256 = Hmac<Sha256>;
     // Derive the domain-separated token key from the master key.
-    let mut kdf =
-        HmacSha256::new_from_slice(master_key).expect("HMAC accepts any key length");
+    let mut kdf = HmacSha256::new_from_slice(master_key).expect("HMAC accepts any key length");
     kdf.update(PATH_TOKEN_DOMAIN);
     let token_key = kdf.finalize().into_bytes();
     // Token = HMAC over the plaintext path under the derived key.
-    let mut mac =
-        HmacSha256::new_from_slice(&token_key).expect("HMAC accepts any key length");
+    let mut mac = HmacSha256::new_from_slice(&token_key).expect("HMAC accepts any key length");
     mac.update(path.as_bytes());
     hex::encode(mac.finalize().into_bytes())
 }
@@ -59,13 +57,16 @@ pub fn path_token(master_key: &[u8; KEY_LEN], path: &str) -> String {
 /// Get the vector-store master key from the OS keychain, creating and storing it
 /// on first call. Returns the 32-byte key as a fixed-size array.
 pub fn get_or_create_master_key() -> Result<[u8; KEY_LEN]> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_KEY)
-        .context("vectors keychain entry")?;
+    let entry =
+        keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_KEY).context("vectors keychain entry")?;
     match entry.get_password() {
         Ok(hex) => {
             let bytes = hex::decode(hex.trim()).context("decode vectors master key hex")?;
             if bytes.len() != KEY_LEN {
-                anyhow::bail!("stored vectors master key has wrong length: {}", bytes.len());
+                anyhow::bail!(
+                    "stored vectors master key has wrong length: {}",
+                    bytes.len()
+                );
             }
             let mut k = [0u8; KEY_LEN];
             k.copy_from_slice(&bytes);
@@ -76,7 +77,9 @@ pub fn get_or_create_master_key() -> Result<[u8; KEY_LEN]> {
             let mut k = [0u8; KEY_LEN];
             rand::thread_rng().fill_bytes(&mut k);
             let hex = hex::encode(k);
-            entry.set_password(&hex).context("store vectors master key")?;
+            entry
+                .set_password(&hex)
+                .context("store vectors master key")?;
             Ok(k)
         }
         Err(e) => Err(anyhow::anyhow!("vectors keychain read: {e}")),
@@ -101,14 +104,19 @@ mod tests {
     fn path_token_is_key_dependent() {
         let a = path_token(&KEY_A, "/ws/clients/smith-v-jones.md");
         let b = path_token(&KEY_B, "/ws/clients/smith-v-jones.md");
-        assert_ne!(a, b, "a different master key must produce a different token");
+        assert_ne!(
+            a, b,
+            "a different master key must produce a different token"
+        );
     }
 
     #[test]
     fn path_token_is_64_hex_chars() {
         let t = path_token(&KEY_A, "mail:AAMk-abc123");
         assert_eq!(t.len(), 64, "HMAC-SHA256 hex is 64 chars");
-        assert!(t.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert!(t
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
     }
 
     #[test]

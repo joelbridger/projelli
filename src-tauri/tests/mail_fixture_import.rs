@@ -48,8 +48,8 @@ fn fixture_message() -> MailMessage {
         account: "legal@example.test".into(),
         has_attachments: false,
         body_content_type: BodyContentType::Text,
-        body_text: "Wire the Zephyr retainer to the client trust account ending 4477 before Friday."
-            .into(),
+        body_text:
+            "Wire the Zephyr retainer to the client trust account ending 4477 before Friday.".into(),
     }
 }
 
@@ -80,7 +80,10 @@ async fn index_mail_entry(
 }
 
 fn decrypted_hit_path(hit: &store::StoredHit) -> String {
-    let path_enc = hit.path_enc.as_deref().expect("mail hit should carry path_enc");
+    let path_enc = hit
+        .path_enc
+        .as_deref()
+        .expect("mail hit should carry path_enc");
     let blob = hex::decode(path_enc).expect("path_enc should be hex");
     String::from_utf8(
         keepance_lib::commands::mail::crypto::decrypt_with_key(&blob, &VEC_KEY)
@@ -147,7 +150,9 @@ async fn fixture_email_import_lists_searches_and_files_to_matter_durably() {
     )
     .await;
 
-    let page = store.list_messages(&default_query()).expect("list messages");
+    let page = store
+        .list_messages(&default_query())
+        .expect("list messages");
     assert_eq!(page.total, 1);
     assert_eq!(page.items[0].id, message.id);
     assert_eq!(page.items[0].subject, "Zephyr retainer escrow instructions");
@@ -214,7 +219,9 @@ async fn fixture_email_import_lists_searches_and_files_to_matter_durably() {
             .as_deref(),
         Some(FILED_MATTER)
     );
-    let reopened_page = reopened.list_messages(&default_query()).expect("list after reopen");
+    let reopened_page = reopened
+        .list_messages(&default_query())
+        .expect("list after reopen");
     assert_eq!(reopened_page.total, 1);
     assert_eq!(reopened_page.items[0].id, message.id);
 
@@ -231,7 +238,10 @@ async fn fixture_email_import_lists_searches_and_files_to_matter_durably() {
         &[],
         &MAIL_KEY,
         &move |_id, _markdown, matter| {
-            reindexed_for_callback.lock().unwrap().push(matter.to_string());
+            reindexed_for_callback
+                .lock()
+                .unwrap()
+                .push(matter.to_string());
         },
         &|_| {},
     )

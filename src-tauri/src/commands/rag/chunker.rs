@@ -284,7 +284,11 @@ mod tests {
         let p2 = "beta ".repeat(400);
         let text = format!("{}\n\n{}", p1.trim(), p2.trim());
         let chunks = chunk_text("/x.md", &text);
-        assert!(chunks.len() >= 2, "expected multiple chunks, got {}", chunks.len());
+        assert!(
+            chunks.len() >= 2,
+            "expected multiple chunks, got {}",
+            chunks.len()
+        );
         // Consecutive chunks should share some text in their overlap window
         // when the splitter is forced to cut a single paragraph.
         let big = "x".repeat(TARGET_BYTES * 3);
