@@ -1,6 +1,6 @@
-#!/usr/bin/env node
 /**
  * brand-sync.mjs — apply the brand to every surface from one source of truth.
+ * Invoked via `node scripts/brand-sync.mjs` (see package.json brand:sync/brand:check).
  *
  * The single source of truth is  brand/brand.config.json.  This script reads it
  * and pushes the values out to everywhere brand lives:
@@ -45,6 +45,7 @@ const FLAGS = {
 const C = { reset: '\x1b[0m', dim: '\x1b[2m', red: '\x1b[31m', grn: '\x1b[32m', yel: '\x1b[33m', cyn: '\x1b[36m', bold: '\x1b[1m' };
 const changes = [];
 const warnings = [];
+const lockedDrift = []; // locked-identifier drift collected by assertLocked(); makes --check fail
 const log = (m) => console.log(m);
 const ok = (m) => { changes.push(m); log(`  ${C.grn}✓${C.reset} ${m}`); };
 const skip = (m) => log(`  ${C.dim}·${C.reset} ${C.dim}${m}${C.reset}`);
@@ -81,9 +82,17 @@ function replaceExactlyOnce(file, find, repl, label) {
 
 // ── load + validate config ───────────────────────────────────────────────────
 const CONFIG_PATH = path.join(ROOT, 'brand', 'brand.config.json');
-if (!exists(CONFIG_PATH)) die(`missing ${rel(CONFIG_PATH)}`);
-let cfg;
-try { cfg = JSON.parse(read(CONFIG_PATH)); } catch (e) { die(`brand.config.json is not valid JSON: ${e.message}`); }
+// cfg/NAME/col are populated by loadConfig() inside main(), so this module can be
+// imported (e.g. by tests for its pure helpers like detectLockedDrift) WITHOUT
+// running a sync. They're assigned before any function that reads them is called.
+let cfg, NAME, col;
+function loadConfig() {
+  if (!exists(CONFIG_PATH)) die(`missing ${rel(CONFIG_PATH)}`);
+  try { cfg = JSON.parse(read(CONFIG_PATH)); } catch (e) { die(`brand.config.json is not valid JSON: ${e.message}`); }
+  validate(cfg);
+  NAME = cfg.name;
+  col = cfg.colors;
+}
 
 function validate(c) {
   const errs = [];
@@ -101,10 +110,6 @@ function validate(c) {
   if (!c.lockedIdentifiers) errs.push('lockedIdentifiers block is required (the safety list)');
   if (errs.length) die(`config invalid:\n   - ${errs.join('\n   - ')}`);
 }
-validate(cfg);
-
-const NAME = cfg.name;
-const col = cfg.colors;
 
 // Source-asset → distributed-destination map. Used by BOTH the copy step and the
 // drift check, so `brand:check` fails if a shipped asset is stale vs brand/assets.
@@ -124,33 +129,50 @@ const ASSET_COPIES = [
   ['iconSource', 'src-tauri/icons/icon.png'],
 ];
 
-// ── locked-identifier safety assertions (read-only; runs in every mode) ───────
+// ── locked-identifier safety assertions (read-only) ───────────────────────────
+// Pure + exported so tests can verify drift detection without running a sync.
+// Returns { ok, drift } for the load-bearing identifiers a rebrand must NEVER
+// change (a drift here breaks auto-update / keychains / encrypted data / payments
+// for existing users). Reads only; never writes.
+export function detectLockedDrift(root, locked = {}) {
+  const ok = [], drift = [];
+  const tauriConf = path.join(root, 'src-tauri', 'tauri.conf.json');
+  if (fs.existsSync(tauriConf)) {
+    const raw = fs.readFileSync(tauriConf, 'utf8');
+    let t = {};
+    try { t = JSON.parse(raw); } catch { /* malformed → bundle-id check below will flag it */ }
+    if (locked.tauriBundleId) {
+      if (t.identifier !== locked.tauriBundleId) drift.push(`tauri bundle identifier is "${t.identifier}" but config locks it to "${locked.tauriBundleId}" — DO NOT rebrand this; investigate the drift`);
+      else ok.push(`bundle id "${t.identifier}" intact`);
+    }
+    if (locked.updaterEndpoint) {
+      if (!raw.includes(locked.updaterEndpoint)) drift.push('updater endpoint not found / changed in tauri.conf.json — auto-update relies on it staying constant');
+      else ok.push('updater endpoint intact');
+    }
+  }
+  const cargo = path.join(root, 'src-tauri', 'Cargo.toml');
+  if (fs.existsSync(cargo) && locked.cargoBinaryName) {
+    if (!new RegExp(`name\\s*=\\s*"${locked.cargoBinaryName}"`).test(fs.readFileSync(cargo, 'utf8'))) drift.push(`Cargo binary name "${locked.cargoBinaryName}" not found — it is load-bearing for the build/release pipeline`);
+    else ok.push(`Cargo binary name "${locked.cargoBinaryName}" intact`);
+  }
+  const kcRoot = path.join(root, 'src-tauri', 'src');
+  const services = locked.keychainServices || [];
+  if (fs.existsSync(kcRoot) && services.length) {
+    const allRs = walk(kcRoot, (f) => f.endsWith('.rs')).map((f) => fs.readFileSync(f, 'utf8')).join('\n');
+    const missing = services.filter((s) => !allRs.includes(s));
+    if (missing.length) drift.push(`keychain service name(s) missing from src-tauri/src: ${missing.join(', ')} — load-bearing (orphans saved keys/tokens if changed)`);
+    else ok.push('keychain service names intact');
+  }
+  return { ok, drift };
+}
+
 function assertLocked() {
   log(`\n${C.bold}Locked identifiers (read-only safety check)${C.reset}`);
-  const tauriConf = path.join(ROOT, 'src-tauri', 'tauri.conf.json');
-  if (exists(tauriConf)) {
-    const t = JSON.parse(read(tauriConf));
-    const want = cfg.lockedIdentifiers.tauriBundleId;
-    if (want && t.identifier !== want) warn(`tauri bundle identifier is "${t.identifier}" but config locks it to "${want}" — DO NOT rebrand this; investigate the drift`);
-    else if (want) skip(`bundle id "${t.identifier}" intact`);
-    const upd = cfg.lockedIdentifiers.updaterEndpoint;
-    const raw = read(tauriConf);
-    if (upd && !raw.includes(upd)) warn(`updater endpoint not found / changed in tauri.conf.json — auto-update relies on it staying constant`);
-    else if (upd) skip('updater endpoint intact');
-  }
-  const cargo = path.join(ROOT, 'src-tauri', 'Cargo.toml');
-  if (exists(cargo)) {
-    const bin = cfg.lockedIdentifiers.cargoBinaryName;
-    if (bin && !new RegExp(`name\\s*=\\s*"${bin}"`).test(read(cargo))) warn(`Cargo binary name "${bin}" not found — it is load-bearing for the build/release pipeline`);
-    else if (bin) skip(`Cargo binary name "${bin}" intact`);
-  }
-  const keychain = path.join(ROOT, 'src-tauri', 'src', 'commands', 'keychain.rs');
-  if (exists(keychain)) {
-    const kc = read(keychain);
-    const missing = (cfg.lockedIdentifiers.keychainServices || []).filter((s) => !kc.includes(`"${s}`) && !kc.includes(s));
-    if (missing.length) skip(`(${missing.length} keychain service names declared in config are defined outside keychain.rs — expected)`);
-    else skip('keychain service names intact');
-  }
+  const { ok: okItems, drift } = detectLockedDrift(ROOT, cfg.lockedIdentifiers || {});
+  okItems.forEach(skip);
+  // Keep the friendly warning wording, but RECORD drift so --check mode fails on
+  // it: the locked layer is the whole safety guarantee.
+  drift.forEach((m) => { warn(m); lockedDrift.push(m); });
 }
 
 // ── generated artifacts ──────────────────────────────────────────────────────
@@ -282,11 +304,16 @@ function runCheck() {
     .filter((f) => { const v = stripHtmlComments(read(f)); return NAV_LINK_RE.test(v) && !BRAND_CSS_LINK_RE.test(v); });
   if (navPagesMissing.length) drift.push(`${navPagesMissing.length} shared-nav page(s) don't link brand.css (run brand:sync): ${navPagesMissing.slice(0, 3).map(rel).join(', ')}${navPagesMissing.length > 3 ? ', …' : ''}`);
   else skip('all shared-nav pages link brand.css');
+  // Locked-identifier drift is a HARD failure too — but it is NOT fixed by
+  // re-syncing (sync never writes these), so report it separately.
+  if (lockedDrift.length) {
+    console.error(`\n${C.red}✗ LOCKED IDENTIFIER DRIFT — the load-bearing safety layer changed:${C.reset}\n   - ${lockedDrift.join('\n   - ')}\n\nThese must NEVER change in a rebrand (they break auto-update / keychains / data / payments). Investigate before merging — do NOT just re-run sync.\n`);
+  }
   if (drift.length) {
     console.error(`\n${C.red}✗ generated brand files are out of sync:${C.reset}\n   - ${drift.join('\n   - ')}\n\nRun  ${C.cyn}npm run brand:sync${C.reset}  to regenerate them.\n`);
-    process.exit(1);
   }
-  log(`\n${C.grn}✓ all generated brand files are in sync.${C.reset}`);
+  if (lockedDrift.length || drift.length) process.exit(1);
+  log(`\n${C.grn}✓ all generated brand files are in sync, and the locked identifiers are intact.${C.reset}`);
 }
 
 // ── apply mode ───────────────────────────────────────────────────────────────
@@ -348,8 +375,10 @@ async function distributeAssets() {
     skip('app icon set (taskbar/installer): re-run with --icons, or `npx tauri icon brand/' + A.iconSource + '`');
   }
 }
-// sharp is optional; import lazily so the script has zero hard deps.
-async function importSharp() { return (await import('sharp')).default; }
+// sharp is optional; import lazily so the script has zero hard deps. The variable
+// specifier + @vite-ignore keeps bundlers (e.g. Vitest importing this module for
+// its exported helpers) from trying to statically resolve an uninstalled package.
+async function importSharp() { const mod = 'sharp'; return (await import(/* @vite-ignore */ mod)).default; }
 
 /**
  * Ensure every website page that uses the shared nav (keepance-nav.v2.css, which
@@ -476,7 +505,8 @@ function summary() {
 }
 
 // ── run ──────────────────────────────────────────────────────────────────────
-(async () => {
+async function main() {
+  loadConfig();
   log(`${C.bold}brand-sync${C.reset} — source: ${rel(CONFIG_PATH)}   name: "${NAME}"\n`);
   assertLocked();
   if (FLAGS.check) { log(''); runCheck(); return; }
@@ -487,4 +517,9 @@ function summary() {
   if (FLAGS.rename) renameProse();
   writeAppliedState();
   summary();
-})();
+}
+
+// Run only when invoked directly (node scripts/brand-sync.mjs), NOT when imported
+// (e.g. tests importing the exported helpers like detectLockedDrift).
+const isMain = !!process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) main();
