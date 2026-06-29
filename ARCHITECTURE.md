@@ -5,10 +5,12 @@
 > code and fix the doc. The layer rules below are **machine-enforced** by
 > `tests/unit/architecture-boundaries.test.ts`.
 
-Keepance is **the private intelligence layer for a law practice**: a local-first
-Tauri + React app where a lawyer's documents, email, and matters live, kept
-provably private, answering questions across all of it with verifiable citations.
-(Product details: `CLAUDE.md` and `KEEPANCE_BUSINESS_PLAN.md`. Data/tech stack:
+Keepance is **the private intelligence layer for a financial advisory practice**:
+a local-first Tauri + React app where an advisor's client documents, email, and
+files live, kept provably private, answering questions across all of it with
+verifiable citations. (The engine's isolation unit is internally still named
+`matter`/`matter_id` — never renamed — while the user-facing word is *client*.
+Product details: `CLAUDE.md` and `KEEPANCE_BUSINESS_PLAN.md`. Data/tech stack:
 `CLAUDE.md` § Technology Stack.)
 
 ## The 5-layer dependency DAG

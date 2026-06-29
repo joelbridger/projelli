@@ -1,7 +1,7 @@
 # Keepance
 
-> **The private intelligence layer for a law practice.**
-> Your documents, email, and matters stay on your machine, kept provably private, and answer you back with citations you can verify.
+> **The private intelligence layer for a financial advisory practice.**
+> Your clients' documents, email, and files stay on your machine, kept provably private, and answer you back with citations you can verify.
 
 [**keepance.com**](https://keepance.com) • [Download](https://github.com/keepance/keepance/releases) • [Press kit](https://keepance.com/press-kit/) • [Blog](https://keepance.com/blog/) • [Business plan](./KEEPANCE_BUSINESS_PLAN.md)
 
@@ -9,24 +9,26 @@
 
 ## What is Keepance?
 
-Keepance is a desktop app (Tauri 2 + React 18 + TypeScript) where a lawyer's confidential work lives. It indexes a practice's documents, email, and matters locally, keeps them private by architecture, and answers questions across all of it with verifiable citations.
+Keepance is a desktop app (Tauri 2 + React 18 + TypeScript) where a financial advisor's confidential client work lives. It indexes a practice's documents, email, and client files locally, keeps them private by architecture, and answers questions across all of it with verifiable citations. (Internally, a client/household is a "matter" — that's the engine's name for the isolation unit; the user-facing word is client.)
 
 It combines:
 
 - **Word-native editing.** An in-house OOXML (.docx) engine with tracked changes and AI redline. Word is the first-class format, not an export afterthought.
-- **Matter-scoped cited recall.** Ask a question and get an answer grounded in your own files and email, every claim carrying a citation you can click. Recall is scoped per matter with cryptographic isolation.
+- **Client-scoped cited recall.** Ask a question and get an answer grounded in your own files and email, every claim carrying a citation you can click. Recall is scoped per client with cryptographic isolation, so one client's data can never leak into another's.
 - **Email intelligence.** Import Outlook, Gmail, or IMAP into one local index and actually find anything, with a citation, even when native search fails.
+- **Data connectors.** Read-only connectors pull a client's files and records into the local index from OneDrive/SharePoint, Microsoft 365 and Gmail email, the Wealthbox CRM, and Calendly — all shipping today. (More CRM and document sources are staged behind vendor access.)
 - **Local-first and BYOK.** Your data stays on your machine and your API keys live in your OS keychain. AI requests go straight from your machine to your provider under your own key, or through a firm zero-retention proxy in Assured mode. Keepance never holds your keys, sees your data, or routes content through a server of ours.
-- **A firm tier with end-to-end-encrypted collaboration.** Shared matters, SSO, ethical walls enforced by key denial, and live multi-user .docx co-editing where the relay only ever stores ciphertext.
-- **Profession workflow packs** for the real tasks attorneys do (plus tax, consulting, and advisor packs).
+- **A firm tier with end-to-end-encrypted collaboration.** Shared clients, SSO, information barriers enforced by key denial, and live multi-user .docx co-editing where the relay only ever stores ciphertext.
+- **Profession workflow packs** for the real work financial advisors do (plus secondary law, tax, and consulting packs).
 
 The pitch in one sentence: the private place your whole practice lives and answers you back, where your clients' data never leaves your control and every answer is cited.
 
 ## Status
 
-- **v3.2.0** is live: signed installers for Windows, macOS (Apple Silicon + Intel), and Linux, all with auto-update.
+- **v3.3.5** is the current version: signed installers for Windows, macOS (Apple Silicon + Intel), and Linux, all with auto-update.
 - Per-seat annual subscriptions via LemonSqueezy, license validation, the firm backend at `api.keepance.com`, and the full legal docs are all live.
-- See [`KEEPANCE_BUSINESS_PLAN.md`](./KEEPANCE_BUSINESS_PLAN.md) for strategy, [`docs/operations/2026-06-13-CURRENT-STATE.md`](./docs/operations/2026-06-13-CURRENT-STATE.md) for the authoritative current state, and [`BACKLOG.md`](./BACKLOG.md) for the task list.
+- **Positioning (current):** Keepance leads for **financial advisors** (solo/small RIA practices); law, tax, and consulting are secondary verticals. See the 2026-06-29 board decision in [`docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md`](./docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md).
+- See [`KEEPANCE_BUSINESS_PLAN.md`](./KEEPANCE_BUSINESS_PLAN.md) for strategy, the board dashboard at [board.jameworld.com](https://board.jameworld.com) plus [`docs/operations/2026-06-24-advisor-website-board-CURRENT-STATE.md`](./docs/operations/2026-06-24-advisor-website-board-CURRENT-STATE.md) for the authoritative current state, and [`BACKLOG.md`](./BACKLOG.md) for the task list.
 
 ## Install
 
@@ -99,8 +101,8 @@ For the authoritative structure, see [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 Per-seat annual subscriptions, sold via [LemonSqueezy](https://lemonsqueezy.com) (merchant of record, handles tax and refunds):
 
 - **Solo:** $468/yr ($39/mo billed annually) — the full app, all AI providers, unlimited matters.
-- **Professional:** $948/yr ($79/mo billed annually) — Solo plus the legal workflow library and all practice packs.
-- **Firm:** $1,548/seat/yr ($129/mo billed annually), minimum 3 seats — shared matters, SSO, ethical walls, and the assured zero-retention option.
+- **Professional:** $948/yr ($79/mo billed annually) — Solo plus the full workflow library (advisor, law, tax, and consulting packs).
+- **Firm:** $1,548/seat/yr ($129/mo billed annually), minimum 3 seats — shared clients, SSO, information barriers, and the assured zero-retention option.
 
 A founding cohort locks 30% off for the life of the subscription. Pre-3.0 one-time buyers are grandfathered forever; the entitlement layer guarantees their data access is never gated.
 

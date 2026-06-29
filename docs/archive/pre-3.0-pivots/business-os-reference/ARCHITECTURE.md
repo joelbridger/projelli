@@ -1,3 +1,5 @@
+> ⚠️ **ARCHIVED — pre-v3 "Business OS" architecture, superseded. Kept for history.** This describes the old layer-based layout (`components/`/`modules/`/`stores/`) that the 3.0 reorg replaced. The authoritative current map is the **repo-root `ARCHITECTURE.md`** (5-layer feature-first DAG). See this folder's `README.md`.
+
 # Business OS - Architecture Document
 
 ## System Overview

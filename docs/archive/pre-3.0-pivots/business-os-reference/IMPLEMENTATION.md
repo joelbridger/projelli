@@ -1,3 +1,5 @@
+> ⚠️ **ARCHIVED — pre-v3 "Business OS / Founder Workspace" plan, superseded. Kept for history.** Current structure: repo-root `ARCHITECTURE.md`; current features: `docs/reference/FEATURES.md`. See this folder's `README.md`.
+
 # Implementation Plan: Business OS - Founder Workspace
 
 ## Technical Architecture
