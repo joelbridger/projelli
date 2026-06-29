@@ -324,7 +324,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
         {[
           { title: 'Your files never leave your computer', body: 'Documents and client work stay local. No cloud upload, no Keepance content servers.' },
           { title: 'You own your AI connection', body: 'You connect your own AI account. Your work goes straight from your machine to your provider.' },
-          { title: 'Every answer is cited', body: 'Ask a question across your work and Keepance shows you exactly which document each claim came from.' },
+          { title: 'Every answer from your files is cited', body: 'Ask shows exactly which document each file-based claim came from — and always marks what is general guidance versus from your files.' },
         ].map(({ title, body }) => (
           <li key={title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <span style={{

@@ -3,6 +3,8 @@ import { Button, Callout } from '@/ui/kp';
 import type { AskTurn } from './askHelpers';
 import { CitationText } from './CitationText';
 import { NO_EVIDENCE_DECLINE } from './askPrompt';
+import { AnswerBlocks } from './AnswerBlocks';
+import { stripBlockMarkers } from './answerBlockMarkers';
 
 /* -------------------------------------------------------------------------- */
 /* TurnBlock — renders a single completed or streaming Q+A pair               */
@@ -37,6 +39,12 @@ export function TurnBlock({
 }) {
   const isThisTurnSelected = selectedTurnIdx === turnIdx;
   const selectedForThisTurn = isThisTurnSelected ? selected : null;
+
+  // Ask-smart: a completed turn produced by the source-aware agent carries
+  // provenance blocks; render those with their labels + per-answer tally instead
+  // of the flat CitationText + single green/uncited attestation. Files-only,
+  // demo (files-only), and legacy turns have no blocks and use the flat path.
+  const usingBlocks = !isStreaming && !!turn.blocks && turn.blocks.length > 0;
 
   // BUG-016: the "Answered over your own files" attestation must reflect a
   // grounded, verifiable citation — not merely the presence of any citation.
@@ -94,6 +102,14 @@ export function TurnBlock({
             <Loader2 size={14} strokeWidth={2} className="animate-spin" />
             <span>Answering…</span>
           </div>
+        ) : usingBlocks ? (
+          // Source-aware agent: labelled provenance blocks + per-answer tally.
+          <AnswerBlocks
+            blocks={turn.blocks ?? []}
+            selected={selectedForThisTurn}
+            onSelect={(n) => { onCitationSelect(turnIdx, n); }}
+            {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
+          />
         ) : isPersisted ? (
           // Persisted (loaded history) turns: plain text.
           <p style={{ fontSize: '15.5px', lineHeight: 1.62, color: 'var(--kp-navy)', margin: 0, whiteSpace: 'pre-wrap' }}>
@@ -101,7 +117,10 @@ export function TurnBlock({
           </p>
         ) : (
           <CitationText
-            text={turn.answer}
+            // While streaming, the raw answer may carry block markers
+            // ([[BLOCK:…]]); strip them so they never flash on screen before the
+            // completed turn swaps to the labelled block view.
+            text={isStreaming ? stripBlockMarkers(turn.answer) : turn.answer}
             citations={turn.citations}
             selected={selectedForThisTurn}
             onSelect={(n) => { onCitationSelect(turnIdx, n); }}
@@ -109,11 +128,12 @@ export function TurnBlock({
           />
         )}
 
-        {/* Privacy attestation (completed cited turns only).
+        {/* Privacy attestation (completed cited turns only) — FLAT path only;
+            the block renderer shows its own attestation/tally.
             A2: shown only when citations exist, so it is never contradicted
             by the "No indexed sources" note below — the two are mutually exclusive.
             WS3: add data-testid so tests can assert its presence. */}
-        {!isStreaming && turn.answer && hasGroundedCitation && (
+        {!usingBlocks && !isStreaming && turn.answer && hasGroundedCitation && (
           <div
             data-testid="ask-cited-attestation"
             style={{
@@ -139,8 +159,10 @@ export function TurnBlock({
         {/* Deliberate decline: Ask found nothing in the files and said so. This
             is the trust behaviour working, not a weak answer — show a calm note
             that it's on purpose (it only answers from your files). Takes the
-            place of the red uncited warning for this one exact answer. */}
-        {!isStreaming && isDecline && (
+            place of the red uncited warning for this one exact answer.
+            FLAT path only — a smart-mode answer self-labels via its blocks (a
+            smart "nothing found" is a nothing-found BLOCK, not this decline). */}
+        {!usingBlocks && !isStreaming && isDecline && (
           <div
             data-testid="ask-decline-note"
             style={{
@@ -166,8 +188,10 @@ export function TurnBlock({
             visible Callout so an uncited answer looks clearly LESS trustworthy
             than a cited one. Mutually exclusive with the attestation above.
             A2 guarantee preserved: only shown when there are no citations. The
-            deliberate decline is excluded — it has its own calm note above. */}
-        {!isStreaming && !hasGroundedCitation && turn.answer && !isDecline && (
+            deliberate decline is excluded — it has its own calm note above.
+            FLAT path only — a smart-mode answer is self-labelling by block, so
+            the blanket "not cited" warning would be wrong over a general/draft. */}
+        {!usingBlocks && !isStreaming && !hasGroundedCitation && turn.answer && !isDecline && (
           <div data-testid="ask-uncited-warning">
             <Callout variant="warning" icon={AlertTriangle}>
               {/* eslint-disable keepance-i18n/no-hardcoded-string */}

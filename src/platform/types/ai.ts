@@ -31,6 +31,18 @@ export interface ChatAttachment {
 }
 
 /**
+ * One provenance-labelled answer block stored with an Ask-smart assistant
+ * message. Only the kind + prose are persisted; the block's citations are
+ * re-attached from the message's {@link ChatMessage.askCitations} on reload by
+ * matching the `{n}` markers in `text` (so re-grounding stays single-sourced).
+ * Mirror of `AnswerBlock` in `askHelpers.ts` minus the citations array.
+ */
+export interface PersistedAnswerBlock {
+  kind: 'files' | 'general' | 'draft' | 'nothing-found';
+  text: string;
+}
+
+/**
  * One cited source chip stored with an assistant message.
  * Matches the `AnswerCitation` interface in `Ask.tsx` exactly.
  * Persisted alongside the message so citations survive navigation/reload.
@@ -83,6 +95,15 @@ export interface ChatMessage {
    * Optional for backward-compatibility with pre-fix legacy messages.
    */
   askSources?: WorkspaceSource[];
+  /**
+   * Ask-smart: the provenance-labelled blocks the answer is built from, persisted
+   * so the From-your-files / General guidance / Draft labels and the per-answer
+   * tally survive reload. Only `kind` + `text` are stored; citations are
+   * re-associated to blocks from {@link askCitations} on reconstruct (kept DRY,
+   * and re-grounded by the same locator check). Absent on files-only, demo, and
+   * pre-smart legacy messages, which restore via the flat path.
+   */
+  askBlocks?: PersistedAnswerBlock[];
   /**
    * M2 — workspace retrieval hits associated with this turn. For
    * user-role messages this is the list of chunks that were retrieved

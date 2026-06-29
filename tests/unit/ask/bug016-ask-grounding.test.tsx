@@ -15,7 +15,15 @@
  * (return a fabricated answer) so we prove the grounding safety net holds even
  * when the model hallucinates.
  *
- * Behaviour we require:
+ * Ask-smart note: this suite runs in FILES-ONLY mode (the strict, cited-or-
+ * decline lock, set via localStorage in beforeEach). That is exactly the mode
+ * whose contract is "answer only from the files or decline" — so the original
+ * BUG-016 guarantees are tested verbatim. The new SMART-mode behaviour (the
+ * source-aware agent that, on empty retrieval, leads with a nothing-found block
+ * and clearly-labelled general help — never a green, fake-cited claim) is
+ * covered separately in `ask-smart-agent.test.tsx`.
+ *
+ * Behaviour we require (files-only):
  *   1. Indexing on but retrieval empty → DECLINE before calling the model
  *      (no fabricated figure, no banner, uncited state).
  *   2. Model cites a source that wasn't retrieved → that citation is DROPPED
@@ -25,7 +33,7 @@
  *      still renders its chip + the green attestation (no over-tightening).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Ask } from '@/features/ask/Ask';
 import { reconstructTurns } from '@/features/ask/askHelpers';
@@ -146,6 +154,13 @@ describe('BUG-016 — Ask grounding', () => {
     h.addMessage.mockReset();
     h.answer.text = '';
     h.retrieve.mockResolvedValue([]);
+    // Pin Files-only mode: this suite tests the strict cited-or-decline grounding
+    // net, which is exactly Files-only mode's contract. (Smart mode is the
+    // default and is covered in ask-smart-agent.test.tsx.)
+    localStorage.setItem('keepance:ask-files-only', '1');
+  });
+  afterEach(() => {
+    localStorage.removeItem('keepance:ask-files-only');
   });
 
   it('declines (no fabricated figure, no banner) when retrieval is empty', async () => {
@@ -341,6 +356,80 @@ describe('BUG-016 — reconstructTurns drops stale ungrounded citations on reloa
     const turns = reconstructTurns(messages);
     expect(turns[0]!.citations).toHaveLength(1);
     expect(turns[0]!.answer).toContain('{1}');
+  });
+
+  it('downgrades a persisted FILES block to general on reload when its citation no longer re-grounds', () => {
+    // A smart-mode turn saved with a files block + a citation, but the saved
+    // sources no longer prove the locator → the block must lose its green
+    // "From your files" label rather than render empty-but-green.
+    const messages = [
+      { role: 'user', content: 'settlement?', timestamp: 't' },
+      {
+        role: 'assistant',
+        content: 'It settled for $2,700,000 {1}.',
+        timestamp: 't',
+        askBlocks: [{ kind: 'files', text: 'It settled for $2,700,000 {1}.' }],
+        askCitations: [
+          { n: 1, label: 'ghost.docx', excerpt: 'x', path: '/ws/ghost.docx', locator: 'ghost.docx §9', verified: true, paragraphIndex: 9, id: 'g', matterId: 'm' },
+        ],
+        askSources: [], // nothing proves the citation anymore
+      },
+    ] as unknown as ChatMessage[];
+
+    const turns = reconstructTurns(messages);
+    expect(turns[0]!.blocks).toHaveLength(1);
+    expect(turns[0]!.blocks![0]!.kind).toBe('general');
+    expect(turns[0]!.citations).toHaveLength(0);
+    expect(turns[0]!.blocks![0]!.text).not.toContain('{1}');
+  });
+
+  it('downgrades a persisted FILES block on reload when its citation was originally unverified (cross-matter)', () => {
+    // The citation exact-locator-matches a saved source (so BUG-065 would flip it
+    // back to verified for the flat path), but it was persisted verified:false
+    // (cross-matter). The smart block path must respect the original flag and NOT
+    // restore a green "From your files" label over an out-of-matter citation.
+    const messages = [
+      { role: 'user', content: 'cross-matter?', timestamp: 't' },
+      {
+        role: 'assistant',
+        content: 'Other client fact {1}.',
+        timestamp: 't',
+        askBlocks: [{ kind: 'files', text: 'Other client fact {1}.' }],
+        askCitations: [
+          { n: 1, label: 'other.docx', excerpt: 'x', path: '/ws/other.docx', locator: 'other.docx §1', verified: false, paragraphIndex: 1, id: 'o', matterId: 'other-matter' },
+        ],
+        askSources: [
+          { path: '/ws/other.docx', chunkText: 'x', score: 0.9, paragraphIndex: 1, id: 'o', matterId: 'other-matter' },
+        ],
+      },
+    ] as unknown as ChatMessage[];
+
+    const turns = reconstructTurns(messages);
+    expect(turns[0]!.blocks![0]!.kind).toBe('general');
+    expect(turns[0]!.citations).toHaveLength(0);
+  });
+
+  it('keeps a persisted FILES block green when its citation still re-grounds', () => {
+    const messages = [
+      { role: 'user', content: 'fee?', timestamp: 't' },
+      {
+        role: 'assistant',
+        content: 'The fee is $350/hr {1}.',
+        timestamp: 't',
+        askBlocks: [{ kind: 'files', text: 'The fee is $350/hr {1}.' }],
+        askCitations: [
+          { n: 1, label: 'fee.docx', excerpt: 'fee $350/hr', path: '/ws/fee.docx', locator: 'fee.docx §2', verified: true, paragraphIndex: 2, id: 'c1', matterId: 'm1' },
+        ],
+        askSources: [
+          { path: '/ws/fee.docx', chunkText: 'fee $350/hr', score: 0.9, paragraphIndex: 2, id: 'c1', matterId: 'm1' },
+        ],
+      },
+    ] as unknown as ChatMessage[];
+
+    const turns = reconstructTurns(messages);
+    expect(turns[0]!.blocks![0]!.kind).toBe('files');
+    expect(turns[0]!.citations).toHaveLength(1);
+    expect(turns[0]!.blocks![0]!.text).toContain('{1}');
   });
 
   it('drops a stale verified:true citation whose locator is NOT among the saved sources (old basename fallback)', () => {

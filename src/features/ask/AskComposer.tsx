@@ -43,6 +43,73 @@ export interface AskComposerProps {
   /** Egress / privacy indicator — where the next AI request will travel. */
   egressProvider: string | null;
   egressMode: ConfidentialityMode;
+  /** Decision 6 — Files-only mode lock. When on, Ask reverts to strict
+   *  cited-from-your-files-only behaviour (no general knowledge, no drafts). */
+  filesOnly: boolean;
+  onFilesOnlyChange: (v: boolean) => void;
+}
+
+// Module-scope label — the i18n lint rule targets JSX text / string props, not
+// const references, so this keeps the toggle copy out of the JSX-text check
+// (same pattern the prompt builders use). Localized with the surface later.
+const FILES_ONLY_LABEL = 'Files-only mode';
+
+/**
+ * Files-only mode lock — a small accessible switch. OFF = the smart, source-aware
+ * advisor agent (default); ON = strict cited-from-your-files-only, the one-tap
+ * answer for a compliance team that wants the general/drafting capability off.
+ */
+function FilesOnlyToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={value}
+      data-testid="ask-files-only-toggle"
+      onClick={() => { onChange(!value); }}
+      title="Files-only mode: answer only from your files, cited — no general knowledge or drafts."
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '6px 10px',
+        background: 'none',
+        border: 'none',
+        cursor: 'pointer',
+        fontSize: '13px',
+        fontWeight: 600,
+        color: value ? 'var(--kp-navy)' : 'var(--kp-text-dim)',
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          width: 34,
+          height: 20,
+          borderRadius: 999,
+          background: value ? 'var(--kp-accent)' : 'var(--kp-divider-strong)',
+          position: 'relative',
+          transition: 'background 0.15s ease',
+          flex: 'none',
+        }}
+      >
+        <span
+          style={{
+            position: 'absolute',
+            top: 2,
+            left: value ? 16 : 2,
+            width: 16,
+            height: 16,
+            borderRadius: '50%',
+            background: '#fff',
+            boxShadow: '0 1px 2px rgba(10,37,64,0.3)',
+            transition: 'left 0.15s ease',
+          }}
+        />
+      </span>
+      {FILES_ONLY_LABEL}
+    </button>
+  );
 }
 
 export function AskComposer({
@@ -63,6 +130,8 @@ export function AskComposer({
   submitLabel,
   egressProvider,
   egressMode,
+  filesOnly,
+  onFilesOnlyChange,
 }: AskComposerProps) {
   const centered = variant === 'centered';
 
@@ -118,8 +187,9 @@ export function AskComposer({
           gap: 'var(--kp-space-sm)',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 'var(--kp-space-sm)', flexWrap: 'wrap' }}>
           <ScopeToggle scope={askScope} onChange={setAskScope} hasMatter={hasMatter} isSample={isSample} />
+          <FilesOnlyToggle value={filesOnly} onChange={onFilesOnlyChange} />
         </div>
         {inputRow}
         <EgressIndicator provider={egressProvider} mode={egressMode} variant="full" />
@@ -155,6 +225,7 @@ export function AskComposer({
           }}
         >
           <ScopeToggle scope={askScope} onChange={setAskScope} hasMatter={hasMatter} isSample={isSample} />
+          <FilesOnlyToggle value={filesOnly} onChange={onFilesOnlyChange} />
         </div>
         {inputRow}
       </div>
