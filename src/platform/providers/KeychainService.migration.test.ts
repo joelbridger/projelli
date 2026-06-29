@@ -21,6 +21,19 @@ const LEGACY_KEY = 'apiKey_anthropic';
 const MATERIAL_KEY = 'bos_key_anthropic';
 const VALID_ANTHROPIC_KEY = 'sk-ant-api03-abcdefghijklmnopqrstuvwx';
 const VALID_OPENAI_KEY = 'sk-proj-abcdefghijklmnopqrstuvwx';
+const GOOGLE_LEGACY_KEY = 'apiKey_google';
+const GOOGLE_KEYCHAIN_ID = 'com.keepance.app::bos_key_google';
+// Real Google AI / Gemini keys start with "AIza".
+const VALID_GOOGLE_KEY = 'AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ012345';
+
+// Error shape the Tauri keychain backend treats as "no entry" (it checks
+// `error.kind === 'notFound'`). Extends Error so Promise.reject is happy.
+class KeychainNotFound extends Error {
+  readonly kind = 'notFound';
+  constructor() {
+    super('no entry');
+  }
+}
 
 const keychainStore = new Map<string, string>();
 
@@ -126,19 +139,19 @@ describe('migrateLocalStorageApiKeysToKeychain', () => {
 
   it('keeps the localStorage entry and retries next run when keychain verification fails', async () => {
     localStorage.setItem(LEGACY_KEY, btoa(VALID_ANTHROPIC_KEY));
-    invokeMock.mockImplementation(async (cmd: string, args: Record<string, unknown> = {}) => {
-      const service = (args['service'] as string | undefined) ?? 'com.keepance.app';
-      const key = args['key'] as string;
-      const id = `${service}::${key}`;
-
+    // No key yet (pre-write existing-check returns notFound), but the write's
+    // read-back returns a different value → verification mismatch.
+    let setCalled = false;
+    invokeMock.mockImplementation((cmd: string) => {
       if (cmd === 'keychain_set') {
-        keychainStore.set(id, args['value'] as string);
-        return undefined;
+        setCalled = true;
+        return Promise.resolve(undefined);
       }
       if (cmd === 'keychain_get') {
-        return 'not-the-same-key';
+        if (!setCalled) return Promise.reject(new KeychainNotFound());
+        return Promise.resolve('not-the-same-key');
       }
-      throw new Error(`unexpected invoke ${cmd}`);
+      return Promise.reject(new Error(`unexpected invoke ${cmd}`));
     });
 
     await migrateLocalStorageApiKeysToKeychain();
@@ -151,6 +164,24 @@ describe('migrateLocalStorageApiKeysToKeychain', () => {
     await migrateLocalStorageApiKeysToKeychain();
 
     expect(keychainStore.get(KEYCHAIN_ID)).toBe(VALID_ANTHROPIC_KEY);
+    expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
+    expect(localStorage.getItem(MIGRATION_SENTINEL)).toBe('true');
+  });
+
+  it('does not overwrite an existing keychain key with a stale legacy entry, but still removes the plaintext', async () => {
+    // Upgrading user already has a GOOD key in the OS keychain (re-added via
+    // Settings after upgrade) AND a STALE older plaintext entry the broken v1
+    // migration left behind.
+    keychainStore.set(KEYCHAIN_ID, VALID_ANTHROPIC_KEY);
+    const STALE_OLD_KEY = 'sk-ant-api03-OLDOLDOLDOLDOLDOLDOLDOLD';
+    localStorage.setItem(LEGACY_KEY, STALE_OLD_KEY);
+
+    await migrateLocalStorageApiKeysToKeychain();
+
+    // The good keychain key is preserved (NOT rolled back to the stale value)...
+    expect(keychainStore.get(KEYCHAIN_ID)).toBe(VALID_ANTHROPIC_KEY);
+    expect(invokeMock).not.toHaveBeenCalledWith('keychain_set', expect.anything());
+    // ...and the stale plaintext is still cleaned up.
     expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
     expect(localStorage.getItem(MIGRATION_SENTINEL)).toBe('true');
   });
@@ -191,5 +222,25 @@ describe('migrateLocalStorageApiKeysToKeychain', () => {
       .map((k) => k.provider)
       .sort();
     expect(providers).toEqual(['anthropic', 'openai']);
+  });
+
+  it('decodes a base64-encoded Google legacy key into the keychain (not the encoded blob)', async () => {
+    localStorage.setItem(GOOGLE_LEGACY_KEY, btoa(VALID_GOOGLE_KEY));
+
+    await migrateLocalStorageApiKeysToKeychain();
+
+    // The decoded key — NOT the base64 blob — lands in the keychain.
+    expect(keychainStore.get(GOOGLE_KEYCHAIN_ID)).toBe(VALID_GOOGLE_KEY);
+    expect(localStorage.getItem(GOOGLE_LEGACY_KEY)).toBeNull();
+    expect(localStorage.getItem(MIGRATION_SENTINEL)).toBe('true');
+  });
+
+  it('migrates a raw Google legacy key as-is', async () => {
+    localStorage.setItem(GOOGLE_LEGACY_KEY, VALID_GOOGLE_KEY);
+
+    await migrateLocalStorageApiKeysToKeychain();
+
+    expect(keychainStore.get(GOOGLE_KEYCHAIN_ID)).toBe(VALID_GOOGLE_KEY);
+    expect(localStorage.getItem(GOOGLE_LEGACY_KEY)).toBeNull();
   });
 });

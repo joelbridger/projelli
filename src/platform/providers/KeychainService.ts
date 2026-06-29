@@ -244,7 +244,16 @@ function upsertStoredKeyMetadata(provider: KeyProvider, key: string): void {
   saveStoredKeyMetadata(metadata);
 }
 
-/** Does this string plausibly look like a real key for the given provider? */
+/**
+ * Does this string plausibly look like a real key for the given provider?
+ * Used ONLY to disambiguate a raw legacy value from a base64-encoded one during
+ * migration — never to reject a key. Google has no enforced prefix elsewhere,
+ * but real Google AI / Gemini keys start with "AIza"; using that here lets us
+ * tell a raw Google key from a base64-encoded legacy blob (whose first bytes
+ * would be different) so the base64 fallback in decodeLegacyApiKey is actually
+ * reachable for Google, consistent with anthropic/openai. Anything that doesn't
+ * match still falls back to the raw value, so no key is ever lost.
+ */
 function looksLikeProviderKey(provider: KeyProvider, key: string): boolean {
   if (key.length < 20) return false;
   switch (provider) {
@@ -253,8 +262,7 @@ function looksLikeProviderKey(provider: KeyProvider, key: string): boolean {
     case 'openai':
       return key.startsWith('sk-');
     case 'google':
-      // Google AI keys have no stable prefix; the length check above is enough.
-      return true;
+      return key.startsWith('AIza');
   }
 }
 
@@ -299,9 +307,20 @@ export async function migrateLocalStorageApiKeysToKeychain(): Promise<void> {
     const stored = localStorage.getItem(legacyStorageKey);
     if (stored === null) continue;
 
-    const key = decodeLegacyApiKey(provider, stored);
-
     try {
+      // If the keychain ALREADY has a key for this provider (e.g. the user
+      // re-added it via Settings after the upgrade — Settings writes only
+      // through the keychain), never roll it back to the older legacy value.
+      // Just clean up the stale plaintext and move on. (The broken v1 migration
+      // could leave a plaintext entry behind even when a good keychain key
+      // exists.)
+      const existing = await backend.get(provider);
+      if (existing !== null) {
+        localStorage.removeItem(legacyStorageKey);
+        continue;
+      }
+
+      const key = decodeLegacyApiKey(provider, stored);
       await backend.set(provider, key);
       const verifiedKey = await backend.get(provider);
       if (verifiedKey !== key) {
