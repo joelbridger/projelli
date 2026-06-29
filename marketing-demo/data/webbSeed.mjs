@@ -18,22 +18,52 @@ const item = (id, text, sources, isAssumption = false) => ({
   id, text, origin: 'ai', isAssumption, sources, updatedAt: NOW,
 });
 
+// A bare matter (no built Client Map) — used for the rest of the advisor's book
+// of business so the REAL left sidebar (Spine) lists them. They stream into the
+// sidebar during the app-arrival beat; only Webb has a real Client Map and is the
+// only one ever opened. DEMO-ONLY set dressing.
+const bareMatter = (id, name) => ({
+  id, name, client: name, folderPaths: [],
+  mailFolderPaths: [], crmHouseholdKeys: [], onedriveFolderKeys: [],
+  esignKeys: [], meetingKeys: [],
+  privileged: false, mcpAccessGranted: false,
+  createdAt: NOW,
+});
+
+// The 7 other households in the book of business (Webb leads, below).
+const EXTRA_CLIENTS = [
+  bareMatter('matter_caldwell_family', 'Caldwell Family Trust'),
+  bareMatter('matter_okafor_household', 'Okafor Household'),
+  bareMatter('matter_nguyen_household', 'Nguyen Household'),
+  bareMatter('matter_brennan_family', 'Brennan Family'),
+  bareMatter('matter_salazar_household', 'Salazar Household'),
+  bareMatter('matter_petrosyan_family', 'Petrosyan Family'),
+  bareMatter('matter_whitfield_trust', 'Whitfield Trust'),
+];
+
 export const mattersEnvelope = {
   state: {
-    matters: [{
-      id: MATTER_ID,
-      name: 'Webb Household',
-      client: 'Webb Household',
-      folderPaths: [F],
-      mailFolderPaths: [], crmHouseholdKeys: [], onedriveFolderKeys: [],
-      esignKeys: [], meetingKeys: [],
-      privileged: false, mcpAccessGranted: false,
-      createdAt: NOW,
-    }],
+    matters: [
+      {
+        id: MATTER_ID,
+        name: 'Webb Household',
+        client: 'Webb Household',
+        folderPaths: [F],
+        mailFolderPaths: [], crmHouseholdKeys: [], onedriveFolderKeys: [],
+        esignKeys: [], meetingKeys: [],
+        privileged: false, mcpAccessGranted: false,
+        createdAt: NOW,
+      },
+      ...EXTRA_CLIENTS, // Webb stays first so it streams in first + is the active hub
+    ],
     activeMatterId: MATTER_ID,
   },
   version: 7,
 };
+
+// Names of all clients in the book of business, in sidebar (seed) order — used by
+// the demo to stream the REAL sidebar rows in one-by-one. Webb leads.
+export const DEMO_CLIENT_NAMES = ['Webb Household', ...EXTRA_CLIENTS.map((m) => m.name)];
 
 const map = {
   matterId: MATTER_ID,

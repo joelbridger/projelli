@@ -11,25 +11,10 @@
  *     produce a live-typed, Webb-specific, verified-citation answer in-browser
  *     without product-code changes.
  */
-import { mattersEnvelope, clientMapsEnvelope, MATTER_ID } from '../data/webbSeed.mjs';
+import { mattersEnvelope, clientMapsEnvelope, MATTER_ID, DEMO_CLIENT_NAMES } from '../data/webbSeed.mjs';
 import { runAskScene } from './askScene.mjs';
 
 const ev = (page, fn, ...args) => page.evaluate(fn, ...args);
-
-// The advisor's book of business for the "arriving" rail (Scene 5 lead-in).
-// Webb leads (it's the hero whose real map we land on); the rest are plausible
-// households so the rail reads like a real practice streaming in. DEMO-ONLY set
-// dressing — only Webb is a real seeded matter with a Client Map.
-const ARRIVAL_CLIENTS = [
-  { name: 'Webb Household', webb: true },
-  { name: 'Caldwell Family Trust' },
-  { name: 'Okafor Household' },
-  { name: 'Nguyen Household' },
-  { name: 'Brennan Family' },
-  { name: 'Salazar Household' },
-  { name: 'Petrosyan Family' },
-  { name: 'Whitfield Trust' },
-];
 
 export async function installDeterminism(context, page) {
   // Seed BEFORE any app code runs: the Webb matter + filled Client Map, and a
@@ -90,75 +75,42 @@ export async function sceneClientMap(page) {
   await page.waitForSelector('[data-testid="clientmap-panel"]', { timeout: 8000 }).catch(() => {});
   await page.waitForTimeout(300);
 
-  // 2) Build the "book of business arriving" overlay UNDER the navy (z 85000 <
-  //    stage 90000), then lift the navy to reveal it over the already-open map.
-  await ev(page, (clients) => {
-    const PAL = ['#1f74c4', '#0a2540', '#16654a', '#b45309', '#7c3aed', '#be185d', '#0369a1', '#4d7c0f'];
-    const initials = (n) => n.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-    const tick = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    const shield = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>';
-    const rows = clients.map((c, i) => `
-      <div class="kpd-arr-client${c.webb ? ' is-webb' : ''}">
-        <div class="kpd-arr-av" style="background:${c.webb ? 'linear-gradient(135deg,#1f74c4,#5dc6ff)' : PAL[i % PAL.length]}">${initials(c.name)}</div>
-        <div class="kpd-arr-meta">
-          <div class="kpd-arr-name">${c.name}</div>
-          <div class="kpd-arr-sub"><span class="kpd-arr-tick">${tick}</span>Imported &amp; private</div>
-        </div>
-      </div>`).join('');
-    const L = '<div class="kpd-arr-line"></div>';
-    const Lm = '<div class="kpd-arr-line m"></div>';
-    const Ls = '<div class="kpd-arr-line s"></div>';
-    const card = (title, body) => `<div class="kpd-arr-card"><div class="kpd-arr-ch">${title}</div>${body}</div>`;
-    const wrap = document.createElement('div');
-    wrap.id = 'kpd-arrival';
-    wrap.innerHTML = `
-      <div class="kpd-arr-top">
-        <div class="kpd-arr-brand"><span class="kpd-arr-mark">${shield}</span>Keepance</div>
-        <div class="kpd-arr-status"><span class="kpd-arr-dot"></span>Importing your book of business…</div>
-      </div>
-      <div class="kpd-arr-body">
-        <div class="kpd-arr-rail">
-          <div class="kpd-arr-rail-h">CLIENTS <span class="kpd-arr-count" id="kpd-arr-count">0</span></div>
-          <div class="kpd-arr-list" id="kpd-arr-list">${rows}</div>
-        </div>
-        <div class="kpd-arr-main">
-          <div class="kpd-arr-maptitle"><span class="kpd-arr-mav">WH</span>Webb Household</div>
-          <div class="kpd-arr-mapsub">Building this client's map from everything you just connected…</div>
-          <div class="kpd-arr-skel">
-            ${card('Where things stand', Lm + L + Ls)}
-            ${card('Key people', L + Ls)}
-            ${card("What's coming", Lm + Ls)}
-            ${card('Next actions', L + Lm)}
-          </div>
-        </div>
-      </div>`;
-    document.body.appendChild(wrap);
-  }, ARRIVAL_CLIENTS);
+  // 2) "Book of business arriving" — done on the REAL app (no fake/placeholder
+  //    map). The left sidebar (Spine) already lists every seeded client; while the
+  //    navy is still up we HIDE those real rows, then stream them back in one-by-one
+  //    over the real, already-open Webb Client Map. Nothing fake is ever shown.
+  await ev(page, (names) => {
+    const sb = document.querySelector('[data-testid="sidebar"]');
+    const rows = sb
+      ? [...sb.querySelectorAll('button')].filter((b) => names.some((n) => (b.textContent || '').includes(n)))
+      : [];
+    const st = document.createElement('style');
+    st.id = 'kpd-client-pop';
+    st.textContent =
+      '.kpd-cli-row{transition:opacity .42s ease, transform .42s ease !important}' +
+      '.kpd-cli-hidden{opacity:0 !important; transform:translateX(-16px) !important}';
+    document.head.appendChild(st);
+    rows.forEach((r) => r.classList.add('kpd-cli-row', 'kpd-cli-hidden'));
+    window.__kpCliRows = rows;
+  }, DEMO_CLIENT_NAMES);
 
-  await ev(page, async () => { await window.__kp.hideStage(520); }); // navy out -> arrival visible
-  await ev(page, () => { document.getElementById('kpd-arrival')?.classList.add('kpd-in'); });
+  // 3) Lift the navy -> the real Webb Client Map + the real sidebar (rows hidden).
+  await ev(page, async () => { await window.__kp.hideStage(560); });
   await page.waitForTimeout(220);
   await ev(page, async () => { await window.__kp.showCaption('Your whole book of business, arriving. Every client, kept private.'); });
 
-  // 3) stream the clients into the left rail one-by-one (and assemble the map skeleton)
+  // 4) Stream the REAL sidebar client rows in one-by-one (Webb first).
   await ev(page, async () => {
-    const cards = [...document.querySelectorAll('#kpd-arr-list .kpd-arr-client')];
-    const count = document.getElementById('kpd-arr-count');
-    const skel = [...document.querySelectorAll('#kpd-arrival .kpd-arr-card')];
-    for (let i = 0; i < cards.length; i++) {
-      cards[i].classList.add('kpd-in');
-      if (count) count.textContent = String(i + 1);
-      if (i === 0) skel.forEach((c, ci) => setTimeout(() => c.classList.add('kpd-in'), 200 + ci * 170));
-      await window.__kp.sleep(i === 0 ? 560 : 360);
-    }
+    const rows = window.__kpCliRows || [];
+    for (const r of rows) { r.classList.remove('kpd-cli-hidden'); await window.__kp.sleep(300); }
   });
   await page.waitForTimeout(850);
   await ev(page, async () => { await window.__kp.hideCaption(); });
-
-  // 4) crossfade the arrival overlay out -> the real, already-open Webb map
-  await ev(page, async () => {
-    const a = document.getElementById('kpd-arrival');
-    if (a) { a.classList.remove('kpd-in'); await window.__kp.sleep(560); a.remove(); }
+  // tidy up the temporary populate styling (rows are now permanently visible)
+  await ev(page, () => {
+    document.getElementById('kpd-client-pop')?.remove();
+    (window.__kpCliRows || []).forEach((r) => r.classList.remove('kpd-cli-row', 'kpd-cli-hidden'));
+    window.__kpCliRows = null;
   });
 
   // 5) cursor on (parked over the map) for the guided tour beats below

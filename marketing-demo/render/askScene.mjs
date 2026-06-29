@@ -43,11 +43,9 @@ const EMAIL = {
 };
 
 export async function runAskScene(page) {
-  // Highlight the real "Ask" item in the real sidebar (chrome stays real).
-  await page.click('[data-testid="spine-nav-search"]').catch(() => {});
-  await page.waitForTimeout(500);
-
-  // Build the replica, positioned over the content region.
+  // Build + reveal the Ask replica FIRST, over the real Client Map, so the real
+  // (old) Ask surface never flashes. The replica is positioned from the sidebar
+  // geometry, which is the same on the Client Map and Ask surfaces.
   await ev(page, (data) => {
     const sb = document.querySelector('[data-testid="sidebar"]');
     const r = sb ? sb.getBoundingClientRect() : { right: 232, top: 96 };
@@ -110,6 +108,11 @@ export async function runAskScene(page) {
     stage.classList.add('kpd-show');
     requestAnimationFrame(() => ask.classList.add('kpd-in'));
   }, { SOURCES1, ICONS: { ...I, spark2: I.spark } });
+  await page.waitForTimeout(480); // let the replica finish fading in (now opaque)
+
+  // Only NOW switch the real sidebar's active item to "Ask" — it renders hidden
+  // beneath the opaque replica, so the old Ask surface never flashes.
+  await page.click('[data-testid="spine-nav-search"]').catch(() => {});
 
   await ev(page, async () => { await window.__kp.cursorOn(); });
   await page.waitForTimeout(700);
@@ -160,7 +163,7 @@ export async function runAskScene(page) {
     for (const c of cards) { c.classList.add('kpd-in'); await window.__kp.sleep(170); }
     document.getElementById('kpd-attest1')?.classList.add('kpd-in');
   });
-  await page.waitForTimeout(2400);
+  await page.waitForTimeout(2050);
 
   // ---- Q2: draft the follow-up email ----
   await typeComposer(page, 'Draft a follow-up email asking for the missing beneficiary information.');
@@ -202,7 +205,7 @@ export async function runAskScene(page) {
     await window.__kp.sleep(250);
     document.getElementById('kpd-attest2')?.classList.add('kpd-in');
   });
-  await page.waitForTimeout(2300);
+  await page.waitForTimeout(1950);
 
   // tidy up: fade the ask replica away (closing scene takes over)
   await ev(page, async () => {

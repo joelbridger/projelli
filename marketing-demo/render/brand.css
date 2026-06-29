@@ -301,57 +301,6 @@
 .kpd-progress-row .kpd-local { font-size: 12px; color: var(--d-success); font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .kpd-progress-row .kpd-local .kpd-lock { width: 6px; height: 6px; border-radius: 50%; background: var(--d-success); }
 
-/* ---------- app arrival: "book of business" import overlay (Scene 5 lead-in) ----------
-   A light, native-looking transition shown between onboarding and the real
-   Client Map (Jameson's v3 feedback). The left rail streams the advisor's
-   clients in one-by-one ("watch your book of business arrive"); the main area
-   assembles the Webb Household map skeleton. It then crossfades out to reveal
-   the REAL, already-open Webb Client Map underneath — so the all-clients table
-   is never shown. z 85000 keeps it above the app but below the navy stage. */
-#kpd-arrival {
-  position: fixed; inset: 0; z-index: 85000;
-  background: var(--d-bg-soft); font-family: var(--d-font); color: var(--d-ink);
-  display: flex; flex-direction: column;
-  opacity: 0; transition: opacity 520ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-#kpd-arrival.kpd-in { opacity: 1; }
-#kpd-arrival .kpd-arr-top {
-  height: 64px; flex: none; display: flex; align-items: center; justify-content: space-between;
-  padding: 0 28px; background: #fff; border-bottom: 1px solid var(--d-line);
-}
-#kpd-arrival .kpd-arr-brand { display: flex; align-items: center; gap: 11px; font-size: 18px; font-weight: 800; color: var(--d-navy); letter-spacing: -0.01em; }
-#kpd-arrival .kpd-arr-mark { width: 27px; height: 27px; border-radius: 8px; background: linear-gradient(135deg, #1f74c4, #5dc6ff); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(31,116,196,0.4); }
-#kpd-arrival .kpd-arr-status { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 600; color: var(--d-dim); }
-#kpd-arrival .kpd-arr-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--d-accent); animation: kpd-pulse 1.1s ease-in-out infinite; }
-@keyframes kpd-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.78); } }
-
-#kpd-arrival .kpd-arr-body { flex: 1; display: flex; min-height: 0; }
-#kpd-arrival .kpd-arr-rail { width: 326px; flex: none; background: #fff; border-right: 1px solid var(--d-line); padding: 22px 18px; overflow: hidden; }
-#kpd-arrival .kpd-arr-rail-h { font-size: 12px; font-weight: 800; letter-spacing: 0.1em; color: var(--d-faint); margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
-#kpd-arrival .kpd-arr-count { background: var(--d-accent-soft); color: var(--d-accent); border-radius: 99px; padding: 2px 11px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
-#kpd-arrival .kpd-arr-list { display: flex; flex-direction: column; gap: 9px; }
-.kpd-arr-client { display: flex; align-items: center; gap: 13px; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--d-line); background: #fff; opacity: 0; transform: translateY(10px); box-shadow: var(--d-shadow-card); }
-.kpd-arr-client.kpd-in { animation: kpd-rise 460ms cubic-bezier(0.2,0.7,0.2,1) forwards; }
-.kpd-arr-client.is-webb { border-color: var(--d-accent); background: var(--d-accent-soft); box-shadow: 0 0 0 1px var(--d-accent) inset, var(--d-shadow-card); }
-.kpd-arr-av { width: 38px; height: 38px; border-radius: 10px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; color: #fff; letter-spacing: 0.01em; }
-.kpd-arr-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.kpd-arr-name { font-size: 15px; font-weight: 700; color: var(--d-navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.kpd-arr-sub { font-size: 12px; color: var(--d-faint); display: flex; align-items: center; gap: 6px; }
-.kpd-arr-tick { color: var(--d-success); display: inline-flex; }
-
-#kpd-arrival .kpd-arr-main { flex: 1; min-width: 0; padding: 40px 48px; display: flex; flex-direction: column; }
-#kpd-arrival .kpd-arr-maptitle { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: var(--d-navy); display: flex; align-items: center; gap: 15px; }
-#kpd-arrival .kpd-arr-mav { width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #1f74c4, #5dc6ff); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 18px; flex: none; }
-#kpd-arrival .kpd-arr-mapsub { margin-top: 9px; font-size: 15px; color: var(--d-dim); }
-#kpd-arrival .kpd-arr-skel { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-.kpd-arr-card { background: #fff; border: 1px solid var(--d-line); border-radius: 14px; padding: 20px 22px; box-shadow: var(--d-shadow-card); opacity: 0; transform: translateY(10px); }
-.kpd-arr-card.kpd-in { animation: kpd-rise 520ms cubic-bezier(0.2,0.7,0.2,1) forwards; }
-.kpd-arr-ch { font-size: 12.5px; font-weight: 800; letter-spacing: 0.05em; color: var(--d-accent); text-transform: uppercase; margin-bottom: 15px; }
-.kpd-arr-line { height: 11px; border-radius: 6px; background: linear-gradient(90deg, var(--d-bg-soft) 25%, #e7edf6 37%, var(--d-bg-soft) 63%); background-size: 400% 100%; animation: kpd-shimmer 1.4s linear infinite; margin-bottom: 12px; }
-.kpd-arr-line.s { width: 60%; }
-.kpd-arr-line.m { width: 86%; }
-@keyframes kpd-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
-
 /* ---------- Ask replica (Scene 6) ---------- */
 #kpd-ask {
   position: absolute;

@@ -191,6 +191,51 @@ html,body{width:100%;height:100%;overflow:hidden;background:transparent;font-fam
 .btn-skip:active,.btn-go:active{transform:translateY(1px)}
 .btn-go{font-family:inherit;font-size:19px;font-weight:700;color:#fff;background:#1f74c4;border:none;border-radius:99px;padding:14px 36px;cursor:pointer;box-shadow:0 12px 30px rgba(10,37,64,.2)}
 
+/* ---- screen 2: Anthropic API key verify status ---- */
+.vstatus{margin-top:15px;font-size:16px;font-weight:600;display:none;align-items:center;gap:10px}
+.vstatus.checking{display:flex;color:#5b6b80}
+.vstatus.ok{display:flex;color:#1fa971}
+.vspin{width:18px;height:18px;border-radius:99px;border:2.5px solid rgba(10,37,64,.18);border-top-color:#1f74c4;animation:vspin .7s linear infinite;flex-shrink:0}
+@keyframes vspin{to{transform:rotate(360deg)}}
+.vtick{width:22px;height:22px;border-radius:99px;background:#1fa971;color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.costnote{margin-top:12px;font-size:14px;font-weight:500;color:#8a93a3;line-height:1.45}
+
+/* ---- screen 3: per-connector status + Wealthbox key field ---- */
+.ctile .cstatus{min-height:26px;margin-top:-6px;font-size:16px;font-weight:600;color:#5b6b80;display:flex;align-items:center;gap:9px;justify-content:center;text-align:center;line-height:1.35}
+.ctile .cstatus.ok{color:#1fa971;font-weight:700}
+.cspin{width:16px;height:16px;border-radius:99px;border:2.5px solid rgba(10,37,64,.18);border-top-color:#1f74c4;animation:vspin .7s linear infinite;flex-shrink:0}
+.ctile.connected{border-color:#1fa971;box-shadow:0 0 0 2px rgba(31,169,113,.4),0 16px 44px rgba(10,37,64,.1)}
+.ctile.connected .connectbtn{background:#1fa971;color:#fff;border-color:transparent}
+.wbkey{width:100%;font-family:inherit;font-size:15px;font-weight:600;color:#0a2540;background:#f5f7fb;border:1px solid rgba(10,37,64,.12);border-radius:12px;padding:11px 14px;outline:none;text-align:center;letter-spacing:.03em}
+.wbkey::placeholder{color:#9aa4b4;letter-spacing:0;font-weight:500}
+.wbhelp{font-size:13px;font-weight:500;color:#8a93a3;line-height:1.4;text-align:center;margin-top:-10px}
+.ctick{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:99px;background:#1fa971;color:#fff;font-size:12px;font-weight:800;flex-shrink:0}
+
+/* ---- screen 3: portrayed Microsoft sign-in webpage (covers the scene, like a real browser page) ---- */
+#mssignin{position:fixed;inset:0;z-index:200;background:#f3f3f3;display:none;flex-direction:column;font-family:'Segoe UI','Sora',system-ui,sans-serif}
+#mssignin.show{display:flex}
+#mssignin .msbar{height:64px;flex-shrink:0;background:#e6e6e6;border-bottom:1px solid #d0d0d0;display:flex;align-items:center;gap:14px;padding:0 30px;font-size:22px;color:#444}
+#mssignin .msurl{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #ccc;border-radius:8px;padding:9px 18px;font-size:21px;color:#333;min-width:560px}
+#mssignin .msbody{flex:1;display:flex;align-items:center;justify-content:center}
+#mssignin .mscard{background:#fff;width:760px;box-shadow:0 2px 14px rgba(0,0,0,.13);padding:54px 56px 46px}
+#mssignin .mslogo{display:flex;align-items:center;gap:10px;font-size:26px;font-weight:600;color:#5e5e5e;margin-bottom:30px}
+#mssignin .msgrid{display:grid;grid-template-columns:13px 13px;grid-template-rows:13px 13px;gap:3px;margin-right:4px}
+#mssignin .msgrid i{display:block;width:13px;height:13px}
+#mssignin .msh{font-size:34px;font-weight:600;color:#1b1b1b;margin-bottom:26px}
+#mssignin .msacct{display:flex;align-items:center;gap:18px;width:100%;border:none;background:#fff;border-top:1px solid #eee;border-bottom:1px solid #eee;padding:20px 6px;cursor:pointer;text-align:left;transition:background .12s}
+#mssignin .msacct:hover{background:#f5f5f5}
+#mssignin .msav{width:54px;height:54px;border-radius:99px;background:#0a7;background:linear-gradient(135deg,#1f74c4,#5dc6ff);color:#fff;font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+#mssignin .msacct-meta{display:flex;flex-direction:column;gap:3px}
+#mssignin .msacct-meta b{font-size:24px;font-weight:600;color:#1b1b1b}
+#mssignin .msacct-meta i{font-size:21px;font-style:normal;color:#666}
+#mssignin .msconsent{margin-top:30px;font-size:21px;color:#444;line-height:1.5}
+#mssignin .msconsent b{font-weight:600;color:#1b1b1b}
+
+/* ---- screen 4: AI connected (done) badge ---- */
+.aidone{display:flex;align-items:center;gap:13px;font-size:18px;font-weight:700;color:#0a2540;padding:12px 0}
+.aidone .adtick{width:27px;height:27px;border-radius:99px;background:#1fa971;color:#fff;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.aidone .adsub{font-size:15px;font-weight:600;color:#8a93a3;margin-left:auto}
+
 /* anti-flash: hide animating elements before first paint; GSAP reveals them (or the JS failsafe at 4s does).
    the bg + corner logo live in the shell, so they never reload between scenes. */
 .logo-big,.eyebrow,.headline,.sub,.item{opacity:0}
@@ -299,11 +344,22 @@ scenes = [
       segbtns.forEach(function(x){x.classList.toggle('on',x===b);});
       detail.innerHTML='<ol class="steps">'
         +'<li>Open <a class="klink" href="'+p.u+'" target="_blank" rel="noopener">the '+p.n+' API keys page</a> and sign in.</li>'
-        +'<li>Create a free key.</li>'
+        +'<li>Create a key.</li>'
         +'<li>Paste it below.</li>'
         +'</ol>'
-        +'<div class="keyrow"><input class="kinput" placeholder="Paste your '+p.n+' key" /><button type="button" class="mini">Connect</button></div>'
-        +'<a class="helplink" href="javascript:void(0)" onclick="return false">I need help setting this up</a>';
+        +'<div class="keyrow"><input class="kinput" id="provkey" placeholder="sk-ant-api03-..." /><button type="button" class="mini" id="savekey">Save key</button></div>'
+        +'<div class="vstatus" id="vstatus"></div>'
+        +'<div class="costnote">Your key is stored on this computer and never leaves your machine. Typical professional use: $2-5/month on Claude Haiku.</div>';
+      var sk=document.getElementById('savekey');
+      if(sk)sk.addEventListener('click',function(){
+        var vs=document.getElementById('vstatus');if(!vs)return;
+        vs.className='vstatus checking';
+        vs.innerHTML='<span class="vspin"></span>Checking your key with '+p.n+'\\u2026';
+        setTimeout(function(){
+          vs.className='vstatus ok';
+          vs.innerHTML='<span class="vtick">\\u2713</span>Key verified.';
+        },1200);
+      });
     });
   });
   function closeModals(){document.querySelectorAll('.modal').forEach(function(m){m.classList.remove('show');});}
@@ -322,22 +378,26 @@ scenes = [
  # 3) ACTION — connect the client data. folds ecosystem + email into one. real logos. connect or skip.
  ("connect", "Continue", """
   <div class="headline">2. Securely connect your data</div>
-  <div class="connect-grid" style="margin-top:100px">
-   <div class="ctile item">
+  <div class="connect-grid" style="margin-top:54px;align-items:flex-start">
+   <div class="ctile item" data-conn="onedrive">
      <img class="tlogo" src="logos/onedrive.svg" alt="OneDrive" />
-     <button type="button" class="connectbtn">Connect</button>
+     <div class="cstatus"></div>
+     <button type="button" class="connectbtn">Connect OneDrive</button>
    </div>
-   <div class="ctile item">
-     <img class="tlogo" src="logos/outlook.svg" alt="Outlook" />
-     <button type="button" class="connectbtn">Connect</button>
+   <div class="ctile item" data-conn="m365">
+     <img class="tlogo" src="logos/outlook.svg" alt="Microsoft 365" />
+     <div class="cstatus"></div>
+     <button type="button" class="connectbtn">Connect Microsoft 365</button>
    </div>
-   <div class="ctile item">
+   <div class="ctile item" data-conn="wealthbox">
      <img class="tlogo" src="logos/wealthbox.svg" alt="Wealthbox" />
-     <button type="button" class="connectbtn">Connect</button>
+     <input class="wbkey" placeholder="Wealthbox API key" />
+     <div class="cstatus"></div>
+     <button type="button" class="connectbtn">Connect Wealthbox</button>
    </div>
   </div>
-  <div class="row" style="margin-top:36px">
-    <div class="pill item"><svg class="picon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Encrypted in transit</div>
+  <div class="row" style="margin-top:30px">
+    <div class="pill item"><svg class="picon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Read-only access</div>
     <div class="pill item"><svg class="picon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Stays on your device</div>
     <div class="pill item"><svg class="picon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M6.06 6.06A18.45 18.45 0 0 0 1 12s4 8 11 8a9.12 9.12 0 0 0 3.36-.64"/><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>Keepance never sees your data</div>
   </div>
@@ -357,47 +417,110 @@ scenes = [
       <img src="logos/docusign.svg" alt="DocuSign"/>
     </div>
   </div>
+  <div id="mssignin">
+    <div class="msbar"><div class="msurl"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>login.microsoftonline.com</div></div>
+    <div class="msbody">
+      <div class="mscard">
+        <div class="mslogo"><div class="msgrid"><i style="background:#f25022"></i><i style="background:#7fba00"></i><i style="background:#00a4ef"></i><i style="background:#ffb900"></i></div>Microsoft</div>
+        <div class="msh">Pick an account</div>
+        <button type="button" class="msacct" id="msacct">
+          <span class="msav">JA</span>
+          <span class="msacct-meta"><b>Jordan Avery</b><i>jordan@northcrestwealth.com</i></span>
+        </button>
+        <div class="msconsent">Keepance is requesting <b id="msscope">read-only access to your files</b>.</div>
+      </div>
+    </div>
+  </div>
  """, """
-  document.querySelectorAll('.ctile .connectbtn').forEach(function(b){
-    b.addEventListener('click',function(){
-      const t=b.closest('.ctile');const on=t.classList.toggle('connected');
-      b.innerHTML=on?'\\u2713 Connected':'Connect';
+  (function(){
+    function tile(n){return document.querySelector('.ctile[data-conn="'+n+'"]');}
+    function setStatus(t,html,ok){var s=t.querySelector('.cstatus');if(!s)return;s.className='cstatus'+(ok?' ok':'');s.innerHTML=html;}
+    function spin(txt){return '<span class="cspin"></span>'+txt;}
+    function tick(txt){return '<span class="ctick">✓</span>'+txt;}
+    var ms=document.getElementById('mssignin'),scopeEl=document.getElementById('msscope'),acct=document.getElementById('msacct'),pending=null;
+    function showMs(scope){if(scopeEl)scopeEl.textContent=scope;if(ms)ms.classList.add('show');}
+    function resolveMs(){if(pending){var f=pending;pending=null;if(ms)ms.classList.remove('show');f();}}
+    if(acct)acct.addEventListener('click',resolveMs);
+    function importCount(t,prefix,target,suffix,step,done){
+      var n=0;var iv=setInterval(function(){
+        n=Math.min(target,n+step);
+        setStatus(t,spin(prefix+n.toLocaleString()+suffix));
+        if(n>=target){clearInterval(iv);setTimeout(function(){setStatus(t,tick(done),true);},520);}
+      },130);
+    }
+    function msConnect(name,waiting,scope,prefix,target,suffix,step,done){
+      var t=tile(name);if(!t||t.classList.contains('connected'))return;var b=t.querySelector('.connectbtn');
+      b.disabled=true;b.textContent='Waiting for sign-in…';
+      setStatus(t,spin(waiting));showMs(scope);
+      pending=function(){
+        t.classList.add('connected');b.textContent='✓ Connected';
+        setStatus(t,tick('Connected.'),true);
+        setTimeout(function(){importCount(t,prefix,target,suffix,step,done);},650);
+      };
+      setTimeout(resolveMs,2800); // failsafe if the account is not clicked
+    }
+    function wbConnect(){
+      var t=tile('wealthbox');var b=t.querySelector('.connectbtn');
+      b.disabled=true;b.textContent='Connecting…';setStatus(t,spin('Connecting…'));
+      setTimeout(function(){
+        t.classList.add('connected');
+        setStatus(t,tick('Connected to Northcrest Wealth (Premier).'),true);
+        b.disabled=false;b.textContent='Sync now';
+      },1300);
+    }
+    function wbSync(){
+      var t=tile('wealthbox');var b=t.querySelector('.connectbtn');
+      if(t.dataset.syncing)return;t.dataset.syncing='1';b.disabled=true;b.textContent='Syncing…';
+      var h=0;var iv=setInterval(function(){
+        h=Math.min(8,h+1);
+        setStatus(t,spin('Syncing… '+h+' households, '+(h*52)+' records'));
+        if(h>=8){clearInterval(iv);setTimeout(function(){
+          setStatus(t,tick('Sync complete: 8 households, 416 records indexed.'),true);
+          b.textContent='Sync now';b.disabled=false;t.dataset.syncing='';
+        },520);}
+      },240);
+    }
+    document.querySelectorAll('.ctile[data-conn] .connectbtn').forEach(function(b){
+      b.addEventListener('click',function(){
+        var t=b.closest('.ctile');var n=t.getAttribute('data-conn');
+        if(n==='onedrive')msConnect('onedrive','Waiting for Microsoft sign-in…','read-only access to your files','Importing… ',128,' items checked',12,'Documents imported.');
+        else if(n==='m365')msConnect('m365','Waiting for sign-in in your browser…','read-only access to your mail','Importing… ',1284,' messages so far',150,'All mail imported and searchable.');
+        else if(n==='wealthbox'){if(t.classList.contains('connected'))wbSync();else wbConnect();}
+      });
     });
-  });
-  // Any "coming soon" logo we could not source cleanly degrades to a tidy text chip.
-  document.querySelectorAll('.soongrid img').forEach(function(im){
-    function fail(){var s=document.createElement('span');s.className='soonchip';s.textContent=im.getAttribute('alt');if(im.parentNode)im.replaceWith(s);}
-    im.addEventListener('error',fail);
-    if(im.complete&&im.naturalWidth===0)fail();
-  });
+    document.querySelectorAll('.soongrid img').forEach(function(im){
+      function fail(){var s=document.createElement('span');s.className='soonchip';s.textContent=im.getAttribute('alt');if(im.parentNode)im.replaceWith(s);}
+      im.addEventListener('error',fail);
+      if(im.complete&&im.naturalWidth===0)fail();
+    });
+  })();
  """),
 
  # 4) ACTION — ask the first question. the AHA. one click -> a cited answer on a sample client.
  ("ask", "Continue to the app", """
   <div class="headline">3. Setting up your firm</div>
-  <div class="sub">You can continue to the app and these will load in the background.</div>
+  <div class="sub">Connecting your data and building your Client Maps. You can continue to the app and these finish in the background.</div>
   <div class="setpanel item">
     <div class="seclabel">YOUR AI</div>
-    <div class="prow">
-      <div class="plabel">Downloading your private AI</div>
-      <div class="pbar"><div class="pfill" style="width:64%"></div></div>
-      <div class="ppct">64%</div>
+    <div class="aidone">
+      <span class="adtick">&#10003;</span>Anthropic (Claude) connected
+      <span class="adsub">Your key stays on this computer</span>
     </div>
-    <div class="seclabel" style="margin-top:50px">IMPORTING YOUR DATA</div>
+    <div class="seclabel" style="margin-top:30px">IMPORTING YOUR DATA</div>
     <div class="prow">
-      <div class="plabel"><img src="logos/outlook.svg" alt="Outlook"/></div>
-      <div class="pbar"><div class="pfill" style="width:78%"></div></div>
-      <div class="ppct">78%</div>
+      <div class="plabel"><img src="logos/outlook.svg" alt="Microsoft 365"/></div>
+      <div class="pbar"><div class="pfill" style="width:81%"></div></div>
+      <div class="ppct">81%</div>
     </div>
     <div class="prow">
       <div class="plabel"><img src="logos/wealthbox.svg" alt="Wealthbox"/></div>
-      <div class="pbar"><div class="pfill" style="width:46%"></div></div>
-      <div class="ppct">46%</div>
+      <div class="pbar"><div class="pfill" style="width:62%"></div></div>
+      <div class="ppct">62%</div>
     </div>
     <div class="prow">
       <div class="plabel"><img src="logos/onedrive.svg" alt="OneDrive"/></div>
-      <div class="pbar"><div class="pfill" style="width:31%"></div></div>
-      <div class="ppct">31%</div>
+      <div class="pbar"><div class="pfill" style="width:48%"></div></div>
+      <div class="ppct">48%</div>
     </div>
     <div class="maprow">
       <div class="maptop">Building your Client Maps</div>
