@@ -402,6 +402,24 @@ describe('DocumentsHome — file open + editor tab', () => {
     expect(onImportFiles).toHaveBeenLastCalledWith('/workspace/Contracts');
   });
 
+  it('embedded create routes through the client folder even when only onCreateFile is wired (no global write)', () => {
+    // Codex P2: the generic create fallback must also use the embedded folder.
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    const onCreateFile = vi.fn();
+    render(
+      <DocumentsHome
+        {...buildDefaultProps({ onCreateFile })}
+        embedded
+        scopeFolderPaths={['/workspace/Contracts']}
+      />,
+    );
+    // At the scoped root, "New document" still targets the client folder, not ''.
+    fireEvent.click(screen.getByTestId('breadcrumb-crumb-0'));
+    fireEvent.click(screen.getByText('New document'));
+    expect(onCreateFile).toHaveBeenLastCalledWith('/workspace/Contracts');
+  });
+
   it('embedded navigation can reach the scoped root (multi-folder clients can see sibling folders)', () => {
     // The create-target clamp must NOT clamp NAVIGATION — otherwise a client with
     // several mapped folders can never get back to the root where siblings show.

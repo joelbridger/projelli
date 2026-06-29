@@ -510,14 +510,19 @@ export function DocumentsHome({
       setShowTrustBanner(true);
       markTrustShown();
     }
+    // Every branch routes through the embedded fallback so a root-level create
+    // in the per-client tab lands in the client's folder, never the global
+    // workspace (matter isolation) — regardless of which create handler a parent
+    // wired up.
+    const target = currentFolderPath ?? embeddedCreateFallback ?? undefined;
     if (onImportFiles) {
-      void onImportFiles(currentFolderPath ?? embeddedCreateFallback);
+      void onImportFiles(target);
     } else if (onCreateDefaultDocument) {
-      onCreateDefaultDocument();
+      onCreateDefaultDocument(target);
     } else if (onCreateDocxAtRoot) {
-      onCreateDocxAtRoot();
+      onCreateDocxAtRoot(target);
     } else {
-      onCreateFile('');
+      onCreateFile(target ?? '');
     }
   }, [onImportFiles, currentFolderPath, embeddedCreateFallback, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
 
@@ -534,7 +539,10 @@ export function DocumentsHome({
     } else if (onCreateDocxAtRoot) {
       onCreateDocxAtRoot(parentPath);
     } else {
-      onCreateFile(currentFolderPath ?? '');
+      // Route the generic create through the embedded fallback too, so a
+      // root-level "New document" in the per-client tab can't write to the
+      // global workspace (matter isolation).
+      onCreateFile(parentPath ?? '');
     }
   }, [currentFolderPath, embeddedCreateFallback, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
 
