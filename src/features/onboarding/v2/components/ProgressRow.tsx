@@ -30,10 +30,10 @@ export function ProgressRow({ label, pct, done, active, status, detail, testId }
   return (
     <div className="flex items-center gap-4" data-testid={testId}>
       <div className="flex w-44 shrink-0 flex-col">
-        <div className="text-sm font-semibold text-[#0a2540]">{label}</div>
+        <div className="text-sm font-semibold text-[var(--kp-navy)]">{label}</div>
         {detail ? <div className="text-xs text-[#5b6b80]">{detail}</div> : null}
       </div>
-      <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-[#0a2540]/10">
+      <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-[rgba(var(--kp-navy-rgb),0.10)]">
         {indeterminate ? (
           <div className="kp-onbv2-indet" data-testid="progress-indeterminate" />
         ) : (

@@ -67,7 +67,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             borderRadius: 'var(--radius-lg, 12px)',
             border: '1px solid var(--color-border, #e2e8f0)',
             background: 'var(--color-background, #ffffff)',
-            color: 'var(--kp-navy, #0a2540)',
+            color: 'var(--kp-navy, var(--kp-navy))',
             maxWidth: 560,
           }}
         >
@@ -97,7 +97,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               borderRadius: 'var(--radius-md, 8px)',
               border: '1px solid var(--color-border, #e2e8f0)',
               background: 'var(--color-background, #ffffff)',
-              color: 'var(--kp-navy, #0a2540)',
+              color: 'var(--kp-navy, var(--kp-navy))',
               fontSize: 'var(--kp-font-sm, 13px)',
               fontWeight: 600,
               cursor: 'pointer',

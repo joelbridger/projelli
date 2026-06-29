@@ -271,7 +271,7 @@ export function RedtailConnect() {
               type="button"
               disabled={connecting}
               onClick={() => void connect()}
-              className="rounded-md bg-[#0A2540] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+              className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
             >
               {connecting ? 'Connecting...' : 'Connect Redtail'}
             </button>
@@ -318,7 +318,7 @@ export function RedtailConnect() {
                 data-testid="redtail-sync-now"
                 disabled={syncing}
                 onClick={() => void runSync()}
-                className="rounded-md bg-[#0A2540] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+                className="rounded-md bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
               >
                 {syncing ? 'Syncing...' : 'Sync now'}
               </button>

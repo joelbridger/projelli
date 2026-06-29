@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Keepance brand config",
+  "description": "Schema for brand/brand.config.json — the single source of truth consumed by `npm run brand:sync`.",
+  "type": "object",
+  "required": ["name", "tagline", "colors", "assets", "lockedIdentifiers"],
+  "additionalProperties": true,
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "name": { "type": "string", "minLength": 1, "description": "User-facing product name." },
+    "nameShort": { "type": "string", "minLength": 1 },
+    "legalName": { "type": "string", "minLength": 1 },
+    "possessive": { "type": "string", "minLength": 1 },
+    "tagline": { "type": "string", "minLength": 1 },
+    "taglineShort": { "type": "string" },
+    "positioning": { "type": "string" },
+    "descriptions": {
+      "type": "object",
+      "properties": {
+        "store": { "type": "string" },
+        "shortStore": { "type": "string" },
+        "meta": { "type": "string" }
+      }
+    },
+    "colors": {
+      "type": "object",
+      "required": ["navy", "pink", "blue", "accent"],
+      "additionalProperties": false,
+      "properties": {
+        "_readme": { "type": "string" },
+        "navy": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "pink": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "blue": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+        "accent": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+      }
+    },
+    "messaging": {
+      "type": "object",
+      "properties": {
+        "onboardingHeadline": { "type": "string" },
+        "redlineAuthor": { "type": "string" },
+        "exportWatermark": { "type": "string" }
+      }
+    },
+    "urls": {
+      "type": "object",
+      "properties": {
+        "site": { "type": "string", "format": "uri" },
+        "docsBase": { "type": "string" },
+        "supportEmail": { "type": "string" },
+        "developersEmail": { "type": "string" }
+      }
+    },
+    "assets": {
+      "type": "object",
+      "required": ["faviconSvg", "logoSvg", "ogImage"],
+      "properties": {
+        "faviconSvg": { "type": "string" },
+        "logoSvg": { "type": "string" },
+        "wordmarkSvg": { "type": "string" },
+        "iconSource": { "type": "string" },
+        "ogImage": { "type": "string" }
+      }
+    },
+    "lockedIdentifiers": {
+      "type": "object",
+      "description": "Read-only safety list. brand-sync asserts these are present and untouched; it never writes them.",
+      "additionalProperties": true
+    }
+  }
+}

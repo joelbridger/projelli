@@ -48,10 +48,10 @@
 }
 
 .kp-onbv2 {
-  --kp-navy: #0a2540;
-  --kp-accent: #1f74c4;
-  --kp-bright: #5dc6ff;
-  --kp-pink: #ff3ce8;
+  /* Brand colours (--kp-navy / --kp-accent / --kp-pink) inherit from the global
+     tokens in globals.css, which are config-driven (brand/brand.config.json).
+     Don't redefine them here. --kp-bright is an onboarding alias for --kp-blue. */
+  --kp-bright: var(--kp-blue);
   --kp-green: #1fa971;
   --kp-field: #f5f7fb;
   --kp-stage: #f5f6fb;

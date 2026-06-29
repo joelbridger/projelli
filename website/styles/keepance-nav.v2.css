@@ -6,7 +6,7 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  background: #0A2540;
+  background: var(--kp-navy, #0a2540); /* fallback = brand navy, in case a page hasn't linked brand.css yet */
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif;
 }
@@ -51,7 +51,7 @@
   display: inline-flex;
   align-items: center;
   padding: 9px 18px;
-  background: linear-gradient(135deg, #FF3CE8 0%, #5DC6FF 100%);
+  background: var(--kp-grad, linear-gradient(135deg, #ff3ce8, #5dc6ff)); /* fallback = brand gradient */
   color: white;
   border-radius: 6px;
   text-decoration: none;
@@ -81,7 +81,7 @@
   top: 100%;
   left: 0;
   right: 0;
-  background: #0A2540;
+  background: var(--kp-navy, #0a2540); /* fallback = brand navy, in case a page hasn't linked brand.css yet */
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   padding: 18px 28px 24px;
   flex-direction: column;

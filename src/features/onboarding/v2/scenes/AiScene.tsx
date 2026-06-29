@@ -123,7 +123,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
 
   return (
     <div className="flex w-full flex-col items-center" data-testid="onboarding-v2-ai">
-      <h1 className="text-3xl font-extrabold tracking-[-0.01em] text-[#0a2540] md:text-4xl">
+      <h1 className="text-3xl font-extrabold tracking-[-0.01em] text-[var(--kp-navy)] md:text-4xl">
         {C.headline}
       </h1>
 
@@ -131,22 +131,22 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
         {/* ---- Card 1: Cloud BYOK ---- */}
         <div
           className={`rounded-[22px] border-2 bg-white p-7 transition-shadow ${
-            connected ? 'border-[#1fa971]' : 'border-[#0a2540]/10'
+            connected ? 'border-[#1fa971]' : 'border-[rgba(var(--kp-navy-rgb),0.10)]'
           }`}
           data-testid="ai-card-cloud"
         >
-          <h2 className="text-xl font-bold text-[#0a2540]">{C.cloud.title}</h2>
+          <h2 className="text-xl font-bold text-[var(--kp-navy)]">{C.cloud.title}</h2>
           <ul className="mt-4 space-y-2.5">
             {C.cloud.bullets.map((b, i) => (
-              <li key={b} className="flex items-start gap-2.5 text-sm text-[#0a2540]">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#5dc6ff]" strokeWidth={3} aria-hidden="true" />
+              <li key={b} className="flex items-start gap-2.5 text-sm text-[var(--kp-navy)]">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--kp-blue)]" strokeWidth={3} aria-hidden="true" />
                 <span>
                   {b}
                   {i === C.cloud.bullets.length - 1 ? (
                     <button
                       type="button"
                       onClick={() => { setPayOpen(true); }}
-                      className="ml-2 font-semibold text-[#1f74c4] underline-offset-2 hover:underline"
+                      className="ml-2 font-semibold text-[var(--kp-accent)] underline-offset-2 hover:underline"
                       data-testid="ai-what-is-this"
                     >
                       {C.cloud.whatLink}
@@ -169,7 +169,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
                 aria-pressed={provider === p.id}
                 data-testid={`ai-provider-${p.id}`}
                 className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
-                  provider === p.id ? 'bg-[#1f74c4] text-white' : 'text-[#5b6b80] hover:text-[#0a2540]'
+                  provider === p.id ? 'bg-[var(--kp-accent)] text-white' : 'text-[#5b6b80] hover:text-[var(--kp-navy)]'
                 }`}
               >
                 {p.label}
@@ -181,12 +181,12 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
           <ol className="mt-5 space-y-3">
             <li className="flex items-start gap-3">
               <StepBadge n={1} />
-              <span className="text-sm text-[#0a2540]">
+              <span className="text-sm text-[var(--kp-navy)]">
                 Open the{' '}
                 <button
                   type="button"
                   onClick={() => void openExternal(tutorial.consoleUrl)}
-                  className="font-semibold text-[#1f74c4] underline underline-offset-2"
+                  className="font-semibold text-[var(--kp-accent)] underline underline-offset-2"
                   data-testid="ai-open-console"
                 >
                   {providerLabel} API keys page
@@ -196,11 +196,11 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
             </li>
             <li className="flex items-start gap-3">
               <StepBadge n={2} />
-              <span className="text-sm text-[#0a2540]">Create a free key.</span>
+              <span className="text-sm text-[var(--kp-navy)]">Create a free key.</span>
             </li>
             <li className="flex items-start gap-3">
               <StepBadge n={3} />
-              <span className="text-sm text-[#0a2540]">Paste it below.</span>
+              <span className="text-sm text-[var(--kp-navy)]">Paste it below.</span>
             </li>
           </ol>
 
@@ -216,14 +216,14 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
               }}
               placeholder={`Paste your ${providerLabel} key`}
               data-testid="ai-key-input"
-              className="flex-1 rounded-xl border border-[#0a2540]/15 bg-[#f5f7fb] px-4 py-3 text-sm outline-none focus:border-[#1f74c4]"
+              className="flex-1 rounded-xl border border-[rgba(var(--kp-navy-rgb),0.15)] bg-[#f5f7fb] px-4 py-3 text-sm outline-none focus:border-[var(--kp-accent)]"
             />
             <button
               type="button"
               onClick={() => void handleConnect()}
               disabled={connecting || keyText.trim().length === 0}
               data-testid="ai-connect"
-              className="rounded-xl bg-[#1f74c4] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px disabled:opacity-50"
+              className="rounded-xl bg-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px disabled:opacity-50"
             >
               {connecting ? 'Connecting...' : connected ? 'Connected' : C.cloud.connect}
             </button>
@@ -259,12 +259,12 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
         </div>
 
         {/* ---- Card 2: Local AI ---- */}
-        <div className="rounded-[22px] border-2 border-[#0a2540]/10 bg-white p-7" data-testid="ai-card-local">
-          <h2 className="text-xl font-bold text-[#0a2540]">{C.local.title}</h2>
+        <div className="rounded-[22px] border-2 border-[rgba(var(--kp-navy-rgb),0.10)] bg-white p-7" data-testid="ai-card-local">
+          <h2 className="text-xl font-bold text-[var(--kp-navy)]">{C.local.title}</h2>
           <ul className="mt-4 space-y-2.5">
             {C.local.bullets.map((b) => (
-              <li key={b} className="flex items-start gap-2.5 text-sm text-[#0a2540]">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#5dc6ff]" strokeWidth={3} aria-hidden="true" />
+              <li key={b} className="flex items-start gap-2.5 text-sm text-[var(--kp-navy)]">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--kp-blue)]" strokeWidth={3} aria-hidden="true" />
                 <span>{b}</span>
               </li>
             ))}
@@ -273,7 +273,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
           <button
             type="button"
             onClick={() => { setLocalOpen(true); }}
-            className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#1f74c4] hover:underline"
+            className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--kp-accent)] hover:underline"
             data-testid="ai-tell-me-more"
           >
             <Info className="h-4 w-4" aria-hidden="true" />
@@ -285,7 +285,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
             onClick={handleTryLocal}
             disabled={localBusy}
             data-testid="ai-try-local"
-            className="mt-5 w-full rounded-xl bg-[#1f74c4] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px disabled:opacity-60"
+            className="mt-5 w-full rounded-xl bg-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px disabled:opacity-60"
           >
             {localReady ? 'Local AI ready, continue' : localBusy ? 'Starting download...' : C.local.tryLocal}
           </button>
@@ -305,7 +305,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
 
 function StepBadge({ n }: { n: number }) {
   return (
-    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1f74c4] text-xs font-bold text-white">
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--kp-accent)] text-xs font-bold text-white">
       {n}
     </span>
   );
@@ -326,12 +326,12 @@ function OnbModal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0a2540]/45 p-6"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(var(--kp-navy-rgb),0.45)] p-6"
       onClick={onClose}
       data-testid={testId}
     >
       <div
-        className="relative max-w-[640px] rounded-[22px] bg-white p-8 text-left shadow-[0_30px_80px_rgba(10,37,64,0.32)]"
+        className="relative max-w-[640px] rounded-[22px] bg-white p-8 text-left shadow-[0_30px_80px_rgba(var(--kp-navy-rgb),0.32)]"
         onClick={(e) => { e.stopPropagation(); }}
         role="dialog"
         aria-modal="true"
@@ -341,16 +341,16 @@ function OnbModal({
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-5 top-5 text-[#9aa4b4] hover:text-[#0a2540]"
+          className="absolute right-5 top-5 text-[#9aa4b4] hover:text-[var(--kp-navy)]"
         >
           <X className="h-6 w-6" />
         </button>
-        <h3 className="text-2xl font-extrabold text-[#0a2540]">{title}</h3>
-        <p className="mt-3 text-base leading-relaxed text-[#0a2540]/80">{body}</p>
+        <h3 className="text-2xl font-extrabold text-[var(--kp-navy)]">{title}</h3>
+        <p className="mt-3 text-base leading-relaxed text-[rgba(var(--kp-navy-rgb),0.80)]">{body}</p>
         <button
           type="button"
           onClick={onClose}
-          className="mt-6 rounded-full bg-[#1f74c4] px-7 py-2.5 text-sm font-bold text-white"
+          className="mt-6 rounded-full bg-[var(--kp-accent)] px-7 py-2.5 text-sm font-bold text-white"
         >
           {cta}
         </button>

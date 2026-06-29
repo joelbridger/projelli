@@ -190,7 +190,7 @@ export function BinaryVersionHistoryPanel({
       {/* Header */}
       <div className="flex items-center justify-between border-b p-4">
         <div className="flex items-center gap-2">
-          <History className="h-5 w-5 text-[#0A2540]" />
+          <History className="h-5 w-5 text-[var(--kp-navy)]" />
           <div>
             <h2 className="text-lg font-semibold">
               {t('version.history.title')}
@@ -223,7 +223,7 @@ export function BinaryVersionHistoryPanel({
                 data-author={v.author}
                 className={cn(
                   'cursor-pointer rounded-lg border p-3 transition-colors hover:bg-muted/50',
-                  selectedId === v.id && 'border-[#0A2540] bg-[#0A2540]/5',
+                  selectedId === v.id && 'border-[var(--kp-navy)] bg-[rgba(var(--kp-navy-rgb),0.05)]',
                 )}
                 onClick={() => void handleSelect(v)}
               >
@@ -247,7 +247,7 @@ export function BinaryVersionHistoryPanel({
                       >
                         {v.author === 'ai' ? (
                           <>
-                            <Sparkles className="h-3 w-3 text-[#0A2540]" />
+                            <Sparkles className="h-3 w-3 text-[var(--kp-navy)]" />
                             {t('version.history.author-ai')}
                           </>
                         ) : (
@@ -302,7 +302,7 @@ export function BinaryVersionHistoryPanel({
                 <Button
                   variant="default"
                   size="sm"
-                  className="bg-[#0A2540] hover:bg-[#0A2540]/90"
+                  className="bg-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.90)]"
                   disabled={restoring}
                   onClick={() => void handleRestore(sel)}
                 >
@@ -332,7 +332,7 @@ export function BinaryVersionHistoryPanel({
             ) : diff ? (
               <>
                 {docx && (
-                  <p className="mb-2 rounded bg-[#0A2540]/5 px-2 py-1 text-[11px] text-[#0A2540]">
+                  <p className="mb-2 rounded bg-[rgba(var(--kp-navy-rgb),0.05)] px-2 py-1 text-[11px] text-[var(--kp-navy)]">
                     {t('version.history.docx-text-diff-note')}
                   </p>
                 )}

@@ -3,7 +3,7 @@
  *
  * Layout: fixed full-screen overlay with a frosted backdrop, a left navy rail
  * (KeepanceMark + numbered step list), and a right white card that holds the
- * step's real content.  Matches the keepance.com brand: navy #0a2540, Satoshi
+ * step's real content.  Matches the keepance.com brand: navy var(--kp-navy), Satoshi
  * font, pink-to-blue gradient accent.
  *
  * No Tailwind on the frame itself; uses CSS variables throughout so it adapts
@@ -47,8 +47,8 @@ function KeepanceMark() {
           y2="408.443"
           gradientUnits="userSpaceOnUse"
         >
-          <stop stopColor="#FF3CE8" />
-          <stop offset="1" stopColor="#5DC6FF" />
+          <stop style={{ stopColor: 'var(--kp-pink)' }} />
+          <stop offset="1" style={{ stopColor: 'var(--kp-blue)' }} />
         </linearGradient>
       </defs>
       <path
@@ -134,7 +134,7 @@ export function OnboardingStepFrame({
     zIndex: 50,
     display: 'flex',
     alignItems: 'stretch',
-    background: 'rgba(10,37,64,0.55)',
+    background: 'rgba(var(--kp-navy-rgb),0.55)',
     backdropFilter: 'blur(6px)',
     WebkitBackdropFilter: 'blur(6px)',
     fontFamily: 'var(--font-sans)',
@@ -197,7 +197,7 @@ export function OnboardingStepFrame({
   const card: CSSProperties = {
     background: '#fff',
     borderRadius: 16,
-    boxShadow: '0 8px 40px rgba(10,37,64,0.18)',
+    boxShadow: '0 8px 40px rgba(var(--kp-navy-rgb),0.18)',
     width: '100%',
     maxWidth: 680,
     maxHeight: 'calc(100vh - 48px)',
@@ -304,7 +304,7 @@ function StepItem({ index, label, done, active }: StepItemProps) {
     gap: 10,
     padding: '8px 10px',
     borderRadius: 6,
-    background: active ? 'rgba(93,198,255,0.12)' : 'transparent',
+    background: active ? 'rgba(var(--kp-blue-rgb),0.12)' : 'transparent',
     position: 'relative',
   };
 
@@ -321,10 +321,10 @@ function StepItem({ index, label, done, active }: StepItemProps) {
     background: done
       ? 'var(--kp-accent)'
       : active
-        ? 'rgba(93,198,255,0.22)'
+        ? 'rgba(var(--kp-blue-rgb),0.22)'
         : 'rgba(255,255,255,0.10)',
     color: done ? '#fff' : active ? '#fff' : 'rgba(255,255,255,0.55)',
-    border: active && !done ? '1.5px solid rgba(93,198,255,0.55)' : 'none',
+    border: active && !done ? '1.5px solid rgba(var(--kp-blue-rgb),0.55)' : 'none',
   };
 
   const labelStyle: CSSProperties = {

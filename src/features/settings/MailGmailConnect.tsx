@@ -109,7 +109,7 @@ export function MailGmailConnect() {
             type="button"
             disabled={connecting}
             onClick={() => void connect()}
-            className="rounded-md bg-[#0A2540] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+            className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
           >
             {connecting ? 'Waiting for Google sign-in in your browser…' : 'Connect Gmail'}
           </button>

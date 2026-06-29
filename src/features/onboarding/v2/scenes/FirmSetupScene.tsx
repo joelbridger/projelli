@@ -97,10 +97,10 @@ export function FirmSetupScene() {
 
   return (
     <div className="flex w-full flex-col items-center" data-testid="onboarding-v2-firm">
-      <h1 className="text-3xl font-extrabold tracking-[-0.01em] text-[#0a2540] md:text-4xl">{C.headline}</h1>
-      <p className="mt-3 max-w-[42ch] text-base text-[#0a2540]/70">{C.sub}</p>
+      <h1 className="text-3xl font-extrabold tracking-[-0.01em] text-[var(--kp-navy)] md:text-4xl">{C.headline}</h1>
+      <p className="mt-3 max-w-[42ch] text-base text-[rgba(var(--kp-navy-rgb),0.70)]">{C.sub}</p>
 
-      <div className="mt-8 w-full max-w-[760px] rounded-[24px] border border-[#0a2540]/8 bg-white p-7 text-left shadow-[0_10px_40px_rgba(10,37,64,0.06)]">
+      <div className="mt-8 w-full max-w-[760px] rounded-[24px] border border-[rgba(var(--kp-navy-rgb),0.08)] bg-white p-7 text-left shadow-[0_10px_40px_rgba(var(--kp-navy-rgb),0.06)]">
         {progress == null ? (
           <div className="text-sm text-[#5b6b80]" data-testid="firm-progress-idle">
             Getting ready... your AI and data will start loading here.
@@ -144,9 +144,9 @@ export function FirmSetupScene() {
 
         {/* Building your Client Maps */}
         <div className="mt-7 rounded-2xl border border-[#1fa971]/25 bg-[#1fa971]/[0.06] p-4" data-testid="firm-client-maps">
-          <div className="text-sm font-bold text-[#0a2540]">{C.clientMapTitle}</div>
+          <div className="text-sm font-bold text-[var(--kp-navy)]">{C.clientMapTitle}</div>
           <div className="text-xs text-[#5b6b80]">{C.clientMapSub}</div>
-          <div className="relative mt-3 h-2.5 overflow-hidden rounded-full bg-[#0a2540]/10">
+          <div className="relative mt-3 h-2.5 overflow-hidden rounded-full bg-[rgba(var(--kp-navy-rgb),0.10)]">
             {cmDone ? (
               <div className="h-full rounded-full bg-[#1fa971]" style={{ width: '100%' }} />
             ) : (
@@ -158,14 +158,14 @@ export function FirmSetupScene() {
 
       {/* Things you can ask Keepance */}
       <div className="mt-8 w-full max-w-[760px]">
-        <div className="text-sm font-bold text-[#0a2540]">{C.asksHeader}</div>
+        <div className="text-sm font-bold text-[var(--kp-navy)]">{C.asksHeader}</div>
         <div className="kp-onbv2-scroll mt-3 flex max-h-28 flex-wrap justify-center gap-2 overflow-y-auto">
           {ONB_EXAMPLE_QUESTIONS.map((q) => (
             <span
               key={q}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[#0a2540]/8 bg-white px-3 py-1.5 text-xs text-[#0a2540] shadow-[0_4px_14px_rgba(10,37,64,0.05)]"
+              className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(var(--kp-navy-rgb),0.08)] bg-white px-3 py-1.5 text-xs text-[var(--kp-navy)] shadow-[0_4px_14px_rgba(var(--kp-navy-rgb),0.05)]"
             >
-              <span className="font-bold text-[#5dc6ff]">?</span>
+              <span className="font-bold text-[var(--kp-blue)]">?</span>
               {q}
             </span>
           ))}

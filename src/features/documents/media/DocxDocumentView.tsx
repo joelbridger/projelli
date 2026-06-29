@@ -137,7 +137,7 @@ export function BlockView({
           ...commonStyle,
           fontSize: sizes[level],
           fontWeight: 600,
-          color: '#0A2540',
+          color: 'var(--kp-navy)',
           marginTop: '0.8em',
         }}
       >

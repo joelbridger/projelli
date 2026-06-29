@@ -35,45 +35,54 @@
      marketing-demo/render/brand.css). The shared, calm, light aesthetic for the
      whole main content area — Ask, Client Map, Workflows. Use these for every
      divider / surface tint / faint text, NOT the heavier --color-border. ---- */
-  --kp-divider: rgba(10, 37, 64, 0.10);        /* light hairline: rails, tab bars, header underlines, column splits */
-  --kp-divider-strong: rgba(10, 37, 64, 0.16); /* slightly stronger outline: outlined buttons, option cards */
-  --kp-accent: #1f74c4;                         /* demo accent blue — header icons, active accents */
-  --kp-accent-soft: rgba(31, 116, 196, 0.11);   /* active row / selected pill tint */
-  --kp-accent-softer: rgba(31, 116, 196, 0.06); /* hover row tint */
-  --kp-text-faint: rgba(10, 37, 64, 0.46);      /* faint subtitles (surface descriptions) */
-  --kp-text-dim: rgba(10, 37, 64, 0.64);        /* dim secondary body text */
+  --kp-divider: rgba(var(--kp-navy-rgb),0.10);        /* light hairline: rails, tab bars, header underlines, column splits */
+  --kp-divider-strong: rgba(var(--kp-navy-rgb),0.16); /* slightly stronger outline: outlined buttons, option cards */
+  /* --kp-accent / --kp-accent-rgb are defined once in the @brand:colors block below. */
+  --kp-accent-soft: rgba(var(--kp-accent-rgb),0.11);   /* active row / selected pill tint */
+  --kp-accent-softer: rgba(var(--kp-accent-rgb),0.06); /* hover row tint */
+  --kp-text-faint: rgba(var(--kp-navy-rgb),0.46);      /* faint subtitles (surface descriptions) */
+  --kp-text-dim: rgba(var(--kp-navy-rgb),0.64);        /* dim secondary body text */
   --kp-bg-soft: #f3f6fb;                         /* soft panel tint (e.g. the Ask source panel) */
 
   /* ACTION style — the single light-blue treatment for primary buttons + active
      selections (matches the active tabs / left nav). NO dark navy fills anymore;
      navy text on a light-blue tint + a clear accent outline keeps it actionable. */
-  --kp-action-bg: rgba(31, 116, 196, 0.14);
-  --kp-action-bg-hover: rgba(31, 116, 196, 0.22);
-  --kp-action-bg-active: rgba(31, 116, 196, 0.30);
+  --kp-action-bg: rgba(var(--kp-accent-rgb),0.14);
+  --kp-action-bg-hover: rgba(var(--kp-accent-rgb),0.22);
+  --kp-action-bg-active: rgba(var(--kp-accent-rgb),0.30);
   --kp-action-fg: var(--kp-navy);
   --kp-action-border: var(--kp-accent);
 
   /* ---- Brand (keepance.com): Satoshi + the pink->blue gradient ---- */
   --font-sans: 'Satoshi', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'Fira Code', monospace;
+  /* @brand:colors:start — GENERATED from brand/brand.config.json by `npm run brand:sync`.
+     Do not edit these lines by hand; change the config and re-run sync. The -rgb
+     triples let every alpha tint below derive from one source, so a colour change
+     here propagates across the whole app. ---- */
   --kp-navy: #0a2540;
+  --kp-navy-rgb: 10, 37, 64;
   --kp-pink: #ff3ce8;
+  --kp-pink-rgb: 255, 60, 232;
   --kp-blue: #5dc6ff;
-  --kp-grad: linear-gradient(135deg, #ff3ce8, #5dc6ff);
+  --kp-blue-rgb: 93, 198, 255;
   --kp-accent: #1f74c4;
+  --kp-accent-rgb: 31, 116, 196;
+  --kp-grad: linear-gradient(135deg, var(--kp-pink), var(--kp-blue));
+  /* @brand:colors:end */
   /* ---- Sidebar palette (light "calm fintech" sidebar — UX-07, approved
      2026-06-26: light-gray over navy). Swap --kp-side-bg to #fff for the pure-
      white variant; everything else (navy text, blue active highlight) is shared. ---- */
   --kp-side-bg: #f3f6fb;
-  --kp-side-fg: #0a2540;
-  --kp-side-fg-dim: rgba(10,37,64,0.64);
-  --kp-side-fg-faint: rgba(10,37,64,0.46);
-  --kp-side-border: rgba(10,37,64,0.09);
-  --kp-side-active-bg: rgba(31,116,196,0.11);
-  --kp-side-accent: #1f74c4;
-  --kp-side-edge: rgba(10,37,64,0.08);
-  --kp-side-avatar-bg: rgba(31,116,196,0.13);
-  --kp-side-logo: #0a2540;
+  --kp-side-fg: var(--kp-navy);
+  --kp-side-fg-dim: rgba(var(--kp-navy-rgb),0.64);
+  --kp-side-fg-faint: rgba(var(--kp-navy-rgb),0.46);
+  --kp-side-border: rgba(var(--kp-navy-rgb),0.09);
+  --kp-side-active-bg: rgba(var(--kp-accent-rgb),0.11);
+  --kp-side-accent: var(--kp-accent);
+  --kp-side-edge: rgba(var(--kp-navy-rgb),0.08);
+  --kp-side-avatar-bg: rgba(var(--kp-accent-rgb),0.13);
+  --kp-side-logo: var(--kp-navy);
   --kp-local: #16654a; --kp-local-bg: #e6f0ea; --kp-local-line: #8fbca6;
   --kp-direct: #8a5410; --kp-direct-bg: #f6ecd6; --kp-direct-line: #d0ad6c;
   --kp-assured: #1b5e86; --kp-assured-bg: #e1eef6; --kp-assured-line: #8fbedb;
@@ -125,9 +134,9 @@
 
   /* ---- Elevation — navy-tinted shadows (branded depth; each = key + ambient). ---- */
   --kp-shadow-0: none;
-  --kp-shadow-1: 0 1px 2px rgba(10, 37, 64, 0.06), 0 1px 3px rgba(10, 37, 64, 0.04);    /* resting cards / panels */
-  --kp-shadow-2: 0 4px 12px rgba(10, 37, 64, 0.08), 0 2px 4px rgba(10, 37, 64, 0.05);   /* popovers, dropdowns, pickers */
-  --kp-shadow-3: 0 16px 40px rgba(10, 37, 64, 0.16), 0 4px 12px rgba(10, 37, 64, 0.08); /* modals, overlays, Data Map */
+  --kp-shadow-1: 0 1px 2px rgba(var(--kp-navy-rgb),0.06), 0 1px 3px rgba(var(--kp-navy-rgb),0.04);    /* resting cards / panels */
+  --kp-shadow-2: 0 4px 12px rgba(var(--kp-navy-rgb),0.08), 0 2px 4px rgba(var(--kp-navy-rgb),0.05);   /* popovers, dropdowns, pickers */
+  --kp-shadow-3: 0 16px 40px rgba(var(--kp-navy-rgb),0.16), 0 4px 12px rgba(var(--kp-navy-rgb),0.08); /* modals, overlays, Data Map */
 
   /* ---- Sizing — icon sizes + control heights. ---- */
   --kp-icon-2xs: 10px; --kp-icon-xs: 12px; --kp-icon-sm: 14px; --kp-icon-md: 16px; --kp-icon-lg: 18px; --kp-icon-xl: 22px; --kp-icon-2xl: 32px;
@@ -237,11 +246,11 @@
   .kp-btn--primary:hover { background: var(--kp-action-bg-hover); border-color: var(--kp-action-border); }
   .kp-btn--primary:active { background: var(--kp-action-bg-active); border-color: var(--kp-action-border); }
   .kp-btn--secondary { background: var(--color-background); color: var(--kp-navy); border-color: var(--color-border); }
-  .kp-btn--secondary:hover { background: rgba(10, 37, 64, 0.05); }
-  .kp-btn--secondary:active { background: rgba(10, 37, 64, 0.09); }
+  .kp-btn--secondary:hover { background: rgba(var(--kp-navy-rgb),0.05); }
+  .kp-btn--secondary:active { background: rgba(var(--kp-navy-rgb),0.09); }
   .kp-btn--ghost { background: transparent; color: var(--color-muted-foreground); border-color: transparent; }
-  .kp-btn--ghost:hover { background: rgba(10, 37, 64, 0.05); color: var(--kp-navy); }
-  .kp-btn--ghost:active { background: rgba(10, 37, 64, 0.09); }
+  .kp-btn--ghost:hover { background: rgba(var(--kp-navy-rgb),0.05); color: var(--kp-navy); }
+  .kp-btn--ghost:active { background: rgba(var(--kp-navy-rgb),0.09); }
   .kp-btn--danger { background: var(--kp-danger); color: #fff; border-color: var(--kp-danger); }
   .kp-btn--danger:hover { filter: brightness(1.08); }
   .kp-btn--danger:active { filter: brightness(0.95); }
@@ -263,9 +272,9 @@
   .kp-icon-btn--sm { width: var(--kp-control-sm); height: var(--kp-control-sm); }
   .kp-icon-btn--md { width: var(--kp-control-md); height: var(--kp-control-md); }
   .kp-icon-btn--ghost { background: transparent; color: var(--color-muted-foreground); }
-  .kp-icon-btn--ghost:hover { background: rgba(10, 37, 64, 0.06); color: var(--kp-navy); }
+  .kp-icon-btn--ghost:hover { background: rgba(var(--kp-navy-rgb),0.06); color: var(--kp-navy); }
   .kp-icon-btn--secondary { background: var(--color-background); color: var(--kp-navy); border-color: var(--color-border); }
-  .kp-icon-btn--secondary:hover { background: rgba(10, 37, 64, 0.05); }
+  .kp-icon-btn--secondary:hover { background: rgba(var(--kp-navy-rgb),0.05); }
   .kp-icon-btn--primary { background: var(--kp-action-bg); color: var(--kp-action-fg); border: var(--kp-border-width) solid var(--kp-action-border); }
   .kp-icon-btn--primary:hover { background: #0d2f53; }
   .kp-icon-btn:disabled { opacity: var(--kp-opacity-disabled); cursor: not-allowed; pointer-events: none; }
@@ -321,7 +330,7 @@
   .kp-segmented--md { height: var(--kp-control-md); }
   .kp-segmented--sm .kp-segmented__item { padding: 0 12px; font-size: var(--kp-font-xs); }
   .kp-segmented--md .kp-segmented__item { padding: 0 14px; font-size: var(--kp-font-sm); }
-  .kp-segmented__item:not(.is-active):hover { background: rgba(10, 37, 64, 0.04); color: var(--kp-navy); }
+  .kp-segmented__item:not(.is-active):hover { background: rgba(var(--kp-navy-rgb),0.04); color: var(--kp-navy); }
   .kp-segmented__item.is-active { background: var(--kp-action-bg); color: var(--kp-action-fg); }
 
   /* ---- Surface toolbar — the standard tools row beneath every surface header
@@ -346,8 +355,8 @@
                 color var(--kp-duration-fast) var(--kp-ease-standard),
                 border-color var(--kp-duration-fast) var(--kp-ease-standard);
   }
-  .kp-filter-toggle:hover { background: rgba(10, 37, 64, 0.04); }
-  .kp-filter-toggle.is-active { background: rgba(10, 37, 64, 0.05); color: var(--kp-navy); border-color: rgba(10, 37, 64, 0.18); }
+  .kp-filter-toggle:hover { background: rgba(var(--kp-navy-rgb),0.04); }
+  .kp-filter-toggle.is-active { background: rgba(var(--kp-navy-rgb),0.05); color: var(--kp-navy); border-color: rgba(var(--kp-navy-rgb),0.18); }
   .kp-filter-panel {
     display: flex; flex-direction: column; gap: var(--kp-space-sm);
     padding: var(--kp-space-sm) var(--kp-gutter) var(--kp-space-md);
@@ -376,8 +385,8 @@
   }
   .kp-badge--sm { padding: 2px 8px; font-size: var(--kp-font-2xs); }
   .kp-badge--md { padding: 3px 10px; font-size: var(--kp-font-xs); }
-  .kp-badge--neutral   { background: rgba(10, 37, 64, 0.07); color: var(--kp-navy); border-color: rgba(10, 37, 64, 0.18); }
-  .kp-badge--privilege { background: rgba(10, 37, 64, 0.07); color: var(--kp-navy); border-color: rgba(10, 37, 64, 0.18); }
+  .kp-badge--neutral   { background: rgba(var(--kp-navy-rgb),0.07); color: var(--kp-navy); border-color: rgba(var(--kp-navy-rgb),0.18); }
+  .kp-badge--privilege { background: rgba(var(--kp-navy-rgb),0.07); color: var(--kp-navy); border-color: rgba(var(--kp-navy-rgb),0.18); }
   .kp-badge--sample    { background: var(--kp-local-bg); color: var(--kp-local); border-color: var(--kp-local-line); }
   .kp-badge--local     { background: var(--kp-local-bg); color: var(--kp-local); border-color: var(--kp-local-line); }
   .kp-badge--direct    { background: var(--kp-direct-bg); color: var(--kp-direct); border-color: var(--kp-direct-line); }
@@ -401,7 +410,7 @@
   }
   .kp-chip--sm { padding: 3px 10px; font-size: var(--kp-font-2xs); }
   .kp-chip--md { padding: 5px 13px; font-size: var(--kp-font-xs); }
-  .kp-chip:hover { border-color: rgba(10, 37, 64, 0.3); color: var(--kp-navy); }
+  .kp-chip:hover { border-color: rgba(var(--kp-navy-rgb),0.3); color: var(--kp-navy); }
   .kp-chip.is-active { background: var(--kp-action-bg); color: var(--kp-action-fg); border-color: var(--kp-action-border); font-weight: var(--kp-weight-semibold); }
   .kp-chip.is-active:hover { color: var(--kp-action-fg); border-color: var(--kp-action-border); }
 
@@ -421,8 +430,8 @@
     transition: box-shadow var(--kp-duration-fast) var(--kp-ease-standard),
                 border-color var(--kp-duration-fast) var(--kp-ease-standard);
   }
-  .kp-card--interactive:hover { box-shadow: var(--kp-shadow-2); border-color: rgba(10, 37, 64, 0.2); }
-  .kp-card--featured { border-color: var(--kp-navy); border-width: var(--kp-border-width-strong); background: rgba(10, 37, 64, 0.03); }
+  .kp-card--interactive:hover { box-shadow: var(--kp-shadow-2); border-color: rgba(var(--kp-navy-rgb),0.2); }
+  .kp-card--featured { border-color: var(--kp-navy); border-width: var(--kp-border-width-strong); background: rgba(var(--kp-navy-rgb),0.03); }
 
   /* ---- EmptyState --------------------------------------------------- */
   .kp-empty {
@@ -449,7 +458,7 @@
   /* ---- Overlay / scrim — modals + slide-in panels (one scrim everywhere) ---- */
   .kp-overlay {
     position: fixed; inset: 0; z-index: var(--kp-z-overlay);
-    background: rgba(10, 37, 64, 0.18); display: flex;
+    background: rgba(var(--kp-navy-rgb),0.18); display: flex;
   }
   /* ---- Dropdown / popover — anchored menu over a trigger ---- */
   .kp-dropdown {
@@ -508,14 +517,14 @@
   /* Minimal design-system tokens (dark) */
   --kp-divider: rgba(255, 255, 255, 0.12);
   --kp-divider-strong: rgba(255, 255, 255, 0.20);
-  --kp-accent: #5dc6ff;
-  --kp-accent-soft: rgba(93, 198, 255, 0.16);
-  --kp-accent-softer: rgba(93, 198, 255, 0.08);
-  --kp-action-bg: rgba(93, 198, 255, 0.18);
-  --kp-action-bg-hover: rgba(93, 198, 255, 0.26);
-  --kp-action-bg-active: rgba(93, 198, 255, 0.34);
+  --kp-accent: var(--kp-blue);
+  --kp-accent-soft: rgba(var(--kp-blue-rgb), 0.16);
+  --kp-accent-softer: rgba(var(--kp-blue-rgb), 0.08);
+  --kp-action-bg: rgba(var(--kp-blue-rgb), 0.18);
+  --kp-action-bg-hover: rgba(var(--kp-blue-rgb), 0.26);
+  --kp-action-bg-active: rgba(var(--kp-blue-rgb), 0.34);
   --kp-action-fg: #e8f4ff;
-  --kp-action-border: #5dc6ff;
+  --kp-action-border: var(--kp-blue);
   --kp-text-faint: rgba(255, 255, 255, 0.46);
   --kp-text-dim: rgba(255, 255, 255, 0.64);
   --kp-bg-soft: hsl(217.2 32.6% 14%);

@@ -1,0 +1,14 @@
+/* GENERATED from brand/brand.config.json by `npm run brand:sync`. Do not edit by hand.
+   The website's brand colours. Pages reference these via var(--kp-…) so a rebrand
+   is one config edit + one command instead of a find-replace across 85 HTML files. */
+:root {
+  --kp-navy: #0a2540;
+  --kp-navy-rgb: 10, 37, 64;
+  --kp-pink: #ff3ce8;
+  --kp-pink-rgb: 255, 60, 232;
+  --kp-blue: #5dc6ff;
+  --kp-blue-rgb: 93, 198, 255;
+  --kp-accent: #1f74c4;
+  --kp-accent-rgb: 31, 116, 196;
+  --kp-grad: linear-gradient(135deg, var(--kp-pink), var(--kp-blue));
+}

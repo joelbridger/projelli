@@ -79,9 +79,9 @@ function ExtensionBadge({ ext }: { ext: string }) {
         fontSize: 10,
         fontWeight: 600,
         letterSpacing: '0.04em',
-        background: 'rgba(10,37,64,0.07)',
+        background: 'rgba(var(--kp-navy-rgb),0.07)',
         color: 'var(--kp-navy)',
-        border: '1px solid rgba(10,37,64,0.14)',
+        border: '1px solid rgba(var(--kp-navy-rgb),0.14)',
         whiteSpace: 'nowrap',
         marginLeft: 6,
         textTransform: 'uppercase',
@@ -123,9 +123,9 @@ export function DocumentBrowserRow({
         : 'File';
 
   const rowBackground = isActive
-    ? 'rgba(10,37,64,0.04)'
+    ? 'rgba(var(--kp-navy-rgb),0.04)'
     : isHovered
-      ? 'rgba(10,37,64,0.02)'
+      ? 'rgba(var(--kp-navy-rgb),0.02)'
       : 'transparent';
 
   const rowBorderLeft = isActive

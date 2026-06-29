@@ -540,8 +540,8 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                 {m.privileged && (
                   <div
                     data-testid={`matter-isolated-badge-${m.id}`}
-                    className="flex items-center gap-1.5 rounded-md border border-[#0a2540]/20 bg-[#0a2540]/5 px-2 py-1 text-xs font-medium text-[#0a2540]"
-                    style={{ background: 'linear-gradient(90deg, rgba(10,37,64,0.07) 0%, rgba(16,185,129,0.06) 100%)' }}
+                    className="flex items-center gap-1.5 rounded-md border border-[rgba(var(--kp-navy-rgb),0.20)] bg-[rgba(var(--kp-navy-rgb),0.05)] px-2 py-1 text-xs font-medium text-[var(--kp-navy)]"
+                    style={{ background: 'linear-gradient(90deg, rgba(var(--kp-navy-rgb),0.07) 0%, rgba(16,185,129,0.06) 100%)' }}
                   >
                     <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-700" aria-hidden />
                     {t('matter.manager.isolated-badge')}
@@ -574,12 +574,12 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                 {isolateConfirmId === m.id && (
                   <div
                     data-testid={`matter-isolate-confirm-${m.id}`}
-                    className="rounded-md border border-[#0a2540]/30 bg-white p-3 space-y-2 shadow-sm"
+                    className="rounded-md border border-[rgba(var(--kp-navy-rgb),0.30)] bg-white p-3 space-y-2 shadow-sm"
                   >
                     <div className="flex items-start gap-2">
-                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#0a2540]" aria-hidden />
+                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[var(--kp-navy)]" aria-hidden />
                       <div>
-                        <p className="text-xs font-medium text-[#0a2540]">
+                        <p className="text-xs font-medium text-[var(--kp-navy)]">
                           {t('matter.manager.isolated-confirm-title')}
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
@@ -601,7 +601,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                       <Button
                         type="button"
                         size="sm"
-                        className="h-7 text-xs gap-1.5 bg-[#0a2540] hover:bg-[#0a2540]/90 text-white"
+                        className="h-7 text-xs gap-1.5 bg-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.90)] text-white"
                         data-testid={`matter-isolate-confirm-action-${m.id}`}
                         onClick={() => { confirmIsolate(m.id); }}
                       >

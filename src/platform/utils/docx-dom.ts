@@ -25,6 +25,7 @@ import type {
   ParsedParagraphFormat,
   ParsedRunFormat,
 } from '@/platform/types/docx';
+import { BRAND } from '@/config/brand';
 
 // ---------------------------------------------------------------------------
 // propertiesXml parsing (run-level)
@@ -338,7 +339,7 @@ export function formatRevisionDate(iso: string): string {
 // author name to a stable index keeps the same author on the same color. Navy
 // (the app accent) leads. Tuple-typed so the fallback `[0]` is always a string.
 const AUTHOR_PALETTE = [
-  '#0A2540', // navy (app accent)
+  BRAND.colors.navy, // navy (app accent) — literal hex; this palette feeds OOXML/Word colours, not CSS
   '#9333ea', // purple
   '#0d9488', // teal
   '#c2410c', // burnt orange
