@@ -52,7 +52,7 @@ export const DEMO_WORKSPACE_ROOT = '/keepance-demo';
 
 export type DemoProfession = 'advisor' | 'legal' | 'tax' | 'consulting';
 
-interface SampleFile {
+export interface SampleFile {
   path: string;
   /**
    * Plain-text content. For `format: 'text'` this is written to disk verbatim.
@@ -114,6 +114,17 @@ export function getSampleForProfession(profession: DemoProfession): SampleWorksp
 export async function seedWebDemoWorkspace(): Promise<{
   backend: WebFSBackend | null;
   seeded: boolean;
+  /**
+   * True only when the demo workspace is FULLY populated on disk — i.e. every
+   * seed file is present (a fresh full seed succeeded, or a matching prior seed
+   * is already complete). The bootstrap (`main.tsx`) MUST gate retrieval install
+   * + Client Map seeding on this: if a write failed (PDF fetch, DOCX generation,
+   * OPFS quota) or OPFS is unavailable, `ready` is false and the demo must NOT
+   * index or cite files — otherwise an Ask/Client Map citation could point at a
+   * file that was never written and its source chip would fail to open, which is
+   * exactly the source-click trust the demo is selling.
+   */
+  ready: boolean;
   profession: DemoProfession;
   reason?: string;
 }> {
@@ -121,7 +132,7 @@ export async function seedWebDemoWorkspace(): Promise<{
   const sample = getSampleForProfession(profession);
 
   if (typeof navigator === 'undefined' || typeof navigator.storage.getDirectory !== 'function') {
-    return { backend: null, seeded: false, profession, reason: 'opfs-unsupported' };
+    return { backend: null, seeded: false, ready: false, profession, reason: 'opfs-unsupported' };
   }
 
   let opfsRoot: FileSystemDirectoryHandle;
@@ -129,7 +140,7 @@ export async function seedWebDemoWorkspace(): Promise<{
     opfsRoot = await navigator.storage.getDirectory();
   } catch (err) {
     console.warn('[WebDemoSeeder] failed to open OPFS root', err);
-    return { backend: null, seeded: false, profession, reason: 'opfs-open-failed' };
+    return { backend: null, seeded: false, ready: false, profession, reason: 'opfs-open-failed' };
   }
 
   let demoDir: FileSystemDirectoryHandle;
@@ -137,7 +148,7 @@ export async function seedWebDemoWorkspace(): Promise<{
     demoDir = await opfsRoot.getDirectoryHandle(DEMO_WORKSPACE_ROOT.replace(/^\//, ''), { create: true });
   } catch (err) {
     console.warn('[WebDemoSeeder] failed to create demo directory', err);
-    return { backend: null, seeded: false, profession, reason: 'opfs-mkdir-failed' };
+    return { backend: null, seeded: false, ready: false, profession, reason: 'opfs-mkdir-failed' };
   }
 
   const backend = new WebFSBackend();
@@ -148,7 +159,9 @@ export async function seedWebDemoWorkspace(): Promise<{
   const seededVersion = readSeedVersion();
   const seededProfession = readSeedProfession();
   if (alreadySeeded && seededVersion === sample.version && seededProfession === profession) {
-    return { backend, seeded: false, profession, reason: 'already-seeded' };
+    // The seed flag is only ever written after a fully-successful seed (below),
+    // so a matching flag means every file is already on disk → ready.
+    return { backend, seeded: false, ready: true, profession, reason: 'already-seeded' };
   }
 
   // Re-seed wipes the prior demo workspace first, so a version bump that renames
@@ -157,28 +170,64 @@ export async function seedWebDemoWorkspace(): Promise<{
   // is empty, so this is a no-op.
   await clearDirectory(demoDir);
 
-  let allWritten = true;
-  for (const file of sample.files) {
-    try {
-      await ensureParentDirs(backend, file.path);
-      await writeSampleFile(backend, file);
-    } catch (err) {
-      allWritten = false;
-      console.warn(`[WebDemoSeeder] failed to write ${file.path}`, err);
-    }
-  }
+  const { ok, failedPaths } = await writeAllSampleFiles(sample.files, async (file) => {
+    await ensureParentDirs(backend, file.path);
+    await writeSampleFile(backend, file);
+  });
 
-  // Only mark the seed complete when EVERY file was written. A partial seed left
-  // unflagged is cleared and retried on the next load, so the retriever and the
-  // pre-seeded Client Map never cite a .docx/.pdf that isn't actually on disk
-  // (which would make its source chip fail to open).
-  if (allWritten) {
+  // Only mark the seed complete — and only report `ready` — when EVERY file was
+  // written. On a partial seed we leave the flag unset (so the next load clears
+  // and retries) AND return ready:false so the bootstrap skips installing the
+  // retriever and seeding the Client Map: the demo must never boot a state that
+  // can cite a file which isn't on disk.
+  if (ok) {
     writeSeedFlag();
     writeSeedVersion(sample.version);
     writeSeedProfession(profession);
+    return { backend, seeded: true, ready: true, profession };
   }
 
-  return { backend, seeded: allWritten, profession };
+  console.warn(
+    `[WebDemoSeeder] seed incomplete — ${String(failedPaths.length)} file(s) could not be written; ` +
+      'skipping retrieval + Client Map so the demo never cites a missing file:',
+    failedPaths,
+  );
+  return { backend, seeded: false, ready: false, profession, reason: 'partial-seed' };
+}
+
+/**
+ * Write every sample file via `writeOne`, retrying the failures ONCE (PDF fetch /
+ * DOCX generation / OPFS writes can fail transiently). Returns whether all files
+ * ended up written, plus the paths that still failed — the caller uses this to
+ * decide whether the workspace is safe to index and cite. Pure w.r.t. OPFS
+ * (the write side is injected), so it's unit-testable without a real filesystem.
+ */
+export async function writeAllSampleFiles(
+  files: SampleFile[],
+  writeOne: (file: SampleFile) => Promise<void>,
+): Promise<{ ok: boolean; failedPaths: string[] }> {
+  const failed: SampleFile[] = [];
+  for (const file of files) {
+    try {
+      await writeOne(file);
+    } catch (err) {
+      failed.push(file);
+      console.warn(`[WebDemoSeeder] failed to write ${file.path}`, err);
+    }
+  }
+  if (failed.length === 0) return { ok: true, failedPaths: [] };
+
+  // One retry pass over just the files that failed.
+  const stillFailed: SampleFile[] = [];
+  for (const file of failed) {
+    try {
+      await writeOne(file);
+    } catch (err) {
+      stillFailed.push(file);
+      console.warn(`[WebDemoSeeder] retry failed for ${file.path}`, err);
+    }
+  }
+  return { ok: stillFailed.length === 0, failedPaths: stillFailed.map((f) => f.path) };
 }
 
 /**

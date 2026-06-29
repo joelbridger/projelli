@@ -53,12 +53,12 @@ Status legend: ⬜ todo · 🟦 in-progress · ✅ done · 🚩 done-with-flag �
 
 **Round 2 (on the fixed code) — 2 P2 findings:**
 4. **Out-of-scope refusal chip wasn't deterministic** — the demo retriever's fuzzy OR matching meant a natural question still returned chunks, so the refusal depended on the live model. **Fixed:** changed the chip to "Disability insurance coverage?", which I empirically confirmed returns **0 retrieval hits** → the deterministic decline gate (no model call). Live-verified the decline note shows offline.
-5. **Partial seed can still be cited on the *current* load** (deeper form of #3) — **accepted with rationale, flagged to coordinator:** a partial failure is near-impossible (the docx lib + the PDFs are bundled, deterministic, same-origin) and degrades gracefully (a missing-file citation falls back to the document browser — no crash; Ask retrieval still works from the in-memory text). Fail-closing on the current load would trade that graceful fallback for a definitely-empty Client Map. This is demo infrastructure, not the core product, so I left it; happy to harden if you'd prefer.
+5. **Partial seed could be cited on the *current* load** (deeper form of #3) — **FIXED at coordinator request (the web demo IS the surface advisors click, so a citation that can't open undermines the demo's whole source-click trust).** `seedWebDemoWorkspace` now returns a `ready` flag that is true ONLY when every seed file is present (a fresh full seed succeeded, or a matching prior seed is complete); a new exported `writeAllSampleFiles` helper attempts each file and **retries failures once** (PDF fetch / DOCX gen / OPFS writes can fail transiently), reporting `{ok, failedPaths}`. `main.tsx` now **gates both the retriever install and the Client Map seeding on `ready`** — on a partial seed or unavailable OPFS it installs neither and logs why, so the demo can never boot a state that cites a file not on disk (it degrades to an honest empty workspace instead). Covered by a new test, `tests/unit/web-demo/webDemoSeeder.test.ts` (all-ok, persistent-failure names the file + not-ready, transient-failure recovers on the one retry, retry-happens-exactly-once). Files: `src/web-demo/WebDemoSeeder.ts`, `src/web-demo/main.tsx`.
 
 ## Gate status (TS/JSON-only changes; no Rust touched)
 - `npm run typecheck` → **0 errors** ✅
 - `npm run lint:gate` → **green** (no regression vs baseline) ✅
-- `npx vitest run` → **4586 passed / 6 skipped / 0 failed** ✅ (updated 1 decline-test to match the new calm-decline note)
+- `npx vitest run` → **4590 passed / 6 skipped / 0 failed** ✅ (clean run; updated 1 decline-test to match the calm-decline note + added the partial-seed test)
 - `cargo test` → not run (zero Rust changes); coordinator's pre-merge gate covers it.
 
 ## Live verification (real browser, fresh build)
