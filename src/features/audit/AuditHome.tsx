@@ -79,6 +79,9 @@ export interface AuditHomeProps {
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, scopeMatterId }: AuditHomeProps) {
+  // Embedded as a per-client Activity tab (scopeMatterId set) → the hub header
+  // already labels the surface, so hide this inner header to match Documents.
+  const embedded = scopeMatterId !== undefined;
   const { t } = useTranslation();
   // Profession-aware entity word so the export note follows the practice
   // (advisor → "clients", legal → "matters") instead of a hardcoded "matters".
@@ -275,13 +278,14 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
         overflow: 'hidden',
       }}
     >
-      {/* Header */}
+      {/* Header — hidden when embedded as a per-client tab (the hub header
+          covers it). No subtitle on any tab header. */}
       {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+      {!embedded && (
+      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)', flexShrink: 0 }}>
         <SurfaceHeader
           Icon={ShieldCheck}
           title="Activity Log"
-          description="Every AI request, file change, and workflow run in your workspace, logged and exportable."
         />
         {integrityLabel !== null && (
           <span
@@ -310,6 +314,7 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
           </span>
         )}
       </div>
+      )}
       {/* eslint-enable keepance-i18n/no-hardcoded-string */}
 
       {/* Toolbar */}
@@ -370,7 +375,7 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
             fontSize: 'var(--kp-font-2xs)',
             color: 'var(--color-muted-foreground)',
             background: 'rgba(100,116,139,0.05)',
-            borderBottom: '1px solid var(--color-border)',
+            borderBottom: '1px solid var(--kp-divider)',
             flexShrink: 0,
           }}
         >
@@ -410,7 +415,7 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
             alignItems: 'center',
             gap: 12,
             padding: '4px var(--kp-gutter)',
-            borderBottom: '1px solid var(--color-border)',
+            borderBottom: '1px solid var(--kp-divider)',
             flexShrink: 0,
           }}
         >
@@ -508,7 +513,7 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
                     alignItems: 'center',
                     justifyContent: 'center',
                     padding: '14px 20px',
-                    borderTop: '1px solid var(--color-border)',
+                    borderTop: '1px solid var(--kp-divider)',
                   }}
                 >
                   <Button

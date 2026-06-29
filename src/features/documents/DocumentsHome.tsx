@@ -176,7 +176,7 @@ function TrustBanner({ onDismiss }: TrustBannerProps) {
       data-testid="trust-banner"
       style={{
         padding: 'var(--kp-space-xs) var(--kp-gutter)',
-        borderBottom: '1px solid var(--color-border)',
+        borderBottom: '1px solid var(--kp-divider)',
         flexShrink: 0,
       }}
     >
@@ -606,7 +606,7 @@ export function DocumentsHome({
       {/* Page header — hidden when embedded as a per-client sub-tab (the hub
           already shows the client header above the sub-tab bar). */}
       {!embedded && (
-        <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+        <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)', flexShrink: 0 }}>
           <SurfaceHeader
             Icon={FolderTree}
             title="Documents"
@@ -754,7 +754,7 @@ export function DocumentsHome({
           display: 'flex',
           alignItems: 'stretch',
           height: 38,
-          borderBottom: '1px solid var(--color-border)',
+          borderBottom: '1px solid var(--kp-divider)',
           background: 'var(--color-background)',
           flexShrink: 0,
           overflowX: 'auto',

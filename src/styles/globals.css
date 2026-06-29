@@ -321,7 +321,7 @@
     display: flex; align-items: center; gap: var(--kp-space-xs);
     padding: var(--kp-space-sm) var(--kp-gutter);
     min-height: calc(var(--kp-control-md) + var(--kp-space-sm) * 2);  /* identical height on every tab */
-    border-bottom: var(--kp-border-width) solid var(--color-border);
+    border-bottom: 1px solid var(--kp-divider);
     flex-wrap: wrap; flex-shrink: 0; background: var(--color-background);
   }
   .kp-toolbar__spacer { margin-left: auto; }

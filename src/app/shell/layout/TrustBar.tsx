@@ -20,8 +20,6 @@ import { Briefcase, Globe, Map as MapIcon, Info, Lock } from 'lucide-react';
 import { useActiveMatter } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
-import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
-import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import {
   Tooltip,
@@ -34,7 +32,6 @@ import { IconButton } from '@/ui/kp';
 export function TrustBar() {
   const activeMatter = useActiveMatter();
   const confidentialityMode = useConfidentialityMode();
-  const activeProvider = useActiveEgressProvider(confidentialityMode);
   const [dataMapOpen, setDataMapOpen] = useState(false);
   const entityLabel = useEntityLabel();
 
@@ -80,17 +77,9 @@ export function TrustBar() {
 
       <div style={{ flex: 1 }} />
 
-      {/* The egress hero: compact pill, color-coded by confidentiality state.
-          max-w-none overrides the compact variant's default max-w-[260px] so the
-          full sentence ("On your machine. Nothing leaves.") never clips at any
-          viewport width. The flex-shrink:0 wrapper prevents the pill from being
-          squeezed by the sibling matter-scope label. */}
-      {/* role=status + aria-live so a mid-session provider/mode switch is
-          announced to screen readers (the compact EgressIndicator variant
-          does not carry the live region the full variant does). */}
-      <div style={{ flexShrink: 0 }} role="status" aria-live="polite">
-        <EgressIndicator provider={activeProvider} mode={confidentialityMode} variant="compact" className="max-w-none" />
-      </div>
+      {/* The AI-status pill is NOT shown here anymore — it lives once, per tab,
+          top-right on each surface header (Ask / Client Map / Workflows). The
+          top bar keeps only the info + Data Map + lock affordances. */}
 
       {/* Info affordance: reveals the full data-routing explanation on hover.
           A7: title added as a standard browser tooltip alongside the Radix tooltip. */}

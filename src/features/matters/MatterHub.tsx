@@ -20,6 +20,9 @@ import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { Button, Badge } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
+import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
+import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { useClientMap } from '@/features/matters/useClientMap';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
 import { GuidedInterview } from '@/features/matters/GuidedInterview';
@@ -83,6 +86,10 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   const matter = matters.find((m) => m.id === matterId) ?? null;
   const isPrivileged = useActiveMatterPrivileged();
   const entityLabel = useEntityLabel();
+  // The per-tab AI-status pill (same as Ask / Workflows) — the single, deduped
+  // egress indicator now lives once per surface header, not in the top bar.
+  const confidentialityMode = useConfidentialityMode();
+  const egressProvider = useActiveEgressProvider(confidentialityMode);
 
   // ── Active sub-tab ─────────────────────────────────────────────────────────
   // Overview (the Client Map) is the default. A client-list quick-action can
@@ -299,6 +306,8 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                   <Badge variant="sample" size="sm">Sample</Badge>
                 </span>
               )}
+              {/* AI-status pill — same dynamic badge as Ask / Workflows. */}
+              <EgressIndicator provider={egressProvider} mode={confidentialityMode} variant="status" />
             </div>
           }
         />
