@@ -2,7 +2,14 @@
 
 **Goal:** A polished 60–90s MP4 that makes Keepance look like a working Windows app for a
 **financial advisor**, to validate demand ("would you pay for this?"). Demo data + scripted AI
-responses are intentional. Target length: **~78 seconds**.
+responses are intentional. Current length: **~70 seconds**.
+
+> **Onboarding source (2026-06-29):** Scene 2 is the **V2 "concise" 4-screen onboarding**
+> (Jameson's simplified version) — the standalone animated HTML prototype at
+> `docs/design/onboarding-prototype-v2-concise/`. It is captured full-screen in an iframe (Lottie
+> + GSAP animations and all). This **replaces** both the old simulated welcome/connect-AI/import
+> modals (former scenes 2–4) and the earlier 8-chapter React-journey cut. The cold open, the real
+> Client Map, the Ask scene, and the closing card are unchanged.
 
 **Hero client:** the **Webb Household** (canonical demo client). Story spine: an advisor has a
 client whose context is scattered; Keepance pulls it into one cited Client Map, and the AI
@@ -15,28 +22,32 @@ subtle fades. No cartoon motion, no startup fluff. Looks like an app an advisor 
 **What's real vs simulated** (see README for the honest boundary):
 - **REAL UI, driven live:** the app shell (top bar + sidebar tabs Client Map · Ask · Workflows),
   Scene 5 (Client Map) and Scene 6 (Ask) — the actual React app, the actual components.
+- **Onboarding (Scene 2):** the **V2 "concise" 4-screen prototype** — a real, animated,
+  vector-crisp HTML design (Lottie + GSAP), captured full-screen. It's a design prototype, not the
+  live in-app onboarding, but it is genuine product design, not a styled mock-up.
 - **Scripted/simulated, demo-only (styled with the app's own design tokens so it looks native):**
-  the cold open, the onboarding modals, the connect-AI flow, the connect-data import progress,
-  and the closing card. The AI answers are scripted (Playwright intercepts the AI request).
+  the cold open and the closing card. The AI answers are scripted (Playwright intercepts the AI
+  request).
 
 ---
 
 ## Frame & timing
 
-- Resolution: **1280×800**, deviceScaleFactor 2 (renders at 2560×1600, crisp).
-- Final encode: H.264 / yuv420p, 30 fps, MP4.
+- Resolution: **1440×900** (16:10), deviceScaleFactor 1.
+- Final encode: H.264 / yuv420p, 30 fps, MP4 (~70 s, ~4.4 MB).
 - One continuous Playwright recording (no concat seams); scenes flow via short cross-fades.
 - An injected animated cursor is present in every scene (Playwright's real cursor isn't captured).
 
 | # | Scene | Length | Cumulative |
 |---|-------|-------:|-----------:|
-| 1 | Cold open / the pain | 6s | 6s |
-| 2 | Welcome / onboarding | 11s | 17s |
-| 3 | Connect an AI | 9s | 26s |
-| 4 | Connect your data (import) | 15s | 41s |
-| 5 | The Client Map appears (the aha) | 13s | 54s |
-| 6 | Ask — cited answer + drafted email | 18s | 72s |
-| 7 | Closing | 6s | 78s |
+| 1 | Cold open / the pain | 4s | 4s |
+| 2 | Onboarding — V2 concise, 4 screens (intro flowchart · cloud/local AI · connect data · live setup) | 25s | 29s |
+| 5 | The Client Map appears (the aha) | 13s | 42s |
+| 6 | Ask — cited answer + drafted email | 18s | 60s |
+| 7 | Closing | 6s | 70s |
+
+> Scene numbering keeps the original 1/5/6/7 ids; former scenes 3 and 4 are folded into the single
+> Scene 2 onboarding capture, so the registry in `render/record.mjs` is `1, 2, 5, 6, 7`.
 
 ---
 
@@ -56,68 +67,52 @@ Scene 2 begins.
 
 ---
 
-## Scene 2 — Welcome / onboarding  (0:06–0:17)
+## Scene 2 — Onboarding (V2 "concise", 4 screens)  (0:04–0:29)
 
-**On screen:** the real Keepance app shell (top bar, sidebar). A clean centered modal sequence
-(native styling) walks first-run setup. Cursor moves and clicks between steps.
+**Source:** the standalone animated HTML prototype at
+`docs/design/onboarding-prototype-v2-concise/` (Lottie step icons + GSAP). It is served as a
+no-cache static site and captured **full-screen in an iframe**, layered just under the navy
+"stage" cover. The cold open's navy card crossfades out to reveal screen 1; the prototype's own
+nav (Back / Continue / progress dots) is on screen; the harness advances the 4 screens with
+`postMessage('kp-advance')` and paces each hold so the animations read. A navy wipe then hands off
+to the real Client Map.
 
-**Step 2a — Welcome (≈3s):**
-- Modal title: **Welcome to Keepance**
-- Subtitle: *The private place your whole practice lives — and answers you back.*
-- Primary button: **Get started** (cursor clicks).
+**Screen 1 — intro flowchart (≈5s):**
+- Headline: **A private AI that knows your clients.**
+- A 3-card, card-to-card flowchart with **animated Lottie icons**:
+  **Connect your AI and files → Keepance builds Client Maps → Ask anything, with sources.**
+- Security pills: *Keepance stores none of your data · Fully encrypted (AES-256) · AI provider is
+  SOC 2 certified.* Button: **Go!**
 
-**Step 2b — Choose your profession (≈3s):**
-- Title: **What kind of work do you do?**
-- Options as cards: **Financial Advisor** (selected, highlighted), Attorney, Accountant, Consultant.
-- Cursor selects **Financial Advisor**, clicks **Continue**.
+**Screen 2 — Connect your AI (≈5s):**
+- Title: **1. Connect your AI.** Two even cards:
+  - **Use ChatGPT, Claude, or Gemini** — *Keepance never sees your key or your data; providers are
+    SOC 2 Type 2 certified; encrypted in transit and at rest; providers don't train on your data
+    (paid API); pay as you go with your own key.* Provider pills: OpenAI · Anthropic · Google.
+  - **Use local AI** — *Runs on your computer; completely secure (nothing leaves); ~2.5 GB
+    download; great at questions across lots of files.* Button: **Try Local AI.**
 
-**Step 2c — Create your first Client Map (≈3s):**
-- Title: **Create your first client**
-- Text field labeled *Client or household name*; types **Webb Household** (typing animation).
-- Button: **Create**.
+**Screen 3 — Securely connect your data (≈5s):**
+- Title: **2. Securely connect your data.** Three connect cards for the real connectors:
+  **OneDrive · Outlook · Wealthbox.** Security pills (encrypted in transit · stays on your device ·
+  Keepance never sees your data). Beneath: a **COMING SOON** strip of planned-connection logos
+  (Redtail, RightCapital, eMoney, Envestnet MoneyGuide, Holistiplan, Orion, Envestnet, Addepar,
+  Nitrogen, DocuSign).
 
-**Step 2d — Privacy mode (≈2s):**
-- Title: **Where should this live?**
-- Selected card: **Local-first · Private workspace** — *Your files and your keys stay on your
-  computer. Nothing routes through a server we control.*
-- Small reassurance line + a lock glyph. Cursor clicks **Continue**.
+**Screen 4 — Live setup / progress (≈7s):**
+- Title: **3. Setting up your firm** — *You can continue to the app and these will load in the
+  background.* Real-time **progress bars** fill: *Downloading your private AI*, then *Importing
+  your data* (Outlook · Wealthbox · OneDrive). A *Building your Client Maps* indicator sweeps
+  (*assembling the whole story of every client and household*). A preview of **questions you can
+  ask Keepance**. Button: **Continue to the app** → navy wipe into the real Client Map.
 
----
-
-## Scene 3 — Connect an AI  (0:17–0:26)
-
-**On screen:** a clean "Connect an AI" settings panel (native styling), light theme.
-
-- Title: **Connect an AI**, subtitle: *Bring your own key. It never leaves your machine.*
-- Provider row: **Anthropic (Claude)** selected, with OpenAI · Google · Local (Ollama) shown.
-- API key field: cursor clicks, a key types in **masked** — shows `sk-ant-••••••••••••••••••••3f9` (never a real key).
-- Button **Test** → brief spinner → green check: **AI connected securely.**
-- Sub-caption: *Requests go straight from your computer to your provider. Keepance never sees your data.*
-
----
-
-## Scene 4 — Connect your data  (0:26–0:41)
-
-**On screen:** a "Connect your data" screen with source cards, then a live import with progress.
-
-- Title: **Bring in this client's context**
-- Source cards (selectable): **Local documents** (selected), **Email export**, **Notes**,
-  **Client interview**, **CRM export**.
-- Cursor selects **Local documents**, clicks **Import**.
-- An import panel animates realistic progress, lines appearing/ticking off:
-  - *Scanning 47 documents…* ✓
-  - *Reading 126 emails…* ✓
-  - *Extracting key people, dates, accounts, and open questions…* ✓
-  - *Finding source citations…* ✓
-  - *Building the Client Map…* (progress bar fills to 100%)
-- Footer reassurance: *All processing happens locally on your machine.*
-- On 100%, a soft success pulse, then fade to Scene 5.
-
-> Label in code: `// DEMO-ONLY: scripted progress, not real indexing.`
+> Honest boundary: this is a **design prototype** captured full-screen, not the live in-app
+> onboarding (that in-app status panel is a separate build item). No real key, import, or indexing
+> happens.
 
 ---
 
-## Scene 5 — The Client Map appears (the aha)  (0:41–0:54)
+## Scene 5 — The Client Map appears (the aha)  (0:29–0:42)
 
 **On screen:** the REAL Client Map for the Webb Household, fully populated, cited. This is the
 payoff — it should feel like the scattered context just snapped into one organized, source-backed page.
@@ -136,7 +131,7 @@ payoff — it should feel like the scattered context just snapped into one organ
 
 ---
 
-## Scene 6 — Ask: cited answer + drafted email  (0:54–1:12)
+## Scene 6 — Ask: cited answer + drafted email  (0:42–1:00)
 
 **On screen:** the REAL Ask tab. Centered composer.
 
@@ -164,7 +159,7 @@ payoff — it should feel like the scattered context just snapped into one organ
 
 ---
 
-## Scene 7 — Closing  (1:12–1:18)
+## Scene 7 — Closing  (1:00–1:10)
 
 **On screen:** the final UI (Client Map + the cited answer) blurs/dims slightly; a clean navy
 closing card fades up with the logo.

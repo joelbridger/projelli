@@ -17,9 +17,12 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, mkdirSync, rmSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  VIEW, sceneColdOpen, sceneOnboarding, sceneConnectAI, sceneConnectData, sceneClosing,
-} from './scenes.mjs';
+import { VIEW, sceneColdOpen, sceneClosing } from './scenes.mjs';
+// Scene 2 is now the V2 "concise" 4-screen onboarding (Jameson's simplified
+// version) — the standalone animated HTML prototype, captured full-screen. It
+// replaces the old simulated welcome/connect-AI/connect-data modals AND the
+// earlier 8-chapter React journey cut.
+import { sceneOnboarding } from './onboardingScene.mjs';
 import { installDeterminism, sceneClientMap, sceneAsk } from './realScenes.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -34,9 +37,10 @@ const stageJs = readFileSync(path.join(__dirname, 'stage.js'), 'utf-8');
 // scene registry (in film order)
 const FILM = [
   { n: 1, key: 'coldOpen', overlay: true, fn: sceneColdOpen },
+  // Scene 2: the V2 "concise" 4-screen onboarding, full-screen (was scenes 2-4
+  // of simulated modals). It loads the animated HTML prototype in an iframe and
+  // advances its 4 screens, then a navy wipe hands off to the real Client Map.
   { n: 2, key: 'onboarding', overlay: true, fn: sceneOnboarding },
-  { n: 3, key: 'connectAI', overlay: true, fn: sceneConnectAI },
-  { n: 4, key: 'connectData', overlay: true, fn: sceneConnectData },
   { n: 5, key: 'clientMap', overlay: false, fn: sceneClientMap },
   { n: 6, key: 'ask', overlay: false, fn: sceneAsk },
   { n: 7, key: 'closing', overlay: true, fn: sceneClosing },

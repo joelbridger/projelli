@@ -1,14 +1,20 @@
 # Keepance product-demo video (`marketing-demo/`)
 
-A polished ~78-second MP4 that makes Keepance look like a working Windows app for a
+A polished ~70-second MP4 that makes Keepance look like a working Windows app for a
 **financial advisor**, built to validate demand ("would you pay for this?"). The hero client is
 the **Webb Household** (the canonical demo client), and the story spine is the stale beneficiary
 on an old 401(k) that still names Marcus's ex-wife.
 
 **Everything in this folder is demo-only. None of it ships in the real app.**
 
-- **Output:** [`output/keepance-demo.mp4`](output/keepance-demo.mp4) — 1440×900, H.264, 30 fps, ~78 s.
-- **Storyboard:** [`STORYBOARD.md`](STORYBOARD.md) — the 7 scenes, on-screen text, timings.
+- **Output:** [`output/keepance-demo.mp4`](output/keepance-demo.mp4) — 1440×900, H.264, 30 fps, ~70 s.
+- **Storyboard:** [`STORYBOARD.md`](STORYBOARD.md) — the scenes, on-screen text, timings.
+
+> **Onboarding source (2026-06-29):** Scene 2 is the **V2 "concise" 4-screen onboarding**
+> (Jameson's simplified version) — the standalone animated HTML prototype at
+> `docs/design/onboarding-prototype-v2-concise/`, captured full-screen in an iframe. It replaces
+> the old simulated welcome/connect-AI/import modals AND the earlier 8-chapter React-journey cut.
+> The cold open, the real Client Map, the Ask scene, and the closing are unchanged.
 
 ---
 
@@ -24,9 +30,11 @@ npm run demo:video
 That script will:
 1. Start the web-demo dev server (`vite --config vite.config.web-demo.ts`) on port 5188 if it
    isn't already running (set `PORT=…` to change it).
-2. Drive the real web-demo build with Playwright — animated cursor, scripted scenes, the real
-   Client Map and a pixel-faithful Ask replica — and record it.
-3. Encode the MP4 with ffmpeg and verify it with ffprobe.
+2. Build + serve the **V2 concise onboarding prototype** (`docs/design/onboarding-prototype-v2-concise`)
+   as a no-cache static site on port 8911 (set `ONB_PORT=…` to change it), for the Scene 2 capture.
+3. Drive the real web-demo build with Playwright — animated cursor, the onboarding prototype, the
+   real Client Map and a pixel-faithful Ask replica — and record it.
+4. Encode the MP4 with ffmpeg and verify it with ffprobe.
 
 It's deterministic: the Client Map, the AI answers, and the "connected" state are all seeded, so
 every run produces the same film. Requirements: `node`, `ffmpeg`/`ffprobe`, and the repo's
@@ -53,9 +61,7 @@ This matters: the video should look real, and we keep the line between "real pro
 | Scene | What it is |
 |---|---|
 | 1 · Cold open | **Simulated** — a branded title card (the "scattered context" pain). |
-| 2 · Onboarding | **Simulated** — welcome / profession / create-client / privacy modals, styled to match the app. |
-| 3 · Connect an AI | **Simulated** — provider pick + a **masked, fake** API key (never a real key) + "connected". |
-| 4 · Connect data | **Simulated** — the document-import progress bars. *No real indexing happens.* |
+| 2 · Onboarding | **Real design prototype** — the **V2 "concise" 4-screen** onboarding (intro flowchart · cloud/local AI · connect data OneDrive/Outlook/Wealthbox · live setup), captured full-screen from the animated HTML prototype (Lottie + GSAP). It's a design prototype (not the live in-app onboarding), but genuine product design, not a styled mock-up. |
 | 5 · **Client Map** | **REAL app + REAL component.** The actual `ClientMapPanel` renders the Webb Household map from seeded demo data. This is the genuine product UI. |
 | 6 · Ask | **Faithful replica** of the real Ask UI (overlaid on the real top bar + sidebar). The real Ask pipeline can't produce a live-typed, Webb-specific, verified-citation answer in the browser without product-code changes, so this scene is scripted. It matches the real components (cited answer, green "Answered over your own files" attestation, Sources panel). |
 | 7 · Closing | **Simulated** — the logo + tagline card. |
@@ -70,20 +76,26 @@ ever appears on screen.
 
 ```
 marketing-demo/
-├── STORYBOARD.md          # the 7 scenes, exact on-screen text + timings
+├── STORYBOARD.md          # the scenes, exact on-screen text + timings
 ├── README.md              # this file
-├── regenerate.sh          # one-command rebuild (starts server, renders, verifies)
+├── regenerate.sh          # one-command rebuild (starts BOTH servers, renders, verifies)
 ├── data/
 │   └── webbSeed.mjs        # the Webb matter + filled Client Map (localStorage seed)
 ├── render/
-│   ├── record.mjs          # entry point: launches Chromium, records, encodes, verifies
-│   ├── scenes.mjs          # scripted scenes 1-4 + 7 (cold open, onboarding, connect, import, closing)
+│   ├── record.mjs          # entry point: launches Chromium, records, encodes, verifies (registry: 1,2,5,6,7)
+│   ├── onboardingScene.mjs # Scene 2: the V2 "concise" 4-screen onboarding (iframe capture + navy wipe)
+│   ├── scenes.mjs          # scripted Scene 1 (cold open) + Scene 7 (closing); old simulated 2-4 kept but unused
 │   ├── realScenes.mjs      # determinism seeding + Scene 5 (real Client Map)
 │   ├── askScene.mjs        # Scene 6 (the Ask replica)
 │   ├── stage.js            # in-browser engine: animated cursor, stage, captions, progress
 │   └── brand.css           # demo-only styling (mirrors Keepance tokens; classes prefixed `kpd-`)
 └── output/
-    └── keepance-demo.mp4   # the rendered film (+ raw/ webm capture)
+    ├── keepance-demo.mp4   # the rendered film (+ raw/ webm capture)
+    └── keyframes/          # review stills (one per onboarding screen + the Client Map handoff)
+
+The onboarding prototype itself lives at `docs/design/onboarding-prototype-v2-concise/`
+(`build_live.py` -> `dist/`, served by `serve_nocache.py`). `regenerate.sh` builds + serves it on
+:8911 (override with `ONB_PORT`) and passes `ONBOARDING_URL` to the recorder.
 ```
 
 **Note on the `kpd-` prefix:** the demo's own CSS classes are prefixed `kpd-` (not `kp-`) so they
@@ -93,9 +105,13 @@ can never collide with the real app's `kp-` design-system classes when injected 
 
 ## How to edit the film
 
+- **Change the onboarding (Scene 2):** edit the prototype at
+  `docs/design/onboarding-prototype-v2-concise/build_live.py`, then `python3 build_live.py`. Pacing
+  + which screens are captured live in `render/onboardingScene.mjs` (per-screen holds + the
+  `kp-advance` advance + the screen-4 bar-fill nudge). Keep copy em-dash-free (house style).
 - **Change wording / captions / the AI answer / the email:** edit the strings in
-  `render/scenes.mjs` (scenes 1-4, 7), `render/askScene.mjs` (the Ask answer + email), and the
-  caption calls in `render/realScenes.mjs` (Scene 5). Keep copy em-dash-free (house style).
+  `render/scenes.mjs` (Scene 1 cold open + Scene 7 closing), `render/askScene.mjs` (the Ask answer
+  + email), and the caption calls in `render/realScenes.mjs` (Scene 5). Keep copy em-dash-free.
 - **Change the Client Map content:** edit `data/webbSeed.mjs` (people, accounts, dates, the
   beneficiary item, the "what's missing" questions). It seeds the **real** Client Map panel.
 - **Change pacing / scene length:** each scene uses `page.waitForTimeout(...)` holds; bump those.
