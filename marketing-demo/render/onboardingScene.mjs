@@ -1,18 +1,33 @@
 /*
  * marketing-demo/render/onboardingScene.mjs
  * DEMO-ONLY. Scene 2 of the Keepance marketing film: the V2 "concise" 4-screen
- * onboarding (Jameson's simplified version), captured full-screen.
+ * onboarding (Jameson's simplified version), captured full-screen — now driven
+ * by the SAME animated cursor used in the app scenes, so it reads like a real
+ * user clicking through setup (Jameson's v3 feedback).
  *
  * Source of truth: docs/design/onboarding-prototype-v2-concise — a standalone,
  * vector-crisp, ANIMATED clickable HTML prototype (Lottie + GSAP, no React, no
  * app build). It is served by serve_nocache.py (regenerate.sh starts it) and
  * loaded here into a full-screen iframe layered just under the navy "stage"
  * cover (z 80000 < stage 90000), so it loads hidden. We then crossfade the navy
- * out to reveal it, advance the 4 screens by postMessage('kp-advance') to the
- * prototype shell (its index.html listens for that message), and pace each hold
- * so the Lottie step icons, the card-to-card flow, and the screen-4 progress
- * bars all read on camera. A navy wipe then hands off to Scene 5 (the real
- * Client Map).
+ * out to reveal it, and the cursor walks each screen's real controls:
+ *   screen 1 (intro)   -> clicks "Go!"            (the in-scene CTA; advances)
+ *   screen 2 (AI)      -> clicks "Anthropic"      (BYOK / "use your own AI")
+ *                         then the shell "Continue" to advance
+ *   screen 3 (data)    -> clicks Connect on each of OneDrive / Outlook /
+ *                         Wealthbox (they flip to "Connected"), then "Continue"
+ *   screen 4 (setup)   -> progress bars fill, then "Continue to the app"
+ * A navy wipe then hands off to the app-arrival beat (realScenes.sceneClientMap),
+ * which opens the Webb Client Map behind the cover and streams the book of
+ * business into the left rail before settling on the map.
+ *
+ * Coordinate model (why boundingBox works across the nesting): the page nests
+ * top-page -> #kpd-onboarding iframe (the shell) -> #frame iframe (scene-N.html).
+ * Playwright's locator.boundingBox() returns coordinates in the TOP page's
+ * viewport, walking every iframe offset/scale for us, so the cursor (which lives
+ * in the top page at z 99999) can target a control inside the nested scene. The
+ * functional click is a real top-level page.mouse.click() at those same coords,
+ * which the browser hit-tests straight through the iframes to the control.
  *
  * The 4 screens, in order:
  *   1. intro     — 3-card flowchart (Connect AI + files -> Keepance builds
@@ -22,20 +37,83 @@
  *                  (+ planned-connection logos).
  *   4. setup     — live setup: per-source progress bars filling, "Building your
  *                  Client Maps", a preview of questions, "Continue to the app".
- *
- * This REPLACES the old simulated welcome/connect-AI/connect-data modals AND the
- * earlier 8-chapter React journey cut. The cold open, the real Client Map, the
- * Ask scene, and the closing card are all kept unchanged.
  */
 
 const ONBOARDING_URL = process.env.ONBOARDING_URL || 'http://localhost:8911/';
 
-// advance the prototype shell to the next scene (it listens for this message)
+// advance the prototype shell to the next scene (it listens for this message).
+// Used as a fallback if a Continue-button click can't be resolved.
 async function advance(page) {
   await page.evaluate(() => {
     const f = document.getElementById('kpd-onboarding');
     if (f && f.contentWindow) f.contentWindow.postMessage('kp-advance', '*');
   });
+}
+
+// Find the nested scene-N.html frame (it (re)loads each time the shell advances,
+// so we retry until it appears). `tries` x 120ms is the polling budget.
+async function sceneFrame(page, n, tries = 40) {
+  const re = new RegExp(`scene-${n}\\.html`);
+  for (let i = 0; i < tries; i++) {
+    const f = page.frames().find((fr) => re.test(fr.url()));
+    if (f) return f;
+    await page.waitForTimeout(120);
+  }
+  return null;
+}
+
+// Confirm the shell advanced to scene `n` after an advancing click. The click
+// itself is reliable (a real mouse click on a resolved box), so we wait GENEROUSLY
+// for the nested frame and only post ONE fallback advance if it still hasn't
+// appeared (a genuinely missed click) — never just because the load was slow,
+// which would otherwise double-advance past the target scene and desync the film.
+async function ensureScene(page, n) {
+  let f = await sceneFrame(page, n, 80); // ~10s — far beyond any warm-server load
+  if (!f) { await advance(page); f = await sceneFrame(page, n, 40); }
+  return f;
+}
+
+// The shell (onboarding index.html) frame — hosts the persistent Back/Continue
+// nav. It is the onboarding-origin frame that is NOT a scene-N.html document.
+// Derive the origin from ONBOARDING_URL so a non-default ONB_PORT still resolves.
+function shellFrame(page) {
+  let origin = ONBOARDING_URL;
+  try { origin = new URL(ONBOARDING_URL).origin; } catch { /* keep the raw URL */ }
+  return page.frames().find((fr) => fr.url().startsWith(origin) && !/scene-\d/.test(fr.url())) || null;
+}
+
+// Move the visible demo cursor to the centre of a top-page bounding box, do the
+// click flourish (press + ripple), and optionally fire a real click there.
+async function moveAndClick(page, box, { pre = 360, moveDur = 760, settle = 150, real = false } = {}) {
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  if (pre) await page.waitForTimeout(pre);            // a beat before reaching
+  await page.evaluate(async ({ x, y, d }) => { await window.__kp.moveTo(x, y, d); }, { x: cx, y: cy, d: moveDur });
+  if (settle) await page.waitForTimeout(settle);      // settle before pressing
+  await page.evaluate(async () => { await window.__kp.click(); }); // visual press + ripple
+  if (real) await page.mouse.click(cx, cy);           // functional click (through the iframes)
+}
+
+// Cursor-click a control inside scene-N. real:true also fires the DOM click.
+async function clickInScene(page, n, selector, opts = {}) {
+  const frame = await sceneFrame(page, n);
+  if (!frame) { console.warn('[onboarding] scene frame not found:', n); return false; }
+  const loc = frame.locator(selector).first();
+  await loc.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
+  const box = await loc.boundingBox().catch(() => null);
+  if (!box) { console.warn('[onboarding] no box for', n, selector); return false; }
+  await moveAndClick(page, box, opts);
+  return true;
+}
+
+// Cursor-click the shell's "Continue" button to advance to scene `nextN`.
+// Falls back to a postMessage advance if the button can't be resolved/clicked.
+async function clickContinue(page, nextN, { pre = 360, moveDur = 760, real = true } = {}) {
+  const shell = shellFrame(page);
+  const box = shell ? await shell.locator('#cont').boundingBox().catch(() => null) : null;
+  if (!box) { await advance(page); await sceneFrame(page, nextN, 80); return; } // couldn't resolve the button
+  await moveAndClick(page, box, { pre, moveDur, real });
+  if (real) await ensureScene(page, nextN); // verify the advance without risking a double-advance
 }
 
 // Screen 4's progress bars climb slowly by design (so the demo always reads as
@@ -45,12 +123,7 @@ async function advance(page) {
 // find the frame (the prototype's own interval still climbs the bars).
 async function fillScreen4Bars(page) {
   try {
-    let frame = null;
-    for (let i = 0; i < 24; i++) {
-      frame = page.frames().find((f) => /scene-4\.html/.test(f.url()));
-      if (frame) break;
-      await page.waitForTimeout(150);
-    }
+    const frame = await sceneFrame(page, 4);
     if (!frame) return;
     await frame.evaluate(async () => {
       const fills = [...document.querySelectorAll('.pfill')];
@@ -96,37 +169,55 @@ export async function sceneOnboarding(page) {
     document.body.appendChild(f);
   }, ONBOARDING_URL);
 
-  // brief load beat, then crossfade the navy cold-open card out so the viewer
-  // catches screen 1's cards + Lottie icons animating in (cursor stays off; the
-  // onboarding has its own nav).
+  // brief load beat, then turn the cursor on (parked low-centre) and crossfade
+  // the navy cold-open card out so the viewer catches screen 1 animating in.
   await page.waitForTimeout(850);
-  await page.evaluate(async () => { await window.__kp.cursorOff(); });
+  await page.evaluate(() => {
+    window.__kp.setCursor(window.innerWidth * 0.5, window.innerHeight * 0.7);
+    window.__kp.cursorOn();
+  });
   await page.evaluate(async () => { await window.__kp.hideStage(700); });
 
-  // --- Screen 1 · intro 3-card flowchart (animated Lottie step icons) ---
-  await page.waitForTimeout(4400);
+  // --- Screen 1 · intro 3-card flowchart -> cursor clicks "Go!" ---
+  await page.waitForTimeout(2500);                 // let the cards + Lottie settle
+  await clickInScene(page, 1, 'button.cta', { pre: 420, moveDur: 840, real: true });
+  await ensureScene(page, 2);                      // confirm "Go!" advanced before driving screen 2
 
-  // --- Screen 2 · Connect your AI: cloud (ChatGPT/Claude/Gemini) vs local ---
-  await advance(page);
-  await page.waitForTimeout(5100);
+  // --- Screen 2 · Connect your AI -> pick "Anthropic" (use your own AI account) ---
+  await page.waitForTimeout(2200);                 // screen 2 animates in
+  await clickInScene(page, 2, '.segbtn[data-p="anthropic"]', { pre: 420, moveDur: 820, real: true });
+  await page.waitForTimeout(1500);                 // hold on the revealed key steps
+  await clickContinue(page, 3, { pre: 360, moveDur: 740 });
 
-  // --- Screen 3 · Securely connect your data: OneDrive / Outlook / Wealthbox ---
-  await advance(page);
-  await page.waitForTimeout(5100);
+  // --- Screen 3 · Securely connect your data -> connect all three sources ---
+  await page.waitForTimeout(2300);                 // screen 3 animates in
+  await clickInScene(page, 3, '.connect-grid .ctile:nth-child(1) .connectbtn', { pre: 360, moveDur: 720, real: true });
+  await page.waitForTimeout(420);
+  await clickInScene(page, 3, '.connect-grid .ctile:nth-child(2) .connectbtn', { pre: 260, moveDur: 560, real: true });
+  await page.waitForTimeout(420);
+  await clickInScene(page, 3, '.connect-grid .ctile:nth-child(3) .connectbtn', { pre: 260, moveDur: 560, real: true });
+  await page.waitForTimeout(800);                  // hold on the three "Connected" tiles
+  await clickContinue(page, 4, { pre: 360, moveDur: 740 });
 
-  // --- Screen 4 · live setup: progress bars fill + Building your Client Maps ---
-  await advance(page);
-  await page.waitForTimeout(1200);   // let the panel animate in
-  await fillScreen4Bars(page);       // ~4.6s of visible filling
-  await page.waitForTimeout(1300);   // hold on the finished-ish setup + ask chips
+  // --- Screen 4 · live setup -> bars fill -> cursor clicks "Continue to the app" ---
+  await page.waitForTimeout(1100);                 // let the panel animate in
+  await fillScreen4Bars(page);                     // ~4.6s of visible filling
+  await page.waitForTimeout(700);
+  // Cursor presses "Continue to the app" — VISUAL only: a real click would loop
+  // the shell back to screen 1; the navy wipe below is the actual handoff.
+  const shell = shellFrame(page);
+  const contBox = shell ? await shell.locator('#cont').boundingBox().catch(() => null) : null;
+  if (contBox) await moveAndClick(page, contBox, { pre: 380, moveDur: 760, real: false });
+  await page.evaluate(() => window.__kp.cursorOff());
 
-  // 2) Hand off to Scene 5: raise navy over the onboarding, remove the iframe,
-  //    then fade the navy out to reveal the real app (Client Map surface).
+  // 2) Hand off: raise navy over the onboarding and remove the iframe. The navy
+  //    is INTENTIONALLY LEFT UP — sceneClientMap opens the Webb Client Map behind
+  //    it, streams the book of business into the left rail, then crossfades to
+  //    the real map (changes #2 + #3). Never reveals the all-clients table.
   await page.evaluate(async () => {
     const navy = '<div class="kpd-scene"><div class="kpd-fullcard"><div class="kpd-grain"></div></div></div>';
     await window.__kp.showStage(navy, 520);
   });
   await page.evaluate(() => { document.getElementById('kpd-onboarding')?.remove(); });
   await page.waitForTimeout(180);
-  await page.evaluate(async () => { await window.__kp.hideStage(560); });
 }
