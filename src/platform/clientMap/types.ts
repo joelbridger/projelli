@@ -8,20 +8,29 @@ export type SectionScope = 'matter' | 'personal-template'; // 'firm' added in v2
 /** The five core CONTENT sections, in display order. "What I'm missing"
  *  (Context Completeness) is rendered from ClientMap.completeness, not from a
  *  section in this list. */
+// NOTE (2026-06-29): the USER-FACING category set was redesigned from research
+// into how advisors actually organize a household (CFP data-gathering, Wealthbox
+// / Redtail / FSC record models, Kitces review prep). The five sharp, non-
+// overlapping buckets are WHO → WHY → WHAT-NOW → WHEN → MY-TO-DOS:
+//   household = The household, story = What they want, standing = Money & accounts,
+//   upcoming = Coming up, next = Follow-ups.
+// The internal KEYS are intentionally left unchanged for now (a clean key rename
+// + AI-prompt/gap-default alignment is the follow-up once the set is confirmed),
+// so only the display TITLE + ORDER move here.
 export type CoreSectionKey = 'story' | 'people' | 'standing' | 'upcoming' | 'next';
 export const CORE_SECTION_ORDER: CoreSectionKey[] = [
-  'story',
-  'people',
-  'standing',
-  'upcoming',
-  'next',
+  'people', // The household
+  'story', // What they want
+  'standing', // Money & accounts
+  'upcoming', // Coming up
+  'next', // Follow-ups
 ];
 export const CORE_SECTION_TITLE: Record<CoreSectionKey, string> = {
-  story: 'The story so far',
-  people: 'Key people',
-  standing: 'Where things stand',
-  upcoming: "What's coming",
-  next: 'Next actions',
+  people: 'The household',
+  story: 'What they want',
+  standing: 'Money & accounts',
+  upcoming: 'Coming up',
+  next: 'Follow-ups',
 };
 
 export interface SourceRef {

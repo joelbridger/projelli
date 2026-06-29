@@ -13,12 +13,12 @@
  */
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
-import { Briefcase, Lock, FileText, Mail, Clock, ArrowLeft, Loader2, Map } from 'lucide-react';
+import { Briefcase, Lock, FileText, Mail, Clock, ChevronLeft, Loader2, Map } from 'lucide-react';
 import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { Button, Badge } from '@/ui/kp';
+import { Button, Badge, IconButton } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
 import { useClientMap } from '@/features/matters/useClientMap';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
@@ -244,23 +244,21 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
           flexShrink: 0,
         }}
       >
-        {/* Back button — sits above the standard header, not part of it */}
-        <div style={{ paddingBottom: 12 }}>
-          <Button
-            type="button"
-            data-testid="hub-back-btn"
-            variant="link"
-            size="sm"
-            iconLeft={ArrowLeft}
-            onClick={onBack}
-          >
-            {entityLabel.Other}
-          </Button>
-        </div>
-
+        {/* No floating breadcrumb — "back" is a quiet chevron inline to the
+            left of the client name, so the header reads as cleanly as Ask's. */}
         <SurfaceHeader
           Icon={Briefcase}
           title={label}
+          leading={
+            <IconButton
+              icon={ChevronLeft}
+              label={`Back to ${entityLabel.other}`}
+              data-testid="hub-back-btn"
+              variant="ghost"
+              size="sm"
+              onClick={onBack}
+            />
+          }
           description={
             <>
               {matter.client && <span>{matter.client}</span>}
@@ -269,20 +267,31 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
             </>
           }
           actions={
-            (matter.isSample || isPrivileged || matter.privileged) ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {(isPrivileged || matter.privileged) && (
-                  <span data-testid="hub-isolated-badge">
-                    <Badge variant="privilege" size="sm" icon={Lock}>Isolated</Badge>
-                  </span>
-                )}
-                {matter.isSample && (
-                  <span data-testid="hub-sample-pill">
-                    <Badge variant="sample" size="sm">Sample</Badge>
-                  </span>
-                )}
-              </div>
-            ) : undefined
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {/* Guided-interview lives here, top-right, so it never breaks
+                  the flat reading column below. */}
+              {subTab === 'overview' && clientMap.status === 'ready' && (
+                <Button
+                  type="button"
+                  data-testid="clientmap-start-interview"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => { setShowInterview((v) => !v); }}
+                >
+                  {LABEL_START_INTERVIEW}
+                </Button>
+              )}
+              {(isPrivileged || matter.privileged) && (
+                <span data-testid="hub-isolated-badge">
+                  <Badge variant="privilege" size="sm" icon={Lock}>Isolated</Badge>
+                </span>
+              )}
+              {matter.isSample && (
+                <span data-testid="hub-sample-pill">
+                  <Badge variant="sample" size="sm">Sample</Badge>
+                </span>
+              )}
+            </div>
           }
         />
       </div>
@@ -354,101 +363,97 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                 data-testid="hub-panel-clientmap-body"
                 style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
               >
-                {/* Control strip — local notice, build states, and (when ready)
-                    the updates tray + interview button — all sit in the gutter.
-                    The panel below is full-bleed and provides its own padding. */}
-                <div style={{ padding: 'var(--kp-surface-gap) var(--kp-gutter) 0' }}>
-                  {/* Local-only notice */}
-                  {isLocalOnlyMode() && (
-                    <div
-                      data-testid="hub-clientmap-local-notice"
-                      style={{
-                        fontSize: 'var(--kp-font-xs)',
-                        color: 'var(--color-muted-foreground)',
-                        marginBottom: 6,
-                      }}
-                    >
-                      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                      Running on-device only. Generation uses your local model.
-                      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                    </div>
-                  )}
-
-                  {/* States */}
-                  {(clientMap.status === 'idle' || clientMap.status === 'generating') && (
-                    <div
-                      data-testid="hub-clientmap-loading"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        color: 'var(--color-muted-foreground)',
-                        fontSize: 'var(--kp-font-xs)',
-                      }}
-                    >
-                      <Loader2
-                        className="animate-spin"
+                {/* Build states / local-only notice — only OFF the happy path.
+                    Padded so they breathe under the tab bar. */}
+                {(isLocalOnlyMode() ||
+                  clientMap.status === 'idle' ||
+                  clientMap.status === 'generating' ||
+                  clientMap.status === 'empty' ||
+                  clientMap.status === 'error') && (
+                  <div style={{ padding: 'var(--kp-surface-gap) var(--kp-gutter) 0' }}>
+                    {/* Local-only notice */}
+                    {isLocalOnlyMode() && (
+                      <div
+                        data-testid="hub-clientmap-local-notice"
                         style={{
-                          width: 'var(--kp-icon-sm)',
-                          height: 'var(--kp-icon-sm)',
-                          strokeWidth: 2,
+                          fontSize: 'var(--kp-font-xs)',
+                          color: 'var(--color-muted-foreground)',
+                          marginBottom: 6,
                         }}
-                      />
-                      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                      Building client map...
-                      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                    </div>
-                  )}
-
-                  {clientMap.status === 'empty' && (
-                    <div
-                      data-testid="hub-clientmap-empty"
-                      style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
-                    >
-                      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                      No information found yet. Add documents or email to this client first.
-                      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                    </div>
-                  )}
-
-                  {clientMap.status === 'error' && (
-                    <div
-                      data-testid="hub-clientmap-error"
-                      style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
-                    >
-                      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                      {clientMap.errorMessage ?? 'Could not build client map. Check your AI connection and try again.'}
-                      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                    </div>
-                  )}
-
-                  {clientMap.status === 'ready' && clientMap.map !== undefined && (
-                    <>
-                      {/* Approve-first updates tray — shown at the top so the marker is visible */}
-                      <ClientMapUpdatesTray matterId={matterId} />
-
-                      <div style={{ marginBottom: 8 }}>
-                        <Button
-                          type="button"
-                          data-testid="clientmap-start-interview"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => { setShowInterview((v) => !v); }}
-                        >
-                          {LABEL_START_INTERVIEW}
-                        </Button>
+                      >
+                        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                        Running on-device only. Generation uses your local model.
+                        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                       </div>
-                      {showInterview && (
-                        <div style={{ marginBottom: 12 }}>
-                          <GuidedInterview
-                            matterId={matterId}
-                            onClose={() => { setShowInterview(false); }}
-                          />
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
+                    )}
+
+                    {(clientMap.status === 'idle' || clientMap.status === 'generating') && (
+                      <div
+                        data-testid="hub-clientmap-loading"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          color: 'var(--color-muted-foreground)',
+                          fontSize: 'var(--kp-font-xs)',
+                        }}
+                      >
+                        <Loader2
+                          className="animate-spin"
+                          style={{
+                            width: 'var(--kp-icon-sm)',
+                            height: 'var(--kp-icon-sm)',
+                            strokeWidth: 2,
+                          }}
+                        />
+                        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                        Building client map...
+                        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                      </div>
+                    )}
+
+                    {clientMap.status === 'empty' && (
+                      <div
+                        data-testid="hub-clientmap-empty"
+                        style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
+                      >
+                        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                        No information found yet. Add documents or email to this client first.
+                        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                      </div>
+                    )}
+
+                    {clientMap.status === 'error' && (
+                      <div
+                        data-testid="hub-clientmap-error"
+                        style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
+                      >
+                        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                        {clientMap.errorMessage ?? 'Could not build client map. Check your AI connection and try again.'}
+                        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* When ready: the approve-first updates tray (null when empty)
+                    and the optional guided-interview panel. The interview BUTTON
+                    now lives in the header (top-right). With no pending updates
+                    and the interview closed this collapses to zero height, so the
+                    section rail meets the tab bar — exactly like Ask. */}
+                {clientMap.status === 'ready' && clientMap.map !== undefined && (
+                  <div style={{ padding: '0 var(--kp-gutter)' }}>
+                    <ClientMapUpdatesTray matterId={matterId} />
+                    {showInterview && (
+                      <div style={{ margin: 'var(--kp-surface-gap) 0 12px' }}>
+                        <GuidedInterview
+                          matterId={matterId}
+                          onClose={() => { setShowInterview(false); }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* The flat, full-bleed Client Map panel absorbs the questions
                     list, the custom-section composer, and the templates list. */}

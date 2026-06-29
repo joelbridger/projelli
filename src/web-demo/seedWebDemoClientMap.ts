@@ -57,37 +57,48 @@ const BENE = 'Beneficiary Designations.md';
 const INTAKE = 'Client Intake Summary.md';
 
 function webbSections(): ClientMapSection[] {
+  // Re-bucketed (2026-06-29) into the researched, non-overlapping advisor
+  // categories. Internal keys are unchanged; the meaning is the new TITLE:
+  //   people = The household, story = What they want, standing = Money & accounts,
+  //   upcoming = Coming up, next = Follow-ups.
   const byKey: Record<CoreSectionKey, ClientMapItem[]> = {
-    story: [
-      mkItem('Became clients in September 2025 for comprehensive financial planning plus ongoing investment management.', [doc(INTAKE, 'Date opened: 2025-09-04 … Comprehensive financial planning + ongoing investment management')]),
-      mkItem('Marcus (38) and Tanya (37) Webb — married, with two young children, Caleb (8) and Ava (5).', [doc(PLAN, 'Clients: Marcus Webb (38) and Tanya Webb (37). Dependents: Caleb (8), Ava (5)')]),
-      mkItem('What they want: retire by 60, get both kids through college without loans, and stop worrying every market dip.', [doc(INTAKE, 'Retire by 60, get both kids through college without loans, and stop worrying every time the market dips')]),
-      mkItem('Risk profile confirmed moderate growth on the March 2026 questionnaire.', [doc(PLAN, 'Risk profile: Moderate growth (completed questionnaire, March 2026)')]),
-    ],
+    // The household — who they are, their life, and the people around them.
     people: [
-      mkItem('Marcus Webb — 38, changed jobs last year; the primary decision-maker on the rollover.', [doc(NOTES, 'Marcus changed jobs last year. The $96k from the old employer 401(k) is still at the prior custodian.')]),
-      mkItem('Tanya Webb — 37; just got a raise that frees up about $400/month for savings.', [doc(NOTES, 'Tanya got a raise. They can push another $400/month into savings.')]),
-      mkItem('Caleb (8) and Ava (5) — the two children both 529 plans are funding.', [doc(PLAN, '529 plans: $48,000 (Caleb), $29,000 (Ava)')]),
-      mkItem("Jessica Reyes — Marcus's first wife (divorced 2019); still the 100% primary beneficiary on the old 401(k).", [doc(BENE, 'Old 401(k) (prior employer) | Marcus | Jessica Reyes (100%) … dated 2019')]),
-      mkItem('Their CPA — coordinates the timing of any Roth conversion before it is executed.', [doc(INTAKE, 'Coordinate the Roth conversion timing with their CPA before executing.')]),
+      mkItem('Marcus (38) and Tanya (37) Webb — married, with two young children, Caleb (8) and Ava (5).', [doc(PLAN, 'Clients: Marcus Webb (38) and Tanya Webb (37). Dependents: Caleb (8), Ava (5)')]),
+      mkItem('Marcus changed employers last year — the job change is what triggered the rollover; he is the primary decision-maker.', [doc(NOTES, 'Marcus changed jobs last year. The $96k from the old employer 401(k) is still at the prior custodian.')]),
+      mkItem('They switched to us after a friend’s advisor missed a beneficiary problem — trust is the reason they moved.', [doc(INTAKE, 'Came in wary after a prior advisor missed a beneficiary issue; wants someone who catches what they would miss.')]),
+      mkItem('Their CPA coordinates tax timing; no estate attorney is engaged yet.', [doc(INTAKE, 'Coordinate the Roth conversion timing with their CPA before executing. No estate attorney on file.')]),
+      mkItem("Jessica Reyes — Marcus's first wife (divorced 2019); still named on the old 401(k).", [doc(BENE, 'Old 401(k) (prior employer) | Marcus | Jessica Reyes (100%) … dated 2019')]),
     ],
+    // What they want — goals, priorities, and risk attitude (no dates, no balances).
+    story: [
+      mkItem('Retire by 60.', [doc(INTAKE, 'Goal: retire by 60.')]),
+      mkItem('Get both kids through college without loans.', [doc(INTAKE, 'Get both kids through college without loans.')]),
+      mkItem('Pay off the house early.', [doc(PLAN, 'Goals: retire at 60, fund both kids’ college, pay off the house early')]),
+      mkItem('Stop worrying every market dip — moderate-growth risk profile confirmed on the March 2026 questionnaire.', [doc(PLAN, 'Risk profile: Moderate growth (completed questionnaire, March 2026)')]),
+    ],
+    // Money & accounts — where the money stands today (facts; the fix-its are Follow-ups).
     standing: [
-      mkItem("Marcus's current 401(k): $412,000, contributing 12% with a 4% match.", [doc(PLAN, 'Marcus 401(k): $412,000, contributing 12% plus a 4% match')]),
+      mkItem("Marcus's 401(k): $412,000, contributing 12% with a 4% match.", [doc(PLAN, 'Marcus 401(k): $412,000, contributing 12% plus a 4% match')]),
       mkItem('Old employer 401(k): $96,000 still at the prior custodian, not yet rolled over.', [doc(PLAN, 'Old employer 401(k) of $96,000 still sitting at the prior custodian, not yet rolled over')]),
       mkItem("Tanya's 403(b): $188,000 at 9%; joint brokerage $145,000, mostly index funds.", [doc(PLAN, 'Tanya 403(b): $188,000, contributing 9%. Joint brokerage: $145,000, mostly index funds')]),
       mkItem('Roth IRAs $61,000 (Marcus) and $54,000 (Tanya); 529s $48,000 (Caleb) and $29,000 (Ava).', [doc(PLAN, 'Roth IRAs: $61,000 (Marcus), $54,000 (Tanya). 529 plans: $48,000 (Caleb), $29,000 (Ava)')]),
       mkItem('Cash reserve $55,000 (about five months); mortgage $318,000 at 5.1% with 26 years left.', [doc(PLAN, 'Cash reserve: $55,000 (about 5 months of expenses). Mortgage: $318,000 at 5.1%, 26 years left')]),
+      mkItem("Stale beneficiary: the old 401(k) still names Marcus's ex-wife, not Tanya.", [doc(BENE, 'still lists Jessica Reyes, Marcus’s first wife, as the sole primary beneficiary, dated 2019')]),
     ],
+    // Coming up — dated, calendar-able events (not open-ended goals, not my to-dos).
     upcoming: [
-      mkItem('Old 401(k) rollover into a Marcus IRA — the priority; it has been sitting too long.', [doc(NOTES, "The old 401(k) rollover is the priority, it's been sitting too long.")]),
-      mkItem('Joint brokerage auto-contribution increasing by $400/month after Tanya\'s raise.', [doc(NOTES, 'Increase the joint brokerage auto-contribution by $400/month.')]),
-      mkItem('Year-end decision on the Roth conversion amount, coordinated with the CPA.', [doc(PLAN, 'Decide on the Roth conversion amount before year-end.')]),
-      mkItem('A full beneficiary recheck across every account, flagged personally after the divorce comment.', [doc(NOTES, 'Recheck every beneficiary designation. Marcus\'s comment about the divorce is exactly why.')]),
+      mkItem('Year-end: decide the Roth conversion amount with the CPA.', [doc(PLAN, 'Decide on the Roth conversion amount before year-end.')]),
+      mkItem('Before December: top up the 529s to capture the state tax deduction.', [doc(PLAN, 'Top up the 529 plans before December for the state tax deduction.')]),
+      mkItem('Fall: the next scheduled annual review.', [doc(NOTES, 'Next review booked for the fall.')]),
+      mkItem('This quarter: close out the old-401(k) rollover.', [doc(NOTES, "The old 401(k) rollover is the priority, it's been sitting too long.")]),
     ],
+    // Follow-ups — the advisor's own open items and promises.
     next: [
       mkItem('Start the rollover paperwork and confirm the receiving IRA.', [doc(PLAN, 'Confirm the rollover paperwork and the receiving account.')]),
-      mkItem("Fix the stale old-401(k) beneficiary — it still names Marcus's ex-wife, Jessica Reyes, not Tanya.", [doc(BENE, "If he died before the rollover, that account would pass to his ex-spouse, not to Tanya.")]),
+      mkItem('Send the beneficiary-change form for the old 401(k).', [doc(BENE, "If he died before the rollover, that account would pass to his ex-spouse, not to Tanya.")]),
       mkItem("Confirm every beneficiary row against the custodian's record, not the client's memory.", [doc(BENE, 'Confirm every row against the custodian, not the client\'s memory.')]),
+      mkItem('Set up the $400/month brokerage auto-contribution after Tanya’s raise.', [doc(NOTES, 'Increase the joint brokerage auto-contribution by $400/month.')]),
       mkItem('Settle the Roth conversion amount before December.', [doc(NOTES, 'Revisit the Roth conversion before December.')]),
     ],
   };

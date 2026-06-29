@@ -16,13 +16,16 @@ export interface SurfaceHeaderProps {
   title: string;
   /** A short one-line description shown below the title. */
   description?: React.ReactNode;
+  /** Optional element rendered inline, to the LEFT of the icon/title (e.g. a
+   *  quiet back chevron). Keeps "back" in the header, not on a floating row. */
+  leading?: React.ReactNode;
   /** Optional right-aligned actions (e.g. a "New matter" button). */
   actions?: React.ReactNode;
   /** Optional testid on the header root. */
   testId?: string;
 }
 
-export function SurfaceHeader({ Icon, title, description, actions, testId }: SurfaceHeaderProps) {
+export function SurfaceHeader({ Icon, title, description, leading, actions, testId }: SurfaceHeaderProps) {
   return (
     <div
       {...(testId ? { 'data-testid': testId } : {})}
@@ -36,6 +39,7 @@ export function SurfaceHeader({ Icon, title, description, actions, testId }: Sur
     >
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', marginBottom: 'var(--kp-space-2xs)' }}>
+          {leading}
           <Icon
             style={{ width: 'var(--kp-icon-lg)', height: 'var(--kp-icon-lg)', color: 'var(--kp-navy)', strokeWidth: 'var(--kp-icon-stroke)', flex: 'none' }}
           />

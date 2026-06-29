@@ -62,48 +62,53 @@ const INTAKE = 'Client Intake Summary.md';
 
 // ── The five core sections ────────────────────────────────────────────────────
 function coreSections(): ClientMapSection[] {
+  // Bucketed into the researched, non-overlapping advisor categories. Internal
+  // keys unchanged; meaning follows the TITLE (people=The household, story=What
+  // they want, standing=Money & accounts, upcoming=Coming up, next=Follow-ups).
   const byKey: Record<CoreSectionKey, ClientMapItem[]> = {
-    story: [
-      item('Became clients in September 2025 for comprehensive financial planning plus ongoing investment management.', [doc(INTAKE, 'Date opened: 2025-09-04 — Comprehensive financial planning + ongoing investment management')]),
-      item('Marcus (38) and Tanya (37) Webb — married, with two young children, Caleb (8) and Ava (5).', [doc(PLAN, 'Clients: Marcus Webb (38) and Tanya Webb (37). Dependents: Caleb (8), Ava (5)', 'p. 1')]),
-      item('What they want: retire by 60, get both kids through college without loans, and stop worrying every market dip.', [doc(INTAKE, 'Retire by 60, get both kids through college without loans, and stop worrying every time the market dips')]),
-      item('They switched advisors after a friend’s planner missed a beneficiary problem — trust is the whole reason they moved.', [meeting('Came in burned by the last advisor; they want someone who catches the things they would miss.')]),
-      item('Risk profile confirmed moderate growth on the March 2026 questionnaire.', [doc(PLAN, 'Risk profile: Moderate growth (completed questionnaire, March 2026)', 'p. 3')]),
-      item('Marcus changed employers last year — the job change is what kicked off both the rollover and the beneficiary review.', [email('Now that the new job is settled, can we finally deal with the old 401(k)?')]),
-      item('They review the portfolio together once a month and want plain-English explanations, not jargon.', [meeting('Both of them read every statement. Keep it in plain language.')]),
-    ],
+    // The household — who they are, their life, and the people around them.
     people: [
-      item('Marcus Webb — 38, changed jobs last year; the primary decision-maker on the rollover.', [doc(NOTES, 'Marcus changed jobs last year. The $96k from the old employer 401(k) is still at the prior custodian.')]),
-      item('Tanya Webb — 37; just got a raise that frees up about $400/month for savings.', [doc(NOTES, 'Tanya got a raise. They can push another $400/month into savings.')]),
-      item('Caleb (8) and Ava (5) — the two children both 529 plans are funding.', [doc(PLAN, '529 plans: $48,000 (Caleb), $29,000 (Ava)', 'p. 2')]),
-      item('Jessica Reyes — Marcus’s first wife (divorced 2019); still the 100% primary beneficiary on the old 401(k).', [doc(BENE, 'Old 401(k) (prior employer) | Marcus | Jessica Reyes (100%) … dated 2019')]),
-      item('Dana Liu, their CPA — coordinates the timing of any Roth conversion before it is executed.', [doc(INTAKE, 'Coordinate the Roth conversion timing with their CPA (Dana Liu) before executing.')]),
-      item('An estate attorney for the will and guardianship has not been engaged yet.', [], { isAssumption: true }),
+      item('Marcus (38) and Tanya (37) Webb — married, with two young children, Caleb (8) and Ava (5).', [doc(PLAN, 'Clients: Marcus Webb (38) and Tanya Webb (37). Dependents: Caleb (8), Ava (5)', 'p. 1')]),
+      item('Marcus changed employers last year — the job change kicked off the rollover, and he is the primary decision-maker.', [email('Now that the new job is settled, can we finally deal with the old 401(k)?')]),
+      item('They switched advisors after a friend’s planner missed a beneficiary problem — trust is the whole reason they moved.', [meeting('Came in burned by the last advisor; they want someone who catches the things they would miss.')]),
+      item('Dana Liu, their CPA, coordinates tax timing; no estate attorney for the will and guardianship is engaged yet.', [doc(INTAKE, 'Coordinate the Roth conversion timing with their CPA (Dana Liu). No estate attorney on file.')]),
+      item('Jessica Reyes — Marcus’s first wife (divorced 2019); still named on the old 401(k).', [doc(BENE, 'Old 401(k) (prior employer) | Marcus | Jessica Reyes (100%) … dated 2019')]),
       item('Tanya’s mother (78) may need care help in the next few years — mentioned once, not yet planned for.', [meeting('Tanya brought up her mom’s health; could become a cost down the road.')], { isAssumption: true }),
     ],
+    // What they want — goals, priorities, values, risk (no dates, no balances).
+    story: [
+      item('Retire by 60.', [doc(INTAKE, 'Goal: retire by 60.')]),
+      item('Get both kids through college without loans.', [doc(INTAKE, 'Get both kids through college without loans.')]),
+      item('Pay off the house early.', [doc(PLAN, 'Goals: retire at 60, fund both kids’ college, pay off the house early')]),
+      item('Stop worrying every market dip — moderate-growth risk profile confirmed on the March 2026 questionnaire.', [doc(PLAN, 'Risk profile: Moderate growth (completed questionnaire, March 2026)', 'p. 3')]),
+      item('They want plain-English explanations, not jargon — they read every statement together.', [meeting('Both of them read every statement. Keep it in plain language.')]),
+    ],
+    // Money & accounts — where the money stands today (facts; the fix-its are Follow-ups).
     standing: [
-      item('Marcus’s current 401(k): $412,000, contributing 12% with a 4% match.', [doc(PLAN, 'Marcus 401(k): $412,000, contributing 12% plus a 4% match', 'p. 4')]),
+      item('Marcus’s 401(k): $412,000, contributing 12% with a 4% match.', [doc(PLAN, 'Marcus 401(k): $412,000, contributing 12% plus a 4% match', 'p. 4')]),
       item('Old employer 401(k): $96,000 still at the prior custodian, not yet rolled over.', [doc(PLAN, 'Old employer 401(k) of $96,000 still sitting at the prior custodian, not yet rolled over')]),
       item('Tanya’s 403(b): $188,000 at 9%; joint brokerage $145,000, mostly index funds.', [doc(PLAN, 'Tanya 403(b): $188,000, contributing 9%. Joint brokerage: $145,000, mostly index funds')]),
       item('Roth IRAs $61,000 (Marcus) and $54,000 (Tanya); 529s $48,000 (Caleb) and $29,000 (Ava).', [doc(PLAN, 'Roth IRAs: $61,000 (Marcus), $54,000 (Tanya). 529 plans: $48,000 (Caleb), $29,000 (Ava)')]),
       item('Cash reserve $55,000 (about five months); mortgage $318,000 at 5.1% with 26 years left.', [doc(PLAN, 'Cash reserve: $55,000 (about 5 months of expenses). Mortgage: $318,000 at 5.1%, 26 years left', 'p. 5')]),
+      item('Stale beneficiary: the old 401(k) still names Marcus’s ex-wife, not Tanya.', [doc(BENE, 'still lists Jessica Reyes, Marcus’s first wife, as the sole primary beneficiary, dated 2019')]),
       item('Combined income looks to be around $245,000; the effective tax bracket is still pending the CPA’s confirmation.', [email('Ballpark our bracket for the Roth math — Dana to confirm the exact number.')], { isAssumption: true }),
     ],
+    // Coming up — dated, calendar-able events (not open-ended goals, not my to-dos).
     upcoming: [
-      item('Old 401(k) rollover into a Marcus IRA — the priority; it has been sitting too long.', [doc(NOTES, 'The old 401(k) rollover is the priority, it’s been sitting too long.')]),
-      item('Joint brokerage auto-contribution increasing by $400/month after Tanya’s raise.', [doc(NOTES, 'Increase the joint brokerage auto-contribution by $400/month.')]),
-      item('Year-end decision on the Roth conversion amount, coordinated with the CPA.', [doc(PLAN, 'Decide on the Roth conversion amount before year-end.')]),
-      item('A full beneficiary recheck across every account, flagged personally after the divorce comment.', [doc(NOTES, 'Recheck every beneficiary designation. Marcus’s comment about the divorce is exactly why.')]),
-      item('Review term-life coverage levels at the fall meeting — likely light for two kids and a mortgage.', [email('Add life insurance to the fall agenda; I think they’re under-covered.')]),
-      item('529 contribution top-up before year-end to capture the state deduction.', [doc(PLAN, 'Top up the 529s before December to capture the state tax deduction.')]),
+      item('Year-end: decide the Roth conversion amount with the CPA.', [doc(PLAN, 'Decide on the Roth conversion amount before year-end.')]),
+      item('Before December: top up the 529s to capture the state tax deduction.', [doc(PLAN, 'Top up the 529s before December to capture the state tax deduction.')]),
+      item('Fall: the next scheduled annual review.', [email('Book the fall review; send the agenda early so they come prepared.')]),
+      item('This quarter: close out the old-401(k) rollover.', [doc(NOTES, 'The old 401(k) rollover is the priority, it’s been sitting too long.')]),
+      item('Fall meeting: review term-life coverage levels — likely light for two kids and a mortgage.', [email('Add life insurance to the fall agenda; I think they’re under-covered.')]),
     ],
+    // Follow-ups — the advisor's own open items and promises.
     next: [
       item('Start the rollover paperwork and confirm the receiving IRA.', [doc(PLAN, 'Confirm the rollover paperwork and the receiving account.')]),
-      item('Fix the stale old-401(k) beneficiary — it still names Marcus’s ex-wife, Jessica Reyes, not Tanya.', [doc(BENE, 'If he died before the rollover, that account would pass to his ex-spouse, not to Tanya.')]),
+      item('Send Marcus the beneficiary-change form for the old 401(k).', [doc(BENE, 'If he died before the rollover, that account would pass to his ex-spouse, not to Tanya.')]),
       item('Confirm every beneficiary row against the custodian’s record, not the client’s memory.', [doc(BENE, 'Confirm every row against the custodian, not the client’s memory.')]),
+      item('Set up the $400/month brokerage auto-contribution after Tanya’s raise.', [doc(NOTES, 'Increase the joint brokerage auto-contribution by $400/month.')]),
       item('Settle the Roth conversion amount before December.', [doc(NOTES, 'Revisit the Roth conversion before December.')]),
       item('Send the term-life quote request to the brokerage desk.', [email('Pull term quotes: $1M on Marcus, $750k on Tanya, 20-year level.')]),
-      item('Schedule the fall review and share the agenda a week ahead.', [email('Book the fall review; send the agenda early so they come prepared.')]),
     ],
   };
   return CORE_SECTION_ORDER.map((key) => ({
