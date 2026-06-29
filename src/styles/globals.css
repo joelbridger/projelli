@@ -403,7 +403,7 @@
   .kp-chip--md { padding: 5px 13px; font-size: var(--kp-font-xs); }
   .kp-chip:hover { border-color: rgba(10, 37, 64, 0.3); color: var(--kp-navy); }
   .kp-chip.is-active { background: var(--kp-action-bg); color: var(--kp-action-fg); border-color: var(--kp-action-border); font-weight: var(--kp-weight-semibold); }
-  .kp-chip.is-active:hover { color: #fff; }
+  .kp-chip.is-active:hover { color: var(--kp-action-fg); border-color: var(--kp-action-border); }
 
   /* ---- Eyebrow (uppercase section / column label) ------------------- */
   .kp-eyebrow {

@@ -39,4 +39,24 @@ describe('ClientMapPanel (newNav hero view)', () => {
     fireEvent.click(moneyTab);
     expect(screen.getByText(/Investable assets \$4\.2M/)).toBeTruthy();
   });
+
+  it('opens a non-document (CRM) Sources-column card through the kind-aware dispatcher (preserves SourceRef.kind)', () => {
+    // Regression: the Sources column reuses Ask's SourcePanel, whose AnswerCitation
+    // shape keeps only the ref string. A CRM (or OneDrive / e-sign / meeting)
+    // source must still open via onOpenSource with its FULL SourceRef — not get
+    // dropped or misrouted to the document opener.
+    const onOpenSource = vi.fn();
+    const map = emptyClientMap('matter_demo_x');
+    const money = map.sections.find((s) => s.id === 'money')!;
+    const crmSource: import('@/platform/clientMap/types').SourceRef = {
+      kind: 'crm', ref: 'crm:household:abc123', snippet: 'AUM $2.1M', locator: '',
+    };
+    money.items = [
+      { id: 'i1', text: 'Investable assets $4.2M.', origin: 'ai', isAssumption: false, sources: [crmSource], updatedAt: '2026-06-20T00:00:00.000Z' },
+    ];
+    render(<ClientMapPanel map={map} onOpenSource={onOpenSource} onEditItem={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('source-card'));
+    expect(onOpenSource).toHaveBeenCalledWith(crmSource);
+  });
 });

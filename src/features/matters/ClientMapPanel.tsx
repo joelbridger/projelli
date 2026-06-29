@@ -909,12 +909,24 @@ export function ClientMapPanel({
   // The Sources column reflects whatever the user is currently viewing: the
   // cited sources behind the active section's facts (or, on "What I'm missing",
   // the know/assuming facts). Empty on the "+ New section" composer.
-  const currentSources: AnswerCitation[] =
+  const activeSourceItems: ClientMapItem[] =
     activeKey === NEW_KEY
       ? []
       : activeKey === MISSING_KEY || activeSection === undefined
-        ? sourcesForItems([...map.completeness.know, ...map.completeness.assuming], map.matterId)
-        : sourcesForItems(activeSection.items, map.matterId);
+        ? [...map.completeness.know, ...map.completeness.assuming]
+        : activeSection.items;
+  const currentSources: AnswerCitation[] = sourcesForItems(activeSourceItems, map.matterId);
+  // Keep each cited ref's FULL SourceRef (incl. kind) so the Sources-column
+  // cards open through the SAME kind-aware dispatcher as the inline source chips.
+  // The AnswerCitation shape keeps only the ref string, so without this lookup
+  // CRM / OneDrive / e-sign / meeting sources would be dropped or misrouted to
+  // the document opener.
+  const sourceRefByRef = new Map<string, SourceRef>();
+  for (const it of activeSourceItems) {
+    for (const s of it.sources) {
+      if (!sourceRefByRef.has(s.ref)) sourceRefByRef.set(s.ref, s);
+    }
+  }
 
   return (
     <div data-testid="clientmap-panel" style={shellStyle}>
@@ -1052,7 +1064,15 @@ export function ClientMapPanel({
           padding: 'var(--kp-surface-gap) var(--kp-card-pad)',
         }}
       >
-        <SourcePanel citations={currentSources} selectedN={null} onSelect={() => {}} />
+        <SourcePanel
+          citations={currentSources}
+          selectedN={null}
+          onSelect={() => {}}
+          onOpenCitation={(c) => {
+            const ref = c.path != null ? sourceRefByRef.get(c.path) : undefined;
+            if (ref) onOpenSource(ref);
+          }}
+        />
       </div>
     </div>
   );

@@ -53,17 +53,25 @@ function SourceCard({
   selected,
   onSelect,
   onAuditLog,
+  onOpenCitation,
 }: {
   cite: AnswerCitation;
   selected: boolean;
   onSelect: (n: number) => void;
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+  onOpenCitation?: (cite: AnswerCitation) => void;
 }) {
   const [verdict, setVerdict] = useState<CitationVerdict | 'loading' | null>(null);
   const canVerify = Boolean(cite.id && cite.matterId);
-  const openable = Boolean(
-    cite.path && (cite.path.startsWith('mail:') || (!cite.path.startsWith('crm:') && cite.matterId)),
-  );
+  // When the host supplies its own opener (e.g. the Client Map, whose sources
+  // include CRM / OneDrive / e-sign / meeting kinds the built-in path opener
+  // can't route), every card is openable and routes there. Otherwise fall back
+  // to the built-in mail/document path opener.
+  const openable = onOpenCitation
+    ? true
+    : Boolean(
+        cite.path && (cite.path.startsWith('mail:') || (!cite.path.startsWith('crm:') && cite.matterId)),
+      );
 
   async function runVerify(e: MouseEvent<HTMLButtonElement>): Promise<void> {
     e.stopPropagation();
@@ -92,6 +100,10 @@ function SourceCard({
 
   function handleOpen(): void {
     onSelect(cite.n);
+    if (onOpenCitation) {
+      onOpenCitation(cite);
+      return;
+    }
     if (openable) openCitation(cite);
   }
 
@@ -219,6 +231,7 @@ export function SourcePanel({
   selectedN,
   onSelect,
   onAuditLog,
+  onOpenCitation,
 }: {
   /** All citations for the answer the user is looking at. */
   citations: AnswerCitation[];
@@ -231,6 +244,13 @@ export function SourcePanel({
    * `citation_verified` audit entry so the check is on the record.
    */
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+  /**
+   * Optional host opener. When provided, clicking a card routes here with the
+   * full citation instead of the built-in mail/document opener — for hosts that
+   * carry richer source-kind data (the Client Map reuses this column for CRM /
+   * OneDrive / e-sign / meeting sources, which the path opener can't route).
+   */
+  onOpenCitation?: (cite: AnswerCitation) => void;
 }) {
   return (
     <div data-testid="source-panel">
@@ -262,6 +282,7 @@ export function SourcePanel({
           cite={c}
           selected={c.n === selectedN}
           onSelect={onSelect}
+          {...(onOpenCitation ? { onOpenCitation } : {})}
           {...(onAuditLog ? { onAuditLog } : {})}
         />
       ))}
