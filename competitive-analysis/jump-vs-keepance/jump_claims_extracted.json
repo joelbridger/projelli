@@ -1,0 +1,196 @@
+{
+  "_meta": {
+    "subject": "Jump (jump.ai)",
+    "purpose": "Structured extraction of Jump's public marketing & product claims for the Jump vs Keepance competitive analysis.",
+    "compiled": "2026-06-28",
+    "method": "WebFetch/WebSearch of public Jump pages (robots.txt allows general crawl) + two independent research subagents + an independent Codex investigation. All claims are Jump's MARKETING unless tagged third_party_verified. No auth/paywall bypassed.",
+    "verification_legend": {
+      "marketing_claim": "Jump's own assertion; not independently verified.",
+      "third_party_verified": "Corroborated by a source independent of Jump (Kitces, Ezra Group, App Store, trade press, investor sites).",
+      "self_reported_repeated_by_press": "Originates with Jump; trade press repeated it without independent audit."
+    },
+    "limitations": "security.jump.ai trust center is JS/Vanta-gated (no readable text via public fetch); SOC 2 Type II/Iowa-hosting/Vanta facts come from Jump's help-center FAQ and the jump-vs-zocks page, not the gated portal. Reddit (r/CFP) and G2/Capterra star pages were blocked to automated agents. T3 survey primary + some comparison tables are paywalled. Churn/retention and add-on attach rate are non-public."
+  },
+  "pages": [
+    {
+      "url": "https://jump.ai/",
+      "category": "Home",
+      "headline": "The #1 AI platform for advisors!",
+      "subhead": "Trusted AI for advisors & financial professionals. Save time, increase revenue, and elevate the client experience with compliant AI.",
+      "category_positioning": "AI operating system / AI platform for financial advisors (NOT positioned as 'just a notetaker').",
+      "implied_category": "Advisor AI operating system / advisor workflow platform",
+      "implied_buyer": "RIA principal, enterprise broker-dealer/IBD, independent advisor",
+      "implied_pain": "Time lost to meeting admin, manual notetaking, CRM data entry, scattered client data, missed growth opportunities",
+      "product_feature_claims": [
+        {"module": "AI Associate", "claim": "Ask questions and take action across your tech stack", "verification": "marketing_claim"},
+        {"module": "Client Profiles", "claim": "Evergreen client profiles that pull data across all data sources", "verification": "marketing_claim"},
+        {"module": "Email Assistant", "claim": "Faster drafting and rewrites, right in your inbox", "verification": "marketing_claim"},
+        {"module": "Meet / Notetaker", "claim": "Meeting notes, decisions, next steps; pre-meeting prep auto-brief; post-meeting CRM data sync; auto follow-up emails & tasks; meeting scheduling", "verification": "marketing_claim"},
+        {"module": "Grow", "claim": "Signals (opportunities/risks), Playbooks, Scorecards, Pulse & Surveys, Dashboards", "verification": "marketing_claim"},
+        {"module": "Onboard", "claim": "AI Intake Forms + Document Intelligence (upload, parse, sync documents)", "verification": "marketing_claim"}
+      ],
+      "social_proof": [
+        {"claim": "Empowering 35,000+ advisors at top firms of all sizes", "verification": "self_reported_repeated_by_press", "note": "Was '27,000+ advisors' at Feb 2026 Series B; June 25 2026 release softened to '35,000+ users worldwide'."},
+        {"claim": "Trusted by LPL, Osaic, Cetera", "verification": "third_party_verified", "note": "Enterprise distribution real: Cetera ~12,000 advisors, LPL ~23,000-advisor vendor affinity program, Focus Financial ~800."},
+        {"claim": "#1 in Market Share and Customer Satisfaction; rated #1 across T3, Kitces, and The Oasis Group reports", "verification": "third_party_verified", "note": "Kitces Research ~10% adoption = clear #1 standalone AI notetaker; 2025 T3 survey top honors (transcription 8.61; onboarding/proposal-gen 8.64). App Store 4.9/5, ~1,100 ratings."},
+        {"claim": "10 hrs saved per advisor per week; 2.1x increase in growth opportunities; 42% reduction in outstanding client service tasks", "verification": "marketing_claim", "note": "Company-reported metrics; no independent efficacy data."}
+      ],
+      "compliance_claims": [
+        "SOC 2-certified infrastructure",
+        "Enterprise-grade audit trails",
+        "Recording is optional; transcript-only / summary-only / full A/V configurable",
+        "Client data never trains our models",
+        "Every AI-generated output is reviewable before it goes anywhere (human-in-the-loop)",
+        "Configurable to match firm supervision and record-keeping policies; client disclosure, consent, supervision"
+      ],
+      "integration_claims": ["30+ (page) / 40+ (homepage) integrations included in all plans"],
+      "pricing_claims": ["None on homepage (links to /pricing)"],
+      "ctas": ["See a demo", "Try for free", "Schedule demo", "Start free trial", "Sign in", "Book a demo to get started"],
+      "audience": ["Enterprise firms", "Independent advisors", "Insurance professionals", "Accounting professionals", "Asset managers", "Banks & credit unions"],
+      "screenshot": "jump_screenshots/01-homepage.jpg"
+    },
+    {
+      "url": "https://jump.ai/operating-system/ai-associate",
+      "category": "Product (AI Associate)",
+      "headline_definition": "An AI agent that runs your workflow so you don't have to",
+      "category_positioning": "Agentic assistant layer of the 'operating system'; included in all plans",
+      "product_feature_claims": [
+        {"claim": "Ask questions and take action across your tech stack", "verification": "marketing_claim"},
+        {"claim": "Update records. Draft emails. Assign tasks. Schedule meetings from a single conversation", "verification": "marketing_claim"},
+        {"claim": "Every action requires your approval and follows your firm's compliance settings", "verification": "marketing_claim", "note": "Human-in-the-loop; NOT autonomous."},
+        {"claim": "Reads your transcripts and meeting notes and surfaces the answer with the source attached", "verification": "marketing_claim", "note": "CITED answers — but emphasis is transcripts/meeting notes."},
+        {"claim": "Synthesizes data into a single, coherent brief", "verification": "marketing_claim"}
+      ],
+      "data_sources_claimed": ["CRM contacts", "Financial planning tools", "Portfolio positions", "Custody records", "Meeting transcripts", "Documents", "Email"],
+      "example_queries": ["What's the Hendersons' current asset allocation?", "Which clients over 60 don't have a beneficiary on file?"],
+      "maturity_note": "Jump's own help center calls AI Associate 'early access'; chat history 'coming soon' (per independent Codex investigation of help.jumpapp.com). Treat as live-but-maturing.",
+      "strategic_implication": "DIRECT overlap with Keepance 'Ask' + 'Client Map'. Jump markets cited cross-source Q&A and a 'coherent brief' — but sourced from meetings/CRM/integrated-systems, not a deep read of an arbitrary document/email folder. Cloud-only.",
+      "screenshot": "jump_screenshots/05-ai-associate.jpg"
+    },
+    {
+      "url": "https://jump.ai/pricing",
+      "category": "Pricing",
+      "headline": "Experience the AI platform built for advisors and financial professionals",
+      "pricing_claims": [
+        {"plan": "Meet (core)", "price": "$100/advisor/month", "verification": "marketing_claim", "note": "Cut from $120 to $100 (and $75 for small firms) ~2026 — read by analysts as competitive pressure.", "includes": "AI notetaker, unlimited meetings, pre-meeting prep, follow-up tasks/emails, CRM + planning sync, meeting scheduling, free trial"},
+        {"plan": "Onboard (add-on)", "price": "+$50/advisor/month", "includes": "AI account opening, form completion, document intake, CRM field mapping", "verification": "marketing_claim"},
+        {"plan": "Grow (add-on)", "price": "+$50/advisor/month", "includes": "meeting analytics, topics/trends, proactive recommendations, coaching, revenue sourcing", "verification": "marketing_claim"},
+        {"plan": "Enterprise", "price": "Contact sales", "includes": "API/build, SSO, custom attestations, SCIM/SAML, compliance dashboard, custom disclosures", "verification": "marketing_claim"}
+      ],
+      "pricing_terms": ["Monthly or annual (save up to 20% annually)", "No minimum seats", "40+ integrations, AI Associate, MCP, automations included in all plans"],
+      "loaded_seat": "A fully-loaded seat (Meet+Onboard+Grow) ≈ $200/advisor/mo; InvestmentNews cites ~$75 basic to ~$120 premium; 5-10x generic notetakers (Fireflies).",
+      "screenshot": "jump_screenshots/02-pricing.jpg"
+    },
+    {
+      "url": "https://jump.ai/integrations",
+      "category": "Integrations",
+      "headline": "Integrates with your technology",
+      "integration_claims": ["'30+ integrations' headline; ~39 listed"],
+      "integrations_by_category": {
+        "CRM": ["Salesforce", "Wealthbox", "Redtail", "HubSpot", "Dynamics 365", "AdvisorEngine", "Practifi", "Advyzon", "XLR8", "LeadCenter", "Quivr", "SmartOffice"],
+        "Financial planning": ["eMoney", "RightCapital", "Asset-Map", "Holistiplan"],
+        "Portfolio": ["Orion", "Black Diamond"],
+        "Custodian": ["Schwab"],
+        "Meetings/video": ["Zoom", "Microsoft Teams", "Google Meet", "Webex", "GoTo Meeting", "Dialpad", "RingCentral", "Intulse"],
+        "Calendar": ["Google Calendar", "Microsoft Calendar", "Exchange"],
+        "Tax": ["TaxStatus", "Holistiplan"],
+        "Estate": ["Wealth.com"],
+        "Document storage": ["Box", "Google Drive"],
+        "VoIP": ["Vonage"],
+        "Workflow": ["Karbon", "Hubly"]
+      },
+      "verification": "marketing_claim (count) / third_party_verified (breadth is a genuine strength per Ezra Group integration score 8.63)",
+      "strategic_implication": "Integration breadth is a Jump strength and a Keepance gap (Keepance has ~2 polished: OneDrive + Wealthbox). But note: only ONE true custodian (Schwab); 'custodian' partners are mostly broker-dealers/IBDs.",
+      "screenshot": "jump_screenshots/03-integrations.jpg"
+    },
+    {
+      "url": "https://jump.ai/blog/security-and-compliance",
+      "category": "Security/compliance",
+      "date": "2026-04-07",
+      "compliance_claims": [
+        "Flexible capture and retention controls (summary-only mode, no stored audio/video)",
+        "Firm-defined compliance policies, centralized admin",
+        "Human review before system actions (advisor attestation before CRM syncs, communications, exports)",
+        "Consent and disclosure management (transcript detection, firm-defined disclosures)",
+        "Data protection safeguards (automatic redaction, copy/download restrictions)",
+        "Designed for RIA and Broker-Dealer compliance workflows",
+        "Trust center at https://security.jump.ai/"
+      ],
+      "verified_security_facts": {
+        "source": "Jump help-center FAQ + jump-vs-zocks page (trust center itself JS-gated)",
+        "facts": ["SOC 2 Type II", "Encryption in transit and at rest", "MFA", "Vanta continuous monitoring", "Third-party penetration testing", "US hosting (Iowa)", "No customer data used to train models", "Zero-transcript-retention mode disables some features (e.g. Ask Anything)"]
+      },
+      "strategic_implication": "Strong ENTERPRISE-SaaS compliance posture — but it is cloud. 'Delete/retain controls' and 'we don't train on your data' is NOT the same as Keepance's 'data never leaves your machine / BYOK-direct'. This is the genuine, defensible seam.",
+      "screenshot": "jump_screenshots/07-security-compliance.jpg"
+    },
+    {
+      "url": "https://jump.ai/advisor-trends/artificial-intelligence/jump-vs-zocks",
+      "category": "Competitive (self-serving)",
+      "positioning_claims": [
+        "Jump market share 22.68% vs Zocks 10.22% (Jump's citation)",
+        "Ezra Group WealthTech Integration Score: Jump 8.63 vs Zocks 8.14",
+        "Both SOC 2 Type II; both 'privacy-first'",
+        "Jump = 'AI operating system' (Meet/Grow/Operate); Zocks = 'point solution'",
+        "'Note-taking is table stakes'; value is in revenue intelligence + workflow execution"
+      ],
+      "verification": "marketing_claim (Jump's own comparison; self-selected metrics)",
+      "strategic_implication": "Reveals Jump considers Zocks its main rival and is racing UP-market into 'operating system / revenue intelligence'. Confirms notetaking is now table-stakes — Keepance must NOT enter as a notetaker."
+    },
+    {
+      "url": "https://jump.ai/blog/introducing-AI-associate",
+      "category": "Product announcement",
+      "date": "2026-03-26",
+      "product_feature_claims": [
+        {"claim": "Pull from emails, documents, planning tools, and meetings in one place", "verification": "marketing_claim"},
+        {"claim": "Extend from insight into trusted, controlled action across your connected systems", "verification": "marketing_claim"}
+      ],
+      "depth_finding": "Documents ARE listed as a source, but the page's emphasis and proof are meeting-derived intelligence + integrated-system data (CRM/email/calendar). No example of deep multi-document synthesis across a client's full file room.",
+      "strategic_implication": "Confirms Jump's synthesis center-of-gravity is meetings + connected SaaS, not an arbitrary local document pile."
+    },
+    {
+      "url": "https://jump.ai/blog/jump-unveils-new-ai-powered-account-opening-and-workflow-innovations-for-advisors",
+      "category": "Product announcement",
+      "date": "2026-06-25",
+      "claims": [
+        {"claim": "35,000+ users worldwide", "verification": "self_reported_repeated_by_press"},
+        {"claim": "Document Intelligence: upload, parse, and sync documents", "verification": "marketing_claim", "note": "Oriented to account-opening / form-filling / intake — extracting fields to populate forms and CRM — NOT retrospective synthesis of an existing document collection."}
+      ],
+      "strategic_implication": "Jump's document handling is intake/extraction, confirming the document-depth seam for Keepance is real (though narrowing as Jump invests)."
+    },
+    {
+      "url": "https://jump.ai/blog/updates-may-2026",
+      "category": "Product update",
+      "date": "2026-05-27",
+      "claims": [
+        "AI Associate now on iOS (conversational queries + cross-system actions)",
+        "AI Assistant embedded inside Redtail's interface",
+        "Pre-Meeting Prep now ingests Redtail comment threads + custom User Defined Fields",
+        "Signals can create Salesforce opportunities / send emails inline",
+        "Outlook Add-in (Web/Windows/Mac)"
+      ],
+      "roadmap_direction": "Mobile-first; deepening embedded intelligence INSIDE partner CRMs; synthesis deepening over CRM fields/comments (not document piles).",
+      "strategic_implication": "Jump's momentum is breadth (mobile, embed-in-CRM, more integrations), reinforcing the seam that it deepens around connected systems, not local files."
+    },
+    {
+      "url": "https://jump.ai/company + funding releases (Series A/B)",
+      "category": "Company / funding",
+      "verified_facts": {
+        "verification": "third_party_verified (trade press + investor sites)",
+        "hq": "Salt Lake City, Utah",
+        "founded": "2022-2023; public launch Jan 2024",
+        "founders": ["Parker Ence (CEO)", "Tim Chaves", "Adam Kirk"],
+        "headcount": "~220-230 (third-party aggregators)",
+        "funding": [
+          {"round": "Seed", "amount": "$4.6M", "lead": "Sorenson Capital", "date": "early 2024"},
+          {"round": "Series A", "amount": "$20M", "lead": "Battery Ventures", "date": "2025-02-03", "others": ["Citi Ventures", "Sorenson", "Pelion"]},
+          {"round": "Series B", "amount": "$80M", "lead": "Insight Partners", "date": "2026-02-19", "others": ["F-Prime", "Allianz Life Ventures", "TIAA Ventures", "Peterson Partners", "Battery", "Sorenson", "Pelion", "Citi", "angels Hans Tung, Ryan Anderson, Aaron Skonnard"]}
+        ],
+        "total_raised": "~$104.6M (~$105M)",
+        "valuation": "Not disclosed at any round",
+        "acquisition": "Acquired Mobile Assistant (Oct 2025)",
+        "adoption_independent": "Kitces Research: ~10% of all US advisors use Jump (clear #1 standalone AI notetaker); App Store 4.9/5 (~1,100 ratings)",
+        "complaints_independent": "Dropped recordings ('failure rate unacceptable'); note-accuracy glitches; XYPN scored note accuracy 3.5/5 (below FinMate)"
+      }
+    }
+  ]
+}
