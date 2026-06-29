@@ -159,11 +159,15 @@ describe('AssociateHome (law persona)', () => {
     expect(screen.getByTestId('associate-card-case-timeline-builder')).toBeTruthy();
   });
 
-  it('calls onStartWorkflow when Run is clicked', () => {
+  it('calls onStartWorkflow after confirming the run-time household', () => {
     const onStartWorkflow = vi.fn();
     render(<AssociateHome {...defaultProps({ onStartWorkflow })} />);
     const runBtn = screen.getByTestId('associate-run-deposition-contradiction-finder');
     fireEvent.click(runBtn);
+    // Clicking Run now opens the run-time household confirmation; it does NOT
+    // start the workflow until the user confirms.
+    expect(onStartWorkflow).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('workflow-run-confirm-go'));
     expect(onStartWorkflow).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'deposition-contradiction-finder' })
     );
@@ -282,7 +286,7 @@ describe('AssociateHome (law persona)', () => {
     expect(screen.queryByTestId('associate-active-matter-chip')).toBeNull();
   });
 
-  it('shows the matter chip with label when an active matter is set', () => {
+  it('surfaces the active matter at run time as a "Run in: <household>" confirmation', () => {
     mockUseActiveMatter.mockReturnValue({
       id: 'matter_test_1',
       name: 'Smith v. Jones',
@@ -293,10 +297,12 @@ describe('AssociateHome (law persona)', () => {
       createdAt: new Date().toISOString(),
     });
     render(<AssociateHome {...defaultProps()} />);
-    const chip = screen.getByTestId('associate-active-matter-chip');
-    expect(chip).toBeTruthy();
-    expect(chip.textContent).toContain('Running in:');
-    expect(chip.textContent).toContain('Alice Smith - Smith v. Jones');
+    // The persistent "Running in" pill was replaced by a run-time confirmation:
+    // clicking Run reveals the target household explicitly ("Run in <label>").
+    fireEvent.click(screen.getByTestId('associate-run-deposition-contradiction-finder'));
+    const confirm = screen.getByTestId('workflow-run-confirm');
+    expect(confirm.textContent).toContain('Run in');
+    expect(confirm.textContent).toContain('Alice Smith - Smith v. Jones');
   });
 
   // ── Practice-area filter chips ────────────────────────────────────────────

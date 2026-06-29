@@ -108,11 +108,9 @@ function ClientMapRegion() {
   if (map === undefined) return null;
 
   const onOpenSource = (r: SourceRef): void => {
-    // eslint-disable-next-line no-console
     console.log('[design] open source', r);
   };
   const onEditItem = (sectionKey: string, itemId: string): void => {
-    // eslint-disable-next-line no-console
     console.log('[design] edit item', sectionKey, itemId);
   };
   const onAnswerQuestion = (gap: { text: string; sectionKey: string }): void => {

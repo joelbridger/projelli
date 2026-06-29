@@ -899,7 +899,6 @@ export function AssociateHome({
               fontFamily: 'Satoshi, sans-serif',
             }}
           >
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--kp-accent)', marginBottom: 10 }}>
               Run workflow
             </div>
@@ -937,7 +936,6 @@ export function AssociateHome({
                 Run
               </Button>
             </div>
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
           </div>
         </div>
       )}

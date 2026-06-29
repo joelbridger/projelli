@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { Ask } from '@/features/ask/Ask';
+import { SampleBridgeCallout, SAMPLE_BRIDGE_DISMISSED_KEY } from '@/features/ask/SampleBridgeCallout';
 
 const mockInitSession = vi.fn();
 const mockAddMessage = vi.fn();
@@ -179,31 +180,15 @@ describe('Ask', () => {
     expect(mockInitSession).toHaveBeenCalledWith('ask-global', []);
   });
 
-  it('shows empty state when no turns', () => {
+  it('shows a CLEAN empty state when no turns (no headline, no example/demo chips)', () => {
     render(<Ask />);
-    // The updated empty state headline
-    expect(screen.getByText(/what do you want to find/i)).toBeDefined();
-  });
-
-  it('shows example chips in empty state', () => {
-    render(<Ask />);
-    // Default profession is legal in this test file, so entityLabel.one = 'matter'
-    expect(screen.getByText(/summarize this matter/i)).toBeDefined();
-    expect(screen.getByText(/find all related emails/i)).toBeDefined();
-    expect(screen.getByText(/what client reviews are coming up/i)).toBeDefined();
-  });
-
-  it('clicking an example chip RUNS the search (does not just fill the input) — UX-28', async () => {
-    render(<Ask />);
-    const chip = screen.getByText(/summarize this matter/i);
-    fireEvent.click(chip);
-    // The chip now submits the search: handleAsk sets the in-flight streaming
-    // turn synchronously, so the empty state (and its chips) is replaced. If the
-    // chip had merely filled the input (the old bug), the empty state would
-    // remain on screen.
-    await waitFor(() => {
-      expect(screen.queryByText(/what do you want to find/i)).toBeNull();
-    });
+    // The demo-matched Ask has a calm, empty center: just the composer, no
+    // headline and no suggestion pills (heading + example/demo chips were
+    // removed). The composer is always present so the user can type a question.
+    expect(screen.getByRole('textbox')).toBeDefined();
+    expect(screen.queryByText(/what do you want to find/i)).toBeNull();
+    expect(screen.queryByText(/summarize this matter/i)).toBeNull();
+    expect(screen.queryByText(/find all related emails/i)).toBeNull();
   });
 
   it('submitting question does not throw (smoke test)', () => {
@@ -325,106 +310,46 @@ describe('Ask', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Sample-matter aha-moment tests
+  // Sample-matter aha-moment
   // -------------------------------------------------------------------------
-
-  it('shows DEMO_QUESTIONS chips when active matter is the sample matter', () => {
-    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
-    render(<Ask />);
-    expect(screen.getByText(/what are the open issues in this matter/i)).toBeDefined();
-    expect(screen.getByText(/summarize the garcia matter for me/i)).toBeDefined();
-    expect(screen.getByText(/what is the status of the meridian correspondence/i)).toBeDefined();
-    expect(screen.getByText(/what is the fee arrangement/i)).toBeDefined();
-  });
-
-  it('shows default chips (not demo questions) when active matter is not the sample matter', () => {
-    mockActiveMatter = { id: 'matter_other', name: 'Other Matter' };
-    render(<Ask />);
-    // Default profession is legal in this test file, so entityLabel.one = 'matter'
-    expect(screen.getByText(/summarize this matter/i)).toBeDefined();
-    expect(screen.queryByText(/what are the open issues in this matter/i)).toBeNull();
-  });
-
-  it('clicking a demo chip auto-submits (calls addMessage) without just filling the input', async () => {
-    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
-    mockRootPath = '/workspace';
-    // Configure getDemoAnswerForWorkspace to return a canned answer
-    (getDemoAnswerForWorkspace as ReturnType<typeof vi.fn>).mockReturnValue({
-      answer: 'The fee is $350/hr. {1}',
-      citations: [{ n: 1, label: 'Sample - Matter Overview.md', excerpt: 'Fee: $350/hr', path: '/workspace/Sample - Matter Overview.md', locator: 'Sample - Matter Overview.md §Client Notes', verified: true }],
-    });
-    render(<Ask />);
-    const chip = screen.getByText(/what is the fee arrangement/i);
-    fireEvent.click(chip);
-    // Wait for the async handleAsk to resolve and addMessage to be called
-    await waitFor(() => {
-      expect(mockAddMessage).toHaveBeenCalledTimes(2);
-    });
-    // First call is the user message
-    expect(mockAddMessage).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ role: 'user', content: 'What is the fee arrangement?' }),
-    );
-    // Second call is the assistant message
-    expect(mockAddMessage).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ role: 'assistant' }),
-    );
-  });
-
-  it('sample matter chip falls back to Ollama path when demo has no match', async () => {
-    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
-    mockRootPath = '/workspace';
-    // getDemoAnswerForWorkspace returns null → falls through to provider
-    vi.mocked(getDemoAnswerForWorkspace).mockReturnValue(null);
-    // No error should be thrown; the component should handle gracefully
-    render(<Ask />);
-    expect(screen.getByText(/what are the open issues in this matter/i)).toBeDefined();
-  });
+  // The demo-question SUGGESTION CHIPS (and the profession-aware variants) were
+  // removed when Ask adopted the demo's clean empty state. The underlying demo
+  // Q&A machinery is unchanged and is covered directly by
+  // tests/unit/sample-matter-demo.test.ts (getDemoQuestions + getDemoAnswerFor-
+  // Workspace, per profession). Submitting a demo question still yields the
+  // canned answer; that submit path is covered by tests/unit/ask/*.test.tsx.
 
   // -------------------------------------------------------------------------
-  // B2 — sample bridge callout tests
+  // B2 — sample bridge callout
   // -------------------------------------------------------------------------
+  // The callout moved out of the empty state: it now renders BELOW a demo answer
+  // (sample matter + at least one answered turn) — see Ask.tsx. Its self-
+  // contained behavior (render, dismiss + localStorage, "Add a matter" event) is
+  // covered here by rendering the component directly.
 
-  it('shows the sample bridge callout in empty state when active matter is the sample matter', () => {
-    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
-    render(<Ask />);
+  it('sample bridge callout renders its sample-data nudge', () => {
+    render(<SampleBridgeCallout />);
     expect(screen.getByTestId('sample-bridge-callout')).toBeDefined();
     expect(screen.getByText(/this is sample data/i)).toBeDefined();
   });
 
-  it('does not show the sample bridge callout when active matter is not the sample matter', () => {
-    mockActiveMatter = { id: 'matter_other', name: 'Other Matter' };
-    render(<Ask />);
-    expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
-  });
-
-  it('does not show the sample bridge callout when there is no active matter', () => {
-    mockActiveMatter = null;
-    render(<Ask />);
-    expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
-  });
-
   it('sample bridge callout is hidden after clicking dismiss and localStorage key is set', () => {
-    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
-    render(<Ask />);
+    render(<SampleBridgeCallout />);
     const dismissBtn = screen.getByTestId('sample-bridge-dismiss');
     fireEvent.click(dismissBtn);
     expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
-    expect(localStorage.getItem('keepance:sample-bridge-dismissed')).toBe('1');
+    expect(localStorage.getItem(SAMPLE_BRIDGE_DISMISSED_KEY)).toBe('1');
   });
 
   it('sample bridge callout stays hidden on mount when localStorage flag is already set', () => {
-    localStorage.setItem('keepance:sample-bridge-dismissed', '1');
-    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
-    render(<Ask />);
+    localStorage.setItem(SAMPLE_BRIDGE_DISMISSED_KEY, '1');
+    render(<SampleBridgeCallout />);
     expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
   });
 
   it('"Add a matter" button dispatches the keepance:open-matter-manager event', () => {
-    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
-    render(<Ask />);
+    render(<SampleBridgeCallout />);
     const addBtn = screen.getByTestId('sample-bridge-add-matter');
     fireEvent.click(addBtn);
     expect(dispatchSpy).toHaveBeenCalledWith(
@@ -650,65 +575,11 @@ describe('Ask', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Profession-aware demo chips
+  // Profession-aware demo questions
   // -------------------------------------------------------------------------
-
-  it('shows TAX demo questions when profession is tax and sample matter is active', () => {
-    mockProfession = 'tax';
-    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Dwyer - 2025 Form 1040', isSample: true };
-    render(<Ask />);
-    expect(screen.getByText(/can diane deduct her home office/i)).toBeDefined();
-    expect(screen.getByText(/what open questions remain for the dwyer return/i)).toBeDefined();
-    // Legal questions must NOT appear
-    expect(screen.queryByText(/summarize the garcia matter/i)).toBeNull();
-    expect(screen.queryByText(/meridian correspondence/i)).toBeNull();
-  });
-
-  it('shows CONSULTING demo questions when profession is consulting and sample matter is active', () => {
-    mockProfession = 'consulting';
-    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Northwind - Go-to-Market Engagement', isSample: true };
-    render(<Ask />);
-    expect(screen.getByText(/what are the key findings so far/i)).toBeDefined();
-    expect(screen.getByText(/what is the engagement scope/i)).toBeDefined();
-    // Legal questions must NOT appear
-    expect(screen.queryByText(/garcia matter/i)).toBeNull();
-    expect(screen.queryByText(/meridian/i)).toBeNull();
-  });
-
-  it('still shows LEGAL demo questions when profession is legal and sample matter is active', () => {
-    mockProfession = 'legal';
-    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
-    render(<Ask />);
-    expect(screen.getByText(/what are the open issues in this matter/i)).toBeDefined();
-    expect(screen.getByText(/summarize the garcia matter for me/i)).toBeDefined();
-  });
-
-  it('clicking a TAX demo chip calls getDemoAnswerForWorkspace with the tax profession', async () => {
-    mockProfession = 'tax';
-    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Dwyer - 2025 Form 1040', isSample: true };
-    mockRootPath = '/workspace';
-    (getDemoAnswerForWorkspace as ReturnType<typeof vi.fn>).mockReturnValue({
-      answer: 'Yes, the studio room qualifies. {1}',
-      citations: [{
-        n: 1,
-        label: 'Sample - Client Research Note.md',
-        excerpt: 'Section 280A(c)(1) creates an exception when a portion of the home is used exclusively and regularly as the principal place of business.',
-        path: '/workspace/Sample - Client Research Note.md',
-        locator: 'Sample - Client Research Note.md §Preliminary Analysis',
-        verified: true,
-      }],
-    });
-    render(<Ask />);
-    const chip = screen.getByText(/can diane deduct her home office/i);
-    fireEvent.click(chip);
-    await waitFor(() => {
-      expect(getDemoAnswerForWorkspace).toHaveBeenCalledWith(
-        'Can Diane deduct her home office?',
-        '/workspace',
-        'tax',
-      );
-    });
-  });
+  // The profession-aware demo SUGGESTION CHIPS were removed with the clean empty
+  // state. The per-profession question + answer content (tax / consulting /
+  // legal) is covered directly in tests/unit/sample-matter-demo.test.ts.
 
   // -------------------------------------------------------------------------
   // Fix #1 — prefillRequest prop

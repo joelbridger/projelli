@@ -41,8 +41,9 @@ describe('seedWebDemoClientMap', () => {
     expect(map!.completeness.assuming).toEqual([]);
     expect(map!.completeness.know.length).toBeGreaterThan(0);
 
-    // Every one of the five core sections is populated.
-    expect(map!.sections).toHaveLength(5);
+    // Every one of the four core sections (Household · Goals · Money and
+    // accounts · Follow-ups) is populated.
+    expect(map!.sections).toHaveLength(4);
     for (const section of map!.sections) {
       expect(section.items.length).toBeGreaterThan(0);
     }

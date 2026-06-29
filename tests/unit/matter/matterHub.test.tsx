@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 
 // ── Mail commands (async probes used by GetStartedCard) ───────────────────────
@@ -107,18 +107,22 @@ describe('MatterHub — list to hub navigation', () => {
 
     fireEvent.click(screen.getByTestId(`matter-row-${matter.id}`));
 
-    expect(screen.getByTestId('hub-back-btn')).toBeInTheDocument();
+    // The hub's defining marker is the sub-tab bar (Client Map / Documents /
+    // Email / Activity). The old in-header back chevron was removed — returning
+    // to the clients list now happens via the left-nav "Client Map" item.
+    expect(screen.getByTestId('hub-subtab-bar')).toBeInTheDocument();
   });
 
-  it('hub header shows matter name', () => {
+  it('hub header shows the client name', () => {
     useMatterStore.getState().createMatter({ name: 'Smith Estate', client: 'Jane Smith' });
     const matter = useMatterStore.getState().matters[0]!;
 
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
 
-    // matterLabel returns "Jane Smith - Smith Estate" when both name + client are set
+    // The header title is just the client NAME (the "- Smith Estate" matter
+    // suffix is dropped; the map icon + left nav carry the rest of the context).
     const heading = screen.getByRole('heading', { level: 1 });
-    expect(heading.textContent).toContain('Smith Estate');
+    expect(heading.textContent).toContain('Jane Smith');
   });
 
   it('hub shows Isolated badge when matter is privileged', () => {
@@ -145,7 +149,7 @@ describe('MatterHub — list to hub navigation', () => {
     expect(screen.queryByTestId('hub-isolated-badge')).toBeNull();
   });
 
-  it('back button returns to matter list', () => {
+  it('closing the hub returns to the matter list', () => {
     useMatterStore.getState().createMatter({ name: 'Back Test', client: 'Client' });
     const matter = useMatterStore.getState().matters[0]!;
 
@@ -153,13 +157,16 @@ describe('MatterHub — list to hub navigation', () => {
 
     // Open the hub
     fireEvent.click(screen.getByTestId(`matter-row-${matter.id}`));
-    expect(screen.getByTestId('hub-back-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-subtab-bar')).toBeInTheDocument();
 
-    // Click back
-    fireEvent.click(screen.getByTestId('hub-back-btn'));
+    // The in-header back chevron is gone; closing the hub is now driven by the
+    // store (what the left-nav "Client Map" item does — App.tsx onTabChange).
+    act(() => {
+      useMatterStore.getState().setClientMapHubId(null);
+    });
 
     // Hub should be gone, list visible again
-    expect(screen.queryByTestId('hub-back-btn')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('hub-subtab-bar')).not.toBeInTheDocument();
     expect(screen.getByTestId(`matter-row-${matter.id}`)).toBeInTheDocument();
   });
 

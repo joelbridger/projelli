@@ -188,7 +188,6 @@ function EmailCard({ raw }: { raw: string }) {
           }}
         >
           <Mail size={14} strokeWidth={2} style={{ color: 'var(--kp-accent)', flex: 'none' }} />
-          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
           <span>To: {to}</span>
         </div>
       )}

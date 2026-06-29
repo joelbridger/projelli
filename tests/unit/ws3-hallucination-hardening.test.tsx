@@ -286,7 +286,7 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
       verified: false,
       // no id / matterId
     };
-    render(<SourcePanel cite={cite} />);
+    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
     const btn = screen.getByTestId('verify-citation-btn');
     expect(btn).toBeDisabled();
   });
@@ -303,12 +303,12 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
       id: 'chunk-c1',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel cite={cite} />);
+    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
     const btn = screen.getByTestId('verify-citation-btn');
     expect(btn).not.toBeDisabled();
   });
 
-  it('shows green "found in source" after verified verdict', async () => {
+  it('shows green "Verified against source" after verified verdict', async () => {
     mockRagVerifyCitation.mockResolvedValue({ verdict: 'verified' });
     const { SourcePanel } = await import('@/features/ask/SourcePanel');
     const cite = {
@@ -321,14 +321,14 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
       id: 'chunk-c1',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel cite={cite} />);
+    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
     fireEvent.click(screen.getByTestId('verify-citation-btn'));
+    // A verified verdict turns the verify control green with the
+    // "Verified against source" label (no problem verdict shown).
     await waitFor(() =>
-      expect(screen.getByTestId('verify-verdict')).toBeInTheDocument(),
+      expect(screen.getByTestId('verify-citation-btn').textContent).toMatch(/verified against source/i),
     );
-    const verdict = screen.getByTestId('verify-verdict');
-    expect(verdict).toHaveAttribute('data-verdict', 'verified');
-    expect(verdict.textContent).toMatch(/found in source/i);
+    expect(screen.queryByTestId('verify-verdict')).toBeNull();
   });
 
   it('shows red problem text for notFound verdict', async () => {
@@ -344,7 +344,7 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
       id: 'chunk-c2',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel cite={cite} />);
+    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
     fireEvent.click(screen.getByTestId('verify-citation-btn'));
     await waitFor(() =>
       expect(screen.getByTestId('verify-verdict')).toBeInTheDocument(),
@@ -368,14 +368,14 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
       id: 'chunk-c3',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel cite={cite} />);
+    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
     fireEvent.click(screen.getByTestId('verify-citation-btn'));
     await waitFor(() =>
       expect(screen.getByTestId('verify-verdict')).toBeInTheDocument(),
     );
     const verdict = screen.getByTestId('verify-verdict');
     expect(verdict).toHaveAttribute('data-verdict', 'textMismatch');
-    expect(verdict.textContent).toMatch(/not found|do not rely/i);
+    expect(verdict.textContent).toMatch(/does not match|do not rely/i);
   });
 
   it('shows red problem text for matterMismatch verdict', async () => {
@@ -391,13 +391,13 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
       id: 'chunk-c4',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel cite={cite} />);
+    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
     fireEvent.click(screen.getByTestId('verify-citation-btn'));
     await waitFor(() =>
       expect(screen.getByTestId('verify-verdict')).toBeInTheDocument(),
     );
     const verdict = screen.getByTestId('verify-verdict');
     expect(verdict).toHaveAttribute('data-verdict', 'matterMismatch');
-    expect(verdict.textContent).toMatch(/different matter|do not rely/i);
+    expect(verdict.textContent).toMatch(/different client|do not rely/i);
   });
 });
