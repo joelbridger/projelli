@@ -55,7 +55,7 @@ export function getDemoProfession(): DemoProfession {
   return 'advisor';
 }
 
-function getSampleForProfession(profession: DemoProfession): SampleWorkspace {
+export function getSampleForProfession(profession: DemoProfession): SampleWorkspace {
   if (profession === 'legal') return sampleWorkspaceLegal as SampleWorkspace;
   if (profession === 'tax') return sampleWorkspaceTax as SampleWorkspace;
   if (profession === 'consulting') return sampleWorkspaceConsulting as SampleWorkspace;

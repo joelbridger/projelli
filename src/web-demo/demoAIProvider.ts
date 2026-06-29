@@ -69,6 +69,16 @@ function readByokKey(): string | null {
   }
 }
 
+/**
+ * Whether the demo user has pasted a personal (BYOK) key. When true the demo
+ * goes direct to Anthropic; when false it relays via the shared proxy. Exported
+ * so the Ask egress audit can record the honest demo destination. Always false
+ * outside demo mode (no BYOK key is ever stored there).
+ */
+export function hasDemoByokKey(): boolean {
+  return readByokKey() !== null;
+}
+
 function emitLimitHit(detail: DemoLimitHitDetail): void {
   if (typeof window === 'undefined') return;
   try {

@@ -24,8 +24,9 @@ import '../styles/globals.css';
 import i18n from '../i18n';
 import { detectLocale } from '../lib/locale-detect';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { seedWebDemoWorkspace } from './WebDemoSeeder';
+import { seedWebDemoWorkspace, getSampleForProfession } from './WebDemoSeeder';
 import { seedWebDemoClientMap } from './seedWebDemoClientMap';
+import { installDemoRetrieval } from './demoRetrieval';
 import { DemoModeBanner } from './DemoModeBanner';
 import { DemoLimitGate } from './DemoLimitGate';
 import { trackDemoLoaded } from './demoPlausible';
@@ -56,6 +57,10 @@ async function bootstrap(): Promise<void> {
   // of small writes).
   try {
     const { profession } = await seedWebDemoWorkspace();
+    // Install the browser keyword retriever over the SAME seeded files so Ask can
+    // search them (the desktop's native Tauri RAG isn't available in a browser).
+    // Built from the in-memory sample so it works even if the OPFS write degraded.
+    installDemoRetrieval(getSampleForProfession(profession).files);
     // Advisor pack (the default /try): seed the Webb Household client + its
     // fully-filled, cited Client Map and open its hub, so the demo lands on the
     // Client Map — the first thing a visitor sees — instead of the file browser.

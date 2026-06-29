@@ -26,6 +26,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { NO_AI_PROVIDER, type EgressProvider } from '@/platform/privacy/egress';
+import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { KeychainService } from '@/platform/providers/KeychainService';
 import {
   EGRESS_CONFIG_CHANGE_EVENT,
@@ -69,6 +70,11 @@ function resolveFrom(mode: string, hasKey: (p: string) => boolean): EgressProvid
  */
 export function resolveActiveEgressProviderSync(mode: string): EgressProvider {
   if (mode === 'local-only') return 'ollama';
+  // Web demo: Ask sends through the demo provider (BYOK-direct or shared proxy),
+  // both forwarding to Claude. Report 'anthropic' so the trust badge matches what
+  // Ask actually does instead of falsely reading "No AI connected"; the demo
+  // egress copy is selected by the indicator's isDemo handling.
+  if (IS_DEMO) return 'anthropic';
   let present = new Set<string>();
   try {
     present = new Set(new KeychainService().getStoredKeys().map((k) => k.provider));
@@ -85,6 +91,9 @@ export function resolveActiveEgressProviderSync(mode: string): EgressProvider {
  */
 export async function resolveActiveEgressProvider(mode: string): Promise<EgressProvider> {
   if (mode === 'local-only') return 'ollama';
+  // Web demo: see resolveActiveEgressProviderSync — the demo provider forwards to
+  // Claude, so the honest active provider is 'anthropic'.
+  if (IS_DEMO) return 'anthropic';
   const kc = new KeychainService();
   const present = new Set<string>();
   for (const p of CLOUD_ORDER) {

@@ -22,6 +22,8 @@ import { mailGetMessage } from '@/platform/utils/mail-commands';
 import { KeychainService } from '@/platform/providers/KeychainService';
 import { assertCloudGenerationAllowed, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { NO_AI_PROVIDER } from '@/platform/privacy/egress';
+import { IS_DEMO } from '@/web-demo/demoModeFlag';
+import { createDemoProvider } from '@/web-demo/demoAIProvider';
 import type { Provider } from '@/platform/providers/Provider';
 import type { ChatMessage } from '@/platform/types/ai';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
@@ -231,6 +233,12 @@ export async function resolveActiveAskProviderId(): Promise<ActiveAskProviderId>
     return 'ollama';
   };
   if (isLocalOnlyMode()) return await localId();
+  // Web demo: Ask routes through the demo provider (BYOK-direct or the shared
+  // demo proxy), both of which forward to Claude — so the honest egress provider
+  // is 'anthropic'. Without this, the demo has no OS-keychain key and the badge
+  // would falsely read "No AI connected". The EgressIndicator's isDemo handling
+  // turns 'anthropic' into the correct demo-proxy / BYOK-direct destination copy.
+  if (IS_DEMO) return 'anthropic';
   // Read key PRESENCE read-only (hasKey, NOT getKey) — getKey stamps the key's
   // 'last used' metadata, an unwanted mutation from a display-only badge effect.
   const kc = new KeychainService();
@@ -253,6 +261,17 @@ export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
   // so Ask honours Local-only.
   if (isLocalOnlyMode()) {
     return await resolveLocalAskProvider();
+  }
+  // Web demo (browser): there is no OS keychain and no on-device engine, so the
+  // cloud/local resolution below would throw NO_ASK_PROVIDER_CONNECTED. Route Ask
+  // through the demo provider instead — `createDemoProvider` returns a direct
+  // ClaudeProvider when the user has pasted a personal (BYOK) key, otherwise the
+  // shared, rate-limited demo proxy (POSTs to /api/demo-chat). Both forward to
+  // Claude, so the honest providerId is 'anthropic'. The demo banner + egress
+  // indicator disclose the shared-relay path; no confidentiality-choice gate is
+  // applied because the demo is not a personal install.
+  if (IS_DEMO) {
+    return buildDemoAskProvider();
   }
   // Personal-install choice gate (Task 1.3): a personal install must never reach a
   // cloud provider for generation before the user has made an explicit confidentiality
@@ -312,6 +331,18 @@ export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
 
 export async function buildProviderAsync(): Promise<Provider> {
   return (await buildResolvedAskProvider()).provider;
+}
+
+/**
+ * Resolve the Ask provider for the browser web-demo. `createDemoProvider` picks
+ * BYOK-direct (a pasted key) vs the shared demo proxy internally; either way the
+ * underlying model is Claude, so the providerId is 'anthropic' for honest egress
+ * labelling. Synchronous — the demo provider needs no keychain reads. Only ever
+ * called when `IS_DEMO` is true.
+ */
+function buildDemoAskProvider(): ResolvedAskProvider {
+  const provider = createDemoProvider();
+  return { provider, providerId: 'anthropic', model: provider.getMetadata().model };
 }
 
 /**
