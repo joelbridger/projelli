@@ -208,22 +208,9 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
 
   const label = matterLabel(matter);
   // Title = just the client NAMES (drop the "- Household" suffix); the icon +
-  // the left nav carry the "this is the Client Map" context.
+  // the left nav carry the "this is the Client Map" context. No subtitle under
+  // the header (Jameson: no subtext under any tab header).
   const headerTitle = matter.client && matter.client.trim() !== '' ? matter.client : label;
-
-  // A genuinely useful one-liner in place of the redundant name/created line:
-  // a glanceable status — how much open work + anything to ask. Falls back to
-  // "Up to date" when there's nothing outstanding; omitted until the map exists.
-  const cmMap = clientMap.map;
-  let headerSummary: string | undefined;
-  if (cmMap) {
-    const followUps = cmMap.sections.find((s) => s.key === 'next')?.items.length ?? 0;
-    const openQuestions = cmMap.completeness.ask.length;
-    const parts: string[] = [];
-    if (followUps > 0) parts.push(`${String(followUps)} follow-up${followUps === 1 ? '' : 's'} open`);
-    if (openQuestions > 0) parts.push(`${String(openQuestions)} ${openQuestions === 1 ? 'question' : 'questions'} to ask`);
-    headerSummary = parts.length > 0 ? parts.join(' · ') : 'Up to date';
-  }
 
   return (
     <div
@@ -253,7 +240,6 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
           Icon={Map}
           iconColor="var(--kp-accent)"
           title={headerTitle}
-          {...(headerSummary !== undefined ? { description: headerSummary } : {})}
           actions={
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {/* Guided-interview lives here, top-right, so it never breaks

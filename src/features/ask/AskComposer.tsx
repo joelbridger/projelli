@@ -128,11 +128,11 @@ export function AskComposer({
   }
 
   // variant === 'bottom' — sticky bar pinned to the bottom of the conversation.
+  // No top divider line (demo Ask): the bottom is just pills + search bar.
   const barStyle: CSSProperties = {
     flexShrink: 0,
-    borderTop: '1px solid var(--kp-divider)',
     background: 'var(--color-background)',
-    padding: 'var(--kp-space-sm) var(--kp-gutter)',
+    padding: 'var(--kp-space-sm) var(--kp-gutter) var(--kp-space-md)',
   };
 
   return (

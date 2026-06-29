@@ -152,16 +152,16 @@ export function ConversationsRail({
       aria-label="Conversations"
       style={{ ...railBase, width: RAIL_WIDTH }}
     >
+      {/* No "CONVERSATIONS" caps label (demo Ask) — just a quiet collapse
+          toggle, then the New question button + list. */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 'var(--kp-space-xs)',
-          padding: 'var(--kp-space-sm) var(--kp-space-sm) var(--kp-space-2xs)',
+          justifyContent: 'flex-end',
+          padding: 'var(--kp-space-2xs) var(--kp-space-sm) 0',
         }}
       >
-        <Eyebrow style={{ margin: 0 }}>Conversations</Eyebrow>
         <IconButton
           icon={PanelLeftClose}
           label="Hide conversations"

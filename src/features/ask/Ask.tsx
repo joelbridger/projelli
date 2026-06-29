@@ -200,12 +200,12 @@ export function Ask(props: UseAskProps) {
           Icon={Sparkles}
           iconColor="var(--kp-accent)"
           title="Ask"
-          description="Ask anything across your work. Every answer cites its source."
           actions={
-            /* The egress/privacy indicator lives top-right, on the title line —
-               the demo's placement. It keeps its real content + function; the
-               bottom composer stays clean (just pills + search bar). */
-            <EgressIndicator provider={displayedProvider} mode={confidentialityMode} variant="full" />
+            /* The egress/privacy indicator lives top-right, on the title line.
+               The short "status" form shows ONLY "Using local AI" / "Using cloud
+               AI" (dynamic); the full honest copy stays in its tooltip + the
+               inspectable data-* attributes. */
+            <EgressIndicator provider={displayedProvider} mode={confidentialityMode} variant="status" />
           }
         />
       </div>
