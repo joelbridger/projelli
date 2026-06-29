@@ -13,6 +13,7 @@
     "build": "tsc -b && vite build",
     "build:web-demo": "vite build --config vite.config.web-demo.ts && mv dist-web-demo/index.demo.html dist-web-demo/index.html",
     "capture:all": "cd scripts/marketing-capture && npm install --silent && npm run run-all",
+    "demo:video": "bash marketing-demo/regenerate.sh",
     "dev": "vite",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
