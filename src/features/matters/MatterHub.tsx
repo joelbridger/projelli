@@ -13,13 +13,12 @@
  */
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
-import { Briefcase, Lock, Sparkles, FileText, Mail, Clock, ArrowLeft, Loader2, Map } from 'lucide-react';
+import { Briefcase, Lock, FileText, Mail, Clock, ArrowLeft, Loader2, Map } from 'lucide-react';
 import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
-import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { Button, SearchField, Chip, Badge } from '@/ui/kp';
+import { Button, Badge } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
 import { useClientMap } from '@/features/matters/useClientMap';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
@@ -99,11 +98,6 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   const isPrivileged = useActiveMatterPrivileged();
   const entityLabel = useEntityLabel();
 
-  // ai chat sessions for recent questions
-  const sessions = useAIChatStore((s: { sessions: Record<string, unknown> }) => s.sessions) as Record<string, { messages?: Array<{ role: string; content: string }> }>;
-
-  const [askQ, setAskQ] = useState('');
-
   // ── Active sub-tab ─────────────────────────────────────────────────────────
   // Overview (the Client Map) is the default. A client-list quick-action can
   // request a specific sub-tab (the Documents/Email row shortcuts) via the
@@ -132,17 +126,6 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
     }
   }, [pendingHubTab, setPendingHubTab]);
 
-  // Count sessions belonging to this matter (key starts with `ask-${matterId}`)
-  const matterSessionPrefix = `ask-${matterId}`;
-  const recentQuestions: string[] = Object.entries(sessions)
-    .filter(([key]) => key.startsWith(matterSessionPrefix))
-    .map(([, session]) => {
-      const msgs = session.messages ?? [];
-      const first = msgs.find((msg) => msg.role === 'user');
-      return first?.content ?? '';
-    })
-    .filter(Boolean)
-    .slice(0, 3);
 
   // Once a map exists, re-check for new source material. Covers BOTH a populated
   // map ('ready') AND one that was built empty ('empty') — the latter recovers a
@@ -200,21 +183,6 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
       useClientMapStore.getState().editItem(matterId, sectionKey, itemId, text.trim());
     }
   }, [matterId]);
-
-  const handleAskSubmit = () => {
-    const q = askQ.trim();
-    window.dispatchEvent(
-      new CustomEvent('keepance:matter-launch', {
-        detail: { matterId, surface: 'search', question: q },
-      }),
-    );
-  };
-
-  const handleAskKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleAskSubmit();
-    }
-  };
 
   if (!matter) {
     return (
@@ -372,88 +340,12 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
         {subTab === 'overview' && (
           <div
             data-testid="hub-subtab-panel-overview"
-            style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}
+            style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
           >
-            {/* Ask hero */}
-            <div
-              style={{
-                padding: 'var(--kp-surface-gap) var(--kp-gutter)',
-                borderBottom: '1px solid var(--color-border)',
-                background: 'rgba(10,37,64,0.02)',
-              }}
-            >
-              {/* Compact Ask row */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <SearchField
-                    data-testid="hub-ask-input"
-                    icon={Sparkles}
-                    size="md"
-                    value={askQ}
-                    onChange={(v: string) => { setAskQ(v); }}
-                    onClear={() => { setAskQ(''); }}
-                    placeholder={`Ask this ${entityLabel.one}...`}
-                    onKeyDown={handleAskKeyDown}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  data-testid="hub-ask-submit"
-                  variant="primary"
-                  size="sm"
-                  onClick={handleAskSubmit}
-                >
-                  Ask
-                </Button>
-              </div>
-
-              {/* Recent questions */}
-              {recentQuestions.length > 0 && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    marginTop: 8,
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 'var(--kp-font-2xs)',
-                      color: 'var(--color-muted-foreground)',
-                      fontWeight: 'var(--kp-weight-semibold)',
-                      letterSpacing: '0.02em',
-                      flex: 'none',
-                    }}
-                  >
-                    { }
-                    Recent:
-                    { }
-                  </span>
-                  {recentQuestions.map((q, i) => (
-                    <Chip
-                      key={i}
-                      size="sm"
-                      data-testid={`hub-recent-q-${String(i)}`}
-                      onClick={() => {
-                        window.dispatchEvent(
-                          new CustomEvent('keepance:matter-launch', {
-                            detail: { matterId, surface: 'search', question: q },
-                          }),
-                        );
-                      }}
-                    >
-                      {q}
-                    </Chip>
-                  ))}
-                </div>
-              )}
-            </div>
-
             {/* Client Map — flat & full-bleed (no card), matching the Ask
                 surface: a calm section rail + a breathing reading column, with
-                no box-in-a-box nesting. */}
+                no box-in-a-box nesting. The in-hub Ask box was removed — Ask now
+                lives in its own dedicated tab, so the Overview stays calm. */}
             <div
               data-testid="hub-panel-clientmap"
               style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}

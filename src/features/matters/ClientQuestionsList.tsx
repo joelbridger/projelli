@@ -1,6 +1,6 @@
 // src/features/matters/ClientQuestionsList.tsx
 import { useState } from 'react';
-import { Card, Eyebrow } from '@/ui/kp';
+import { Eyebrow } from '@/ui/kp';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import type { ClientQuestion } from '@/platform/clientMap/types';
 
@@ -45,7 +45,7 @@ export function ClientQuestionsList({ matterId }: ClientQuestionsListProps) {
   }
 
   return (
-    <Card variant="raised" data-testid="clientmap-client-questions">
+    <div data-testid="clientmap-client-questions" style={{ marginTop: 'var(--kp-space-xl)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <Eyebrow>{LABEL_HEADING}</Eyebrow>
         {questions.length > 0 && (
@@ -82,7 +82,7 @@ export function ClientQuestionsList({ matterId }: ClientQuestionsListProps) {
           ))}
         </ul>
       )}
-    </Card>
+    </div>
   );
 }
 
