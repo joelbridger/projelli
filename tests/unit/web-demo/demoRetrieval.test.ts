@@ -1,5 +1,17 @@
-import { describe, it, expect } from 'vitest';
-import { createDemoRetriever, type DemoFile } from '@/web-demo/demoRetrieval';
+import { describe, it, expect, afterEach } from 'vitest';
+import {
+  createDemoRetriever,
+  installDemoRetrieval,
+  toWorkspacePath,
+  type DemoFile,
+} from '@/web-demo/demoRetrieval';
+import {
+  MemoryService,
+  setMatterResolver,
+  resetMatterResolver,
+  resetRetrievalBackend,
+} from '@/platform/rag/MemoryService';
+import { DEMO_WORKSPACE_ROOT } from '@/web-demo/WebDemoSeeder';
 import type { RetrievalScope } from '@/platform/utils/tauri-commands';
 
 const WEBB = 'matter_demo_webb';
@@ -111,5 +123,66 @@ describe('createDemoRetriever', () => {
       expect(Number.isInteger(h.paragraphIndex)).toBe(true);
       expect(h.paragraphIndex).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe('toWorkspacePath', () => {
+  it('prefixes a raw sample path with the workspace root', () => {
+    expect(toWorkspacePath('/Webb Household/Financial Plan Summary.md', '/keepance-demo')).toBe(
+      '/keepance-demo/Webb Household/Financial Plan Summary.md',
+    );
+    expect(toWorkspacePath('README.md', '/keepance-demo')).toBe('/keepance-demo/README.md');
+  });
+  it('is idempotent for an already-rooted path', () => {
+    expect(toWorkspacePath('/keepance-demo/Webb Household/x.md', '/keepance-demo')).toBe(
+      '/keepance-demo/Webb Household/x.md',
+    );
+  });
+});
+
+// Regression for the path-mismatch blocker (Codex): the RAW sample paths must be
+// normalised to the workspace root so they line up with the matter folder
+// mapping; otherwise a client-scoped Ask returns zero hits.
+describe('installDemoRetrieval end-to-end (raw sample shape + real Webb mapping)', () => {
+  afterEach(() => {
+    resetRetrievalBackend();
+    resetMatterResolver();
+  });
+
+  // RAW paths exactly as they appear in sample-workspace-advisor.json (NO root).
+  const RAW_FILES: DemoFile[] = [
+    {
+      path: '/Webb Household/Financial Plan Summary.md',
+      content:
+        '# Financial Plan Summary: Webb Household\n\n' +
+        'Goals: retire at 60, fund both kids college.\n\n' +
+        'Marcus 401(k): $412,000, contributing 12% plus a 4% match.',
+    },
+    { path: '/README.md', content: '# Demo workspace\n\nReadme for the seeded demo.' },
+  ];
+
+  // The real Webb folder mapping from seedWebDemoClientMap: matter scoped to
+  // `/keepance-demo/Webb Household`.
+  const WEBB_DIR = `${DEMO_WORKSPACE_ROOT}/Webb Household`;
+  function realResolver(path: string): string {
+    return path === WEBB_DIR || path.startsWith(`${WEBB_DIR}/`) ? WEBB : 'unassigned';
+  }
+
+  it('a Webb-scoped query returns Webb hits (root-prefixed paths), not zero', async () => {
+    setMatterResolver(realResolver);
+    installDemoRetrieval(RAW_FILES, DEMO_WORKSPACE_ROOT);
+    const hits = await MemoryService.retrieve('retire 401k goals', 10, WEBB_SCOPE);
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((h) => h.matterId === WEBB)).toBe(true);
+    // Paths are root-prefixed so the file viewer can open the source chip.
+    expect(hits.every((h) => h.path.startsWith(`${DEMO_WORKSPACE_ROOT}/`))).toBe(true);
+    expect(hits.some((h) => h.path === `${WEBB_DIR}/Financial Plan Summary.md`)).toBe(true);
+  });
+
+  it('the unassigned README never leaks into a Webb-scoped query', async () => {
+    setMatterResolver(realResolver);
+    installDemoRetrieval(RAW_FILES, DEMO_WORKSPACE_ROOT);
+    const hits = await MemoryService.retrieve('demo readme workspace', 10, WEBB_SCOPE);
+    expect(hits.some((h) => h.path.endsWith('/README.md'))).toBe(false);
   });
 });

@@ -26,6 +26,16 @@ import { WebFSBackend } from '@/platform/fs/WebFSBackend';
 const SEED_FLAG_KEY = '__keepance_demo_seeded';
 const SEED_VERSION_KEY = '__keepance_demo_seed_version';
 
+/**
+ * The workspace root the demo files actually live under in the app. The seeder
+ * writes the raw sample paths (`/Webb Household/...`) into an OPFS directory
+ * mounted at this root, so the app — and the matter folder mappings (e.g. the
+ * Webb matter is scoped to `/keepance-demo/Webb Household`) — see them
+ * root-prefixed. The browser retriever must index the same root-prefixed paths
+ * or matter-scoped retrieval would mark every file `unassigned` and drop it.
+ */
+export const DEMO_WORKSPACE_ROOT = '/keepance-demo';
+
 export type DemoProfession = 'advisor' | 'legal' | 'tax' | 'consulting';
 
 interface SampleFile {
@@ -95,7 +105,7 @@ export async function seedWebDemoWorkspace(): Promise<{
 
   let demoDir: FileSystemDirectoryHandle;
   try {
-    demoDir = await opfsRoot.getDirectoryHandle('keepance-demo', { create: true });
+    demoDir = await opfsRoot.getDirectoryHandle(DEMO_WORKSPACE_ROOT.replace(/^\//, ''), { create: true });
   } catch (err) {
     console.warn('[WebDemoSeeder] failed to create demo directory', err);
     return { backend: null, seeded: false, profession, reason: 'opfs-mkdir-failed' };
@@ -103,7 +113,7 @@ export async function seedWebDemoWorkspace(): Promise<{
 
   const backend = new WebFSBackend();
   backend.setRootHandle(demoDir);
-  await backend.setRootPath('/keepance-demo');
+  await backend.setRootPath(DEMO_WORKSPACE_ROOT);
 
   const alreadySeeded = readSeedFlag();
   const seededVersion = readSeedVersion();

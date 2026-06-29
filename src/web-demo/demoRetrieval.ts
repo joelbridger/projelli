@@ -35,6 +35,21 @@ export interface DemoFile {
   content: string;
 }
 
+/**
+ * Normalise a raw sample path (`/Webb Household/Financial Plan Summary.md`) to
+ * the workspace-root-prefixed path the app and the matter folder mappings use
+ * (`/keepance-demo/Webb Household/Financial Plan Summary.md`). Without this,
+ * `resolveMatterForPath` marks every seeded file `unassigned` and a
+ * client-scoped Ask returns zero hits (and source chips would point outside the
+ * workspace root and fail to open). Idempotent: a path already under the root is
+ * returned unchanged.
+ */
+export function toWorkspacePath(rawPath: string, root: string): string {
+  const p = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+  if (p === root || p.startsWith(`${root}/`)) return p;
+  return `${root}${p}`;
+}
+
 /** One indexed paragraph chunk of a file. */
 interface DemoChunk {
   /** Numeric id MiniSearch needs as its document key. */
@@ -153,9 +168,15 @@ export function createDemoRetriever(
  * Build a retriever over the seeded demo files and install it as the
  * MemoryService retrieval backend. Called once from the web-demo bootstrap after
  * the workspace is seeded, so the first Ask query already has a working index.
+ *
+ * `root` is the workspace root the files actually live under (e.g.
+ * `/keepance-demo`); the raw sample paths are normalised to it so chunk paths
+ * line up with the matter folder mappings (matter-scoped retrieval) and with the
+ * file viewer (clickable source chips).
  */
-export function installDemoRetrieval(files: DemoFile[]): void {
-  const retriever = createDemoRetriever(files);
+export function installDemoRetrieval(files: DemoFile[], root: string): void {
+  const normalized = files.map((f) => ({ ...f, path: toWorkspacePath(f.path, root) }));
+  const retriever = createDemoRetriever(normalized);
   setRetrievalBackend((query, topK, scope, includePrivileged, perSourceCap, enableReranker, enableHybridSearch) =>
     retriever.retrieve(query, topK, scope, includePrivileged, perSourceCap, enableReranker, enableHybridSearch),
   );
