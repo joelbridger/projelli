@@ -68,7 +68,7 @@ export const JOURNEY_STRINGS = {
 
       card1: {
         title: 'Use your own AI account',
-        badge: 'Best for legal work',
+        badge: 'Best for advisors',
         body: 'Connect your Claude, OpenAI, or Gemini account. Your questions go straight to them with your key, never through us.',
         /** Fallback cost line shown when no profession is set in data yet. */
         costFallback: 'Most people pay about $2 to $5 a month, to the AI company, not to us.',
