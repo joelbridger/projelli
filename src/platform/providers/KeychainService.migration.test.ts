@@ -12,9 +12,10 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 import { migrateLocalStorageApiKeysToKeychain } from './KeychainService';
 
-const MIGRATION_SENTINEL = 'keepance_apikeys_migrated_v1';
+const MIGRATION_SENTINEL = 'keepance_apikeys_migrated_v2';
 const KEYCHAIN_ID = 'com.keepance.app::bos_key_anthropic';
 const LEGACY_KEY = 'apiKey_anthropic';
+const MATERIAL_KEY = 'bos_key_anthropic';
 const VALID_ANTHROPIC_KEY = 'sk-ant-api03-abcdefghijklmnopqrstuvwx';
 
 const keychainStore = new Map<string, string>();
@@ -50,8 +51,10 @@ describe('migrateLocalStorageApiKeysToKeychain', () => {
     mockKeychainInvoke();
   });
 
-  it('writes legacy localStorage API keys to the OS keychain, verifies them, then removes localStorage copies', async () => {
-    localStorage.setItem(LEGACY_KEY, btoa(VALID_ANTHROPIC_KEY));
+  it('writes RAW legacy plaintext keys (the real-world format) to the OS keychain, then removes them', async () => {
+    // The old useApiKeys hook stored the RAW key — NOT base64. This is the
+    // case the v1 migration silently skipped (atob throws on the "-").
+    localStorage.setItem(LEGACY_KEY, VALID_ANTHROPIC_KEY);
 
     await migrateLocalStorageApiKeysToKeychain();
 
@@ -64,10 +67,46 @@ describe('migrateLocalStorageApiKeysToKeychain', () => {
       key: 'bos_key_anthropic',
       value: VALID_ANTHROPIC_KEY,
     });
-    expect(invokeMock).toHaveBeenCalledWith('keychain_get', {
+  });
+
+  it('also migrates base64-encoded legacy values (older hypothetical build)', async () => {
+    localStorage.setItem(LEGACY_KEY, btoa(VALID_ANTHROPIC_KEY));
+
+    await migrateLocalStorageApiKeysToKeychain();
+
+    expect(keychainStore.get(KEYCHAIN_ID)).toBe(VALID_ANTHROPIC_KEY);
+    expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
+    expect(localStorage.getItem(MIGRATION_SENTINEL)).toBe('true');
+    expect(invokeMock).toHaveBeenCalledWith('keychain_set', {
       service: undefined,
       key: 'bos_key_anthropic',
+      value: VALID_ANTHROPIC_KEY,
     });
+  });
+
+  it('migrates raw plaintext to base64 localStorage in browser mode (no Tauri keychain)', async () => {
+    isTauriMock.mockReturnValue(false);
+    localStorage.setItem(LEGACY_KEY, VALID_ANTHROPIC_KEY);
+
+    await migrateLocalStorageApiKeysToKeychain();
+
+    // No OS keychain in the browser — material lands in base64 localStorage...
+    expect(invokeMock).not.toHaveBeenCalled();
+    expect(localStorage.getItem(MATERIAL_KEY)).toBe(btoa(VALID_ANTHROPIC_KEY));
+    // ...and the raw plaintext entry is gone.
+    expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
+    expect(localStorage.getItem(MIGRATION_SENTINEL)).toBe('true');
+  });
+
+  it('clears the obsolete v1 sentinel after a clean v2 run', async () => {
+    localStorage.setItem('keepance_apikeys_migrated_v1', 'true');
+    localStorage.setItem(LEGACY_KEY, VALID_ANTHROPIC_KEY);
+
+    await migrateLocalStorageApiKeysToKeychain();
+
+    expect(localStorage.getItem('keepance_apikeys_migrated_v1')).toBeNull();
+    expect(localStorage.getItem(MIGRATION_SENTINEL)).toBe('true');
+    expect(keychainStore.get(KEYCHAIN_ID)).toBe(VALID_ANTHROPIC_KEY);
   });
 
   it('is a no-op after the migration sentinel is set', async () => {

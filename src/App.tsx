@@ -331,8 +331,18 @@ function App() {
   }, [contentIndex.upsert]);
   useMailSync({ onMailChunk: handleMailChunk });
 
-  // API key management
-  const { apiKeys, handleSaveApiKey: rawSaveApiKey, handleDeleteApiKey } = useApiKeys();
+  // Shared KeychainService for every API-key surface: the first-run wizard's
+  // "connect an AI" step, the "Manage AI Account Keys" manager, AND the live
+  // in-memory key state (useApiKeys). One instance keeps the key metadata
+  // consistent across all of them. KeychainService.setKey/getKey/deleteKey use
+  // the OS keychain in Tauri and obfuscated localStorage in browser-only dev —
+  // the raw key is NEVER written to plain localStorage.
+  const keychainRef = useRef(createKeychainService());
+
+  // API key management — all persistence routes through the shared keychain.
+  const { apiKeys, handleSaveApiKey: rawSaveApiKey, handleDeleteApiKey } = useApiKeys(
+    keychainRef.current
+  );
 
   // Model list auto-fetching
   const validKeyEntries = useMemo(
@@ -341,46 +351,42 @@ function App() {
   );
   const { refreshProvider } = useModelList(validKeyEntries);
 
-  // Wrap API key handlers to also update model lists
+  // Wrap the API key save handler to also refresh the model list. The save
+  // itself persists through the shared keychain (useApiKeys.handleSaveApiKey),
+  // so a bad-format / rejected key throws here and propagates to the caller.
   const handleSaveApiKey = useCallback(
-    (provider: 'anthropic' | 'openai' | 'google', key: string) => {
-      rawSaveApiKey(provider, key);
+    async (provider: 'anthropic' | 'openai' | 'google', key: string) => {
+      await rawSaveApiKey(provider, key);
       refreshProvider(provider, key);
     },
     [rawSaveApiKey, refreshProvider]
   );
 
-
-  // Shared KeychainService for the first-run wizard's "connect an AI" step.
-  // This is the same secure-storage path ApiKeySettings/ApiKeyWizard use
-  // (KeychainService.setKey: OS keychain in Tauri, obfuscated localStorage in
-  // the browser). Created once for the app lifetime.
-  const keychainRef = useRef(createKeychainService());
-
+  // One-time cleanup: move any legacy plaintext `apiKey_<provider>` entries
+  // written by older builds into the keychain, then delete the plaintext.
   useEffect(() => {
     void migrateLocalStorageApiKeysToKeychain();
   }, []);
 
   // Persist a key entered during onboarding through the canonical keychain
-  // path, then mirror it into the live API-key state + model list so the AI
-  // pane sees the connected provider immediately (no parallel state — we reuse
-  // both the keychain and the existing handleSaveApiKey wiring). A bad-format
-  // key throws here so the wizard's AI step surfaces the error and stays put.
+  // path (single secure write — no plaintext mirror) and reflect it in the
+  // live API-key state + model list so the AI pane sees the connected provider
+  // immediately. A bad-format key throws here so the wizard's AI step surfaces
+  // the error and stays put.
   const handleSaveOnboardingApiKey = useCallback(
     async (provider: 'anthropic' | 'openai' | 'google', key: string) => {
-      await keychainRef.current.setKey(provider, key);
-      handleSaveApiKey(provider, key);
+      await handleSaveApiKey(provider, key);
     },
     [handleSaveApiKey]
   );
 
   // After "Manage AI Account Keys" removes a key from the keychain, clear the
-  // mirrored live API-key state (the `apiKey_<provider>` localStorage entry +
-  // the in-memory apiKeys array) so the AI pane immediately stops offering that
-  // provider. The keychain deletion itself happens inside ApiKeyManager.
+  // mirrored in-memory apiKeys array so the AI pane immediately stops offering
+  // that provider. handleDeleteApiKey also removes it from the keychain (an
+  // idempotent no-op if the manager already deleted it).
   const handleRemoveApiKey = useCallback(
     (provider: 'anthropic' | 'openai' | 'google') => {
-      handleDeleteApiKey(provider);
+      void handleDeleteApiKey(provider);
     },
     [handleDeleteApiKey]
   );

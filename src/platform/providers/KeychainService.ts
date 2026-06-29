@@ -8,7 +8,13 @@ export type KeyProvider = 'anthropic' | 'openai' | 'google';
 
 const KEY_PROVIDERS: KeyProvider[] = ['anthropic', 'openai', 'google'];
 const LEGACY_API_KEY_PREFIX = 'apiKey_';
-const API_KEY_MIGRATION_SENTINEL = 'keepance_apikeys_migrated_v1';
+// v2 supersedes v1: the v1 migration assumed the legacy value was base64 and
+// ran on desktop only, so it silently skipped the real-world RAW plaintext keys
+// (atob throws on the `-` in `sk-ant-`/`sk-` keys) and left them in localStorage.
+// v2 handles both raw and base64 legacy values and runs in the browser too, so
+// it must re-run once for everyone — hence a fresh sentinel.
+const API_KEY_MIGRATION_SENTINEL_V1 = 'keepance_apikeys_migrated_v1';
+const API_KEY_MIGRATION_SENTINEL = 'keepance_apikeys_migrated_v2';
 const KEYCHAIN_METADATA_KEY = 'bos_key_metadata';
 
 export interface StoredKey {
@@ -238,40 +244,71 @@ function upsertStoredKeyMetadata(provider: KeyProvider, key: string): void {
   saveStoredKeyMetadata(metadata);
 }
 
+/** Does this string plausibly look like a real key for the given provider? */
+function looksLikeProviderKey(provider: KeyProvider, key: string): boolean {
+  if (key.length < 20) return false;
+  switch (provider) {
+    case 'anthropic':
+      return key.startsWith('sk-ant-');
+    case 'openai':
+      return key.startsWith('sk-');
+    case 'google':
+      // Google AI keys have no stable prefix; the length check above is enough.
+      return true;
+  }
+}
+
 /**
- * One-time desktop migration for API keys saved by older builds under
- * `apiKey_<provider>` in renderer localStorage.
+ * Decode a legacy `apiKey_<provider>` value. The real legacy writer (the old
+ * useApiKeys hook) stored the RAW key; a hypothetical even-older build may have
+ * base64-encoded it. Prefer the interpretation that looks like a real key, and
+ * default to the raw value so we never lose or corrupt a user's credential.
+ */
+function decodeLegacyApiKey(provider: KeyProvider, stored: string): string {
+  if (looksLikeProviderKey(provider, stored)) return stored;
+  try {
+    const decoded = atob(stored);
+    if (looksLikeProviderKey(provider, decoded)) return decoded;
+  } catch {
+    // Not base64 — fall through to the raw value.
+  }
+  return stored;
+}
+
+/**
+ * One-time migration for API keys saved by older builds under
+ * `apiKey_<provider>` in renderer localStorage. Moves them into the keychain
+ * (the OS keychain on desktop, base64-obfuscated localStorage in the browser)
+ * and deletes the plaintext copy. Runs on both desktop and browser so no raw
+ * key is ever left sitting in plain localStorage. Sentinel-gated so it runs at
+ * most once per install; if any key fails to migrate the sentinel is withheld
+ * so the next launch retries.
  */
 export async function migrateLocalStorageApiKeysToKeychain(): Promise<void> {
-  if (!isTauri()) return;
   if (typeof localStorage === 'undefined') return;
   if (localStorage.getItem(API_KEY_MIGRATION_SENTINEL)) return;
 
-  const backend = new TauriKeychainBackend();
+  const backend: KeyStorageBackend = isTauri()
+    ? new TauriKeychainBackend()
+    : new LocalStorageBackend();
   let migrationComplete = true;
 
   for (const provider of KEY_PROVIDERS) {
     const legacyStorageKey = `${LEGACY_API_KEY_PREFIX}${provider}`;
-    const encodedKey = localStorage.getItem(legacyStorageKey);
-    if (encodedKey === null) continue;
+    const stored = localStorage.getItem(legacyStorageKey);
+    if (stored === null) continue;
 
-    let decodedKey: string;
-    try {
-      decodedKey = atob(encodedKey);
-    } catch {
-      migrationComplete = false;
-      continue;
-    }
+    const key = decodeLegacyApiKey(provider, stored);
 
     try {
-      await backend.set(provider, decodedKey);
+      await backend.set(provider, key);
       const verifiedKey = await backend.get(provider);
-      if (verifiedKey !== decodedKey) {
+      if (verifiedKey !== key) {
         migrationComplete = false;
         continue;
       }
 
-      upsertStoredKeyMetadata(provider, decodedKey);
+      upsertStoredKeyMetadata(provider, key);
       localStorage.removeItem(legacyStorageKey);
     } catch {
       migrationComplete = false;
@@ -280,6 +317,8 @@ export async function migrateLocalStorageApiKeysToKeychain(): Promise<void> {
 
   if (migrationComplete) {
     localStorage.setItem(API_KEY_MIGRATION_SENTINEL, 'true');
+    // The v1 sentinel is obsolete once v2 has run cleanly.
+    localStorage.removeItem(API_KEY_MIGRATION_SENTINEL_V1);
   }
 }
 
