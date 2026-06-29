@@ -11,16 +11,16 @@ Status legend: ⬜ todo · 🟦 in-progress · ✅ done · 🚩 done-with-flag �
 |---|---|---|---|
 | 1 | Demo client files `.md`/`.aichat` → realistic **PDFs + Word docs** | ✅ | Webb folder is now `Webb Financial Plan.docx`, `Annual Review Notes - June 2026.docx`, `Beneficiary Designations.pdf`, `Client Intake.pdf` (+ root README/About .md = demo chrome). `.docx` generated at seed time from markdown (`markdownToDocxBytes`); `.pdf` are committed assets (headless-Chrome from `src/web-demo/sample-docs/*.html`, regen `node scripts/build-demo-pdfs.mjs`). Retriever still indexes the text. **Live-verified:** OPFS holds the 4 real binaries (no .md/.aichat), `.docx` renders in docx-preview, 0 console errors. `Plan review.aichat` removed (see flags). |
 | 2 | Show safety behaviors: Ask **refusing** + **click a citation through to the real source** | ✅ | Refusal already real (BUG-016 gate → "I couldn't find anything about that in your documents."); added a calm "this is on purpose — I only answer from your files" note (TurnBlock) instead of the red "verify" warning. Added a deliberately out-of-scope demo question ("Do the Webbs have any life insurance?") so the refusal is one click. **Live-verified:** clicking the stale-beneficiary chip opens `Beneficiary Designations.pdf`; clicking a plan chip opens & renders `Webb Financial Plan.docx`; all 4 Webb question chips render. (Live-model refusal needs the demo proxy — governed by the existing tested gate + askPrompt.) |
-| 3 | Reframe connect-data: "bring your files however they live — connectors are a bonus" | 🚩 | **FLAGGED — not yet edited.** Lives in `src/features/onboarding/v2/scenes/ConnectScene.tsx` + `copy.ts` — **collision risk with the `feat/onboarding-journey` session.** Needs coordinator go-ahead before I touch onboarding. |
+| 3 | Reframe connect-data: "bring your files however they live — connectors are a bonus" | ⏭️ | **SKIPPED by coordinator decision (2026-06-29):** routed to the `feat/onboarding-journey` session, which owns the onboarding `ConnectScene.tsx` + `copy.ts`. Not touched here by design. |
 | 4 | REMOVE privacy-contradicting artifacts | ⏭️ | **OPTED OUT by Jameson.** |
 | 5 | One-line coverage caveat near beneficiary catch | ✅ | Added to the Client Map "What I'm still missing" completeness panel (`ClientMapPanel.tsx`): "Built from the files Keepance can read — a head-start for your review, not a guarantee the whole record is complete." **Live-verified** rendering. |
-| 6 | Open-the-folder data-ownership proof | 🚩 | The "show the real Word/PDF files" half is delivered by #1 (file tree now shows real binaries) + existing copy (README + `DataMapDialog`: "a normal folder on your own hard drive… opens and edits those files in place"). **FLAGGED:** a literal OS "Reveal in folder" is desktop-only (web-demo OPFS can't be revealed) and no such affordance exists — recommend a desktop follow-up + recording that beat on the desktop app for the video. |
+| 6 | Open-the-folder data-ownership proof | ✅ | **Accepted as delivered (coordinator, 2026-06-29):** the valuable half — real Word/PDF files visibly in the tree — is delivered by #1, plus existing copy (README + `DataMapDialog`: "a normal folder on your own hard drive… opens and edits those files in place"). The literal OS "Reveal in folder" is a desktop/video beat, not a web-demo task. |
 | 7 | Visible client boundary ("Webb household only") | ✅ | Persistent neutral badge in the Client Map header (`MatterHub.tsx`): "👥 Webb Household only" (generic `{matter.name} only`, with a tooltip about matter isolation). **Live-verified.** Renders for every client (desktop too) — flagged for Codex/desktop-safety review. |
 | 8 | Two-trust-modes line (Ask cited vs Workflows drafted) | ✅ | Demo-only intro on the empty Ask surface: "Answers here are cited to your files… For drafting documents, use Workflows, and check current-year figures before you send." Gated `IS_DEMO` so desktop's clean empty Ask is untouched. **Live-verified.** |
 | 9 | Close: lead ROI with risk-avoidance | ✅ | `DemoExitModal` retitled "What's one caught mistake worth?" + body leads with the caught stale-beneficiary risk before productivity. (Shows on demo limit; copy verified by typecheck/lint; not force-opened in live run.) |
 | 10 | Keep ONE line that private/on-device AI exists | ⏭️ | **OPTED OUT by Jameson.** |
-| 11 | Lead Workflows with ~3 advisor workflows | ✅ | **Built by Codex**, reviewed by me: Advisors category leads with Annual Review Packet · Meeting Prep & Suitability Notes · Reg S-P Safeguards, then "Show all (7)". 18 workflow tests pass. **Live-verified.** Flag: advisor view still lists Tax/Consulting packs below (separate decision — see flags). |
-| 12 | Connector honesty matrix + read-only labels | 🚩 | **FLAGGED — not yet edited.** Same surface as #3 (ConnectScene/connector components) — collision risk with `feat/onboarding-journey`. OneDrive already has a read-only label; needs coordinator go-ahead. |
+| 11 | Lead Workflows with ~3 advisor workflows | ✅ | **Built by Codex**, reviewed by me: Advisors category leads with Annual Review Packet · Meeting Prep & Suitability Notes · Reg S-P Safeguards, then "Show all (7)". 18 workflow tests pass. **Live-verified.** Coordinator (2026-06-29): **keep Tax/Consulting listed below** (advisor-first but not exclusive) — shared logic/tests left untouched. |
+| 12 | Connector honesty matrix + read-only labels | ⏭️ | **SKIPPED by coordinator decision (2026-06-29):** same onboarding surface as #3; routed to the `feat/onboarding-journey` session. Not touched here. (OneDrive already carries a read-only label today.) |
 | 13 | Negative-space line (not a CRM/note-taker/planning tool) | ✅ | Demo-only Ask intro (with #8): "Keepance isn't a CRM or a note-taker. It sits beside your tools and reads across your files." **Live-verified.** Wording is brand-adjacent — flagged for brand alignment. |
 | 14 | Roadmap items | ⏭️ | Roadmap, not demo edits. |
 
@@ -33,11 +33,17 @@ Status legend: ⬜ todo · 🟦 in-progress · ✅ done · 🚩 done-with-flag �
 - Design system = design session (MERGED) — added content/UX/copy only, no restyle (reused Badge/Chip/tokens).
 - Web-demo Ask wiring = `demo-live-ai` (MERGED) — built on it.
 - `feat/branding-system` owns global brand strings — #13 (and #8/#9 marketing-ish copy) wording flagged for brand alignment; no global product-name/tagline hardcoded.
-- **`feat/onboarding-journey` overlaps #3 + #12 (ConnectScene/onboarding) — deferred pending coordinator.**
+- **`feat/onboarding-journey` owns #3 + #12 (ConnectScene/onboarding) — SKIPPED here per coordinator; not touched.**
 
-## Observations for coordinator
-- **#11 follow-up:** the advisor Workflows view leads with the 3 advisor templates but still shows full Tax/Consulting sections below. Hiding non-advisor verticals for the advisor profession would make it more focused (board direction: simple, AI-first) but touches shared `prioritizeByProfession` + its tests — recommend as a separate scoped change.
-- **PDF pixel-rendering** can't be screenshotted in headless Chromium (no bundled PDFium); the PDFs themselves are valid (verified via pdftoppm) and open in the real PDF viewer. Recommend a final live-model + PDF smoke in a real browser before the video.
+## Coordinator decisions (final, 2026-06-29)
+- **#3 + #12 → SKIPPED here**, routed to the `feat/onboarding-journey` session (it owns the onboarding ConnectScene). This worktree does not touch onboarding.
+- **#6 → accepted as delivered** (real files in the tree is the valuable half; OS "reveal in folder" is a desktop/video beat).
+- **#11 → keep Tax/Consulting listed below** the 3 advisor workflows (advisor-first, not exclusive). Shared `prioritizeByProfession` logic/tests left untouched.
+- **#7 → keep the boundary badge app-wide** (always-on "this client only" isolation/trust cue).
+- **#8/#9/#13 → keep the demo-scoped copy as-is**; the branding session will centralize global strings later. Nothing hardcoded globally here.
+
+## Note for the final video smoke
+- **PDF pixel-rendering** can't be screenshotted in headless Chromium (no bundled PDFium); the PDFs themselves are valid (verified via pdftoppm) and open in the real PDF viewer. The **live-model refusal** needs the demo proxy (works in the deployed demo; not exercisable from a local static server). Recommend a final live-model + PDF smoke in a real browser before recording.
 
 ## Independent Codex review — done, all findings fixed
 Codex (gpt-5.5) reviewed the full diff and raised **3 P2 findings, all valid, all now fixed** (re-verified green):
