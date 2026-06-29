@@ -199,6 +199,12 @@ pub async fn sync_with_key(
         }
 
         let record = source.household_record(&entity).await?;
+        // Re-check AFTER the awaited fetch: Stop may have fired while this request
+        // was in flight, after the loop's top-of-iteration check already passed.
+        if cancel.load(Ordering::SeqCst) {
+            report.cancelled = true;
+            break;
+        }
         let (source_id, text) = render_household_record(&record);
         items.push(AddeparIndexItem {
             source_id,
@@ -208,7 +214,11 @@ pub async fn sync_with_key(
         report.households_processed += 1;
     }
 
-    if report.cancelled {
+    // Re-check again right before any index mutation / prune, so a cancellation
+    // that landed after the last fetch (or during list_entities) cannot let a
+    // cancelled run index or prune.
+    if report.cancelled || cancel.load(Ordering::SeqCst) {
+        report.cancelled = true;
         return Ok(report);
     }
     report.records_indexed = apply_index_with_key(workspace, &items, rag_key).await?;
@@ -447,5 +457,73 @@ mod tests {
         assert_eq!(r2.pruned, 1);
         assert!(addepar_chunk_exists(workspace.path(), "matter-alpha").await);
         assert!(!addepar_chunk_exists(workspace.path(), "matter-beta").await);
+    }
+
+    /// Flips the shared cancel flag while a household_record fetch is in flight,
+    /// simulating Stop pressed after the loop's top-of-iteration check.
+    struct CancellingAddeparSource {
+        entities: Vec<AddeparEntity>,
+        cancel: std::sync::Arc<AtomicBool>,
+    }
+
+    #[async_trait]
+    impl AddeparSource for CancellingAddeparSource {
+        async fn list_entities(&self) -> anyhow::Result<Vec<AddeparEntity>> {
+            Ok(self.entities.clone())
+        }
+        async fn household_record(
+            &self,
+            entity: &AddeparEntity,
+        ) -> anyhow::Result<AddeparHouseholdRecord> {
+            self.cancel.store(true, Ordering::SeqCst);
+            Ok(fake_household_record(&entity.id, &entity.name()))
+        }
+    }
+
+    #[tokio::test]
+    async fn cancel_during_fetch_does_not_index_or_prune() {
+        // Guard timing: if Stop fires during an in-flight record fetch, the run
+        // must not index and must not prune the (vanished) household's chunks.
+        if !model_is_provisioned() {
+            eprintln!("SKIP addepar cancel-timing test: e5-small model cache not provisioned");
+            return;
+        }
+        let workspace = tempfile::TempDir::new().unwrap();
+        let rag_key = [0x73u8; 32];
+        let map = vec![
+            AddeparMatterMapEntry {
+                addepar_key: "111".into(),
+                matter_id: "matter-alpha".into(),
+            },
+            AddeparMatterMapEntry {
+                addepar_key: "222".into(),
+                matter_id: "matter-beta".into(),
+            },
+        ];
+
+        // Seed: index household 222 with a normal sync.
+        let seed = FakeAddeparSource {
+            entities: vec![entity("222", "Beta House")],
+        };
+        sync_with_key(&seed, workspace.path(), &map, &AtomicBool::new(false), &rag_key)
+            .await
+            .unwrap();
+        assert!(addepar_chunk_exists(workspace.path(), "matter-beta").await);
+
+        // Cancelled sync: 222 has vanished and Stop fires during 111's fetch.
+        let cancel = std::sync::Arc::new(AtomicBool::new(false));
+        let source = CancellingAddeparSource {
+            entities: vec![entity("111", "Alpha House")],
+            cancel: cancel.clone(),
+        };
+        let report = sync_with_key(&source, workspace.path(), &map, &cancel, &rag_key)
+            .await
+            .unwrap();
+
+        assert!(report.cancelled);
+        assert_eq!(report.records_indexed, 0);
+        assert_eq!(report.pruned, 0);
+        // 222's chunks survive: a cancelled run must not prune.
+        assert!(addepar_chunk_exists(workspace.path(), "matter-beta").await);
     }
 }

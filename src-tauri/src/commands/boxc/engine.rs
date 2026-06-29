@@ -93,7 +93,7 @@ fn path_prefix_matches(path: &str, folder: &str) -> bool {
 }
 
 pub async fn list_folders(source: &dyn BoxSource) -> anyhow::Result<Vec<BoxFolderDto>> {
-    let (folders, _) = crawl(source, &AtomicBool::new(false), &AtomicU32::new(0)).await?;
+    let (folders, _, _) = crawl(source, &AtomicBool::new(false), &AtomicU32::new(0)).await?;
     Ok(folders
         .into_iter()
         .filter(|f| f.id != ROOT_FOLDER_ID)
@@ -119,7 +119,13 @@ pub async fn sync_documents(
     let conn = rag_store::open_connection(workspace).await?;
     let table = rag_store::open_or_create_table(&conn).await?;
 
-    let (_, files) = crawl(source, cancel, progress).await?;
+    let (_, files, crawl_cancelled) = crawl(source, cancel, progress).await?;
+    // If Stop was pressed mid-crawl, the file list is partial/empty. Mark the run
+    // cancelled so the stale-prune block below is skipped — otherwise a partial
+    // crawl would delete every previously-active Box source not seen this run.
+    if crawl_cancelled {
+        report.cancelled = true;
+    }
     let mut seen_source_ids = HashSet::new();
     let mut pending_downloads = Vec::new();
 
@@ -310,9 +316,10 @@ async fn crawl(
     source: &dyn BoxSource,
     cancel: &AtomicBool,
     progress: &AtomicU32,
-) -> anyhow::Result<(Vec<CrawlFolder>, Vec<BoxFileItem>)> {
+) -> anyhow::Result<(Vec<CrawlFolder>, Vec<BoxFileItem>, bool)> {
     let mut folders = Vec::new();
     let mut files = Vec::new();
+    let mut cancelled = false;
     let root = CrawlFolder {
         id: ROOT_FOLDER_ID.to_string(),
         name: "All files".to_string(),
@@ -322,6 +329,7 @@ async fn crawl(
     let mut stack = vec![root];
     while let Some(folder) = stack.pop() {
         if cancel.load(Ordering::SeqCst) {
+            cancelled = true;
             break;
         }
         progress.fetch_add(1, Ordering::SeqCst);
@@ -347,7 +355,7 @@ async fn crawl(
             }
         }
     }
-    Ok((folders, files))
+    Ok((folders, files, cancelled))
 }
 
 #[cfg(test)]
@@ -645,5 +653,98 @@ mod tests {
         .expect("second sync");
         assert_eq!(report2.unsupported, 1);
         assert!(!box_chunk_exists(workspace.path(), "matter-acme").await);
+    }
+
+    /// A source that flips the shared cancel flag the moment the crawl asks for
+    /// folder contents, simulating Stop pressed mid-crawl. It returns a subfolder
+    /// for the root so the crawl loops once more and observes the cancellation.
+    struct CancellingBoxSource {
+        cancel: std::sync::Arc<AtomicBool>,
+    }
+
+    #[async_trait]
+    impl BoxSource for CancellingBoxSource {
+        async fn get_folder(&self, folder_id: &str) -> anyhow::Result<BoxFolder> {
+            Ok(BoxFolder {
+                id: folder_id.to_string(),
+                name: folder_id.to_string(),
+                item_type: "folder".to_string(),
+                ..Default::default()
+            })
+        }
+        async fn get_file(
+            &self,
+            file_id: &str,
+        ) -> anyhow::Result<crate::commands::boxc::model::BoxFile> {
+            Ok(crate::commands::boxc::model::BoxFile {
+                id: file_id.to_string(),
+                name: file_id.to_string(),
+                item_type: "file".to_string(),
+                ..Default::default()
+            })
+        }
+        async fn list_folder_items(&self, folder_id: &str) -> anyhow::Result<Vec<BoxItem>> {
+            self.cancel.store(true, Ordering::SeqCst);
+            if folder_id == ROOT_FOLDER_ID {
+                Ok(vec![folder("sub", "Subfolder")])
+            } else {
+                Ok(vec![])
+            }
+        }
+        async fn download_content(&self, _file_id: &str) -> anyhow::Result<Vec<u8>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[tokio::test]
+    async fn cancel_mid_crawl_does_not_prune_existing_sources() {
+        // Guard timing: a Stop pressed while the crawl is still walking folders
+        // must NOT delete previously-active Box sources (the partial/empty crawl
+        // would otherwise look like "everything vanished").
+        let workspace = TempDir::new().expect("temp workspace");
+        let store = BoxStore::open_with_key(workspace.path(), &[0x35u8; 32]).expect("box store");
+        // Seed a previously-indexed, active Box file from an earlier full sync.
+        store
+            .upsert_item(
+                "box:old-file",
+                "old-file",
+                "memo.txt",
+                "acme",
+                "/clients/acme",
+                None,
+                "sig",
+                "hash",
+                "matter-acme",
+                true,
+                false,
+            )
+            .unwrap();
+        assert!(store
+            .list_active_source_ids()
+            .unwrap()
+            .contains(&"box:old-file".to_string()));
+
+        let cancel = std::sync::Arc::new(AtomicBool::new(false));
+        let report = sync_documents(
+            &CancellingBoxSource {
+                cancel: cancel.clone(),
+            },
+            &store,
+            workspace.path(),
+            &[],
+            &cancel,
+            &[0x66u8; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .expect("sync");
+
+        assert!(report.cancelled);
+        assert_eq!(report.removed, 0);
+        // The previously-active source survives the cancelled/partial crawl.
+        assert!(store
+            .list_active_source_ids()
+            .unwrap()
+            .contains(&"box:old-file".to_string()));
     }
 }
