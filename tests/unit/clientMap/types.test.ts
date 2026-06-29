@@ -60,7 +60,7 @@ describe('clientMap/types', () => {
       score: 0.8,
       paragraphIndex: 0,
       sourceId: '/Clients/Acme/notes.txt',
-      sourceType: 'txt',
+      sourceType: 'text',
     };
 
     expect(sourceRefFromRagHit({ ...base, pageNumber: 0 }).locator).toBeUndefined();
@@ -69,7 +69,7 @@ describe('clientMap/types', () => {
     expect(sourceRefFromRagHit({ ...base, pageNumber: 3 }).locator).toBe('p. 3');
   });
 
-  it('builds an empty-but-valid ClientMap with the six section order', () => {
+  it('builds an empty-but-valid ClientMap with the four-section order', () => {
     const map = emptyClientMap('m1');
     expect(map.matterId).toBe('m1');
     expect(map.sections.map((s) => s.key)).toEqual(CORE_SECTION_ORDER);

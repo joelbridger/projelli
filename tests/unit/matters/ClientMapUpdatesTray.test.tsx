@@ -9,7 +9,7 @@ beforeEach(() => {
   const m = emptyClientMap('m1');
   useClientMapStore.setState({ maps: { m1: m } });
   useClientMapStore.getState().setPendingUpdates('m1', [
-    { id: 'u1', sectionKey: 'standing', op: 'add', draft: { id: 'd1', text: 'New filing due', origin: 'ai', isAssumption: false, sources: [], updatedAt: 't' }, reason: 'r', createdAt: 't' },
+    { id: 'u1', sectionKey: 'money', op: 'add', draft: { id: 'd1', text: 'New filing due', origin: 'ai', isAssumption: false, sources: [], updatedAt: 't' }, reason: 'r', createdAt: 't' },
   ]);
 });
 
@@ -20,7 +20,7 @@ describe('ClientMapUpdatesTray', () => {
     expect(screen.getByText('1 update to review')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('clientmap-update-accept'));
     const map = useClientMapStore.getState().getMap('m1')!;
-    expect(map.sections.find((s) => s.key === 'standing')!.items.map((i) => i.text)).toContain('New filing due');
+    expect(map.sections.find((s) => s.key === 'money')!.items.map((i) => i.text)).toContain('New filing due');
     expect(map.pendingUpdates).toHaveLength(0);
   });
 
@@ -29,13 +29,13 @@ describe('ClientMapUpdatesTray', () => {
     fireEvent.click(screen.getByTestId('clientmap-update-dismiss'));
     const map = useClientMapStore.getState().getMap('m1')!;
     expect(map.pendingUpdates).toHaveLength(0);
-    expect(map.sections.find((s) => s.key === 'standing')!.items).toHaveLength(0);
+    expect(map.sections.find((s) => s.key === 'money')!.items).toHaveLength(0);
   });
 
   it('uses the exact pending count instead of saying a few', () => {
     useClientMapStore.getState().setPendingUpdates('m1', Array.from({ length: 12 }, (_, i) => ({
       id: `u-${String(i)}`,
-      sectionKey: i % 2 === 0 ? 'standing' : 'people',
+      sectionKey: i % 2 === 0 ? 'money' : 'household',
       op: 'add' as const,
       draft: { id: `d-${String(i)}`, text: `Manual review item ${String(i)}`, origin: 'ai' as const, isAssumption: false, sources: [], updatedAt: 't' },
       reason: 'r',

@@ -87,7 +87,7 @@ describe('buildClientMap', () => {
     const map = await buildClientMap('m1');
     const items = map.sections.flatMap((s) => s.items);
     const sourced = items.find((i) => i.text === 'Sourced fact')!;
-    expect(sourced.sources[0].ref).toBe('/a.docx');
+    expect(sourced.sources[0]!.ref).toBe('/a.docx');
     expect(sourced.isAssumption).toBe(false);
     const guessed = items.find((i) => i.text === 'Guessed fact')!;
     expect(guessed.isAssumption).toBe(true); // no source numbers => assumption
@@ -111,7 +111,7 @@ describe('buildClientMap', () => {
 
     const map = await buildClientMap('m1');
 
-    expect(map.sections[0].items).toHaveLength(CLIENT_MAP_SECTION_ITEM_CAP);
+    expect(map.sections[0]!.items).toHaveLength(CLIENT_MAP_SECTION_ITEM_CAP);
   });
 
   it('returns an empty-but-valid map when nothing is indexed', async () => {
@@ -129,16 +129,16 @@ describe('buildClientMap', () => {
       const isGapCall = msg.toLowerCase().includes('gap') || (opts?.systemPrompt ?? '').toLowerCase().includes('question');
       if (isGapCall) {
         return Promise.resolve({ content: JSON.stringify({ questions: [
-          { text: 'What is the filing deadline?', section: 'upcoming' },
+          { text: 'What is the filing deadline?', section: 'followups' },
           { text: 'Who signed the lease?', section: 'bogus' },
         ] }) });
       }
       return Promise.resolve({ content: JSON.stringify({ items: [] }) });
     });
     const map = await buildClientMap('m1');
-    expect(map.completeness.ask).toContainEqual({ text: 'What is the filing deadline?', sectionKey: 'upcoming' });
-    // Unknown / invalid section names fall back to 'standing'.
-    expect(map.completeness.ask).toContainEqual({ text: 'Who signed the lease?', sectionKey: 'standing' });
+    expect(map.completeness.ask).toContainEqual({ text: 'What is the filing deadline?', sectionKey: 'followups' });
+    // Unknown / invalid section names fall back to 'money'.
+    expect(map.completeness.ask).toContainEqual({ text: 'Who signed the lease?', sectionKey: 'money' });
   });
 
   it('Local-only: never sends Client Map context to a cloud provider (race guard)', async () => {
@@ -164,6 +164,6 @@ describe('buildClientMap', () => {
       return Promise.resolve({ content: JSON.stringify({ items: [] }) });
     });
     const map = await buildClientMap('m1');
-    expect(map.completeness.ask).toContainEqual({ text: 'Is there a counterclaim?', sectionKey: 'standing' });
+    expect(map.completeness.ask).toContainEqual({ text: 'Is there a counterclaim?', sectionKey: 'money' });
   });
 });

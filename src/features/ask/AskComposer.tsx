@@ -69,9 +69,10 @@ export function AskComposer({
   const submitText =
     status === 'retrieving' ? 'Searching…' : status === 'answering' ? 'Answering…' : submitLabel;
 
-  // The input + submit row — identical controls, sized up a touch when centered.
+  // The input + submit row — the demo Ask composer: a large 50px-tall search
+  // field + a matching 50px "Ask" button (brand.css .kpd-ci / .kpd-ask-btn).
   const inputRow = (
-    <div style={{ display: 'flex', gap: 'var(--kp-space-sm)', width: '100%', alignItems: 'center' }}>
+    <div style={{ display: 'flex', gap: 10, width: '100%', alignItems: 'center' }}>
       <SearchField
         ref={inputRef}
         icon={Sparkles}
@@ -82,12 +83,12 @@ export function AskComposer({
         disabled={isBusy}
         aria-label={ariaLabel}
         data-testid="ask-composer-input"
-        size="md"
+        size="lg"
         style={{ flex: 1, minWidth: 0 }}
       />
       <Button
         variant="primary"
-        size={centered ? 'lg' : 'md'}
+        size="lg"
         onClick={onSubmit}
         disabled={isBusy || !question.trim()}
         loading={isBusy}
@@ -96,7 +97,7 @@ export function AskComposer({
           status === 'retrieving' ? 'Searching your documents' : status === 'answering' ? 'Answering' : undefined
         }
         data-testid="ask-composer-submit"
-        style={{ flexShrink: 0 }}
+        style={{ flexShrink: 0, height: 50, padding: '0 22px', borderRadius: 12, fontSize: '15px', fontWeight: 700 }}
       >
         <span role={isBusy ? 'status' : undefined}>{submitText}</span>
       </Button>
@@ -127,38 +128,33 @@ export function AskComposer({
   }
 
   // variant === 'bottom' — sticky bar pinned to the bottom of the conversation.
+  // No top divider line (demo Ask): the bottom is just pills + search bar.
   const barStyle: CSSProperties = {
     flexShrink: 0,
-    borderTop: '1px solid var(--color-border)',
     background: 'var(--color-background)',
-    padding: 'var(--kp-space-sm) var(--kp-gutter)',
+    padding: 'var(--kp-space-sm) var(--kp-gutter) var(--kp-space-md)',
   };
 
   return (
     <div data-testid="ask-composer" data-variant="bottom" style={barStyle}>
       <div
         style={{
-          maxWidth: 820,
-          margin: '0 auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: 'var(--kp-space-xs)',
+          gap: 'var(--kp-space-sm)',
         }}
       >
+        {/* Bottom bar is ONLY the scope pills + the search bar (demo Ask). The
+            egress/privacy indicator moved to the Ask header, top-right. */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
             gap: 'var(--kp-space-sm)',
             flexWrap: 'wrap',
           }}
         >
           <ScopeToggle scope={askScope} onChange={setAskScope} hasMatter={hasMatter} isSample={isSample} />
-          {/* The full, honest privacy badge follows the composer wherever it sits
-              (the load-bearing egress guarantee must always be the inspectable
-              `egress-indicator`, never the abbreviated mirror). */}
-          <EgressIndicator provider={egressProvider} mode={egressMode} variant="full" />
         </div>
         {inputRow}
       </div>

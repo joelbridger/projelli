@@ -29,11 +29,57 @@ import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { buildCustomSection } from '@/platform/clientMap/customSection';
 import { useTemplatesStore, applyTemplateToMatter } from '@/platform/clientMap/templatesStore';
 import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
+import { SourcePanel } from '@/features/ask/SourcePanel';
+import type { AnswerCitation } from '@/features/ask/askHelpers';
+
+// ── Sources column helpers ────────────────────────────────────────────────────
+// Map the Client Map's cited sources (SourceRef) onto the Ask SourcePanel's
+// AnswerCitation shape so the SAME Sources column + card design is reused.
+function sourceBasename(ref: string): string {
+  const clean = ref.split('?')[0] ?? ref;
+  const seg = clean.split('/').pop() ?? clean;
+  return seg || clean;
+}
+function sourcesForItems(items: ClientMapItem[], matterId: string): AnswerCitation[] {
+  const seen = new Set<string>();
+  const out: AnswerCitation[] = [];
+  for (const it of items) {
+    for (const s of it.sources) {
+      if (seen.has(s.ref)) continue;
+      seen.add(s.ref);
+      const c: AnswerCitation = {
+        n: out.length + 1,
+        label: s.kind === 'email' ? 'Email' : sourceBasename(s.ref),
+        excerpt: s.snippet,
+        path: s.ref,
+        locator: s.locator ?? '',
+        verified: true,
+        matterId,
+      };
+      if (s.citationId !== undefined) c.id = s.citationId;
+      out.push(c);
+    }
+  }
+  return out;
+}
 
 // ── Display strings (variables avoid hardcoded JSX text for the i18n rule) ────
 
 const LABEL_WHAT_MISSING = "What I'm missing";
 const LABEL_NEW_SECTION = 'New section';
+const LABEL_START_INTERVIEW = 'Start the guided interview';
+
+// Shared OUTLINED style for the two rail-bottom action buttons (New section +
+// Start the guided interview), matching the Ask "New question" button.
+const railActionButtonStyle: CSSProperties = {
+  justifyContent: 'flex-start',
+  height: 'auto',
+  padding: '11px 13px',
+  fontSize: '14px',
+  fontWeight: 600,
+  borderRadius: 10,
+  borderColor: 'var(--kp-divider-strong)',
+};
 const EDIT_LABEL = 'Edit';
 const LABEL_STILL_MISSING = "What I'm still missing";
 const LABEL_MAP_COMPLETE = 'Nothing outstanding — this map looks complete.';
@@ -78,41 +124,52 @@ function tabStorageKey(matterId: string): string {
 
 // ── CSS tokens ────────────────────────────────────────────────────────────────
 
+// Flat, full-bleed two-pane shell — no border, no card, no shadow. It fills
+// its surface like the Ask screen; the only structure is the single hairline
+// between the calm left rail and the breathing content pane.
 const shellStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'stretch',
-  border: 'var(--kp-border-width) solid var(--color-border)',
-  borderRadius: 'var(--radius-lg)',
-  overflow: 'hidden',
-  background: 'var(--color-background)',
-  minHeight: 400,
-  boxShadow: 'var(--kp-shadow-1)',
+  width: '100%',
+  flex: 1,
+  minHeight: 0,
 };
 
+// The section rail mirrors the demo Ask rail: a WHITE column with one light
+// right hairline and roomy rows — no gray tint, minimal chrome.
 const railStyle: CSSProperties = {
-  width: 232,
+  width: 264,
   flex: 'none',
-  borderRight: 'var(--kp-border-width) solid var(--color-border)',
-  background: 'var(--color-muted)',
-  padding: 'var(--kp-space-xs)',
+  borderRight: '1px solid var(--kp-divider)',
+  background: 'var(--color-background)',
+  padding: '14px 12px',
   display: 'flex',
   flexDirection: 'column',
-  gap: 'var(--kp-space-2xs)',
+  gap: 2,
 };
 
+// Content matches Ask's conversation column: full surface gutter (32px) on the
+// left, comfortable top padding, and a left-aligned reading column capped to a
+// readable measure (no centered "strange right margin").
 const contentStyle: CSSProperties = {
   flex: 1,
   minWidth: 0,
-  padding: 'var(--kp-card-pad)',
+  padding: 'var(--kp-space-xl) var(--kp-gutter) var(--kp-space-3xl)',
   overflowY: 'auto',
+};
+
+const contentInnerStyle: CSSProperties = {
+  maxWidth: 760,
+  width: '100%',
 };
 
 const panelTitleStyle: CSSProperties = {
   margin: 0,
-  fontSize: 'var(--kp-font-xl)',
+  fontSize: 'var(--kp-font-2xl)',
   fontWeight: 'var(--kp-weight-bold)',
   color: 'var(--kp-navy)',
   fontFamily: 'var(--font-sans)',
+  letterSpacing: '-0.01em',
   lineHeight: 'var(--kp-leading-tight)',
 };
 
@@ -127,8 +184,7 @@ const itemRowStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'flex-start',
   gap: 'var(--kp-space-sm)',
-  padding: 'var(--kp-space-sm) 0',
-  borderBottom: 'var(--kp-border-width) solid var(--color-border)',
+  padding: '10px 0',
 };
 
 const itemTextStyle: CSSProperties = {
@@ -305,29 +361,21 @@ function TabButton({
         gap: 'var(--kp-space-xs)',
         width: '100%',
         textAlign: 'left',
-        padding: 'var(--kp-space-xs) var(--kp-space-sm)',
-        border: 0,
+        padding: '10px 12px',
+        border: '1px solid transparent',
         borderRadius: 'var(--radius-md)',
         cursor: 'pointer',
-        position: 'relative',
-        background: active ? 'var(--color-background)' : 'transparent',
-        boxShadow: active ? 'var(--kp-shadow-1)' : 'none',
+        background: active ? 'var(--kp-accent-soft)' : 'transparent',
         fontFamily: 'var(--font-sans)',
+        transition: 'background 0.1s',
+      }}
+      onMouseEnter={(e) => {
+        if (!active) e.currentTarget.style.background = 'var(--kp-accent-softer)';
+      }}
+      onMouseLeave={(e) => {
+        if (!active) e.currentTarget.style.background = 'transparent';
       }}
     >
-      {active && (
-        <span
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 'var(--kp-space-xs)',
-            bottom: 'var(--kp-space-xs)',
-            width: 3,
-            borderRadius: 3,
-            background: 'var(--kp-grad)',
-          }}
-        />
-      )}
       <span
         style={{
           flex: 1,
@@ -369,7 +417,7 @@ function PanelHeader({
         display: 'flex',
         alignItems: 'center',
         gap: 'var(--kp-space-sm)',
-        marginBottom: 'var(--kp-space-md)',
+        marginBottom: 'var(--kp-space-lg)',
       }}
     >
       <h3 style={panelTitleStyle}>{title}</h3>
@@ -798,12 +846,15 @@ export function ClientMapPanel({
   onEditItem,
   onAnswerQuestion,
   onFlagForClient,
+  onStartInterview,
 }: {
   map: ClientMap;
   onOpenSource: (r: SourceRef) => void;
   onEditItem: (sectionKey: string, itemId: string) => void;
   onAnswerQuestion?: (question: GapQuestion) => void;
   onFlagForClient?: (question: GapQuestion) => void;
+  /** Toggle the guided-interview panel — rendered as a button at the rail bottom. */
+  onStartInterview?: () => void;
 }) {
   const removeSection = useClientMapStore((s) => s.removeSection);
   const saveTemplate = useTemplatesStore((s) => s.saveTemplate);
@@ -855,16 +906,40 @@ export function ClientMapPanel({
   const activeSection = sectionList.find((s) => s.key === activeKey);
   const missingCount = map.completeness.ask.length;
 
+  // The Sources column reflects whatever the user is currently viewing: the
+  // cited sources behind the active section's facts (or, on "What I'm missing",
+  // the know/assuming facts). Empty on the "+ New section" composer.
+  const activeSourceItems: ClientMapItem[] =
+    activeKey === NEW_KEY
+      ? []
+      : activeKey === MISSING_KEY || activeSection === undefined
+        ? [...map.completeness.know, ...map.completeness.assuming]
+        : activeSection.items;
+  const currentSources: AnswerCitation[] = sourcesForItems(activeSourceItems, map.matterId);
+  // Keep each cited ref's FULL SourceRef (incl. kind) so the Sources-column
+  // cards open through the SAME kind-aware dispatcher as the inline source chips.
+  // The AnswerCitation shape keeps only the ref string, so without this lookup
+  // CRM / OneDrive / e-sign / meeting sources would be dropped or misrouted to
+  // the document opener.
+  const sourceRefByRef = new Map<string, SourceRef>();
+  for (const it of activeSourceItems) {
+    for (const s of it.sources) {
+      if (!sourceRefByRef.has(s.ref)) sourceRefByRef.set(s.ref, s);
+    }
+  }
+
   return (
     <div data-testid="clientmap-panel" style={shellStyle}>
-      {/* Left rail — vertical section tabs */}
+      {/* Left rail — the sections list, then "What I'm missing", then (pinned to
+          the BOTTOM) the two outlined action buttons: "+ New section" and below
+          it "Start the guided interview". */}
       <div style={railStyle} role="tablist" aria-label="Client map sections">
         {sectionList.map((s) => (
           <TabButton
             key={s.key}
             testid={`clientmap-tab-${s.key}`}
             title={s.title}
-            count={s.items.length}
+            count={null}
             active={activeKey === s.key}
             accent={false}
             muted={s.items.length === 0}
@@ -874,11 +949,11 @@ export function ClientMapPanel({
           />
         ))}
 
-        {/* Divider before the two special tabs */}
+        {/* Light divider before the special "What I'm missing" view */}
         <div
           style={{
-            height: 'var(--kp-border-width)',
-            background: 'var(--color-border)',
+            height: 1,
+            background: 'var(--kp-divider)',
             margin: 'var(--kp-space-xs) var(--kp-space-2xs)',
           }}
         />
@@ -887,7 +962,7 @@ export function ClientMapPanel({
         <TabButton
           testid={`clientmap-tab-${MISSING_KEY}`}
           title={LABEL_WHAT_MISSING}
-          count={missingCount}
+          count={null}
           active={activeKey === MISSING_KEY}
           accent={missingCount > 0}
           muted={missingCount === 0}
@@ -896,80 +971,108 @@ export function ClientMapPanel({
           }}
         />
 
-        {/* Dashed "+ New section" tab */}
-        <button
-          type="button"
+        {/* Spacer pushes the action buttons to the bottom of the rail. */}
+        <div style={{ flex: 1 }} />
+
+        <Button
+          variant="secondary"
+          size="sm"
+          iconLeft={Plus}
+          fullWidth
           data-testid="clientmap-tab-add"
           onClick={() => {
             select(NEW_KEY);
           }}
-          aria-selected={activeKey === NEW_KEY}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--kp-space-xs)',
-            width: '100%',
-            textAlign: 'left',
-            padding: 'var(--kp-space-xs) var(--kp-space-sm)',
-            marginTop: 'var(--kp-space-2xs)',
-            border: 'var(--kp-border-width) dashed var(--color-border)',
-            borderRadius: 'var(--radius-md)',
-            cursor: 'pointer',
-            background: activeKey === NEW_KEY ? 'var(--color-background)' : 'transparent',
-            color: 'var(--kp-navy)',
-            fontFamily: 'var(--font-sans)',
-            fontSize: 'var(--kp-font-sm)',
-            fontWeight: 'var(--kp-weight-semibold)',
-          }}
+          style={{ ...railActionButtonStyle, marginBottom: 'var(--kp-space-2xs)' }}
         >
-          <Plus size={15} strokeWidth={2.25} style={{ flex: 'none' }} />
-          <span>{LABEL_NEW_SECTION}</span>
-        </button>
+          {LABEL_NEW_SECTION}
+        </Button>
+
+        {onStartInterview && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            iconLeft={Sparkles}
+            fullWidth
+            data-testid="clientmap-start-interview"
+            onClick={onStartInterview}
+            style={railActionButtonStyle}
+          >
+            {LABEL_START_INTERVIEW}
+          </Button>
+        )}
       </div>
 
-      {/* Right reading pane */}
+      {/* Right reading pane — left-aligned, breathing reading column (Ask shape) */}
       <div style={contentStyle}>
-        {activeKey === NEW_KEY ? (
-          <AddSectionPanel
-            matterId={map.matterId}
-            onCreated={(key) => {
-              select(key);
-            }}
-          />
-        ) : activeKey === MISSING_KEY || activeSection === undefined ? (
-          <MissingPanel
-            map={map}
-            onOpenSource={onOpenSource}
-            onAnswerQuestion={onAnswerQuestion}
-            onFlagForClient={onFlagForClient}
-          />
-        ) : (
-          <SectionPanel
-            section={activeSection}
-            onOpenSource={onOpenSource}
-            onEdit={(itemId) => {
-              onEditItem(activeSection.key, itemId);
-            }}
-            onSaveTemplate={
-              activeSection.kind === 'custom'
-                ? () => {
-                    saveTemplate(
-                      activeSection.title,
-                      activeSection.prompt ?? activeSection.title,
-                    );
-                  }
-                : undefined
-            }
-            onDelete={
-              activeSection.kind === 'custom'
-                ? () => {
-                    removeSection(map.matterId, activeSection.id);
-                    select(MISSING_KEY);
-                  }
-                : undefined
-            }
-          />
-        )}
+        <div style={contentInnerStyle}>
+          {activeKey === NEW_KEY ? (
+            <AddSectionPanel
+              matterId={map.matterId}
+              onCreated={(key) => {
+                select(key);
+              }}
+            />
+          ) : activeKey === MISSING_KEY || activeSection === undefined ? (
+            <MissingPanel
+              map={map}
+              onOpenSource={onOpenSource}
+              onAnswerQuestion={onAnswerQuestion}
+              onFlagForClient={onFlagForClient}
+            />
+          ) : (
+            <SectionPanel
+              section={activeSection}
+              onOpenSource={onOpenSource}
+              onEdit={(itemId) => {
+                onEditItem(activeSection.key, itemId);
+              }}
+              onSaveTemplate={
+                activeSection.kind === 'custom'
+                  ? () => {
+                      saveTemplate(
+                        activeSection.title,
+                        activeSection.prompt ?? activeSection.title,
+                      );
+                    }
+                  : undefined
+              }
+              onDelete={
+                activeSection.kind === 'custom'
+                  ? () => {
+                      removeSection(map.matterId, activeSection.id);
+                      select(MISSING_KEY);
+                    }
+                  : undefined
+              }
+            />
+          )}
+        </div>
+      </div>
+
+      {/* SOURCES column — the SAME component + card design as the Ask tab. Shows
+          the cited sources behind the facts the user is currently viewing, and
+          updates as they switch sections / "What I'm missing". */}
+      <div
+        style={{
+          width: 326,
+          flex: 'none',
+          borderLeft: '1px solid var(--kp-divider)',
+          background: 'var(--kp-bg-soft)',
+          overflowY: 'auto',
+          padding: 'var(--kp-surface-gap) var(--kp-card-pad)',
+        }}
+      >
+        <SourcePanel
+          citations={currentSources}
+          selectedN={null}
+          onSelect={() => {}}
+          onOpenCitation={(c) => {
+            const ref = c.path != null ? sourceRefByRef.get(c.path) : undefined;
+            if (ref) onOpenSource(ref);
+          }}
+        />
       </div>
     </div>
   );

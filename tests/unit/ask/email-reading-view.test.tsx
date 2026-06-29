@@ -6,9 +6,12 @@
  * (sourceId = the `mail:<id>` path) → useOpenEmailListener opens the email tab.
  * These tests prove BOTH entry points dispatch it:
  *   - the inline citation chip (CitationText, via onOpenFileAtPath)
- *   - the SourcePanel "Open email" button
- * and that a document citation keeps its (separate) editor escalation, gated on
- * onOpenFile so it's never a dead button.
+ *   - the SourcePanel source card (the whole card is the click target now; the
+ *     old separate "Open email"/"Open in editor" buttons were folded into the
+ *     card to match the demo Sources column)
+ * and that a document citation keeps its (separate) editor escalation via
+ * keepance:matter-launch, while un-scopeable (no matterId) and CRM citations are
+ * not openable at all (the card is not a button, so a click dispatches nothing).
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
@@ -28,34 +31,47 @@ const docCite: AnswerCitation = {
 };
 const docCiteWithMatter: AnswerCitation = { ...docCite, matterId: 'matter_demo_brennan' };
 
+function renderPanel(cite: AnswerCitation) {
+  return render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
+}
+
 describe('SourcePanel — email reading view', () => {
-  it('renders an "Open email" action for an email citation and dispatches keepance:open-email', () => {
+  it('clicking an email citation card dispatches keepance:open-email', () => {
     const onOpen = vi.fn();
     window.addEventListener('keepance:open-email', onOpen as EventListener);
-    render(<SourcePanel cite={emailCite} />);
-    const btn = screen.getByTestId('source-open-email');
-    fireEvent.click(btn);
+    renderPanel(emailCite);
+    fireEvent.click(screen.getByTestId('source-card'));
     expect(onOpen).toHaveBeenCalledTimes(1);
     const detail = (onOpen.mock.calls[0]![0] as CustomEvent).detail;
     expect(detail).toEqual({ sourceId: 'mail:abc123' });
     window.removeEventListener('keepance:open-email', onOpen as EventListener);
   });
 
-  it('does NOT render the email button for a document citation', () => {
-    render(<SourcePanel cite={docCite} />);
-    expect(screen.queryByTestId('source-open-email')).not.toBeInTheDocument();
+  it('clicking a document citation card does NOT dispatch keepance:open-email', () => {
+    const onOpen = vi.fn();
+    window.addEventListener('keepance:open-email', onOpen as EventListener);
+    renderPanel(docCiteWithMatter);
+    fireEvent.click(screen.getByTestId('source-card'));
+    expect(onOpen).not.toHaveBeenCalled();
+    window.removeEventListener('keepance:open-email', onOpen as EventListener);
   });
 
-  it('hides "Open in editor" for a document citation with no matterId (cannot be scoped)', () => {
-    render(<SourcePanel cite={docCite} />);
-    expect(screen.queryByTestId('source-open-document')).not.toBeInTheDocument();
+  it('a document citation with no matterId cannot be opened (card is not a button, click dispatches nothing)', () => {
+    const onLaunch = vi.fn();
+    window.addEventListener('keepance:matter-launch', onLaunch as EventListener);
+    renderPanel(docCite);
+    const card = screen.getByTestId('source-card');
+    expect(card).not.toHaveAttribute('role', 'button');
+    fireEvent.click(card);
+    expect(onLaunch).not.toHaveBeenCalled();
+    window.removeEventListener('keepance:matter-launch', onLaunch as EventListener);
   });
 
   it('opens a document citation via keepance:matter-launch (matter-scoped, scrolls to passage)', () => {
     const onLaunch = vi.fn();
     window.addEventListener('keepance:matter-launch', onLaunch as EventListener);
-    render(<SourcePanel cite={docCiteWithMatter} />);
-    fireEvent.click(screen.getByTestId('source-open-document'));
+    renderPanel(docCiteWithMatter);
+    fireEvent.click(screen.getByTestId('source-card'));
     expect(onLaunch).toHaveBeenCalledTimes(1);
     const detail = (onLaunch.mock.calls[0]![0] as CustomEvent).detail;
     expect(detail).toEqual({
@@ -66,18 +82,28 @@ describe('SourcePanel — email reading view', () => {
     window.removeEventListener('keepance:matter-launch', onLaunch as EventListener);
   });
 
-  it('does NOT render the document button for an email citation', () => {
-    render(<SourcePanel cite={emailCite} />);
-    expect(screen.queryByTestId('source-open-document')).not.toBeInTheDocument();
+  it('clicking an email citation card does NOT dispatch keepance:matter-launch', () => {
+    const onLaunch = vi.fn();
+    window.addEventListener('keepance:matter-launch', onLaunch as EventListener);
+    renderPanel(emailCite);
+    fireEvent.click(screen.getByTestId('source-card'));
+    expect(onLaunch).not.toHaveBeenCalled();
+    window.removeEventListener('keepance:matter-launch', onLaunch as EventListener);
   });
 
-  it('does NOT render the document opener for a CRM citation (crm: has its own route)', () => {
+  it('a CRM citation is not openable as a document (crm: has its own route)', () => {
     const crmCite: AnswerCitation = {
       n: 1, label: 'Household', excerpt: 'AUM $2.1M', path: 'crm:household:abc123',
       locator: '', verified: true, matterId: 'matter_demo_brennan',
     };
-    render(<SourcePanel cite={crmCite} />);
-    expect(screen.queryByTestId('source-open-document')).not.toBeInTheDocument();
+    const onLaunch = vi.fn();
+    window.addEventListener('keepance:matter-launch', onLaunch as EventListener);
+    renderPanel(crmCite);
+    const card = screen.getByTestId('source-card');
+    expect(card).not.toHaveAttribute('role', 'button');
+    fireEvent.click(card);
+    expect(onLaunch).not.toHaveBeenCalled();
+    window.removeEventListener('keepance:matter-launch', onLaunch as EventListener);
   });
 });
 

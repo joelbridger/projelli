@@ -29,7 +29,7 @@
 import {
   Sparkles, AlertTriangle,
 } from 'lucide-react';
-import { Button, Chip, EmptyState } from '@/ui/kp';
+import { Button } from '@/ui/kp';
 import { SourcePanel } from './SourcePanel';
 import { SampleBridgeCallout } from './SampleBridgeCallout';
 import { TurnBlock } from './TurnBlock';
@@ -39,6 +39,7 @@ import { SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
+import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { useAsk, type UseAskProps } from './useAsk';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
@@ -53,7 +54,6 @@ export function Ask(props: UseAskProps) {
   const askVerb = 'Ask';
   const {
     activeMatter,
-    demoQuestions,
     chatId,
     askScope,
     setAskScope,
@@ -73,8 +73,6 @@ export function Ask(props: UseAskProps) {
     railSessions,
     railCollapsed,
     toggleRailCollapsed,
-    selectedCite,
-    anyHasCitations,
     handleCitationSelect,
     handleNewAsk,
     handleLoadSession,
@@ -86,9 +84,6 @@ export function Ask(props: UseAskProps) {
   } = useAsk(props);
 
   const isSampleMatter = activeMatter?.id === SAMPLE_MATTER_ID;
-  // Empty thread => centered composer; any turn (or a first answer streaming)
-  // => the composer has dropped to the sticky bottom bar.
-  const isEmptyThread = turns.length === 0 && !streamingTurn;
 
   const composerPlaceholder =
     askScope === 'email'
@@ -141,6 +136,23 @@ export function Ask(props: UseAskProps) {
     egressMode: confidentialityMode,
   } as const;
 
+  // The SOURCES column reflects the answer the user is looking at: the turn of
+  // the clicked citation, else the most recent turn that has citations.
+  const sourceTurnIdx: number | null = (() => {
+    if (selectedTurnIdx !== null) return selectedTurnIdx;
+    for (let i = turns.length - 1; i >= 0; i--) {
+      if ((turns[i]?.citations.length ?? 0) > 0) return i;
+    }
+    return null;
+  })();
+  const sourceTurn =
+    sourceTurnIdx !== null
+      ? (turns[sourceTurnIdx] ?? streamingTurn)
+      : streamingTurn && streamingTurn.citations.length > 0
+        ? streamingTurn
+        : null;
+  const sourceCitations = sourceTurn?.citations ?? [];
+
   const errorBanner = status === 'error' && errorMsg ? (
     <div
       role="status"
@@ -180,14 +192,21 @@ export function Ask(props: UseAskProps) {
       <div
         style={{
           padding: 'var(--kp-surface-header-pad)',
-          borderBottom: '1px solid var(--color-border)',
+          borderBottom: '1px solid var(--kp-divider)',
           flexShrink: 0,
         }}
       >
         <SurfaceHeader
           Icon={Sparkles}
+          iconColor="var(--kp-accent)"
           title="Ask"
-          description="Ask anything across your work. Every answer cites its source."
+          actions={
+            /* The egress/privacy indicator lives top-right, on the title line.
+               The short "status" form shows ONLY "Using local AI" / "Using cloud
+               AI" (dynamic); the full honest copy stays in its tooltip + the
+               inspectable data-* attributes. */
+            <EgressIndicator provider={displayedProvider} mode={confidentialityMode} variant="status" />
+          }
         />
       </div>
 
@@ -202,6 +221,9 @@ export function Ask(props: UseAskProps) {
           onToggleCollapsed={toggleRailCollapsed}
         />
 
+        {/* Thread column: the conversation scroll + the sticky bottom composer.
+            The composer lives INSIDE this column (left of the Sources column),
+            matching the demo — Sources is a full-height sibling, not above it. */}
         <div
           style={{
             flex: 1,
@@ -212,197 +234,122 @@ export function Ask(props: UseAskProps) {
             overflow: 'hidden',
           }}
         >
-          {isEmptyThread ? (
-            /* -------- Empty thread: centered composer (ChatGPT first screen) -------- */
-            <div
-              style={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: 'auto',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 'var(--kp-space-md)',
-                padding: 'var(--kp-space-4xl) var(--kp-gutter)',
-              }}
-            >
-              {errorBanner}
-
-              <EmptyState
-                icon={Sparkles}
-                iconSize={36}
-                title="What do you want to find?"
-                body={
-                  isSampleMatter
-                    ? `This is a sample ${entityLabel.one}. Type a question or click one below and see a cited answer. Click any citation to read the exact passage.`
-                    : 'Every answer shows the exact document and page it came from. Click any chip to read the passage.'
-                }
-              />
-
-              {/* The composer, big and centered. */}
-              <AskComposer variant="centered" {...composerCommon} />
-
-              {/* Example questions — clicking one RUNS the search (UX-28). */}
+          {/* The conversation scroll area. Empty center (no heading, no example
+              pills) when there are no turns — matches the demo Ask. */}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              padding: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--kp-stack-gap)',
+              minWidth: 0,
+            }}
+          >
+            {/* Indexing-off notice — a quiet line at the top of the column, only
+                when memory is off; keeps the composer clean. */}
+            {!isMemoryEnabled() && (
               <div
                 style={{
                   display: 'flex',
+                  gap: 8,
+                  alignItems: 'center',
+                  padding: 'var(--kp-space-xs) var(--kp-space-md)',
+                  fontSize: 'var(--kp-font-xs)',
+                  color: 'var(--kp-text-dim)',
                   flexWrap: 'wrap',
-                  gap: 'var(--kp-space-xs)',
-                  justifyContent: 'center',
-                  maxWidth: 480,
                 }}
               >
-                {(isSampleMatter
-                  ? (demoQuestions as unknown as string[])
-                  : [
-                      `Summarize this ${entityLabel.one}`,
-                      'Find all related emails',
-                      'What client reviews are coming up?',
-                    ]
-                ).map((example) => (
-                  <Chip
-                    key={example}
-                    size="md"
-                    onClick={() => {
-                      void handleAsk(example);
-                    }}
-                  >
-                    {example}
-                  </Chip>
-                ))}
-              </div>
-
-              {/* Memory-off warning — actionable with an "Enable indexing" button. */}
-              {!isMemoryEnabled() && (
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 8,
-                    alignItems: 'center',
-                    padding: 'var(--kp-space-xs) var(--kp-space-md)',
-                    fontSize: 'var(--kp-font-xs)',
-                    color: 'var(--kp-direct)',
-                    background: 'var(--kp-direct-bg)',
-                    border: '1px solid var(--kp-direct-line)',
-                    borderRadius: 'var(--radius-md)',
-                    maxWidth: 560,
-                    flexWrap: 'wrap',
+                <AlertTriangle size={14} strokeWidth={2} style={{ flex: 'none', color: 'var(--kp-direct, #b45309)' }} />
+                <span>
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  Cited answers need your documents indexed on your machine.
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('keepance:open-settings', { detail: { category: 'ai' } }));
                   }}
+                  style={{ flexShrink: 0 }}
                 >
-                  <AlertTriangle size={15} strokeWidth={2} style={{ flex: 'none' }} />
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                    Cited answers need your documents indexed on your machine. Enable it in Settings.
-                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                  </span>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      window.dispatchEvent(new CustomEvent('keepance:open-settings', { detail: { category: 'ai' } }));
-                    }}
-                    style={{ flexShrink: 0 }}
-                  >
-                    Enable indexing
-                  </Button>
-                </div>
+                  Enable indexing
+                </Button>
+              </div>
+            )}
+
+            {/* Conversation lives in an aria-live region so screen readers
+                announce completed answers. */}
+            <div aria-live="polite" aria-atomic="false">
+              {turns.map((turn, idx) => (
+                <TurnBlock
+                  key={idx}
+                  turn={turn}
+                  turnIdx={idx}
+                  selectedTurnIdx={selectedTurnIdx}
+                  selected={selected}
+                  onCitationSelect={handleCitationSelect}
+                  onSaveToDocument={onSaveToDocument ? handleSaveToDocument : undefined}
+                  isSaving={savingIdx === idx}
+                  isPersisted={false}
+                  {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
+                />
+              ))}
+
+              {streamingTurn && (
+                <TurnBlock
+                  key="streaming"
+                  turn={streamingTurn}
+                  turnIdx={turns.length}
+                  selectedTurnIdx={selectedTurnIdx}
+                  selected={selected}
+                  onCitationSelect={handleCitationSelect}
+                  onSaveToDocument={undefined}
+                  isSaving={false}
+                  isPersisted={false}
+                  isStreaming
+                  {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
+                />
               )}
-
-              {/* B2: bridge callout — only on the sample matter, dismissible. */}
-              {isSampleMatter && <SampleBridgeCallout />}
             </div>
-          ) : (
-            /* -------- Active thread: conversation + sticky bottom composer -------- */
-            <>
-              <div
-                style={{
-                  flex: 1,
-                  minHeight: 0,
-                  display: 'grid',
-                  gridTemplateColumns: anyHasCitations ? '1fr 260px' : '1fr',
-                  gap: 0,
-                  overflow: 'hidden',
-                }}
-              >
-                {/* Left: scrollable conversation */}
-                <div
-                  style={{
-                    overflowY: 'auto',
-                    padding: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 'var(--kp-stack-gap)',
-                    minWidth: 0,
-                  }}
-                >
-                  {/* Conversation lives in an aria-live region so screen readers
-                      announce completed answers. */}
-                  <div aria-live="polite" aria-atomic="false">
-                    {turns.map((turn, idx) => (
-                      <TurnBlock
-                        key={idx}
-                        turn={turn}
-                        turnIdx={idx}
-                        selectedTurnIdx={selectedTurnIdx}
-                        selected={selected}
-                        onCitationSelect={handleCitationSelect}
-                        onSaveToDocument={onSaveToDocument ? handleSaveToDocument : undefined}
-                        isSaving={savingIdx === idx}
-                        isPersisted={false}
-                        {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
-                      />
-                    ))}
 
-                    {streamingTurn && (
-                      <TurnBlock
-                        key="streaming"
-                        turn={streamingTurn}
-                        turnIdx={turns.length}
-                        selectedTurnIdx={selectedTurnIdx}
-                        selected={selected}
-                        onCitationSelect={handleCitationSelect}
-                        onSaveToDocument={undefined}
-                        isSaving={false}
-                        isPersisted={false}
-                        isStreaming
-                        {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
-                      />
-                    )}
-                  </div>
+            {/* B2: bridge callout below demo answers (sample matter w/ turns). */}
+            {isSampleMatter && turns.length > 0 && !streamingTurn && (
+              <SampleBridgeCallout />
+            )}
 
-                  {/* B2: bridge callout below demo answers (sample matter w/ turns). */}
-                  {isSampleMatter && turns.length > 0 && !streamingTurn && (
-                    <SampleBridgeCallout />
-                  )}
+            {errorBanner}
 
-                  {errorBanner}
+            <div ref={bottomRef} />
+          </div>
 
-                  <div ref={bottomRef} />
-                </div>
+          {/* The composer — ONLY the scope filters + the search bar (the egress
+              indicator moved to the header, top-right): the demo's clean bottom. */}
+          <AskComposer variant="bottom" {...composerCommon} />
+        </div>
 
-                {/* Right: sticky source panel */}
-                {anyHasCitations && (
-                  <div
-                    style={{
-                      borderLeft: '1px solid var(--color-border)',
-                      padding: 'var(--kp-surface-gap) var(--kp-card-pad)',
-                      overflowY: 'auto',
-                      background: 'var(--color-background)',
-                    }}
-                  >
-                    <SourcePanel
-                      cite={selectedCite}
-                      {...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {})}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* The composer, dropped to a sticky bottom bar. */}
-              <AskComposer variant="bottom" {...composerCommon} />
-            </>
-          )}
+        {/* SOURCES column — ALWAYS visible, full height. Shows the SOURCES header
+            over an empty soft panel until an answer has citations, then fills
+            with numbered citation cards. */}
+        <div
+          style={{
+            width: 326,
+            flex: 'none',
+            borderLeft: '1px solid var(--kp-divider)',
+            background: 'var(--kp-bg-soft)',
+            overflowY: 'auto',
+            padding: 'var(--kp-surface-gap) var(--kp-card-pad)',
+          }}
+        >
+          <SourcePanel
+            citations={sourceCitations}
+            selectedN={selected}
+            onSelect={(n) => { handleCitationSelect(sourceTurnIdx ?? turns.length, n); }}
+            {...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {})}
+          />
         </div>
       </div>
     </div>

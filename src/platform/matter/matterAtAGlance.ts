@@ -103,9 +103,11 @@ export function deriveMatterHubUpcomingItems(
   result: MatterAtAGlanceResult | null,
   clientMap?: ClientMap,
 ): string[] {
+  // Dated "Coming up" events now live in the Follow-ups bucket (the old
+  // 'upcoming' section was folded into 'followups' in the 4-category rename).
   const fromClientMap =
     clientMap?.sections
-      .find((section) => section.key === 'upcoming')
+      .find((section) => section.key === 'followups')
       ?.items.map((item) => item.text) ?? [];
   const fromUpcomingDates = cleanAtAGlanceItems(result?.upcomingDates);
   const fromDeadlines = cleanAtAGlanceItems(result?.deadlines);

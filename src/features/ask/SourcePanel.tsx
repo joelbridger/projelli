@@ -1,306 +1,291 @@
 import { useState } from 'react';
-import { CheckCircle2, FileText, ExternalLink, ShieldCheck, AlertTriangle, Loader2 } from 'lucide-react';
-import { Button, Badge, Eyebrow, Card } from '@/ui/kp';
+import type { KeyboardEvent, MouseEvent } from 'react';
+import { FileText, ShieldCheck, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import type { AnswerCitation } from './askHelpers';
 import { ragVerifyCitation, type CitationVerdict } from '@/platform/utils/tauri-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import type { AuditEntry } from '@/platform/types/audit';
 
 /* -------------------------------------------------------------------------- */
-/* SourcePanel — sticky side panel showing the selected citation's passage     */
+/* SourcePanel — the SOURCES column. A list of clean white numbered cards,     */
+/* one per citation in the active answer (matches the demo Ask source panel).  */
+/* Each card: number badge + file icon + filename, a grey quote, and a green   */
+/* "Verified against source" line that runs the real cryptographic check.      */
+/* Clicking a card opens the cited source. All real functionality preserved.   */
 /* -------------------------------------------------------------------------- */
 
-export function SourcePanel({
-  cite,
-  onAuditLog,
-}: {
-  cite: AnswerCitation | null;
-  /**
-   * WS3 (Task 4): when provided, each "Verify against source" result emits
-   * a `citation_verified` audit entry so the check is on the record.
-   */
-  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
-}) {
-  // WS3 (Task 4): verification state — null = not run, 'loading' = in flight,
-  // CitationVerdict = result.
-  const [verdictState, setVerdictState] = useState<CitationVerdict | 'loading' | null>(null);
-  // Reset verdict when the selected citation changes so stale verdicts
-  // don't carry over to a different chip.
-  const citeKey = cite ? `${cite.n}-${cite.id ?? 'noid'}` : 'none';
-  const [lastCiteKey, setLastCiteKey] = useState<string>(citeKey);
-  if (citeKey !== lastCiteKey) {
-    setLastCiteKey(citeKey);
-    setVerdictState(null);
+const LABEL_SOURCES = 'Sources';
+const LABEL_VERIFIED = 'Verified against source';
+const LABEL_VERIFY = 'Verify against source';
+
+/** Open the cited source (document → contextual editor; email → reading view). */
+function openCitation(cite: AnswerCitation): void {
+  if (cite.path?.startsWith('mail:')) {
+    window.dispatchEvent(new CustomEvent('keepance:open-email', { detail: { sourceId: cite.path } }));
+    return;
   }
+  if (cite.path && !cite.path.startsWith('crm:') && cite.matterId) {
+    const source: { kind: 'document'; ref: string; snippet?: string } = { kind: 'document', ref: cite.path };
+    if (cite.excerpt) source.snippet = cite.excerpt;
+    window.dispatchEvent(
+      new CustomEvent('keepance:matter-launch', {
+        detail: { matterId: cite.matterId, surface: 'files', source },
+      }),
+    );
+  }
+}
 
-  const canVerify = Boolean(cite?.id && cite?.matterId);
+function problemMessage(v: CitationVerdict['verdict']): string {
+  switch (v) {
+    case 'notFound':
+      return 'Quote not found in the source';
+    case 'textMismatch':
+      return 'Quote does not match the source';
+    case 'matterMismatch':
+      return 'Belongs to a different client';
+    default:
+      return 'Could not verify';
+  }
+}
 
-  async function handleVerify() {
-    if (!cite?.id || !cite?.matterId) return;
-    setVerdictState('loading');
+function SourceCard({
+  cite,
+  selected,
+  onSelect,
+  onAuditLog,
+  onOpenCitation,
+}: {
+  cite: AnswerCitation;
+  selected: boolean;
+  onSelect: (n: number) => void;
+  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+  onOpenCitation?: (cite: AnswerCitation) => void;
+}) {
+  const [verdict, setVerdict] = useState<CitationVerdict | 'loading' | null>(null);
+  const canVerify = Boolean(cite.id && cite.matterId);
+  // When the host supplies its own opener (e.g. the Client Map, whose sources
+  // include CRM / OneDrive / e-sign / meeting kinds the built-in path opener
+  // can't route), every card is openable and routes there. Otherwise fall back
+  // to the built-in mail/document path opener.
+  const openable = onOpenCitation
+    ? true
+    : Boolean(
+        cite.path && (cite.path.startsWith('mail:') || (!cite.path.startsWith('crm:') && cite.matterId)),
+      );
+
+  async function runVerify(e: MouseEvent<HTMLButtonElement>): Promise<void> {
+    e.stopPropagation();
+    if (!cite.id || !cite.matterId) return;
+    setVerdict('loading');
     try {
-      const result = await ragVerifyCitation(cite.id, cite.matterId, cite.excerpt);
-      setVerdictState(result);
-      // Emit audit entry so the check is on the record.
-      // The audit type uses the plain verdict string, not the object.
+      const r = await ragVerifyCitation(cite.id, cite.matterId, cite.excerpt);
+      setVerdict(r);
       onAuditLog?.(
         auditEventToEntry({
           type: 'citation_verified',
           timestamp: new Date().toISOString(),
-          payload: { citationId: cite.id, verdict: result.verdict },
+          payload: { citationId: cite.id, verdict: r.verdict },
         }),
       );
     } catch {
-      // ragVerifyCitation throws in browser/test mode; treat as "not available".
-      setVerdictState(null);
+      // ragVerifyCitation throws in browser/test mode — treat as "not run".
+      setVerdict(null);
     }
   }
 
-  if (!cite) {
-    return (
-      <Card
-        variant="raised"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 'var(--kp-space-xs)',
-          minHeight: 160,
-          color: 'var(--color-muted-foreground)',
-          fontSize: 'var(--kp-font-sm)',
-          textAlign: 'center',
-        }}
-      >
-        <FileText size={22} strokeWidth={1.5} style={{ opacity: 0.35 }} />
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-        Click a citation chip to see the source passage
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-      </Card>
-    );
+  const isProblem = verdict !== null && verdict !== 'loading' && verdict.verdict !== 'verified';
+  const isGreen =
+    (verdict !== null && verdict !== 'loading' && verdict.verdict === 'verified') ||
+    (verdict === null && cite.verified);
+
+  function handleOpen(): void {
+    onSelect(cite.n);
+    if (onOpenCitation) {
+      onOpenCitation(cite);
+      return;
+    }
+    if (openable) openCitation(cite);
   }
 
   return (
     <div
+      data-testid="source-card"
+      data-cite={cite.n}
+      {...(openable ? { role: 'button', tabIndex: 0 } : {})}
+      onClick={handleOpen}
+      onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
+        if (openable && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          handleOpen();
+        }
+      }}
       style={{
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
         background: 'var(--color-background)',
-        boxShadow: 'var(--kp-shadow-1)',
-        overflow: 'hidden',
-        position: 'sticky',
-        top: 8,
+        border: selected ? '1px solid var(--kp-accent)' : '1px solid var(--kp-divider)',
+        borderRadius: 12,
+        padding: '14px 15px',
+        marginBottom: 12,
+        boxShadow: '0 1px 2px rgba(10,37,64,0.06), 0 8px 24px rgba(10,37,64,0.10)',
+        cursor: openable ? 'pointer' : 'default',
       }}
     >
-      {/* Header */}
+      {/* File row: numbered badge + doc icon + filename */}
       <div
         style={{
-          padding: '10px 14px',
-          borderBottom: '1px solid var(--color-border)',
           display: 'flex',
           alignItems: 'center',
           gap: 8,
+          marginBottom: 7,
+          fontSize: 13,
+          fontWeight: 700,
+          color: 'var(--kp-navy)',
         }}
       >
-        <Eyebrow>
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-          Source · citation {cite.n}
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-        </Eyebrow>
-        {cite.verified && (
-          <Badge
-            variant="local"
-            size="sm"
-            icon={CheckCircle2}
-            className="ml-auto"
-          >
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            Source found
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-          </Badge>
-        )}
-      </div>
-
-      {/* Body */}
-      <div style={{ padding: 'var(--kp-card-pad)' }}>
-        <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-          <FileText
-            size={16}
-            strokeWidth={1.75}
-            style={{ color: 'var(--kp-navy)', marginTop: 1, flex: 'none' }}
-          />
-          <div>
-            <div style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--color-foreground)', lineHeight: 'var(--kp-leading-snug)' }}>
-              {cite.label}
-            </div>
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--kp-font-2xs)',
-                color: 'var(--color-muted-foreground)',
-                marginTop: 3,
-              }}
-            >
-              {cite.locator}
-            </div>
-          </div>
-        </div>
-
-        <blockquote
+        <span
           style={{
-            margin: 'var(--kp-space-sm) 0 0',
-            padding: '10px 13px',
-            borderLeft: '3px solid var(--kp-accent)',
-            background: 'var(--color-secondary)',
-            borderRadius: '0 7px 7px 0',
-            fontSize: 'var(--kp-font-sm)',
-            lineHeight: 'var(--kp-leading-relaxed)',
-            color: 'var(--color-foreground)',
+            width: 18,
+            height: 18,
+            borderRadius: 5,
+            background: '#f0fdf4',
+            border: '1px solid rgba(74,222,128,0.6)',
+            color: '#166534',
+            fontSize: 11,
+            fontWeight: 700,
+            fontFamily: 'var(--font-mono)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flex: 'none',
           }}
         >
-          {cite.excerpt}
-        </blockquote>
+          {cite.n}
+        </span>
+        <FileText size={14} strokeWidth={1.75} style={{ color: 'var(--kp-accent)', flex: 'none' }} />
+        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {cite.label}
+        </span>
+      </div>
 
-        {/* WS3 (Task 4): "Verify against source" button + verdict.
-            Guard: disabled with tooltip when id/matterId are absent (pre-3.0 or
-            browser mode). Only `verified` is reassuring; the other three
-            verdicts render as clear problems — no softening. */}
-        <div style={{ marginTop: 'var(--kp-space-sm)' }}>
+      {/* Grey quote with a quiet left rule */}
+      <div
+        style={{
+          fontSize: 12.5,
+          lineHeight: 1.5,
+          color: 'var(--kp-text-dim)',
+          borderLeft: '2px solid var(--kp-divider-strong)',
+          paddingLeft: 10,
+        }}
+      >
+        {cite.excerpt}
+      </div>
+
+      {/* Verify line — green "Verified against source"; runs the real check. */}
+      <div style={{ marginTop: 10 }}>
+        {isProblem ? (
+          <span
+            data-testid="verify-verdict"
+            data-verdict={(verdict as CitationVerdict).verdict}
+            title={problemMessage((verdict as CitationVerdict).verdict)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 600, color: 'var(--kp-danger, #b02a1f)' }}
+          >
+            <AlertTriangle size={12} strokeWidth={2} style={{ flex: 'none' }} />
+            {problemMessage((verdict as CitationVerdict).verdict)}
+          </span>
+        ) : (
           <button
             type="button"
             data-testid="verify-citation-btn"
-            disabled={!canVerify || verdictState === 'loading'}
+            onClick={(e) => { void runVerify(e); }}
+            disabled={!canVerify || verdict === 'loading'}
             title={canVerify ? 'Check this quote against the stored source' : 'Verification is not available for this citation (pre-3.0 or browser mode)'}
-            onClick={() => { void handleVerify(); }}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              padding: '5px 10px',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-background)',
-              fontSize: 'var(--kp-font-xs)',
-              fontWeight: 'var(--kp-weight-medium)',
-              color: canVerify ? 'var(--color-foreground)' : 'var(--color-muted-foreground)',
-              cursor: canVerify ? 'pointer' : 'not-allowed',
-              opacity: canVerify ? 1 : 0.55,
-              width: '100%',
-              justifyContent: 'center',
+              fontSize: 11.5,
+              fontWeight: 600,
+              color: '#16654a',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: canVerify ? 'pointer' : 'default',
             }}
           >
-            {verdictState === 'loading' ? (
-              <Loader2 size={12} strokeWidth={2} className="animate-spin" />
+            {verdict === 'loading' ? (
+              <Loader2 size={12} strokeWidth={2} className="animate-spin" style={{ flex: 'none' }} />
+            ) : isGreen ? (
+              <CheckCircle2 size={12} strokeWidth={2} style={{ flex: 'none' }} />
             ) : (
-              <ShieldCheck size={12} strokeWidth={2} />
+              <ShieldCheck size={12} strokeWidth={2} style={{ flex: 'none' }} />
             )}
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            Verify against source
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            {isGreen ? LABEL_VERIFIED : LABEL_VERIFY}
           </button>
-
-          {/* Verdict rendering — honest, no softening.
-              Only `verified` is reassuring. notFound / textMismatch /
-              matterMismatch must read as clear problems. */}
-          {verdictState && verdictState !== 'loading' && (
-            <div
-              data-testid="verify-verdict"
-              data-verdict={verdictState.verdict}
-              style={{
-                marginTop: 8,
-                padding: '8px 11px',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 'var(--kp-font-xs)',
-                lineHeight: 'var(--kp-leading-normal)',
-                display: 'flex',
-                gap: 7,
-                alignItems: 'flex-start',
-                ...(verdictState.verdict === 'verified'
-                  ? {
-                      background: 'var(--kp-local-bg)',
-                      border: '1px solid var(--kp-local-line)',
-                      color: 'var(--kp-local)',
-                    }
-                  : {
-                      background: 'color-mix(in srgb, var(--kp-danger, #dc2626) 8%, transparent)',
-                      border: '1px solid color-mix(in srgb, var(--kp-danger, #dc2626) 35%, transparent)',
-                      color: 'color-mix(in srgb, var(--kp-danger, #dc2626) 90%, black)',
-                    }),
-              }}
-            >
-              {verdictState.verdict === 'verified' ? (
-                <CheckCircle2 size={13} strokeWidth={2} style={{ flex: 'none', marginTop: 1 }} />
-              ) : (
-                <AlertTriangle size={13} strokeWidth={2} style={{ flex: 'none', marginTop: 1 }} />
-              )}
-              <span>
-                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                {verdictState.verdict === 'verified' && 'Quote found in source. This citation checks out.'}
-                {verdictState.verdict === 'notFound' && 'This quote was not found in the cited source. Do not rely on it without checking the original.'}
-                {verdictState.verdict === 'textMismatch' && 'The quote does not match the stored text. Do not rely on it without checking the original.'}
-                {verdictState.verdict === 'matterMismatch' && `This source belongs to a different client. Do not rely on it. This may be a cross-client data leak.`}
-                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* The relocated citation-open actions. */}
-        <>
-            {/* Email citation → open the light EmailViewer reading view. Self-
-                dispatches keepance:open-email (the email has no on-disk path). */}
-            {cite.path?.startsWith('mail:') && (
-              <Button
-                variant="secondary"
-                size="sm"
-                iconLeft={ExternalLink}
-                fullWidth
-                data-testid="source-open-email"
-                onClick={() => {
-                  window.dispatchEvent(
-                    new CustomEvent('keepance:open-email', { detail: { sourceId: cite.path } }),
-                  );
-                }}
-                style={{ marginTop: 'var(--kp-space-sm)' }}
-              >
-                Open email
-              </Button>
-            )}
-            {/* Document citation → open the cited source in the contextual
-                editor, scrolled to the cited passage. Self-dispatches
-                keepance:matter-launch (document source), reusing the shell's
-                matter-scoped, binary-aware (.docx) open-and-scroll pipeline —
-                the same path Client Map source links use. Excludes mail:/crm:
-                (those have their own routes) and gates on matterId so the open
-                is confined to the citation's matter (fail-closed otherwise). */}
-            {cite.path && !cite.path.startsWith('mail:') && !cite.path.startsWith('crm:') && cite.matterId && (
-              <Button
-                variant="secondary"
-                size="sm"
-                iconLeft={ExternalLink}
-                fullWidth
-                data-testid="source-open-document"
-                onClick={() => {
-                  const source: { kind: 'document'; ref: string; snippet?: string } = {
-                    kind: 'document',
-                    ref: cite.path ?? '',
-                  };
-                  if (cite.excerpt) source.snippet = cite.excerpt;
-                  window.dispatchEvent(
-                    new CustomEvent('keepance:matter-launch', {
-                      detail: { matterId: cite.matterId, surface: 'files', source },
-                    }),
-                  );
-                }}
-                style={{ marginTop: 'var(--kp-space-sm)' }}
-              >
-                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                Open in editor
-                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-              </Button>
-            )}
-        </>
+        )}
       </div>
+    </div>
+  );
+}
+
+export function SourcePanel({
+  citations,
+  selectedN,
+  onSelect,
+  onAuditLog,
+  onOpenCitation,
+}: {
+  /** All citations for the answer the user is looking at. */
+  citations: AnswerCitation[];
+  /** The currently-highlighted citation number (clicked chip / card). */
+  selectedN: number | null;
+  /** Select citation n (drives the chip↔card highlight). */
+  onSelect: (n: number) => void;
+  /**
+   * When provided, each "Verify against source" result emits a
+   * `citation_verified` audit entry so the check is on the record.
+   */
+  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+  /**
+   * Optional host opener. When provided, clicking a card routes here with the
+   * full citation instead of the built-in mail/document opener — for hosts that
+   * carry richer source-kind data (the Client Map reuses this column for CRM /
+   * OneDrive / e-sign / meeting sources, which the path opener can't route).
+   */
+  onOpenCitation?: (cite: AnswerCitation) => void;
+}) {
+  return (
+    <div data-testid="source-panel">
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7,
+          marginBottom: 14,
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: 'var(--kp-text-faint)',
+        }}
+      >
+        <ShieldCheck size={13} strokeWidth={2} style={{ flex: 'none' }} />
+        {LABEL_SOURCES}
+      </div>
+
+      {citations.map((c) => (
+        <SourceCard
+          // Key by citation IDENTITY (id/path + matterId), not just the number:
+          // switching Ask turns / Client Map sections re-renders this column, and
+          // a different source reusing the same number (n) must remount with fresh
+          // local state — otherwise a prior card's verify verdict would wrongly
+          // carry over onto the new, unchecked source.
+          key={`${String(c.n)}:${c.id ?? c.path ?? ''}:${c.matterId ?? ''}`}
+          cite={c}
+          selected={c.n === selectedN}
+          onSelect={onSelect}
+          {...(onOpenCitation ? { onOpenCitation } : {})}
+          {...(onAuditLog ? { onAuditLog } : {})}
+        />
+      ))}
     </div>
   );
 }

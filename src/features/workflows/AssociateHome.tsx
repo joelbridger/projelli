@@ -47,7 +47,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout, SearchField, SurfaceToolbar } from '@/ui/kp';
+import { Button, Chip, Eyebrow, Card, EmptyState, Callout, SearchField, SurfaceToolbar } from '@/ui/kp';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/platform/types/workflow';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
@@ -55,6 +55,9 @@ import type { Profession } from '@/features/workflows/engine/prioritizeByProfess
 import { useProfessionStore, isLawExperience } from '@/platform/profile/professionStore';
 import { useTrialGate } from '@/platform/hooks/useTrial';
 import { useActiveMatter } from '@/platform/matter/matterStore';
+import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
+import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { matterLabel } from '@/platform/rag/matterResolver';
 
 // ── Prop interface (kept identical to original) ────────────────────────────
@@ -236,8 +239,8 @@ function TemplateCard({
             alignItems: 'center',
             gap: 4,
             padding: '2px 8px',
-            background: 'var(--kp-navy)',
-            color: '#fff',
+            background: 'var(--kp-action-bg)',
+            color: 'var(--kp-action-fg)',
             fontSize: 'var(--kp-font-2xs)',
             fontWeight: 'var(--kp-weight-bold)',
             letterSpacing: '0.07em',
@@ -483,7 +486,7 @@ function RunRow({
         padding: '8px 0',
         background: 'none',
         border: 'none',
-        borderBottom: '1px solid var(--color-border)',
+        borderBottom: '1px solid var(--kp-divider)',
         width: '100%',
         textAlign: 'left',
         cursor: onFocus ? 'pointer' : 'default',
@@ -530,6 +533,12 @@ export function AssociateHome({
   const trialGate = useTrialGate();
   const profession = useProfessionStore((s) => s.profession);
   const activeMatter = useActiveMatter();
+  // Workflows run AI — show the same egress badge as Ask, top-right.
+  const confidentialityMode = useConfidentialityMode();
+  const egressProvider = useActiveEgressProvider(confidentialityMode);
+  // Run-time household clarity: clicking Run asks for confirmation, making it
+  // explicit which household the workflow will run in (replaces the old pill).
+  const [pendingRun, setPendingRun] = useState<WorkflowTemplate | null>(null);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>(readStoredFilter);
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>(readStoredCollapsed);
@@ -681,16 +690,19 @@ export function AssociateHome({
       }}
     >
       {/* ── Page header ─────────────────────────────────────────────── */}
-      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)', flexShrink: 0 }}>
         <SurfaceHeader
           Icon={ListChecks}
+          iconColor="var(--kp-accent)"
           title="Workflows"
-          description={`Your tireless associate. ${String(templates.length)} workflow${templates.length === 1 ? '' : 's'} ready. Pick one to run.`}
+          actions={
+            <EgressIndicator provider={egressProvider} mode={confidentialityMode} variant="status" />
+          }
         />
       </div>
 
       {/* ── Toolbar: filters (practice chips) then search last ──── */}
-      <SurfaceToolbar data-testid="associate-toolbar">
+      <SurfaceToolbar data-testid="associate-toolbar" style={{ borderBottom: 'none' }}>
         {presentCategories.length > 1 && (
           <div
             data-testid="associate-practice-filter"
@@ -818,17 +830,8 @@ export function AssociateHome({
           </div>
         )}
 
-        {/* Active-matter context — sits in the content, just above the groups */}
-        {activeMatter !== null && (
-          <div
-            data-testid="associate-active-matter-chip"
-            style={{ marginBottom: 'var(--kp-section-gap)' }}
-          >
-            <Badge variant="neutral" size="sm" icon={Briefcase}>
-              Running in: {matterLabel(activeMatter)}
-            </Badge>
-          </div>
-        )}
+        {/* The household is surfaced at RUN TIME (the run-confirmation modal),
+            not as a persistent "Running in" pill here. */}
 
         {/* Template groups */}
         {groups.every((g) => g.templates.length === 0) ? (
@@ -858,11 +861,84 @@ export function AssociateHome({
               trialLocked={trialGate.isLocked}
               collapsed={collapsedCategories[config.key] === true}
               onCollapse={handleCollapse}
-              onRun={onStartWorkflow}
+              onRun={(t) => { setPendingRun(t); }}
             />
           ))
         )}
       </div>
+
+      {/* Run-time household confirmation — makes the target household explicit
+          at the moment of running (replaces the persistent "Running in" pill). */}
+      {pendingRun && (
+        <div
+          data-testid="workflow-run-confirm"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => { setPendingRun(null); }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(10, 37, 64, 0.34)',
+            backdropFilter: 'blur(2px)',
+          }}
+        >
+          <div
+            onClick={(e) => { e.stopPropagation(); }}
+            style={{
+              width: 460,
+              maxWidth: 'calc(100vw - 64px)',
+              background: 'var(--color-background)',
+              border: '1px solid var(--kp-divider)',
+              borderRadius: 14,
+              boxShadow: '0 12px 48px rgba(10,37,64,0.20), 0 2px 8px rgba(10,37,64,0.10)',
+              padding: '24px 24px 20px',
+              fontFamily: 'Satoshi, sans-serif',
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--kp-accent)', marginBottom: 10 }}>
+              Run workflow
+            </div>
+            <h2 style={{ margin: '0 0 14px', fontSize: 20, fontWeight: 700, color: 'var(--kp-navy)', letterSpacing: '-0.01em' }}>
+              {pendingRun.name}
+            </h2>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '12px 14px',
+                borderRadius: 10,
+                background: 'var(--kp-bg-soft)',
+                border: '1px solid var(--kp-divider)',
+                marginBottom: 20,
+              }}
+            >
+              <Briefcase size={16} strokeWidth={2} style={{ color: 'var(--kp-accent)', flex: 'none' }} />
+              <span style={{ fontSize: 14, color: 'var(--kp-text-dim)' }}>Run in</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--kp-navy)' }}>
+                {activeMatter !== null ? matterLabel(activeMatter) : 'your workspace'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <Button variant="secondary" size="md" onClick={() => { setPendingRun(null); }}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                data-testid="workflow-run-confirm-go"
+                onClick={() => { const t = pendingRun; setPendingRun(null); onStartWorkflow(t); }}
+              >
+                Run
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

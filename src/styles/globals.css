@@ -31,6 +31,28 @@
   --color-input: hsl(214.3 31.8% 60%);
   --color-ring: hsl(210 73% 15%);
 
+  /* ---- Minimal "demo" design system (anchored to the demo-video Ask scene:
+     marketing-demo/render/brand.css). The shared, calm, light aesthetic for the
+     whole main content area — Ask, Client Map, Workflows. Use these for every
+     divider / surface tint / faint text, NOT the heavier --color-border. ---- */
+  --kp-divider: rgba(10, 37, 64, 0.10);        /* light hairline: rails, tab bars, header underlines, column splits */
+  --kp-divider-strong: rgba(10, 37, 64, 0.16); /* slightly stronger outline: outlined buttons, option cards */
+  --kp-accent: #1f74c4;                         /* demo accent blue — header icons, active accents */
+  --kp-accent-soft: rgba(31, 116, 196, 0.11);   /* active row / selected pill tint */
+  --kp-accent-softer: rgba(31, 116, 196, 0.06); /* hover row tint */
+  --kp-text-faint: rgba(10, 37, 64, 0.46);      /* faint subtitles (surface descriptions) */
+  --kp-text-dim: rgba(10, 37, 64, 0.64);        /* dim secondary body text */
+  --kp-bg-soft: #f3f6fb;                         /* soft panel tint (e.g. the Ask source panel) */
+
+  /* ACTION style — the single light-blue treatment for primary buttons + active
+     selections (matches the active tabs / left nav). NO dark navy fills anymore;
+     navy text on a light-blue tint + a clear accent outline keeps it actionable. */
+  --kp-action-bg: rgba(31, 116, 196, 0.14);
+  --kp-action-bg-hover: rgba(31, 116, 196, 0.22);
+  --kp-action-bg-active: rgba(31, 116, 196, 0.30);
+  --kp-action-fg: var(--kp-navy);
+  --kp-action-border: var(--kp-accent);
+
   /* ---- Brand (keepance.com): Satoshi + the pink->blue gradient ---- */
   --font-sans: 'Satoshi', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'Fira Code', monospace;
@@ -211,9 +233,9 @@
   .kp-btn--sm { height: var(--kp-control-sm); padding: 0 10px; font-size: var(--kp-font-xs); gap: var(--kp-space-2xs); }
   .kp-btn--md { height: var(--kp-control-md); padding: 0 14px; font-size: var(--kp-font-sm); gap: var(--kp-space-xs); }
   .kp-btn--lg { height: var(--kp-control-lg); padding: 0 18px; font-size: var(--kp-font-md); gap: var(--kp-space-xs); }
-  .kp-btn--primary { background: var(--kp-navy); color: #fff; border-color: var(--kp-navy); }
-  .kp-btn--primary:hover { background: #0d2f53; border-color: #0d2f53; }
-  .kp-btn--primary:active { background: #081d33; border-color: #081d33; }
+  .kp-btn--primary { background: var(--kp-action-bg); color: var(--kp-action-fg); border-color: var(--kp-action-border); }
+  .kp-btn--primary:hover { background: var(--kp-action-bg-hover); border-color: var(--kp-action-border); }
+  .kp-btn--primary:active { background: var(--kp-action-bg-active); border-color: var(--kp-action-border); }
   .kp-btn--secondary { background: var(--color-background); color: var(--kp-navy); border-color: var(--color-border); }
   .kp-btn--secondary:hover { background: rgba(10, 37, 64, 0.05); }
   .kp-btn--secondary:active { background: rgba(10, 37, 64, 0.09); }
@@ -244,7 +266,7 @@
   .kp-icon-btn--ghost:hover { background: rgba(10, 37, 64, 0.06); color: var(--kp-navy); }
   .kp-icon-btn--secondary { background: var(--color-background); color: var(--kp-navy); border-color: var(--color-border); }
   .kp-icon-btn--secondary:hover { background: rgba(10, 37, 64, 0.05); }
-  .kp-icon-btn--primary { background: var(--kp-navy); color: #fff; }
+  .kp-icon-btn--primary { background: var(--kp-action-bg); color: var(--kp-action-fg); border: var(--kp-border-width) solid var(--kp-action-border); }
   .kp-icon-btn--primary:hover { background: #0d2f53; }
   .kp-icon-btn:disabled { opacity: var(--kp-opacity-disabled); cursor: not-allowed; pointer-events: none; }
 
@@ -257,14 +279,24 @@
   }
   .kp-search--sm { height: var(--kp-control-sm); }
   .kp-search--md { height: var(--kp-control-md); }
+  /* Large composer field — the demo Ask input (brand.css .kpd-ci): 50px tall,
+     1.5px line-strong border, 12px radius, roomy padding, 15.5px text, accent
+     focus ring. */
+  .kp-search--lg {
+    height: 50px; border-radius: 12px; padding: 0 16px; gap: var(--kp-space-sm);
+    border-width: 1.5px; border-color: var(--kp-divider-strong);
+  }
   .kp-search:focus-within { border-color: var(--kp-navy); }
+  .kp-search--lg:focus-within { border-color: var(--kp-accent); box-shadow: 0 0 0 3px var(--kp-accent-soft); }
   .kp-search__icon { color: var(--color-muted-foreground); flex: none; display: inline-flex; }
+  .kp-search--lg .kp-search__icon { color: var(--kp-accent); }
   .kp-search__input {
     flex: 1; min-width: 0; border: none; outline: none; background: transparent;
     font-family: var(--font-sans); color: var(--color-foreground);
   }
   .kp-search--sm .kp-search__input { font-size: var(--kp-font-xs); }
   .kp-search--md .kp-search__input { font-size: var(--kp-font-sm); }
+  .kp-search--lg .kp-search__input { font-size: 15.5px; }
   .kp-search__input::placeholder { color: var(--color-muted-foreground); }
 
   /* ---- SegmentedToggle — the ONE app-wide toggle (Files/Trash, Tree/Grid,
@@ -290,7 +322,7 @@
   .kp-segmented--sm .kp-segmented__item { padding: 0 12px; font-size: var(--kp-font-xs); }
   .kp-segmented--md .kp-segmented__item { padding: 0 14px; font-size: var(--kp-font-sm); }
   .kp-segmented__item:not(.is-active):hover { background: rgba(10, 37, 64, 0.04); color: var(--kp-navy); }
-  .kp-segmented__item.is-active { background: var(--kp-navy); color: #fff; }
+  .kp-segmented__item.is-active { background: var(--kp-action-bg); color: var(--kp-action-fg); }
 
   /* ---- Surface toolbar — the standard tools row beneath every surface header
      (buttons, toggles, search, filters). The shape: Header -> Toolbar -> Content. ---- */
@@ -298,7 +330,7 @@
     display: flex; align-items: center; gap: var(--kp-space-xs);
     padding: var(--kp-space-sm) var(--kp-gutter);
     min-height: calc(var(--kp-control-md) + var(--kp-space-sm) * 2);  /* identical height on every tab */
-    border-bottom: var(--kp-border-width) solid var(--color-border);
+    border-bottom: 1px solid var(--kp-divider);
     flex-wrap: wrap; flex-shrink: 0; background: var(--color-background);
   }
   .kp-toolbar__spacer { margin-left: auto; }
@@ -353,7 +385,7 @@
   .kp-badge--success   { background: var(--kp-success-bg); color: var(--kp-success); border-color: var(--kp-success-line); }
   .kp-badge--warning   { background: var(--kp-warning-bg); color: var(--kp-warning); border-color: var(--kp-warning-line); }
   .kp-badge--danger    { background: var(--kp-danger-bg); color: var(--kp-danger); border-color: rgba(176, 42, 31, 0.3); }
-  .kp-badge--featured  { background: var(--kp-navy); color: #fff; border-color: var(--kp-navy); }
+  .kp-badge--featured  { background: var(--kp-action-bg); color: var(--kp-action-fg); border-color: var(--kp-action-border); }
   .kp-badge--uppercase { text-transform: uppercase; letter-spacing: 0.05em; }
   .kp-badge--mono { font-family: var(--font-mono); letter-spacing: 0; font-weight: var(--kp-weight-regular); }
 
@@ -370,8 +402,8 @@
   .kp-chip--sm { padding: 3px 10px; font-size: var(--kp-font-2xs); }
   .kp-chip--md { padding: 5px 13px; font-size: var(--kp-font-xs); }
   .kp-chip:hover { border-color: rgba(10, 37, 64, 0.3); color: var(--kp-navy); }
-  .kp-chip.is-active { background: var(--kp-navy); color: #fff; border-color: var(--kp-navy); font-weight: var(--kp-weight-semibold); }
-  .kp-chip.is-active:hover { color: #fff; }
+  .kp-chip.is-active { background: var(--kp-action-bg); color: var(--kp-action-fg); border-color: var(--kp-action-border); font-weight: var(--kp-weight-semibold); }
+  .kp-chip.is-active:hover { color: var(--kp-action-fg); border-color: var(--kp-action-border); }
 
   /* ---- Eyebrow (uppercase section / column label) ------------------- */
   .kp-eyebrow {
@@ -472,4 +504,19 @@
   --color-border: hsl(217.2 32.6% 17.5%);
   --color-input: hsl(217.2 32.6% 17.5%);
   --color-ring: hsl(210 73% 15%);
+
+  /* Minimal design-system tokens (dark) */
+  --kp-divider: rgba(255, 255, 255, 0.12);
+  --kp-divider-strong: rgba(255, 255, 255, 0.20);
+  --kp-accent: #5dc6ff;
+  --kp-accent-soft: rgba(93, 198, 255, 0.16);
+  --kp-accent-softer: rgba(93, 198, 255, 0.08);
+  --kp-action-bg: rgba(93, 198, 255, 0.18);
+  --kp-action-bg-hover: rgba(93, 198, 255, 0.26);
+  --kp-action-bg-active: rgba(93, 198, 255, 0.34);
+  --kp-action-fg: #e8f4ff;
+  --kp-action-border: #5dc6ff;
+  --kp-text-faint: rgba(255, 255, 255, 0.46);
+  --kp-text-dim: rgba(255, 255, 255, 0.64);
+  --kp-bg-soft: hsl(217.2 32.6% 14%);
 }

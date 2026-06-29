@@ -60,7 +60,7 @@ export interface EgressIndicatorProps {
    * false falls back to the honest BYOK-direct story.
    */
   assuredAvailable?: boolean;
-  variant?: 'full' | 'compact';
+  variant?: 'full' | 'compact' | 'status';
   className?: string;
 }
 
@@ -179,6 +179,28 @@ export function EgressIndicator({
     const pulse = disconnected ? '' : 'animate-pulse';
     const pendingStyles =
       'border-slate-300 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300';
+    if (variant === 'status') {
+      // Short pill (the demo Ask header badge). Full truth stays in the tooltip
+      // + the data-* attributes, so this is still the inspectable indicator.
+      const shortLabel = disconnected ? 'No AI connected' : 'Checking…';
+      return (
+        <div
+          data-testid="egress-indicator"
+          data-destination={destination}
+          data-data-leaves="false"
+          role="status"
+          title={`${view.label}. ${view.note}`}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold',
+            pendingStyles,
+            className,
+          )}
+        >
+          <NeutralIcon className={cn('h-3.5 w-3.5 shrink-0', pulse)} aria-hidden />
+          <span data-testid="egress-indicator-label">{shortLabel}</span>
+        </div>
+      );
+    }
     if (variant === 'compact') {
       return (
         <div
@@ -224,6 +246,30 @@ export function EgressIndicator({
   }
 
   const { info, label, note } = view;
+
+  if (variant === 'status') {
+    // Short pill: ONLY "Using local AI" / "Using cloud AI" (demo Ask header).
+    // The full honest copy stays in the tooltip + the inspectable data-* attrs.
+    const shortLabel = info.destination === 'local' ? 'Using local AI' : 'Using cloud AI';
+    return (
+      <div
+        data-testid="egress-indicator"
+        data-destination={info.destination}
+        data-severity={info.severity}
+        data-data-leaves={info.dataLeaves ? 'true' : 'false'}
+        role="status"
+        title={`${label}. ${note}`}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold',
+          SEVERITY_STYLES[info.severity],
+          className,
+        )}
+      >
+        <EgressIcon info={info} className="h-3.5 w-3.5 shrink-0" />
+        <span data-testid="egress-indicator-label">{shortLabel}</span>
+      </div>
+    );
+  }
 
   if (variant === 'compact') {
     return (

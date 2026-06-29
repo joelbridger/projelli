@@ -64,7 +64,7 @@ describe('useClientMap — regression tests for fixed bugs (KEEPANCE 5)', () => 
     // The fresh AI content is proposed as an update. Approve-first (B5): even a
     // clean source-backed add is queued for the user to approve, NOT auto-applied.
     proposeUpdatesMock.mockReturnValue([
-      { id: 'p1', sectionKey: 'story', op: 'add', reason: 'r', createdAt: 't2',
+      { id: 'p1', sectionKey: 'goals', op: 'add', reason: 'r', createdAt: 't2',
         draft: { id: 'ai1', text: 'Matter is a contract dispute', origin: 'ai', isAssumption: false, sources: [{ kind: 'document', ref: '/a', snippet: 's' }], updatedAt: 't2' } },
     ]);
 
@@ -104,7 +104,7 @@ describe('useClientMap — regression tests for fixed bugs (KEEPANCE 5)', () => 
   // approve-first review (the user decides every AI change).
   it('BUG-104: a still-pending proposal survives the next update check', async () => {
     const pendingU1: ProposedUpdate = {
-      id: 'U1', sectionKey: 'standing', op: 'add', reason: 'from an earlier pass', createdAt: 't',
+      id: 'U1', sectionKey: 'money', op: 'add', reason: 'from an earlier pass', createdAt: 't',
       draft: { id: 'd1', text: 'Earlier proposed fact', origin: 'ai', isAssumption: false, sources: [], updatedAt: 't' },
     };
     const seeded = { ...emptyClientMap('m3'), lastBuiltAt: 't', lastSourceFingerprint: 'fp-old', pendingUpdates: [pendingU1] };
@@ -114,7 +114,7 @@ describe('useClientMap — regression tests for fixed bugs (KEEPANCE 5)', () => 
     computeFingerprintMock.mockResolvedValue('fp-new');
     buildMock.mockResolvedValue({ ...emptyClientMap('m3'), lastBuiltAt: 't2' });
     const u2: ProposedUpdate = {
-      id: 'U2', sectionKey: 'people', op: 'add', reason: 'newly found', createdAt: 't2',
+      id: 'U2', sectionKey: 'household', op: 'add', reason: 'newly found', createdAt: 't2',
       draft: { id: 'd2', text: 'A newly found fact', origin: 'ai', isAssumption: false, sources: [], updatedAt: 't2' },
     };
     proposeUpdatesMock.mockReturnValue([u2]);
@@ -149,7 +149,7 @@ describe('useClientMap — regression tests for fixed bugs (KEEPANCE 5)', () => 
   // is NOT empty; it reports 'ready' so the Guided Interview can render.
   it('BUG-103: a gap-only map reports "ready", not "empty"', async () => {
     const gapOnly = { ...emptyClientMap('mG'), lastBuiltAt: 't' };
-    gapOnly.completeness.ask = [{ text: 'What outcome does the client want?', sectionKey: 'story' }];
+    gapOnly.completeness.ask = [{ text: 'What outcome does the client want?', sectionKey: 'goals' }];
     buildMock.mockResolvedValue(gapOnly);
     computeFingerprintMock.mockResolvedValue('fp');
 
@@ -266,7 +266,7 @@ describe('useClientMap — autoBuild on open (connector-created clients)', () =>
     ];
     buildMock.mockResolvedValue(withContent);
     proposeUpdatesMock.mockReturnValue([
-      { id: 'p1', sectionKey: 'story', op: 'add', reason: 'r', createdAt: 't2',
+      { id: 'p1', sectionKey: 'goals', op: 'add', reason: 'r', createdAt: 't2',
         draft: { id: 'a', text: 'Carter household', origin: 'ai', isAssumption: false, sources: [], updatedAt: 't2' } },
     ]);
     await act(async () => { await result.current.checkForUpdates(); });

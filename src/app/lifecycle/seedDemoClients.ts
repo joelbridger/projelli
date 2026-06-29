@@ -44,33 +44,31 @@ function email(ref: string, snippet: string): SourceRef {
 function brennanSections(): ClientMapSection[] {
   const D = '/test-workspace/Brennan Household';
   const byKey: Record<CoreSectionKey, ClientMapItem[]> = {
-    story: [
-      mkItem('Became clients in 2019, referred by their CPA after selling stakes in two dental practices.'),
-      mkItem('Sold the remaining practice to Heartland Dental in March 2023 for $3.8M (earn-out runs through 2025).', [doc(`${D}/Sale Agreement.pdf`, 'Purchase price of $3,800,000…', 'p. 1')]),
-      mkItem('Stated goal: retire fully by 2027 and seed a small family foundation.', [email(`${D}/mail/goals.eml`, 'We would love to set up a foundation for the grandkids…')]),
-    ],
-    people: [
+    household: [
       mkItem('Robert Brennan — 62, retiring dentist, primary decision-maker.'),
       mkItem('Susan Brennan — 60, spouse, former practice office manager.'),
       mkItem('Adult children: Megan (34, getting married) and Daniel (31).'),
       mkItem('CPA: Maria Alvarez, Alvarez & Co.', [email(`${D}/mail/alvarez.eml`, 'Looping in Maria on the Roth conversion…')]),
       mkItem('Estate attorney: Linda Park, Park & Wills LLP.', [doc(`${D}/Estate Plan Summary.pdf`, 'Prepared by Park & Wills LLP…', 'p. 2')]),
+      mkItem('Became clients in 2019, referred by their CPA after selling stakes in two dental practices.'),
     ],
-    standing: [
+    goals: [
+      mkItem('Retire fully by 2027 and seed a small family foundation.', [email(`${D}/mail/goals.eml`, 'We would love to set up a foundation for the grandkids…')]),
+      mkItem('Sold the remaining practice to Heartland Dental in March 2023 for $3.8M (earn-out runs through 2025).', [doc(`${D}/Sale Agreement.pdf`, 'Purchase price of $3,800,000…', 'p. 1')]),
+    ],
+    money: [
       mkItem('Investable assets $4.2M; current allocation 62% equity / 38% fixed income.', [doc(`${D}/Q1 Statement.pdf`, 'Total portfolio value $4,201,880…', 'p. 3')]),
       mkItem('Roth conversion ladder underway since 2024 to fill the 24% bracket.'),
       mkItem('Concentrated position: $480k of Heartland Dental stock from the sale.', [email(`${D}/mail/concentration.eml`, 'Still holding the Heartland shares…')]),
       mkItem('Two 529 plans for the grandchildren, about $85k combined.'),
     ],
-    upcoming: [
-      mkItem("Robert's required minimum distributions begin 2027."),
-      mkItem("Megan's wedding, spring 2026 — gifting question still open."),
-      mkItem('Annual review meeting booked for May 2026.', [email(`${D}/mail/review-invite.eml`, 'Confirming our annual review for May…')]),
-    ],
-    next: [
+    followups: [
       mkItem('Rebalance back toward the 60/40 target.'),
       mkItem('Diversify the concentrated Heartland position over 2025–2026.'),
       mkItem('Confirm the 2026 gifting strategy with the CPA before year-end.'),
+      mkItem("Robert's required minimum distributions begin 2027."),
+      mkItem("Megan's wedding, spring 2026 — gifting question still open."),
+      mkItem('Annual review meeting booked for May 2026.', [email(`${D}/mail/review-invite.eml`, 'Confirming our annual review for May…')]),
     ],
   };
   return CORE_SECTION_ORDER.map((key) => ({
@@ -93,8 +91,8 @@ function brennanClientMap(): ClientMap {
         mkItem('Assuming a moderate risk tolerance — last formally confirmed in 2022.', [], true),
       ],
       ask: [
-        { text: 'Has their risk tolerance changed since the practice sale?', sectionKey: 'standing' },
-        { text: 'Do they want to make annual-exclusion gifts to the kids before year-end?', sectionKey: 'next' },
+        { text: 'Has their risk tolerance changed since the practice sale?', sectionKey: 'money' },
+        { text: 'Do they want to make annual-exclusion gifts to the kids before year-end?', sectionKey: 'followups' },
       ],
     },
     pendingUpdates: [],
@@ -106,7 +104,7 @@ function brennanClientMap(): ClientMap {
 function okaforSections(): ClientMapSection[] {
   const D = '/test-workspace/Okafor Household';
   const byKey: Record<CoreSectionKey, ClientMapItem[]> = {
-    story: [
+    goals: [
       mkItem('Became clients in 2022, introduced by Chidi\'s former HR director at the end of his corporate career.'),
       mkItem(
         'Chidi retired from Procter & Gamble in January 2025 as VP of Operations after 28 years; rolled his $1.2M 401(k) to a Fidelity rollover IRA in March 2025.',
@@ -121,7 +119,7 @@ function okaforSections(): ClientMapSection[] {
         [email(`${D}/mail/goals-2024.eml`, 'The DAF idea feels right — we want the kids to see giving as part of the plan…')],
       ),
     ],
-    people: [
+    household: [
       mkItem('Chidi Okafor — 58, retired VP of Operations (Procter & Gamble), primary rollover IRA account holder.'),
       mkItem('Ada Okafor — 55, pediatrician (Nationwide Children\'s Hospital), currently earning W-2 income.'),
       mkItem(
@@ -141,7 +139,7 @@ function okaforSections(): ClientMapSection[] {
         [doc(`${D}/Okafor Revocable Trust.pdf`, 'Prepared by Osei & Wren Law Group. Effective date January 14, 2023…', 'p. 1')],
       ),
     ],
-    standing: [
+    money: [
       mkItem(
         'Total investable assets approximately $2.4M: Fidelity rollover IRA ($1.2M), Ada\'s hospital 403(b) ($388k), joint Schwab brokerage ($620k), and two 529 plans ($126k combined).',
         [doc(`${D}/Q1 2026 Portfolio Summary.pdf`, 'Total household investable assets $2,414,100…', 'p. 2')],
@@ -163,7 +161,7 @@ function okaforSections(): ClientMapSection[] {
         [doc(`${D}/Fidelity Rollover Confirmation.pdf`, 'Proceeds re-invested per the agreed model portfolio on April 3, 2025…', 'p. 2')],
       ),
     ],
-    upcoming: [
+    followups: [
       mkItem(
         'Ada\'s 2026 403(b) contribution: maximizing to $23,500 + $7,500 age-55 catch-up ($31,000 total).',
         [email(`${D}/mail/ada-403b-2026.eml`, 'Confirming the catch-up contribution election is in place for the plan year…')],
@@ -179,8 +177,6 @@ function okaforSections(): ClientMapSection[] {
         'Annual review meeting scheduled for September 2026.',
         [email(`${D}/mail/review-invite.eml`, 'Confirming the Okafor annual review for September 15, 2026…')],
       ),
-    ],
-    next: [
       mkItem('Increase Zoe\'s 529 contribution by $6,000/year over the next two years to close the college-funding gap.'),
       mkItem(
         'Review the 2026 Roth conversion amount with James Thornton; Ada\'s recent 4% raise may compress available bracket room.',

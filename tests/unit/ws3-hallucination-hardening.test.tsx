@@ -286,7 +286,7 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
       verified: false,
       // no id / matterId
     };
-    render(<SourcePanel cite={cite} />);
+    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
     const btn = screen.getByTestId('verify-citation-btn');
     expect(btn).toBeDisabled();
   });
@@ -303,12 +303,12 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
       id: 'chunk-c1',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel cite={cite} />);
+    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
     const btn = screen.getByTestId('verify-citation-btn');
     expect(btn).not.toBeDisabled();
   });
 
-  it('shows green "found in source" after verified verdict', async () => {
+  it('shows green "Verified against source" after verified verdict', async () => {
     mockRagVerifyCitation.mockResolvedValue({ verdict: 'verified' });
     const { SourcePanel } = await import('@/features/ask/SourcePanel');
     const cite = {
@@ -321,14 +321,14 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
       id: 'chunk-c1',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel cite={cite} />);
+    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
     fireEvent.click(screen.getByTestId('verify-citation-btn'));
+    // A verified verdict turns the verify control green with the
+    // "Verified against source" label (no problem verdict shown).
     await waitFor(() =>
-      expect(screen.getByTestId('verify-verdict')).toBeInTheDocument(),
+      expect(screen.getByTestId('verify-citation-btn').textContent).toMatch(/verified against source/i),
     );
-    const verdict = screen.getByTestId('verify-verdict');
-    expect(verdict).toHaveAttribute('data-verdict', 'verified');
-    expect(verdict.textContent).toMatch(/found in source/i);
+    expect(screen.queryByTestId('verify-verdict')).toBeNull();
   });
 
   it('shows red problem text for notFound verdict', async () => {
@@ -344,7 +344,7 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
       id: 'chunk-c2',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel cite={cite} />);
+    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
     fireEvent.click(screen.getByTestId('verify-citation-btn'));
     await waitFor(() =>
       expect(screen.getByTestId('verify-verdict')).toBeInTheDocument(),
@@ -368,14 +368,14 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
       id: 'chunk-c3',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel cite={cite} />);
+    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
     fireEvent.click(screen.getByTestId('verify-citation-btn'));
     await waitFor(() =>
       expect(screen.getByTestId('verify-verdict')).toBeInTheDocument(),
     );
     const verdict = screen.getByTestId('verify-verdict');
     expect(verdict).toHaveAttribute('data-verdict', 'textMismatch');
-    expect(verdict.textContent).toMatch(/not found|do not rely/i);
+    expect(verdict.textContent).toMatch(/does not match|do not rely/i);
   });
 
   it('shows red problem text for matterMismatch verdict', async () => {
@@ -391,13 +391,44 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
       id: 'chunk-c4',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel cite={cite} />);
+    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
     fireEvent.click(screen.getByTestId('verify-citation-btn'));
     await waitFor(() =>
       expect(screen.getByTestId('verify-verdict')).toBeInTheDocument(),
     );
     const verdict = screen.getByTestId('verify-verdict');
     expect(verdict).toHaveAttribute('data-verdict', 'matterMismatch');
-    expect(verdict.textContent).toMatch(/different matter|do not rely/i);
+    expect(verdict.textContent).toMatch(/different client|do not rely/i);
+  });
+
+  it('does NOT carry a verify verdict across a citation swap that reuses the same number', async () => {
+    // Switching Ask turns / Client Map sections re-renders the SOURCES column.
+    // If the new turn's first source is also citation #1, the card must NOT
+    // inherit the prior card's local verdict state — an UNCHECKED source would
+    // otherwise wrongly show "found"/"problem". The card is keyed by citation
+    // identity (id/path), so a different source remounts with fresh state.
+    mockRagVerifyCitation.mockResolvedValue({ verdict: 'notFound' });
+    const { SourcePanel } = await import('@/features/ask/SourcePanel');
+    const citeA = {
+      n: 1, label: 'a.docx', excerpt: 'A passage.', path: '/ws/a.docx',
+      locator: 'a.docx §1', verified: false, id: 'chunk-A', matterId: 'matter-1',
+    };
+    const { rerender } = render(
+      <SourcePanel citations={[citeA]} selectedN={null} onSelect={() => {}} />,
+    );
+    fireEvent.click(screen.getByTestId('verify-citation-btn'));
+    await waitFor(() => expect(screen.getByTestId('verify-verdict')).toBeInTheDocument());
+    expect(screen.getByTestId('verify-verdict')).toHaveAttribute('data-verdict', 'notFound');
+
+    // A DIFFERENT source that is also citation #1 in the next view.
+    const citeB = {
+      n: 1, label: 'b.docx', excerpt: 'B passage.', path: '/ws/b.docx',
+      locator: 'b.docx §1', verified: false, id: 'chunk-B', matterId: 'matter-1',
+    };
+    rerender(<SourcePanel citations={[citeB]} selectedN={null} onSelect={() => {}} />);
+
+    // The swapped-in source starts unverified: no carried verdict, fresh button.
+    expect(screen.queryByTestId('verify-verdict')).toBeNull();
+    expect(screen.getByTestId('verify-citation-btn')).toBeInTheDocument();
   });
 });

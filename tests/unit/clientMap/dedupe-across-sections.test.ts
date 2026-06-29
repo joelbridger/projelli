@@ -16,11 +16,11 @@ describe('dedupeAcrossSections (B6)', () => {
   it('collapses a cross-section duplicate (file + CRM, casing differs) and merges sources', () => {
     const sections: ClientMapSection[] = [
       {
-        id: 's1', kind: 'core', key: 'story', title: 'Story',
+        id: 's1', kind: 'core', key: 'goals', title: 'Goals',
         items: [item('a', 'Risk tolerance is Moderate', [{ kind: 'document', ref: '/risk.pdf', snippet: 'moderate' }])],
       },
       {
-        id: 's2', kind: 'core', key: 'standing', title: 'Standing',
+        id: 's2', kind: 'core', key: 'money', title: 'Money and accounts',
         items: [item('b', 'risk tolerance is moderate', [{ kind: 'crm', ref: 'crm:contact:1', snippet: 'moderate' }])],
       },
     ];
@@ -34,8 +34,8 @@ describe('dedupeAcrossSections (B6)', () => {
 
   it('keeps genuinely different facts in different sections', () => {
     const sections: ClientMapSection[] = [
-      { id: 's1', kind: 'core', key: 'story', title: 'Story', items: [item('a', 'Risk tolerance is moderate', [])] },
-      { id: 's2', kind: 'core', key: 'standing', title: 'Standing', items: [item('b', 'Next review is in April', [])] },
+      { id: 's1', kind: 'core', key: 'goals', title: 'Goals', items: [item('a', 'Risk tolerance is moderate', [])] },
+      { id: 's2', kind: 'core', key: 'money', title: 'Money and accounts', items: [item('b', 'Next review is in April', [])] },
     ];
     expect(dedupeAcrossSections(sections).flatMap((s) => s.items)).toHaveLength(2);
   });
@@ -45,11 +45,11 @@ describe('dedupeAcrossSections (B6)', () => {
     // the dollar amounts differ — these are two real, distinct account facts.
     const sections: ClientMapSection[] = [
       {
-        id: 's1', kind: 'core', key: 'story', title: 'Story',
+        id: 's1', kind: 'core', key: 'goals', title: 'Goals',
         items: [item('a', 'Brokerage account balance is $50,000', [{ kind: 'document', ref: '/stmt.pdf', snippet: '50000' }])],
       },
       {
-        id: 's2', kind: 'core', key: 'standing', title: 'Standing',
+        id: 's2', kind: 'core', key: 'money', title: 'Money and accounts',
         items: [item('b', 'Brokerage account balance is $120,000', [{ kind: 'crm', ref: 'crm:contact:1', snippet: '120000' }])],
       },
     ];
@@ -62,11 +62,11 @@ describe('dedupeAcrossSections (B6)', () => {
     // rule keeps both (collapse is reserved for overlapping sources or file+CRM).
     const sections: ClientMapSection[] = [
       {
-        id: 's1', kind: 'core', key: 'story', title: 'Story',
+        id: 's1', kind: 'core', key: 'goals', title: 'Goals',
         items: [item('a', 'Owns a vacation home', [{ kind: 'document', ref: '/a.pdf', snippet: 'home' }])],
       },
       {
-        id: 's2', kind: 'core', key: 'standing', title: 'Standing',
+        id: 's2', kind: 'core', key: 'money', title: 'Money and accounts',
         items: [item('b', 'owns a vacation home', [{ kind: 'document', ref: '/b.pdf', snippet: 'home' }])],
       },
     ];
