@@ -28,13 +28,21 @@
   --color-destructive: hsl(0 84.2% 48%);
   --color-destructive-foreground: hsl(210 40% 98%);
   --color-border: hsl(214.3 31.8% 60%);
-  /* Shared LIGHT hairline for dividers in the main content area — rails, tab
-     bars, header underlines, column splits. Use this (NOT --color-border, which
-     stays for form controls/buttons) for every divider line in a surface so the
-     whole app reads as calm and consistent — matching the Ask surface. */
-  --kp-divider: hsl(214.3 31.8% 91.4%);
   --color-input: hsl(214.3 31.8% 60%);
   --color-ring: hsl(210 73% 15%);
+
+  /* ---- Minimal "demo" design system (anchored to the demo-video Ask scene:
+     marketing-demo/render/brand.css). The shared, calm, light aesthetic for the
+     whole main content area — Ask, Client Map, Workflows. Use these for every
+     divider / surface tint / faint text, NOT the heavier --color-border. ---- */
+  --kp-divider: rgba(10, 37, 64, 0.10);        /* light hairline: rails, tab bars, header underlines, column splits */
+  --kp-divider-strong: rgba(10, 37, 64, 0.16); /* slightly stronger outline: outlined buttons, option cards */
+  --kp-accent: #1f74c4;                         /* demo accent blue — header icons, active accents */
+  --kp-accent-soft: rgba(31, 116, 196, 0.11);   /* active row / selected pill tint */
+  --kp-accent-softer: rgba(31, 116, 196, 0.06); /* hover row tint */
+  --kp-text-faint: rgba(10, 37, 64, 0.46);      /* faint subtitles (surface descriptions) */
+  --kp-text-dim: rgba(10, 37, 64, 0.64);        /* dim secondary body text */
+  --kp-bg-soft: #f3f6fb;                         /* soft panel tint (e.g. the Ask source panel) */
 
   /* ---- Brand (keepance.com): Satoshi + the pink->blue gradient ---- */
   --font-sans: 'Satoshi', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -475,7 +483,16 @@
   --color-destructive: hsl(0 62.8% 30.6%);
   --color-destructive-foreground: hsl(210 40% 98%);
   --color-border: hsl(217.2 32.6% 17.5%);
-  --kp-divider: hsl(217.2 32.6% 24%);
   --color-input: hsl(217.2 32.6% 17.5%);
   --color-ring: hsl(210 73% 15%);
+
+  /* Minimal design-system tokens (dark) */
+  --kp-divider: rgba(255, 255, 255, 0.12);
+  --kp-divider-strong: rgba(255, 255, 255, 0.20);
+  --kp-accent: #5dc6ff;
+  --kp-accent-soft: rgba(93, 198, 255, 0.16);
+  --kp-accent-softer: rgba(93, 198, 255, 0.08);
+  --kp-text-faint: rgba(255, 255, 255, 0.46);
+  --kp-text-dim: rgba(255, 255, 255, 0.64);
+  --kp-bg-soft: hsl(217.2 32.6% 14%);
 }

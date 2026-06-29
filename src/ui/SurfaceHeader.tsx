@@ -64,7 +64,7 @@ export function SurfaceHeader({ Icon, title, description, leading, actions, test
             style={{
               margin: 0,
               fontSize: 'var(--kp-font-sm)',
-              color: 'var(--color-muted-foreground)',
+              color: 'var(--kp-text-faint)',
               lineHeight: 'var(--kp-leading-normal)',
             }}
           >

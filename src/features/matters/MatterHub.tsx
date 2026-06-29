@@ -251,7 +251,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
             CLIENTS list. The icon is the Client-Map (map) icon in brand blue. */}
         <SurfaceHeader
           Icon={Map}
-          iconColor="var(--kp-blue)"
+          iconColor="var(--kp-accent)"
           title={headerTitle}
           {...(headerSummary !== undefined ? { description: headerSummary } : {})}
           actions={

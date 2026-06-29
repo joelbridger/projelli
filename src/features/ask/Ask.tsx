@@ -186,7 +186,7 @@ export function Ask(props: UseAskProps) {
       >
         <SurfaceHeader
           Icon={Sparkles}
-          iconColor="var(--kp-blue)"
+          iconColor="var(--kp-accent)"
           title="Ask"
           description="Ask anything across your work. Every answer cites its source."
         />
@@ -389,7 +389,7 @@ export function Ask(props: UseAskProps) {
                       borderLeft: '1px solid var(--kp-divider)',
                       padding: 'var(--kp-surface-gap) var(--kp-card-pad)',
                       overflowY: 'auto',
-                      background: 'var(--color-background)',
+                      background: 'var(--kp-bg-soft)',
                     }}
                   >
                     <SourcePanel

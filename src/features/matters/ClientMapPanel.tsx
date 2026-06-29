@@ -89,14 +89,14 @@ const shellStyle: CSSProperties = {
   minHeight: 0,
 };
 
-// The section rail mirrors the Ask ConversationsRail exactly: same 264px width,
-// quiet secondary-tint, one LIGHT right hairline, roomy pill rows.
+// The section rail mirrors the demo Ask rail: a WHITE column with one light
+// right hairline and roomy rows — no gray tint, minimal chrome.
 const railStyle: CSSProperties = {
-  width: 264,
+  width: 232,
   flex: 'none',
   borderRight: '1px solid var(--kp-divider)',
-  background: 'var(--color-secondary)',
-  padding: 'var(--kp-space-sm)',
+  background: 'var(--color-background)',
+  padding: '18px 16px',
   display: 'flex',
   flexDirection: 'column',
   gap: 2,
@@ -319,12 +319,12 @@ function TabButton({
         border: '1px solid transparent',
         borderRadius: 'var(--radius-md)',
         cursor: 'pointer',
-        background: active ? 'rgba(93, 198, 255, 0.22)' : 'transparent',
+        background: active ? 'var(--kp-accent-soft)' : 'transparent',
         fontFamily: 'var(--font-sans)',
         transition: 'background 0.1s',
       }}
       onMouseEnter={(e) => {
-        if (!active) e.currentTarget.style.background = 'rgba(93, 198, 255, 0.11)';
+        if (!active) e.currentTarget.style.background = 'var(--kp-accent-softer)';
       }}
       onMouseLeave={(e) => {
         if (!active) e.currentTarget.style.background = 'transparent';
@@ -882,7 +882,7 @@ export function ClientMapPanel({
             key={s.key}
             testid={`clientmap-tab-${s.key}`}
             title={s.title}
-            count={s.items.length}
+            count={null}
             active={activeKey === s.key}
             accent={false}
             muted={s.items.length === 0}
@@ -905,7 +905,7 @@ export function ClientMapPanel({
         <TabButton
           testid={`clientmap-tab-${MISSING_KEY}`}
           title={LABEL_WHAT_MISSING}
-          count={missingCount}
+          count={null}
           active={activeKey === MISSING_KEY}
           accent={missingCount > 0}
           muted={missingCount === 0}

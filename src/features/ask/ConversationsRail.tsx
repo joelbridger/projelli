@@ -44,7 +44,7 @@ const RAIL_COLLAPSED_WIDTH = 52;
 const railBase: CSSProperties = {
   flexShrink: 0,
   borderRight: '1px solid var(--kp-divider)',
-  background: 'var(--color-secondary)',
+  background: 'var(--color-background)',
   display: 'flex',
   flexDirection: 'column',
   minHeight: 0,
@@ -75,7 +75,7 @@ function RailItem({
         padding: 'var(--kp-space-xs) var(--kp-space-sm)',
         borderRadius: 'var(--radius-md)',
         border: '1px solid transparent',
-        background: active ? 'rgba(93, 198, 255, 0.22)' : 'transparent',
+        background: active ? 'var(--kp-accent-soft)' : 'transparent',
         color: active ? 'var(--kp-navy)' : 'var(--color-foreground)',
         fontSize: 'var(--kp-font-xs)',
         fontWeight: active ? 'var(--kp-weight-medium)' : 'var(--kp-weight-regular)',
@@ -85,7 +85,7 @@ function RailItem({
         transition: 'background 0.1s',
       }}
       onMouseEnter={(e: MouseEvent<HTMLButtonElement>) => {
-        if (!active) e.currentTarget.style.background = 'rgba(10, 37, 64, 0.05)';
+        if (!active) e.currentTarget.style.background = 'var(--kp-accent-softer)';
       }}
       onMouseLeave={(e: MouseEvent<HTMLButtonElement>) => {
         if (!active) e.currentTarget.style.background = 'transparent';
