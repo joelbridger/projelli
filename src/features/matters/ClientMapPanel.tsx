@@ -92,11 +92,11 @@ const shellStyle: CSSProperties = {
 // The section rail mirrors the demo Ask rail: a WHITE column with one light
 // right hairline and roomy rows — no gray tint, minimal chrome.
 const railStyle: CSSProperties = {
-  width: 232,
+  width: 264,
   flex: 'none',
   borderRight: '1px solid var(--kp-divider)',
   background: 'var(--color-background)',
-  padding: '18px 16px',
+  padding: '14px 12px',
   display: 'flex',
   flexDirection: 'column',
   gap: 2,
@@ -315,7 +315,7 @@ function TabButton({
         gap: 'var(--kp-space-xs)',
         width: '100%',
         textAlign: 'left',
-        padding: 'var(--kp-space-xs) var(--kp-space-sm)',
+        padding: '10px 12px',
         border: '1px solid transparent',
         borderRadius: 'var(--radius-md)',
         cursor: 'pointer',
@@ -872,7 +872,17 @@ export function ClientMapPanel({
           onClick={() => {
             select(NEW_KEY);
           }}
-          style={{ justifyContent: 'flex-start', marginBottom: 'var(--kp-space-xs)' }}
+          // Match the Ask "New question" button exactly (brand.css .kpd-newq).
+          style={{
+            justifyContent: 'flex-start',
+            height: 'auto',
+            padding: '11px 13px',
+            fontSize: '14px',
+            fontWeight: 600,
+            borderRadius: 10,
+            borderColor: 'var(--kp-divider-strong)',
+            marginBottom: 'var(--kp-space-xs)',
+          }}
         >
           {LABEL_NEW_SECTION}
         </Button>

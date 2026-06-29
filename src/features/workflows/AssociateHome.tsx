@@ -55,6 +55,9 @@ import type { Profession } from '@/features/workflows/engine/prioritizeByProfess
 import { useProfessionStore, isLawExperience } from '@/platform/profile/professionStore';
 import { useTrialGate } from '@/platform/hooks/useTrial';
 import { useActiveMatter } from '@/platform/matter/matterStore';
+import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
+import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { matterLabel } from '@/platform/rag/matterResolver';
 
 // ── Prop interface (kept identical to original) ────────────────────────────
@@ -483,7 +486,7 @@ function RunRow({
         padding: '8px 0',
         background: 'none',
         border: 'none',
-        borderBottom: '1px solid var(--color-border)',
+        borderBottom: '1px solid var(--kp-divider)',
         width: '100%',
         textAlign: 'left',
         cursor: onFocus ? 'pointer' : 'default',
@@ -530,6 +533,9 @@ export function AssociateHome({
   const trialGate = useTrialGate();
   const profession = useProfessionStore((s) => s.profession);
   const activeMatter = useActiveMatter();
+  // Workflows run AI — show the same egress badge as Ask, top-right.
+  const confidentialityMode = useConfidentialityMode();
+  const egressProvider = useActiveEgressProvider(confidentialityMode);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>(readStoredFilter);
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>(readStoredCollapsed);
@@ -681,10 +687,14 @@ export function AssociateHome({
       }}
     >
       {/* ── Page header ─────────────────────────────────────────────── */}
-      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)', flexShrink: 0 }}>
         <SurfaceHeader
           Icon={ListChecks}
+          iconColor="var(--kp-accent)"
           title="Workflows"
+          actions={
+            <EgressIndicator provider={egressProvider} mode={confidentialityMode} variant="status" />
+          }
         />
       </div>
 
