@@ -17,6 +17,8 @@ import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
 import { ClientMapView } from '@/features/matters/ClientMapView';
 import { Badge } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
+import { SourcePanel } from '@/features/ask/SourcePanel';
+import type { AnswerCitation } from '@/features/ask/askHelpers';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { answerQuestion, flagForClient } from '@/platform/clientMap/guidedInterview';
 import type { SourceRef } from '@/platform/clientMap/types';
@@ -173,12 +175,41 @@ function HubMockup() {
   );
 }
 
+// ── SOURCES column preview (?sources=1) — the restyled Ask source panel in
+// isolation, since the web-demo's Webb client can't trigger a live cited answer.
+const SOURCE_CITES: AnswerCitation[] = [
+  { n: 1, label: 'Financial Plan Summary.md', excerpt: "Goals: retire at 60, fund both kids' college. Hold the moderate-growth allocation; rebalance once a year.", path: null, locator: '', verified: true },
+  { n: 2, label: 'Review Notes.md', excerpt: 'Tanya got a raise. They can push another $400/month into savings. The $96k old 401(k) is still at the prior custodian.', path: null, locator: '', verified: true },
+  { n: 3, label: 'Beneficiary Designations.md', excerpt: "The old 401(k) still lists Jessica Reyes, Marcus's first wife, as the sole primary beneficiary, dated 2019.", path: null, locator: '', verified: true },
+];
+
+function SourcesPreview() {
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--color-background)', display: 'flex', justifyContent: 'flex-end' }}>
+      <div
+        style={{
+          width: 360,
+          borderLeft: '1px solid var(--kp-divider)',
+          background: 'var(--kp-bg-soft)',
+          padding: 'var(--kp-surface-gap) var(--kp-card-pad)',
+          minHeight: '100vh',
+          fontFamily: 'var(--font-sans)',
+        }}
+      >
+        <SourcePanel citations={SOURCE_CITES} selectedN={null} onSelect={() => {}} />
+      </div>
+    </div>
+  );
+}
+
+const showSources = params.get('sources') === '1';
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Failed to find root element');
 }
 createRoot(rootElement).render(
   <StrictMode>
-    <HubMockup />
+    {showSources ? <SourcesPreview /> : <HubMockup />}
   </StrictMode>,
 );

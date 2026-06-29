@@ -17,7 +17,7 @@
 
 import { Fragment } from 'react';
 import type { CSSProperties, MouseEvent } from 'react';
-import { Plus, MessageSquare, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button, IconButton, Eyebrow } from '@/ui/kp';
 import type { RecentAskSession } from './askHelpers';
 
@@ -70,15 +70,15 @@ function RailItem({
       onClick={() => { onSelect(session.chatId); }}
       style={{
         display: 'flex',
-        alignItems: 'center',
-        gap: 'var(--kp-space-xs)',
-        padding: 'var(--kp-space-xs) var(--kp-space-sm)',
+        flexDirection: 'column',
+        gap: 2,
+        padding: '10px 12px',
         borderRadius: 'var(--radius-md)',
         border: '1px solid transparent',
         background: active ? 'var(--kp-accent-soft)' : 'transparent',
         color: active ? 'var(--kp-navy)' : 'var(--color-foreground)',
-        fontSize: 'var(--kp-font-xs)',
-        fontWeight: active ? 'var(--kp-weight-medium)' : 'var(--kp-weight-regular)',
+        fontSize: '13px',
+        fontWeight: active ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-medium)',
         cursor: 'pointer',
         textAlign: 'left',
         width: '100%',
@@ -91,19 +91,12 @@ function RailItem({
         if (!active) e.currentTarget.style.background = 'transparent';
       }}
     >
-      <MessageSquare
-        size={13}
-        strokeWidth={1.75}
-        style={{ color: 'var(--kp-navy)', flex: 'none', opacity: active ? 0.8 : 0.5 }}
-      />
-      <span style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-        {session.dateLabel && (
-          <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', marginTop: 1 }}>
-            {session.dateLabel}
-          </span>
-        )}
-      </span>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{label}</span>
+      {session.dateLabel && (
+        <span style={{ fontSize: '11.5px', color: 'var(--kp-text-faint)', fontWeight: 'var(--kp-weight-regular)' }}>
+          {session.dateLabel}
+        </span>
+      )}
     </button>
   );
 }
@@ -187,7 +180,16 @@ export function ConversationsRail({
           onClick={onNewQuestion}
           fullWidth
           data-testid="rail-new-question"
-          style={{ justifyContent: 'flex-start' }}
+          // Demo-Ask "New question" sizing (brand.css .kpd-newq): larger, roomier.
+          style={{
+            justifyContent: 'flex-start',
+            height: 'auto',
+            padding: '11px 13px',
+            fontSize: '14px',
+            fontWeight: 600,
+            borderRadius: 10,
+            borderColor: 'var(--kp-divider-strong)',
+          }}
         >
           New question
         </Button>
@@ -222,7 +224,7 @@ export function ConversationsRail({
                   {group.title && (
                     <Eyebrow style={{ marginBottom: 'var(--kp-space-2xs)' }}>{group.title}</Eyebrow>
                   )}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {group.items.map((item) => (
                       <RailItem
                         key={item.chatId}

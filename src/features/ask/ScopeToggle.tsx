@@ -42,19 +42,30 @@ export function ScopeToggle({
       data-testid="scope-toggle"
       role="group"
       aria-label="Ask scope"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
     >
-      {options.map((opt) => (
-        <Chip
-          key={opt.value}
-          size="md"
-          active={scope === opt.value}
-          data-testid={`scope-option-${opt.value}`}
-          onClick={() => { onChange(opt.value); }}
-        >
-          {opt.label}
-        </Chip>
-      ))}
+      {options.map((opt) => {
+        const isActive = scope === opt.value;
+        return (
+          <Chip
+            key={opt.value}
+            size="md"
+            active={isActive}
+            data-testid={`scope-option-${opt.value}`}
+            onClick={() => { onChange(opt.value); }}
+            // Demo-Ask pill sizing: larger + more spaced (brand.css .kpd-pill).
+            style={{
+              padding: '8px 16px',
+              fontSize: '13.5px',
+              fontWeight: 600,
+              borderWidth: '1.5px',
+              ...(isActive ? {} : { borderColor: 'var(--kp-divider-strong)' }),
+            }}
+          >
+            {opt.label}
+          </Chip>
+        );
+      })}
     </div>
   );
 }
