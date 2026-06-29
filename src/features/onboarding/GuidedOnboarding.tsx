@@ -24,6 +24,7 @@ import { Button } from '@/ui/button';
 import { Check, Upload, User, Building2 } from 'lucide-react';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { readImageAsDataUrl } from '@/platform/utils/imageUpload';
+import { BRAND } from '@/config/brand';
 
 import { OnboardingStepFrame, type StepInfo } from './OnboardingStepFrame';
 import { markOnboardingComplete, setOnboardingProgressStep } from './onboardingState';
@@ -311,7 +312,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
     <div data-testid="onboarding-step-welcome">
       <div style={{ marginBottom: 28 }}>
         <h2 style={{ fontSize: 28, fontWeight: 800, color: 'var(--kp-navy)', letterSpacing: '-0.02em', marginBottom: 8 }}>
-          Your private intelligence layer
+          {BRAND.messaging.onboardingHeadline}
         </h2>
         <p style={{ fontSize: 15, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.55 }}>
           Everything you work on stays on your machine. AI answers come with citations you can check.

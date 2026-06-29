@@ -228,7 +228,7 @@ function PathCard({ testId, icon: Icon, tone, title, badge, body, onClick, promi
       onClick={onClick}
       className="group flex w-full items-start gap-4 rounded-lg border bg-card p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/30"
       style={prominent
-        ? { borderColor: '#0a2540', boxShadow: '0 2px 10px rgba(10,37,64,0.12)' }
+        ? { borderColor: 'var(--kp-navy)', boxShadow: '0 2px 10px rgba(var(--kp-navy-rgb),0.12)' }
         : undefined}
     >
       <div className={cn('shrink-0 h-10 w-10 rounded-md flex items-center justify-center', tone)} aria-hidden>

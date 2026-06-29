@@ -33,9 +33,10 @@ import type { OutputSchema, Provider } from '@/platform/providers/Provider';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress, type ConfidentialityMode } from '@/platform/privacy/egress';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
+import { BRAND } from '@/config/brand';
 
 /** Author string stamped on AI redline revisions (matches the engine default). */
-export const REDLINE_AUTHOR = 'Keepance AI';
+export const REDLINE_AUTHOR = BRAND.messaging.redlineAuthor;
 
 /** A paragraph with its stable index, as fed to the model. */
 export interface IndexedParagraph {

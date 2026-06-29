@@ -29,7 +29,7 @@ export function ReviewingToggle({
       className={cn(
         'flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
         reviewing
-          ? 'border-[#0A2540]/30 bg-[#0A2540]/5 text-[#0A2540]'
+          ? 'border-[rgba(var(--kp-navy-rgb),0.30)] bg-[rgba(var(--kp-navy-rgb),0.05)] text-[var(--kp-navy)]'
           : 'border-border bg-background text-muted-foreground hover:text-foreground',
       )}
     >
@@ -37,7 +37,7 @@ export function ReviewingToggle({
         aria-hidden="true"
         className={cn(
           'relative h-3.5 w-6 rounded-full transition-colors',
-          reviewing ? 'bg-[#0A2540]' : 'bg-muted-foreground/30',
+          reviewing ? 'bg-[var(--kp-navy)]' : 'bg-muted-foreground/30',
         )}
       >
         <span
@@ -85,10 +85,10 @@ export function RedlineComposer({
   return (
     <div
       data-testid="docx-redline-composer"
-      className="border-b bg-[#0A2540]/[0.03] px-3 py-2.5"
+      className="border-b bg-[rgba(var(--kp-navy-rgb),0.03)] px-3 py-2.5"
     >
       <div className="mx-auto flex max-w-[816px] flex-col gap-2">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-[#0A2540]">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--kp-navy)]">
           <Sparkles className="h-3.5 w-3.5" />
           {t('media.docx-editor.revise-with-ai')}
           <button
@@ -145,7 +145,7 @@ export function RedlineComposer({
           <Button
             data-testid="docx-redline-submit"
             size="sm"
-            className="h-7 gap-1.5 bg-[#0A2540] text-xs hover:bg-[#0A2540]/90"
+            className="h-7 gap-1.5 bg-[var(--kp-navy)] text-xs hover:bg-[rgba(var(--kp-navy-rgb),0.90)]"
             onClick={onRun}
             disabled={busy || instruction.trim().length === 0 || !hasKey || aiPaused}
           >

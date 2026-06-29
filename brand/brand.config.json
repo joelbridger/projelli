@@ -1,0 +1,79 @@
+{
+  "$schema": "./brand.schema.json",
+  "_readme": "SINGLE SOURCE OF TRUTH for the product's brand. Edit THIS file, drop new images into brand/assets/, then run `npm run brand:sync`. Every surface (the app, the website, the press kit, email, app metadata) reads from here. Plain-language guide: ../HOW-TO-REBRAND.md. Do NOT hand-edit generated files (src/config/brand.ts, src/styles/brand-tokens.css, website/styles/brand.css) — change this and re-run sync.",
+  "version": 1,
+
+  "name": "Keepance",
+  "nameShort": "Keepance",
+  "legalName": "Keepance",
+  "possessive": "Keepance's",
+
+  "tagline": "The private intelligence layer for a financial advisory practice.",
+  "taglineShort": "Local-first workspace for confidential client work.",
+  "positioning": "the private place your whole practice lives, and it answers you back",
+
+  "descriptions": {
+    "store": "Keepance is a local-first AI workspace for professionals who handle confidential client work. Your files stay on your machine. Bring your own API key or run AI models locally with Ollama. Supports attorneys, CPAs, consultants, and other professionals where client confidentiality is non-negotiable.",
+    "shortStore": "Local-first AI workspace for confidential client work",
+    "meta": "Find anything you have ever emailed or filed, with cited answers. Redline in real Word. Your client files never leave your machine. Built for financial advisors and RIAs."
+  },
+
+  "colors": {
+    "_readme": "The four primitive brand colors. Everything else (alpha tints, sidebar, action buttons) is DERIVED from these in src/styles/globals.css via the --kp-navy-rgb / --kp-accent-rgb triples, so changing a value here propagates everywhere. Use 6-digit lowercase hex.",
+    "navy": "#0a2540",
+    "pink": "#ff3ce8",
+    "blue": "#5dc6ff",
+    "accent": "#1f74c4"
+  },
+
+  "messaging": {
+    "_readme": "Identity-bearing strings the app and exports show. Body copy keeps living in the UI and references the name via BRAND.name; only the identity hooks live here.",
+    "onboardingHeadline": "Your private intelligence layer",
+    "redlineAuthor": "Keepance AI",
+    "exportWatermark": "Prepared with Keepance"
+  },
+
+  "urls": {
+    "_readme": "Display-facing brand URLs/addresses. Safe to rebrand ONCE you own the new domain (a founder + DNS step). NOTE: the license/firm API hosts are NOT here — they live in lockedIdentifiers and are never auto-changed.",
+    "site": "https://keepance.com",
+    "docsBase": "https://keepance.com/docs",
+    "supportEmail": "support@keepance.com",
+    "developersEmail": "developers@keepance.com"
+  },
+
+  "assets": {
+    "_readme": "Source images, relative to brand/. Drop replacements here with the SAME filenames, then run sync — it copies them to every destination and regenerates the derived favicon/app-icon sizes.",
+    "faviconSvg": "assets/favicon.svg",
+    "logoSvg": "assets/logo.svg",
+    "wordmarkSvg": "assets/wordmark.svg",
+    "iconSource": "assets/icon-source.png",
+    "ogImage": "assets/og-image.png"
+  },
+
+  "lockedIdentifiers": {
+    "_readme": "🚨 DO NOT change these to rebrand. They are LOAD-BEARING — changing one breaks auto-updates, saved API keys/logins, encrypted data, or payments for existing users. brand-sync READS them only to ASSERT they are still present and untouched in the codebase; it never writes them. Changing any of these is a founder + ops decision that needs a migration release. See HOW-TO-REBRAND.md § 'The locked layer'.",
+    "tauriBundleId": "com.keepance.app",
+    "cargoBinaryName": "keepance",
+    "keychainServices": [
+      "com.keepance.app",
+      "com.keepance.vault.",
+      "keepance-audit-enc",
+      "keepance-mail-enc",
+      "keepance-vectors-enc",
+      "keepance-mail-ms",
+      "keepance-mail-imap",
+      "keepance-mail-gmail",
+      "keepance-docs-ms",
+      "keepance-onedrive-",
+      "keepance-crm-"
+    ],
+    "storageKeyPrefix": "keepance:",
+    "appDataDir": ".keepance",
+    "vaultMetaFile": ".keepance-vault.json",
+    "updaterEndpoint": "https://github.com/keepance/keepance/releases/latest/download/latest.json",
+    "licenseApi": "https://licenses.keepance.com",
+    "firmApi": "https://api.keepance.com",
+    "licenseTierCodes": ["personal", "professional", "practice"],
+    "lemonSqueezyStore": "projelli"
+  }
+}

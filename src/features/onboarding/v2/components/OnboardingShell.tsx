@@ -106,7 +106,7 @@ export function OnboardingShell({
               type="button"
               onClick={onBack}
               data-testid="onboarding-v2-back"
-              className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-base font-bold text-[#0a2540] shadow-[0_8px_24px_rgba(10,37,64,0.10)] transition-transform active:translate-y-px"
+              className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-base font-bold text-[var(--kp-navy)] shadow-[0_8px_24px_rgba(var(--kp-navy-rgb),0.10)] transition-transform active:translate-y-px"
             >
               &larr; Back
             </button>
@@ -126,10 +126,10 @@ export function OnboardingShell({
                   onClick={onDotClick ? () => { onDotClick(i); } : undefined}
                   className={`h-2.5 rounded-full transition-all ${
                     state === 'active'
-                      ? 'w-6 bg-[#1f74c4]'
+                      ? 'w-6 bg-[var(--kp-accent)]'
                       : state === 'done'
-                        ? 'w-2.5 bg-[#5dc6ff]'
-                        : 'w-2.5 bg-[#0a2540]/15'
+                        ? 'w-2.5 bg-[var(--kp-blue)]'
+                        : 'w-2.5 bg-[rgba(var(--kp-navy-rgb),0.15)]'
                   }`}
                 />
               );
@@ -146,7 +146,7 @@ export function OnboardingShell({
               onClick={onContinue}
               disabled={continueDisabled}
               data-testid="onboarding-v2-continue"
-              className="inline-flex items-center gap-2 rounded-full bg-[#1f74c4] px-8 py-3 text-base font-bold text-white shadow-[0_12px_30px_rgba(10,37,64,0.22)] transition-transform active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-full bg-[var(--kp-accent)] px-8 py-3 text-base font-bold text-white shadow-[0_12px_30px_rgba(var(--kp-navy-rgb),0.22)] transition-transform active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50"
             >
               {continueLabel}
             </button>

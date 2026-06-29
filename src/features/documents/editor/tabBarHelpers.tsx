@@ -45,7 +45,7 @@ export const getTabIcon = (tab: { name: string; type?: 'file' | 'browser' | 'ai-
     return <Sparkles className="h-4 w-4 text-amber-700 flex-shrink-0" />;
   }
   if (tab.type === 'email') {
-    return <Mail className="h-4 w-4 text-[#0A2540] flex-shrink-0" />;
+    return <Mail className="h-4 w-4 text-[var(--kp-navy)] flex-shrink-0" />;
   }
   const ext = tab.name.split('.').pop()?.toLowerCase();
   const { Icon, color } = getFileIcon(ext);

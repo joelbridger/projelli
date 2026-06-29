@@ -13,7 +13,7 @@
 // status), a clean document surface (white page on light-gray canvas, generous
 // margins, letterhead-friendly), and a right-side Review pane listing changes
 // grouped by revision with per-change Accept/Reject + Accept all / Reject all,
-// plus a comments display. LIGHT THEME ONLY; navy accent (#0A2540).
+// plus a comments display. LIGHT THEME ONLY; navy accent (var(--kp-navy)).
 //
 // ENGINE COUPLING: the engine reads/writes by FILE PATH, not the data-URL the
 // rest of the tab pipeline carries. So this editor takes `filePath` and is the
@@ -1026,7 +1026,7 @@ export function DocxEditor({
                 data-testid="docx-export"
                 variant="outline"
                 size="sm"
-                className="h-7 gap-1.5 border-[#0A2540]/30 text-[#0A2540] hover:bg-[#0A2540]/5"
+                className="h-7 gap-1.5 border-[rgba(var(--kp-navy-rgb),0.30)] text-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.05)]"
                 disabled={exportBusy || !canEdit}
                 title={t('media.docx-editor.export')}
               >
@@ -1057,7 +1057,7 @@ export function DocxEditor({
                 {t('media.docx-editor.export-pdf')}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[#0A2540]">
+              <DropdownMenuLabel className="text-[var(--kp-navy)]">
                 {t('media.docx-editor.export-clean-section')}
               </DropdownMenuLabel>
               <DropdownMenuItem
@@ -1092,7 +1092,7 @@ export function DocxEditor({
             data-testid="docx-revise-with-ai"
             variant="outline"
             size="sm"
-            className="h-7 gap-1.5 border-[#0A2540]/30 text-[#0A2540] hover:bg-[#0A2540]/5"
+            className="h-7 gap-1.5 border-[rgba(var(--kp-navy-rgb),0.30)] text-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.05)]"
             onClick={() => {
               setRedlineOpen((v) => !v);
               setRedlineError(null);

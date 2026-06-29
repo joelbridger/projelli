@@ -34,7 +34,7 @@ export function ConnectScene() {
 
   return (
     <div className="flex w-full flex-col items-center" data-testid="onboarding-v2-connect">
-      <h1 className="text-3xl font-extrabold tracking-[-0.01em] text-[#0a2540] md:text-4xl">{C.headline}</h1>
+      <h1 className="text-3xl font-extrabold tracking-[-0.01em] text-[var(--kp-navy)] md:text-4xl">{C.headline}</h1>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
         {C.pills.map((label, i) => (
@@ -62,7 +62,7 @@ export function ConnectScene() {
           onClick={() => { setMoreEmail((v) => !v); }}
           aria-expanded={moreEmail}
           data-testid="connect-more-email"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1f74c4] hover:underline"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--kp-accent)] hover:underline"
         >
           <ChevronDown className={`h-4 w-4 transition-transform ${moreEmail ? 'rotate-180' : ''}`} aria-hidden="true" />
           More email options (Gmail, IMAP)
@@ -80,7 +80,7 @@ export function ConnectScene() {
       </div>
 
       {/* Coming soon */}
-      <div className="mt-8 w-full max-w-[760px] rounded-[20px] border border-[#0a2540]/8 bg-white/80 p-6">
+      <div className="mt-8 w-full max-w-[760px] rounded-[20px] border border-[rgba(var(--kp-navy-rgb),0.08)] bg-white/80 p-6">
         <div className="text-xs font-bold tracking-[0.08em] text-[#5b6b80]">{C.comingSoonLabel}</div>
         <div className="mt-4 flex flex-wrap items-center justify-center gap-x-7 gap-y-4 opacity-60">
           {ONB_COMING_SOON_LOGOS.map((logo) => (

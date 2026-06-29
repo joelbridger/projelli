@@ -21,6 +21,10 @@ import JSZip from 'jszip';
 
 import { dataUrlToArrayBuffer } from './spreadsheet-io';
 import { markdownToHtml } from './docx-io';
+import { BRAND } from '@/config/brand';
+
+/** Brand navy as a PptxGenJS colour (hex digits, no leading #). Config-driven. */
+const PPTX_NAVY = BRAND.colors.navy.replace(/^#/, '').toUpperCase();
 
 /** Either a data URL (typical when read via FSBackend) or raw bytes. */
 type PptxSource = string | ArrayBuffer;
@@ -376,7 +380,7 @@ export interface PptxExportOptions {
  * Build a themed `.pptx` from a structured array of `SlideJSON` objects.
  *
  * Features vs the plain `markdownToPptxBytes` path:
- *  - Navy (#0A2540) title bar on every content slide
+ *  - Navy (var(--kp-navy)) title bar on every content slide
  *  - Optional dark title slide with firm name
  *  - Table slides via `addTable()`
  *  - Two-column bullet layout
@@ -396,7 +400,7 @@ export async function buildPptxFromSlideJSON(
   // Optional dark title/cover slide
   if (options.firmName) {
     const titleSlide = pptx.addSlide();
-    titleSlide.background = { color: '0A2540' };
+    titleSlide.background = { color: PPTX_NAVY };
     titleSlide.addText(options.firmName, {
       x: 0.5,
       y: 2.5,
@@ -407,7 +411,7 @@ export async function buildPptxFromSlideJSON(
       color: 'FFFFFF',
       align: 'center',
     });
-    titleSlide.addText('Prepared with Keepance', {
+    titleSlide.addText(BRAND.messaging.exportWatermark, {
       x: 0.5,
       y: 3.5,
       w: 9,
@@ -429,8 +433,8 @@ export async function buildPptxFromSlideJSON(
       y: 0,
       w: 10,
       h: 0.08,
-      fill: { color: '0A2540' },
-      line: { color: '0A2540' },
+      fill: { color: PPTX_NAVY },
+      line: { color: PPTX_NAVY },
     });
 
     // Slide title
@@ -441,7 +445,7 @@ export async function buildPptxFromSlideJSON(
       h: 0.7,
       fontSize: 22,
       bold: true,
-      color: '0A2540',
+      color: PPTX_NAVY,
     });
 
     if (slide.layout === 'bullets' && slide.bullets.length > 0) {
@@ -463,7 +467,7 @@ export async function buildPptxFromSlideJSON(
         options: {
           bold: true,
           color: 'FFFFFF',
-          fill: { color: '0A2540' },
+          fill: { color: PPTX_NAVY },
         },
       }));
       const dataRows = slide.tableData.rows.map((row) =>

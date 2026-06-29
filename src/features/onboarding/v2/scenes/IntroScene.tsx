@@ -27,7 +27,7 @@ export function IntroScene({ onGo }: IntroSceneProps) {
     <div className="flex w-full flex-col items-center" data-testid="onboarding-v2-intro">
       <img src="/onboarding/keepance-logo.svg" alt="Keepance" className="kp-onbv2-rise mb-12 h-8" />
 
-      <h1 className="kp-onbv2-rise max-w-[20ch] text-4xl font-extrabold leading-[1.12] tracking-[-0.015em] text-[#0a2540] md:text-5xl">
+      <h1 className="kp-onbv2-rise max-w-[20ch] text-4xl font-extrabold leading-[1.12] tracking-[-0.015em] text-[var(--kp-navy)] md:text-5xl">
         {intro.headline}
       </h1>
 
@@ -36,14 +36,14 @@ export function IntroScene({ onGo }: IntroSceneProps) {
         {intro.flow.map((title, i) => (
           <div key={title} className="flex items-center gap-4">
             <div
-              className="kp-onbv2-rise flex w-[230px] flex-col items-center rounded-[18px] border border-[#0a2540]/8 bg-white/85 px-6 py-6 shadow-[0_10px_40px_rgba(10,37,64,0.06)]"
+              className="kp-onbv2-rise flex w-[230px] flex-col items-center rounded-[18px] border border-[rgba(var(--kp-navy-rgb),0.08)] bg-white/85 px-6 py-6 shadow-[0_10px_40px_rgba(var(--kp-navy-rgb),0.06)]"
               style={{ animationDelay: `${(0.15 + i * 0.12).toFixed(2)}s` }}
             >
               <LottiePlayer src={FLOW_LOTTIES[i] ?? FLOW_LOTTIES[0]} size={130} />
-              <div className="mt-2 text-base font-bold leading-snug text-[#0a2540]">{title}</div>
+              <div className="mt-2 text-base font-bold leading-snug text-[var(--kp-navy)]">{title}</div>
             </div>
             {i < intro.flow.length - 1 ? (
-              <span className="text-4xl font-light text-[#1f74c4] md:text-5xl" aria-hidden="true">
+              <span className="text-4xl font-light text-[var(--kp-accent)] md:text-5xl" aria-hidden="true">
                 &rarr;
               </span>
             ) : null}
@@ -65,7 +65,7 @@ export function IntroScene({ onGo }: IntroSceneProps) {
         type="button"
         onClick={onGo}
         data-testid="onboarding-v2-go"
-        className="kp-onbv2-rise mt-12 rounded-full bg-[#1f74c4] px-11 py-4 text-xl font-bold text-white shadow-[0_12px_30px_rgba(10,37,64,0.22)] transition-transform active:translate-y-px"
+        className="kp-onbv2-rise mt-12 rounded-full bg-[var(--kp-accent)] px-11 py-4 text-xl font-bold text-white shadow-[0_12px_30px_rgba(var(--kp-navy-rgb),0.22)] transition-transform active:translate-y-px"
         style={{ animationDelay: '0.85s' }}
       >
         {intro.cta}

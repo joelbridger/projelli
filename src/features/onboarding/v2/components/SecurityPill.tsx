@@ -14,10 +14,10 @@ export interface SecurityPillProps {
 export function SecurityPill({ icon: Icon, label, className }: SecurityPillProps) {
   return (
     <span
-      className={`inline-flex items-center gap-2.5 rounded-full border border-[#0a2540]/10 bg-white/90 px-5 py-3 text-sm font-semibold text-[#0a2540] shadow-[0_8px_30px_rgba(10,37,64,0.06)] ${className ?? ''}`}
+      className={`inline-flex items-center gap-2.5 rounded-full border border-[rgba(var(--kp-navy-rgb),0.10)] bg-white/90 px-5 py-3 text-sm font-semibold text-[var(--kp-navy)] shadow-[0_8px_30px_rgba(var(--kp-navy-rgb),0.06)] ${className ?? ''}`}
       data-testid="onboarding-v2-security-pill"
     >
-      <Icon className="h-[17px] w-[17px] shrink-0 text-[#1f74c4]" strokeWidth={2} aria-hidden="true" />
+      <Icon className="h-[17px] w-[17px] shrink-0 text-[var(--kp-accent)]" strokeWidth={2} aria-hidden="true" />
       {label}
     </span>
   );

@@ -403,7 +403,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
       <div className="mx-auto w-full max-w-3xl px-6 py-6">
         {/* Subject */}
         <div className="flex items-start gap-2">
-          <Mail className="mt-1 h-5 w-5 shrink-0 text-[#0A2540]" />
+          <Mail className="mt-1 h-5 w-5 shrink-0 text-[var(--kp-navy)]" />
           <h1 data-testid="email-viewer-subject" className="text-xl font-semibold leading-tight text-slate-900">
             {subject}
           </h1>
@@ -515,7 +515,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
                   }}
                   className={`border-l border-slate-200 px-2 py-1 text-[11px] leading-tight first:border-l-0 ${
                     privilege === status
-                      ? 'bg-[#0A2540] font-medium text-white'
+                      ? 'bg-[var(--kp-navy)] font-medium text-white'
                       : 'bg-white text-slate-600 hover:bg-slate-50'
                   }`}
                 >
@@ -642,7 +642,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
                 data-testid="reply-to-input"
                 value={replyTo}
                 onChange={(e) => { setReplyTo(e.target.value); }}
-                className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0A2540]"
+                className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
                 placeholder="recipient@example.com"
               />
               <button
@@ -667,7 +667,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
                     data-testid="reply-cc-input"
                     value={replyCc}
                     onChange={(e) => { setReplyCc(e.target.value); }}
-                    className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0A2540]"
+                    className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
                     placeholder="cc@example.com"
                   />
                 </div>
@@ -680,7 +680,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
                     data-testid="reply-bcc-input"
                     value={replyBcc}
                     onChange={(e) => { setReplyBcc(e.target.value); }}
-                    className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0A2540]"
+                    className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
                     placeholder="bcc@example.com"
                   />
                 </div>
@@ -697,7 +697,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
                 data-testid="reply-subject-input"
                 value={replySubject}
                 onChange={(e) => { setReplySubject(e.target.value); }}
-                className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0A2540]"
+                className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
                 placeholder="Subject"
               />
             </div>
@@ -709,7 +709,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
               data-testid="reply-draft-textarea"
               value={replyDraft}
               onChange={(e) => { setReplyDraft(e.target.value); }}
-              className="w-full rounded border border-slate-200 bg-slate-50 p-2 text-sm leading-relaxed text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0A2540]"
+              className="w-full rounded border border-slate-200 bg-slate-50 p-2 text-sm leading-relaxed text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
               rows={6}
               style={{ resize: 'vertical', fontFamily: 'var(--font-sans)' }}
               placeholder="Write your reply..."
@@ -748,7 +748,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
               data-testid="reply-send-btn"
               onClick={() => { void handleSendReply(); }}
               disabled={replySending}
-              className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-[#0A2540] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0c2f52] disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0c2f52] disabled:opacity-60"
             >
               {replySending ? (
                 <Loader2 className="h-3 w-3 animate-spin" />

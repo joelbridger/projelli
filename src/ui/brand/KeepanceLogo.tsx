@@ -1,3 +1,5 @@
+import { BRAND } from '@/config/brand';
+
 interface KeepanceLogoProps {
   /** Height of the shield mark icon in px (default 64) */
   iconSize?: number;
@@ -34,8 +36,8 @@ function KeepanceGradDefs({ id }: { id: string }) {
         y2="408.443"
         gradientUnits="userSpaceOnUse"
       >
-        <stop stopColor="#FF3CE8" />
-        <stop offset="1" stopColor="#5DC6FF" />
+        <stop style={{ stopColor: 'var(--kp-pink)' }} />
+        <stop offset="1" style={{ stopColor: 'var(--kp-blue)' }} />
       </linearGradient>
     </defs>
   );
@@ -52,8 +54,8 @@ function KeepanceIcon({ size = 64 }: { size?: number }) {
       aria-hidden="true"
     >
       <KeepanceGradDefs id="kpIconGrad" />
-      <path fill="#0A2540" d={P2} />
-      <path fill="#0A2540" d={P3} />
+      <path style={{ fill: 'var(--kp-navy)' }} d={P2} />
+      <path style={{ fill: 'var(--kp-navy)' }} d={P3} />
       <path fill="url(#kpIconGrad)" d={P5} />
     </svg>
   );
@@ -68,7 +70,7 @@ function KeepanceWordmark({ height = 28 }: { height?: number }) {
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <path fill="#0A2540" d={P1} />
+      <path style={{ fill: 'var(--kp-navy)' }} d={P1} />
     </svg>
   );
 }
@@ -79,7 +81,7 @@ export function KeepanceLogo({
   className = '',
 }: KeepanceLogoProps) {
   return (
-    <div className={`flex flex-col items-center gap-3 ${className}`} role="img" aria-label="Keepance">
+    <div className={`flex flex-col items-center gap-3 ${className}`} role="img" aria-label={BRAND.name}>
       <KeepanceIcon size={iconSize} />
       <KeepanceWordmark height={wordmarkHeight} />
     </div>
