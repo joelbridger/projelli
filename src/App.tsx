@@ -114,9 +114,16 @@ import { MeetingSourcePanel } from '@/features/calendly/MeetingSourcePanel';
 const IS_TEST_MODE =
   typeof window !== 'undefined' &&
   window.location.search.includes('testMode=true');
+// `__KEEPANCE_DEMO__` is substituted to `true` at build time by
+// vite.config.web-demo.ts. We must read it here (not just the runtime
+// `window.__keepanceDemo` flag) because this const is evaluated at module
+// import time — which happens BEFORE web-demo/main.tsx sets the window flag,
+// so the window flag alone is always `false` in the built demo bundle.
+declare const __KEEPANCE_DEMO__: boolean | undefined;
 const IS_DEMO_MODE =
   typeof window !== 'undefined' &&
-  (window as unknown as { __keepanceDemo?: boolean }).__keepanceDemo === true;
+  ((typeof __KEEPANCE_DEMO__ !== 'undefined' && __KEEPANCE_DEMO__ === true) ||
+    (window as unknown as { __keepanceDemo?: boolean }).__keepanceDemo === true);
 
 function App() {
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE && !IS_DEMO_MODE);
