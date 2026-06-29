@@ -65,10 +65,19 @@ bootstrapLocale().catch(() => {
  */
 function ensureDemoConfidentialityDefault(): void {
   const settings = useSettingsStore.getState();
-  const alreadyChosen = settings.values[CONFIDENTIALITY_MODE_SETTING_KEY] !== undefined;
-  if (alreadyChosen) return;
-  settings.setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
-  settings.setSetting(CONFIDENTIALITY_CHOICE_MADE_KEY, true);
+  // Default the mode to Direct only when the visitor hasn't chosen one, so an
+  // explicit Local-only choice in the demo's Privacy Center is respected.
+  if (settings.values[CONFIDENTIALITY_MODE_SETTING_KEY] === undefined) {
+    settings.setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
+  }
+  // Always ensure the choice is marked made: the demo's egress is disclosed by
+  // the demo banner, so the personal-install choice gate (which blocks cloud
+  // generation in Workflows / AI Chat until a choice is recorded) must not fire.
+  // Done independently of the mode check so a stale state with the mode set but
+  // the choice flag missing is still unblocked (Codex review).
+  if (settings.getSetting(CONFIDENTIALITY_CHOICE_MADE_KEY) !== true) {
+    settings.setSetting(CONFIDENTIALITY_CHOICE_MADE_KEY, true);
+  }
 }
 
 async function bootstrap(): Promise<void> {
