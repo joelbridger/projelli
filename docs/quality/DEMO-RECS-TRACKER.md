@@ -64,8 +64,8 @@ Status legend: ⬜ todo · 🟦 in-progress · ✅ done · 🚩 done-with-flag �
 ## Live verification (real browser, fresh build)
 Driven with Playwright against the built `dist-web-demo` (screenshots in the session scratchpad):
 - #1 OPFS holds the 4 real binaries (`*.docx` 9.5KB, `Beneficiary Designations.pdf` 47KB, `Client Intake.pdf` 37KB); no `.md`/`.aichat` client files; 0 console errors.
-- #2 clicking the stale-beneficiary chip opens `Beneficiary Designations.pdf`; clicking a plan chip opens & renders `Webb Financial Plan.docx` (docx-preview, with an honest "read-only preview; editing in the desktop app" banner).
-- #5 caveat, #7 "Webb Household only" badge, #8/#13 Ask intro, #9 exit-modal copy, #11 three advisor workflows leading — all render correctly.
-- (PDF *pixel* rendering can't be screenshotted headless — no bundled PDFium — but the PDFs are valid and open in the real viewer; recommend a final live-model + PDF smoke in a real browser before recording the video.)
+- #2 clicking the stale-beneficiary chip opens `Beneficiary Designations.pdf`; clicking a plan chip opens & renders `Webb Financial Plan.docx` (docx-preview, with an honest "read-only preview; editing in the desktop app" banner). The **refusal is verified offline end-to-end**: clicking "Disability insurance coverage?" shows "I couldn't find anything about that in your documents." + the calm "this is on purpose" note (the deterministic gate, no model call).
+- #5 caveat, #7 "Webb Household only" badge, #8/#13 Ask intro, #9 exit-modal copy, #11 three advisor workflows leading — all render correctly. 0 console errors throughout.
+- Still needs a real browser before recording: PDF *pixel* rendering (headless has no PDFium; PDFs are valid + open in the real viewer) and cited (non-refusal) Ask answers (those call the demo proxy).
 
 **Do NOT merge — coordinator reviews + merges.**
