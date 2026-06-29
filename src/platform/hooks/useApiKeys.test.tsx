@@ -26,7 +26,10 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 import { useApiKeys } from './useApiKeys';
-import { createKeychainService } from '@/platform/providers/KeychainService';
+import {
+  createKeychainService,
+  migrateLocalStorageApiKeysToKeychain,
+} from '@/platform/providers/KeychainService';
 
 const VALID_KEY = 'sk-ant-api03-abcdefghijklmnopqrstuvwx';
 const LEGACY_PLAINTEXT = 'apiKey_anthropic';
@@ -162,6 +165,37 @@ describe('useApiKeys — delete', () => {
 
     expect(result.current.apiKeys).toEqual([]);
     await expect(keychain.getKey('anthropic')).resolves.toBeNull();
+    expect(localStorage.getItem(LEGACY_PLAINTEXT)).toBeNull();
+  });
+});
+
+describe('useApiKeys — upgrade path (legacy plaintext migration, same session)', () => {
+  it('reflects a migrated legacy key in live state without a restart', async () => {
+    // Simulate an upgrading user: their ONLY key is the legacy plaintext entry,
+    // and the keychain (browser-mode localStorage backend) is empty at mount.
+    isTauriMock.mockReturnValue(false);
+    localStorage.setItem(LEGACY_PLAINTEXT, VALID_KEY);
+
+    const keychain = createKeychainService('localStorage');
+    const { result } = renderHook(() => useApiKeys(keychain));
+
+    // Mount read finds nothing yet (key is still only in the legacy entry).
+    await act(async () => { await Promise.resolve(); });
+    expect(result.current.apiKeys).toEqual([]);
+
+    // The one-time migration moves the plaintext into the keychain and
+    // broadcasts the change.
+    await act(async () => {
+      await migrateLocalStorageApiKeysToKeychain();
+    });
+
+    // The hook re-reads and now exposes the migrated key — SAME session.
+    await waitFor(() => {
+      expect(result.current.apiKeys).toEqual([
+        expect.objectContaining({ provider: 'anthropic', key: VALID_KEY, isValid: true }),
+      ]);
+    });
+    // And the plaintext is gone from localStorage.
     expect(localStorage.getItem(LEGACY_PLAINTEXT)).toBeNull();
   });
 });

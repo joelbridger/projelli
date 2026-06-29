@@ -292,6 +292,7 @@ export async function migrateLocalStorageApiKeysToKeychain(): Promise<void> {
     ? new TauriKeychainBackend()
     : new LocalStorageBackend();
   let migrationComplete = true;
+  let migratedAny = false;
 
   for (const provider of KEY_PROVIDERS) {
     const legacyStorageKey = `${LEGACY_API_KEY_PREFIX}${provider}`;
@@ -310,6 +311,7 @@ export async function migrateLocalStorageApiKeysToKeychain(): Promise<void> {
 
       upsertStoredKeyMetadata(provider, key);
       localStorage.removeItem(legacyStorageKey);
+      migratedAny = true;
     } catch {
       migrationComplete = false;
     }
@@ -319,6 +321,13 @@ export async function migrateLocalStorageApiKeysToKeychain(): Promise<void> {
     localStorage.setItem(API_KEY_MIGRATION_SENTINEL, 'true');
     // The v1 sentinel is obsolete once v2 has run cleanly.
     localStorage.removeItem(API_KEY_MIGRATION_SENTINEL_V1);
+  }
+
+  // If we moved any plaintext key into the keychain, broadcast the change so
+  // live key state (useApiKeys) and the egress badge re-read it in THIS
+  // session — an upgrading user gets a working AI provider without a restart.
+  if (migratedAny) {
+    notifyEgressConfigChange();
   }
 }
 

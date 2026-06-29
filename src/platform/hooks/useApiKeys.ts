@@ -14,12 +14,13 @@
  * plaintext.
  */
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { APIKey } from '@/platform/types';
 import {
   createKeychainService,
   type KeyProvider,
 } from '@/platform/providers/KeychainService';
+import { EGRESS_CONFIG_CHANGE_EVENT } from '@/platform/privacy/egressConfigEvents';
 
 /**
  * The slice of KeychainService this hook needs. Injectable so callers can share
@@ -80,27 +81,48 @@ export function useApiKeys(keychainService?: ApiKeyKeychain): UseApiKeysReturn {
     [keychain]
   );
 
-  // Load configured keys from the keychain on mount (never from plain
+  // Read the configured keys straight from the keychain (never plain
   // localStorage). KeychainService.getKey also covers env-var keys.
+  const loadKeys = useCallback(async (): Promise<APIKey[]> => {
+    const loaded: APIKey[] = [];
+    for (const provider of PROVIDERS) {
+      const key = await keychain.getKey(provider);
+      if (key) {
+        loaded.push({ provider, key, isValid: true });
+      }
+    }
+    return loaded;
+  }, [keychain]);
+
+  // Load on mount AND reload whenever the keychain changes — a key added or
+  // removed on any surface broadcasts EGRESS_CONFIG_CHANGE_EVENT, and so does
+  // the one-time legacy-plaintext migration. This is what makes an UPGRADING
+  // user (who starts a session with only a legacy `apiKey_<provider>` entry)
+  // get a working AI provider in the SAME session: the migration moves the key
+  // into the keychain and fires the event, and we re-read it here — no restart
+  // or re-add needed. The reload is authoritative (it reflects removals too).
+  // A monotonic request id drops any stale in-flight read so a rapid
+  // add-then-remove can't land out of order.
+  const reloadIdRef = useRef(0);
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
-      const loaded: APIKey[] = [];
-      for (const provider of PROVIDERS) {
-        const key = await keychain.getKey(provider);
-        if (key) {
-          loaded.push({ provider, key, isValid: true });
+    const reload = () => {
+      const id = ++reloadIdRef.current;
+      void loadKeys().then((loaded) => {
+        if (!cancelled && id === reloadIdRef.current) {
+          setApiKeys(loaded);
         }
-      }
-      if (!cancelled && loaded.length > 0) {
-        setApiKeys(loaded);
-      }
+      });
     };
-    void load();
+    reload();
+    window.addEventListener(EGRESS_CONFIG_CHANGE_EVENT, reload);
+    window.addEventListener('storage', reload);
     return () => {
       cancelled = true;
+      window.removeEventListener(EGRESS_CONFIG_CHANGE_EVENT, reload);
+      window.removeEventListener('storage', reload);
     };
-  }, [keychain]);
+  }, [loadKeys]);
 
   return {
     apiKeys,
