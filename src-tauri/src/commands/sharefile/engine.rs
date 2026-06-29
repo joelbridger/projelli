@@ -170,7 +170,11 @@ pub async fn sync_documents(
             .as_ref()
             .map(|row| {
                 row.remote_signature == remote_signature
-                    && row.indexed
+                    // Skip rows already at a terminal state for these bytes:
+                    // indexed OR a pending PDF (no Rust-side PDF text extractor
+                    // exists yet, so re-downloading identical bytes just re-defers
+                    // it). A row that is neither falls to the needs_repair path.
+                    && (row.indexed || row.pending_pdf)
                     && row.matter_id == matter_id
                     && row.parent_path == located.parent_path
             })

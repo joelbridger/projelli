@@ -10,8 +10,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use sha2::{Digest, Sha256};
 
 use crate::commands::boxc::model::{
-    child_path, parse_folder_key, BoxFileItem, BoxItem, BoxMatterMapEntry, DEFAULT_ACCOUNT,
-    ROOT_FOLDER_ID,
+    child_path, parse_folder_key, BoxFileItem, BoxMatterMapEntry, DEFAULT_ACCOUNT, ROOT_FOLDER_ID,
 };
 use crate::commands::boxc::source::BoxSource;
 use crate::commands::boxc::store::BoxStore;
@@ -139,7 +138,13 @@ pub async fn sync_documents(
             .as_ref()
             .map(|row| {
                 row.remote_signature == remote_signature
-                    && row.indexed
+                    // Skip rows we already handled to a terminal state for these
+                    // bytes: either indexed, OR a pending PDF (no Rust-side PDF
+                    // text extractor exists yet, so re-downloading the identical
+                    // bytes would just re-defer it). A row that is neither indexed
+                    // nor pending fell through an interrupted sync and is left to
+                    // the needs_repair path below.
+                    && (row.indexed || row.pending_pdf)
                     && row.matter_id == matter_id
                     && row.parent_path == file.parent_path
                     && row.parent_folder_id == file.parent_folder_id
@@ -338,7 +343,7 @@ async fn crawl(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::boxc::model::{folder_key, BoxFolder};
+    use crate::commands::boxc::model::{folder_key, BoxFolder, BoxItem};
     use crate::commands::boxc::source::BoxSource;
     use crate::commands::mail::crypto::decrypt_with_key;
     use crate::commands::rag::embedder::{self, EMBEDDING_DIM};

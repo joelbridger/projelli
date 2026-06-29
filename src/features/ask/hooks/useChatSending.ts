@@ -378,9 +378,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // retrieval is byte-for-byte the vector-only path; when on, the
           // backend re-orders within the same already-scoped candidate set.
           const enableReranker =
-            useSettingsStore.getState().getSetting<boolean>('enableReranker') === true;
+            useSettingsStore.getState().getSetting<boolean>('enableReranker');
           const enableHybridSearch =
-            useSettingsStore.getState().getSetting<boolean>('enableHybridSearch') === true;
+            useSettingsStore.getState().getSetting<boolean>('enableHybridSearch');
           const hits = await MemoryService.retrieve(
             retrievalQuery,
             DEFAULT_WORKSPACE_TOP_K,

@@ -123,8 +123,10 @@ describe('new connector matter-map shells', () => {
       { folderKey: 'sf-folder-a', matterId: 'matter-a' },
       { folderKey: 'sf-folder-b', matterId: 'matter-b' },
     ]);
+    // `zocks-a` is claimed by BOTH matter-a and matter-b, so it is ambiguous and
+    // dropped (a meeting matching only it is left for manual assignment). The
+    // unambiguous keys still map.
     expect(buildZocksMatterMap(matters)).toEqual([
-      { zocksKey: 'zocks-a', matterId: 'matter-a' },
       { zocksKey: 'Acme', matterId: 'matter-a' },
       { zocksKey: 'zocks-b', matterId: 'matter-b' },
       { zocksKey: 'Beta', matterId: 'matter-b' },
@@ -132,6 +134,45 @@ describe('new connector matter-map shells', () => {
     expect(buildAddeparMatterMap(matters)).toEqual([
       { addeparKey: 'addepar-a', matterId: 'matter-a' },
       { addeparKey: 'addepar-b', matterId: 'matter-b' },
+    ]);
+  });
+
+  it('drops Zocks keys (incl. shared client names) claimed by two matters', () => {
+    const matters: Matter[] = [
+      makeMatter({ id: 'matter-a', name: 'Smith Trust', client: 'Smith Family' }),
+      makeMatter({ id: 'matter-b', name: 'Smith Estate', client: 'Smith Family' }),
+      makeMatter({ id: 'matter-c', name: 'Jones', client: 'Jones LLC' }),
+    ];
+
+    const map = buildZocksMatterMap(matters);
+    // The shared client "Smith Family" is ambiguous -> not mapped to either.
+    expect(map.find((e) => e.zocksKey === 'Smith Family')).toBeUndefined();
+    // Distinct matter names still resolve cleanly.
+    expect(map).toContainEqual({ zocksKey: 'Smith Trust', matterId: 'matter-a' });
+    expect(map).toContainEqual({ zocksKey: 'Smith Estate', matterId: 'matter-b' });
+    expect(map).toContainEqual({ zocksKey: 'Jones', matterId: 'matter-c' });
+    expect(map).toContainEqual({ zocksKey: 'Jones LLC', matterId: 'matter-c' });
+  });
+
+  it('treats Zocks keys differing only by punctuation as the same (matches backend)', () => {
+    // The Rust backend strips `,` etc. before matching, so "Smith, John" and
+    // "Smith John" are the SAME key. The frontend ambiguity pre-filter must agree
+    // and drop both when two matters claim them.
+    const matters: Matter[] = [
+      makeMatter({ id: 'matter-a', name: 'Smith, John', client: 'Smith, John' }),
+      makeMatter({ id: 'matter-b', name: 'Smith John', client: 'Smith John' }),
+    ];
+    const map = buildZocksMatterMap(matters);
+    expect(map.find((e) => e.matterId === 'matter-a')).toBeUndefined();
+    expect(map.find((e) => e.matterId === 'matter-b')).toBeUndefined();
+  });
+
+  it('keeps a Zocks key one matter repeats (client === name is not ambiguous)', () => {
+    const matters: Matter[] = [
+      makeMatter({ id: 'matter-a', name: 'Webb Household', client: 'Webb Household' }),
+    ];
+    expect(buildZocksMatterMap(matters)).toEqual([
+      { zocksKey: 'Webb Household', matterId: 'matter-a' },
     ]);
   });
 

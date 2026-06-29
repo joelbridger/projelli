@@ -326,6 +326,22 @@ export function normalizeMeetingKey(key: string): string {
   return key.toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
+/**
+ * Normalize a Zocks key exactly like the Rust backend's `zocks::engine::normalize_key`
+ * (lowercase, replace `< > " ' , ;` with spaces, collapse whitespace) so the
+ * frontend's ambiguity pre-filter and the backend's matcher agree on which keys
+ * collide. Without the punctuation pass, the frontend would treat `Smith, John`
+ * and `Smith John` as distinct while the backend treats them as the same key.
+ */
+function normalizeZocksKey(key: string): string {
+  return key
+    .toLowerCase()
+    .replace(/[<>"',;]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(' ');
+}
+
 function buildConnectorMatterMap<T extends { matterId: string }>(
   matters: Matter[],
   getKeys: (matter: Matter) => string[] | undefined,
@@ -404,15 +420,37 @@ export function buildSharefileMatterMap(
 }
 
 export function buildZocksMatterMap(matters: Matter[]): ZocksMatterMapEntry[] {
+  // First pass: count the DISTINCT matters that claim each normalized key. A key
+  // claimed by 2+ matters (e.g. two matters sharing a client name) is ambiguous
+  // and must NOT map anywhere — otherwise a Zocks meeting matching only that
+  // shared key gets silently indexed under whichever matter was processed first
+  // (a matter-isolation bug). Ambiguous meetings are left for manual assignment.
+  const mattersPerKey = new Map<string, Set<string>>();
+  for (const m of matters) {
+    if (m.id === UNASSIGNED_MATTER_ID) continue;
+    for (const rawKey of [...(m.zocksKeys ?? []), m.client, m.name]) {
+      const normalized = normalizeZocksKey(rawKey.trim());
+      if (!normalized) continue;
+      let set = mattersPerKey.get(normalized);
+      if (!set) {
+        set = new Set<string>();
+        mattersPerKey.set(normalized, set);
+      }
+      set.add(m.id);
+    }
+  }
+
+  // Second pass: emit one entry per unambiguous key, de-duplicated per key.
   const out: ZocksMatterMapEntry[] = [];
-  const claimed = new Set<string>();
+  const emitted = new Set<string>();
   for (const m of matters) {
     if (m.id === UNASSIGNED_MATTER_ID) continue;
     for (const rawKey of [...(m.zocksKeys ?? []), m.client, m.name]) {
       const zocksKey = rawKey.trim();
-      const normalized = normalizeMeetingKey(zocksKey);
-      if (!zocksKey || !normalized || claimed.has(normalized)) continue;
-      claimed.add(normalized);
+      const normalized = normalizeZocksKey(zocksKey);
+      if (!zocksKey || !normalized || emitted.has(normalized)) continue;
+      if ((mattersPerKey.get(normalized)?.size ?? 0) > 1) continue; // ambiguous
+      emitted.add(normalized);
       out.push({ zocksKey, matterId: m.id });
     }
   }

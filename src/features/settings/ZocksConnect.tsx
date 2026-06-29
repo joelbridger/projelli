@@ -190,6 +190,12 @@ export function ZocksConnect() {
       {report && (
         <p className="mt-3 text-xs text-slate-600">
           Imported {report.sessionsFetched} sessions, indexed {report.recordsIndexed} records, and found {report.needsAssignment} needing assignment.
+          {report.fetchFailures > 0 && (
+            <>
+              {' '}
+              {report.fetchFailures} session{report.fetchFailures === 1 ? '' : 's'} could not be fetched and will be retried on the next sync.
+            </>
+          )}
         </p>
       )}
       {unassigned.length > 0 && (

@@ -127,6 +127,30 @@ async fn index_external_text_with_validated_source_type(
     Ok(rows.len() as u32)
 }
 
+/// Delete every RAG chunk for a single external connector `source_id`. Used when
+/// a connector record stops mapping to any matter (its mapping disappeared) so
+/// its previously-indexed chunks don't linger under the old matter
+/// (matter-isolation hygiene). Idempotent: deleting a source with no chunks is a
+/// no-op. Mirrors the stale-row delete inside the indexing path, but without
+/// re-indexing anything.
+#[allow(dead_code)]
+pub async fn delete_external_source_with_key_internal(
+    workspace: &Path,
+    source_id: &str,
+    key: &[u8; 32],
+) -> anyhow::Result<()> {
+    use anyhow::Context;
+    let conn = crate::commands::rag::store::open_connection(workspace)
+        .await
+        .context("open lancedb for external connector source delete")?;
+    let table = crate::commands::rag::store::open_or_create_table(&conn)
+        .await
+        .context("open/create chunks table for external connector source delete")?;
+    crate::commands::rag::store::delete_path(&table, source_id, key)
+        .await
+        .context("delete external connector source chunks")
+}
+
 /// Cap on concurrent external connector RAG indexing tasks.
 #[allow(dead_code)]
 static EXTERNAL_INDEX_SEMAPHORE: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);

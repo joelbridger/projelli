@@ -23,6 +23,8 @@ export interface ZocksSyncReport {
   sessionsIndexed: number;
   recordsIndexed: number;
   needsAssignment: number;
+  /** Sessions skipped this sync due to repeated detail-fetch failures; retried next sync. */
+  fetchFailures: number;
   cancelled: boolean;
 }
 
@@ -31,6 +33,7 @@ export interface ZocksSyncProgress {
   sessions?: number;
   records?: number;
   needsAssignment?: number;
+  fetchFailures?: number;
 }
 
 export interface ZocksDisconnectResult {

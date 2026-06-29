@@ -20,6 +20,10 @@ pub struct ZocksIngestReport {
     pub sessions_changed: u32,
     pub pages_fetched: u32,
     pub needs_assignment: u32,
+    /// Sessions skipped this run because their detail fetch kept failing. They
+    /// are intentionally left un-stored so the next sync retries them, rather
+    /// than indexing the incomplete list-page stub.
+    pub fetch_failures: u32,
     pub cancelled: bool,
 }
 
@@ -39,6 +43,7 @@ pub struct ZocksSyncReport {
     pub sessions_indexed: u32,
     pub records_indexed: u32,
     pub needs_assignment: u32,
+    pub fetch_failures: u32,
     pub cancelled: bool,
 }
 
@@ -54,15 +59,56 @@ pub fn content_hash(json: &str) -> String {
 }
 
 pub fn build_matter_map(entries: &[ZocksMatterMapEntry]) -> HashMap<String, String> {
-    let mut map = HashMap::new();
+    // Collect every DISTINCT matter that claims each key. A key claimed by more
+    // than one matter is ambiguous and is dropped, so a session matching only
+    // that shared key is left for manual assignment instead of being filed under
+    // whichever entry happened to come first (matter isolation). This mirrors the
+    // TS buildZocksMatterMap pre-pass and Addepar's resolver — defense in depth in
+    // case ambiguous entries ever reach the backend directly.
+    let mut claims: HashMap<String, BTreeSet<String>> = HashMap::new();
     for entry in entries {
         let key = normalize_key(&entry.zocks_key);
-        if key.is_empty() || entry.matter_id.trim().is_empty() {
+        let matter_id = entry.matter_id.trim();
+        if key.is_empty() || matter_id.is_empty() {
             continue;
         }
-        map.entry(key).or_insert_with(|| entry.matter_id.clone());
+        claims.entry(key).or_default().insert(matter_id.to_string());
     }
-    map
+    claims
+        .into_iter()
+        .filter_map(|(key, matters)| match matters.len() {
+            1 => Some((key, matters.into_iter().next().unwrap())),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Bounded retries for a single session-detail fetch. Transient network errors
+/// shouldn't fail the whole sync, nor should they cause us to index the
+/// incomplete list stub; this gives a few quick attempts and otherwise surfaces
+/// the error to the caller, which skips the session for the next sync to retry.
+const SESSION_FETCH_ATTEMPTS: u32 = 3;
+
+async fn fetch_session_with_retry(
+    source: &dyn ZocksSource,
+    session_id: &str,
+) -> anyhow::Result<ZocksSession> {
+    let mut last_err: Option<anyhow::Error> = None;
+    for attempt in 1..=SESSION_FETCH_ATTEMPTS {
+        match source.get_session(session_id).await {
+            Ok(session) => return Ok(session),
+            Err(e) => {
+                last_err = Some(e);
+                if attempt < SESSION_FETCH_ATTEMPTS {
+                    tokio::time::sleep(std::time::Duration::from_millis(
+                        150 * attempt as u64,
+                    ))
+                    .await;
+                }
+            }
+        }
+    }
+    Err(last_err.unwrap_or_else(|| anyhow::anyhow!("zocks get_session returned no result")))
 }
 
 pub async fn ingest(
@@ -85,6 +131,7 @@ pub async fn ingest(
         let page = source.list_sessions(cursor.as_deref()).await?;
         report.pages_fetched += 1;
         let next_cursor = page.next_cursor.trim().to_string();
+        let mut page_had_failure = false;
         for listed in page.sessions {
             if cancel.load(Ordering::SeqCst) {
                 report.cancelled = true;
@@ -94,7 +141,21 @@ pub async fn ingest(
             if listed_id.is_empty() {
                 continue;
             }
-            let session = source.get_session(&listed_id).await.unwrap_or(listed);
+            // Fetch the full session detail with bounded retries. On persistent
+            // failure, SKIP this session (leave it un-stored) so the next sync
+            // retries it — never silently index the incomplete list-page stub,
+            // which would mark a near-empty record indexed under a matter.
+            let session = match fetch_session_with_retry(source, &listed_id).await {
+                Ok(session) => session,
+                Err(e) => {
+                    log::warn!(
+                        "zocks: skipping session {listed_id} after detail-fetch failures: {e:#}"
+                    );
+                    report.fetch_failures += 1;
+                    page_had_failure = true;
+                    continue;
+                }
+            };
             let session_id = session.stable_id();
             if session_id.is_empty() {
                 continue;
@@ -119,6 +180,17 @@ pub async fn ingest(
             if assignment.needs_assignment {
                 report.needs_assignment += 1;
             }
+        }
+
+        // If any session on this page failed its detail fetch, stop WITHOUT
+        // advancing the persisted cursor. The stored cursor still points at this
+        // page, so the next sync re-fetches it and retries the failed session(s).
+        // Sessions that DID succeed on this page were already upserted
+        // idempotently, so re-fetching them next sync is a cheap no-op. (Without
+        // this, the loop would save next_cursor and permanently skip past the
+        // failed session.)
+        if page_had_failure {
+            break;
         }
 
         if next_cursor.is_empty() {
@@ -219,6 +291,7 @@ pub async fn backfill(
         sessions_indexed: progress.load(Ordering::SeqCst),
         records_indexed: records,
         needs_assignment: ingest.needs_assignment,
+        fetch_failures: ingest.fetch_failures,
         cancelled: ingest.cancelled || index_cancelled,
     })
 }
@@ -451,9 +524,83 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn detail_fetch_failure_skips_session_and_counts_it() {
+        // A session listed on the page but whose detail fetch keeps failing must
+        // be skipped (not stored, not indexed as a stub) and counted so the next
+        // sync retries it. The page advertises a next_cursor; the stored cursor
+        // must NOT advance past this failed page, otherwise the next sync would
+        // permanently skip the failed session.
+        let dir = tempfile::tempdir().unwrap();
+        let store = ZocksStore::open_with_key(dir.path(), &STORE_KEY).unwrap();
+        let source = FakeZocksSource {
+            pages: HashMap::from([(
+                None,
+                ZocksSessionsPage {
+                    sessions: vec![ZocksSession {
+                        id: "sess_err".into(),
+                        ..Default::default()
+                    }],
+                    next_cursor: "page2".into(),
+                    ..Default::default()
+                },
+            )]),
+            details: HashMap::new(), // get_session("sess_err") errors on every attempt
+        };
+        let report = ingest(&source, &store, &HashMap::new(), &AtomicBool::new(false))
+            .await
+            .unwrap();
+        assert_eq!(report.fetch_failures, 1);
+        assert_eq!(report.sessions_fetched, 0);
+        assert!(store.get_session("session:sess_err").unwrap().is_none());
+        // Cursor must not advance to the next page while a session on this page
+        // is still un-retried.
+        assert_ne!(
+            store.get_cursor("sessions").unwrap().as_deref(),
+            Some("page2")
+        );
+    }
+
     #[test]
     fn source_id_is_stable() {
         assert_eq!(zocks_source_id("sess_123"), "zocks:sess_123");
+    }
+
+    #[test]
+    fn build_matter_map_drops_ambiguous_keys() {
+        // A key claimed by two different matters is ambiguous and must not map.
+        let map = build_matter_map(&[
+            ZocksMatterMapEntry {
+                zocks_key: "Shared Client".into(),
+                matter_id: "matter-a".into(),
+            },
+            ZocksMatterMapEntry {
+                zocks_key: "shared  client".into(), // normalizes to the same key
+                matter_id: "matter-b".into(),
+            },
+            ZocksMatterMapEntry {
+                zocks_key: "Unique Client".into(),
+                matter_id: "matter-c".into(),
+            },
+        ]);
+        assert!(!map.contains_key("shared client"));
+        assert_eq!(map.get("unique client"), Some(&"matter-c".to_string()));
+    }
+
+    #[test]
+    fn build_matter_map_keeps_one_matter_repeating_a_key() {
+        // The same matter contributing the same key twice is NOT ambiguous.
+        let map = build_matter_map(&[
+            ZocksMatterMapEntry {
+                zocks_key: "Acme Household".into(),
+                matter_id: "matter-acme".into(),
+            },
+            ZocksMatterMapEntry {
+                zocks_key: "acme household".into(),
+                matter_id: "matter-acme".into(),
+            },
+        ]);
+        assert_eq!(map.get("acme household"), Some(&"matter-acme".to_string()));
     }
 
     #[test]

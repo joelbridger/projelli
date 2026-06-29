@@ -534,9 +534,9 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
               // (privilege stays EXCLUDED, the 4th positional default).
               // WS3d-A — default-OFF reranker toggle, read per call.
               const enableReranker =
-                useSettingsStore.getState().getSetting<boolean>('enableReranker') === true;
+                useSettingsStore.getState().getSetting<boolean>('enableReranker');
               const enableHybridSearch =
-                useSettingsStore.getState().getSetting<boolean>('enableHybridSearch') === true;
+                useSettingsStore.getState().getSetting<boolean>('enableHybridSearch');
               const hits = await MemoryService.retrieve(
                 query,
                 topK,

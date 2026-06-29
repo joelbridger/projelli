@@ -140,7 +140,16 @@ impl ZocksStore {
                 content_hash = ?4,
                 json = ?5,
                 fetched_at = ?6,
-                indexed_hash = CASE WHEN content_hash = ?4 THEN indexed_hash ELSE '' END,
+                -- Reindex when EITHER the content OR the matched matter changes.
+                -- `content_hash` / `matter_id` on the right-hand side are the
+                -- pre-update (existing) row values; `?4` / `?7` are the new ones.
+                -- If only the matter changed (content identical) the old code kept
+                -- indexed_hash, so list_sessions_to_index() skipped the row and the
+                -- RAG chunks stayed under the OLD matter (matter-isolation bug).
+                indexed_hash = CASE
+                    WHEN content_hash = ?4 AND matter_id = ?7 THEN indexed_hash
+                    ELSE ''
+                END,
                 matter_id = ?7,
                 needs_assignment = ?8,
                 assignment_reason = ?9,
@@ -335,6 +344,34 @@ mod tests {
             )
             .unwrap());
         assert!(store.list_sessions_to_index().unwrap().is_empty());
+    }
+
+    #[test]
+    fn matter_change_with_unchanged_content_requires_reindex() {
+        // Matter-isolation: when a session's matched matter changes but its JSON
+        // is byte-identical, the row must still be re-indexed so its RAG chunks
+        // move from the old matter to the new one.
+        let dir = tempfile::tempdir().unwrap();
+        let store = ZocksStore::open_with_key(dir.path(), &KEY).unwrap();
+        store
+            .upsert_session(
+                "session:sess_1", "sess_1", "Review", "hash-1", "{}", "matter-a", false, "",
+            )
+            .unwrap();
+        store
+            .mark_indexed("session:sess_1", "hash-1", "matter-a")
+            .unwrap();
+        assert!(store.list_sessions_to_index().unwrap().is_empty());
+
+        // Same content_hash, different matter -> must reappear for indexing.
+        store
+            .upsert_session(
+                "session:sess_1", "sess_1", "Review", "hash-1", "{}", "matter-b", false, "",
+            )
+            .unwrap();
+        let to_index = store.list_sessions_to_index().unwrap();
+        assert_eq!(to_index.len(), 1);
+        assert_eq!(to_index[0].matter_id, "matter-b");
     }
 
     #[test]

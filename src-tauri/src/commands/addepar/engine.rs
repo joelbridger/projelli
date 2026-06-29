@@ -174,8 +174,16 @@ pub async fn sync_with_key(
         }
         let assignment = resolve_entity_matter(&entity, matter_map);
         if assignment.needs_assignment {
+            // The household no longer maps to any matter. If it was indexed under
+            // a previous mapping, delete those chunks so they don't linger under
+            // the old matter (matter-isolation hygiene). No-op if never indexed.
+            let source_id = crate::commands::addepar::render::household_source_id(&entity.id);
+            crate::commands::connector::delete_external_source_with_key_internal(
+                workspace, &source_id, rag_key,
+            )
+            .await?;
             report.needs_assignment.push(AddeparNeedsAssignment {
-                source_id: crate::commands::addepar::render::household_source_id(&entity.id),
+                source_id,
                 entity_id: entity.id.clone(),
                 name: entity.name(),
                 reason: assignment.reason,
@@ -264,5 +272,115 @@ mod tests {
         let (source_id, text) = crate::commands::addepar::render::render_household_record(&record);
         assert_eq!(source_id, "addepar:329263");
         assert!(text.contains("Addepar household portfolio summary"));
+    }
+
+    fn fake_household_record(entity_id: &str, name: &str) -> AddeparHouseholdRecord {
+        let query_json = r#"{
+          "data": { "type": "portfolio_views", "attributes": { "total": {
+            "name": "Total", "columns": { "value": 1000000, "time_weighted_return": 0.05 },
+            "children": [
+              { "name": "Equity", "columns": { "value": 600000 }, "children": [] }
+            ]
+          } } }
+        }"#;
+        let query: AddeparPortfolioQueryResponse = serde_json::from_str(query_json).unwrap();
+        AddeparHouseholdRecord {
+            entity: entity(entity_id, name),
+            asset_allocation: Some(query.clone()),
+            performance: Some(query),
+            account_list: None,
+            warnings: vec![],
+        }
+    }
+
+    struct FakeAddeparSource {
+        entities: Vec<AddeparEntity>,
+        record: AddeparHouseholdRecord,
+    }
+
+    #[async_trait]
+    impl AddeparSource for FakeAddeparSource {
+        async fn list_entities(&self) -> anyhow::Result<Vec<AddeparEntity>> {
+            Ok(self.entities.clone())
+        }
+        async fn household_record(
+            &self,
+            _entity: &AddeparEntity,
+        ) -> anyhow::Result<AddeparHouseholdRecord> {
+            Ok(self.record.clone())
+        }
+    }
+
+    fn model_is_provisioned() -> bool {
+        crate::commands::rag::model_download::model_files_cached(
+            &crate::commands::rag::embedder::resolve_cache_dir(),
+        )
+    }
+
+    async fn addepar_chunk_exists(workspace: &Path, matter_id: &str) -> bool {
+        let conn = crate::commands::rag::store::open_connection(workspace)
+            .await
+            .unwrap();
+        let table = crate::commands::rag::store::open_or_create_table(&conn)
+            .await
+            .unwrap();
+        let hits = crate::commands::rag::store::nearest(
+            &table,
+            &vec![0.1f32; crate::commands::rag::embedder::EMBEDDING_DIM],
+            10,
+            Some(matter_id),
+            false,
+            &[],
+        )
+        .await
+        .unwrap();
+        hits.iter()
+            .any(|h| h.source_type.as_deref() == Some("addepar"))
+    }
+
+    #[tokio::test]
+    async fn unmapped_household_deletes_previously_indexed_chunks() {
+        if !model_is_provisioned() {
+            eprintln!("SKIP addepar unmap test: e5-small model cache not provisioned");
+            return;
+        }
+        let workspace = tempfile::TempDir::new().unwrap();
+        let rag_key = [0x71u8; 32];
+        let source = FakeAddeparSource {
+            entities: vec![entity("329263", "Northcrest Family Household")],
+            record: fake_household_record("329263", "Northcrest Family Household"),
+        };
+
+        // First sync: household is mapped, so it gets indexed under the matter.
+        let mapped = vec![AddeparMatterMapEntry {
+            addepar_key: "329263".into(),
+            matter_id: "matter-northcrest".into(),
+        }];
+        let report = sync_with_key(
+            &source,
+            workspace.path(),
+            &mapped,
+            &AtomicBool::new(false),
+            &rag_key,
+        )
+        .await
+        .unwrap();
+        assert!(report.records_indexed > 0);
+        assert!(addepar_chunk_exists(workspace.path(), "matter-northcrest").await);
+
+        // Second sync: the mapping is gone, so the household is now unassigned and
+        // its previously-indexed chunks must be deleted (matter isolation).
+        let report2 = sync_with_key(
+            &source,
+            workspace.path(),
+            &[],
+            &AtomicBool::new(false),
+            &rag_key,
+        )
+        .await
+        .unwrap();
+        assert_eq!(report2.records_indexed, 0);
+        assert_eq!(report2.needs_assignment.len(), 1);
+        assert!(!addepar_chunk_exists(workspace.path(), "matter-northcrest").await);
     }
 }

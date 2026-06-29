@@ -310,8 +310,24 @@ pub async fn index_downloaded_document_bytes_as_source_type(
         "rtf" => office::extract_rtf_text(bytes).context("extract downloaded rtf")?,
         "txt" | "text" | "md" | "markdown" => String::from_utf8(bytes.to_vec())
             .map_err(|_| anyhow::anyhow!("downloaded text document is not valid UTF-8"))?,
-        "pdf" => return Ok(DownloadedDocumentIndexOutcome::PendingPdf),
-        _ => return Ok(DownloadedDocumentIndexOutcome::Unsupported),
+        // These two arms are DETERMINISTIC (no extraction step that could fail),
+        // so deleting stale chunks first is safe and necessary: a source that
+        // used to be indexable (e.g. a .docx) and is now a scanned PDF or an
+        // unsupported type must not keep its old chunks searchable. (The text
+        // arms below delete only after a SUCCESSFUL extraction, so an extraction
+        // error can never wipe a previously-good index.)
+        "pdf" => {
+            store::delete_path(table, source_id, key)
+                .await
+                .context("delete stale chunks for now-pending PDF")?;
+            return Ok(DownloadedDocumentIndexOutcome::PendingPdf);
+        }
+        _ => {
+            store::delete_path(table, source_id, key)
+                .await
+                .context("delete stale chunks for now-unsupported document")?;
+            return Ok(DownloadedDocumentIndexOutcome::Unsupported);
+        }
     };
 
     store::delete_path(table, source_id, key)

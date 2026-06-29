@@ -67,6 +67,10 @@ pub struct ZocksSyncReportDto {
     pub sessions_indexed: u32,
     pub records_indexed: u32,
     pub needs_assignment: u32,
+    /// Sessions skipped this sync because their detail fetch kept failing. They
+    /// are retried on the next sync; surfaced so the UI can tell the user some
+    /// meetings were temporarily skipped rather than silently dropped.
+    pub fetch_failures: u32,
     pub cancelled: bool,
 }
 
@@ -247,6 +251,7 @@ pub async fn zocks_sync(
         sessions_indexed: report.sessions_indexed,
         records_indexed: report.records_indexed,
         needs_assignment: report.needs_assignment,
+        fetch_failures: report.fetch_failures,
         cancelled: report.cancelled,
     };
     *state.last_report.lock().await = Some(dto.clone());
@@ -257,6 +262,7 @@ pub async fn zocks_sync(
             "sessions": dto.sessions_indexed,
             "records": dto.records_indexed,
             "needsAssignment": dto.needs_assignment,
+            "fetchFailures": dto.fetch_failures,
         }),
     );
     Ok(dto)
@@ -382,7 +388,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn matter_map_duplicate_keys_keep_first_matter() {
+    fn matter_map_drops_duplicate_keys_as_ambiguous() {
+        // Two matters claiming the same key is ambiguous: the key must NOT map to
+        // either, so the meeting is left for manual assignment rather than being
+        // silently filed under whichever entry came first (matter-isolation bug
+        // flagged by Codex). The unambiguous case is covered in engine tests.
         let entries = vec![
             ZocksMatterMapEntry {
                 zocks_key: " Amelia@Example.COM ".into(),
@@ -394,10 +404,7 @@ mod tests {
             },
         ];
         let map = engine::build_matter_map(&entries);
-        assert_eq!(
-            map.get("amelia@example.com").map(String::as_str),
-            Some("matter-first")
-        );
+        assert!(!map.contains_key("amelia@example.com"));
     }
 
     #[test]
