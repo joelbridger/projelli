@@ -1,0 +1,136 @@
+url,category,status_code,crawl_status,key_claims,capabilities,audience,screenshot
+https://jump.ai/blog/jump-unveils-new-ai-powered-account-opening-and-workflow-innovations-for-advisors,Blog,200,detail-crawled (WebFetch),"(Jun 25 2026) ""35,000+ users worldwide""; Document Intelligence = upload/parse/sync (intake/account-opening/form-filling), NOT deep cross-folder synthesis.",,,N
+https://jump.ai/blog/updates-may-2026,Blog,200,detail-crawled (WebFetch),(May 27 2026) AI Associate on iOS; embedded in Redtail; pre-meeting prep ingests Redtail comments/UDFs; Signals actions; mobile-first; deepening synthesis over CRM fields.,,,N
+https://jump.ai/blog/introducing-AI-associate,Blog,200,detail-crawled (WebFetch),"(Mar 26 2026) AI Associate ""pull from emails, documents, planning tools, and meetings in one place""; emphasis meeting-derived + system integration; trusted/controlled action across connected systems.",,,N
+https://jump.ai/blog/jump-announces-selection-to-lpl-financial-vendor-affinity-program,Blog,200,status-checked (redirects to /press/...),LPL Financial Vendor Affinity Program selection (Nov 2024).,,,N
+https://jump.ai/blog/series-b-announcement,Blog,200,detail-crawled (via research agent),"$80M Series B led by Insight Partners (Feb 19-20 2026); 27,000+ advisors, +2,000/mo, ~1 in 10 US advisors; new investors F-Prime, Allianz Life Ventures, TIAA Ventures, Peterson.",,,N
+https://jump.ai/blog/jump-closes-20-million-series-a-funding-round-led-by-battery-ventures,Blog,200,detail-crawled (via research agent),"$20M Series A led by Battery Ventures (Feb 3 2025); Citi Ventures, Sorenson, Pelion.",,,N
+https://jump.ai/blog/security-and-compliance,Blog,200,detail-crawled (WebFetch + screenshot),(Apr 7 2026) Flexible capture/retention controls; summary-only mode; firm-defined compliance policies; human review before CRM syncs/comms/exports (attestation); consent & disclosure mgmt; redaction; trust center at security.jump.ai. Vaguer than homepage (does not itself restate SOC 2).,"Compliance config, retention, consent/disclosure, human review",RIA & broker-dealer compliance,Y
+https://jump.ai/company,Company,200,status-checked + screenshot,"Company/leadership page (HQ Salt Lake City; CEO Parker Ence; co-founders Tim Chaves, Adam Kirk).",,,Y
+https://jump.ai/advisor-trends/artificial-intelligence/jump-vs-zocks,Content: AI,200,detail-crawled (WebFetch),"Self-serving comparison. Claims 22.68% vs Zocks 10.22% market share; Ezra Group WealthTech integration score 8.63 vs 8.14; both SOC 2 Type II, both ""privacy-first""; positions Jump as ""AI operating system"" (Meet/Grow/Operate) vs Zocks ""point solution""; ""note-taking is table stakes"".",N/A (comparison content),Advisors choosing notetaker vs platform,N
+https://jump.ai/,Home,200,detail-crawled (WebFetch + screenshot),"""#1 AI platform for advisors""; ""Trusted by LPL, Osaic, Cetera""; ""35,000+ advisors""; 10 hrs saved/wk; 2.1x growth opps; 42% task reduction; modules: AI Associate, Client Profiles, Email Assistant, Meet/Grow/Onboard; ""SOC 2-certified""; ""client data never trains our models""; human-in-the-loop","AI Associate (ask+act across stack); Client Profiles (evergreen, all sources); Email Assistant; Notetaker; Pre-meeting prep; Grow (Signals/Playbooks/Scorecards); Onboard (Intake/Document Intelligence)","Enterprise firms, independent advisors, insurance, accounting, asset mgrs, banks/credit unions",Y
+https://jump.ai/integrations,Integrations,200,detail-crawled (WebFetch + screenshot),"""30+ integrations"" headline; ~39 listed: CRM (Salesforce, Wealthbox, Redtail, HubSpot, Dynamics, AdvisorEngine, Practifi, Advyzon, XLR8, LeadCenter, Quivr, SmartOffice), planning (eMoney, RightCapital, Asset-Map, Holistiplan), portfolio (Orion, Black Diamond), custodian (Schwab), meetings (Zoom/Teams/Meet/Webex/GoTo/Dialpad/RingCentral/Intulse), calendar, tax (TaxStatus), estate (Wealth.com), docs (Box, Google Drive), VoIP (Vonage), workflow (Karbon, Hubly)",Bi-directional CRM/planning/calendar/portfolio sync,Advisors on an existing SaaS stack,Y
+https://jump.ai/pricing,Pricing,200,detail-crawled (WebFetch + screenshot),"Meet $100/advisor/mo (core); Onboard +$50; Grow +$50; Enterprise = contact sales; annual saves up to 20%; free trial on Meet; no minimum seats; ""40+ integrations, AI Associate, MCP"" included all plans","Tiered: Meet/Onboard/Grow + Enterprise (SSO, SCIM/SAML, compliance dashboard, custom attestations)",Advisors & financial professionals,Y
+https://jump.ai/tour,Product tour,200,detail-crawled (WebFetch + screenshot),"Client profiles ""pull data across all of your data sources""; AI Associate ""ask + take action across your tech stack""; Document intelligence ""upload, parse, and sync documents""; Notetaker ""notes, decisions, next steps"". Low technical depth on synthesis/citation.","Client Profiles, AI Associate, Document Intelligence, Notetaker",Advisors,Y
+https://jump.ai/blog,Blog,200,discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/whats-new-at-jump-february,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/jump-expands-ai-operating-system-for-advisors-with-new-products-powering-growth-and-operations,Blog,200,discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/the-future-of-ai-in-financial-planning,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/how-ai-is-creating-smarter-advisors-not-replacing-them,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/product-updates-september-2025,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/diana-cabrices-chief-evangelist,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/advisor-ai-customer-experience,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/why-ai-is-the-key-to-scalable-growth-for-financial-advisors,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/how-jump-saves-advisors-time-survey-results-are-in,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/why-ai-software-is-the-future-of-financial-services-compliance,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/the-top-features-to-look-for-in-financial-advisor-software-in-2025,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/holistiplan-integration,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/meeting-page-updates,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/wealthcom-integration,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/new-releases-april-2026,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/retirement-planning-ai-confusion-how-to,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/product-updates-october-2025,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/tax-status-integration,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/rising-costs-client-behavior-financial-advisors,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/jump-launches-ai-associate-an-intelligent,Blog,200,discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/jumps-ai-powered-tools-take-top-honors-in-the-2025-t3-inside-information-software-survey,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/why-wealth-management-firms-need-to-embrace-these-fintech-trends-to-remain-competitive-in-2025,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/new-at-jump-january-2026,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/whats-new-at-jump-june,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/jump-and-cetera-join-forces-to-further-enhance-compliance-efficiency-and-scalable-growth,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/welcome-ma,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/jump-news-december,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/taxes-are-not-seasonal-anymore-here-is-what-changed,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/whats-new-at-jump-march,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/jump-appoints-diana-cabrices-to-lead-ai-driven-advisor-education-and-growth,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/product-updates-november-2025,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/asset-map-jump-integration,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/new-at-jump-august-2025,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/5-key-benefits-of-using-ai-in-wealth-management-for-financial-advisors,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/what-advisor-client-conversations-reveal-about-markets-sentiment-and-client-outcomes,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/how-fintech-trends-are-driving-the-creation-of-award-winning-technologies-like-jump,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/introducing-jump,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/equitable-advisors-on-jump,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/focus-on-summer,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/how-digital-first-financial-advisors-are-leading-the-wealth-management-revolution,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/whats-new-at-jump-may,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/february-2026-product-update,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/redtail-crm-integration,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/how-client-conversations-about-alternative-assets-are-evolving,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/spring-financial-planning-season-advisor-data,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/new-at-jump-july-2025,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/jump-series-b,Blog,200,discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/finding-an-audit-risk-in-a-haystack-financial-advisors,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/march-2026-product-update,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/are-financial-advisors-recommending-gold,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/taxstatus-integration-new,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/jump-integrations,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/FINRA-regulations-AI,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/why-clients-defer-estate-planning,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/exchange-integration,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/the-great-wealth-transfer-ai-powered-insights-on-how-to-bridge-generations-from-real-client,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/top-7-ways-ai-is-transforming-financial-advisor-client-relationships,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/when-advisors-stop-taking-notes,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/blog/whats-new-at-jump-january,Blog,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/careers,Company,200,discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/artificial-intelligence/ai-use-cases-for-financial-advisors,Content: AI,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/artificial-intelligence/ai-tools-for-financial-advisors,Content: AI,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/artificial-intelligence/ai-in-wealth-management,Content: AI,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/artificial-intelligence/types-of-ai-software-every-ria-should-use,Content: AI,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/artificial-intelligence/financial-advisor-productivity,Content: AI,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends,Content: advisor-trends,200,discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-lifecycle/client-retention-during-an-advisor-transition,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-engagement/financial-advisor-communication-best-practices,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-engagement/financial-advisor-tips-for-talking-to-clients,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-engagement/holistic-financial-planning,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-engagement/client-engagement-strategies,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-engagement/client-event-ideas-for-financial-advisors,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-acquisition/how-to-create-a-financial-advisor-referral-program,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-acquisition/what-ultra-high-net-worth-clients-want-from-wealth-managers,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-engagement/tax-drag,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-lifecycle/client-onboarding-checklist-for-financial-advisors,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-acquisition/how-financial-advisors-can-find-and-attract-high-net-worth-clients,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-engagement/how-advisors-tailor-wealth-strategies-to-client-goals,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-engagement/discovery-meeting-agenda,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-engagement/client-service-model-for-financial-advisors,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-engagement/email-marketing-strategies-for-financial-advisors,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-engagement/wealth-management-client-experience,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-engagement/what-do-clients-want-from-their-financial-advisor,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-acquisition/how-to-network-as-a-financial-advisor,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/client-engagement/questions-financial-advisors-should-ask-clients,Content: client engagement,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/compliance/finra-rule-1210,Content: compliance,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/compliance/financial-advisor-regulations,Content: compliance,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/compliance/ria-annual-compliance-review-checklist,Content: compliance,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/compliance/assets-under-administration-vs-assets-under-advisement,Content: compliance,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/compliance/ria-compliance,Content: compliance,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/compliance/form-u4,Content: compliance,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/compliance/breach-of-fiduciary-duty-penalties,Content: compliance,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/compliance/sec-compliance,Content: compliance,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/compliance/relying-adviser,Content: compliance,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/compliance/financial-advisor-compliance,Content: compliance,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/compliance/advisor-business-continuity-plan,Content: compliance,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/compliance/regulatory-assets-under-management,Content: compliance,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/firm-management/financial-advisor-skills,Content: firm management,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/firm-management/time-management-for-financial-advisors,Content: firm management,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/firm-management/practice-management-tips-fors-financial-advisors,Content: firm management,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/firm-management/best-books-for-financial-advisors,Content: firm management,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/firm-management/best-financial-advisors,Content: firm management,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/firm-management/held-away-assets,Content: firm management,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/practice-building/best-target-markets-for-financial-advisors,Content: practice building,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/practice-building/how-to-build-a-successful-financial-advisor-practice,Content: practice building,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/practice-building/how-to-form-an-ria,Content: practice building,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/practice-building/financial-advisor-business-plan,Content: practice building,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/practice-building/financial-advisor-industry-trends,Content: practice building,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/practice-building/how-to-increase-aum-as-an-advisor,Content: practice building,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/practice-building/financial-advisor-growth-strategies,Content: practice building,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/practice-building/breakaway-advisors,Content: practice building,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/practice-building/financial-advisor-best-practices,Content: practice building,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/advisor-trends/practice-building/how-to-build-and-structure-a-financial-advisor-team,Content: practice building,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/demo,Demo / CTA,200,discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/privacy-policy,Legal,200,discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/terms-of-service,Legal,200,discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/msa,Legal,200,discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/zoom,Partner page,"200 (assumed; in sitemap, not re-checked)",discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/in-the-news,Press,200,discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/press-releases,Press,200,discovered via sitemap; not individually crawled,,,,N
+https://jump.ai/press,Press,200,discovered via sitemap; not individually crawled,,,,N

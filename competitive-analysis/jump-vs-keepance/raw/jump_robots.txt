@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+Disallow: /lpl
+Disallow: /sei
+Disallow: /osaic
+
+Sitemap: https://jump.ai/sitemap.xml
+  
