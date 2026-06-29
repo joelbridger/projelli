@@ -10,13 +10,17 @@ vi.mock('@tauri-apps/api/core', () => ({
   isTauri: isTauriMock,
 }));
 
-import { migrateLocalStorageApiKeysToKeychain } from './KeychainService';
+import {
+  createKeychainService,
+  migrateLocalStorageApiKeysToKeychain,
+} from './KeychainService';
 
 const MIGRATION_SENTINEL = 'keepance_apikeys_migrated_v2';
 const KEYCHAIN_ID = 'com.keepance.app::bos_key_anthropic';
 const LEGACY_KEY = 'apiKey_anthropic';
 const MATERIAL_KEY = 'bos_key_anthropic';
 const VALID_ANTHROPIC_KEY = 'sk-ant-api03-abcdefghijklmnopqrstuvwx';
+const VALID_OPENAI_KEY = 'sk-proj-abcdefghijklmnopqrstuvwx';
 
 const keychainStore = new Map<string, string>();
 
@@ -149,5 +153,43 @@ describe('migrateLocalStorageApiKeysToKeychain', () => {
     expect(keychainStore.get(KEYCHAIN_ID)).toBe(VALID_ANTHROPIC_KEY);
     expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
     expect(localStorage.getItem(MIGRATION_SENTINEL)).toBe('true');
+  });
+
+  it('a KeychainService created BEFORE the migration shows the migrated key in getStoredKeys (same session)', async () => {
+    // Upgrading user: App constructs the shared service first; their only key is
+    // still the legacy plaintext entry, so its metadata starts empty.
+    const shared = createKeychainService('tauri');
+    expect(shared.getStoredKeys()).toEqual([]);
+
+    localStorage.setItem(LEGACY_KEY, VALID_ANTHROPIC_KEY);
+    await migrateLocalStorageApiKeysToKeychain();
+
+    // The SAME instance now reflects the migrated key — the "Manage AI Account
+    // Keys" settings screen shows it without an app reload.
+    expect(shared.getStoredKeys()).toEqual([
+      expect.objectContaining({
+        provider: 'anthropic',
+        keyPrefix: VALID_ANTHROPIC_KEY.slice(0, 8),
+      }),
+    ]);
+    expect(shared.getKeyMetadata('anthropic')).toMatchObject({ provider: 'anthropic' });
+  });
+
+  it('setKey on a pre-existing instance does not clobber a just-migrated key', async () => {
+    // Stale-cache instance (constructed before any metadata existed).
+    const shared = createKeychainService('tauri');
+
+    // Migration adds anthropic to the metadata in localStorage.
+    localStorage.setItem(LEGACY_KEY, VALID_ANTHROPIC_KEY);
+    await migrateLocalStorageApiKeysToKeychain();
+
+    // The stale instance now saves a DIFFERENT provider; anthropic must survive.
+    await shared.setKey('openai', VALID_OPENAI_KEY);
+
+    const providers = shared
+      .getStoredKeys()
+      .map((k) => k.provider)
+      .sort();
+    expect(providers).toEqual(['anthropic', 'openai']);
   });
 });

@@ -384,7 +384,11 @@ export class KeychainService {
 
     await this.backend.set(provider, key);
 
-    // Update metadata
+    // Refresh from the localStorage source of truth before mutating so we MERGE
+    // (never clobber) entries added by another KeychainService instance or by
+    // the one-time legacy migration. Without this, a long-lived instance whose
+    // cache was loaded before those writes would overwrite them on save.
+    this.loadMetadata();
     this.metadata.set(provider, {
       provider,
       keyPrefix: key.slice(0, 8),
@@ -401,6 +405,9 @@ export class KeychainService {
    */
   async deleteKey(provider: KeyProvider): Promise<void> {
     await this.backend.delete(provider);
+    // Refresh before mutating (see setKey) so deleting one key can't clobber
+    // others added elsewhere since this instance was constructed.
+    this.loadMetadata();
     this.metadata.delete(provider);
     this.saveMetadata();
     notifyEgressConfigChange();
@@ -417,16 +424,24 @@ export class KeychainService {
   }
 
   /**
-   * Get all stored key metadata (without the actual keys)
+   * Get all stored key metadata (without the actual keys).
+   *
+   * Reads from the localStorage source of truth on every call so a long-lived
+   * instance reflects keys added by another instance or by the one-time legacy
+   * migration — the "Manage AI Account Keys" settings screen must show a
+   * migrated key in the SAME session, without an app reload.
    */
   getStoredKeys(): StoredKey[] {
+    this.loadMetadata();
     return Array.from(this.metadata.values());
   }
 
   /**
-   * Get key metadata for a provider
+   * Get key metadata for a provider (fresh from the localStorage source of
+   * truth — see getStoredKeys).
    */
   getKeyMetadata(provider: KeyProvider): StoredKey | undefined {
+    this.loadMetadata();
     return this.metadata.get(provider);
   }
 
@@ -506,6 +521,9 @@ export class KeychainService {
    * Update last used timestamp
    */
   private updateLastUsed(provider: KeyProvider): void {
+    // Refresh before mutating so bumping one key's lastUsed can't clobber
+    // entries added elsewhere since this instance was constructed.
+    this.loadMetadata();
     const meta = this.metadata.get(provider);
     if (meta) {
       meta.lastUsed = new Date();
