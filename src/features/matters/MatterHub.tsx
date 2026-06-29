@@ -13,12 +13,12 @@
  */
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
-import { Briefcase, Lock, FileText, Mail, Clock, ChevronLeft, Loader2, Map } from 'lucide-react';
+import { Lock, FileText, Mail, Clock, Loader2, Map } from 'lucide-react';
 import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { Button, Badge, IconButton } from '@/ui/kp';
+import { Button, Badge } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
 import { useClientMap } from '@/features/matters/useClientMap';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
@@ -47,20 +47,6 @@ export interface MatterHubProps {
   renderDocuments?: () => ReactNode;
   renderEmail?: () => ReactNode;
   renderActivity?: () => ReactNode;
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  } catch {
-    return iso;
-  }
 }
 
 // ── Sub-tabs ───────────────────────────────────────────────────────────────
@@ -222,6 +208,23 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   }
 
   const label = matterLabel(matter);
+  // Title = just the client NAMES (drop the "- Household" suffix); the icon +
+  // the left nav carry the "this is the Client Map" context.
+  const headerTitle = matter.client && matter.client.trim() !== '' ? matter.client : label;
+
+  // A genuinely useful one-liner in place of the redundant name/created line:
+  // a glanceable status — how much open work + anything to ask. Falls back to
+  // "Up to date" when there's nothing outstanding; omitted until the map exists.
+  const cmMap = clientMap.map;
+  let headerSummary: string | undefined;
+  if (cmMap) {
+    const followUps = cmMap.sections.find((s) => s.key === 'next')?.items.length ?? 0;
+    const openQuestions = cmMap.completeness.ask.length;
+    const parts: string[] = [];
+    if (followUps > 0) parts.push(`${String(followUps)} follow-up${followUps === 1 ? '' : 's'} open`);
+    if (openQuestions > 0) parts.push(`${String(openQuestions)} ${openQuestions === 1 ? 'question' : 'questions'} to ask`);
+    headerSummary = parts.length > 0 ? parts.join(' · ') : 'Up to date';
+  }
 
   return (
     <div
@@ -240,32 +243,18 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
       <div
         style={{
           padding: 'var(--kp-surface-header-pad)',
-          borderBottom: '1px solid var(--color-border)',
+          borderBottom: '1px solid var(--kp-divider)',
           flexShrink: 0,
         }}
       >
-        {/* No floating breadcrumb — "back" is a quiet chevron inline to the
-            left of the client name, so the header reads as cleanly as Ask's. */}
+        {/* Reads exactly like Ask: [colored icon] + [name] + light subtitle. No
+            floating breadcrumb — back navigation is the left Client Map nav /
+            CLIENTS list. The icon is the Client-Map (map) icon in brand blue. */}
         <SurfaceHeader
-          Icon={Briefcase}
-          title={label}
-          leading={
-            <IconButton
-              icon={ChevronLeft}
-              label={`Back to ${entityLabel.other}`}
-              data-testid="hub-back-btn"
-              variant="ghost"
-              size="sm"
-              onClick={onBack}
-            />
-          }
-          description={
-            <>
-              {matter.client && <span>{matter.client}</span>}
-              {matter.client && <span> · </span>}
-              <span>Created {formatDate(matter.createdAt)}</span>
-            </>
-          }
+          Icon={Map}
+          iconColor="var(--kp-blue)"
+          title={headerTitle}
+          {...(headerSummary !== undefined ? { description: headerSummary } : {})}
           actions={
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {/* Guided-interview lives here, top-right, so it never breaks
@@ -306,7 +295,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
           alignItems: 'stretch',
           gap: 2,
           padding: '0 var(--kp-gutter)',
-          borderBottom: '1px solid var(--color-border)',
+          borderBottom: '1px solid var(--kp-divider)',
           background: 'var(--color-background)',
           flexShrink: 0,
         }}

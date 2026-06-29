@@ -12,6 +12,9 @@ import type { LucideIcon } from 'lucide-react';
 export interface SurfaceHeaderProps {
   /** Lucide icon — use the same icon as the surface's nav item. */
   Icon: LucideIcon;
+  /** Icon color (a CSS color or token). Defaults to navy; pass the brand blue
+   *  (var(--kp-blue)) for surfaces that lead with the colored icon, like Ask. */
+  iconColor?: string;
   /** The surface title (e.g. "Matters", "Search", "Documents"). */
   title: string;
   /** A short one-line description shown below the title. */
@@ -25,7 +28,7 @@ export interface SurfaceHeaderProps {
   testId?: string;
 }
 
-export function SurfaceHeader({ Icon, title, description, leading, actions, testId }: SurfaceHeaderProps) {
+export function SurfaceHeader({ Icon, title, description, leading, actions, testId, iconColor = 'var(--kp-navy)' }: SurfaceHeaderProps) {
   return (
     <div
       {...(testId ? { 'data-testid': testId } : {})}
@@ -41,7 +44,7 @@ export function SurfaceHeader({ Icon, title, description, leading, actions, test
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', marginBottom: 'var(--kp-space-2xs)' }}>
           {leading}
           <Icon
-            style={{ width: 'var(--kp-icon-lg)', height: 'var(--kp-icon-lg)', color: 'var(--kp-navy)', strokeWidth: 'var(--kp-icon-stroke)', flex: 'none' }}
+            style={{ width: 'var(--kp-icon-lg)', height: 'var(--kp-icon-lg)', color: iconColor, strokeWidth: 'var(--kp-icon-stroke)', flex: 'none' }}
           />
           <h1
             style={{

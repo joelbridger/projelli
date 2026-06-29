@@ -128,7 +128,7 @@ export function AskComposer({
   // variant === 'bottom' — sticky bar pinned to the bottom of the conversation.
   const barStyle: CSSProperties = {
     flexShrink: 0,
-    borderTop: '1px solid var(--color-border)',
+    borderTop: '1px solid var(--kp-divider)',
     background: 'var(--color-background)',
     padding: 'var(--kp-space-sm) var(--kp-gutter)',
   };

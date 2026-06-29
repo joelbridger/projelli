@@ -32,7 +32,6 @@ import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
 
 // ── Display strings (variables avoid hardcoded JSX text for the i18n rule) ────
 
-const LABEL_SECTIONS = 'Sections';
 const LABEL_WHAT_MISSING = "What I'm missing";
 const LABEL_NEW_SECTION = 'New section';
 const EDIT_LABEL = 'Edit';
@@ -90,12 +89,12 @@ const shellStyle: CSSProperties = {
   minHeight: 0,
 };
 
-// The section rail mirrors the Ask ConversationsRail exactly: a quiet
-// secondary-tinted column with one right hairline and roomy, pill-shaped rows.
+// The section rail mirrors the Ask ConversationsRail exactly: same 264px width,
+// quiet secondary-tint, one LIGHT right hairline, roomy pill rows.
 const railStyle: CSSProperties = {
-  width: 248,
+  width: 264,
   flex: 'none',
-  borderRight: '1px solid var(--color-border)',
+  borderRight: '1px solid var(--kp-divider)',
   background: 'var(--color-secondary)',
   padding: 'var(--kp-space-sm)',
   display: 'flex',
@@ -103,18 +102,18 @@ const railStyle: CSSProperties = {
   gap: 2,
 };
 
-// Content gets the full surface gutter (32px) so it breathes like Ask; the
-// reading column is capped and centered (the ChatGPT message-column feel).
+// Content matches Ask's conversation column: full surface gutter (32px) on the
+// left, comfortable top padding, and a left-aligned reading column capped to a
+// readable measure (no centered "strange right margin").
 const contentStyle: CSSProperties = {
   flex: 1,
   minWidth: 0,
-  padding: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-space-3xl)',
+  padding: 'var(--kp-space-xl) var(--kp-gutter) var(--kp-space-3xl)',
   overflowY: 'auto',
 };
 
 const contentInnerStyle: CSSProperties = {
   maxWidth: 760,
-  margin: '0 auto',
   width: '100%',
 };
 
@@ -320,12 +319,12 @@ function TabButton({
         border: '1px solid transparent',
         borderRadius: 'var(--radius-md)',
         cursor: 'pointer',
-        background: active ? 'rgba(10, 37, 64, 0.09)' : 'transparent',
+        background: active ? 'rgba(93, 198, 255, 0.22)' : 'transparent',
         fontFamily: 'var(--font-sans)',
         transition: 'background 0.1s',
       }}
       onMouseEnter={(e) => {
-        if (!active) e.currentTarget.style.background = 'rgba(10, 37, 64, 0.05)';
+        if (!active) e.currentTarget.style.background = 'rgba(93, 198, 255, 0.11)';
       }}
       onMouseLeave={(e) => {
         if (!active) e.currentTarget.style.background = 'transparent';
@@ -860,11 +859,24 @@ export function ClientMapPanel({
 
   return (
     <div data-testid="clientmap-panel" style={shellStyle}>
-      {/* Left rail — vertical section tabs (Ask ConversationsRail styling) */}
+      {/* Left rail — mirrors the Ask CONVERSATIONS rail: an outlined "+ New
+          section" button at the TOP, the sections below it, then the special
+          "What I'm missing" view. No caps label. */}
       <div style={railStyle} role="tablist" aria-label="Client map sections">
-        <Eyebrow style={{ margin: '2px 0 6px', padding: '0 var(--kp-space-sm)' }}>
-          {LABEL_SECTIONS}
-        </Eyebrow>
+        <Button
+          variant="secondary"
+          size="sm"
+          iconLeft={Plus}
+          fullWidth
+          data-testid="clientmap-tab-add"
+          onClick={() => {
+            select(NEW_KEY);
+          }}
+          style={{ justifyContent: 'flex-start', marginBottom: 'var(--kp-space-xs)' }}
+        >
+          {LABEL_NEW_SECTION}
+        </Button>
+
         {sectionList.map((s) => (
           <TabButton
             key={s.key}
@@ -880,11 +892,11 @@ export function ClientMapPanel({
           />
         ))}
 
-        {/* Divider before the two special tabs */}
+        {/* Light divider before the special "What I'm missing" view */}
         <div
           style={{
-            height: 'var(--kp-border-width)',
-            background: 'var(--color-border)',
+            height: 1,
+            background: 'var(--kp-divider)',
             margin: 'var(--kp-space-xs) var(--kp-space-2xs)',
           }}
         />
@@ -901,45 +913,9 @@ export function ClientMapPanel({
             select(MISSING_KEY);
           }}
         />
-
-        {/* "+ New section" — a quiet rail row with a plus, not a dashed box */}
-        <button
-          type="button"
-          data-testid="clientmap-tab-add"
-          onClick={() => {
-            select(NEW_KEY);
-          }}
-          aria-selected={activeKey === NEW_KEY}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--kp-space-xs)',
-            width: '100%',
-            textAlign: 'left',
-            padding: 'var(--kp-space-xs) var(--kp-space-sm)',
-            border: '1px solid transparent',
-            borderRadius: 'var(--radius-md)',
-            cursor: 'pointer',
-            background: activeKey === NEW_KEY ? 'rgba(10, 37, 64, 0.09)' : 'transparent',
-            color: 'var(--color-muted-foreground)',
-            fontFamily: 'var(--font-sans)',
-            fontSize: 'var(--kp-font-sm)',
-            fontWeight: 'var(--kp-weight-medium)',
-            transition: 'background 0.1s',
-          }}
-          onMouseEnter={(e) => {
-            if (activeKey !== NEW_KEY) e.currentTarget.style.background = 'rgba(10, 37, 64, 0.05)';
-          }}
-          onMouseLeave={(e) => {
-            if (activeKey !== NEW_KEY) e.currentTarget.style.background = 'transparent';
-          }}
-        >
-          <Plus size={15} strokeWidth={2} style={{ flex: 'none', opacity: 0.7 }} />
-          <span>{LABEL_NEW_SECTION}</span>
-        </button>
       </div>
 
-      {/* Right reading pane — breathing, centered reading column (Ask shape) */}
+      {/* Right reading pane — left-aligned, breathing reading column (Ask shape) */}
       <div style={contentStyle}>
         <div style={contentInnerStyle}>
           {activeKey === NEW_KEY ? (

@@ -43,7 +43,7 @@ const RAIL_COLLAPSED_WIDTH = 52;
 
 const railBase: CSSProperties = {
   flexShrink: 0,
-  borderRight: '1px solid var(--color-border)',
+  borderRight: '1px solid var(--kp-divider)',
   background: 'var(--color-secondary)',
   display: 'flex',
   flexDirection: 'column',
@@ -75,7 +75,7 @@ function RailItem({
         padding: 'var(--kp-space-xs) var(--kp-space-sm)',
         borderRadius: 'var(--radius-md)',
         border: '1px solid transparent',
-        background: active ? 'rgba(10, 37, 64, 0.09)' : 'transparent',
+        background: active ? 'rgba(93, 198, 255, 0.22)' : 'transparent',
         color: active ? 'var(--kp-navy)' : 'var(--color-foreground)',
         fontSize: 'var(--kp-font-xs)',
         fontWeight: active ? 'var(--kp-weight-medium)' : 'var(--kp-weight-regular)',
