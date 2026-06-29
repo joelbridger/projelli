@@ -24,8 +24,11 @@ import '../styles/globals.css';
 import i18n from '../i18n';
 import { detectLocale } from '../lib/locale-detect';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { seedWebDemoWorkspace } from './WebDemoSeeder';
+import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
+import { CONFIDENTIALITY_CHOICE_MADE_KEY } from '@/platform/privacy/resolvePersonalEgressDefault';
+import { seedWebDemoWorkspace, getSampleForProfession, DEMO_WORKSPACE_ROOT } from './WebDemoSeeder';
 import { seedWebDemoClientMap } from './seedWebDemoClientMap';
+import { installDemoRetrieval } from './demoRetrieval';
 import { DemoModeBanner } from './DemoModeBanner';
 import { DemoLimitGate } from './DemoLimitGate';
 import { trackDemoLoaded } from './demoPlausible';
@@ -50,12 +53,45 @@ bootstrapLocale().catch(() => {
   // Tolerate locale-detect failures; i18n already starts in 'en'.
 });
 
+/**
+ * The web demo answers AI questions through the shared demo proxy (or a pasted
+ * BYOK key) — never an on-device model, because a browser has no local engine.
+ * The fail-closed cloud-send guard (`isLocalOnlyModeFailClosed`) treats an UNSET
+ * confidentiality mode as Local-only and would BLOCK every cloud send, so the
+ * demo must declare its posture explicitly: Direct, choice made. We only set this
+ * when the visitor has not chosen a mode themselves, so an explicit Local-only
+ * choice in the demo's Privacy Center is still respected (it just can't answer —
+ * honestly — without a local model).
+ */
+function ensureDemoConfidentialityDefault(): void {
+  const settings = useSettingsStore.getState();
+  // Default the mode to Direct only when the visitor hasn't chosen one, so an
+  // explicit Local-only choice in the demo's Privacy Center is respected.
+  if (settings.values[CONFIDENTIALITY_MODE_SETTING_KEY] === undefined) {
+    settings.setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
+  }
+  // Always ensure the choice is marked made: the demo's egress is disclosed by
+  // the demo banner, so the personal-install choice gate (which blocks cloud
+  // generation in Workflows / AI Chat until a choice is recorded) must not fire.
+  // Done independently of the mode check so a stale state with the mode set but
+  // the choice flag missing is still unblocked (Codex review).
+  if (settings.getSetting(CONFIDENTIALITY_CHOICE_MADE_KEY) !== true) {
+    settings.setSetting(CONFIDENTIALITY_CHOICE_MADE_KEY, true);
+  }
+}
+
 async function bootstrap(): Promise<void> {
+  // Declare the demo's AI egress posture before anything can send (see helper).
+  ensureDemoConfidentialityDefault();
   // Seed the OPFS workspace before mounting React so the file tree renders
   // populated on first paint. The seeder is idempotent and fast (a handful
   // of small writes).
   try {
     const { profession } = await seedWebDemoWorkspace();
+    // Install the browser keyword retriever over the SAME seeded files so Ask can
+    // search them (the desktop's native Tauri RAG isn't available in a browser).
+    // Built from the in-memory sample so it works even if the OPFS write degraded.
+    installDemoRetrieval(getSampleForProfession(profession).files, DEMO_WORKSPACE_ROOT);
     // Advisor pack (the default /try): seed the Webb Household client + its
     // fully-filled, cited Client Map and open its hub, so the demo lands on the
     // Client Map — the first thing a visitor sees — instead of the file browser.

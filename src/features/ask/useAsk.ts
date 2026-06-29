@@ -25,6 +25,8 @@ import type { ChatMessage } from '@/platform/types/ai';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress, isLocalProvider, type ConfidentialityMode } from '@/platform/privacy/egress';
+import { IS_DEMO } from '@/web-demo/demoModeFlag';
+import { hasDemoByokKey } from '@/web-demo/demoAIProvider';
 import { getConfidentialityMode, useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import {
   assertLocalOnlyAllowsSend,
@@ -578,7 +580,8 @@ export function useAsk({
         const egress = resolveEgress({
           provider: providerAudit.providerId,
           mode: getConfidentialityMode(),
-          isDemo: false,
+          isDemo: IS_DEMO,
+          hasDemoByokKey: hasDemoByokKey(),
           assuredAvailable: false,
         });
         onAuditLog?.(auditEventToEntry({
@@ -687,7 +690,8 @@ export function useAsk({
         const egress = resolveEgress({
           provider: providerAudit.providerId,
           mode: getConfidentialityMode(),
-          isDemo: false,
+          isDemo: IS_DEMO,
+          hasDemoByokKey: hasDemoByokKey(),
           assuredAvailable: false,
         });
         onAuditLog?.({

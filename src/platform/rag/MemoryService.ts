@@ -31,6 +31,51 @@ import {
   type RetrievalScope,
 } from '@/platform/utils/tauri-commands';
 
+/**
+ * Pluggable retrieval backend. Defaults to the Tauri `rag_retrieve` command
+ * (the desktop app's native LanceDB + embeddings). The browser web-demo has no
+ * Tauri backend — `ragRetrieve` throws "RAG is only available in the desktop
+ * app." there — so the demo bootstrap installs a browser-side keyword retriever
+ * (`src/web-demo/demoRetrieval.ts`) via `setRetrievalBackend`. This is the same
+ * dependency-injection seam already used for the matter/privilege resolvers and
+ * the enabled reader, so MemoryService never imports web-demo code (it stays a
+ * leaf of the platform layer) and desktop behaviour is byte-for-byte unchanged.
+ */
+export type RetrievalBackend = (
+  query: string,
+  topK: number,
+  scope: RetrievalScope,
+  includePrivileged: boolean,
+  perSourceCap: number | undefined,
+  enableReranker: boolean,
+  enableHybridSearch: boolean,
+) => Promise<RagHit[]>;
+
+const DEFAULT_RETRIEVAL_BACKEND: RetrievalBackend = (
+  query,
+  topK,
+  scope,
+  includePrivileged,
+  perSourceCap,
+  enableReranker,
+  enableHybridSearch,
+) =>
+  ragRetrieve(query, topK, scope, includePrivileged, perSourceCap, enableReranker, enableHybridSearch);
+
+let retrievalBackend: RetrievalBackend = DEFAULT_RETRIEVAL_BACKEND;
+
+/** Install a retrieval backend. Called once from the web-demo bootstrap with a
+ *  browser keyword retriever; the desktop app never calls it, so it keeps the
+ *  native Tauri command. */
+export function setRetrievalBackend(backend: RetrievalBackend): void {
+  retrievalBackend = backend;
+}
+
+/** Reset to the native Tauri retrieve. Test helper. */
+export function resetRetrievalBackend(): void {
+  retrievalBackend = DEFAULT_RETRIEVAL_BACKEND;
+}
+
 /** How the toggle is read. Pluggable so tests can pass a stub. */
 export type MemoryEnabledReader = () => boolean;
 
@@ -337,7 +382,15 @@ export const MemoryService = {
   ): Promise<RagHit[]> {
     if (!isMemoryEnabled()) return [];
     if (!query.trim() || topK <= 0) return [];
-    return ragRetrieve(query, topK, scope, includePrivileged, perSourceCap, enableReranker, enableHybridSearch);
+    return retrievalBackend(
+      query,
+      topK,
+      scope,
+      includePrivileged,
+      perSourceCap,
+      enableReranker,
+      enableHybridSearch,
+    );
   },
 
   /** Index a single PDF file into the RAG store. Reads bytes via the
