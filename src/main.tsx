@@ -6,6 +6,9 @@ import './styles/globals.css';
 import i18n from './i18n';
 import { detectLocale } from './lib/locale-detect';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
+// DEMO-ONLY (dev render): real onboarding-journey overlay for the marketing
+// video. Mounted only under the vite dev server; stripped from every prod build.
+import { DemoJourneyOverlay } from './dev/DemoJourneyOverlay';
 
 const rootElement = document.getElementById('root');
 
@@ -54,6 +57,7 @@ async function bootstrap() {
       */}
       <TooltipProvider delayDuration={300} skipDelayDuration={100}>
         <App />
+        {import.meta.env.DEV && <DemoJourneyOverlay />}
       </TooltipProvider>
     </StrictMode>
   );

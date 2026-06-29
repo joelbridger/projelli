@@ -18,8 +18,11 @@ import { readFileSync, mkdirSync, rmSync, readdirSync, existsSync } from 'node:f
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  VIEW, sceneColdOpen, sceneOnboarding, sceneConnectAI, sceneConnectData, sceneClosing,
+  VIEW, sceneColdOpen, sceneClosing,
 } from './scenes.mjs';
+// Scene 2 is now the REAL onboarding-journey (replaces the old simulated
+// welcome/connect-AI/connect-data modals that used to live in scenes.mjs).
+import { sceneOnboarding } from './onboardingScene.mjs';
 import { installDeterminism, sceneClientMap, sceneAsk } from './realScenes.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -34,9 +37,9 @@ const stageJs = readFileSync(path.join(__dirname, 'stage.js'), 'utf-8');
 // scene registry (in film order)
 const FILM = [
   { n: 1, key: 'coldOpen', overlay: true, fn: sceneColdOpen },
+  // Scene 2: the REAL onboarding-journey, full-screen (was scenes 2-4 of
+  // simulated modals). It mounts JourneyHost over the app and drives it live.
   { n: 2, key: 'onboarding', overlay: true, fn: sceneOnboarding },
-  { n: 3, key: 'connectAI', overlay: true, fn: sceneConnectAI },
-  { n: 4, key: 'connectData', overlay: true, fn: sceneConnectData },
   { n: 5, key: 'clientMap', overlay: false, fn: sceneClientMap },
   { n: 6, key: 'ask', overlay: false, fn: sceneAsk },
   { n: 7, key: 'closing', overlay: true, fn: sceneClosing },
