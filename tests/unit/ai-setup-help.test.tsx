@@ -91,7 +91,7 @@ describe('AiSetupHelpLink / AiSetupHelpDialog', () => {
     });
     const call = mockFetch.mock.calls[0] as [string, RequestInit];
     const [url, opts] = call;
-    expect(url).toBe('https://advisorprephero.com/api/forms/keepance/ai-setup-help');
+    expect(url).toBe('https://keepance.com/api/forms/keepance/ai-setup-help');
     expect(opts.method).toBe('POST');
     const body = JSON.parse(opts.body as string) as Record<string, unknown>;
     expect(body['message']).toBe('my key keeps getting rejected');

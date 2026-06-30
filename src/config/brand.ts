@@ -54,10 +54,10 @@ export const BRAND = {
     "gettingStarted": "https://advisorprephero.com/docs/getting-started",
     "mobileDocsBase": "https://advisorprephero.com/docs/mobile-access",
     "voices": "https://advisorprephero.com/voices",
-    "formsBugReport": "https://advisorprephero.com/api/forms/keepance/bug-report",
-    "formsAiSetupHelp": "https://advisorprephero.com/api/forms/keepance/ai-setup-help",
-    "formsTelemetry": "https://advisorprephero.com/api/forms/keepance/app-event",
-    "formsDiagnostics": "https://advisorprephero.com/api/forms/keepance/design-partner-event",
+    "formsBugReport": "https://keepance.com/api/forms/keepance/bug-report",
+    "formsAiSetupHelp": "https://keepance.com/api/forms/keepance/ai-setup-help",
+    "formsTelemetry": "https://keepance.com/api/forms/keepance/app-event",
+    "formsDiagnostics": "https://keepance.com/api/forms/keepance/design-partner-event",
     "licenseApi": "https://licenses.keepance.com",
     "firmApi": "https://api.keepance.com"
   }
