@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import { useState } from 'react';
 
 import { FileTree } from '@/features/documents/workspace/FileTree';
-import { VersionHistoryPanel } from '@/features/documents/version/VersionHistoryPanel';
+import { VersionHistoryPanel } from '@/features/documents/versioning';
 import { getVersionService } from '@/features/documents/versioning/VersionService';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/platform/types/workspace';

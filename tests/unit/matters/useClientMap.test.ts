@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 
 const buildMock = vi.hoisted(() => vi.fn());
-vi.mock('@/platform/clientMap/generator', () => ({ buildClientMap: buildMock }));
+vi.mock('@/features/matters/clientMap/generator', () => ({ buildClientMap: buildMock }));
 
 const computeFingerprintMock = vi.hoisted(() => vi.fn());
 const proposeUpdatesMock = vi.hoisted(() => vi.fn());

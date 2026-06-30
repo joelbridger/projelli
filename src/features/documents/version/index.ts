@@ -1,1 +1,0 @@
-export { VersionHistoryPanel } from './VersionHistoryPanel';

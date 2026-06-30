@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const buildMock = vi.hoisted(() => vi.fn());
-vi.mock('@/platform/clientMap/customSection', () => ({ buildCustomSection: buildMock }));
+vi.mock('@/features/matters/clientMap/customSection', () => ({ buildCustomSection: buildMock }));
 
 import { AddCustomSectionForm } from '@/features/matters/AddCustomSectionForm';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';

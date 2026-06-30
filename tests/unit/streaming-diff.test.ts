@@ -19,7 +19,7 @@ import {
   splitIntoHunks,
   applyHunks,
   stripAccidentalMarkdownFence,
-} from '@/features/documents/editor-core/aiEdit/streamingDiff';
+} from '@/features/documents/editor/aiEdit/streamingDiff';
 
 describe('computeLineDiff', () => {
   it('returns all unchanged when the two inputs are identical', () => {

@@ -1,7 +1,7 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { FileText, X } from 'lucide-react';
-import { OPEN_SHAREFILE_EVENT } from '@/platform/clientMap/openSource';
+import { EV_OPEN_SHAREFILE } from '@/config/identity';
 
 interface SharefileSourceState {
   sourceId: string;
@@ -17,8 +17,8 @@ export function SharefileSourcePanel() {
       if (!detail?.sourceId) return;
       setSource({ sourceId: detail.sourceId, snippet: detail.snippet });
     };
-    window.addEventListener(OPEN_SHAREFILE_EVENT, handler);
-    return () => { window.removeEventListener(OPEN_SHAREFILE_EVENT, handler); };
+    window.addEventListener(EV_OPEN_SHAREFILE, handler);
+    return () => { window.removeEventListener(EV_OPEN_SHAREFILE, handler); };
   }, []);
 
   if (!source) return null;

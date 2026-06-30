@@ -1,7 +1,7 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { FileText, X } from 'lucide-react';
-import { OPEN_ONEDRIVE_EVENT } from '@/platform/clientMap/openSource';
+import { EV_OPEN_ONEDRIVE } from '@/config/identity';
 
 interface OneDriveSourceState {
   sourceId: string;
@@ -17,8 +17,8 @@ export function OneDriveSourcePanel() {
       if (!detail?.sourceId) return;
       setSource({ sourceId: detail.sourceId, snippet: detail.snippet });
     };
-    window.addEventListener(OPEN_ONEDRIVE_EVENT, handler);
-    return () => { window.removeEventListener(OPEN_ONEDRIVE_EVENT, handler); };
+    window.addEventListener(EV_OPEN_ONEDRIVE, handler);
+    return () => { window.removeEventListener(EV_OPEN_ONEDRIVE, handler); };
   }, []);
 
   if (!source) return null;

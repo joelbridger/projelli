@@ -12,7 +12,7 @@ import type { SettingCategory } from '@/platform/settings/schema';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterUiStore } from '@/platform/matter/matterUiStore';
 import { useEditorStore } from '@/platform/state/editorStore';
-import { openSourceDocument } from '@/platform/clientMap/openSource';
+import { openSourceDocument } from '@/features/matters/clientMap/openSource';
 import { getActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
 import {
   EV_OPEN_MATTER_MANAGER,

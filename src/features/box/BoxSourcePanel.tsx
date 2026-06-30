@@ -1,7 +1,7 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { Package, X } from 'lucide-react';
-import { OPEN_BOX_EVENT } from '@/platform/clientMap/openSource';
+import { EV_OPEN_BOX } from '@/config/identity';
 
 interface BoxSourceState {
   sourceId: string;
@@ -17,8 +17,8 @@ export function BoxSourcePanel() {
       if (!detail?.sourceId) return;
       setSource({ sourceId: detail.sourceId, snippet: detail.snippet });
     };
-    window.addEventListener(OPEN_BOX_EVENT, handler);
-    return () => { window.removeEventListener(OPEN_BOX_EVENT, handler); };
+    window.addEventListener(EV_OPEN_BOX, handler);
+    return () => { window.removeEventListener(EV_OPEN_BOX, handler); };
   }, []);
 
   if (!source) return null;

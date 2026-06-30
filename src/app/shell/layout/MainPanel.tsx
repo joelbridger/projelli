@@ -45,8 +45,7 @@ const PresentationViewer = lazy(() =>
 import { SourceFileEditor } from '@/features/ask/research/SourceFileEditor';
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import { FileGridView } from '@/features/documents/workspace/FileGridView';
-import { VersionHistoryPanel } from '@/features/documents/version/VersionHistoryPanel';
-import { BinaryVersionHistoryPanel } from '@/features/documents/version/BinaryVersionHistoryPanel';
+import { VersionHistoryPanel, BinaryVersionHistoryPanel } from '@/features/documents/versioning';
 import { BrowserPanel } from '@/features/workflows/BrowserPanel';
 import { WorkflowExecutionTab } from '@/features/workflows/WorkflowExecutionTab';
 import { EmailViewer } from '@/features/email/EmailViewer';

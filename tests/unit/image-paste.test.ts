@@ -19,7 +19,7 @@ import {
   IMAGE_PASTE_MAX_BYTES,
   mimeToExtension,
   processImageFile,
-} from '@/features/documents/editor-core/smartPaste';
+} from '@/features/documents/editor/smartPaste';
 
 // Minimal 1×1 transparent PNG (the canonical "png-shaped bytes" test
 // blob). These bytes are checked byte-for-byte by our hash test.

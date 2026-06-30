@@ -5,7 +5,7 @@ import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
 import { buildResolvedProviderForClientMap } from './provider';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { parseItems, itemsFromRaw, aiSectionPrompt } from './aiSection';
-import type { ClientMapSection } from './types';
+import type { ClientMapSection } from '@/platform/clientMap/types';
 
 export async function buildCustomSection(
   matterId: string,

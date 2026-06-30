@@ -11,7 +11,7 @@ vi.mock('@/platform/rag/MemoryService', () => ({
 vi.mock('@/platform/rag/workspaceCommand', () => ({
   buildWorkspaceContextBlock: (hits: RagHit[]) => (hits.length === 0 ? '' : '<workspace_context>ctx</workspace_context>'),
 }));
-vi.mock('@/platform/clientMap/provider', () => ({
+vi.mock('@/features/matters/clientMap/provider', () => ({
   buildProviderForClientMap: async () => ({
     sendMessage: sendMock,
     getMetadata: () => ({ model: 'test' }),
@@ -26,7 +26,7 @@ vi.mock('@/platform/clientMap/provider', () => ({
   }),
 }));
 
-import { buildClientMap } from '@/platform/clientMap/generator';
+import { buildClientMap } from '@/features/matters/clientMap/generator';
 import { CLIENT_MAP_SECTION_ITEM_CAP } from '@/platform/clientMap/updater';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';

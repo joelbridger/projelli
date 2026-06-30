@@ -13,7 +13,7 @@
 //     `openSourceDocument` to read and open that file, then scroll to the
 //     cited spot. This reuses the same primitives as the app's file-open
 //     pipeline (binary-aware read + editor openFile + scroll-to-paragraph).
-import type { SourceRef } from './types';
+import type { SourceRef } from '@/platform/clientMap/types';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { useMatterStore } from '@/platform/matter/matterStore';

@@ -1,7 +1,7 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { FileSignature, X } from 'lucide-react';
-import { OPEN_ESIGN_EVENT } from '@/platform/clientMap/openSource';
+import { EV_OPEN_ESIGN } from '@/config/identity';
 
 interface DocusignSourceState {
   sourceId: string;
@@ -31,8 +31,8 @@ export function DocusignSourcePanel() {
         ...(detail.snippet ? { snippet: detail.snippet } : {}),
       });
     };
-    window.addEventListener(OPEN_ESIGN_EVENT, handler);
-    return () => { window.removeEventListener(OPEN_ESIGN_EVENT, handler); };
+    window.addEventListener(EV_OPEN_ESIGN, handler);
+    return () => { window.removeEventListener(EV_OPEN_ESIGN, handler); };
   }, []);
 
   if (!source) return null;

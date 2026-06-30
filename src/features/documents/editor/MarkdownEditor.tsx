@@ -16,7 +16,7 @@ import {
   type FetchUrlTitle,
   type WriteImage,
   type ShowToast,
-} from '@/features/documents/editor-core/smartPaste';
+} from '@/features/documents/editor/smartPaste';
 import {
   SCROLL_TO_PARAGRAPH_EVENT,
   consumePendingScroll,

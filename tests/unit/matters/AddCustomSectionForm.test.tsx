@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AddCustomSectionForm } from '@/features/matters/AddCustomSectionForm';
 
-vi.mock('@/platform/clientMap/customSection', () => ({
+vi.mock('@/features/matters/clientMap/customSection', () => ({
   buildCustomSection: vi.fn().mockResolvedValue({ id: 'x', kind: 'custom', key: 'x', title: 'T', scope: 'matter', items: [] }),
 }));
 vi.mock('@/platform/clientMap/clientMapStore', () => ({

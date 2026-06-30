@@ -1,7 +1,7 @@
 // src/features/matters/useClientMap.ts
 import { useCallback, useEffect, useState } from 'react';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
-import { buildClientMap } from '@/platform/clientMap/generator';
+import { buildClientMap } from '@/features/matters/clientMap/generator';
 import { computeSourceFingerprint, proposeUpdates, mergePendingUpdates } from '@/platform/clientMap/updater';
 import type { ClientMap } from '@/platform/clientMap/types';
 import type { AuditEntry } from '@/platform/types/audit';

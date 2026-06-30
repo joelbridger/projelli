@@ -14,8 +14,8 @@
 import { useMemo } from 'react';
 import { Check, X, Loader2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { computeLineDiff, splitIntoHunks } from '@/features/documents/editor-core/aiEdit/streamingDiff';
-import type { DiffHunk, HunkResolution } from '@/features/documents/editor-core/aiEdit/types';
+import { computeLineDiff, splitIntoHunks } from '@/features/documents/editor/aiEdit/streamingDiff';
+import type { DiffHunk, HunkResolution } from '@/features/documents/editor/aiEdit/types';
 
 export interface StreamingDiffOverlayProps {
   /** The original selected text. */

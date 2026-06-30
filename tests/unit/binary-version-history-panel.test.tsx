@@ -32,7 +32,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 import '@/i18n';
-import { BinaryVersionHistoryPanel } from '@/features/documents/version/BinaryVersionHistoryPanel';
+import { BinaryVersionHistoryPanel } from '@/features/documents/versioning';
 import {
   BinaryVersionService,
   toWorkspaceRelative,

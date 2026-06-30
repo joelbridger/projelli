@@ -10,10 +10,10 @@ import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import {
   CORE_SECTION_ORDER, CORE_SECTION_TITLE, emptyClientMap,
-} from './types';
-import type { ClientMap, ClientMapSection, CoreSectionKey, GapQuestion } from './types';
+} from '@/platform/clientMap/types';
+import type { ClientMap, ClientMapSection, CoreSectionKey, GapQuestion } from '@/platform/clientMap/types';
 import { parseItems, itemsFromRaw } from './aiSection';
-import { capGeneratedSectionItems, dedupeAcrossSections } from './updater';
+import { capGeneratedSectionItems, dedupeAcrossSections } from '@/platform/clientMap/updater';
 import type { AuditEntry } from '@/platform/types/audit';
 
 // Gap questions are tagged with the section their answer belongs to so the

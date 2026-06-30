@@ -1,4 +1,6 @@
 // Versioning Module Exports
+export { VersionHistoryPanel } from './VersionHistoryPanel';
+export { BinaryVersionHistoryPanel } from './BinaryVersionHistoryPanel';
 export { VersionService } from './VersionService';
 export type { FileVersion, VersionMetadata } from './VersionService';
 

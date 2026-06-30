@@ -8,7 +8,7 @@ import {
   OPEN_SHAREFILE_EVENT,
   OPEN_ZOCKS_EVENT,
 } from './openSource';
-import type { SourceRef } from './types';
+import type { SourceRef } from '@/platform/clientMap/types';
 
 describe('dispatchOpenSource carries the snippet for new connector citations', () => {
   const cases: Array<[SourceRef['kind'], string]> = [

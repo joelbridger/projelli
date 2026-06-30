@@ -1,7 +1,7 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { ClipboardList, X } from 'lucide-react';
-import { OPEN_JOTFORM_EVENT } from '@/platform/clientMap/openSource';
+import { EV_OPEN_JOTFORM } from '@/config/identity';
 
 interface JotformSourceState {
   sourceId: string;
@@ -17,8 +17,8 @@ export function JotformSourcePanel() {
       if (!detail?.sourceId) return;
       setSource({ sourceId: detail.sourceId, snippet: detail.snippet });
     };
-    window.addEventListener(OPEN_JOTFORM_EVENT, handler);
-    return () => { window.removeEventListener(OPEN_JOTFORM_EVENT, handler); };
+    window.addEventListener(EV_OPEN_JOTFORM, handler);
+    return () => { window.removeEventListener(EV_OPEN_JOTFORM, handler); };
   }, []);
 
   if (!source) return null;

@@ -1,7 +1,7 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { NotebookPen, X } from 'lucide-react';
-import { OPEN_ZOCKS_EVENT } from '@/platform/clientMap/openSource';
+import { EV_OPEN_ZOCKS } from '@/config/identity';
 
 interface ZocksSourceState {
   sourceId: string;
@@ -17,8 +17,8 @@ export function ZocksSourcePanel() {
       if (!detail?.sourceId) return;
       setSource({ sourceId: detail.sourceId, snippet: detail.snippet });
     };
-    window.addEventListener(OPEN_ZOCKS_EVENT, handler);
-    return () => { window.removeEventListener(OPEN_ZOCKS_EVENT, handler); };
+    window.addEventListener(EV_OPEN_ZOCKS, handler);
+    return () => { window.removeEventListener(EV_OPEN_ZOCKS, handler); };
   }, []);
 
   if (!source) return null;
