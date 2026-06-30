@@ -18,6 +18,7 @@ import { useDialogManager } from '@/app/dialogs/useDialogManager';
 import { useFileOperations } from '@/app/fileOps/useFileOperations';
 import { useDocumentCreation } from '@/app/fileOps/useDocumentCreation';
 import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
+import { useAudioRecording } from '@/app/lifecycle/useAudioRecording';
 import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelector';
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
@@ -943,34 +944,13 @@ function App() {
   }, [addAuditEntry]);
 
 
-  // Handle save audio recording
-  const handleSaveAudioRecording = useCallback(
-    async (audioBlob: Blob, filename: string) => {
-      if (!workspaceServiceRef.current || !rootPath) return;
-
-      // Ensure Audio Recordings folder exists
-      const audioPath = `${rootPath}/Audio Recordings`;
-      const audioExists = await workspaceServiceRef.current.exists(audioPath);
-      if (!audioExists) {
-        await workspaceServiceRef.current.mkdir(audioPath);
-      }
-
-      const filePath = `${audioPath}/${filename}`;
-      try {
-        // Convert blob to array buffer
-        const arrayBuffer = await audioBlob.arrayBuffer();
-        await workspaceServiceRef.current.writeFileBinary(filePath, arrayBuffer);
-        const fileTree = await workspaceServiceRef.current.getFileTree();
-        setFileTree(fileTree);
-
-        // Open the audio file
-        await handleFileOpen(filePath, filename);
-      } catch (error) {
-        console.error('Failed to save audio recording:', error);
-      }
-    },
-    [rootPath, setFileTree, handleFileOpen]
-  );
+  // Handle save audio recording (extracted to useAudioRecording)
+  const { handleSaveAudioRecording } = useAudioRecording({
+    rootPath,
+    workspaceServiceRef,
+    setFileTree,
+    handleFileOpen,
+  });
 
 
   // UX-19: Global drag-and-drop upload. Handles files dropped anywhere on
