@@ -214,17 +214,42 @@ function populatePrintDocument(doc: Document, renderedHtml: string, title: strin
  * @param markdown  Raw markdown content of the file.
  * @param fileName  Original file name, used for the page title.
  */
-export async function exportMarkdownAsPdf(markdown: string, fileName: string): Promise<void> {
-  const { html } = renderMarkdownToHtml(markdown);
-  const title = titleFromFileName(fileName);
-
-  // Open a blank popup. The about:blank origin is same-origin with a blank
-  // opener, so we can safely access printWindow.document.
-  const printWindow = window.open(
+/**
+ * Open the blank print popup synchronously from the click handler so the
+ * browser's popup-blocker treats it as a direct user gesture. Call this
+ * BEFORE any await (including the `await import()` of this module), then
+ * pass the returned window to exportMarkdownAsPdf.
+ *
+ * Returns null if the browser blocked the popup (user will see the toolbar
+ * error path, same as before).
+ */
+export function openPrintWindow(): Window | null {
+  return window.open(
     'about:blank',
     '_blank',
     'width=800,height=600,menubar=no,toolbar=no,location=no,status=no',
   );
+}
+
+export async function exportMarkdownAsPdf(
+  markdown: string,
+  fileName: string,
+  /** Pre-opened print window from openPrintWindow(). Callers that do a
+   *  lazy import() must open the window synchronously before the await. */
+  preOpenedWindow?: Window | null,
+): Promise<void> {
+  const { html } = renderMarkdownToHtml(markdown);
+  const title = titleFromFileName(fileName);
+
+  // Use the pre-opened window if provided; fall back to opening one here
+  // (covers direct callers that don't lazy-load this module).
+  const printWindow =
+    preOpenedWindow ??
+    window.open(
+      'about:blank',
+      '_blank',
+      'width=800,height=600,menubar=no,toolbar=no,location=no,status=no',
+    );
   if (!printWindow) {
     throw new Error(
       'Could not open a print window. Allow popups for this page and try again.',
