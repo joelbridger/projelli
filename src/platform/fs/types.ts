@@ -83,9 +83,28 @@ export interface FSBackend {
   getRootPath(): string;
 
   /**
-   * Set the workspace root path
+   * Set the workspace root path.
+   *
+   * By default the root must already exist (the open-existing flow stays strict,
+   * so a mistyped/missing path surfaces an error). Pass `{ createIfMissing: true }`
+   * in the create-new-workspace flow to create the directory (recursively) when
+   * it is absent instead of throwing.
    */
-  setRootPath(path: string): Promise<void>;
+  setRootPath(path: string, options?: SetRootPathOptions): Promise<void>;
+}
+
+/**
+ * Options for FSBackend.setRootPath
+ */
+export interface SetRootPathOptions {
+  /**
+   * Create the root directory (recursively) if it does not exist, instead of
+   * throwing. Used only by the create-new-workspace flow. `mkdir` with
+   * `recursive: true` is idempotent, so this is safe even if the directory
+   * already exists (e.g. a platform `fs.exists` quirk wrongly reports it
+   * missing).
+   */
+  createIfMissing?: boolean;
 }
 
 /**

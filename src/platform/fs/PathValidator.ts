@@ -286,6 +286,19 @@ export class PathValidator {
       );
     }
 
+    // Reject characters Windows forbids in file/folder names. Catching these
+    // early gives a clear message instead of a confusing failure deep in the OS
+    // create call (or a name that works on macOS/Linux but breaks the moment the
+    // same workspace is opened on Windows). Backslash is already covered above.
+    const windowsForbidden = name.match(/[<>:"|?*]/);
+    if (windowsForbidden) {
+      throw new SecurityError(
+        `Name cannot contain the character "${windowsForbidden[0]}" (one of < > : " | ? *)`,
+        name,
+        'INVALID_PATH'
+      );
+    }
+
     // Check for . or ..
     if (name === '.' || name === '..') {
       throw new SecurityError(
