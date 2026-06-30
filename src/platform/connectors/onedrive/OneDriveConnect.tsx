@@ -15,8 +15,8 @@ import {
   resolveMatterForOneDriveFolder,
 } from '@/platform/rag/matterResolver';
 import { getMatters, useMatterStore } from '@/platform/matter/matterStore';
-import { useOneDriveSync } from '@/features/onedrive/useOneDriveSync';
-import { useOneDriveStore } from '@/features/onedrive/onedriveStore';
+import { useOneDriveSync } from '@/platform/connectors/onedrive/useOneDriveSync';
+import { useOneDriveStore } from '@/platform/connectors/onedrive/onedriveStore';
 import { assertLocalOnlyAllowsExternal } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import type { Matter } from '@/platform/types/matter';

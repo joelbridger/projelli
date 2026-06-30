@@ -21,7 +21,7 @@ import { MailConnect } from '@/features/settings/MailConnect';
 import { MailImapConnect } from '@/features/settings/MailImapConnect';
 import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
 import { WealthboxConnect } from '@/features/settings/WealthboxConnect';
-import { OneDriveConnect } from '@/features/settings/OneDriveConnect';
+import { OneDriveConnect } from '@/platform/connectors/onedrive/OneDriveConnect';
 import { BoxConnect } from '@/platform/connectors/box/BoxConnect';
 import { DocuSignConnect } from '@/platform/connectors/docusign/DocuSignConnect';
 import { ShareFileConnect } from '@/platform/connectors/sharefile/ShareFileConnect';

@@ -37,7 +37,7 @@ vi.mock('@/features/settings/MailGmailConnect', () => ({
 vi.mock('@/features/settings/MailImapConnect', () => ({
   MailImapConnect: () => <div data-testid="mail-imap-stub" />,
 }));
-vi.mock('@/features/settings/OneDriveConnect', () => ({
+vi.mock('@/platform/connectors/onedrive/OneDriveConnect', () => ({
   OneDriveConnect: () => <div data-testid="onedrive-stub" />,
 }));
 vi.mock('@/features/settings/WealthboxConnect', () => ({

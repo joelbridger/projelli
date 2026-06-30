@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { OneDriveConnect } from '@/features/settings/OneDriveConnect';
+import { OneDriveConnect } from '@/platform/connectors/onedrive/OneDriveConnect';
 import { useMatterStore } from '@/platform/matter/matterStore';
 
 const oneDriveConnect = vi.fn();
@@ -20,7 +20,7 @@ vi.mock('@/platform/utils/onedrive-commands', () => ({
   ONEDRIVE_SYNC_EVENT: 'onedrive-sync-progress',
 }));
 
-vi.mock('@/features/onedrive/useOneDriveSync', () => ({
+vi.mock('@/platform/connectors/onedrive/useOneDriveSync', () => ({
   useOneDriveSync: () => undefined,
 }));
 
