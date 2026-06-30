@@ -1,10 +1,10 @@
 /**
  * WorkspaceService.getFileTree — centralized dotfile handling (UX-21).
  *
- * Recursion + dotfile/.keepance/.trash rules belong in listRecursive (the shared
+ * Recursion + dotfile/.lantern/.trash rules belong in listRecursive (the shared
  * tree builder), so EVERY fileTree consumer — not just FileTree/FileGridView —
  * gets a tree that:
- *   - never contains Keepance's internal `.keepance` folder,
+ *   - never contains the internal `.lantern` data folder,
  *   - shows ordinary dotfiles (.gitignore) and dot-directories (.git) so the
  *     "Show Hidden Files" setting can reveal them, and
  *   - never WALKS into a dot-directory (a huge .git must not slow load).
@@ -54,11 +54,11 @@ function createMockBackend(listing: Record<string, FileNode[]>): FSBackend {
 }
 
 describe('WorkspaceService.getFileTree — dotfile handling', () => {
-  it('hides .keepance everywhere, shows ordinary dotfiles, and never walks dot-directories', async () => {
+  it('hides the internal data dir everywhere, shows ordinary dotfiles, and never walks dot-directories', async () => {
     const backend = createMockBackend({
       '': [
         node('.gitignore', 'file', '.gitignore'),
-        node('.keepance', 'folder', '.keepance'),
+        node('.lantern', 'folder', '.lantern'),
         node('.git', 'folder', '.git'),
         node('.trash', 'folder', '.trash'),
         node('docs', 'folder', 'docs'),
@@ -73,20 +73,20 @@ describe('WorkspaceService.getFileTree — dotfile handling', () => {
     const tree = await service.getFileTree();
     const names = tree.map((n) => n.name);
 
-    // Ordinary dotfile + dot-directory are visible; .keepance is gone for ALL
+    // Ordinary dotfile + dot-directory are visible; .lantern is hidden for ALL
     // fileTree consumers (DocumentBrowser/DocumentGridView included).
     expect(names).toContain('.gitignore');
     expect(names).toContain('.git');
     expect(names).toContain('.trash');
     expect(names).toContain('docs');
     expect(names).toContain('README.md');
-    expect(names).not.toContain('.keepance');
+    expect(names).not.toContain('.lantern');
 
-    // Ordinary directory IS walked; dot-directories + .keepance are NOT (perf).
+    // Ordinary directory IS walked; dot-directories + .lantern are NOT (perf).
     expect(backend.list).toHaveBeenCalledWith('docs');
     expect(backend.list).not.toHaveBeenCalledWith('.git');
     expect(backend.list).not.toHaveBeenCalledWith('.trash');
-    expect(backend.list).not.toHaveBeenCalledWith('.keepance');
+    expect(backend.list).not.toHaveBeenCalledWith('.lantern');
 
     expect(tree.find((n) => n.name === '.git')?.children).toEqual([]);
     expect(

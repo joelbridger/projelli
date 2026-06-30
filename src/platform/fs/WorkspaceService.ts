@@ -12,6 +12,7 @@ import {
   DEFAULT_WORKSPACE_FOLDERS,
 } from './types';
 import { PathValidator } from './PathValidator';
+import { WORKSPACE_DATA_DIR } from '@/config/identity';
 
 /**
  * WorkspaceService provides secure file operations
@@ -133,7 +134,7 @@ export class WorkspaceService {
   /**
    * Stream C1 — Expose the underlying FSBackend so the marketplace install
    * pipeline can write tarballs / extract templates outside the workspace
-   * security envelope (templates land under `<workspaceRoot>/.keepance/`).
+   * security envelope (templates land under `<workspaceRoot>/.lantern/`).
    * Returns null when the workspace isn't initialized.
    */
   getBackend(): FSBackend | null {
@@ -445,7 +446,7 @@ export class WorkspaceService {
     // Advisor Prep Hero's internal config folder is never shown anywhere in the tree
     // (so every fileTree consumer — not just FileTree/FileGridView — is covered).
     const items = (await this.backend!.list(path)).filter(
-      (i) => i.name !== '.keepance',
+      (i) => i.name !== WORKSPACE_DATA_DIR,
     );
 
     for (const item of items) {
