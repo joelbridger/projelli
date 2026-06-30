@@ -1,3 +1,5 @@
+> **SUPERSEDED — history only.** Pre-advisor-reaim April 2026 market research.
+
 # 06 — Recommendations by Level of Effort
 
 > The triaged buildable list. ~30 specific recommendations drawn from `04-FEATURE_BRAINSTORM.md`, grounded in the codebase audit findings (LOE estimates use Jameson's actual code as the baseline), and prioritized by the differentiation strategy in `05-DIFFERENTIATION_STRATEGY.md`. Every recommendation includes the WHAT, WHY, WHO ELSE has it (or doesn't), LOE, IMPACT, and DEPENDENCIES.

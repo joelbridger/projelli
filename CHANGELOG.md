@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Version index
+
+| Version | Date | Summary |
+|---|---|---|
+| [Unreleased](#unreleased) | — | In-progress work |
+| [3.3.5](#335---2026-06-18) | 2026-06-18 | Current release |
+| [3.3.4](#334---2026-06-18) | 2026-06-18 | Patch |
+| [3.3.3](#333---2026-06-18) | 2026-06-18 | Patch |
+| [3.3.2](#332---2026-06-17) | 2026-06-17 | Patch |
+| [3.3.1](#331---2026-06-17) | 2026-06-17 | Patch |
+| [3.3.0](#330---2026-06-17) | 2026-06-17 | Word engine + AI redline; SSO; firm co-editing |
+| [3.2.0](#320---2026-06-12) | 2026-06-12 | Encrypted vault; OCR; Calendly connector |
+| [3.1.0](#310---2026-06-10) | 2026-06-10 | OneDrive/SharePoint + Wealthbox CRM connectors |
+| [3.0.0](#300---2026-06-09) | 2026-06-09 | 3.0 launch: advisor re-aim, LemonSqueezy, firm backend |
+| [2.5.x](#252---2026-06-08-email-release-completed-across-all-platforms) | 2026-06-08 | Email connectors (Outlook/M365, Gmail, IMAP) |
+| [2.4.x](#241---2026-06-06-build-fix-ship-tier-2--tier-3-installers) | 2026-06-04–06 | Tier 3 depth: templates, PPTX, research |
+| [2.3.0](#230---2026-06-04-tier-2--trust-builds) | 2026-06-04 | Tier 2 trust builds |
+| [2.2.0](#220---2026-06-04-tier-1-integrity--export-pipeline) | 2026-06-04 | Tier 1 integrity + export |
+| [2.1.x](#213---2026-06-02-brand-polish-icons-accent-color-onboarding-copy) | 2026-05-29–06-02 | Rebrand + profession packs + Windows installer |
+| [1.7.x](#172---2026-04-28) | 2026-04-27–28 | Various |
+| [1.6.0](#160---2026-04-27) | 2026-04-19–27 | v1.6 |
+| [1.5.0](#150---2026-04-16) | 2026-04-16 | v1.5 |
+| [1.0.x](#108---2026-04-16) | 2026-04-09–16 | v1.0 releases |
+
 ## [Unreleased]
 
 ### Added

@@ -1,3 +1,5 @@
+> **SUPERSEDED — history only.** Pre-advisor-reaim April 2026 market research.
+
 # 01 — Market Landscape (April 2026)
 
 > Where the AI workspace category sits today, what's changed structurally in the last 6 months, and what shape the market will take through the end of 2026. Written as a CEO read, not a marketing sheet.

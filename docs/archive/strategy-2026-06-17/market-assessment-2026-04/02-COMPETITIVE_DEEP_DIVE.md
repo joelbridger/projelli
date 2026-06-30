@@ -1,3 +1,5 @@
+> **SUPERSEDED — history only.** Pre-advisor-reaim April 2026 market research.
+
 # 02 — Competitive Deep Dive (April 2026)
 
 > A per-competitor analysis of every meaningful player in and adjacent to the AI workspace category as of April 2026. Updated comparison matrix, threat rating, recent shipped features, and the structural reason each competitor *cannot* or *will not* close the gap to Projelli. Use this as reply ammunition for Product Hunt, Show HN, newsletter outreach, and any "how is this different from X" conversation.

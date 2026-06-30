@@ -222,29 +222,9 @@ To find any file fast: `grep -rl "export ... <SymbolName>" src/` — symbols are
 
 ### Important Patterns
 
-**Command Pattern for File Operations:**
-```typescript
-interface Command {
-  execute(): Promise<void>;
-  undo(): Promise<void>;
-}
-// All file writes go through commands for undo support
-```
+**Command Pattern for File Operations:** Every file write goes through a `Command` object with `execute()` / `undo()` methods — see `src/app/fileOps/` for the interface.
 
-**Provider Interface for Models:**
-```typescript
-interface Provider {
-  sendMessage(prompt: string, options?: SendOptions): Promise<ProviderResponse>;
-  sendMessageStreaming?(prompt: string, options: StreamOptions): Promise<ProviderResponse>;
-  toolCall?(tool: string, params: Record<string, unknown>, options?: SendOptions): Promise<unknown>;
-  structuredOutput<T>(prompt: string, options: StructuredOutputOptions): Promise<T>;
-  getMetadata(): ProviderMetadata;
-}
-
-// StreamOptions extends SendOptions with:
-// - onChunk: (chunk: string) => void  — called for each text token
-// - signal?: AbortSignal              — allows cancelling mid-stream
-```
+**Provider Interface for Models:** All AI providers implement a shared `Provider` interface (`sendMessage`, streaming `onChunk`, `toolCall`, `structuredOutput`) — see `src/platform/providers/` for the definition and adapters.
 
 **AI Chat Provider Selection:**
 - Each `.aichat` file stores `provider` and `model` fields
@@ -252,52 +232,11 @@ interface Provider {
 - Users select their model in the AI Assistant "Models" tab before creating a new chat
 - Streaming is used by default; tokens appear in real-time with a Stop button
 
-**FSBackend Abstraction:**
-```typescript
-interface FSBackend {
-  read(path: string): Promise<string>;
-  write(path: string, content: string): Promise<void>;
-  delete(path: string): Promise<void>;
-  move(from: string, to: string): Promise<void>;
-  list(path: string): Promise<FileNode[]>;
-}
-// Implemented by WebFSBackend and TauriFSBackend
-```
+**FSBackend Abstraction:** `read` / `write` / `delete` / `move` / `list` — two implementations: `WebFSBackend` (browser dev) and `TauriFSBackend` (desktop). See `src/platform/fs/`.
 
 ### Autosave Behavior
 
-**All file changes are automatically saved** - no manual save required.
-
-**How it works:**
-- **Interval**: Every 2 seconds (`src/app/lifecycle/useAutosave.ts`)
-- **Trigger**: Changes to file content mark tabs as `isDirty: true`
-- **Persistence**: Autosave interval writes dirty tabs to disk via WorkspaceService
-- **Visual Indicator**: "Auto-save" / dirty indicator in the status bar (`src/app/shell/layout/StatusBar.tsx`)
-- **Version History**: Versionable files (.md, .txt, .json, .source) automatically save versions on content change
-
-**User Experience:**
-- Type in any editor → content auto-saves within 2 seconds
-- No Ctrl+S required (though keyboard shortcut still works for manual save)
-- Tab shows dot indicator when dirty, clears after autosave completes
-- All changes persist across app reloads
-
-**Technical Implementation:**
-```typescript
-// App.tsx - Autosave interval
-useEffect(() => {
-  const autosaveInterval = setInterval(async () => {
-    for (const tab of openTabs) {
-      if (tab.isDirty) {
-        await workspaceServiceRef.current.writeFile(tab.path, tab.content);
-        markSaved(tab.path);
-      }
-    }
-  }, 2000);
-  return () => clearInterval(autosaveInterval);
-}, [openTabs]);
-```
-
-**Note:** This is a deliberate design choice for a local-first application. Users never lose work due to crashes or accidental closes. All file operations go through the same WorkspaceService abstraction, ensuring consistency across browser and Tauri environments.
+All file changes are auto-saved every 2 seconds (`src/app/lifecycle/useAutosave.ts`). Tabs show a dirty dot that clears after save; no Ctrl+S needed. All writes go through `WorkspaceService`, consistent across browser and desktop.
 
 ### Anti-Patterns to Avoid
 
@@ -426,7 +365,7 @@ See `ARCHITECTURE.md` for the full per-folder breakdown, the layer rules (machin
 - **Focus now:** not new features — **prove real advisors use it weekly and that one or two will pay.** A 3-tab IA (Client Map · Ask · Workflows), an advisor-first sample workspace, a live web demo, and a clean 3×-in-a-row Windows smoke are the current health signals. Nothing has shipped to outside users yet.
 - **Read first for current state:** the board dashboard ([board.jameworld.com](https://board.jameworld.com)) + [`docs/operations/2026-06-24-advisor-website-board-CURRENT-STATE.md`](docs/operations/2026-06-24-advisor-website-board-CURRENT-STATE.md), the advisor re-aim docs (`docs/strategy/2026-06-28-strategic-advisor-memo.md`, `docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md`), and the project memory. The 2026-06-17 "product is mature, stop building" strategy cluster is **superseded** and archived under `docs/archive/strategy-2026-06-17/`.
 
-**Connectors (status, code-grounded):** shipping today — Email (Outlook/M365, Gmail, IMAP), OneDrive/SharePoint, Wealthbox (CRM), Calendly. Code-complete but gated on vendor credentials — DocuSign, Salesforce, Redtail. Five bonus connectors (Addepar, Box, Jotform, ShareFile, Zocks) are staged on un-merged feature branches, **not** in `keepance-3.0`. Roadmap, no code yet — Clio, iManage/NetDocuments, Office add-ins (vendor-access applications running in parallel). Authoritative detail: [`docs/reference/CONNECTORS.md`](docs/reference/CONNECTORS.md).
+**Connectors (status, code-grounded):** shipping today — Email (Outlook/M365, Gmail, IMAP), OneDrive/SharePoint, Wealthbox (CRM), Calendly. Code-complete but gated on vendor credentials — DocuSign, Salesforce, Redtail. Five additional connectors (Addepar, Box, Jotform, ShareFile, Zocks) are **merged into `keepance-3.0` and live in `src/features/`**, gated on vendor credentials. Roadmap, no code yet — Clio, iManage/NetDocuments, Office add-ins (vendor-access applications running in parallel). Authoritative detail: [`docs/reference/CONNECTORS.md`](docs/reference/CONNECTORS.md).
 
 ---
 
@@ -457,66 +396,9 @@ npx tsc --noEmit
 
 ---
 
-## Structured Schemas (Reference)
+## Structured Schemas
 
-```typescript
-// src/types/workflow.ts
-interface RunRecord {
-  run_id: string;
-  workflow: string;
-  model: string;
-  inputs: Record<string, unknown>;
-  outputs: Record<string, unknown>;
-  tool_calls: ToolCall[];
-  start_time: string;  // ISO datetime
-  end_time: string;    // ISO datetime
-  status: 'pending' | 'running' | 'completed' | 'failed';
-}
-
-// src/types/research.ts
-interface SourceCard {
-  id: string;
-  url: string;
-  title: string;
-  date_accessed: string;  // ISO date
-  quote_or_snippet: string;
-  claim_supported: string;
-  reliability_notes: string;
-}
-
-// src/types/analysis.ts
-interface DocSummary {
-  doc_id: string;
-  thesis: string;
-  bullets: string[];
-  assumptions: string[];
-  risks: string[];
-  open_questions: string[];
-  actions: string[];
-  confidence: number;  // 0-1
-  citations: string[];  // SourceCard IDs
-}
-```
-
----
-
-## Troubleshooting
-
-### "Module not found" errors
-- Check path aliases in `tsconfig.json` and `vite.config.ts`
-- Ensure module has `index.ts` barrel export
-
-### Tauri window doesn't open
-- Ensure Vite dev server is running on correct port
-- Check `tauri.conf.json` devUrl matches Vite port
-
-### TypeScript errors after changes
-- Run `npx tsc --noEmit` to see all errors
-- Check that strict mode rules are followed
-
-### File operations fail silently
-- Check browser DevTools console for permission errors
-- Verify workspace root is set correctly
+Key types live in `src/platform/types/` — `workflow.ts` (`RunRecord`, `ToolCall`), `research.ts` (`SourceCard`), `analysis.ts` (`DocSummary`). Read the source files for the current shape; don't rely on a copy here.
 
 ---
 
@@ -531,23 +413,3 @@ interface DocSummary {
 
 *When in doubt, choose the path that keeps the founder in control and produces auditable, persistent artifacts.*
 
----
-
-## Sub-agent model routing
-
-> **⚠️ ASPIRATIONAL — the local-gateway part is NOT wired up (verified 2026-06-11, still true).**
-> Claude Code in this repo is **not** routed through a LiteLLM gateway: there is no
-> `ANTHROPIC_BASE_URL` set, so a `model: "haiku"` sub-agent bills as **Anthropic cloud
-> Haiku ($1/$5 per MTok)**, *not* the free local RTX 5070. The local model named below
-> (Qwen2.5-7B) is also **not loaded** (only `llama3.1:8b` / `llama3.2:3b` are). Treat the
-> "free local offload" as a future setup, not current reality. Cloud Haiku is still the
-> cheapest tier, so the routing *strategy* below holds — just know `haiku` = cloud Haiku
-> today. (This matches the "Routing reality check" note in the Token-Budget section above.)
-
-The intended (not-yet-wired) routing, once a local gateway exists — and the still-valid tiering today:
-
-- **`haiku`** → *intended:* local RTX 5070 (free). *Today:* Anthropic cloud Haiku (cheapest billed tier). Use for implementation sub-agents: boilerplate, scaffolding, mechanical edits, fixtures.
-- **`sonnet`** → Anthropic cloud Sonnet 4.6 (billed). Use for reasoning-heavy work: architecture, complex debugging, novel problem-solving.
-- **`opus`** → Anthropic cloud Opus (billed, expensive). Orchestration / review only. Don't spawn sub-agents on opus.
-
-**Rule of thumb:** If the sub-agent is executing a well-specified task, use `model: "haiku"`. If it needs to figure something out, use `model: "sonnet"`.

@@ -1,3 +1,5 @@
+> **SUPERSEDED — history only.** Pre-advisor-reaim April 2026 market research.
+
 # 04 — Feature Brainstorm (wide net)
 
 > The unfiltered idea corpus. ~110 feature ideas across 15 categories. No triage yet, no LOE, no prioritization. Every idea is one sentence or less. Sister docs: `05-DIFFERENTIATION_STRATEGY.md` picks the 3-5 to plant a flag on; `06-RECOMMENDATIONS_BY_LOE.md` triages everything here into Quick Wins / Medium / Big Bets.
