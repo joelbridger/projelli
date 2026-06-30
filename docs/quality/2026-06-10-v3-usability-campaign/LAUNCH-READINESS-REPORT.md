@@ -1,10 +1,10 @@
-# Keepance 3.1.0 — Launch-Readiness Report
+# Advisor Prep Hero 3.1.0 — Launch-Readiness Report
 
 **Date:** 2026-06-10 · **Branch:** keepance-3.0 · **Release tag:** v3.1.0 (signed CI build in progress)
 
 ## What this was
 
-A full-vision quality campaign on Keepance 3.0, per the founder's brief: complete the firm tier so the full vision works before launch, then exhaustively test every feature and button with the attorney persona, fix everything found. Seven phases, executed with adversarial review on the high-risk work.
+A full-vision quality campaign on Advisor Prep Hero 3.0, per the founder's brief: complete the firm tier so the full vision works before launch, then exhaustively test every feature and button with the attorney persona, fix everything found. Seven phases, executed with adversarial review on the high-risk work.
 
 ## Bottom line
 
@@ -18,7 +18,7 @@ A full-vision quality campaign on Keepance 3.0, per the founder's brief: complet
 
 **The two P0 correctness bugs:** workflows no longer present mock output as a green success; a workflow pinned to your local model can never silently fall back to the cloud (regression-locked, controlled-revert proven). The AI no longer answers your matter from a failed or empty search (the "Avianca trap").
 
-**Founder-reported bugs (all 8):** Projelli icon → Keepance (incl. the stale macOS icon nobody had noticed), onboarding copy rewritten off the old markdown product, data-map step scrollable, centered step digits, new .docx editable, upload "os error 3" fixed, Open on Desktop targets the selected folder, workflow tab fits the window.
+**Founder-reported bugs (all 8):** Projelli icon → Advisor Prep Hero (incl. the stale macOS icon nobody had noticed), onboarding copy rewritten off the old markdown product, data-map step scrollable, centered step digits, new .docx editable, upload "os error 3" fixed, Open on Desktop targets the selected folder, workflow tab fits the window.
 
 **Plus:** markdown tables export as real Word tables; legal templates produce .docx; Matters is a first-class sidebar entry; the founder's personal name/email removed from customer-facing copy (→ support@keepance.com); honest desktop-only disclosure on email cards; a batch of trust-copy and a11y fixes.
 
@@ -43,5 +43,5 @@ A full-vision quality campaign on Keepance 3.0, per the founder's brief: complet
 
 ## Auto-deploy status (per your standing authorization)
 - v3.1.0 signed release: building in CI → will publish once artifacts verify.
-- Website: will deploy on the 3.1.0 download links + the new og-image + Keepance favicons.
+- Website: will deploy on the 3.1.0 download links + the new og-image + Advisor Prep Hero favicons.
 - Firm backend: prepped, awaiting your explicit go (see #2).

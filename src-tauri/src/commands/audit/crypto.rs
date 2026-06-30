@@ -1,7 +1,7 @@
 // Master-key management for the encrypted audit store.
 //
 // The audit store gets its OWN 32-byte master key, stored in the OS keychain
-// under service = "keepance-audit-enc", key = "master-key-v1". It is kept
+// under service = "lantern-audit-enc", key = "master-key-v1". It is kept
 // separate from the mail key so the two encrypted stores are cryptographically
 // independent (compromise/rotation of one does not touch the other). The
 // generate-store-return-on-first-use flow mirrors

@@ -2,13 +2,13 @@
 
 Investigation date: 2026-06-18.
 
-Scope: real Keepance Tauri/app user stories for Firm / multi-user operation. The production firm backend resolves to `https://api.keepance.com`; dev builds use `/api/firm`, proxied by Vite to `FIRM_BACKEND_TARGET` or `http://127.0.0.1:5290`.
+Scope: real Advisor Prep Hero Tauri/app user stories for Firm / multi-user operation. The production firm backend resolves to `https://api.keepance.com`; dev builds use `/api/firm`, proxied by Vite to `FIRM_BACKEND_TARGET` or `http://127.0.0.1:5290`.
 
 Important current-state findings:
 
 - The current Firm UI is not in the old Settings Firm category. The real entry point is the Account window, Firm tab: `src/features/account/AccountWindow.tsx` -> `account-window` -> `account-tab-firm` -> `FirmSignIn` and `FirmAdminConsole`.
 - Existing firm E2E tests in `tests/e2e/firm-collaboration.spec.ts` and campaign specs still reference `settings-category-firm`; those tests need selector maintenance before they can exercise current UI.
-- "Invite by email" is an in-app admin flow, not outbound email delivery. The admin enters an email, Keepance creates or finds a user, adds that user to the matter, and shows a one-time temporary password in the UI. I did not find an email-sending path.
+- "Invite by email" is an in-app admin flow, not outbound email delivery. The admin enters an email, Advisor Prep Hero creates or finds a user, adds that user to the matter, and shows a one-time temporary password in the UI. I did not find an email-sending path.
 - Live matter notes have a production UI path. Live `.docx` co-editing has transport, CRDT, and `DocxEditor` prop support, but I did not find a production UI path that calls `openCoeditSession` or passes `coedit` into `DocxEditor`.
 - Vault unlock/recovery has a production UI path. Vault enable has component/store/command implementation, but I did not find a production-mounted UI entry to `VaultEnableFlow`.
 
@@ -55,7 +55,7 @@ Local real-backend test harness:
 
 ## Story 1: LemonSqueezy Firm provisioning
 
-As a firm-admin I want my Firm subscription purchase to provision an unclaimed organization so that I can claim it inside Keepance.
+As a firm-admin I want my Firm subscription purchase to provision an unclaimed organization so that I can claim it inside Advisor Prep Hero.
 
 UI steps:
 
@@ -237,7 +237,7 @@ Recommended changes:
 
 ## Story 5: Member signs in with SSO
 
-As a firm-member I want to sign in with my firm's SSO so that I do not need a Keepance password.
+As a firm-member I want to sign in with my firm's SSO so that I do not need a Advisor Prep Hero password.
 
 UI steps:
 
@@ -608,7 +608,7 @@ Recommended changes:
 
 ## Story 13: Assured zero-retention routing
 
-As a firm-member I want AI requests to route through my firm's zero-retention proxy when Assured mode is selected so that managed provider keys are used without Keepance retaining content.
+As a firm-member I want AI requests to route through my firm's zero-retention proxy when Assured mode is selected so that managed provider keys are used without Advisor Prep Hero retaining content.
 
 UI steps:
 

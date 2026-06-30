@@ -1,4 +1,4 @@
-# BOARD DECISION — Keepance competes to be the leading financial-advisor AI (2026-06-29)
+# BOARD DECISION — Advisor Prep Hero competes to be the leading financial-advisor AI (2026-06-29)
 
 **Decided by:** Jameson (Board of Directors), 2026-06-29. **Status: OFFICIAL STANCE going forward.**
 This supersedes the "reposition away from advisors / retreat to a narrow wedge" recommendation in the
@@ -7,7 +7,7 @@ direction; downstream product, positioning, and roadmap decisions align to it.
 
 ## The decision (in the board's words)
 
-**Keepance continues forward to become the leading financial-advisor AI in the space — head-on, not by
+**Advisor Prep Hero continues forward to become the leading financial-advisor AI in the space — head-on, not by
 retreating to a niche.** We do not have clients yet, and that's understood. The bet is that we can execute
 **more simply and more powerfully** by being, from the start, **an AI product — an app — not a note-taking
 app.** The shape of the product is the simple, powerful one: *connect your files → ask cited questions →
@@ -23,7 +23,7 @@ firsthand assessment:
   a simple "connect your files and ask questions" experience — it's "connect 60 things, then send forms and
   take notes."
 - **Jump is still a note-taking app at its core.** Its AI direction is **fuzzy at best.**
-- This is the opening: Keepance wins by being **simpler, clearer, and genuinely AI-first** where Jump is
+- This is the opening: Advisor Prep Hero wins by being **simpler, clearer, and genuinely AI-first** where Jump is
   bloated, integration-sprawled, and note-taker-anchored.
 
 **Note — this firsthand read aligns with, not contradicts, the competitive report's findings about Jump's
@@ -42,7 +42,7 @@ product, and go for the category lead.
    ask cited questions → Client Map.* Do NOT lead with, or drift toward, meeting-notetaking as the core.
    Notetaking, if ever present, is a feature, never the identity.
 3. **Win on simplicity + AI-first clarity, not integration breadth.** Jump's failure mode is "connect 60
-   things." Keepance's edge is the opposite: it just works on your files and answers, cleanly. Resist
+   things." Advisor Prep Hero's edge is the opposite: it just works on your files and answers, cleanly. Resist
    feature/integration sprawl that would make us the thing we're beating. (Connectors are sales-enablers in
    service of the simple story, not the story.)
 4. **The real assets still matter and reinforce this:** local-first / private-by-design + BYOK, reasoning

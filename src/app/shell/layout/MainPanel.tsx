@@ -318,7 +318,7 @@ export function MainPanel({
   const confidentialityMode = useConfidentialityMode();
   const redlineLocalOnly = modeRestrictsToLocal(confidentialityMode);
   const activeEgressProvider = useActiveEgressProvider(confidentialityMode) as ChatProviderId;
-  // F-503 — in Local-only mode prefer the embedded Keepance Local AI for the
+  // F-503 — in Local-only mode prefer the embedded Advisor Prep Hero Local AI for the
   // redline / inline edit when its model is downloaded + ready (it needs no
   // separate Ollama daemon), the same on-device default Ask / Chat / Client Map
   // / workflows use. Off-desktop the hook stays 'idle', so this is false there.
@@ -341,7 +341,7 @@ export function MainPanel({
   const [redlineOllamaModel, setRedlineOllamaModel] = useState<string | undefined>(undefined);
   useEffect(() => {
     // Only discover an Ollama model when the redline actually resolved to Ollama.
-    // For the embedded Keepance Local AI ('keepance-local') the model id is the
+    // For the embedded Advisor Prep Hero Local AI ('keepance-local') the model id is the
     // provider's own default, so we leave redlineOllamaModel undefined.
     if (!redlineLocalOnly || redlineProvider !== 'ollama') {
       setRedlineOllamaModel(undefined);
@@ -542,7 +542,7 @@ export function MainPanel({
           />
         );
       }
-      // Keepance 3.0 email viewer tab — read-only view of one stored message.
+      // Advisor Prep Hero 3.0 email viewer tab — read-only view of one stored message.
       // The message id rides in metadata.mailSourceId (falling back to the tab
       // path, which is the `mail:<id>` key for citation-opened messages).
       if (tab.type === 'email') {
@@ -713,7 +713,7 @@ export function MainPanel({
         return <ImageViewer src={tab.content} alt={tab.name} />;
       }
       // Audio check runs BEFORE video — .webm and .ogg are containers
-      // that can hold audio OR video, but in Keepance they're used for
+      // that can hold audio OR video, but in Advisor Prep Hero they're used for
       // audio recording. Route to WaveformEditor first so recorded audio
       // gets the waveform + edit tools, not a bare HTML5 video player.
       if (isAudio) {

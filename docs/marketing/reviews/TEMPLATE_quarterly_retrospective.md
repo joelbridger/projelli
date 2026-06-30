@@ -89,7 +89,7 @@ _Time spent: [target 2 hr]_
 - Episodes aired:
 
 ### Personal brand
-- Real-name Keepance posts this Q (target: 3-6):
+- Real-name Advisor Prep Hero posts this Q (target: 3-6):
 - Voice profile compliance: [yes/no]
 
 ---

@@ -163,7 +163,7 @@ function buildBrandingHeader(firmName: string): Paragraph[] {
     new Paragraph({
       children: [
         new TextRun({
-          text: `Document prepared with Keepance — ${dateString}`,
+          text: `Document prepared with Advisor Prep Hero — ${dateString}`,
           size: 20, // 10pt
           color: '555555',
         }),
@@ -206,8 +206,8 @@ export async function serializeDocx(
   };
 
   const doc = new Document({
-    creator: 'Keepance',
-    description: 'Document edited in Keepance',
+    creator: 'Advisor Prep Hero',
+    description: 'Document edited in Advisor Prep Hero',
     numbering: {
       config: [
         {
@@ -276,7 +276,7 @@ interface TextFormatting {
 /**
  * Parse TipTap HTML (or markdown-converted HTML) into a flat list of docx
  * top-level children (Paragraphs and Tables). Uses DOMParser in the browser —
- * Keepance's editors are client-only, so this is safe.
+ * Advisor Prep Hero's editors are client-only, so this is safe.
  */
 function htmlToDocxChildren(html: string): (Paragraph | Table)[] {
   const doc = new DOMParser().parseFromString(
@@ -1207,8 +1207,8 @@ export async function serializeContradictionsDocx(
   };
 
   const doc = new Document({
-    creator: 'Keepance',
-    description: 'Litigation contradiction analysis prepared in Keepance (draft. verify before relying)',
+    creator: 'Advisor Prep Hero',
+    description: 'Litigation contradiction analysis prepared in Advisor Prep Hero (draft. verify before relying)',
     sections: [sectionOptions],
   });
 

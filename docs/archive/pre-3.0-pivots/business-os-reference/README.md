@@ -1,11 +1,11 @@
 # Archived — pre-v3 "Business OS" reference docs
 
 **Superseded. Kept for history.** These three documents date from the original
-**"Business OS" / founder-workspace** era (before the product became Keepance and
+**"Business OS" / founder-workspace** era (before the product became Advisor Prep Hero and
 before the 3.0 feature-first reorg). They describe a product, audience, and code
 layout that no longer exist:
 
-- `PRD.md` — generic founder user-stories for "Business OS"; never mentions Keepance,
+- `PRD.md` — generic founder user-stories for "Business OS"; never mentions Advisor Prep Hero,
   advisors, email connectors, or the Client Map.
 - `ARCHITECTURE.md` — the old layer-based architecture diagram (`components/` /
   `modules/` / `stores/`). The 3.0 reorg replaced this layout entirely.

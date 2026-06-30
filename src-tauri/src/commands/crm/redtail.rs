@@ -1,6 +1,6 @@
 //! Read-only Redtail CRM client.
 //!
-//! Redtail authentication is not OAuth. Keepance receives the advisor's
+//! Redtail authentication is not OAuth. Advisor Prep Hero receives the advisor's
 //! Redtail username + password once, exchanges them for a Redtail UserKey, and
 //! stores only that UserKey in the provider-scoped CRM keychain slot. Every CRM
 //! data call below is a GET request.

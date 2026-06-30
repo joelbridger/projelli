@@ -34,12 +34,12 @@
 //! fail fast with the `model-not-ready` marker and these tests error out.
 //! Model load + index build happen ONCE per binary via a shared OnceCell.
 
-use keepance_lib::commands::rag::chunker::Chunk;
-use keepance_lib::commands::rag::store::{
+use lantern_lib::commands::rag::chunker::Chunk;
+use lantern_lib::commands::rag::store::{
     self, lookup_by_id, SourceType, PRIVILEGE_ATTORNEY_CLIENT, PRIVILEGE_NONE,
     PRIVILEGE_WORK_PRODUCT, UNASSIGNED_MATTER,
 };
-use keepance_lib::commands::rag::{RetrievalScope, Verdict};
+use lantern_lib::commands::rag::{RetrievalScope, Verdict};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
@@ -47,8 +47,8 @@ use tokio::sync::OnceCell;
 /// can initialize. Uses the same path resolution as the production embedder so
 /// the check is identical to what the app sees at runtime.
 fn model_is_provisioned() -> bool {
-    use keepance_lib::commands::rag::embedder::resolve_cache_dir;
-    use keepance_lib::commands::rag::model_download::model_files_cached;
+    use lantern_lib::commands::rag::embedder::resolve_cache_dir;
+    use lantern_lib::commands::rag::model_download::model_files_cached;
     model_files_cached(&resolve_cache_dir())
 }
 
@@ -90,7 +90,7 @@ const VEC_KEY: [u8; 32] = [0x5Au8; 32];
 /// content assertion in these tests goes through this — the store layer itself
 /// returns ciphertext (it never persists or returns plaintext at rest).
 fn decrypt_hit(h: &store::StoredHit) -> String {
-    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+    use lantern_lib::commands::mail::crypto::decrypt_with_key;
     let blob = hex::decode(&h.text).expect("hit text must be hex ciphertext (WS-VEC)");
     String::from_utf8(decrypt_with_key(&blob, &VEC_KEY).expect("decrypt hit text"))
         .expect("utf8 plaintext")
@@ -109,7 +109,7 @@ async fn nearest(
     scope: Option<&str>,
     include_privileged: bool,
 ) -> anyhow::Result<Vec<store::StoredHit>> {
-    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+    use lantern_lib::commands::mail::crypto::decrypt_with_key;
     let mut hits = store::nearest(table, query_vec, top_k, scope, include_privileged, &[]).await?;
     for h in &mut hits {
         let enc = h.path_enc.as_deref().expect("V10 rows must carry path_enc");
@@ -259,9 +259,9 @@ async fn fixture() -> Arc<Fixture> {
                 .expect("create table");
 
             for src in corpus() {
-                let chunks = keepance_lib::commands::rag::chunker::chunk_text(src.source_id, src.text);
+                let chunks = lantern_lib::commands::rag::chunker::chunk_text(src.source_id, src.text);
                 let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-                let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts)
+                let vectors = lantern_lib::commands::rag::embedder::embed_documents(&texts)
                     .await
                     .expect("embed documents");
                 let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
@@ -289,7 +289,7 @@ async fn fixture() -> Arc<Fixture> {
 }
 
 async fn embed(query: &str) -> Vec<f32> {
-    keepance_lib::commands::rag::embedder::embed_query(query)
+    lantern_lib::commands::rag::embedder::embed_query(query)
         .await
         .expect("embed query")
 }
@@ -445,7 +445,7 @@ async fn p2_scope_is_required_at_the_type_level() {
 /// closure mirrors `text_contains_normalized`'s canon (Task 5): lowercase +
 /// curly quotes straightened + whitespace collapsed — symmetric, not fuzzy.
 async fn verify(table: &lancedb::Table, id: &str, claimed: &str, quoted: &str) -> Verdict {
-    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+    use lantern_lib::commands::mail::crypto::decrypt_with_key;
     let normalize = |s: &str| {
         let lowered = s.to_lowercase();
         let straightened: String = lowered
@@ -639,9 +639,9 @@ async fn unassigned_sentinel_is_scopeable() {
     let conn = store::open_connection(dir.path()).await.unwrap();
     let table = store::open_or_create_table(&conn).await.unwrap();
     let text = "An uncategorized note about a quarterly tax filing deadline.";
-    let chunks = keepance_lib::commands::rag::chunker::chunk_text("/inbox/note.md", text);
+    let chunks = lantern_lib::commands::rag::chunker::chunk_text("/inbox/note.md", text);
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-    let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
+    let vectors = lantern_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
     let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
     let batch = store::build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &VEC_KEY).unwrap();
     let schema = batch.schema();
@@ -841,9 +841,9 @@ async fn priv_retag_flips_exclusion_in_place() {
 
     let path = "/m/contract.md";
     let text = "Settlement terms: the parties agree to a confidential payment schedule.";
-    let chunks = keepance_lib::commands::rag::chunker::chunk_text(path, text);
+    let chunks = lantern_lib::commands::rag::chunker::chunk_text(path, text);
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-    let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
+    let vectors = lantern_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
     let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
     // Index initially as non-privileged.
     let batch = store::build_batch(&rows, SourceType::Text, MATTER_ACME, PRIVILEGE_NONE, None, &VEC_KEY).unwrap();
@@ -905,9 +905,9 @@ async fn vec_chunk_text_is_encrypted_on_disk() {
         "Privileged deal terms. The agreed settlement figure is {secret}, payable at closing."
     );
     let path = "/acme/secret-terms.md";
-    let chunks = keepance_lib::commands::rag::chunker::chunk_text(path, &doc);
+    let chunks = lantern_lib::commands::rag::chunker::chunk_text(path, &doc);
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-    let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
+    let vectors = lantern_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
     let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
     // DOCUMENT path (build_batch) — the formerly-plaintext path.
     let batch = store::build_batch(&rows, SourceType::Text, MATTER_ACME, PRIVILEGE_NONE, None, &VEC_KEY).unwrap();
@@ -976,12 +976,12 @@ async fn matter_for_path_reads_filed_matter_and_follows_retag() {
 
     // Index one mail message filed to ACME.
     let path = "mail:bug013-0001";
-    let chunks = keepance_lib::commands::rag::chunker::chunk_text(
+    let chunks = lantern_lib::commands::rag::chunker::chunk_text(
         path,
         "From: clerk@court.example\nSubject: Hearing reset\n\nThe hearing is reset to July 14, 2026.",
     );
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-    let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts)
+    let vectors = lantern_lib::commands::rag::embedder::embed_documents(&texts)
         .await
         .expect("embed");
     let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();

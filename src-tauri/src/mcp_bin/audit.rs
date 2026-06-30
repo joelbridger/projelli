@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use keepance_lib::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
+use lantern_lib::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
 use serde_json::{json, Value};
 
 const TEST_AUDIT_KEY_ENV: &str = "KEEPANCE_MCP_AUDIT_KEY_HEX";

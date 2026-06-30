@@ -7,7 +7,7 @@
 **Goal:** Make the BYOK-direct frontier path the unmistakable RECOMMENDED default, present local-model honestly as the maximum-privacy / lower-quality option (never co-equal for legal work), and keep config homework minimal. Mostly UI/copy.
 
 ## Global Constraints
-- Honest, not dismissive: BYOK-frontier is recommended because it gives the best quality AND keeps data under the user's own key (no Keepance server). Local-model is genuinely more private but meaningfully less capable for legal drafting/analysis — say so plainly.
+- Honest, not dismissive: BYOK-frontier is recommended because it gives the best quality AND keeps data under the user's own key (no Advisor Prep Hero server). Local-model is genuinely more private but meaningfully less capable for legal drafting/analysis — say so plainly.
 - **NO em dashes in any user-facing copy** (badges, headings, body). Use colons/periods.
 - Don't change the technical default (already `direct`); this is presentation. Reuse `ui/kp` primitives.
 

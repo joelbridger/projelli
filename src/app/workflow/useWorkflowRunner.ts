@@ -27,7 +27,7 @@ import { createClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { createOpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { createGeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider, detectOllama, OLLAMA_DEFAULT_MODEL } from '@/platform/providers/OllamaProvider';
-import { KeepanceLocalProvider } from '@/platform/providers/KeepanceLocalProvider';
+import { AppLocalProvider } from '@/platform/providers/AppLocalProvider';
 import { isEmbeddedLocalModelReady } from '@/platform/providers/resolveLocalProvider';
 import { modeRestrictsToLocal } from '@/platform/privacy/egress';
 import { assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
@@ -221,7 +221,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       // what the template/global default says, so it needs reachability plus
       // the installed tag list.
       const localOnly = modeRestrictsToLocal(getConfidentialityMode());
-      // F-503 — in private mode prefer the embedded Keepance Local AI when its
+      // F-503 — in private mode prefer the embedded Advisor Prep Hero Local AI when its
       // model is downloaded + ready (it needs no separate Ollama daemon), the
       // same on-device default Ask / Chat / Client Map use. Probe it first; only
       // probe Ollama if the embedded model isn't ready, so a machine with the
@@ -340,14 +340,14 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       // the resolution result. All blocking cases already returned above.
       let provider;
       if (providerResolution.kind === 'keepance-local') {
-        // F-503 — embedded Keepance Local AI (private mode). Fully on-device,
+        // F-503 — embedded Advisor Prep Hero Local AI (private mode). Fully on-device,
         // zero cost, zero network egress. The model id is the provider's own
         // default; only AI Rules are threaded in.
-        provider = new KeepanceLocalProvider({
+        provider = new AppLocalProvider({
           ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
         });
         console.log(
-          `Using embedded Keepance Local AI for workflow generation [source=${resolution.source}]`
+          `Using embedded Advisor Prep Hero Local AI for workflow generation [source=${resolution.source}]`
         );
       } else if (providerResolution.kind === 'ollama') {
         // F-107 — Ollama branch. Reachability confirmed above; construct the

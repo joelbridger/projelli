@@ -1,11 +1,11 @@
-# Keepance Spacing & Layout System
+# Advisor Prep Hero Spacing & Layout System
 
 > The single source of truth for spacing in the app. Before this existed, spacing was ad-hoc inline pixels (7px, 9px, 11px, 13px, 24px... no rhythm), which is why elements felt cramped and inconsistent. Every spacing value in the UI should now come from a token here, never a raw number.
 
 ## Principles
 
 1. **8-point grid, 4px base.** All spacing is a multiple of 4, and layout spacing is a multiple of 8. This is the proven standard (Material, Apple HIG, Carbon, Polaris) — it scales cleanly and keeps a visual rhythm.
-2. **Room to breathe.** Keepance leans *generous*. Pages get a 32px gutter, content sits a full 24px off its header, cards have comfortable internal padding. When unsure, go one step larger.
+2. **Room to breathe.** Advisor Prep Hero leans *generous*. Pages get a 32px gutter, content sits a full 24px off its header, cards have comfortable internal padding. When unsure, go one step larger.
 3. **Internal ≤ external.** The space *inside* a container is less than or equal to the space *around* it. A card never welds to the line above it; related things sit closer than unrelated things. (This is the rule the old Matters empty-state broke — the card had 0px above it but plenty inside.)
 4. **Tokens, not numbers.** Components reference semantic tokens (`var(--kp-gutter)`), so the whole app's rhythm can be tuned from one file (`src/styles/globals.css`).
 

@@ -13,7 +13,7 @@
 
 Hey [Name],
 
-I'm Jameson Daines. I'm a product designer and I've been building a desktop app called Keepance for consultants and other professionals who work under NDA and can't always use cloud AI with client material.
+I'm Jameson Daines. I'm a product designer and I've been building a desktop app called Advisor Prep Hero for consultants and other professionals who work under NDA and can't always use cloud AI with client material.
 
 The core thing: everything stays on your machine. Your client files, your API keys, your research notes. Nothing goes through a server I control. I built it partly because the "your clients' data in our AI" conversation is one I'd rather not have to have, and I figured other people felt the same way.
 

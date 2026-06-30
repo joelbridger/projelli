@@ -1,8 +1,8 @@
-use keepance_lib::commands::mail::crypto::decrypt_with_key;
-use keepance_lib::commands::rag::embedder::{self, EMBEDDING_DIM};
-use keepance_lib::commands::rag::model_download;
-use keepance_lib::commands::rag::store::{self, PRIVILEGE_NONE};
-use keepance_lib::commands::rag::{
+use lantern_lib::commands::mail::crypto::decrypt_with_key;
+use lantern_lib::commands::rag::embedder::{self, EMBEDDING_DIM};
+use lantern_lib::commands::rag::model_download;
+use lantern_lib::commands::rag::store::{self, PRIVILEGE_NONE};
+use lantern_lib::commands::rag::{
     index_downloaded_document_bytes, DownloadedDocumentIndexOutcome,
 };
 use std::sync::atomic::AtomicBool;

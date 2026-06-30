@@ -325,7 +325,7 @@ mod tests {
     /// sanitize_relative accepts a very long path (>260 chars) on Linux without
     /// panicking. Windows MAX_PATH is 260 chars, but Linux has a much higher
     /// limit (typically PATH_MAX = 4096). The Rust guard never imposes a 260-char
-    /// cap; that is intentional — Keepance on Windows relies on the OS to surface
+    /// cap; that is intentional — Advisor Prep Hero on Windows relies on the OS to surface
     /// the error naturally when a path is too long, rather than a pre-emptive cap
     /// that could incorrectly reject valid Linux paths.
     #[test]

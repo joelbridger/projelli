@@ -1,10 +1,10 @@
-# Keepance Evaluation — Handoff & Product Recommendations for the Build Session
+# Advisor Prep Hero Evaluation — Handoff & Product Recommendations for the Build Session
 
-> ⚠️ **OUTDATED CONCLUSION — corrected 2026-06-20.** This doc's central claim — "the product is mature; the binding constraint is distribution + trust, not engineering; more features will not move the needle; stop building" — was overturned by real hands-on Windows testing, which found MANY unfinished and broken areas. The traction facts still hold, but **the product is NOT finished**: finishing and hardening it (especially on real Windows/Mac) is real, necessary work alongside distribution. For current truth, see the Keepance `CLAUDE.md` reality-check note and the board dashboard (board.jameworld.com).
+> ⚠️ **OUTDATED CONCLUSION — corrected 2026-06-20.** This doc's central claim — "the product is mature; the binding constraint is distribution + trust, not engineering; more features will not move the needle; stop building" — was overturned by real hands-on Windows testing, which found MANY unfinished and broken areas. The traction facts still hold, but **the product is NOT finished**: finishing and hardening it (especially on real Windows/Mac) is real, necessary work alongside distribution. For current truth, see the Advisor Prep Hero `CLAUDE.md` reality-check note and the board dashboard (board.jameworld.com).
 
 **Date:** 2026-06-17
-**From:** A separate Claude Code instance that ran a full, evidence-backed evaluation of Keepance (the business + product + keepance.com) at Jameson's request, Claude-only, no local models.
-**For:** The main Keepance build session (you) — the instance that actually ships the product.
+**From:** A separate Claude Code instance that ran a full, evidence-backed evaluation of Advisor Prep Hero (the business + product + keepance.com) at Jameson's request, Claude-only, no local models.
+**For:** The main Advisor Prep Hero build session (you) — the instance that actually ships the product.
 **Status of this doc:** Advisory strategic input. It does **not** override `KEEPANCE_BUSINESS_PLAN.md` (your operating contract). Where the two conflict, surface it to Jameson — and note up front that I found the business plan's financial model is **stale** (§2), so part of the conflict is that the contract itself needs updating.
 
 **Companion memos (full cited evidence lives here — read them for depth):**
@@ -21,14 +21,14 @@
 4. **The thesis (local-first private AI for law) is real but a tiebreaker, not a category-killer, and narrowing.** Sell/build the *outcome*, prove it with local. Never lean on "the cloud is unsafe" — lawyers are moving to the cloud and cloud-with-assurances is the default answer.
 5. **Highest-leverage product work is trust-as-a-surface + hallucination-hardening + finishing/foregrounding email.** Details in §5.
 6. **Fix the credibility contradictions first (P0, days not weeks).** Your Firm tier sells "DPA, trust center, SOC 2 readiness" (`src/config/pricing.ts:125`) while your /vs/ pages, press-kit matrix, and /security page candidly say you have none yet. That contradiction reads as unreliability to the exact buyer you want.
-7. **Email search is a feature, not a standalone venture** — keep it inside Keepance and make it your headline wedge (§7).
+7. **Email search is a feature, not a standalone venture** — keep it inside Advisor Prep Hero and make it your headline wedge (§7).
 8. **Stop deepening the Firm tier and Wave 5 connectors** until you have solo customers (§6).
 
 ---
 
 ## 1. What this evaluation was
 
-Jameson asked for (a) a full evidence-backed evaluation of Keepance through a "shortest path to traction" lens, and (b) whether the email-search capability could be its own product (mass-market lens). Method: server-side data pulls (license validator, firm DB, GitHub Releases, Plausible/ClickHouse), a read of the canonical pricing + strategy + UX-research docs, and four cited Claude web-research streams (legal-tech competition, legal GTM, prosumer email market, ethics/confidentiality). Everything below is grounded in that.
+Jameson asked for (a) a full evidence-backed evaluation of Advisor Prep Hero through a "shortest path to traction" lens, and (b) whether the email-search capability could be its own product (mass-market lens). Method: server-side data pulls (license validator, firm DB, GitHub Releases, Plausible/ClickHouse), a read of the canonical pricing + strategy + UX-research docs, and four cited Claude web-research streams (legal-tech competition, legal GTM, prosumer email market, ethics/confidentiality). Everything below is grounded in that.
 
 ## 2. The situation, in evidence (what I found server-side)
 
@@ -67,7 +67,7 @@ The honest counter (this is where the *marketing* over-reaches, and where your *
 - Lawyers are migrating **to** the cloud (~75%), and 20-30 bars have blessed it under "reasonable efforts."
 - **Local AI has real downsides you must design around:** a model-quality/hallucination gap (local models ~"80% as good"; hallucination is *the* malpractice risk), IT burden / no SLA, the "DIY box is less secure" paradox, and **no SOC 2 on a self-hosted rig makes the "reasonable efforts" defense harder, not easier.**
 
-**The product implication of all this:** your privacy story and your quality story are in tension. "Nothing leaves the machine" is only literally true in **local-model mode**, which underperforms on legal work. The **BYOK-direct frontier path** (data goes only to the user's own provider under their key, no-training, no Keepance server) is the right *default* — frontier quality + no third-party-Keepance — and you already frame this correctly as the Local-only / BYOK-direct / Assured spectrum (`pricing.ts` `BYOK_FRAMING`). Keep that honesty; it's an asset. Build accordingly (§5).
+**The product implication of all this:** your privacy story and your quality story are in tension. "Nothing leaves the machine" is only literally true in **local-model mode**, which underperforms on legal work. The **BYOK-direct frontier path** (data goes only to the user's own provider under their key, no-training, no Advisor Prep Hero server) is the right *default* — frontier quality + no third-party-Advisor Prep Hero — and you already frame this correctly as the Local-only / BYOK-direct / Assured spectrum (`pricing.ts` `BYOK_FRAMING`). Keep that honesty; it's an asset. Build accordingly (§5).
 
 ## 5. PRODUCT RECOMMENDATIONS (your build backlog, by priority)
 
@@ -105,7 +105,7 @@ These are the things worth building *because they unblock customers*. Each ties 
 ### P2 — Model strategy & honest positioning
 
 **5.6 Default to BYOK-frontier; position local-model honestly.**
-- Make the **BYOK-direct frontier-model path the recommended default experience** (best quality + data only to the user's own provider, no-training, no Keepance server). Present local-model mode as the "maximum-paranoia, accept-the-quality-tradeoff" option. Don't let UI or copy imply local-model is the main experience if it underperforms on legal work — that sets up the hallucination risk you can't afford.
+- Make the **BYOK-direct frontier-model path the recommended default experience** (best quality + data only to the user's own provider, no-training, no Advisor Prep Hero server). Present local-model mode as the "maximum-paranoia, accept-the-quality-tradeoff" option. Don't let UI or copy imply local-model is the main experience if it underperforms on legal work — that sets up the hallucination risk you can't afford.
 
 ### P2 — A learning loop without breaking the no-telemetry promise
 
@@ -125,7 +125,7 @@ These are the things worth building *because they unblock customers*. Each ties 
 
 ## 7. The email-search-as-product question (cross-ref Memo B)
 
-For the mass market, standalone email search is a **feature, not a venture**, and it isn't close: 30+ years of standalone email search produced zero consumer businesses; incumbents are absorbing it for free (Apple shipped free on-device semantic Mail search at WWDC 2026); a search "layer" on Gmail/Outlook is the weakest position in software; even funded, 2M-user, encrypted Skiff died. **Conclusion: do not spin it out. Keep email intelligence inside Keepance and make it the headline wedge (§5.4).** Full reasoning in `2026-06-17-email-search-standalone-viability.md`.
+For the mass market, standalone email search is a **feature, not a venture**, and it isn't close: 30+ years of standalone email search produced zero consumer businesses; incumbents are absorbing it for free (Apple shipped free on-device semantic Mail search at WWDC 2026); a search "layer" on Gmail/Outlook is the weakest position in software; even funded, 2M-user, encrypted Skiff died. **Conclusion: do not spin it out. Keep email intelligence inside Advisor Prep Hero and make it the headline wedge (§5.4).** Full reasoning in `2026-06-17-email-search-standalone-viability.md`.
 
 ## 8. GTM context you should build toward
 

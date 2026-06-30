@@ -3,7 +3,7 @@
 **Why this one matters.** It's the only warm path into the ICP we have, and it's a good one. Financial advisors (RIAs) handle some of the most sensitive client data there is (full financial pictures, SSNs, account numbers, estate plans), they're bound by SEC Reg S-P and a fiduciary duty, and they are exactly as nervous about feeding client data into cloud AI as any lawyer. Local-first + BYOK lands hard here. Journey Beyond Wealth is reachable through a real personal connection ([your wife's name] is a client), so it skips the cold-start problem entirely.
 
 **What we want from it, in order:**
-1. One advisor actually using Keepance on real work for a few weeks.
+1. One advisor actually using Advisor Prep Hero on real work for a few weeks.
 2. The first **named testimonial** from a real practitioner.
 3. Validation (or not) of a **financial-advisor vertical** we hadn't been targeting. If it resonates, that's a fourth pack and a fourth landing page down the line.
 
@@ -27,7 +27,7 @@
 >
 > I'm Jameson, [your wife's name]'s husband. She speaks really highly of working with you, so I hope it's alright that I'm reaching out directly.
 >
-> I build software, and I spent the last few months on something that I think fits your world well. It's called Keepance. It's an AI workspace that runs entirely on your own machine: you chat with an AI to draft, summarize, and organize, and every conversation becomes a real file in a folder you control. Nothing goes to my servers, and you bring your own AI key, so client financial details never leave your computer. I built it because so much of the useful AI out there asks you to hand it exactly the data you're not allowed to hand over.
+> I build software, and I spent the last few months on something that I think fits your world well. It's called Advisor Prep Hero. It's an AI workspace that runs entirely on your own machine: you chat with an AI to draft, summarize, and organize, and every conversation becomes a real file in a folder you control. Nothing goes to my servers, and you bring your own AI key, so client financial details never leave your computer. I built it because so much of the useful AI out there asks you to hand it exactly the data you're not allowed to hand over.
 >
 > I'm putting together a small group of advisors to use it on real work and tell me honestly where it falls short. The app is yours, free, for as long as you're helping me. The only thing I'm after is your honest read, the parts that annoy you most of all. If it turns out genuinely useful, I'd love to quote you, but only if it earns it.
 >

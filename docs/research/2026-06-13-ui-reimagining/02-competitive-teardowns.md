@@ -1,7 +1,7 @@
 # Stream B — Competitive & Reference UI Teardowns
 
-**Part of:** Keepance UI Reimagining · Phase 1 (Deep UX Research) · 2026-06-13
-**Question:** What interaction and IA conventions do litigation attorneys already know (from the tools they live in and the legal-AI products they're sold), so Keepance can reuse them and "the software disappears"?
+**Part of:** Advisor Prep Hero UI Reimagining · Phase 1 (Deep UX Research) · 2026-06-13
+**Question:** What interaction and IA conventions do litigation attorneys already know (from the tools they live in and the legal-AI products they're sold), so Advisor Prep Hero can reuse them and "the software disappears"?
 **Method:** Web research (published product docs, help centers, UX writeups, reviews). Every claim cited. Items that could not be independently verified are flagged.
 
 > This is one of five research streams feeding the capstone `UX-RESEARCH-AND-PRINCIPLES.md`. It strongly validates a **matter-centric, cited-answer-first** direction and supplies concrete, source-backed patterns.
@@ -21,7 +21,7 @@
 9. **Professional density, light background** (every Group-1 tool). Compact rows, tabular data, system-weight type, narrow margins. Not airy, not consumer.
 10. **Lead with structure, not a blinking chat cursor.** Clio Duo/CoCounsel/Harvey all subordinate chat to a structured catalog.
 
-**Anti-patterns:** "project/workspace" vocabulary · AI answers without visible clickable citations · AI changes authored as "Keepance AI" · overclaiming security with no in-session evidence · dark theme default · novel nav that ignores Clio/Outlook · card grids/kanban for data-heavy lists · chatbot-as-front-door · ambiguous data handling · setup friction before first value.
+**Anti-patterns:** "project/workspace" vocabulary · AI answers without visible clickable citations · AI changes authored as "Advisor Prep Hero AI" · overclaiming security with no in-session evidence · dark theme default · novel nav that ignores Clio/Outlook · card grids/kanban for data-heavy lists · chatbot-as-front-door · ambiguous data handling · setup friction before first value.
 
 ---
 
@@ -84,7 +84,7 @@
 - **Object model:** Task-centric (bring docs to a skill); matter context comes from the integrated DMS (iManage/NetDocuments) + Westlaw.
 - **Citations:** Embedded **Westlaw hyperlinks** + **KeyCite** flags (still-good-law); an "Identifying Citation Issues" skill; answers cite Practical Law sources. ([CoCounsel Legal](https://legal.thomsonreuters.com/en/products/cocounsel-legal))
 - **Trust:** **Authority-based** — borrows credibility from Westlaw/Practical Law as known-authoritative sources.
-- **Take:** A **named skills catalog** (don't make her prompt) · sortable/filterable review tables · authority-as-trust → Keepance's parallel is "this answer comes from *your* documents/emails/transcripts."
+- **Take:** A **named skills catalog** (don't make her prompt) · sortable/filterable review tables · authority-as-trust → Advisor Prep Hero's parallel is "this answer comes from *your* documents/emails/transcripts."
 
 ### 9. Spellbook (Word add-in)
 - **Nav:** Lives entirely as a **Word taskpane** (no standalone app); Benchmarks library + firm playbooks. ([Redline contracts](https://spellbook.com/learn/redline-contracts); [Review](https://owlesq.com/tools/spellbook))
@@ -95,7 +95,7 @@
 - **Nav:** Chat pane within Word/Outlook/etc.; standalone Copilot Chat; Notebooks for scoped references. ([Copilot in Word/Outlook](https://www.computerworld.com/article/3479705/how-to-use-microsoft-copilot-for-writing-in-microsoft-365-word-outlook-onenote.html))
 - **Citations (most mature reviewed):** **Numbered superscripts** inline at claim level; **hover → glance card** (source name/excerpt); **click → deep citation view** (the exact passage that informed the answer); expanding deep-citation source coverage. ([Deep citations](https://m365admin.handsontek.net/microsoft-copilot-microsoft-365-deep-citations-copilot/))
 - **Trust:** "Grounded in your tenant" — only surfaces content you're already permissioned to see (implicit inheritance).
-- **Take:** **Hover-glance + click-deep-view is the gold standard** — implement exactly · numbered superscripts read like brief footnotes · "grounded in your access" = Keepance's matter-isolation trust claim.
+- **Take:** **Hover-glance + click-deep-view is the gold standard** — implement exactly · numbered superscripts read like brief footnotes · "grounded in your access" = Advisor Prep Hero's matter-isolation trust claim.
 
 ## Group 3 — Inline citation patterns (Perplexity / Glean / taxonomy)
 - **Perplexity** — citation-forward: numbered citations **always visible** (not hover-only), source preview panel above the answer, expandable "see all sources," title+favicon for quick scanning. ([Case study](https://www.aiuxplayground.com/gallery/perplexity-citations/); [Platform guide](https://www.unusual.ai/blog/perplexity-platform-guide-design-for-citation-forward-answers))
@@ -105,15 +105,15 @@
 
 ---
 
-## Recommended IA for Keepance (grounded in the teardowns — a hypothesis for Phase 2)
+## Recommended IA for Advisor Prep Hero (grounded in the teardowns — a hypothesis for Phase 2)
 
 **Top-level left rail:** `[Firm name]` · Home/Dashboard · **Matters** (primary, with Recent / All / + New) · Documents (cross-matter, for conflict-check & cross-matter research) · **Trust Log** (first-class, not buried — it's the differentiator) · Settings (bottom).
 
 **Within a matter** (header: Matter name · Client · Matter # · Status · Responsible attorney): sub-nav **Dashboard · Documents · Ask/Analysis · Drafts · Trust Map · Timeline**.
 - **Documents:** three-panel (folder tree · table list with Name/Type/Date/Author/Analyzed/Privilege columns · preview); quick search + metadata filters.
 - **Ask/Analysis (the unified "Ask" + the litigation associate):** *Ask* (prose answer with numbered superscripts → hover glance → click opens a right-side source panel with the highlighted passage + metadata + "open full document") and *Review* (pick a named action from the Actions Library → tabular results, rows=docs, columns=findings, a Citations column with the exact source sentence, exportable to .xlsx).
-- **Drafts:** managed .docx with tracked-changes status; Keepance edits as standard Word tracked changes under the attorney's name; "Open in Word" with the Keepance taskpane.
-- **Trust Map:** per-document data handling (storage location · AI processing: Local / Provider no-retention / not-yet · last accessed · access log · privilege annotation). No competitor surfaces this in-session at the matter level — Keepance's unique UI moat.
+- **Drafts:** managed .docx with tracked-changes status; Advisor Prep Hero edits as standard Word tracked changes under the attorney's name; "Open in Word" with the Advisor Prep Hero taskpane.
+- **Trust Map:** per-document data handling (storage location · AI processing: Local / Provider no-retention / not-yet · last accessed · access log · privilege annotation). No competitor surfaces this in-session at the matter level — Advisor Prep Hero's unique UI moat.
 
 **Vocabulary:** matter (not project/workspace/case) · documents (not files) · Ask/Analysis (not chat) · citations (not sources) · attorney/first-name (not user).
 

@@ -2317,11 +2317,11 @@ fn index_version_path(workspace_root: &Path) -> PathBuf {
 /// the stale rows are still on disk, so retrieval could cite the old version.
 ///
 /// LOCATION (decorrelated from the failing dir): this file lives in the
-/// `.keepance/` PARENT dir, NOT inside `.keepance/vectors/`. The tombstone is
+/// `.keepance/` PARENT dir, NOT inside `.lantern/vectors/`. The tombstone is
 /// written precisely WHEN a LanceDB delete in the vectors dataset dir failed
 /// (lock contention / a locked or unwritable dataset). Writing the tombstone
 /// into that SAME dataset dir would likely fail for the same reason, defeating
-/// the durable guarantee. The sibling `.keepance/` dir is a separate directory,
+/// the durable guarantee. The sibling `.lantern/` dir is a separate directory,
 /// so a dataset-scoped failure does not block persisting the tombstone.
 ///
 /// PRIVACY (VG-6e parity): we persist the OPAQUE keyed token — the exact value
@@ -2341,7 +2341,7 @@ const UNSAFE_PATHS_FILE: &str = ".unsafe_tokens";
 /// the tombstone file successfully.
 const INTEGRITY_UNKNOWN_FILE: &str = ".integrity_unknown";
 
-/// Path of the durable tombstone file. Lives in the `.keepance/` dir (the parent
+/// Path of the durable tombstone file. Lives in the `.lantern/` dir (the parent
 /// of `vectors/`) so a locked/unwritable LanceDB dataset dir cannot block it.
 fn unsafe_paths_path(workspace_root: &Path) -> PathBuf {
     workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join(UNSAFE_PATHS_FILE)
@@ -2713,7 +2713,7 @@ mod tests {
     /// BUG-099 fail-closed DECORRELATION: the durable tombstone is written when a
     /// LanceDB DELETE in the `vectors/` dataset dir failed — often because that
     /// dir is locked/unwritable. The tombstone must persist anyway, so it lives in
-    /// the SIBLING `.keepance/` dir, not inside `vectors/`. This test makes the
+    /// the SIBLING `.lantern/` dir, not inside `vectors/`. This test makes the
     /// `vectors/` dataset dir read-only and asserts the tombstone STILL persists.
     #[test]
     #[cfg(unix)]

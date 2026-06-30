@@ -1,4 +1,4 @@
-# Keepance — UX / Reimagined-Shell Session Handoff (2026-06-16)
+# Advisor Prep Hero — UX / Reimagined-Shell Session Handoff (2026-06-16)
 
 > Read this first if you're picking up the reimagined-shell UI work.
 > For overall 3.0 product state (SSO, vault, co-editing, deploy) see
@@ -26,7 +26,7 @@ Gates as of this handoff:
 | `cea3c02` | **Comprehensive Settings search + 3 fixes.** Search now indexes the bespoke controls (language picker, plugins, local models, setup links) via a keyword registry + relevance ranking. Data map dialog made collapsible (print-safe). Workflows "Running in: <matter>" badge moved into the content above the groups. MCP section spacing fixed. |
 | `7ceefd8` | **Onboarding identity + account collapse.** New "Make it yours" onboarding step (name + photo) after Profession; firm name + logo capture in the Firm step (prefilled from `org.name`); rail/window firm name falls back to `org.name`. Account window made collapsible (later → tabs in 797633c). |
 | `84ce695` | **Account/firm identity in the rail + Account window.** Replaced the rail "Collapse" affordance with an account identity chip (solo name+photo / firm name+logo, both uploadable). Clicking opens a dedicated Account window holding the profile editor + License / Firm / Usage / Connections. Removed the "Account" section from Settings (now 5 sections). Collapse moved to a small arrow beside the chip; collapsed rail shows the avatar at the bottom. |
-| `7f316c7` / `ee54500` | Keepance shield favicon (replaced the old projelli jellybean) + per-matter UI memory (returning to a matter restores the surface/tab/search you had open). |
+| `7f316c7` / `ee54500` | Advisor Prep Hero shield favicon (replaced the old projelli jellybean) + per-matter UI memory (returning to a matter restores the surface/tab/search you had open). |
 
 CHANGELOG.md `[Unreleased]` carries the plain-language "rounds" narrative (rounds 15–18 are this session).
 

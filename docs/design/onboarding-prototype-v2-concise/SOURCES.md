@@ -6,29 +6,29 @@ and where I verified it. Checked **2026-06-26**. No "compliant," no "guaranteed,
 
 ---
 
-## 0. The hard rule: Keepance is NOT SOC 2 (do not claim it)
+## 0. The hard rule: Advisor Prep Hero is NOT SOC 2 (do not claim it)
 
-Keepance's own code says so plainly, so the onboarding must never imply otherwise:
-- `src/features/privacy/FirmSecurityPack.tsx:168` — "**SOC 2:** Keepance is not SOC 2 certified."
+Advisor Prep Hero's own code says so plainly, so the onboarding must never imply otherwise:
+- `src/features/privacy/FirmSecurityPack.tsx:168` — "**SOC 2:** Advisor Prep Hero is not SOC 2 certified."
 - `src/platform/privacy/confidentialityReport.ts:18` — "Never claim SOC 2 or signed DPA (they don't exist)."
 - `src/config/pricing.ts:132` — "independent SOC 2 and a DPA are on our roadmap, not yet in place."
 
-**So in this onboarding SOC 2 is only ever the AI PROVIDER's property**, never Keepance's:
+**So in this onboarding SOC 2 is only ever the AI PROVIDER's property**, never Advisor Prep Hero's:
 - Screen 1 note: "When you use a cloud provider, that provider is independently audited (SOC 2 Type 2)."
 - Screen 2 cloud chip: "Provider is SOC 2 Type 2."
 
-Verified: grepped the live Keepance source (2026-06-26); confirmed no scene claims Keepance is SOC 2.
+Verified: grepped the live Advisor Prep Hero source (2026-06-26); confirmed no scene claims Advisor Prep Hero is SOC 2.
 
 ## Screen 1 — security pills (round 5; all accurate)
 
 | Pill shown | Mechanism / basis | Source |
 |---|---|---|
-| "Keepance stores none of your data" | Local-first: your documents and app state live on your computer; Keepance has no content server and never sees/stores your data. (Firm sync, when used, stores only E2EE ciphertext the relay can't read.) | CLAUDE.md "BYOK forever - Keepance never holds AI keys, never sees user data"; `confidentialityReport.ts`; `FirmSecurityPack.tsx` |
+| "Advisor Prep Hero stores none of your data" | Local-first: your documents and app state live on your computer; Advisor Prep Hero has no content server and never sees/stores your data. (Firm sync, when used, stores only E2EE ciphertext the relay can't read.) | CLAUDE.md "BYOK forever - Advisor Prep Hero never holds AI keys, never sees user data"; `confidentialityReport.ts`; `FirmSecurityPack.tsx` |
 | "Fully encrypted (AES-256)" | Encrypted workspace vault is AES-256-GCM; keys in the OS keychain. AES-256 is the real standard the app uses. | CLAUDE.md "Vault: AES-256-GCM flat files (keepance-vault crate)" |
-| "AI provider is SOC 2 certified" | PROVIDER-attributed (never Keepance). The cloud AI providers hold SOC 2 Type 2. Reworded from Jameson's "AI is SOC 2 compliant" to keep attribution clear and avoid the vague/banned word "compliant". | per-provider sections A.1-A.3 below |
+| "AI provider is SOC 2 certified" | PROVIDER-attributed (never Advisor Prep Hero). The cloud AI providers hold SOC 2 Type 2. Reworded from Jameson's "AI is SOC 2 compliant" to keep attribution clear and avoid the vague/banned word "compliant". | per-provider sections A.1-A.3 below |
 
 Round-5 wording changes: pill 3 dropped "+ enterprise-grade" and the word "compliant"; uses
-"AI provider is SOC 2 certified" (accurate + clearly the provider's, not Keepance's).
+"AI provider is SOC 2 certified" (accurate + clearly the provider's, not Advisor Prep Hero's).
 Accent: all UI accents now use the app's standardized `--kp-accent` = **#1f74c4** (the bright
 brand `#5dc6ff` is too light for white button text); the pink->blue gradient is page-background only.
 
@@ -36,7 +36,7 @@ brand `#5dc6ff` is too light for white button text); the pink->blue gradient is 
 
 | Bullet shown | Basis | Source |
 |---|---|---|
-| "Keepance never sees your key or your data" | BYOK / Direct: request goes from your machine to your provider, not through Keepance. | `FirmSecurityPack.tsx:110-113` "Direct (bring your own key): data leaves to your chosen AI provider, not to Keepance" |
+| "Advisor Prep Hero never sees your key or your data" | BYOK / Direct: request goes from your machine to your provider, not through Advisor Prep Hero. | `FirmSecurityPack.tsx:110-113` "Direct (bring your own key): data leaves to your chosen AI provider, not to Advisor Prep Hero" |
 | "Providers are SOC 2 Type 2 certified" | Provider-attributed; verified per provider. | sections A.1-A.3 |
 | "Encrypted in transit and at rest" | Provider encryption (TLS 1.2+ in transit, AES-256 at rest). | sections A.1-A.3 |
 | "Providers don't train on your data (on paid API usage)" | OpenAI + Anthropic: API data not used for training by default. Google: not trained on the PAID tier only (free tier IS). The "(on paid API usage)" caveat makes it accurate for all three. | sections A.1-A.3 |
@@ -53,11 +53,11 @@ Its real action (open a help ticket / email) is being planned in a separate sess
 ## A. Cloud option ("Use your own AI key")
 
 **Framing on the card (always true for all three providers):**
-> "Your key connects you straight to your provider. Keepance never sees your key or your data."
+> "Your key connects you straight to your provider. Advisor Prep Hero never sees your key or your data."
 
 This is the BYOK mechanism: the request goes from the user's machine directly to the provider's
-API using the user's own key. (This matches Keepance's own architecture: keys live in the OS
-keychain, requests go direct to the provider, never through a Keepance content server.)
+API using the user's own key. (This matches Advisor Prep Hero's own architecture: keys live in the OS
+keychain, requests go direct to the provider, never through a Advisor Prep Hero content server.)
 
 **Two universal trust chips (true for OpenAI, Anthropic, and Google):**
 - "Encrypted in transit and at rest"
@@ -102,7 +102,7 @@ Verified: read the Gemini API terms page text (Paid vs Unpaid wording) directly;
 
 ## B. Local option ("Keep it on your computer")
 
-Confirmed against the actual Keepance Rust source (not just docs):
+Confirmed against the actual Advisor Prep Hero Rust source (not just docs):
 
 | Claim shown | Real value | Source (file:line) |
 |---|---|---|
@@ -132,7 +132,7 @@ in `assets/lottie/SOURCES.md`.
 | File | Step | Icon | Source page | License |
 |---|---|---|---|---|
 | step1.json | Connect your AI and files | dashed nodes connecting (RECOLORED to brand blue) | lottiefiles.com/free-animation/connecting-MfAEXBXvEV (Paphavee Sakdanaraseth) | Lottie Simple License (free) |
-| step2.json | Keepance builds Client Maps | network hub / hub-and-spoke (RECOLORED to brand blue) | lottiefiles.com/free-animation/network-7KEcvrCIx4 (Lara) | Lottie Simple License (free) |
+| step2.json | Advisor Prep Hero builds Client Maps | network hub / hub-and-spoke (RECOLORED to brand blue) | lottiefiles.com/free-animation/network-7KEcvrCIx4 (Lara) | Lottie Simple License (free) |
 | step3.json | Ask anything, with sources | neural-net node graph, circles + lines (RECOLORED to brand blue, to match step1/step2) | lottiefiles.com/free-animation/neural-network-loading-JLFLS47ab1 (Vojta Šára) | Lottie Simple License (free) |
 
 Notes: step2 is heavier (402 KB) and the faintest of the three; a lighter, cleaner node-graph

@@ -25,7 +25,7 @@ import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
-import { KeepanceLocalProvider } from '@/platform/providers/KeepanceLocalProvider';
+import { AppLocalProvider } from '@/platform/providers/AppLocalProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
 import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import { isAssuredProvider } from '@/platform/firm/resolveAssuredRoute';
@@ -187,7 +187,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const { t } = useTranslation();
   const entityLabel = useEntityLabel();
   // The provider this chat ACTUALLY targets. A chat with no saved provider must
-  // never fall back to the cloud ('anthropic') while the embedded Keepance Local
+  // never fall back to the cloud ('anthropic') while the embedded Advisor Prep Hero Local
   // AI model is ready — that would make the egress badge claim "data leaves" for
   // a chat that runs on-device. The badge, the input toolbar, and the send path
   // all read this one value (see effectiveChatProvider) so they can't disagree.
@@ -486,7 +486,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             break;
           case 'keepance-local':
             // Local extraction — embedded llama.cpp engine, nothing leaves.
-            provider = new KeepanceLocalProvider({
+            provider = new AppLocalProvider({
               ...(chatData.model ? { model: chatData.model } : {}),
             });
             break;

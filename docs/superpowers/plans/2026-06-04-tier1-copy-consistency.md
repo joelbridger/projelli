@@ -244,9 +244,9 @@ For each file, find every `$129` reference in user-facing copy and replace with 
 - Line ~529: `$49 Personal / $129 Professional (+ one practice pack) / $399 Practice` → `$49 Personal one-time / $149/yr Professional (+ one practice pack) / $499/yr Practice`
 
 **`website/blog/byok-actual-cost-after-60-days.html`** (three-year savings math):
-- Find: `Adding Keepance's $129 Professional tier (paid once) brings my 3-year total to $729`
-- Replace: `Adding Keepance's $149/yr Professional tier brings my 3-year total to $447 over three years`
-- Update the savings math: $1,800 (subscription stack) - $447 (Keepance 3yr) = $1,353 saved. Update the stated savings figure.
+- Find: `Adding Advisor Prep Hero's $129 Professional tier (paid once) brings my 3-year total to $729`
+- Replace: `Adding Advisor Prep Hero's $149/yr Professional tier brings my 3-year total to $447 over three years`
+- Update the savings math: $1,800 (subscription stack) - $447 (Advisor Prep Hero 3yr) = $1,353 saved. Update the stated savings figure.
 
 **`website/blog/keepance-1-5-announce.html`**:
 - Find: `Professional is $129 and includes one practice pack, and Practice is $399`
@@ -348,7 +348,7 @@ NEW:
 
 Also add two links near the bottom of the advisor page, in the "what it does not do" or CTA area:
 ```html
-<p>See <a href="/fits-your-stack/">how Keepance fits your current stack</a> and <a href="/local-model-setup/">how to run it with zero data egress using Ollama</a> — the only path that cleanly clears Reg S-P service-provider questions.</p>
+<p>See <a href="/fits-your-stack/">how Advisor Prep Hero fits your current stack</a> and <a href="/local-model-setup/">how to run it with zero data egress using Ollama</a> — the only path that cleanly clears Reg S-P service-provider questions.</p>
 ```
 
 - [ ] **Step 3: Verify no "in development" / "not shipped" language remains**
@@ -579,12 +579,12 @@ NEW: aligns with ABA Opinion 512's confidentiality analysis
 
 ```
 OLD: Local-first eliminates the AI-transmission risk
-NEW: Local-first means Keepance's servers are never in the path. With a cloud AI key, your prompts go to that provider — which is a Section 7216 disclosure; that is exactly why the pack includes the Section 7216 consent template. A local Ollama model is the only path that removes the disclosure entirely.
+NEW: Local-first means Advisor Prep Hero's servers are never in the path. With a cloud AI key, your prompts go to that provider — which is a Section 7216 disclosure; that is exactly why the pack includes the Section 7216 consent template. A local Ollama model is the only path that removes the disclosure entirely.
 ```
 
 ```
 OLD: simplifies all three [Section 6713 / 7216 / Safeguards]
-NEW: removes Keepance as a third-party recipient under Section 6713 and 7216; pair it with the Section 7216 consent template for cloud use. The Safeguards Rule's WISP, risk-assessment, and incident-response obligations are separate — we do not satisfy them for you, but the data-path audit log supports your documentation.
+NEW: removes Advisor Prep Hero as a third-party recipient under Section 6713 and 7216; pair it with the Section 7216 consent template for cloud use. The Safeguards Rule's WISP, risk-assessment, and incident-response obligations are separate — we do not satisfy them for you, but the data-path audit log supports your documentation.
 ```
 
 ```
@@ -706,7 +706,7 @@ it('/tour/ page does not use forbidden words or stale content', async () => {
   const tourHtml = await fs.readFile(path.join(websiteDir, 'tour/index.html'), 'utf-8');
 
   expect(tourHtml).not.toContain('compliant');
-  expect(tourHtml).not.toContain('Keepance ensures');
+  expect(tourHtml).not.toContain('Advisor Prep Hero ensures');
   expect(tourHtml).not.toContain('two templates');
   expect(tourHtml).not.toContain('tax-practice'); // dead URL
   // Should reflect real pack size
@@ -737,10 +737,10 @@ Replace with:
 - [ ] **Step 4: Remove "compliant" and "ensures" from the entire /tour/ page**
 
 ```bash
-grep -n "compliant\|ensures\|Keepance ensures" website/tour/index.html
+grep -n "compliant\|ensures\|Advisor Prep Hero ensures" website/tour/index.html
 ```
 
-For each match, rewrite to remove the overclaim. Replace with precise language about what Keepance produces vs what the professional decides.
+For each match, rewrite to remove the overclaim. Replace with precise language about what Advisor Prep Hero produces vs what the professional decides.
 
 - [ ] **Step 5: Fix dead link**
 

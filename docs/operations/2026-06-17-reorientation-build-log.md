@@ -1,7 +1,7 @@
-# Keepance — Reorientation Build Log (2026-06-17)
+# Advisor Prep Hero — Reorientation Build Log (2026-06-17)
 
 > **The complete, deep record of what happened in this session, for any future AI or human.**
-> A single Claude (Opus 4.8) session took Keepance from a fresh-eyes engineering review through a strategic master plan and then executed the entire "build → traction" reorientation (7 workstreams) autonomously, shipping desktop **v3.3.0** to users and redeploying keepance.com. This is the authoritative narrative + decision log + methodology + lessons. The concise version is `docs/strategy/2026-06-17-reorientation-execution-summary.md`; the strategy is `docs/strategy/2026-06-17-keepance-master-plan.md`; this is the deep one.
+> A single Claude (Opus 4.8) session took Advisor Prep Hero from a fresh-eyes engineering review through a strategic master plan and then executed the entire "build → traction" reorientation (7 workstreams) autonomously, shipping desktop **v3.3.0** to users and redeploying keepance.com. This is the authoritative narrative + decision log + methodology + lessons. The concise version is `docs/strategy/2026-06-17-reorientation-execution-summary.md`; the strategy is `docs/strategy/2026-06-17-keepance-master-plan.md`; this is the deep one.
 
 ---
 
@@ -143,7 +143,7 @@ For EVERY workstream, before merging: (1) re-ran `npm run typecheck` (0) + `npx 
 **Jameson's calls (not blocking):**
 - **GTM** is the real work now: pick the one litigation job-to-be-done, manufacture credibility (Ambrogi/LawSites, ABA TECHSHOW, a CLE), recruit 3–5 design-partner lawyers, hand-sell the first 10. The opt-in diagnostics + the demo-able trust surface are built to support exactly this.
 - **The kill-criterion window** (master plan §6) — set the fixed hand-selling window + the bar.
-- **The `projelli` checkout store** — keepance.com's Subscribe buttons point at the shared `projelli.lemonsqueezy.com` store; a lawyer sees "projelli" at checkout. Needs its own Keepance store (a money/vendor decision).
+- **The `projelli` checkout store** — keepance.com's Subscribe buttons point at the shared `projelli.lemonsqueezy.com` store; a lawyer sees "projelli" at checkout. Needs its own Advisor Prep Hero store (a money/vendor decision).
 
 **Deferred minor (mine, when there's slack):**
 - The dead `FirstRunWizard` (live onboarding is `GuidedOnboarding`; the App.tsx:116 comment is stale) — risky dead-code surgery, left out of the release deliberately.
@@ -164,4 +164,4 @@ For EVERY workstream, before merging: (1) re-ran `npm run typecheck` (0) + `npx 
 - The truth guard: `tests/unit/truth-reconciliation.guard.test.ts`
 - Persistent memory: `~/.claude/projects/-home-jameson/memory/project_keepance_evaluation_2026_06.md` (carries the decision + the resume state)
 
-*Compiled 2026-06-17 by the Keepance build session (Claude, Opus 4.8). Every claim here is grounded in the commits + the verification runs described.*
+*Compiled 2026-06-17 by the Advisor Prep Hero build session (Claude, Opus 4.8). Every claim here is grounded in the commits + the verification runs described.*

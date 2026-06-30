@@ -146,7 +146,7 @@ fn is_internal_service(service: &str) -> bool {
 fn validate_renderer_service_access(service: &str) -> Result<(), KeychainError> {
     if is_internal_service(service) {
         return Err(KeychainError::Denied(format!(
-            "service '{service}' is reserved for Keepance internal storage"
+            "service '{service}' is reserved for Advisor Prep Hero internal storage"
         )));
     }
     Ok(())

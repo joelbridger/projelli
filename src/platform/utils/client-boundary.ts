@@ -1,15 +1,15 @@
 /**
  * Client boundary detection for AI context.
  *
- * Keepance's confidentiality promise depends on one top-level folder = one
+ * Advisor Prep Hero's confidentiality promise depends on one top-level folder = one
  * client. These pure helpers answer two questions before each send:
  *
  *   1. Which top-level folders does the current AI context span?
  *   2. Does that set include more than one folder (a cross-client situation)?
  *
  * "Top-level folder" means the first path segment inside the workspace root.
- * For example, in a workspace rooted at /Users/jane/Keepance, the file
- *   /Users/jane/Keepance/Acme Corp/matter-1/discovery.md
+ * For example, in a workspace rooted at /Users/jane/Advisor Prep Hero, the file
+ *   /Users/jane/Advisor Prep Hero/Acme Corp/matter-1/discovery.md
  * belongs to the top-level folder "Acme Corp".
  *
  * Files that sit directly inside the workspace root (no subfolder at all)

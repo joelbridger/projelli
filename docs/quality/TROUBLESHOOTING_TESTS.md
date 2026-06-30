@@ -1,6 +1,6 @@
 # Troubleshooting failing tests
 
-> A field guide for when a Keepance test goes red: the three test layers
+> A field guide for when a Advisor Prep Hero test goes red: the three test layers
 > (Vitest, Playwright E2E, Rust), the failure modes that bite most often, and how
 > to diagnose each. Written for a developer (human or AI) staring at a red gate.
 > Commands + config references were checked against the repo on 2026-06-28. For

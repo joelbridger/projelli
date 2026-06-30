@@ -4,7 +4,7 @@
  * Solo/local mode is unchanged and accountless; this panel is shown only to a
  * firm customer (Settings -> Firm). It covers three paths:
  *   1. Sign in (email + password) -> tokens stored in the OS keychain
- *   2. "I just bought Keepance Firm" -> claim-org form (license key + new
+ *   2. "I just bought Advisor Prep Hero Firm" -> claim-org form (license key + new
  *      admin account) -> signed in automatically + activation pre-filled
  *   3. Activate a seat with the firm license key -> seat token stored + verified
  *      offline against the seat public key
@@ -41,7 +41,7 @@ export interface FirmSignInProps {
    * 'claim' → the "Create a firm" (claim-org) form.
    * 'signin' → the "Sign in" form (default if omitted).
    * Omitting the prop leaves the component in its normal interactive state
-   * where the user can switch between panels via the "Just bought Keepance"
+   * where the user can switch between panels via the "Just bought Advisor Prep Hero"
    * link. This keeps existing usage (no props) unchanged.
    */
   initialPanel?: Panel;

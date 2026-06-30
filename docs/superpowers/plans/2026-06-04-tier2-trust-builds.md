@@ -174,7 +174,7 @@ HTML pattern (add to tax page, consulting page, advisor page — after the templ
 
 ```html
 <section class="sample-gallery">
-  <h2>What a Keepance output actually looks like</h2>
+  <h2>What a Advisor Prep Hero output actually looks like</h2>
   <div class="sample-grid">
     <div class="sample-card">
       <img src="/samples/tax-research-memo-thumb.jpg" alt="Tax Research Memo sample output" loading="lazy">
@@ -221,10 +221,10 @@ Find the install instructions section. After "Download for [platform]" and befor
 
 ```html
 <div class="onboarding-note">
-  <strong>Never set up an API key before?</strong> It is a one-time, five-minute step. You create a free account with your AI provider (Anthropic, OpenAI, or Google), copy a key, and paste it into Keepance's Settings. A built-in "Test this key" button confirms it works. <a href="/api-key-setup-guide/">Full walkthrough with screenshots →</a>
+  <strong>Never set up an API key before?</strong> It is a one-time, five-minute step. You create a free account with your AI provider (Anthropic, OpenAI, or Google), copy a key, and paste it into Advisor Prep Hero's Settings. A built-in "Test this key" button confirms it works. <a href="/api-key-setup-guide/">Full walkthrough with screenshots →</a>
 </div>
 <div class="onboarding-note onboarding-note--ollama">
-  <strong>Want to skip the API key entirely?</strong> Run Keepance with a local Ollama model — nothing leaves your machine, no account required, no API cost. <a href="/local-model-setup/">Set up Ollama in 10 minutes →</a>
+  <strong>Want to skip the API key entirely?</strong> Run Advisor Prep Hero with a local Ollama model — nothing leaves your machine, no account required, no API cost. <a href="/local-model-setup/">Set up Ollama in 10 minutes →</a>
 </div>
 ```
 
@@ -234,7 +234,7 @@ Add to the CTA section of each sensitive vertical page:
 
 ```html
 <div class="compliance-callout">
-  <strong>Zero-egress option:</strong> Run Keepance with a local Ollama model and nothing — no client data, no prompts — leaves your machine. No API account. No third-party transmission to diligence. <a href="/local-model-setup/">Set it up in 10 minutes →</a>
+  <strong>Zero-egress option:</strong> Run Advisor Prep Hero with a local Ollama model and nothing — no client data, no prompts — leaves your machine. No API account. No third-party transmission to diligence. <a href="/local-model-setup/">Set it up in 10 minutes →</a>
 </div>
 ```
 
@@ -273,11 +273,11 @@ git commit -m "feat(site/t2-3): plain-English API-key reassurance and Ollama lea
 **Raw material:** `/ai-workspace-privacy/index.html` — most of the honest content is already there; the one-pagers repackage it as "here's what I use / here's how my data is handled" artifacts the user hands to their gatekeeper.
 
 **Each one-pager contains:**
-1. One paragraph: what Keepance is (local-first AI, files stay on the machine, no Keepance server in the path)
+1. One paragraph: what Advisor Prep Hero is (local-first AI, files stay on the machine, no Advisor Prep Hero server in the path)
 2. One paragraph: the data path for cloud keys vs local models (honest, precise)
 3. The specific regulatory hook for that vertical (Heppner for legal, §7216 for tax, NDA clause for consulting, Reg S-P for advisor)
 4. The audit log (every AI action is logged, available as a per-client export)
-5. Contact and version line: "Prepared by [Firm name] · Keepance v2.2 · [date]" — the firm-name field is a `<span contenteditable>` the user types into before printing/saving.
+5. Contact and version line: "Prepared by [Firm name] · Advisor Prep Hero v2.2 · [date]" — the firm-name field is a `<span contenteditable>` the user types into before printing/saving.
 
 - [ ] **Step 1: Build the consultant client-data statement (most general, fastest to build)**
 
@@ -288,7 +288,7 @@ Create `website/one-pagers/consulting-client-data-statement.html`:
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>How I Handle Client Data with AI — Keepance</title>
+  <title>How I Handle Client Data with AI — Advisor Prep Hero</title>
   <style>
     body { font-family: Georgia, serif; max-width: 680px; margin: 60px auto; line-height: 1.7; color: #111; }
     h1 { font-size: 1.4rem; border-bottom: 1px solid #ccc; padding-bottom: 8px; }
@@ -303,22 +303,22 @@ Create `website/one-pagers/consulting-client-data-statement.html`:
   <p><strong>Prepared by:</strong> <span contenteditable="true" class="firm-field">[Your firm name]</span></p>
 
   <h2>The tool I use</h2>
-  <p>I use Keepance, a local-first AI workspace. Every conversation with an AI model saves as a plain text file in a folder on my computer — not in a cloud database, not on Keepance's servers.</p>
+  <p>I use Advisor Prep Hero, a local-first AI workspace. Every conversation with an AI model saves as a plain text file in a folder on my computer — not in a cloud database, not on Advisor Prep Hero's servers.</p>
 
   <h2>Where your data goes</h2>
   <p><strong>Local model (preferred for sensitive work):</strong> When I run a local AI model (Ollama), your data goes nowhere. The AI runs on my machine. Nothing is transmitted to any server.</p>
-  <p><strong>Cloud API key:</strong> When I use a cloud provider (Anthropic, OpenAI, or Google), my prompts go directly from my machine to that provider under my own API key. Keepance's servers are never in the path. Your data is handled under that provider's enterprise/API terms, not their consumer product terms.</p>
+  <p><strong>Cloud API key:</strong> When I use a cloud provider (Anthropic, OpenAI, or Google), my prompts go directly from my machine to that provider under my own API key. Advisor Prep Hero's servers are never in the path. Your data is handled under that provider's enterprise/API terms, not their consumer product terms.</p>
 
   <h2>How your matter is isolated</h2>
   <p>Each client matter has its own folder. When I start an AI session, it is scoped to that folder — the AI can only see files I have explicitly included for that matter. There is no cross-contamination between client matters.</p>
 
   <h2>The audit log</h2>
-  <p>Every AI action I take in Keepance is logged: which model, which files, what was produced, when. I can export a per-matter AI activity log on request.</p>
+  <p>Every AI action I take in Advisor Prep Hero is logged: which model, which files, what was produced, when. I can export a per-matter AI activity log on request.</p>
 
   <h2>What this means for your NDA</h2>
   <p>If your agreement includes a clause prohibiting uploading work product to AI services, the local model path satisfies it — nothing leaves my machine. If I use a cloud key, your data reaches that provider's API. I will confirm which path I am using for any sensitive matter on request.</p>
 
-  <p style="margin-top:3em;font-size:0.85rem;color:#666;">Keepance v2.2 · <span contenteditable="true" class="firm-field">[Date]</span> · <a href="https://keepance.com/ai-workspace-privacy/">Full data-path explanation at keepance.com</a></p>
+  <p style="margin-top:3em;font-size:0.85rem;color:#666;">Advisor Prep Hero v2.2 · <span contenteditable="true" class="firm-field">[Date]</span> · <a href="https://keepance.com/ai-workspace-privacy/">Full data-path explanation at keepance.com</a></p>
 
   <div class="no-print">
     <strong>To use this:</strong> Fill in your firm name and date above, then print or save as PDF (File → Print → Save as PDF in your browser). You can give this to a client's GC or procurement contact before engagement.
@@ -330,11 +330,11 @@ Create `website/one-pagers/consulting-client-data-statement.html`:
 - [ ] **Step 2: Build the advisor CCO one-pager (highest priority — the review called it out explicitly)**
 
 Create `website/one-pagers/advisor-cco-reg-sp.html` — same structure but with:
-- Title: "How Keepance Fits Our Reg S-P Program"
-- Reg S-P framing: explain how Keepance's architecture relates to the service-provider definition (no Keepance server = no Keepance vendor to diligence); with Ollama, no service provider at all
+- Title: "How Advisor Prep Hero Fits Our Reg S-P Program"
+- Reg S-P framing: explain how Advisor Prep Hero's architecture relates to the service-provider definition (no Advisor Prep Hero server = no Advisor Prep Hero vendor to diligence); with Ollama, no service provider at all
 - Audit log section: per-client AI activity log as part of books-and-records
-- Section 204-2 retention note: every Keepance output is a plain file the advisor retains under their existing retention schedule
-- Reg BI note: Keepance is a drafting tool; suitability determinations are advisor judgments
+- Section 204-2 retention note: every Advisor Prep Hero output is a plain file the advisor retains under their existing retention schedule
+- Reg BI note: Advisor Prep Hero is a drafting tool; suitability determinations are advisor judgments
 
 - [ ] **Step 3: Build legal and tax one-pagers**
 
@@ -508,8 +508,8 @@ Add to consulting and legal vertical pages:
 ```html
 <div class="isolation-callout">
   <h3>Per-client isolation — visible in the app</h3>
-  <img src="/images/cross-client-warning.png" alt="Keepance cross-client isolation warning" style="max-width:400px;border:1px solid #ddd;border-radius:8px;">
-  <p>When you switch to a file outside the active client folder, Keepance warns you before any AI session can see it. Every AI session is scoped to the folder you set — Client A's documents are not visible in Client B's session unless you explicitly include them.</p>
+  <img src="/images/cross-client-warning.png" alt="Advisor Prep Hero cross-client isolation warning" style="max-width:400px;border:1px solid #ddd;border-radius:8px;">
+  <p>When you switch to a file outside the active client folder, Advisor Prep Hero warns you before any AI session can see it. Every AI session is scoped to the folder you set — Client A's documents are not visible in Client B's session unless you explicitly include them.</p>
   <p>You can export a per-client AI activity log from the audit log (Settings → Activity) for engagement files or compliance documentation.</p>
 </div>
 ```

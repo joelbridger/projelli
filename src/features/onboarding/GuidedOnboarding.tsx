@@ -106,7 +106,7 @@ export interface GuidedOnboardingProps {
    */
   onSaveKey: (provider: KeyProvider, key: string) => void | Promise<void>;
   /**
-   * Called when the user clicks "Open Keepance" on the Done step, or when they
+   * Called when the user clicks "Open Advisor Prep Hero" on the Done step, or when they
    * skip the entire flow.  opts.writeSamples signals whether sample files
    * should be written (the caller owns the workspace handle).
    */
@@ -322,7 +322,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
 
       <ul style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 32, listStyle: 'none', padding: 0 }}>
         {[
-          { title: 'Your files never leave your computer', body: 'Documents and client work stay local. No cloud upload, no Keepance content servers.' },
+          { title: 'Your files never leave your computer', body: 'Documents and client work stay local. No cloud upload, no Advisor Prep Hero content servers.' },
           { title: 'You own your AI connection', body: 'You connect your own AI account. Your work goes straight from your machine to your provider.' },
           { title: 'Every answer from your files is cited', body: 'Ask shows exactly which document each file-based claim came from — and always marks what is general guidance versus from your files.' },
         ].map(({ title, body }) => (
@@ -495,18 +495,18 @@ const WORKSPACE_CHOICES: WorkspaceChoice[] = [
     id: 'documents',
     label: 'My Documents',
     badge: 'Recommended',
-    path: '~/Documents/Keepance',
+    path: '~/Documents/Advisor Prep Hero',
   },
   {
     id: 'dropbox',
     label: 'Dropbox',
-    path: '~/Dropbox/Keepance',
+    path: '~/Dropbox/Advisor Prep Hero',
     note: CLOUD_SYNC_NOTE,
   },
   {
     id: 'icloud',
     label: 'iCloud Drive',
-    path: '~/Library/Mobile Documents/com~apple~CloudDocs/Keepance',
+    path: '~/Library/Mobile Documents/com~apple~CloudDocs/Advisor Prep Hero',
     note: CLOUD_SYNC_NOTE,
   },
 ];
@@ -518,7 +518,7 @@ function WorkspaceStep({ onBack, onNext }: { onBack: () => void; onNext: () => v
     <div data-testid="onboarding-step-workspace">
       <Heading
         title="Your workspace is a folder on your computer"
-        subtitle="Keepance stores everything as plain files in a folder you choose. You own them."
+        subtitle="Advisor Prep Hero stores everything as plain files in a folder you choose. You own them."
       />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
@@ -583,7 +583,7 @@ function WorkspaceStep({ onBack, onNext }: { onBack: () => void; onNext: () => v
       })()}
 
       <p style={{ fontSize: 12, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.5, marginBottom: 24 }}>
-        You can change this later in Settings. Keepance never uploads your files. Note that cloud-synced folders (Dropbox, iCloud) will still sync them through those apps.
+        You can change this later in Settings. Advisor Prep Hero never uploads your files. Note that cloud-synced folders (Dropbox, iCloud) will still sync them through those apps.
       </p>
 
       <StepFooter onBack={onBack} onNext={onNext} nextTestId="onboarding-workspace-next" />
@@ -615,13 +615,13 @@ function TrustStep({ onBack, onNext }: { onBack: () => void; onNext: () => void 
           border: '1.5px solid hsl(214.3 31.8% 85%)', borderRadius: 10,
         }}
       >
-        {`Keepance runs on your computer. In Local-only mode, nothing about your ${entityLabel.other} leaves this device, not to me and not to any AI provider. Using any tool on client work can still be governed by your firm's policies, so here's exactly what Keepance does with your data. Read it, and hand it to your firm if you need to.`}
+        {`Advisor Prep Hero runs on your computer. In Local-only mode, nothing about your ${entityLabel.other} leaves this device, not to me and not to any AI provider. Using any tool on client work can still be governed by your firm's policies, so here's exactly what Advisor Prep Hero does with your data. Read it, and hand it to your firm if you need to.`}
       </p>
 
       <ul style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28, listStyle: 'none', padding: 0 }}>
         {([
           'Your files and notes stay on your computer.',
-          'When you use your own AI account, your question goes straight from your machine to your provider with your key. Keepance is not in the middle.',
+          'When you use your own AI account, your question goes straight from your machine to your provider with your key. Advisor Prep Hero is not in the middle.',
           'The only thing that automatically touches our servers is a license check, never your files or questions. You can optionally turn on anonymous analytics (no files, no prompts) in Settings.',
         ] as const).map((bullet) => (
           <li key={bullet} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
@@ -775,8 +775,8 @@ function ConfidentialityChoiceStep({
   return (
     <div data-testid="onboarding-confidentiality-choice">
       <Heading
-        title="How should Keepance handle your AI?"
-        subtitle="Keepance indexes and searches everything on your computer, with nothing leaving the machine. The one place your text can travel is when an AI writes an answer. Pick how you want that handled. You can change this anytime."
+        title="How should Advisor Prep Hero handle your AI?"
+        subtitle="Advisor Prep Hero indexes and searches everything on your computer, with nothing leaving the machine. The one place your text can travel is when an AI writes an answer. Pick how you want that handled. You can change this anytime."
       />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
@@ -889,7 +889,7 @@ function EmailStep({ tab, onTabChange, onBack, onAdvance }: EmailStepProps) {
     <div data-testid="onboarding-step-email">
       <Heading
         title="Connect your email"
-        subtitle="Keepance indexes your email locally so you can search and cite it. Nothing is uploaded."
+        subtitle="Advisor Prep Hero indexes your email locally so you can search and cite it. Nothing is uploaded."
       />
 
       {/* Provider tabs */}
@@ -925,7 +925,7 @@ function EmailStep({ tab, onTabChange, onBack, onAdvance }: EmailStepProps) {
         {tab === 'imap' && <MailImapConnect />}
       </div>
 
-      {/* Connector-access: honest "we read your exports" note. Keepance reads
+      {/* Connector-access: honest "we read your exports" note. Advisor Prep Hero reads
           the plan reports / meeting notes other tools export into your files,
           email, or cloud folders — it is NOT an integration with those tools.
           Wording verified against the 2026-06-29 connector-access strategy doc's
@@ -941,9 +941,9 @@ function EmailStep({ tab, onTabChange, onBack, onAdvance }: EmailStepProps) {
         <FileDown size={16} strokeWidth={1.75} style={{ marginTop: 2, flex: 'none', color: 'var(--kp-accent)' }} aria-hidden="true" />
         <div style={{ fontSize: 13, lineHeight: 1.5, color: 'hsl(215.4 16.3% 36%)' }}>
           <strong style={{ color: 'var(--kp-navy)', fontWeight: 600 }}>Already use RightCapital or Jump?</strong>{' '}
-          Keepance also reads the plan reports and meeting notes you export or save from tools like
+          Advisor Prep Hero also reads the plan reports and meeting notes you export or save from tools like
           RightCapital and Jump, once they land in your files, email, or cloud folders. It files each
-          to the right client and shows when it was exported. Keepance reads your exported files; it
+          to the right client and shows when it was exported. Advisor Prep Hero reads your exported files; it
           is not an integration with those tools.
         </div>
       </div>
@@ -1109,7 +1109,7 @@ function FirmStep({ onBack, onAdvance }: FirmStepProps) {
                 Create a firm
               </p>
               <p style={{ fontSize: 12, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.45, margin: 0 }}>
-                You're setting Keepance up for your practice or team. You'll claim the org and become the admin. Requires a Firm-plan license key.
+                You're setting Advisor Prep Hero up for your practice or team. You'll claim the org and become the admin. Requires a Firm-plan license key.
               </p>
             </button>
             {selectedOption === 'create' && (
@@ -1160,7 +1160,7 @@ function FirmStep({ onBack, onAdvance }: FirmStepProps) {
                 Join your firm
               </p>
               <p style={{ fontSize: 12, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.45, margin: 0 }}>
-                Your firm already uses Keepance. Sign in with your firm account or activate your seat with a license key.
+                Your firm already uses Advisor Prep Hero. Sign in with your firm account or activate your seat with a license key.
               </p>
             </button>
             {selectedOption === 'join' && (

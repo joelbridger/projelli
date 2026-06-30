@@ -651,7 +651,7 @@ impl EncryptedMailStore {
         Self::open_with_key(workspace_root, &key)
     }
 
-    /// Encrypt `plaintext` and write to `.keepance/mail/blobs/<sha256>.enc`
+    /// Encrypt `plaintext` and write to `.lantern/mail/blobs/<sha256>.enc`
     /// (relative to `workspace_root`). Returns the relative path.
     pub fn write_blob_with_key(
         &self,

@@ -58,7 +58,7 @@ fn read_docx_capped(path: &Path) -> Result<Vec<u8>, String> {
         .len();
     if len > MAX_DOCX_BYTES {
         return Err(format!(
-            "I could not open this document: it is {} MB, larger than the {} MB Keepance can safely load.",
+            "I could not open this document: it is {} MB, larger than the {} MB Advisor Prep Hero can safely load.",
             len / (1024 * 1024),
             MAX_DOCX_BYTES / (1024 * 1024),
         ));
@@ -373,7 +373,7 @@ pub async fn docx_save(path: String, document: Value) -> Result<(), String> {
 /// This is the helper task A4 (AI redlining) calls. Parameters:
 ///   * `kind` — `"insertion"` / `"deletion"` / `"insertParagraph"`.
 ///   * `author` — the author string stamped on the revision (defaults to
-///     `"Keepance AI"` when empty).
+///     `"Advisor Prep Hero AI"` when empty).
 ///   * `paragraph_index` — which paragraph (counting only paragraphs) to edit.
 ///   * `text` — the inserted text (for insertion / insertParagraph).
 ///   * `needle` — the existing text to mark deleted (for deletion).
@@ -424,7 +424,7 @@ pub async fn docx_author_revision(
 ///   * `edits` — a JSON array of `{ op, paragraphIndex, anchorText?, newText?,
 ///     reason? }` (see [`EditInput`]).
 ///   * `author` — the author string stamped on every revision (defaults to
-///     `"Keepance AI"` when empty).
+///     `"Advisor Prep Hero AI"` when empty).
 ///   * `date` — ISO-8601 timestamp; defaults to now (UTC) when empty.
 ///
 /// Anchors that can't be found are skipped and reported (not fatal); a malformed
@@ -722,7 +722,7 @@ mod tests {
         let authored = author_revision_core(
             json,
             "insertion",
-            "Keepance AI",
+            "Advisor Prep Hero AI",
             0,
             Some(" Authored by command layer."),
             None,
@@ -738,9 +738,9 @@ mod tests {
         // 4. re-open from disk and confirm originals + the new AI revision.
         let reparsed = parse_docx_bytes(&std::fs::read(&path).unwrap()).expect("reparse");
         let revs = reparsed.revisions();
-        // 2 originals (opposing counsel) + 1 new (Keepance AI) = 3.
+        // 2 originals (opposing counsel) + 1 new (Advisor Prep Hero AI) = 3.
         assert_eq!(revs.len(), 3, "expected originals + authored revision");
-        assert!(revs.iter().any(|(m, _, _)| m.author == "Keepance AI"));
+        assert!(revs.iter().any(|(m, _, _)| m.author == "Advisor Prep Hero AI"));
         assert!(revs.iter().any(|(m, _, _)| m.author == "Opposing Counsel"));
         // Comment preserved.
         assert!(reparsed.comments.contains_key("1"));
@@ -752,7 +752,7 @@ mod tests {
         let out = author_revision_core(
             json,
             "deletion",
-            "Keepance AI",
+            "Advisor Prep Hero AI",
             0,
             None,
             Some("resolve all "),
@@ -763,7 +763,7 @@ mod tests {
         assert!(doc
             .revisions()
             .iter()
-            .any(|(m, k, runs)| m.author == "Keepance AI"
+            .any(|(m, k, runs)| m.author == "Advisor Prep Hero AI"
                 && *k == keepance_docx::RevisionKind::Deletion
                 && runs.iter().any(|r| r.text.contains("resolve all"))));
     }
@@ -786,7 +786,7 @@ mod tests {
             { "op": "replace", "paragraphIndex": 0, "anchorText": "Company", "newText": "Vendor", "reason": "naming" },
             { "op": "delete", "paragraphIndex": 0, "anchorText": "for all losses", "reason": "scope" }
         ]);
-        let out = author_revisions_core(json, edits, "Keepance AI", "2026-06-09T00:00:00Z")
+        let out = author_revisions_core(json, edits, "Advisor Prep Hero AI", "2026-06-09T00:00:00Z")
             .expect("batch author");
         // Both edits applied.
         assert_eq!(out.results.len(), 2);
@@ -798,7 +798,7 @@ mod tests {
         let revs = doc.revisions();
         // replace = del+ins (2) + delete (1) = 3 revision elements.
         assert_eq!(revs.len(), 3);
-        assert!(revs.iter().all(|(m, _, _)| m.author == "Keepance AI"));
+        assert!(revs.iter().all(|(m, _, _)| m.author == "Advisor Prep Hero AI"));
         assert!(revs.iter().any(|(_, k, r)| *k == keepance_docx::RevisionKind::Insertion
             && r.iter().any(|x| x.text.contains("Vendor"))));
         assert!(revs.iter().any(|(_, k, r)| *k == keepance_docx::RevisionKind::Deletion
@@ -814,7 +814,7 @@ mod tests {
             { "op": "delete", "paragraphIndex": 0, "anchorText": "NONEXISTENT PHRASE" },
             { "op": "insert", "paragraphIndex": 0, "newText": " Appended.", "reason": "add" }
         ]);
-        let out = author_revisions_core(json, edits, "Keepance AI", "2026-06-09T00:00:00Z")
+        let out = author_revisions_core(json, edits, "Advisor Prep Hero AI", "2026-06-09T00:00:00Z")
             .expect("batch author");
         assert!(!out.results[0].applied);
         assert!(out.results[0].error.as_deref().unwrap().contains("not found"));
@@ -843,7 +843,7 @@ mod tests {
         let edits = serde_json::json!([
             { "op": "insert", "paragraphIndex": 0, "anchorText": "resolve all", "newText": " outstanding", "reason": "clarity" }
         ]);
-        let result = super::docx_author_revisions(json, edits, Some("Keepance AI".into()), None)
+        let result = super::docx_author_revisions(json, edits, Some("Advisor Prep Hero AI".into()), None)
             .await
             .expect("docx_author_revisions command");
         assert_eq!(result.results.len(), 1);
@@ -856,7 +856,7 @@ mod tests {
         let reopened = super::docx_open(path_str).await.expect("reopen");
         let doc = keepance_docx::document_from_value(reopened).unwrap();
         assert_eq!(doc.revisions().len(), 3, "2 originals + 1 AI insertion");
-        assert!(doc.revisions().iter().any(|(m, _, _)| m.author == "Keepance AI"));
+        assert!(doc.revisions().iter().any(|(m, _, _)| m.author == "Advisor Prep Hero AI"));
         assert!(doc.comments.contains_key("1"), "comment preserved");
     }
 
@@ -902,7 +902,7 @@ mod tests {
         let authored = super::docx_author_revision(
             json,
             "insertion".to_string(),
-            Some("Keepance AI".to_string()),
+            Some("Advisor Prep Hero AI".to_string()),
             0,
             Some(" Authored via async command.".to_string()),
             None,
@@ -921,7 +921,7 @@ mod tests {
         let doc = keepance_docx::document_from_value(reopened).unwrap();
         let revs = doc.revisions();
         assert_eq!(revs.len(), 3, "expected 2 originals + 1 authored");
-        assert!(revs.iter().any(|(m, _, _)| m.author == "Keepance AI"));
+        assert!(revs.iter().any(|(m, _, _)| m.author == "Advisor Prep Hero AI"));
         assert!(doc.comments.contains_key("1"), "comment preserved");
     }
 

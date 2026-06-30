@@ -1,5 +1,5 @@
 /**
- * LicenseSettings — UI for activating, viewing, and deactivating a Keepance license.
+ * LicenseSettings — UI for activating, viewing, and deactivating a Advisor Prep Hero license.
  *
  * Renders three states:
  *   1. Not activated: shows a license key input and an "Activate" button
@@ -239,7 +239,7 @@ export function LicenseSettings() {
               </a>
             </Button>
             {/* Solo license recovery, no account. A returning buyer who
-                reinstalled, or moved to a new machine, restores Keepance by
+                reinstalled, or moved to a new machine, restores Advisor Prep Hero by
                 re-entering the license code they kept. This drives the same
                 activate() path (POSTs license_key + machine_id to the validator,
                 no login), so recovery is local-first and account-free. */}

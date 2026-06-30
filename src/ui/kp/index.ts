@@ -1,4 +1,4 @@
-// Keepance component library (the "kp" design-system layer).
+// Advisor Prep Hero component library (the "kp" design-system layer).
 // Surfaces import from here; the look lives in src/styles/globals.css @layer components.
 // Spec + rationale: docs/design/COMPONENT-LIBRARY.md.
 

@@ -75,7 +75,7 @@ export function resolveTemplateModel(
 /**
  * Discriminated union for the result of resolveWorkflowProvider.
  *
- *   'keepance-local'   — run on the embedded Keepance Local AI (on-device,
+ *   'keepance-local'   — run on the embedded Advisor Prep Hero Local AI (on-device,
  *                        downloaded + ready). Preferred local engine in private
  *                        mode — needs no separate Ollama daemon.
  *   'ollama'           — run locally on Ollama (reachable, confirmed by caller)
@@ -119,7 +119,7 @@ export interface ResolveWorkflowProviderInput {
    */
   installedOllamaModels: string[];
   /**
-   * F-503 — true when the embedded Keepance Local AI model is downloaded and
+   * F-503 — true when the embedded Advisor Prep Hero Local AI model is downloaded and
    * READY (caller probes localLlmModelStatus()). In local-only mode this on-
    * device engine is preferred over Ollama — it needs no separate daemon, so a
    * machine with the embedded model but no Ollama still runs private workflows.
@@ -166,7 +166,7 @@ export function resolveWorkflowProvider(
   // full stop. NEVER 'cloud' and NEVER 'mock' in this mode — the mode is a
   // confidentiality promise, not a preference.
   //
-  // WHICH local engine: the embedded Keepance Local AI is preferred when it is
+  // WHICH local engine: the embedded Advisor Prep Hero Local AI is preferred when it is
   // downloaded + ready (F-503) — it needs no separate daemon, so a machine with
   // the embedded model but no Ollama still runs private workflows. This mirrors
   // how Ask / Chat / Client Map already resolve the local provider. Only when no

@@ -1,10 +1,10 @@
-# Keepance onboarding — live-HTML prototype
+# Advisor Prep Hero onboarding — live-HTML prototype
 
-A clickable, **vector-crisp** animated first-run onboarding for Keepance, built as
+A clickable, **vector-crisp** animated first-run onboarding for Advisor Prep Hero, built as
 standalone HTML scenes (no video, no build toolchain, no React). This is the **current,
 canonical** onboarding prototype — it supersedes the older attempts noted at the bottom.
 
-**Status:** design prototype / reference. NOT yet integrated into the Keepance app.
+**Status:** design prototype / reference. NOT yet integrated into the Advisor Prep Hero app.
 It exists to (a) lock the look, copy, and flow, and (b) be a reference other people
 (and other Claude instances) can open and draw on for inspiration.
 
@@ -79,7 +79,7 @@ python3 build_live.py        # reads ./assets, writes a complete servable site t
 3. **advisors** — who it's for (RIAs, fee-only, wealth managers, solo/small firm)
 4. **ecosystem** — fits into your stack; 8 real partner logos; "reads across all of it"
 5. **teach1** — AI is new, not scary; the only question is where the data goes
-6. **teach2** — two safe ways to power Keepance
+6. **teach2** — two safe ways to power Advisor Prep Hero
 7. **teach3** — Way 1: connect a secure AI provider (BYOK)
 8. **teach4** — Way 2: keep the AI on your computer (local model)
 9. **choose** — pick what fits (provider / local / decide later)
@@ -92,7 +92,7 @@ python3 build_live.py        # reads ./assets, writes a complete servable site t
 - **No em dashes** in any user-facing copy. (Code/comments are fine.)
 - **Never claim "compliant" / "guaranteed."** State the mechanism precisely: a local model
   (data never leaves the machine) vs. bring-your-own cloud key (goes direct to the provider,
-  never through Keepance).
+  never through Advisor Prep Hero).
 - Avoid the banned marketing words: leverage, delve, seamless, transform, empower, elevate,
   unlock.
 - **Light theme only.** Brand hex: navy `#0A2540`, blue `#5DC6FF`, pink `#FF3CE8`. Font: Sora.

@@ -2,7 +2,7 @@
 //
 // Turns a plain-English instruction ("tighten the indemnity clause", "make this
 // more formal", "shorten by 20%") into a set of tracked changes authored by
-// "Keepance AI" against the open Word document. This module is the pure,
+// "Advisor Prep Hero AI" against the open Word document. This module is the pure,
 // testable middle: it
 //   1. extracts the document text WITH explicit paragraph indices (and the
 //      selected range, if any) — building the prompt,
@@ -13,7 +13,7 @@
 //
 // CONFIDENTIALITY: the document text goes to the user's OWN provider via their
 // OWN key (BYOK), DIRECTLY — exactly like the chat. Nothing here routes through
-// a Keepance server. (A later task adds a visible egress indicator; this code
+// a Advisor Prep Hero server. (A later task adds a visible egress indicator; this code
 // must never contradict "direct to the user's provider".)
 //
 // ANCHORING CONTRACT (why we feed plain-run text): the engine anchors edits

@@ -29,7 +29,7 @@ import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
-import { KeepanceLocalProvider } from '@/platform/providers/KeepanceLocalProvider';
+import { AppLocalProvider } from '@/platform/providers/AppLocalProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
 import {
   effectiveChatProvider,
@@ -98,7 +98,7 @@ import { EV_TRASH_CHANGED } from '@/config/identity';
 export interface UseChatSendingDeps {
   // Props forwarded from AIChatViewer.
   chatData: AIChatFile;
-  /** Whether the embedded Keepance Local AI model is ready — so a chat with no
+  /** Whether the embedded Advisor Prep Hero Local AI model is ready — so a chat with no
    *  saved provider resolves to 'keepance-local' (on-device) instead of a cloud
    *  fallback. Keeps the send path in agreement with the egress badge. */
   localAvailability: LocalModelAvailability;
@@ -215,11 +215,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
     // provider before the main send guard runs. In Local-only mode, force the
     // local model so compression can't leak to the cloud.
     if (isLocalOnlyMode()) {
-      // Use the chat's ACTUAL local engine for compression so a Keepance Local
+      // Use the chat's ACTUAL local engine for compression so a Advisor Prep Hero Local
       // AI chat isn't silently rerouted to the user's Ollama daemon (which may
       // not even be running). Both stay fully on-device.
       return chatProvider === 'keepance-local'
-        ? new KeepanceLocalProvider({})
+        ? new AppLocalProvider({})
         : new OllamaProvider({});
     }
     // Personal-install choice gate (Task 1.3 fix): compression is cloud generation;
@@ -996,7 +996,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
                 ) {
                   return {
                     content:
-                      'This file is recognized as an exported report from an outside tool (for example RightCapital or Jump). Keepance needs your one-time confirmation before exported reports are used with AI. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy, or ask about it in the Ask tab where you will be prompted. The file content was not read.',
+                      'This file is recognized as an exported report from an outside tool (for example RightCapital or Jump). Advisor Prep Hero needs your one-time confirmation before exported reports are used with AI. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy, or ask about it in the Ask tab where you will be prompted. The file content was not read.',
                     path: relativePath,
                     withheld: true,
                   };
@@ -1304,11 +1304,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
               break;
             }
             case 'keepance-local': {
-              // Embedded llama.cpp engine ("Keepance Local AI"). No API key, $0,
+              // Embedded llama.cpp engine ("Advisor Prep Hero Local AI"). No API key, $0,
               // fully on-device. Like Ollama it doesn't support file-access tool
               // calling, so no tools are registered; the non-tool streaming path
               // handles it and the egress indicator stays "nothing leaves".
-              provider = new KeepanceLocalProvider({
+              provider = new AppLocalProvider({
                 ...(chatModel ? { model: chatModel } : {}),
                 ...rulesOpt,
               });
@@ -1409,7 +1409,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
         const hasWorkspace = hasWorkspaceForTools;
         const workspaceInstructions = hasWorkspace
-          ? `You are running inside Keepance, a local-first workspace app. The user's active workspace folder is "${rootPath}". You have direct access to this workspace via tools: read_file, write_file, create_folder, move_file, delete_file, list_files, search_files. When the user asks you to create, edit, organize, or look at files, USE THESE TOOLS directly — do not refuse, do not ask the user to create the file themselves, and do not pretend you can't access files. You CAN. All file paths should be relative to the workspace root. When creating .md files (documentation, notes, plans, etc.), just write them directly using write_file. After creating or modifying files, briefly confirm what you did.\n\n`
+          ? `You are running inside Advisor Prep Hero, a local-first workspace app. The user's active workspace folder is "${rootPath}". You have direct access to this workspace via tools: read_file, write_file, create_folder, move_file, delete_file, list_files, search_files. When the user asks you to create, edit, organize, or look at files, USE THESE TOOLS directly — do not refuse, do not ask the user to create the file themselves, and do not pretend you can't access files. You CAN. All file paths should be relative to the workspace root. When creating .md files (documentation, notes, plans, etc.), just write them directly using write_file. After creating or modifying files, briefly confirm what you did.\n\n`
           : '';
 
         const baseRole = hasWorkspace

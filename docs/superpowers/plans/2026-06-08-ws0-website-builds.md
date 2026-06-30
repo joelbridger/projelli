@@ -23,7 +23,7 @@
 
 ## Source copy (transcribe, don't reinvent)
 
-- Per-vertical comparison tables + intros + "where the others win" + "why X adds Keepance anyway": `docs/strategy/2026-06-06-competitive-build-handoff.md` §1A (Legal), §1B (Tax), §1C (Consulting), §1D (Advisor).
+- Per-vertical comparison tables + intros + "where the others win" + "why X adds Advisor Prep Hero anyway": `docs/strategy/2026-06-06-competitive-build-handoff.md` §1A (Legal), §1B (Tax), §1C (Consulting), §1D (Advisor).
 - `/vs/clio-duo` full page: build-handoff §2B (drafted end-to-end).
 - `/vs/` hub section + per-incumbent beats (cocounsel/jump/intuit-assist/gamma/copilot): build-handoff §2 (hub) + the backlog table.
 - Email folding (every table gets an email row; `/vs/copilot` gets an email lead row): `2026-06-08-competitive-build-refresh.md` §1.
@@ -83,11 +83,11 @@ describe('T1-D — homepage pricing card reflects actual template counts', () =>
 
 **File:** `website/consulting/index.html:621-622`
 
-- [ ] **Step 1.** Replace the overclaiming heading/body. The true claim is about the Keepance server, not a blanket "nothing uploaded" (a cloud key still sends the prompt to the provider). Example precise rewrite:
+- [ ] **Step 1.** Replace the overclaiming heading/body. The true claim is about the Advisor Prep Hero server, not a blanket "nothing uploaded" (a cloud key still sends the prompt to the provider). Example precise rewrite:
 
 ```html
-<h3>No Keepance server in the path</h3>
-<p>When you run a workflow, the request goes from your machine straight to the AI provider you chose. No Keepance server sees it. Run a local model and nothing leaves your machine at all; use a cloud key and the prompt still goes to that provider, never to us.</p>
+<h3>No Advisor Prep Hero server in the path</h3>
+<p>When you run a workflow, the request goes from your machine straight to the AI provider you chose. No Advisor Prep Hero server sees it. Run a local model and nothing leaves your machine at all; use a cloud key and the prompt still goes to that provider, never to us.</p>
 ```
 
 ### Task A0.4: Add the pricing lint guard, verify, commit
@@ -104,7 +104,7 @@ git commit -m "fix(site): canonical pricing sweep + real template counts + consu
 
 - Sweep stale \$499 one-time -> \$499/yr across vs/ + blog + docs (kept legit historical refs)
 - Real template counts 18/13/9/7 on homepage + vertical pages; lint self-computes from src
-- Consulting 'no upload' -> precise Keepance-server framing (local-vs-cloud)
+- Consulting 'no upload' -> precise Advisor Prep Hero-server framing (local-vs-cloud)
 - Add website-wide pricing-collocation lint guard"
 ```
 
@@ -118,7 +118,7 @@ git commit -m "fix(site): canonical pricing sweep + real template counts + consu
 
 **Files:** `website/{legal,tax,consulting,financial-advisors}/index.html`
 
-- [ ] For each vertical, insert a "How Keepance compares to the AI you already have" section (after the templates/pack section, before the final CTA). Transcribe the table + intro + "where the others win (honest)" + "why X adds Keepance anyway" from build-handoff §1A/§1B/§1C/§1D. **Add the email row** (refresh §1): Keepance = "Your email, imported and searchable on your machine"; incumbent = how it handles mail (most process it in their cloud). Keep the "with a local model" qualifier verbatim on any "nothing leaves" cell. Footnote every table: "Competitor pricing and features are approximate, as of 2026; check each vendor for current details."
+- [ ] For each vertical, insert a "How Advisor Prep Hero compares to the AI you already have" section (after the templates/pack section, before the final CTA). Transcribe the table + intro + "where the others win (honest)" + "why X adds Advisor Prep Hero anyway" from build-handoff §1A/§1B/§1C/§1D. **Add the email row** (refresh §1): Advisor Prep Hero = "Your email, imported and searchable on your machine"; incumbent = how it handles mail (most process it in their cloud). Keep the "with a local model" qualifier verbatim on any "nothing leaves" cell. Footnote every table: "Competitor pricing and features are approximate, as of 2026; check each vendor for current details."
 - [ ] Reuse the existing comparison-table / `.vs-card` markup pattern from `website/vs/chatgpt.html`. Light theme, no em dashes.
 - [ ] Verify: `npx vitest run tests/unit/website-content-lint.test.ts` stays green; no banned words; canonical tag present on each page (already there).
 
@@ -126,8 +126,8 @@ git commit -m "fix(site): canonical pricing sweep + real template counts + consu
 
 **Files (create):** `website/vs/{copilot,clio-duo,cocounsel,jump,intuit-assist,gamma}.html`. **Clone source:** `website/vs/chatgpt.html` (read it first for nav + `kp-footer` + verdict/CTA structure + inline-hardcoded canonical pricing).
 
-- [ ] **copilot.html (build FIRST, most weight, net-new copy):** email contrast is the LEAD row (Copilot reads your Outlook in Microsoft's cloud; Keepance imports + searches it locally). Cross-vertical framing. Honest "where Copilot wins" (inside Office, generates real PPTX, no training, already paid for).
-- [ ] **clio-duo.html:** transcribe build-handoff §2B end-to-end (H1, intro, "what Clio Duo is genuinely good at", "where Keepance is different", 6-row table, "when to pick Clio Duo instead", "when Keepance is the better fit", "the legal context" with the Heppner citation + source link + "informational, not legal advice", pricing + CTA). Add the email row.
+- [ ] **copilot.html (build FIRST, most weight, net-new copy):** email contrast is the LEAD row (Copilot reads your Outlook in Microsoft's cloud; Advisor Prep Hero imports + searches it locally). Cross-vertical framing. Honest "where Copilot wins" (inside Office, generates real PPTX, no training, already paid for).
+- [ ] **clio-duo.html:** transcribe build-handoff §2B end-to-end (H1, intro, "what Clio Duo is genuinely good at", "where Advisor Prep Hero is different", 6-row table, "when to pick Clio Duo instead", "when Advisor Prep Hero is the better fit", "the legal context" with the Heppner citation + source link + "informational, not legal advice", pricing + CTA). Add the email row.
 - [ ] **cocounsel / jump / intuit-assist / gamma:** build from the Clio Duo structure, using the per-incumbent beats + where-they-win + wedge + email row from build-handoff §2 and the landscape doc. Each: honest "where they win", the local/zero-egress wedge, email row, approximate-pricing-band footnote + outbound link, light theme, no em dashes.
 - [ ] Set `<title>` + meta description + `<link rel="canonical">` per site convention on each (e.g. clio-duo title/meta from build-handoff §2B).
 - [ ] **Add all six to `TARGETS`** in `tests/unit/website-content-lint.test.ts` (single serialized edit; coordinate with the phase owner).
@@ -151,7 +151,7 @@ git commit -m "fix(site): canonical pricing sweep + real template counts + consu
 
 **Files:** `website/one-pagers/{advisor-cco-reg-sp,consulting-client-data-statement,legal-malpractice-carrier,tax-7216-data-handling}.html`
 
-- [ ] Add a short competitive angle to each (how Keepance compares to the incumbent that vertical's gatekeeper will ask about), sourced from the WS3 security FAQ so they don't contradict. Add the missing Heppner source link on `legal-malpractice-carrier.html`.
+- [ ] Add a short competitive angle to each (how Advisor Prep Hero compares to the incumbent that vertical's gatekeeper will ask about), sourced from the WS3 security FAQ so they don't contradict. Add the missing Heppner source link on `legal-malpractice-carrier.html`.
 - [ ] Add the four one-pagers to `TARGETS`. Verify: lint green.
 
 ### Task B6: Phase-B verification + commit
@@ -167,6 +167,6 @@ git commit -m "fix(site): canonical pricing sweep + real template counts + consu
 - [ ] Every comparison states where the competitor genuinely wins; competitor privacy framed as "cloud + contractual no-training", never "they steal your data".
 - [ ] Every "nothing leaves your machine" claim co-occurs with "local model"; email rows say import/storage/search are local, AI-over-mail depends on model.
 - [ ] Every Heppner mention: evolving/leading case + "informational, not legal advice" + a resolving source link (verify the URL with WebFetch).
-- [ ] Pricing: Keepance = $49 one-time / $149/yr / $499/yr everywhere; competitor prices are approximate bands + footnote + link.
+- [ ] Pricing: Advisor Prep Hero = $49 one-time / $149/yr / $499/yr everywhere; competitor prices are approximate bands + footnote + link.
 - [ ] No em dashes, no banned words, no "It's not X, it's Y"; light theme; every new page has a canonical tag and is in `TARGETS`.
 - [ ] `npx vitest run tests/unit/website-content-lint.test.ts` green. Nothing deployed.

@@ -1,4 +1,4 @@
-# Keepance — UX-Fix Execution Plan (2026-06-14)
+# Advisor Prep Hero — UX-Fix Execution Plan (2026-06-14)
 
 > **STATUS: COMPLETE.** Waves A-F + the attachment backend all shipped, verified (typecheck 0,
 > full vitest 3190 passed, cargo 457 passed, live visual sweep clean), and merged to `keepance-3.0`.

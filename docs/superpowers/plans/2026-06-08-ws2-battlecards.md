@@ -43,12 +43,12 @@ Two files:
 
 ## Binding constraints (from master handoff)
 
-- Each card: what it is / trigger / where they win / Keepance wedge / one-liner / proof point / when to concede
+- Each card: what it is / trigger / where they win / Advisor Prep Hero wedge / one-liner / proof point / when to concede
 - Honesty: every card must include where they genuinely win and when to concede
 - Privacy framing: "cloud SaaS with a contractual no-training policy" never "they steal your data"
 - Local-vs-cloud precision: only local model = nothing leaves the machine; cloud BYOK still sends to provider
 - Regulatory levers framed as cautionary + "informational, not legal/compliance advice"
-- Pricing: Keepance $49 one-time / $149/yr / $499/yr; competitor prices as approximate bands "as of 2026"
+- Pricing: Advisor Prep Hero $49 one-time / $149/yr / $499/yr; competitor prices as approximate bands "as of 2026"
 - Voice: no em dashes, no AI-tell words, first-person where natural
 
 ---

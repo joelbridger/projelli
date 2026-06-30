@@ -81,7 +81,7 @@ export function ChatModelPicker({
     };
   }, []);
 
-  // Keepance Local AI (the embedded llama.cpp engine) is selectable only once
+  // Advisor Prep Hero Local AI (the embedded llama.cpp engine) is selectable only once
   // its GGUF model has been downloaded. Reuse the live status hook (which probes
   // on mount AND subscribes to the download-progress event) so the picker reacts
   // when the model becomes ready mid-session — e.g. the user finishes the
@@ -89,7 +89,7 @@ export function ChatModelPicker({
   // one-shot probe. Fails closed (not ready) off the desktop.
   const localAiReady = useLocalLlmModelStatus().state === 'ready';
 
-  // Providers the user can use, filtered by confidentiality mode. Keepance Local
+  // Providers the user can use, filtered by confidentiality mode. Advisor Prep Hero Local
   // AI is listed FIRST (the primary local option) once its model is ready;
   // Ollama is added after when its daemon is reachable. Both are local, so both
   // are allowed in local-only and cloud modes; de-duplicated against apiKeys.

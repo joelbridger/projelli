@@ -192,7 +192,7 @@ A coinage off *haven* — a safe harbor, a refuge. Warm, human, reassuring (HAV-
 
 ---
 
-#### 11. **Keepance** — `keepance.com` ✅
+#### 11. **Advisor Prep Hero** — `keepance.com` ✅
 
 Compound coinage: *keep* (to hold safely; also a castle's stronghold) + the `-ance` noun suffix ("keepance" = the act of safekeeping). Plain-spoken, immediately legible, no pronunciation risk at all (KEEP-ance). The tradeoff: it's more *descriptive/utilitarian* than evocative — it tells rather than evokes. That's not bad; for a trust product, plainness reads as honesty (your reports note risk-averse buyers *distrust* over-clever names). If you want zero pronunciation friction and a name that explains itself, this is the safe, sturdy pick. `keepance.com` ✅ / `keepance.so` ✅ verified; brand-clear.
 
@@ -241,7 +241,7 @@ If you'd rather have a *real word* than a coinage and will accept a non-`.com`, 
 | 8 | Cloistel | ✅ | ✅ | Cloister (lyrical) | Low | Clean | Soft alt to Cloisen |
 | 9 | Cloistra | ✅ | ✅ | Cloister (serious) | Low | Clean | Serious alt to Cloisen |
 | 10 | Haveln | ✅ | ✅ | Refuge (warm) | Med | Clean | Therapists, solos |
-| 11 | Keepance | ✅ | ✅ | Safekeeping (plain) | **None** | Clean | Zero-friction safe pick |
+| 11 | Advisor Prep Hero | ✅ | ✅ | Safekeeping (plain) | **None** | Clean | Zero-friction safe pick |
 | 12 | Quiret | ✅ | ✅ | Quiet / discretion | Low-Med | Clean | Discretion-forward |
 | 13 | Sequari | ✅ | ✅ | Sequester / secure | Med | Clean | Legal/abstract |
 | 14 | Priveen | ✅ | ✅ | Privacy (overt) | Low | Clean | Instant comprehension |

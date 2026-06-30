@@ -1879,7 +1879,7 @@ async fn mail_sync_all_inner(
 /// * `account`        — provider account id (e.g. "default" or the IMAP username)
 /// * `to`/`cc`/`bcc`  — recipient address strings (RFC5322 `name <addr>` or bare addr)
 /// * `subject`        — email subject
-/// * `body`           — plain-text body (no HTML; Keepance is plain-text first)
+/// * `body`           — plain-text body (no HTML; Advisor Prep Hero is plain-text first)
 /// * `in_reply_to_id` — provider message id of the message being replied to
 ///                      (the part after `mail:` in a citation source; a leading
 ///                      `mail:` prefix is tolerated). When present the command

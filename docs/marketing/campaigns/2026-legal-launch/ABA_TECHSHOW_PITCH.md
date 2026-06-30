@@ -45,7 +45,7 @@ The goal is not to make practitioners afraid of AI. It's the opposite. The attor
 
 ## Speaker bio (for submission form)
 
-Jameson Daines is a product designer who builds software tools for professionals who work with confidential client information. He is the developer of Keepance, a local-first AI workspace used by attorneys, CPAs, and consultants. He is not a lawyer, and the session will be co-presented with [attorney co-presenter name — recruit before submitting] who can speak to the practice-side experience firsthand.
+Jameson Daines is a product designer who builds software tools for professionals who work with confidential client information. He is the developer of Advisor Prep Hero, a local-first AI workspace used by attorneys, CPAs, and consultants. He is not a lawyer, and the session will be co-presented with [attorney co-presenter name — recruit before submitting] who can speak to the practice-side experience firsthand.
 
 ---
 
@@ -53,5 +53,5 @@ Jameson Daines is a product designer who builds software tools for professionals
 
 - **Co-presenter:** ABA TECHSHOW strongly prefers sessions with a practicing attorney as at least one speaker. Recruit your attorney advisor as co-presenter before submitting. This is also a good way to frame the advisor relationship: "I'd love to build this with you, and one output could be co-presenting at TECHSHOW."
 - **CLE credit:** The session needs a qualified attorney co-presenter for CLE accreditation to be possible.
-- **If rejected:** Submit the same talk as a 30-minute "lightning" session. ABA also has a startup showcase track that Keepance would fit.
+- **If rejected:** Submit the same talk as a 30-minute "lightning" session. ABA also has a startup showcase track that Advisor Prep Hero would fit.
 - **Alternative venues:** State bar technology CLEs (much easier to get accepted, smaller audience but warmer). ABA Solo, Small Firm and General Practice Division events. Clio Cloud Conference (less formal CLE, more product-positive).

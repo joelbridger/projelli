@@ -1,7 +1,7 @@
 # Reddit — r/consulting Post
 
 > **Subreddit:** r/consulting (330K+ members). Mix of MBB, boutique, independent, and aspiring
-> consultants. The independent/solo consultant segment (~15-20% of active posters) is Keepance's
+> consultants. The independent/solo consultant segment (~15-20% of active posters) is Advisor Prep Hero's
 > direct target.
 >
 > **Rules:** r/consulting allows genuine tool discussion and personal experience posts. Spam is
@@ -44,7 +44,7 @@ client work without having the data conversation.
 
 The short version of what it does: AI chat where every conversation saves as a real file on
 your hard drive. You bring your own Anthropic/OpenAI/Google API key. The API call goes from your
-machine directly to the provider. Keepance never sees the data.
+machine directly to the provider. Advisor Prep Hero never sees the data.
 
 I built a Consulting Practice template pack — five templates I thought independent consultants
 actually run:
@@ -81,6 +81,6 @@ input before I push this more broadly.
 - r/consulting mods are active. Make the disclosure obvious — bury it and it'll be removed.
 - The MBB crowd may dismiss this as too simple for their work. That's fine. The target is
   independent consultants, not Deloitte staff.
-- If someone asks about security beyond "local files": explain that Keepance has no server-side
-  component for user data, the API key lives in the OS keychain (not Keepance's database), and
+- If someone asks about security beyond "local files": explain that Advisor Prep Hero has no server-side
+  component for user data, the API key lives in the OS keychain (not Advisor Prep Hero's database), and
   there is nothing to subpoena because nothing is stored outside the user's machine.

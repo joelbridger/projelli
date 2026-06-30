@@ -201,7 +201,7 @@ Standard parenting time schedule: [Describe the proposed regular schedule as a s
 
 ---
 
-*This parenting plan outline was structured by Keepance AI. All custody and access provisions require attorney review against the specific client circumstances and applicable {{jurisdiction}} best-interests standards before use.*`;
+*This parenting plan outline was structured by Advisor Prep Hero AI. All custody and access provisions require attorney review against the specific client circumstances and applicable {{jurisdiction}} best-interests standards before use.*`;
 
 export const ParentingPlanDrafter: WorkflowTemplate = {
   id: 'parenting-plan-drafter',

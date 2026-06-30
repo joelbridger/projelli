@@ -4,7 +4,7 @@
  * key wizard and the onboarding key step).
  *
  * Clicking the link opens a message box that sends a help ticket straight to
- * the Keepance founder. It reuses the same transport + backend as the in-app
+ * the Advisor Prep Hero founder. It reuses the same transport + backend as the in-app
  * bug report (the form-handler service -> Brevo email, Reply-To the user), but
  * posts to a DEDICATED `ai-setup-help` form so setup-help tickets land in their
  * own pile, separate from bug reports. The ticket carries which provider the
@@ -16,7 +16,7 @@
  * that looks like an Anthropic / OpenAI / Google API key with a placeholder.
  * A real key must never leave the user's machine in a ticket.
  *
- * Like the bug report, this request goes to Keepance infrastructure (NOT the
+ * Like the bug report, this request goes to Advisor Prep Hero infrastructure (NOT the
  * user's AI provider), so it opts out of the "Sending to your AI provider"
  * egress pulse via getCorsSafeFetch({ signalEgress: false }).
  */
@@ -86,7 +86,7 @@ function buildMailto(
   context: string,
   meta: Metadata,
 ): string {
-  const subject = 'Keepance AI setup help';
+  const subject = 'Advisor Prep Hero AI setup help';
   const lines = [
     message,
     '',
@@ -94,7 +94,7 @@ function buildMailto(
     '---',
     `Provider: ${provider}`,
     `Where: ${context}`,
-    `Keepance version: ${meta.version}`,
+    `Advisor Prep Hero version: ${meta.version}`,
     `Platform: ${meta.os}`,
     `User agent: ${meta.userAgent}`,
   ].filter(Boolean);
@@ -211,7 +211,7 @@ export function AiSetupHelpDialog({
     if (ticket.email) payload.email = ticket.email;
 
     try {
-      // The help ticket goes to Keepance infrastructure, not the user's AI
+      // The help ticket goes to Advisor Prep Hero infrastructure, not the user's AI
       // provider — opt out of the "Sending to your AI provider" pulse.
       const fetchFn = await getCorsSafeFetch({ signalEgress: false });
       const res = await fetchFn(AI_SETUP_HELP_URL, {

@@ -53,7 +53,7 @@ export function SharefileSourcePanel() {
           </blockquote>
         )}
         <p className="text-xs text-slate-400">
-          Keepance imported this citation from ShareFile as read-only text. Full cloud-document opening is a fast-follow.
+          Advisor Prep Hero imported this citation from ShareFile as read-only text. Full cloud-document opening is a fast-follow.
         </p>
       </div>
     </div>

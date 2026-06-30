@@ -39,13 +39,13 @@ function collectMetadata(): Metadata {
 }
 
 function buildMailto(message: string, email: string, meta: Metadata): string {
-  const subject = `Keepance ${meta.version} bug report`;
+  const subject = `Advisor Prep Hero ${meta.version} bug report`;
   const lines = [
     message,
     '',
     email ? `Reply to: ${email}` : '',
     '---',
-    `Keepance version: ${meta.version}`,
+    `Advisor Prep Hero version: ${meta.version}`,
     `Platform: ${meta.os}`,
     `User agent: ${meta.userAgent}`,
   ].filter(Boolean);
@@ -95,7 +95,7 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
     }
 
     try {
-      // F-120: the bug report goes to Keepance infrastructure, not the user's
+      // F-120: the bug report goes to Advisor Prep Hero infrastructure, not the user's
       // AI provider — opt out of the "Sending to your AI provider" pulse.
       const fetchFn = await getCorsSafeFetch({ signalEgress: false });
       const res = await fetchFn(BUG_REPORT_URL, {

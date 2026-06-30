@@ -1,4 +1,4 @@
-// Integration test for the `keepance-mcp` sidecar binary.
+// Integration test for the `lantern-mcp` sidecar binary.
 //
 // Spawns the binary as a child process with a stubbed workspace, writes a
 // canonical MCP handshake (`initialize` → `tools/list`) to its stdin, and
@@ -17,18 +17,18 @@ use std::time::Duration;
 
 const TEST_AUDIT_KEY_HEX: &str = "4242424242424242424242424242424242424242424242424242424242424242";
 
-/// Locate the compiled `keepance-mcp` binary for the current profile. Cargo
+/// Locate the compiled `lantern-mcp` binary for the current profile. Cargo
 /// sets `CARGO_BIN_EXE_<name>` when running integration tests, so no need
 /// to hard-code the target dir layout.
 fn binary_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_keepance-mcp"))
+    PathBuf::from(env!("CARGO_BIN_EXE_lantern-mcp"))
 }
 
 /// Spawn the binary with a fresh temp workspace. Returns the child so the
 /// caller can speak JSON-RPC over its stdin/stdout.
 fn spawn_with_workspace() -> (std::process::Child, tempfile::TempDir) {
     let tmp = tempfile::Builder::new()
-        .prefix("keepance-mcp-it-")
+        .prefix("lantern-mcp-it-")
         .tempdir()
         .expect("tmpdir");
     let child = Command::new(binary_path())
@@ -38,13 +38,13 @@ fn spawn_with_workspace() -> (std::process::Child, tempfile::TempDir) {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn keepance-mcp");
+        .expect("spawn lantern-mcp");
     (child, tmp)
 }
 
 fn spawn_scoped_workspace(lockdown: bool) -> (std::process::Child, tempfile::TempDir) {
     let tmp = tempfile::Builder::new()
-        .prefix("keepance-mcp-scoped-")
+        .prefix("lantern-mcp-scoped-")
         .tempdir()
         .expect("tmpdir");
     write_scope_state(tmp.path(), "matter-a", &["matter-a"], lockdown);
@@ -55,13 +55,13 @@ fn spawn_scoped_workspace(lockdown: bool) -> (std::process::Child, tempfile::Tem
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn keepance-mcp");
+        .expect("spawn lantern-mcp");
     (child, tmp)
 }
 
 fn spawn_root_granted_workspace() -> (std::process::Child, tempfile::TempDir) {
     let tmp = tempfile::Builder::new()
-        .prefix("keepance-mcp-root-granted-")
+        .prefix("lantern-mcp-root-granted-")
         .tempdir()
         .expect("tmpdir");
     write_root_scope_state(tmp.path(), false);
@@ -72,7 +72,7 @@ fn spawn_root_granted_workspace() -> (std::process::Child, tempfile::TempDir) {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn keepance-mcp");
+        .expect("spawn lantern-mcp");
     (child, tmp)
 }
 
@@ -186,7 +186,7 @@ fn audit_actions(workspace: &std::path::Path) -> Vec<(String, serde_json::Value)
     let mut key = [0u8; 32];
     key.copy_from_slice(&key_bytes);
     let store =
-        keepance_lib::commands::audit::store::EncryptedAuditStore::open_with_key(workspace, &key)
+        lantern_lib::commands::audit::store::EncryptedAuditStore::open_with_key(workspace, &key)
             .expect("open audit store");
     store
         .list(None, None)
@@ -336,7 +336,7 @@ fn read_workspace_file_denies_cross_matter_path() {
 #[test]
 fn read_workspace_file_denies_active_matter_without_explicit_grant() {
     let tmp = tempfile::Builder::new()
-        .prefix("keepance-mcp-active-not-granted-")
+        .prefix("lantern-mcp-active-not-granted-")
         .tempdir()
         .expect("tmpdir");
     write_scope_state(tmp.path(), "matter-a", &[], false);
@@ -352,7 +352,7 @@ fn read_workspace_file_denies_active_matter_without_explicit_grant() {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn keepance-mcp");
+        .expect("spawn lantern-mcp");
 
     let resp = exchange(
         &mut child,
@@ -415,7 +415,7 @@ fn read_workspace_file_allows_in_scope_path() {
 #[test]
 fn stale_scope_state_denies_read_and_audits() {
     let tmp = tempfile::Builder::new()
-        .prefix("keepance-mcp-stale-scope-")
+        .prefix("lantern-mcp-stale-scope-")
         .tempdir()
         .expect("tmpdir");
     let stale = (chrono::Utc::now() - chrono::Duration::minutes(5)).to_rfc3339();
@@ -432,7 +432,7 @@ fn stale_scope_state_denies_read_and_audits() {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn keepance-mcp");
+        .expect("spawn lantern-mcp");
 
     let resp = exchange(
         &mut child,
@@ -497,7 +497,7 @@ fn missing_scope_state_denies_read_and_audits() {
 #[test]
 fn future_scope_state_denies_read_and_audits() {
     let tmp = tempfile::Builder::new()
-        .prefix("keepance-mcp-future-scope-")
+        .prefix("lantern-mcp-future-scope-")
         .tempdir()
         .expect("tmpdir");
     let future = (chrono::Utc::now() + chrono::Duration::minutes(2)).to_rfc3339();
@@ -514,7 +514,7 @@ fn future_scope_state_denies_read_and_audits() {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn keepance-mcp");
+        .expect("spawn lantern-mcp");
 
     let resp = exchange(
         &mut child,

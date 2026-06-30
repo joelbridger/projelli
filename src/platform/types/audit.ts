@@ -19,7 +19,7 @@ export type AuditActionType =
   | 'model_call'
   | 'context_compressed'
   | 'user_action'
-  // Keepance 3.0 provenance events. These mirror the new AuditEvent variants
+  // Advisor Prep Hero 3.0 provenance events. These mirror the new AuditEvent variants
   // below; they are listed here too because `AuditService.append()` stores an
   // event under `action = event.type`, and the audit-log UI keys its icon /
   // label / colour maps off `AuditActionType`. Adding them keeps the log
@@ -143,7 +143,7 @@ export type AuditEvent =
   /**
    * An MCP server write was blocked because Privileged Matter Mode is on. MCP
    * servers run inside an external client (e.g. Claude Desktop) and reach the
-   * workspace through Keepance's write-approval channel; while the mode is on,
+   * workspace through Advisor Prep Hero's write-approval channel; while the mode is on,
    * every such write is auto-denied instead of prompted. Records the workspace
    * path the MCP client tried to write so there is a defensible record that
    * nothing was exfiltrated or modified by a network-capable MCP server.
@@ -151,7 +151,7 @@ export type AuditEvent =
   | { type: 'mcp_blocked'; timestamp: string; payload: { path: string; reason: string } }
   /**
    * Connector-access: the advisor's one-time consent decision on storing and
-   * AI-processing exported reports/notes Keepance recognized from outside tools.
+   * AI-processing exported reports/notes Advisor Prep Hero recognized from outside tools.
    * `tools` lists which were present when the prompt fired (e.g. ["RightCapital"]).
    */
   | { type: 'external_export_consent'; timestamp: string; payload: { given: boolean; tools: string[] } }
@@ -278,7 +278,7 @@ export type AuditEvent =
   | { type: 'template_install_failed'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
   | { type: 'language_changed'; timestamp: string; payload: { from: string; to: string } }
   // ───────────────────────────────────────────────────────────────────────
-  // Keepance 3.0 provenance events.
+  // Advisor Prep Hero 3.0 provenance events.
   //
   // These exist so the audit log is a complete "defense file": for every AI
   // action that reaches into a client's files or out to a provider, the log

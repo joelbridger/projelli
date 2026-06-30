@@ -101,12 +101,12 @@ Claude will then wire Azure Artifact Signing into `.github/workflows/release.yml
 **Status:** 12 CI attempts, all 4 platforms building cleanly on attempt 12 (run id `24194263726`).
 
 **v1.0.2-rc.1 draft release has 9 signed artifacts:**
-- `Keepance_1.0.2_x64-setup.exe` (Windows, signed via Azure Trusted Signing)
-- `Keepance_1.0.2_x64_en-US.msi` (Windows, signed via Azure Trusted Signing)
-- `Keepance_1.0.2_aarch64.dmg` (Mac ARM, signed with Developer ID, **not notarized**)
-- `Keepance_1.0.2_x64.dmg` (Mac Intel, signed with Developer ID, **not notarized**)
-- `Keepance_aarch64.app.tar.gz` + `Keepance_x64.app.tar.gz` (Mac app bundles)
-- `Keepance_1.0.2_amd64.AppImage` + `Keepance_1.0.2_amd64.deb` + `Keepance-1.0.2-1.x86_64.rpm` (Linux)
+- `Advisor Prep Hero_1.0.2_x64-setup.exe` (Windows, signed via Azure Trusted Signing)
+- `Advisor Prep Hero_1.0.2_x64_en-US.msi` (Windows, signed via Azure Trusted Signing)
+- `Advisor Prep Hero_1.0.2_aarch64.dmg` (Mac ARM, signed with Developer ID, **not notarized**)
+- `Advisor Prep Hero_1.0.2_x64.dmg` (Mac Intel, signed with Developer ID, **not notarized**)
+- `Advisor Prep Hero_aarch64.app.tar.gz` + `Advisor Prep Hero_x64.app.tar.gz` (Mac app bundles)
+- `Advisor Prep Hero_1.0.2_amd64.AppImage` + `Advisor Prep Hero_1.0.2_amd64.deb` + `Advisor Prep Hero-1.0.2-1.x86_64.rpm` (Linux)
 
 Draft release URL: https://github.com/keepance/keepance/releases
 
@@ -120,7 +120,7 @@ Draft release URL: https://github.com/keepance/keepance/releases
 11. Mac notarization failed with "Internet connection appears to be offline" after 49 minutes → **Apple's notary service has been degraded since March 2026** (multiple dev forum reports)
 12. **Mac notarization DISABLED** in the workflow — Mac builds are signed with Developer ID but unnotarized. Re-enable by uncommenting the 3 `APPLE_ID`/`APPLE_PASSWORD`/`APPLE_TEAM_ID` env vars in `.github/workflows/release.yml` when Apple's service recovers. Check https://developer.apple.com/system-status/ for "Notarization" status.
 
-**What users experience with unnotarized Mac builds:** Gatekeeper shows a warning on first open ("Keepance can't be opened because Apple cannot check it for malicious software"). To install: right-click the .app → Open → Open. After the first open, macOS trusts it for all future launches. The app is still cryptographically signed by Jameson's Developer ID cert.
+**What users experience with unnotarized Mac builds:** Gatekeeper shows a warning on first open ("Advisor Prep Hero can't be opened because Apple cannot check it for malicious software"). To install: right-click the .app → Open → Open. After the first open, macOS trusts it for all future launches. The app is still cryptographically signed by Jameson's Developer ID cert.
 
 **For the real v1.0.2 launch release:** Check Apple's status. If notary is still down, ship unnotarized with a FAQ note. If notary is back, re-enable the env vars and re-tag.
 

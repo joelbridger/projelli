@@ -1,6 +1,6 @@
-# Keepance onboarding — V2 "concise" (4 screens)
+# Advisor Prep Hero onboarding — V2 "concise" (4 screens)
 
-A clickable, **vector-crisp** animated first-run onboarding for Keepance, built as
+A clickable, **vector-crisp** animated first-run onboarding for Advisor Prep Hero, built as
 standalone HTML scenes (no video, no build toolchain, no React). This is the
 **radically concise** rewrite: **1 intro + 3 action screens**, where every screen after
 the intro asks the user to do one real thing (pick an AI mode, connect data, ask a
@@ -80,19 +80,19 @@ python3 build_live.py        # reads ./assets, writes a complete servable site t
 ## The 4 screens (in order) — current (round 3)
 
 1. **intro** — headline hook + a simple 3-step **flowchart** with **animated Lottie icons**
-   (Connect your AI and files -> Keepance builds Client Maps -> Ask anything, with sources)
-   and three security **pills**: "Keepance stores zero of your data", "Encrypted", "Cloud
-   providers are SOC 2 + enterprise-grade" (SOC 2 is the AI provider's, NEVER Keepance's).
+   (Connect your AI and files -> Advisor Prep Hero builds Client Maps -> Ask anything, with sources)
+   and three security **pills**: "Advisor Prep Hero stores zero of your data", "Encrypted", "Cloud
+   providers are SOC 2 + enterprise-grade" (SOC 2 is the AI provider's, NEVER Advisor Prep Hero's).
    Button: "Go!". Icons are free-licensed Lottie (see `SOURCES.md` + `assets/lottie/`).
 2. **power** — "Connect your AI": two options. Card 1 "Use ChatGPT, Claude, or Gemini" leads
-   with accurate bullets (Keepance never sees your key/data; providers SOC 2 Type 2; encrypted
+   with accurate bullets (Advisor Prep Hero never sees your key/data; providers SOC 2 Type 2; encrypted
    in transit + at rest; providers don't train on your data on paid API usage). Clicking it
    expands to a simple 1-2-3 get-a-key flow (free to create, pay as you go, real provider link),
    the key field, and an "I need help setting this up" link (SHOWN ONLY; real action = help
    ticket/email, wired in a separate session). Card 2 "Use local AI". No "recommended" steer.
 3. **connect** — "Securely connect your data": the three REAL connectors only (Files
    OneDrive/local, Email Outlook/Gmail, Wealthbox). Accurate note that reports from other
-   tools "arrive as files" (Keepance does not integrate with RightCapital/Holistiplan/etc.).
+   tools "arrive as files" (Advisor Prep Hero does not integrate with RightCapital/Holistiplan/etc.).
 4. **setup** — live progress: AI status (downloading on-device AI, or "Connected" for cloud),
    per-source import bars (email / Wealthbox / files), a "Building your Client Maps" indicator
    (the wow: assembling the firm's story), a preview of questions you'll be able to ask, and
@@ -111,7 +111,7 @@ step, and the team/firm fork (deferred to in-app). Full rationale in `CRITIQUE.m
 - **No em dashes** in any user-facing copy. (Code/comments are fine.)
 - **Never claim "compliant" / "guaranteed."** State the mechanism precisely: a local model
   (data never leaves the machine) vs. bring-your-own cloud key (goes direct to the provider,
-  never through Keepance).
+  never through Advisor Prep Hero).
 - Avoid the banned marketing words: leverage, delve, seamless, transform, empower, elevate,
   unlock.
 - **Light theme only.** Brand hex: navy `#0A2540`, blue `#5DC6FF`, pink `#FF3CE8`. Font: Sora.

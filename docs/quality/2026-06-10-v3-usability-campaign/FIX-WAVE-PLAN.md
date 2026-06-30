@@ -7,7 +7,7 @@ Consolidates all campaign findings (Phase-0 reviews F-001..F-011, sweep F-201..F
 Many persona "desktop-only" findings are the browser build hitting genuine Tauri-only features (RAG, OOXML editing, mail, contradiction-finder). For those, the **bug is the silent/confident degradation**, not the missing capability. The native pass confirms desktop behavior; the fix wave makes every boundary loud and honest. Capability gaps that are real on ALL platforms (Ollama-in-workflows, docx tables) get built.
 
 ## Already fixed (front-run during the campaign)
-- F-001 website icons → Keepance mark · F-003 icns brand guard · stale CLAUDE.md reconciled (committed).
+- F-001 website icons → Advisor Prep Hero mark · F-003 icns brand guard · stale CLAUDE.md reconciled (committed).
 - F-203 (wrong template test IDs), F-002 partial (no in-app language picker → reclassified F-208).
 
 ---
@@ -27,7 +27,7 @@ Owner files: `src/App.tsx` (workflow provider chain ~2337-2414), `src/components
 - **F-112 (P2):** 17/18 legal templates still write SCREAMING_SNAKE `.md`, not `.docx`. Align legal-pack deliverables to Word-native per 3.0 positioning (or document why any stays markdown).
 
 ## WP-3 — Trust copy + matters navigation (firm-sale blockers, low-effort/high-value)
-- **F-119 (P1):** Replace the developer's real name "Jameson" in privacy/telemetry/unsubscribe/bug-report copy with "Keepance" / a support alias, all locales (`src/locales/{en,de,es}.json`). Diane: "that one line could lose you the firm sale."
+- **F-119 (P1):** Replace the developer's real name "Jameson" in privacy/telemetry/unsubscribe/bug-report copy with "Advisor Prep Hero" / a support alias, all locales (`src/locales/{en,de,es}.json`). Diane: "that one line could lose you the firm sale."
 - **F-122 / F-009 (P1):** Give Matters a first-class sidebar entry (mount MatterManagerDialog from a sidebar item and/or the status-bar matter widget), not only the AI-chat header.
 - **F-104, F-105, F-109, F-115, F-118, F-120, F-124, F-103, F-102, F-128 (P2/P3 copy/UX):** plain-English Privileged Matter Mode pill; BYOK steps mention provider training opt-out; estimate modal shows $0 for local/mock; strip the dev command from the MCP card; positive cloud-egress signal in Direct mode; de-jargon the firm admin console; "license" spelling; first-run folder-idiom copy; Upgrade→pricing ordering. Batchable copy pass.
 

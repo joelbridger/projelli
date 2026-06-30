@@ -134,7 +134,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     }
   }, [rootPath, setFileTree, openFile, prompt]);
 
-  // Keepance 3.0 (WS-A / A5): the "New Document" primary action. Word (.docx)
+  // Advisor Prep Hero 3.0 (WS-A / A5): the "New Document" primary action. Word (.docx)
   // is the canonical document format, so unless the user has changed the
   // "Default New Document Type" setting, a new document is a real `.docx`
   // opened in the Word editor. Markdown / plain text / rich text remain

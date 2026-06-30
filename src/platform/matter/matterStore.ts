@@ -4,12 +4,12 @@
  * The single source of truth for matter state. It carries FOUR slices that used
  * to be four separate stores (merged 2026-06-17 for the 3.0 reorg):
  *   1. matters     — the user's matters + the active matter (persisted under
- *                    `keepance:matters`). One client matter = one confidentiality
+ *                    `lantern:matters`). One client matter = one confidentiality
  *                    boundary, mapped to one or more workspace folders.
  *   2. snapshots   — per-matter UI working-surface memory (persisted under
- *                    `keepance:matter-ui-snapshots`).
+ *                    `lantern:matter-ui-snapshots`).
  *   3. cache       — AI at-a-glance summary cache (persisted under
- *                    `keepance:matter-at-a-glance`).
+ *                    `lantern:matter-at-a-glance`).
  *   4. statusByMatterId — live per-matter sync status; EPHEMERAL, never persisted.
  *
  * Persistence preserves all three legacy localStorage keys byte-compatibly via a
@@ -140,7 +140,7 @@ export interface CreateMatterInput {
 }
 
 interface MatterState {
-  // ── matters slice (persisted → keepance:matters) ──────────────────────────
+  // ── matters slice (persisted → lantern:matters) ──────────────────────────
   matters: Matter[];
   /** Active matter id, or `null` for the explicit "all matters" scope. */
   activeMatterId: string | null;
@@ -210,14 +210,14 @@ interface MatterState {
   /** Update the user's role on a shared matter (e.g. after a members/list refresh). */
   setMatterRole: (id: string, role: 'owner' | 'editor' | 'viewer') => void;
 
-  // ── UI slice (persisted → keepance:matter-ui-snapshots) ───────────────────
+  // ── UI slice (persisted → lantern:matter-ui-snapshots) ───────────────────
   /** Per-matter memory of the last working surface + focused tab. */
   snapshots: Record<string, MatterUiSnapshot>;
   saveSnapshot: (matterId: string, snapshot: MatterUiSnapshot) => void;
   getSnapshot: (matterId: string) => MatterUiSnapshot | undefined;
   clearSnapshot: (matterId: string) => void;
 
-  // ── At-a-glance slice (persisted → keepance:matter-at-a-glance) ───────────
+  // ── At-a-glance slice (persisted → lantern:matter-at-a-glance) ───────────
   /** AI-generated at-a-glance summaries, keyed by matter id. */
   cache: Record<string, MatterAtAGlanceEntry>;
   setEntry: (matterId: string, result: MatterAtAGlanceResult) => void;

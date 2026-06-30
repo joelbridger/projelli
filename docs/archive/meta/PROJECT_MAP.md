@@ -1,4 +1,4 @@
-# Keepance Project Map
+# Advisor Prep Hero Project Map
 
 **Status:** v3.0.0 in Phase 1 (firm tier wiring: desktop collaboration + org licensing + inference proxy)  
 **Last updated:** 2026-06-10  
@@ -6,7 +6,7 @@
 
 ---
 
-## What Keepance Is (One Sentence)
+## What Advisor Prep Hero Is (One Sentence)
 
 A local-first, AI-powered workspace for professionals (lawyers, CPAs, consultants) who legally or temperamentally cannot pipe their work into the cloud. Every chat becomes a real file on your machine; your API keys never leave your OS keychain.
 
@@ -218,7 +218,7 @@ See `backend/src/contract.ts` for full TypeScript types and error codes.
 - **AI chat artifacts:** Stored as `.aichat` files (JSON schema) — see `src/modules/chat/`
 - **Settings/keychain:**
   - Browser: `localStorage` (API keys **not stored** in browser)
-  - Desktop: OS keychain (Tauri: `src-tauri/src/commands/keychain.rs`) + `~/.config/Keepance/` for local prefs
+  - Desktop: OS keychain (Tauri: `src-tauri/src/commands/keychain.rs`) + `~/.config/Advisor Prep Hero/` for local prefs
 
 ### Firm Mode (Optional, requires backend)
 - **User identity:** Backend SQLite (dev) / Postgres (prod) — hashed passwords, refresh token hashes
@@ -334,7 +334,7 @@ bun run typecheck     # tsc --noEmit (strict)
 - `~/keepance/spikes/firm-sync/DECISION.md` (firm tier design: 3 chunks, E2EE relay, assured inference)
 
 **Recent major decisions (2026-06):**
-- Keepance 3.0: Add optional firm tier (org licensing, shared matters, E2EE sync relay, inference proxy)
+- Advisor Prep Hero 3.0: Add optional firm tier (org licensing, shared matters, E2EE sync relay, inference proxy)
 - Firm backend: Bun + TypeScript (matches other services) + SQLite (dev) → Postgres (prod)
 - Pricing: $49/$129/$399 (Personal/Professional/Practice) + $89 charter offer
 - ICP locked: Solo attorneys (general + patent) + tax preparers + consultants (fast-follow: general lawyers, then tax, then consulting)

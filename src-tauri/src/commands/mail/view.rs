@@ -1,4 +1,4 @@
-// Read-only mail message view (Keepance 3.0 email viewer).
+// Read-only mail message view (Advisor Prep Hero 3.0 email viewer).
 //
 // A stored email lives on disk as an AES-256-GCM blob whose plaintext is the
 // normalized Markdown produced by `normalize::to_markdown` — a YAML

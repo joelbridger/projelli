@@ -1,7 +1,7 @@
 // AES-256-GCM encryption for email bodies and metadata.
 // Wire format: 12-byte random nonce ‖ ciphertext ‖ 16-byte GCM auth tag.
 // The master key (32 bytes) is stored in the OS keychain under
-// service = "keepance-mail-enc", key = "master-key-v1".
+// service = "lantern-mail-enc", key = "master-key-v1".
 // All public fns that touch the keychain are async or return Result;
 // the core encrypt/decrypt take a key arg so they are unit-testable without a keychain.
 

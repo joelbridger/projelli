@@ -3,7 +3,7 @@
  *
  * Flow:
  *   1. On app load, `useWhatsNew` reads the current version from the bundled
- *      changelog and compares against `localStorage['keepance:lastSeenVersion']`.
+ *      changelog and compares against `localStorage['lantern:lastSeenVersion']`.
  *   2. If the stored value is MISSING → this is a first-time user; we do
  *      NOT show the toast. We write the current version so they only see it
  *      on future updates.

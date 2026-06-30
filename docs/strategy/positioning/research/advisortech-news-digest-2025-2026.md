@@ -342,9 +342,9 @@
 
 ---
 
-## Section 3: Signals Most Relevant to Keepance
+## Section 3: Signals Most Relevant to Advisor Prep Hero
 
-*Keepance: local-first AI that reads across an advisor's files, email, and tools, and answers questions with citations.*
+*Advisor Prep Hero: local-first AI that reads across an advisor's files, email, and tools, and answers questions with citations.*
 
 ---
 
@@ -358,11 +358,11 @@ The entire industry is racing toward AI that reads client documents and extracts
 - **Business documents**: RISR (buy-sell agreements, business tax returns, commercial insurance) — Jun 2026
 - **Meeting notes**: Jump Operate module adds document extraction as a feature alongside notetaking
 
-**What this means for Keepance:** Every planning category is getting its own specialized extraction tool. Keepance's advantage is reading *across all of them at once* and answering questions that require connecting information from multiple documents. A tool that tells you what the tax return says is different from a tool that connects the tax return to the estate plan to the investment statement and surfaces the implication.
+**What this means for Advisor Prep Hero:** Every planning category is getting its own specialized extraction tool. Advisor Prep Hero's advantage is reading *across all of them at once* and answering questions that require connecting information from multiple documents. A tool that tells you what the tax return says is different from a tool that connects the tax return to the estate plan to the investment statement and surfaces the implication.
 
 ---
 
-### 2. The "AI Data Layer" War is Keepance's Exact Market
+### 2. The "AI Data Layer" War is Advisor Prep Hero's Exact Market
 
 Five companies are now explicitly competing to be the cross-source AI intelligence layer for advisors:
 
@@ -372,7 +372,7 @@ Five companies are now explicitly competing to be the cross-source AI intelligen
 - **Milemarker Navigator**: AI layer for large RIAs managing multi-platform tech stacks
 - **Jump "AI Operating System"** (Apr 2026): Grow + Operate modules are explicitly building the same cross-system intelligence layer
 
-**What this means for Keepance:** The "AI layer on top of advisor data" is the recognized battleground. Keepance's differentiation must be: (a) local/private vs. cloud-centralized, (b) reads private files and email (not just connected platforms), and (c) answers with citations the advisor can verify. The data layer framing validates the market and the architecture.
+**What this means for Advisor Prep Hero:** The "AI layer on top of advisor data" is the recognized battleground. Advisor Prep Hero's differentiation must be: (a) local/private vs. cloud-centralized, (b) reads private files and email (not just connected platforms), and (c) answers with citations the advisor can verify. The data layer framing validates the market and the architecture.
 
 ---
 
@@ -388,7 +388,7 @@ Multiple tools have discovered that advisors won't trust AI-generated summaries 
 
 **Janus Henderson client survey** (Jun 2026): 33% of HNW clients are upset about AI-generated investment recommendations, 80% are upset if advisors use AI without disclosing it. Trust, transparency, and verifiability are not optional differentiators — they are table stakes that the whole market is now working to address.
 
-**What this means for Keepance:** The citation-first approach is proven right by market behavior. Every tool that advisors trust is showing its work. Keepance's "answers with citations" framing should be front and center, not a technical detail.
+**What this means for Advisor Prep Hero:** The citation-first approach is proven right by market behavior. Every tool that advisors trust is showing its work. Advisor Prep Hero's "answers with citations" framing should be front and center, not a technical detail.
 
 ---
 
@@ -398,7 +398,7 @@ Multiple tools have discovered that advisors won't trust AI-generated summaries 
 - **Janus Henderson survey** (Jun 2026): 80% of HNW clients upset if advisor uses AI without disclosure
 - **Mili** (Feb 2025): Raised $2M positioning primarily on security/privacy for meeting notes. Kitces said it was the wrong differentiator — but by Dec 2025, the Mobile Assistant near-miss proved privacy concerns are real, not just marketing noise.
 
-**What this means for Keepance:** "Local-first" and "your data never leaves your machine" is a genuine product advantage, not just a positioning preference. The Mobile Assistant situation is a concrete example to cite when explaining why local AI matters for advisor-client relationships.
+**What this means for Advisor Prep Hero:** "Local-first" and "your data never leaves your machine" is a genuine product advantage, not just a positioning preference. The Mobile Assistant situation is a concrete example to cite when explaining why local AI matters for advisor-client relationships.
 
 ---
 
@@ -411,7 +411,7 @@ Multiple tools have discovered that advisors won't trust AI-generated summaries 
 
 **Kitces Research finding** (Aug 2025): integration quality is the #1 driver of advisor satisfaction with their tech stack — BUT it does NOT drive revenue productivity. The market is paying for integrations that don't move the needle.
 
-**What this means for Keepance:** The traditional CRM layer is slow to add real AI. Advisors who want AI intelligence need it NOW, from a tool that isn't waiting for Redtail or Wealthbox to build it. Keepance can run alongside the CRM the advisor already has without requiring them to switch.
+**What this means for Advisor Prep Hero:** The traditional CRM layer is slow to add real AI. Advisors who want AI intelligence need it NOW, from a tool that isn't waiting for Redtail or Wealthbox to build it. Advisor Prep Hero can run alongside the CRM the advisor already has without requiring them to switch.
 
 ---
 
@@ -420,12 +420,12 @@ Multiple tools have discovered that advisors won't trust AI-generated summaries 
 The trajectory: meeting notes → CRM sync → planning software sync → document extraction → proactive intelligence → full advisor operating system.
 
 - **Jump** (Apr 2026): Operate module adds client intake forms, document extraction, email drafting — no longer just meeting notes
-- **Zeplyn** (Jan 2026): pivots to "agentic AI" that queries historical CRM data, email history, and uploaded documents — same cross-source intelligence ambition as Keepance
+- **Zeplyn** (Jan 2026): pivots to "agentic AI" that queries historical CRM data, email history, and uploaded documents — same cross-source intelligence ambition as Advisor Prep Hero
 - **Altruist Hazel** (Dec 2025): adds custodial data; questions whether AI notetakers will eventually replace CRMs
 - **Slant** (Oct 2025): AI-native CRM builds the notetaker in from the start
 - **Finmate AI** (Jun 2025): pushes meeting data to financial planning software, not just CRM
 
-**What this means for Keepance:** Jump and Zeplyn are building toward Keepance's territory from the "meeting notes" entry point. Keepance's entry point is different: the private file vault and email. Both arrive at cross-source client intelligence, but from different angles. The question is which entry point creates more defensible value and trust.
+**What this means for Advisor Prep Hero:** Jump and Zeplyn are building toward Advisor Prep Hero's territory from the "meeting notes" entry point. Advisor Prep Hero's entry point is different: the private file vault and email. Both arrive at cross-source client intelligence, but from different angles. The question is which entry point creates more defensible value and trust.
 
 ---
 
@@ -435,7 +435,7 @@ The trajectory: meeting notes → CRM sync → planning software sync → docume
 - **Hamachi** (Nov 2025): AI email drafting trained on firm knowledge; targets the same relationship-intelligence space from the email angle
 - **Zeplyn Agent Nexus** (Jan 2026): cross-source chatbot for advisor data
 
-**What this means for Keepance:** There is now an established "AI-native CRM" category forming. Keepance should have a clear, rehearsed answer to "how is this different from Slant?" — since Slant is the most direct analogous product in the market. Key differences: Slant is cloud-hosted with no financial planning integrations; Keepance is local-first and reads the private file vault and email.
+**What this means for Advisor Prep Hero:** There is now an established "AI-native CRM" category forming. Advisor Prep Hero should have a clear, rehearsed answer to "how is this different from Slant?" — since Slant is the most direct analogous product in the market. Key differences: Slant is cloud-hosted with no financial planning integrations; Advisor Prep Hero is local-first and reads the private file vault and email.
 
 ---
 
@@ -448,11 +448,11 @@ The trajectory: meeting notes → CRM sync → planning software sync → docume
 
 **Anthropic Claude for Financial Services** (Aug 2025): even enterprise-tier AI for investment research is grounded in FactSet/Morningstar/S&P data — proprietary verified data, not open-ended generation.
 
-**What this means for Keepance:** "Answering questions with citations from the advisor's own files" is the right product architecture. The market is validating citation-grounded, retrieval-based AI over open-ended generation. Keepance should not try to generate recommendations — it should surface what the advisor already has and show exactly where it came from.
+**What this means for Advisor Prep Hero:** "Answering questions with citations from the advisor's own files" is the right product architecture. The market is validating citation-grounded, retrieval-based AI over open-ended generation. Advisor Prep Hero should not try to generate recommendations — it should surface what the advisor already has and show exactly where it came from.
 
 ---
 
-### 9. Account Aggregation Is Collapsing — A Gap Keepance Can Fill
+### 9. Account Aggregation Is Collapsing — A Gap Advisor Prep Hero Can Fill
 
 - Envestnet sells Yodlee (Jul 2025) — originally paid $590M in 2015; sold for ~$100–$220M
 - Morningstar sells ByAllAccounts (May 2026) — originally paid $28M in 2014; sold to startup incubator
@@ -460,7 +460,7 @@ The trajectory: meeting notes → CRM sync → planning software sync → docume
 
 The infrastructure for aggregating *financial data* from bank/brokerage feeds is declining. But the infrastructure for reading *private advisor documents* (tax returns, estate plans, investment statements the client brought in) is actively growing.
 
-**What this means for Keepance:** Account aggregation isn't Keepance's battle. Document intelligence is. The collapse of aggregation infrastructure doesn't hurt Keepance — it validates reading the documents the advisor already has rather than relying on API connections that may not survive.
+**What this means for Advisor Prep Hero:** Account aggregation isn't Advisor Prep Hero's battle. Document intelligence is. The collapse of aggregation infrastructure doesn't hurt Advisor Prep Hero — it validates reading the documents the advisor already has rather than relying on API connections that may not survive.
 
 ---
 
@@ -470,7 +470,7 @@ The infrastructure for aggregating *financial data* from bank/brokerage feeds is
 - **Morningstar + PitchBook inside ChatGPT** (Jan 2026): proprietary data in ChatGPT is happening; threatens standalone investment research tools
 - **Vanguard, LPL, Cambridge** all building custom AI internally, not buying it
 
-**What this means for Keepance:** Microsoft Copilot and ChatGPT plugins are moving toward proprietary financial data integration. This affects investment research tools more than practice management tools for now. But a future where Microsoft 365 Copilot reads all advisor email and documents — and advisors already use Outlook + OneDrive — is a real long-term risk. Local-first and Reg S-P compliance are the natural counters.
+**What this means for Advisor Prep Hero:** Microsoft Copilot and ChatGPT plugins are moving toward proprietary financial data integration. This affects investment research tools more than practice management tools for now. But a future where Microsoft 365 Copilot reads all advisor email and documents — and advisors already use Outlook + OneDrive — is a real long-term risk. Local-first and Reg S-P compliance are the natural counters.
 
 ---
 
@@ -481,7 +481,7 @@ The infrastructure for aggregating *financial data* from bank/brokerage feeds is
 - **Zeplyn Agent Nexus** (Jan 2026): described as "agentic" but Kitces says it's a search interface
 - **Kitces Research** (Aug 2025): advisors using tech for "better advice quality" are 2x more productive than those using it for "efficiency/cost savings"
 
-**What this means for Keepance:** Don't lean into "agentic AI" language. The market is starting to see through it. "AI that reads your files and answers questions" is more honest and more useful. Keepance's value proposition is information retrieval and synthesis with citations — that's what advisors actually want, and calling it "agentic" would invite the same Kitces skepticism.
+**What this means for Advisor Prep Hero:** Don't lean into "agentic AI" language. The market is starting to see through it. "AI that reads your files and answers questions" is more honest and more useful. Advisor Prep Hero's value proposition is information retrieval and synthesis with citations — that's what advisors actually want, and calling it "agentic" would invite the same Kitces skepticism.
 
 ---
 

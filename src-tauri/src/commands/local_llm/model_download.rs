@@ -1,4 +1,4 @@
-// Robust, visible first-run download for Keepance Local AI's GGUF model.
+// Robust, visible first-run download for Advisor Prep Hero Local AI's GGUF model.
 //
 // The model is intentionally not bundled in the installer. This module owns
 // the first-use network path and makes it restartable: partial bytes land in a

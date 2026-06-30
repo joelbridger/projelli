@@ -13,7 +13,7 @@
 **Time:** ~25 minutes, async, on their schedule. Offer a 15-minute call first if they'd rather see it live.
 
 **What they get (the offer, state it plainly):**
-- Keepance free for life (a comped Practice license).
+- Advisor Prep Hero free for life (a comped Practice license).
 - Named credit: "[Pack] reviewed by [Name], [credential]" on the site and in-app, only with their explicit okay on the exact wording.
 - Real influence: their feedback shapes what ships, and they get first look at new packs.
 - Founding-reviewer standing: they were here before the launch.

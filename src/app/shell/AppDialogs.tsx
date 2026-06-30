@@ -214,7 +214,7 @@ export function AppDialogs({
           batch mode collected changes and the turn opened the review. */}
       <AiBatchReviewPanel />
 
-      {/* Bug 1: MatterManagerDialog — opened by 'keepance:open-matter-manager'
+      {/* Bug 1: MatterManagerDialog — opened by 'lantern:open-matter-manager'
           events from the "New matter" buttons in MattersHome. */}
       <MatterManagerDialog open={matterManagerOpen} onOpenChange={setMatterManagerOpen} />
 
@@ -269,7 +269,7 @@ export function AppDialogs({
         initialTab={accountWindowInitialTab}
       />
 
-      {/* Keepance 3.0: rebuilt first-run wizard — the live first-run surface.
+      {/* Advisor Prep Hero 3.0: rebuilt first-run wizard — the live first-run surface.
           Built above as `firstRunOverlay` so it also renders over the
           WorkspaceSelector branch (where first run usually happens). */}
       {firstRunOverlay}

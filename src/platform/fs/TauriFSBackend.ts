@@ -358,7 +358,7 @@ export class TauriFSBackend implements FSBackend {
       const nodes: FileNode[] = [];
 
       for (const entry of entries) {
-        // Only Keepance's own internal config folder is dropped here (and never
+        // Only Advisor Prep Hero's own internal config folder is dropped here (and never
         // recursed into); the UI's hiddenNodes helper hides it everywhere too.
         // Ordinary dotfiles like .gitignore are NOT dropped at the backend — the
         // UI / "Show Hidden Files" setting decides about those (matching the

@@ -31,7 +31,7 @@ A saved, per-matter, source-linked client profile built privately (on-device by 
 
 ## Copy-paste prompt for a fresh session
 ```
-You are continuing work on Keepance (~/keepance), branch keepance-3.0 @ 0ec8b8a0, tree clean, pushed,
+You are continuing work on Advisor Prep Hero (~/keepance), branch keepance-3.0 @ 0ec8b8a0, tree clean, pushed,
 gate green. Jameson is NOT a developer: plain language, explain like he's a smart 16-year-old; no jargon
 dumps. Read these first: docs/operations/2026-06-23-NEXT-SESSION-clientmap-done.md (this file),
 docs/superpowers/specs/2026-06-22-client-map/README.md, ~/keepance/CLAUDE.md (model/effort + voice rules).

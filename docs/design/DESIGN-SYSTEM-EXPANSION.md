@@ -1,4 +1,4 @@
-# Keepance Design System — Expansion Report
+# Advisor Prep Hero Design System — Expansion Report
 
 > Where the design system stands today, what a complete one needs, and a prioritized plan to get there. Written after rolling out the spacing system, in response to "how do we expand and improve this further (shadows, font sizes, etc.)."
 
@@ -18,9 +18,9 @@ A mature design system is a set of **design tokens** organized in layers:
 - **Semantic** — named by *role*, referencing primitives (`--kp-gutter`, `--kp-surface-gap`). This is where intent lives; you tune the whole app from here.
 - **Component** — per-component, referencing semantics (usually optional for an app this size).
 
-A *complete* system covers these categories: **Color · Typography · Spacing · Sizing · Shape (radius) · Border · Elevation (shadow) · Motion · Z-index · Opacity · Focus**. Keepance has a strong start on three of them and is missing or ad-hoc on the rest.
+A *complete* system covers these categories: **Color · Typography · Spacing · Sizing · Shape (radius) · Border · Elevation (shadow) · Motion · Z-index · Opacity · Focus**. Advisor Prep Hero has a strong start on three of them and is missing or ad-hoc on the rest.
 
-## Where Keepance stands today (audit of `src/styles/globals.css`)
+## Where Advisor Prep Hero stands today (audit of `src/styles/globals.css`)
 
 | Category | Status | Notes |
 |---|---|---|
@@ -41,7 +41,7 @@ A *complete* system covers these categories: **Color · Typography · Spacing ·
 
 ---
 
-## Proposed additions (specific, tailored to Keepance: light theme, Satoshi, professional/legal)
+## Proposed additions (specific, tailored to Advisor Prep Hero: light theme, Satoshi, professional/legal)
 
 ### 1. Typography scale — highest impact
 Anchor a modular scale (~1.2 ratio) at a 14px UI base, with line-heights on the 4px grid. Define **primitive sizes** and **semantic text roles**:
@@ -109,7 +109,7 @@ Keep it calm and quick — this is a professional tool, not a toy. Everything al
 Each step: define tokens in `globals.css`, document here + in a `TYPOGRAPHY.md`/`ELEVATION.md` companion, then roll across surfaces via parallel per-surface passes (the spacing rollout proved this works cleanly). All of it stays light-theme, Satoshi, navy, no em-dashes.
 
 ## A note on scope
-This is the difference between "a token file" and "a design system." Keepance already has the hard part (a coherent brand + accessible color + now spacing). Typography and elevation are the two that will most visibly level up the product; the rest is consistency and robustness. None of it requires new dependencies — it's all CSS custom properties on the existing Tailwind v4 `@theme`.
+This is the difference between "a token file" and "a design system." Advisor Prep Hero already has the hard part (a coherent brand + accessible color + now spacing). Typography and elevation are the two that will most visibly level up the product; the rest is consistency and robustness. None of it requires new dependencies — it's all CSS custom properties on the existing Tailwind v4 `@theme`.
 
 ## Sources
 - [Typography system design & type scales (Figr)](https://figr.design/blog/typography-system-design) · [Typography tokens with semantic scaling (UX Collective)](https://uxdesign.cc/mastering-typography-in-design-systems-with-semantic-tokens-and-responsive-scaling-6ccd598d9f21) · [Establishing a type scale (Cieden)](https://cieden.com/book/sub-atomic/typography/establishing-a-type-scale)

@@ -1,6 +1,6 @@
 # Discussion Guide: Generative Interview (Session 1, ~60 min)
 
-**Study:** Keepance v2.5.1, attorney segment
+**Study:** Advisor Prep Hero v2.5.1, attorney segment
 **Moderator:** Dr. Lena Whitfield
 **Format:** Remote, recorded with consent. Semi-structured. No product shown until Section 6 (concept reaction is verbal only; the interface is reserved for Session 2).
 **Golden rules:** Open questions only. Behavior and stories over opinions. Embrace silence. Never sell, never defend, never lead. When she gives an opinion, ask for the story behind it ("Tell me about the last time that happened").
@@ -71,7 +71,7 @@ Timings are guides, not gates. Total ~60 minutes.
 
 ## Section 5: Adoption, trust, and money (0:46-0:52)
 
-*Objective: how she decides to adopt professional software, and her real reaction to cost structure (without yet pitching Keepance's price).*
+*Objective: how she decides to adopt professional software, and her real reaction to cost structure (without yet pitching Advisor Prep Hero's price).*
 
 - Think about the last new tool you actually adopted for your practice. How did that decision happen? Who or what convinced you?
 - What makes you abandon a tool in the first ten minutes?
@@ -83,7 +83,7 @@ Timings are guides, not gates. Total ~60 minutes.
 
 ## Section 6: Concept reaction (verbal only) (0:52-0:58)
 
-*Objective: unled reaction to Keepance's core idea, BEFORE seeing the interface. Present plainly, in one breath, then stop talking and listen. Do not oversell. Do not show screens.*
+*Objective: unled reaction to Advisor Prep Hero's core idea, BEFORE seeing the interface. Present plainly, in one breath, then stop talking and listen. Do not oversell. Do not show screens.*
 
 Present, in plain language and only once:
 
@@ -113,7 +113,7 @@ Then:
 ## Facilitator reminders
 - If she asks "does it do X?" during the interview, deflect gently: "I want your expectation first. What would you hope?" Save the real answer for Session 2.
 - Note exact phrases verbatim; her language is the deliverable.
-- Flag every moment her mental model of "cloud" / "confidentiality" diverges from how Keepance actually works. That gap is a primary finding.
+- Flag every moment her mental model of "cloud" / "confidentiality" diverges from how Advisor Prep Hero actually works. That gap is a primary finding.
 
 ---
 

@@ -51,7 +51,7 @@ export const SAMPLE_FILES: SampleFile[] = [
 
 /**
  * Profession-specific primary samples. The first file an attorney, CPA, or
- * consultant sees when they open Keepance should look like their own work.
+ * consultant sees when they open Advisor Prep Hero should look like their own work.
  */
 const LEGAL_PRIMARY: SampleFile = {
   filename: 'Sample - Matter Overview.md',

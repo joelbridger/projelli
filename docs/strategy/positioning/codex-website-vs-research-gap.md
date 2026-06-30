@@ -1,12 +1,12 @@
-# Codex Analysis: Keepance Website vs. AdvisorTech Research
+# Codex Analysis: Advisor Prep Hero Website vs. AdvisorTech Research
 
 **Date:** 2026-06-24  
-**Scope:** Independent comparison of Keepance's current public website against the local Kitces/advisor-tech research library.  
+**Scope:** Independent comparison of Advisor Prep Hero's current public website against the local Kitces/advisor-tech research library.  
 **Audience:** Internal strategy. This is not customer-facing copy.  
 
 ## Executive Summary
 
-The advisor-specific pages are much closer to the research than the homepage. The `/how-keepance-fits/` and `/fits-your-stack/` pages already say the right core thing: Keepance is not a CRM, planner, custodian, or notetaker. It is the private layer over the stack advisors already use, and it answers household questions with citations. That aligns strongly with the Kitces research.
+The advisor-specific pages are much closer to the research than the homepage. The `/how-keepance-fits/` and `/fits-your-stack/` pages already say the right core thing: Advisor Prep Hero is not a CRM, planner, custodian, or notetaker. It is the private layer over the stack advisors already use, and it answers household questions with citations. That aligns strongly with the Kitces research.
 
 The main gap is not the product idea. It is emphasis and entry point.
 
@@ -61,16 +61,16 @@ The homepage's strongest reusable assets for advisors:
 
 This is the strongest current advisor strategy page.
 
-It directly says Keepance is not a CRM, planner, custodian, or notetaker. It maps Keepance against Wealthbox/Redtail/Salesforce, RightCapital/eMoney/MoneyGuide, Holistiplan/FP Alpha, Orion/Tamarac/Black Diamond, Schwab/Fidelity/Pershing, Microsoft 365/Copilot, Jump/Zocks, and ChatGPT.
+It directly says Advisor Prep Hero is not a CRM, planner, custodian, or notetaker. It maps Advisor Prep Hero against Wealthbox/Redtail/Salesforce, RightCapital/eMoney/MoneyGuide, Holistiplan/FP Alpha, Orion/Tamarac/Black Diamond, Schwab/Fidelity/Pershing, Microsoft 365/Copilot, Jump/Zocks, and ChatGPT.
 
 The page already uses the strongest research-backed framing:
 
-- Keepance reads across the tools advisors already use.
+- Advisor Prep Hero reads across the tools advisors already use.
 - Each existing system keeps doing its own job.
-- Keepance answers across what those systems cannot see.
-- Keepance hands drafts back without trying to become the system of record.
+- Advisor Prep Hero answers across what those systems cannot see.
+- Advisor Prep Hero hands drafts back without trying to become the system of record.
 - Copilot is called out as strong but not household-native, cloud-based, and limited to the Microsoft world plus configured connectors.
-- Jump/Zocks are respected as the breakout meeting-AI category, but Keepance owns the client knowledge outside the meeting.
+- Jump/Zocks are respected as the breakout meeting-AI category, but Advisor Prep Hero owns the client knowledge outside the meeting.
 - The Reg S-P vendor-review angle is present.
 
 This page mostly needs sharper proof, not a different strategy.
@@ -82,8 +82,8 @@ This is the cleanest message.
 It says:
 
 - Advisors run on a dozen tools.
-- Keepance is not asking them to drop any of them.
-- Keepance is not a thirteenth tool.
+- Advisor Prep Hero is not asking them to drop any of them.
+- Advisor Prep Hero is not a thirteenth tool.
 - It reads across CRM, planning, tax, portfolio, custodian, email, files, and meeting notes.
 - It answers household questions with citations.
 - It is not a CRM, financial planner, custodian, or meeting notetaker.
@@ -103,7 +103,7 @@ It is unusually honest about:
 - Opt-in telemetry.
 - Cloud BYOK path versus local model path.
 - Who has a copy in each path.
-- What Keepance servers do handle.
+- What Advisor Prep Hero servers do handle.
 - Key storage in OS keychains.
 - Current gaps: no SOC 2, no signed DPA, no penetration test, no enterprise SSO/SAML.
 
@@ -113,7 +113,7 @@ This matches the research's trust gap better than most marketing pages would. It
 
 ### 1. "Not Another Replacement Tool" Is Already Right
 
-The research says advisors run too many tools and are increasingly dissatisfied with tech bloat. They resist switching because migration, retraining, and workflow disruption are painful. Keepance's advisor pages already answer that correctly:
+The research says advisors run too many tools and are increasingly dissatisfied with tech bloat. They resist switching because migration, retraining, and workflow disruption are painful. Advisor Prep Hero's advisor pages already answer that correctly:
 
 - It does not replace CRM, planning, tax, custody, reporting, or notetaking.
 - It reads across the existing stack.
@@ -123,7 +123,7 @@ Keep and amplify this. It is the core market fit.
 
 ### 2. Integration Is The Right Lead Benefit
 
-Kitces says integration is the number-one driver of tech-stack satisfaction. Keepance's "reads across all of it" framing is exactly pointed at that pain.
+Kitces says integration is the number-one driver of tech-stack satisfaction. Advisor Prep Hero's "reads across all of it" framing is exactly pointed at that pain.
 
 The current advisor pages correctly name the real stack: Wealthbox, Redtail, Salesforce, RightCapital, eMoney, MoneyGuide, Holistiplan, FP Alpha, Orion, Tamarac, Black Diamond, Schwab, Fidelity, Pershing, Microsoft 365, Jump, and Zocks.
 
@@ -133,7 +133,7 @@ That specificity matters. Advisors need to see their real world, not a generic "
 
 The research says advisors want AI for prep, document review, drafting, and data gathering. They do not want AI replacing client service or advice judgment.
 
-Keepance's current advisor pages fit this lane:
+Advisor Prep Hero's current advisor pages fit this lane:
 
 - Pre-review prep.
 - Follow-up drafting.
@@ -154,7 +154,7 @@ This is not a small feature. It is the buyer's safety mechanism. The site should
 The site clearly separates:
 
 - Local model: nothing leaves the machine.
-- BYOK cloud model: prompts go directly to Anthropic, OpenAI, or Google under the advisor's account, not through Keepance.
+- BYOK cloud model: prompts go directly to Anthropic, OpenAI, or Google under the advisor's account, not through Advisor Prep Hero.
 
 That nuance is important. Overclaiming "nothing ever leaves" would break trust. The current security page gets this mostly right.
 
@@ -162,34 +162,34 @@ That nuance is important. Overclaiming "nothing ever leaves" would break trust. 
 
 The website repeatedly says the advisor verifies and decides. That aligns with the research: advisors want AI to expedite work, not autonomously act.
 
-This should be made even more explicit in advisor contexts: Keepance drafts, cites, and prepares. The advisor reviews, edits, and decides.
+This should be made even more explicit in advisor contexts: Advisor Prep Hero drafts, cites, and prepares. The advisor reviews, edits, and decides.
 
 ## Biggest Gaps
 
 ### Gap 1: The Homepage Is Still Attorney-First
 
-**Why it matters:** If Keepance is trying to win solo and small RIAs, the first page currently tells many of them "this is not for me." The page navigation includes Advisors, but the hero, examples, proof, pricing comparisons, and founder story are legal-first.
+**Why it matters:** If Advisor Prep Hero is trying to win solo and small RIAs, the first page currently tells many of them "this is not for me." The page navigation includes Advisors, but the hero, examples, proof, pricing comparisons, and founder story are legal-first.
 
-**Research tie:** Advisors buy through demos, peers, blogs/podcasts, and industry research. When a warm referral or Kitces-style mention sends them to the site, the first page has to confirm immediately that Keepance understands advisory work.
+**Research tie:** Advisors buy through demos, peers, blogs/podcasts, and industry research. When a warm referral or Kitces-style mention sends them to the site, the first page has to confirm immediately that Advisor Prep Hero understands advisory work.
 
 **Specific issue:** The homepage has the right universal claims, but the examples are opposing counsel, depositions, privilege logs, Clio, and law-practice pricing comparisons. Advisors have to mentally translate the product into their world.
 
 **Recommendation:** Add an advisor-first route that can serve as the primary page for advisor traffic. It should not feel like a vertical card under a legal product. At minimum:
 
 - Hero: "Make your existing advisor stack answer you."
-- Subhead: "Ask across client files, email, planning exports, tax docs, statements, and notes. Get cited answers and drafts without putting client data on a Keepance server."
+- Subhead: "Ask across client files, email, planning exports, tax docs, statements, and notes. Get cited answers and drafts without putting client data on a Advisor Prep Hero server."
 - Primary proof: one household review-prep example with citations from Outlook, OneDrive, RightCapital, Holistiplan, and Schwab/Tamarac export.
 - CTA: "Try it on one household."
 
 ### Gap 2: "Tech Bloat" Is Present, But Not Sharp Enough
 
-The site says advisors run a dozen tools and Keepance is not a thirteenth. That is good. But it does not yet fully use the market's emotional truth: advisors are tired of software.
+The site says advisors run a dozen tools and Advisor Prep Hero is not a thirteenth. That is good. But it does not yet fully use the market's emotional truth: advisors are tired of software.
 
 **Research tie:** The Kitces report names tech bloat as the dominant mood. Satisfaction is falling. Advisors feel forced into juggling too many tools.
 
 **What to change:** Lead with the pain before the AI:
 
-- Current feel: "Keepance reads across your stack."
+- Current feel: "Advisor Prep Hero reads across your stack."
 - Stronger feel: "Your stack has the answer. It is just scattered across twelve places."
 
 Recommended section:
@@ -207,13 +207,13 @@ The pages show integrations conceptually, but they do not make the research-back
 **What to change:** Add a "why this matters" proof band:
 
 - "Advisor software is not failing because advisors lack tools. It is failing because the tools do not talk cleanly."
-- "Keepance is the private answer layer over the messy middle."
+- "Advisor Prep Hero is the private answer layer over the messy middle."
 
 Do not overclaim live API integrations if the product is reading exports/files/email first. Say "reads from folders, email, exports, and connected sources as available."
 
 ### Gap 4: The Site Under-Uses Document Review As The #1 Real AI Use Today
 
-Keepance talks about reading documents, but the advisor pages do not strongly say: this is already the AI job advisors are most comfortable with.
+Advisor Prep Hero talks about reading documents, but the advisor pages do not strongly say: this is already the AI job advisors are most comfortable with.
 
 **Research tie:** The Kitces report says reviewing client documents is the highest current advisor AI use case, around 20%. The market is also full of document AI: Holistiplan, FP Alpha, TaxStatus, RightCapital Smart Import, Wealth.com, Vanilla, RISR.
 
@@ -225,7 +225,7 @@ Concrete demo:
 - Sources: RightCapital PDF, Holistiplan tax report, Schwab/Tamarac statement, Outlook thread, estate PDF, Jump meeting note.
 - Output: cited answer, missing-data list, and draft follow-up email.
 
-This uses the real current AI adoption wedge without claiming Keepance replaces specialist tax/planning tools.
+This uses the real current AI adoption wedge without claiming Advisor Prep Hero replaces specialist tax/planning tools.
 
 ### Gap 5: The Trust Gap Is Not Dramatic Enough On Advisor Pages
 
@@ -244,7 +244,7 @@ The site should make "I could not find support for that" feel like a feature, be
 
 ### Gap 6: Switching Inertia Could Be Used More Aggressively
 
-The site says Keepance replaces nothing, but it does not fully exploit the research point that switching is the barrier.
+The site says Advisor Prep Hero replaces nothing, but it does not fully exploit the research point that switching is the barrier.
 
 **Research tie:** Advisors do switch, but mostly only for something clearly superior. They resist because the perceived switching cost is high.
 
@@ -252,7 +252,7 @@ The site says Keepance replaces nothing, but it does not fully exploit the resea
 
 Recommended CTA:
 
-> Try Keepance on one household before you change anything else.
+> Try Advisor Prep Hero on one household before you change anything else.
 
 Recommended setup proof:
 
@@ -280,16 +280,16 @@ Add a demo page or page section that is built for peer sharing. A skeptical advi
 
 ### Gap 8: The Cross-Source AI Race Is Underplayed
 
-The advisor pages compare against Jump, Copilot, eMoney, and ChatGPT. That is good. But the site does not yet fully explain the category Keepance is entering: the cross-source AI layer is now a funded race.
+The advisor pages compare against Jump, Copilot, eMoney, and ChatGPT. That is good. But the site does not yet fully explain the category Advisor Prep Hero is entering: the cross-source AI layer is now a funded race.
 
 **Research tie:** Jump, Zocks, Orion, Advisor360, Envestnet, Dispatch, Milemarker, Advyzon, Microsoft, Vega, and others are trying to become the advisor AI home base.
 
 **What to change:** Be honest but sharp:
 
 - "Every tool is adding AI inside its own walls."
-- "Keepance is for the facts that live between those walls."
+- "Advisor Prep Hero is for the facts that live between those walls."
 
-This is safer than "we are the only AI for advisors." It also turns competitor AI into the setup for Keepance's role.
+This is safer than "we are the only AI for advisors." It also turns competitor AI into the setup for Advisor Prep Hero's role.
 
 ### Gap 9: Standalone "AI Assistant" Language Should Be De-Emphasized
 
@@ -357,8 +357,8 @@ This is the fastest way to make the strategy tangible.
 **Action:**
 
 - Put it near the top of every advisor page.
-- Support it with a simple source map: existing stack → Keepance answer layer → drafts back to existing tools.
-- Avoid making Keepance look like a new dashboard to maintain.
+- Support it with a simple source map: existing stack → Advisor Prep Hero answer layer → drafts back to existing tools.
+- Avoid making Advisor Prep Hero look like a new dashboard to maintain.
 
 **Research behind it:** Advisors use about 12 tools, satisfaction is falling, and the dominant mood is tech bloat.
 
@@ -413,7 +413,7 @@ This is the fastest way to make the strategy tangible.
   - Tax AI knows tax uploads.
   - Meeting AI knows meetings.
   - Copilot knows Microsoft data.
-  - Keepance connects the messy household record across files, email, exports, and tools, with local-first control.
+  - Advisor Prep Hero connects the messy household record across files, email, exports, and tools, with local-first control.
 
 **Research behind it:** AI is now in every stack category. The cross-source layer is a funded race.
 
@@ -438,15 +438,15 @@ The category is low-importance and distrusted. Use "private client intelligence,
 
 ### De-Emphasize Automation For Its Own Sake
 
-Do not sound like Keepance autonomously runs the practice. The research says advisors want supervision and review.
+Do not sound like Advisor Prep Hero autonomously runs the practice. The research says advisors want supervision and review.
 
 ### De-Emphasize Tax-Document Reading As A Standalone Wedge
 
-Document reading is important, but tax/planning specialists already own parts of it. Keepance's wedge is cross-source context plus citations, not "we read a tax return."
+Document reading is important, but tax/planning specialists already own parts of it. Advisor Prep Hero's wedge is cross-source context plus citations, not "we read a tax return."
 
 ### De-Emphasize Replacement Language
 
-Any hint that Keepance replaces CRM, planning, custody, tax, or notetaking fights the research. Replacement increases switching fear.
+Any hint that Advisor Prep Hero replaces CRM, planning, custody, tax, or notetaking fights the research. Replacement increases switching fear.
 
 ### De-Emphasize Legal Examples On Advisor Entry Paths
 
@@ -456,7 +456,7 @@ The attorney positioning is strong for legal buyers, but it weakens advisor conv
 
 **Build an advisor-first landing experience around one demo: "Walk into the annual review already knowing the whole household."**
 
-The page should show Keepance answering one realistic question across the exact messy stack:
+The page should show Advisor Prep Hero answering one realistic question across the exact messy stack:
 
 > "What changed for the Smiths since our last annual review, and what should I bring up?"
 
@@ -469,7 +469,7 @@ The answer should cite:
 - A document in OneDrive.
 - A CRM or meeting-note export.
 
-Then Keepance should produce:
+Then Advisor Prep Hero should produce:
 
 - A review-prep summary.
 - A missing-information list.
@@ -490,14 +490,14 @@ This one page would tie together every important research point:
 ## Uncertainties And Guardrails
 
 - I did not verify current advisor conversion data, traffic sources, or which page advisors land on first. If most advisor traffic already goes directly to `/fits-your-stack/`, the homepage mismatch is less urgent but still strategically messy.
-- I did not verify the current product's exact connector depth. Messaging should avoid implying live API integrations where Keepance currently reads local files, email imports, exports, or manually supplied documents.
+- I did not verify the current product's exact connector depth. Messaging should avoid implying live API integrations where Advisor Prep Hero currently reads local files, email imports, exports, or manually supplied documents.
 - Some competitor features are announced or in beta, not necessarily deeply adopted. The report treats them as market direction and buyer perception, not proof of mature usage.
-- Security/compliance language should stay careful. Keepance can reduce vendor data exposure. It should not claim to eliminate compliance duties or guarantee Reg S-P compliance.
+- Security/compliance language should stay careful. Advisor Prep Hero can reduce vendor data exposure. It should not claim to eliminate compliance duties or guarantee Reg S-P compliance.
 
 ## Bottom Line
 
 The website's advisor positioning is directionally right. The issue is that the strongest strategic idea is still split across secondary pages while the main site remains legal-first.
 
-To win in the current advisor-tech landscape, Keepance should sound less like "a private AI app" and more like **the private, cited answer layer that makes the advisor's existing stack usable**.
+To win in the current advisor-tech landscape, Advisor Prep Hero should sound less like "a private AI app" and more like **the private, cited answer layer that makes the advisor's existing stack usable**.
 
 That is the research-backed opening.

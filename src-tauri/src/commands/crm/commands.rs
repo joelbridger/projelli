@@ -381,7 +381,7 @@ pub async fn crm_connect(
         &provider.audit_action("connect"),
         &format!(
             "Connected {}. API key stored locally; data requests go directly \
-             from this device to {}, never through Keepance servers.",
+             from this device to {}, never through Advisor Prep Hero servers.",
             provider.display_name(),
             provider.display_name()
         ),
@@ -457,7 +457,7 @@ pub async fn crm_oauth_connect(
         &provider.audit_action("connect"),
         &format!(
             "Connected {}. OAuth refresh token stored locally; data requests go directly \
-             from this device to {}, never through Keepance servers.",
+             from this device to {}, never through Advisor Prep Hero servers.",
             provider.display_name(),
             provider.display_name()
         ),
@@ -2012,7 +2012,7 @@ mod tests {
             timestamp: "2026-06-25T12:00:00Z".to_string(),
             action: "wealthbox.connect".to_string(),
             description: "Connected Wealthbox. API key stored locally; data requests go \
-                           directly from this device to Wealthbox, never through Keepance servers."
+                           directly from this device to Wealthbox, never through Advisor Prep Hero servers."
                 .to_string(),
             payload_json: r#"{"auditEventType":"wealthbox.connect","source":"crm-backend"}"#
                 .to_string(),

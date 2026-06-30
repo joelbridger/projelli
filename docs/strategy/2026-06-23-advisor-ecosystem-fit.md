@@ -1,10 +1,10 @@
-# Where Keepance Fits in a Financial Advisor's Software Stack
+# Where Advisor Prep Hero Fits in a Financial Advisor's Software Stack
 
 **Date:** 2026-06-23 (revised after an independent Codex accuracy/compliance review)
 **Audience:** Jameson (board) + future Claude sessions building the advisor re-aim.
-**Purpose:** Map the real software a financial-advisory firm runs, how those tools work together, where a client's knowledge actually lives, and exactly where Keepance fits and adds value. This is the strategic foundation for the advisor pivot and for which integrations we build first.
+**Purpose:** Map the real software a financial-advisory firm runs, how those tools work together, where a client's knowledge actually lives, and exactly where Advisor Prep Hero fits and adds value. This is the strategic foundation for the advisor pivot and for which integrations we build first.
 
-> Plain-language note: a few terms. **RIA** = the advisory firm itself (Registered Investment Advisor). **CFP** = the planner's credential (Certified Financial Planner). **Custodian** = the institution that actually holds the client's money (here, Schwab); the advisor manages it, the custodian safeguards it. **CRM** = the contact database meant to be the firm's central memory. **NPI** = nonpublic personal information (a client's private financial data). **Reg S-P** = the SEC privacy rule that says an advisor must take *reasonable steps* to safeguard that data and oversee outside tools that touch it. **BYOK** = "bring your own key": Keepance sends AI requests using the advisor's own AI account, straight from their machine to the AI provider, never through a Keepance server.
+> Plain-language note: a few terms. **RIA** = the advisory firm itself (Registered Investment Advisor). **CFP** = the planner's credential (Certified Financial Planner). **Custodian** = the institution that actually holds the client's money (here, Schwab); the advisor manages it, the custodian safeguards it. **CRM** = the contact database meant to be the firm's central memory. **NPI** = nonpublic personal information (a client's private financial data). **Reg S-P** = the SEC privacy rule that says an advisor must take *reasonable steps* to safeguard that data and oversee outside tools that touch it. **BYOK** = "bring your own key": Advisor Prep Hero sends AI requests using the advisor's own AI account, straight from their machine to the AI provider, never through a Advisor Prep Hero server.
 
 ---
 
@@ -12,7 +12,7 @@
 
 A financial advisor's knowledge about any single client is scattered across roughly **eight separate systems plus their email inbox.** No tool today holds *all* of a client's context in one place and answers questions about it with citations, and the most capable AI most advisors have (consumer ChatGPT) is one they generally should not feed raw client data into without firm review.
 
-**Keepance is the private "client-intelligence + drafting" layer that sits underneath that stack.** It reads from the tools the advisor already uses, keeps the working copy of client content on the advisor's own machine, answers any question about a household with cited facts, and drafts the Word documents. It does not replace the CRM, the planner, the note-taker, or the custodian. It is the one place where everything about a client comes together and answers back.
+**Advisor Prep Hero is the private "client-intelligence + drafting" layer that sits underneath that stack.** It reads from the tools the advisor already uses, keeps the working copy of client content on the advisor's own machine, answers any question about a household with cited facts, and drafts the Word documents. It does not replace the CRM, the planner, the note-taker, or the custodian. It is the one place where everything about a client comes together and answers back.
 
 **Lead hook:** *"A private ChatGPT that actually knows your clients."* The honest version: a workspace built for client data, that answers from the client's own files with citations and drafts your documents, where you control where the data goes.
 
@@ -82,24 +82,24 @@ So an advisor's full picture of any client is a mental reassembly across about e
 
 **Gap C. No deep, Word-native drafting grounded in the client's real file.** Holistiplan and RightCapital produce their own templated PDFs; DocuSign signs documents. But nothing *drafts* a real, editable Word document (a review summary, an Investment Policy Statement, a meeting-recap letter, a Reg BI basis-of-recommendation note) grounded in that specific client's numbers, plan, tax return, notes, and emails. Today the advisor hand-assembles these by copying from six tools.
 
-**Why local-first helps (stated precisely).** Gaps A and C require the AI to read *everything* about a client, which is exactly the data Gap B says you must be careful with. Keepance's design keeps the working copy of client content on the advisor's machine and gives two clear AI modes:
+**Why local-first helps (stated precisely).** Gaps A and C require the AI to read *everything* about a client, which is exactly the data Gap B says you must be careful with. Advisor Prep Hero's design keeps the working copy of client content on the advisor's machine and gives two clear AI modes:
 - **Local-model mode:** the AI runs on the device, so client content does not leave it at all.
-- **BYOK cloud mode:** content goes *directly from the advisor's device to the AI provider they chose* (OpenAI, Anthropic, etc.), under the advisor's own account and contract. Keepance never sees or stores it on a Keepance server.
+- **BYOK cloud mode:** content goes *directly from the advisor's device to the AI provider they chose* (OpenAI, Anthropic, etc.), under the advisor's own account and contract. Advisor Prep Hero never sees or stores it on a Advisor Prep Hero server.
 
-Either way there is no Keepance content server in the path, which is the part of the Reg S-P vendor-oversight story Keepance can honestly stand behind. (We are careful never to claim Keepance makes a firm "compliant"; compliance is the firm's call with its CCO.)
+Either way there is no Advisor Prep Hero content server in the path, which is the part of the Reg S-P vendor-oversight story Advisor Prep Hero can honestly stand behind. (We are careful never to claim Advisor Prep Hero makes a firm "compliant"; compliance is the firm's call with its CCO.)
 
 ---
 
-## 6. Where Keepance fits and what it is worth
+## 6. Where Advisor Prep Hero fits and what it is worth
 
-**Keepance is the private client-intelligence + drafting layer underneath the stack.** For any household:
+**Advisor Prep Hero is the private client-intelligence + drafting layer underneath the stack.** For any household:
 
 1. **Knows the client.** Point it at the client's documents (the OneDrive folder, the exported RightCapital plan and Holistiplan report, the Schwab/Tamarac statements) and connect Outlook (and, as an add, Wealthbox). Ask anything and get a cited answer drawn from the actual sources.
 2. **The Client Map.** A living, auto-built profile: members and key people, goals, accounts at a high level, risk tolerance, life events, prior advice, open items, next review.
 3. **Drafts the documents.** Generate the annual-review letter or the Reg BI note as a real, editable Word document grounded in that client's verified file.
 4. **You control where data goes.** Local-model or BYOK-cloud mode; an always-visible egress indicator and a data map show what left and what did not.
 
-**It is complementary, not competitive.** Keepance is not a CRM (it reads from Wealthbox), not a planner (it reads RightCapital's output), not a note-taker (Jump captures the meeting; Keepance is the deep prep and the drafting around it), and not a custodian. The clean division of labor: *Jump owns the meeting workflow; Keepance owns the client-file intelligence and the Word drafting outside the meeting.*
+**It is complementary, not competitive.** Advisor Prep Hero is not a CRM (it reads from Wealthbox), not a planner (it reads RightCapital's output), not a note-taker (Jump captures the meeting; Advisor Prep Hero is the deep prep and the drafting around it), and not a custodian. The clean division of labor: *Jump owns the meeting workflow; Advisor Prep Hero owns the client-file intelligence and the Word drafting outside the meeting.*
 
 **Value as outcomes (the pitch is ~70% outcome, ~30% architecture):**
 - Walk into every meeting already knowing the whole household, in minutes instead of an hour of tab-juggling.
@@ -111,12 +111,12 @@ Either way there is no Keepance content server in the path, which is the part of
 
 ## 7. Competition, and what could break this thesis
 
-**The category is hot.** Jump (~$80M raised) and Zocks (~$45M) are no longer just note-takers; they market themselves as advisor "AI operating systems" that sit *above* the CRM and automate the whole meeting workflow (prep, recap email, financial-data extraction, CRM updates, compliance documentation, follow-up tasks). Keepance should not try to win the meeting-capture lane. The honest division: **Jump/Zocks own the meeting; Keepance must own the client-file intelligence and Word drafting outside the meeting.** ([Jump AI associate](https://jump.ai/blog/introducing-AI-associate))
+**The category is hot.** Jump (~$80M raised) and Zocks (~$45M) are no longer just note-takers; they market themselves as advisor "AI operating systems" that sit *above* the CRM and automate the whole meeting workflow (prep, recap email, financial-data extraction, CRM updates, compliance documentation, follow-up tasks). Advisor Prep Hero should not try to win the meeting-capture lane. The honest division: **Jump/Zocks own the meeting; Advisor Prep Hero must own the client-file intelligence and Word drafting outside the meeting.** ([Jump AI associate](https://jump.ai/blog/introducing-AI-associate))
 
 **The strongest counter-arguments (what could break us):**
-1. **Microsoft 365 Copilot + Purview.** Most advisors already pay for Microsoft 365. Microsoft has a financial-services compliance story (a Cohasset assessment, Purview records/retention). If a firm's compliance team blesses Copilot over their own data, that is a powerful default. *How Keepance wins:* deeper reach into the actual client files + email with verifiable citations, true Word-native tracked-changes drafting, a local-model option, and a lighter vendor-review burden. ([MS Copilot financial-services compliance](https://www.microsoft.com/en-us/microsoft-cloud/blog/financial-services/2025/01/30/new-compliance-assessment-builds-financial-services-confidence-in-microsoft-365-copilot/))
-2. **Wealthbox AI.** Wealthbox is adding AI Agents, Playbooks, and an Assistant that can query CRM data, draft communications, and log actions. If the CRM becomes the in-place AI, the hub gets stickier. *How Keepance wins:* the CRM holds summaries, not the documents/email substance; Keepance answers across the *whole* file, cited, and drafts Word. ([Wealthbox AI](https://www.prnewswire.com/news-releases/wealthbox-announces-early-access-to-new-ai-features-for-financial-advisors-302707692.html))
-3. **Planning tools (eMoney/RightCapital) embedding AI** over their own data. *How Keepance wins:* it spans *all* sources, not one tool's slice.
+1. **Microsoft 365 Copilot + Purview.** Most advisors already pay for Microsoft 365. Microsoft has a financial-services compliance story (a Cohasset assessment, Purview records/retention). If a firm's compliance team blesses Copilot over their own data, that is a powerful default. *How Advisor Prep Hero wins:* deeper reach into the actual client files + email with verifiable citations, true Word-native tracked-changes drafting, a local-model option, and a lighter vendor-review burden. ([MS Copilot financial-services compliance](https://www.microsoft.com/en-us/microsoft-cloud/blog/financial-services/2025/01/30/new-compliance-assessment-builds-financial-services-confidence-in-microsoft-365-copilot/))
+2. **Wealthbox AI.** Wealthbox is adding AI Agents, Playbooks, and an Assistant that can query CRM data, draft communications, and log actions. If the CRM becomes the in-place AI, the hub gets stickier. *How Advisor Prep Hero wins:* the CRM holds summaries, not the documents/email substance; Advisor Prep Hero answers across the *whole* file, cited, and drafts Word. ([Wealthbox AI](https://www.prnewswire.com/news-releases/wealthbox-announces-early-access-to-new-ai-features-for-financial-advisors-302707692.html))
+3. **Planning tools (eMoney/RightCapital) embedding AI** over their own data. *How Advisor Prep Hero wins:* it spans *all* sources, not one tool's slice.
 
 The takeaway: our defensibility is **depth across the whole client file + email, Word-native cited drafting, and a data-control story (local or BYOK-direct) that lowers the firm's vendor-review burden.** "We are private" alone is no longer differentiated (Zocks/Zeplyn claim privacy too); lead with the client-intelligence depth and the drafting, with data-control as the closer.
 
@@ -128,15 +128,15 @@ Jameson's directive: build real integrations, the biggest ones most firms have. 
 
 **Build order:**
 
-1. **Local client-folder + Outlook foundation (mostly already built).** Point Keepance at the folder where the advisor already keeps a client's documents (RightCapital/Holistiplan exports, Schwab/Tamarac statements, signed PDFs); OneDrive's desktop sync means those are local files the existing engine already indexes. Add a guided "point this client at their folder" flow. Outlook email ingestion already exists. This is the demo's backbone and works for *every* firm regardless of CRM.
+1. **Local client-folder + Outlook foundation (mostly already built).** Point Advisor Prep Hero at the folder where the advisor already keeps a client's documents (RightCapital/Holistiplan exports, Schwab/Tamarac statements, signed PDFs); OneDrive's desktop sync means those are local files the existing engine already indexes. Add a guided "point this client at their folder" flow. Outlook email ingestion already exists. This is the demo's backbone and works for *every* firm regardless of CRM.
 
-2. **Wealthbox (CRM) read connector, local-first.** The flagship "fits your stack" add. The advisor pastes a personal access token (stored in the OS keychain); Keepance calls the Wealthbox REST API **directly from the advisor's machine, never through a Keepance server.** Read the core objects we need first (contacts/households, notes, tasks, events, activity, workflows) into a client's Client Map. (We will prove "households, files, pagination, rate limits, custom permissions" against a real account before claiming full coverage; Wealthbox has no document API, so files still come from OneDrive.) Same REST API the leading note-takers build on, so the pattern is proven. [Wealthbox API](https://dev.wealthbox.com/).
+2. **Wealthbox (CRM) read connector, local-first.** The flagship "fits your stack" add. The advisor pastes a personal access token (stored in the OS keychain); Advisor Prep Hero calls the Wealthbox REST API **directly from the advisor's machine, never through a Advisor Prep Hero server.** Read the core objects we need first (contacts/households, notes, tasks, events, activity, workflows) into a client's Client Map. (We will prove "households, files, pagination, rate limits, custom permissions" against a real account before claiming full coverage; Wealthbox has no document API, so files still come from OneDrive.) Same REST API the leading note-takers build on, so the pattern is proven. [Wealthbox API](https://dev.wealthbox.com/).
 
 3. **Redtail (the other big CRM): apply now, build when granted.** Redtail's firm-only API tier needs a short application; start it in parallel so access lands while we build. Covers the established-firm half of the CRM market.
 
 **Deeper / later (fast-follow):** a Microsoft Graph OneDrive *cloud* file connector (for files not synced locally; this needs an app registration and permissions, possibly admin consent, so it is not "free" like reading synced folders); and Wealthbox *write-back* (push a drafted summary or Reg BI note into the CRM as a note, the way Jump does), plus OAuth so other advisors connect without a manual token.
 
-**Defer (position as "on the roadmap"):** Schwab (custodian: data-access contracts + compliance, hardest), Tamarac (enterprise sales-gated), RightCapital and eMoney (partner-gated), Holistiplan (API access is case-by-case, request-based, not strictly Enterprise). For all of these the demo already works: *export their PDF report into the client's folder and Keepance reads it.* Build the APIs later, customer-demand-first.
+**Defer (position as "on the roadmap"):** Schwab (custodian: data-access contracts + compliance, hardest), Tamarac (enterprise sales-gated), RightCapital and eMoney (partner-gated), Holistiplan (API access is case-by-case, request-based, not strictly Enterprise). For all of these the demo already works: *export their PDF report into the client's folder and Advisor Prep Hero reads it.* Build the APIs later, customer-demand-first.
 
 ---
 
@@ -146,7 +146,7 @@ Jameson's directive: build real integrations, the biggest ones most firms have. 
 
 **Pricing.** The advisor software budget is real (roughly $6,000-$12,000 per advisor per year across the stack). The current in-app pricing config and the advisor web page disagree (one shows $468+/yr, the other a $99/yr founding rate); these get reconciled into one coherent advisor-first price. (Pricing is now set autonomously per Jameson's 2026-06-23 grant.)
 
-**Public-copy guardrail (from the review).** In anything customer-facing, avoid "allowed," "safe," "compliant," "guaranteed," and "without breaking Reg S-P." Use the honest framing: *Keepance is designed to reduce vendor exposure: the working copy of client content stays on your machine, Keepance never hosts it, and you choose a local-model or your-own-provider AI mode, with an audit log your compliance team can review.* Any regulatory page passes a securities-compliance review before publishing.
+**Public-copy guardrail (from the review).** In anything customer-facing, avoid "allowed," "safe," "compliant," "guaranteed," and "without breaking Reg S-P." Use the honest framing: *Advisor Prep Hero is designed to reduce vendor exposure: the working copy of client content stays on your machine, Advisor Prep Hero never hosts it, and you choose a local-model or your-own-provider AI mode, with an audit log your compliance team can review.* Any regulatory page passes a securities-compliance review before publishing.
 
 ---
 

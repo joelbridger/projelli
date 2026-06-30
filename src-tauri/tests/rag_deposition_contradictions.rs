@@ -36,9 +36,9 @@
 //! pre-provision the e5-small cache exactly as rag_matter_scope.rs documents
 //! (this rig: ~/.local/share/keepance/models/e5-small is populated).
 
-use keepance_lib::commands::rag::chunker::Chunk;
-use keepance_lib::commands::rag::store::{self, lookup_by_id, SourceType, PRIVILEGE_NONE};
-use keepance_lib::commands::rag::Verdict;
+use lantern_lib::commands::rag::chunker::Chunk;
+use lantern_lib::commands::rag::store::{self, lookup_by_id, SourceType, PRIVILEGE_NONE};
+use lantern_lib::commands::rag::Verdict;
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
@@ -46,8 +46,8 @@ use tokio::sync::OnceCell;
 /// can initialize. Uses the same path resolution as the production embedder so
 /// the check is identical to what the app sees at runtime.
 fn model_is_provisioned() -> bool {
-    use keepance_lib::commands::rag::embedder::resolve_cache_dir;
-    use keepance_lib::commands::rag::model_download::model_files_cached;
+    use lantern_lib::commands::rag::embedder::resolve_cache_dir;
+    use lantern_lib::commands::rag::model_download::model_files_cached;
     model_files_cached(&resolve_cache_dir())
 }
 
@@ -92,7 +92,7 @@ const FIXTURE_DIR: &str = concat!(
 /// Decrypt a `StoredHit`'s text (hex AES-256-GCM) exactly as the
 /// `rag_retrieve` command does.
 fn decrypt_hit(h: &store::StoredHit) -> String {
-    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+    use lantern_lib::commands::mail::crypto::decrypt_with_key;
     let blob = hex::decode(&h.text).expect("hit text must be hex ciphertext");
     String::from_utf8(decrypt_with_key(&blob, &VEC_KEY).expect("decrypt hit text"))
         .expect("utf8 plaintext")
@@ -111,7 +111,7 @@ async fn nearest(
     scope: Option<&str>,
     include_privileged: bool,
 ) -> anyhow::Result<Vec<store::StoredHit>> {
-    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+    use lantern_lib::commands::mail::crypto::decrypt_with_key;
     let mut hits = store::nearest(table, query_vec, top_k, scope, include_privileged, &[]).await?;
     for h in &mut hits {
         let enc = h.path_enc.as_deref().expect("V10 rows must carry path_enc");
@@ -213,7 +213,7 @@ fn load_source(src: &Source) -> (String, SourceType) {
 /// group under its `load_source` SourceType — so the Johnson transcript and
 /// every other member keep their byte-identical chunk ids.
 fn load_groups(src: &Source) -> Vec<(SourceType, Vec<Chunk>)> {
-    use keepance_lib::commands::rag::transcript;
+    use lantern_lib::commands::rag::transcript;
     if src.file == WESTON_FILE {
         let path = format!("{FIXTURE_DIR}/{}", src.file);
         let text = std::fs::read_to_string(&path)
@@ -237,7 +237,7 @@ fn load_groups(src: &Source) -> Vec<(SourceType, Vec<Chunk>)> {
         let (text, source_type) = load_source(src);
         vec![(
             source_type,
-            keepance_lib::commands::rag::chunker::chunk_text(src.source_id, &text),
+            lantern_lib::commands::rag::chunker::chunk_text(src.source_id, &text),
         )]
     }
 }
@@ -262,7 +262,7 @@ async fn fixture() -> Arc<Fixture> {
                         continue;
                     }
                     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-                    let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts)
+                    let vectors = lantern_lib::commands::rag::embedder::embed_documents(&texts)
                         .await
                         .expect("embed documents (is the e5-small cache provisioned?)");
                     let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
@@ -292,7 +292,7 @@ async fn fixture() -> Arc<Fixture> {
 }
 
 async fn embed(query: &str) -> Vec<f32> {
-    keepance_lib::commands::rag::embedder::embed_query(query)
+    lantern_lib::commands::rag::embedder::embed_query(query)
         .await
         .expect("embed query")
 }
@@ -302,7 +302,7 @@ async fn embed(query: &str) -> Vec<f32> {
 /// `text_contains_normalized`'s canon (Task 5): lowercase + curly quotes
 /// straightened + whitespace collapsed — symmetric on both sides, not fuzzy.
 async fn verify(table: &lancedb::Table, id: &str, claimed: &str, quoted: &str) -> Verdict {
-    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+    use lantern_lib::commands::mail::crypto::decrypt_with_key;
     let normalize = |s: &str| {
         let lowered = s.to_lowercase();
         let straightened: String = lowered
@@ -811,7 +811,7 @@ async fn fixture_with_filler() -> Arc<Fixture> {
                     }
                     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
                     let vectors =
-                        keepance_lib::commands::rag::embedder::embed_documents_batched(&texts, None)
+                        lantern_lib::commands::rag::embedder::embed_documents_batched(&texts, None)
                             .await
                             .expect("embed documents (is the e5-small cache provisioned?)")
                             .expect("not cancelled");
@@ -876,8 +876,8 @@ async fn f510_raw_finder_feed_composition_with_filler_is_recorded() {
 #[tokio::test]
 #[ignore]
 async fn f510_capped_finder_feed_contains_both_sides_of_all_three() {
-    use keepance_lib::commands::rag::embedder::cosine_distance_to_score;
-    use keepance_lib::commands::rag::{cap_per_source, Hit};
+    use lantern_lib::commands::rag::embedder::cosine_distance_to_score;
+    use lantern_lib::commands::rag::{cap_per_source, Hit};
 
     let f = fixture_with_filler().await;
     let q = embed(FINDER_QUERY).await;

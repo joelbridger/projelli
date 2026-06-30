@@ -1,7 +1,7 @@
 # Connectors
 
 > How outside data sources (email, a CRM, cloud files, a calendar, e-signatures)
-> get pulled into Keepance, tagged to the right client, and made searchable with
+> get pulled into Advisor Prep Hero, tagged to the right client, and made searchable with
 > citations. Written for humans and AI agents. **Verify every status claim
 > against the code before relying on it** — connector status moves fast, and the
 > statuses below were grounded in the `keepance-3.0` source on 2026-06-28. If a
@@ -9,7 +9,7 @@
 
 ## What a connector is
 
-A **connector** is the bridge from one external data source into Keepance's
+A **connector** is the bridge from one external data source into Advisor Prep Hero's
 local, cited search. Each connector does three jobs:
 
 1. **Connect + authenticate** to a provider (OAuth, a pasted API token, or
@@ -79,7 +79,7 @@ delete-then-add by `source_id`).
 ## How imported data maps to clients (matters)
 
 This is the heart of the connector design — and a **privacy boundary**, not just
-a convenience. A client in Keepance is a *matter* (`matter_id`). Connector data
+a convenience. A client in Advisor Prep Hero is a *matter* (`matter_id`). Connector data
 must land on the right matter, and must never silently cross from one client to
 another. All the mapping logic is pure TypeScript in
 [`src/platform/rag/matterResolver.ts`](../../src/platform/rag/matterResolver.ts),
@@ -190,7 +190,7 @@ Connections, working auth + sync, and exercised in the 2026-06-28 Windows demo.
 ### Code-complete, gated on vendor credentials
 
 Real, registered backend code (and in some cases UI), but they can't function in
-production until Keepance has the provider's integrator credentials. These are
+production until Advisor Prep Hero has the provider's integrator credentials. These are
 the ones to reach for when a partner key arrives.
 
 | Connector | Backend | What's missing |
@@ -226,10 +226,10 @@ exists for these on this branch.
 
 Some tools — notably **RightCapital** (financial plans) and **Jump** (AI meeting
 notes) — have no usable read API, but their valuable *output* already lands in
-places Keepance reads: a plan PDF the advisor exports into a OneDrive/SharePoint
+places Advisor Prep Hero reads: a plan PDF the advisor exports into a OneDrive/SharePoint
 client folder, a Jump note synced into Wealthbox or saved as a SharePoint PDF.
 Per [`2026-06-29-connector-access-options-rightcapital-jump.md`](../strategy/2026-06-29-connector-access-options-rightcapital-jump.md),
-Keepance does **not** build branded connectors for these. Instead they are
+Advisor Prep Hero does **not** build branded connectors for these. Instead they are
 **recognized source types inside the generic ingester** — an honest, additive
 overlay, not a connector.
 
@@ -266,7 +266,7 @@ tagged; mail is never treated as an export.
 - Copy says **"reads your exported files / saved notes,"** never "integrates
   with" / "official partner" / "syncs live." RightCapital is NOT in the
   onboarding "coming soon" connector logos (that implied an integration).
-- The first time a recognized export would be sent to the AI, Keepance asks for a
+- The first time a recognized export would be sent to the AI, Advisor Prep Hero asks for a
   **one-time firm consent** (recorded in the audit log, revocable in Settings).
 
 ## Hard-won OneDrive learnings (personal Microsoft accounts)

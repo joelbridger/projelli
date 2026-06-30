@@ -11,7 +11,7 @@
  *     offline-verified token within grace) grants FULL features at the seat's
  *     tier (a `practice`-plan org IS the Firm tier).
  *   - A REVOKED / invalid seat degrades features (AI + updates off) but, like
- *     everywhere else in Keepance, NEVER locks the user's own data.
+ *     everywhere else in Advisor Prep Hero, NEVER locks the user's own data.
  *   - `dataAccessAlwaysTrue` is `true` in every branch (typed as literal true).
  *
  * Solo/local mode never produces a firm seat, so it never reaches this module.

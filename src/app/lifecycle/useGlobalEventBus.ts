@@ -1,5 +1,5 @@
 /**
- * useGlobalEventBus — centralizes the app-wide `keepance:*` CustomEvent wiring
+ * useGlobalEventBus — centralizes the app-wide `lantern:*` CustomEvent wiring
  * that surfaces (the matter hub, the rail account chip, get-started cards, the
  * navy spine) dispatch on `window` to drive the shell.
  * Extracted from App.tsx (Phase 3 decomposition). Uses the latest-handlers-ref
@@ -110,7 +110,7 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
       const matterId = detail.matterId;
 
       // Client Map source link -> open the EXACT cited document and scroll to
-      // the cited spot. (Email sources open via keepance:open-email, so only
+      // the cited spot. (Email sources open via lantern:open-email, so only
       // document sources arrive here.) Falls back to the document browser if the
       // file can't be opened.
       const source = detail.source;

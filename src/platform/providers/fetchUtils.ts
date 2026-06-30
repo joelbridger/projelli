@@ -164,7 +164,7 @@ export class ApiResponseParseError extends Error {
    */
   toDiagnostic(): string {
     const lines: string[] = [];
-    lines.push('=== Keepance API Parse Error Diagnostic ===');
+    lines.push('=== Advisor Prep Hero API Parse Error Diagnostic ===');
     lines.push(`Time: ${new Date().toISOString()}`);
     lines.push(`Parse error: ${this.parseErrorMessage}`);
     lines.push(`Body length: ${this.bodyLength} chars`);

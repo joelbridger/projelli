@@ -2,7 +2,7 @@
 
 **Source:** Kitces Research AdvisorTech Study, Volume 1, 2025 (209-page PDF).
 **Raw files (this repo):** `docs/research/The-Kitces-Report-...-Vol-1-2025-1.pdf` (original) and `docs/research/kitces-report-2025-vol1.txt` (full text extraction, searchable).
-**What this is:** The most authoritative independent survey of what software US independent financial advisors actually use and how satisfied they are. Skews independent RIAs / younger advisors. This digest captures the numbers and findings that matter for Keepance positioning. *Facts are neutral; a short "Relevance to Keepance" note is at the end.*
+**What this is:** The most authoritative independent survey of what software US independent financial advisors actually use and how satisfied they are. Skews independent RIAs / younger advisors. This digest captures the numbers and findings that matter for Advisor Prep Hero positioning. *Facts are neutral; a short "Relevance to Advisor Prep Hero" note is at the end.*
 
 ---
 
@@ -14,7 +14,7 @@
 - **Overall tech-stack satisfaction fell to 7.0/10 in 2025, down from 7.3 in 2023.** Of 23 comparable categories, satisfaction **dropped in all but three**. Steepest drops were in business-development tools (websites, digital marketing, proposal generation).
 - The report names the core problem: **"tech bloat" from "juggling too many individual tools."** Advisors are described as "an industry more reliant on technology than ever, yet increasingly dissatisfied with the solutions they feel forced into."
 
-## 2. The stack & integration — the single most important finding for Keepance
+## 2. The stack & integration — the single most important finding for Advisor Prep Hero
 
 - **Integration (data flowing automatically across apps) is the #1 driver of tech-stack satisfaction.**
 - **Fewer than one-third** of advisors say data flows automatically across their main applications; only ~10% have fully integrated workflows beyond the core systems.
@@ -32,7 +32,7 @@
 - Key quote: *"The main obstacle to winning advisors away from their existing solutions is not simply proving that their current tools are inferior. It's overcoming inertia and the perceived switching costs of moving to a new solution."*
 - **How advisors find/buy software (procurement inputs):** vendor demos **49%**, industry peers **43%**, blogs/podcasts **33%**, industry studies **31%**. Cold outbound, ads, and exhibit halls rank low. *"Don't call on us, we'll call on you when we've done our own research with our peers."*
 - **Best green-field opportunities (high change-intent + high vendor uncertainty):** Agentic AI Assistants, Legacy Planning, Client Feedback, Outbound Prospecting.
-- **Most entrenched (low switch-intent + low uncertainty):** eSignature, **client file sharing, document management,** scheduling, **CRM,** general financial planning. ← These are the categories Keepance is adjacent to; they are the *hardest* to displace, which is why Keepance must sit *over* them, not try to replace them.
+- **Most entrenched (low switch-intent + low uncertainty):** eSignature, **client file sharing, document management,** scheduling, **CRM,** general financial planning. ← These are the categories Advisor Prep Hero is adjacent to; they are the *hardest* to displace, which is why Advisor Prep Hero must sit *over* them, not try to replace them.
 
 ## 4. Advisor attitudes toward AI (the core of the positioning question)
 
@@ -55,7 +55,7 @@
 - **Market Leader** = 10%+ share + 8.0+ satisfaction. **Rising Star** = 8.2+ satisfaction, 1.3–10% share. **Standout** = 5%+ share + 8.5+ satisfaction.
 - 2025 has **fewer Market Leaders** (only 9 categories have a 10%-share/8.0-satisfaction vendor, down from 15 in 2023) and a record **53 Rising Stars** across 21 categories — the market is fragmenting, not consolidating.
 
-## 6. Category snapshots most relevant to Keepance
+## 6. Category snapshots most relevant to Advisor Prep Hero
 
 | Category | Importance | Adoption | Leaders (share) | Satisfaction notes / AI notes |
 |---|---|---|---|---|
@@ -78,11 +78,11 @@
 
 ---
 
-## Relevance to Keepance (interpretation — not from the report)
+## Relevance to Advisor Prep Hero (interpretation — not from the report)
 
 1. **The "another tool" objection is the market's dominant mood, with a name ("tech bloat") and a worsening trend (7.0, down from 7.3).** Any new tool must answer it explicitly.
-2. **Integration is the #1 thing advisors reward; "siloed" is the #1 thing they (and the report) flag as the AI failure mode.** Keepance's "reads across the tools you already use" is pushing on the open door — *if it genuinely connects and isn't just another island.*
-3. **Keepance's lane is validated:** advisors want AI in the **back office** (prep, document review, drafting), with a **human in the loop** (57% expedite vs 28% automate), and explicitly **not** in client service. The single most-used real AI task today — **reading client documents (20%)** — is Keepance's core capability.
-4. **The trust gap ("one mistake = a lawsuit") is the gating barrier.** Keepance's **verifiable citations** + **local-first/BYOK data control** are direct answers to the two named blockers (accuracy/trust + compliance/data-handling).
-5. **The trap to avoid:** being filed under "Agentic AI Assistants" — low importance, <10% adoption, distrusted. Keepance should **not** lead as "another AI assistant"; it should lead as the **integration + answer layer over the existing stack**, with the prep/drafting workflow as the hero use case.
-6. **Go-to-market implication:** advisors buy via **demos + peers + industry research**, only for a **clearly superior** product, and resist switching. Keepance should *avoid asking them to switch away from anything* (it sits on top), and win through a demo-able "wow" + warm peer referrals (e.g., the design-partner advisor).
+2. **Integration is the #1 thing advisors reward; "siloed" is the #1 thing they (and the report) flag as the AI failure mode.** Advisor Prep Hero's "reads across the tools you already use" is pushing on the open door — *if it genuinely connects and isn't just another island.*
+3. **Advisor Prep Hero's lane is validated:** advisors want AI in the **back office** (prep, document review, drafting), with a **human in the loop** (57% expedite vs 28% automate), and explicitly **not** in client service. The single most-used real AI task today — **reading client documents (20%)** — is Advisor Prep Hero's core capability.
+4. **The trust gap ("one mistake = a lawsuit") is the gating barrier.** Advisor Prep Hero's **verifiable citations** + **local-first/BYOK data control** are direct answers to the two named blockers (accuracy/trust + compliance/data-handling).
+5. **The trap to avoid:** being filed under "Agentic AI Assistants" — low importance, <10% adoption, distrusted. Advisor Prep Hero should **not** lead as "another AI assistant"; it should lead as the **integration + answer layer over the existing stack**, with the prep/drafting workflow as the hero use case.
+6. **Go-to-market implication:** advisors buy via **demos + peers + industry research**, only for a **clearly superior** product, and resist switching. Advisor Prep Hero should *avoid asking them to switch away from anything* (it sits on top), and win through a demo-able "wow" + warm peer referrals (e.g., the design-partner advisor).

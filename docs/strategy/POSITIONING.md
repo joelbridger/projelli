@@ -1,4 +1,4 @@
-# Keepance positioning (locked 2026-05-27)
+# Advisor Prep Hero positioning (locked 2026-05-27)
 
 > This is the canonical positioning document. Future Claude sessions: read this before touching product copy, marketing, or feature decisions. The strategic choices here were made on 2026-05-27 and are not open for reinterpretation unless Jameson explicitly says so.
 
@@ -48,17 +48,17 @@ Notes: TAM figures are rough. WTP is observed from comparable local software (Ob
 
 ### Not a Notion AI competitor
 
-Notion AI is a great product for teams who want collaborative docs with an AI layer. That buyer's constraint is a "we don't have one place for everything." Keepance's buyer already has a workflow and a confidentiality problem. These are different people with different jobs to be done. Positioning against Notion AI would make us look like a cheaper version of a product we're not actually competing with.
+Notion AI is a great product for teams who want collaborative docs with an AI layer. That buyer's constraint is a "we don't have one place for everything." Advisor Prep Hero's buyer already has a workflow and a confidentiality problem. These are different people with different jobs to be done. Positioning against Notion AI would make us look like a cheaper version of a product we're not actually competing with.
 
 ### Not a ChatGPT or Claude Projects alternative
 
-ChatGPT and Claude Projects are amazing at what they do. The people who should use those products should use them. Keepance is for the people who can't. Positioning as "better than ChatGPT" is both false and the wrong frame. The honest positioning is: "If you have no confidentiality constraint, use whatever works. If you do have one, here's how we solve it."
+ChatGPT and Claude Projects are amazing at what they do. The people who should use those products should use them. Advisor Prep Hero is for the people who can't. Positioning as "better than ChatGPT" is both false and the wrong frame. The honest positioning is: "If you have no confidentiality constraint, use whatever works. If you do have one, here's how we solve it."
 
 ### Not an Obsidian plugin or competitor
 
-Obsidian is a notes app. A very good one. Keepance is an AI workspace where every chat produces a real artifact. The editor is similar in some ways, but the value proposition is AI-in-your-workflow, not notes-in-your-control. Users who love Obsidian will sometimes compare the two; the correct response is to name what Obsidian doesn't do (workflow templates, chat-to-artifact, profession packs) rather than dismissing it.
+Obsidian is a notes app. A very good one. Advisor Prep Hero is an AI workspace where every chat produces a real artifact. The editor is similar in some ways, but the value proposition is AI-in-your-workflow, not notes-in-your-control. Users who love Obsidian will sometimes compare the two; the correct response is to name what Obsidian doesn't do (workflow templates, chat-to-artifact, profession packs) rather than dismissing it.
 
-**The right comparison frame:** Keepance is not a better version of any existing tool. It's a new category for a buyer that existing tools weren't designed for.
+**The right comparison frame:** Advisor Prep Hero is not a better version of any existing tool. It's a new category for a buyer that existing tools weren't designed for.
 
 ---
 
@@ -101,17 +101,17 @@ The federal statute governing unauthorized disclosure of tax return information.
 
 Real. Confirmed. *United States v. Heppner*, No. 1:25-cr-00503-JSR (S.D.N.Y. Feb. 17, 2026), Dkt. No. 27 (Rakoff, J.). The case involved a defendant who used consumer-grade Claude without attorney direction. The court found no attorney-client privilege protection for those communications.
 
-The marketing hook: this case demonstrates the risk of unprotected AI use. The favorable dicta for Keepance users: the court's analysis supports the Kovel theory — privilege can attach when AI is used under counsel direction as a functional extension of the attorney-client relationship. Local-first + counsel-directed workflow is the right fact pattern.
+The marketing hook: this case demonstrates the risk of unprotected AI use. The favorable dicta for Advisor Prep Hero users: the court's analysis supports the Kovel theory — privilege can attach when AI is used under counsel direction as a functional extension of the attorney-client relationship. Local-first + counsel-directed workflow is the right fact pattern.
 
-**How to frame in marketing copy:** "A February 2026 SDNY ruling found that consumer AI use without attorney direction or confidentiality safeguards did not preserve privilege. Keepance is designed for counsel-directed workflows where the attorney remains in control of the process."
+**How to frame in marketing copy:** "A February 2026 SDNY ruling found that consumer AI use without attorney direction or confidentiality safeguards did not preserve privilege. Advisor Prep Hero is designed for counsel-directed workflows where the attorney remains in control of the process."
 
-**Do NOT frame as:** "Keepance satisfies Heppner" or "Keepance prevents privilege waiver" — those are legal conclusions only an attorney can make.
+**Do NOT frame as:** "Advisor Prep Hero satisfies Heppner" or "Advisor Prep Hero prevents privilege waiver" — those are legal conclusions only an attorney can make.
 
 **Verification status:** Confirmed real. Safe for public copy with the framing above.
 
 ### EU absolute-novelty rule (patent practitioners)
 
-Under the European Patent Convention, premature public disclosure of an invention before filing can destroy worldwide patentability. Whether submitting an invention description to a cloud AI service constitutes "public disclosure" under Article 54 EPC is a live question that patent attorneys are actively discussing. Keepance is not taking a position; we're flagging the question and noting that local-first eliminates it.
+Under the European Patent Convention, premature public disclosure of an invention before filing can destroy worldwide patentability. Whether submitting an invention description to a cloud AI service constitutes "public disclosure" under Article 54 EPC is a live question that patent attorneys are actively discussing. Advisor Prep Hero is not taking a position; we're flagging the question and noting that local-first eliminates it.
 
 **Verification status:** The underlying rule is real. The "cloud AI counts as prior art" interpretation is a live practitioner question, not settled law. Frame it that way.
 
@@ -143,13 +143,13 @@ This vertical is the awareness flywheel. Consultants post about their tools publ
 
 ## What to say when asked "why not just use ChatGPT or Claude directly?"
 
-If you have no confidentiality constraint, you should. Those are excellent products and they're getting better every week. Keepance exists for people who actually can't use them. Attorneys bound by Model Rules 1.6 and 1.1 need to do a confidentiality review of any AI tool they use. Tax preparers handling client returns operate under IRC §7216. Independent consultants increasingly sign engagement letters with explicit AI clauses. For those practitioners, "just use ChatGPT" isn't an option, and Keepance is built so the question doesn't arise: your files stay on your machine, your API key goes straight to the provider, and nothing passes through our servers.
+If you have no confidentiality constraint, you should. Those are excellent products and they're getting better every week. Advisor Prep Hero exists for people who actually can't use them. Attorneys bound by Model Rules 1.6 and 1.1 need to do a confidentiality review of any AI tool they use. Tax preparers handling client returns operate under IRC §7216. Independent consultants increasingly sign engagement letters with explicit AI clauses. For those practitioners, "just use ChatGPT" isn't an option, and Advisor Prep Hero is built so the question doesn't arise: your files stay on your machine, your API key goes straight to the provider, and nothing passes through our servers.
 
 ---
 
 ## What to say when asked "how is this different from Notion AI?"
 
-Notion AI is a great product. It's built for teams collaborating on a shared knowledge base, and the AI features are genuinely well done. Keepance is built for a different situation: a solo practitioner or small team that can't put client files into a cloud-connected workspace at all. The editor in Keepance is similar in some ways to Notion, but the core proposition is different. Every AI interaction in Keepance produces a persistent Markdown file on your hard drive. Your keys live in your OS keychain. The profession template packs are built around specific workflows (deposition prep, tax season client intake, patent disclosure) rather than general productivity. If your job is to collaborate with a team on internal docs, Notion AI is probably the better tool. If your job is billable client work that has to stay private, that's what Keepance is for.
+Notion AI is a great product. It's built for teams collaborating on a shared knowledge base, and the AI features are genuinely well done. Advisor Prep Hero is built for a different situation: a solo practitioner or small team that can't put client files into a cloud-connected workspace at all. The editor in Advisor Prep Hero is similar in some ways to Notion, but the core proposition is different. Every AI interaction in Advisor Prep Hero produces a persistent Markdown file on your hard drive. Your keys live in your OS keychain. The profession template packs are built around specific workflows (deposition prep, tax season client intake, patent disclosure) rather than general productivity. If your job is to collaborate with a team on internal docs, Notion AI is probably the better tool. If your job is billable client work that has to stay private, that's what Advisor Prep Hero is for.
 
 ---
 
@@ -163,7 +163,7 @@ The moat is three things:
 
 **Positioning.** No other local-first AI workspace has claimed the confidential client work angle clearly. Being first and specific matters. The practitioners who hear "the AI workspace for professionals who legally cannot use cloud AI" and recognize themselves in it will trust us more than a product that calls itself "private AI" without explaining why it matters.
 
-**The editor plus chat plus artifacts together.** The combination of a real Markdown editor with wiki-links and version history, AI chat that produces persistent documents, and profession-specific templates is genuinely new. Obsidian is an editor with an AI plugin bolted on. ChatGPT is a chat interface with no document layer. Keepance is designed so that the AI output is always a real file you can edit, version, and reference from other documents. That's the part that's actually different.
+**The editor plus chat plus artifacts together.** The combination of a real Markdown editor with wiki-links and version history, AI chat that produces persistent documents, and profession-specific templates is genuinely new. Obsidian is an editor with an AI plugin bolted on. ChatGPT is a chat interface with no document layer. Advisor Prep Hero is designed so that the AI output is always a real file you can edit, version, and reference from other documents. That's the part that's actually different.
 
 ---
 

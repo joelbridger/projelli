@@ -37,7 +37,7 @@ use zeroize::Zeroize;
 /// Build the keychain service name for a given workspace id.
 ///
 /// Mirrors `com.keepance.mail-enc` / `com.keepance.vectors-enc` etc., keeping
-/// all Keepance keychain entries under the `com.keepance.*` namespace.
+/// all Advisor Prep Hero keychain entries under the `com.keepance.*` namespace.
 fn vmk_service(id: &str) -> String {
     crate::identity::vault_keychain_service(id)
 }
@@ -118,7 +118,7 @@ fn load_vmk(workspace_id: &str) -> Result<ZeroizedVmk, VaultCommandError> {
 /// Try to load the VMK for a workspace without requiring the vault to be enabled
 /// or the keychain to have an entry. Returns `None` in any of these cases:
 ///
-/// - The workspace has no `.keepance-vault.json` (vault not enabled — plaintext workspace).
+/// - The workspace has no `.lantern-vault.json` (vault not enabled — plaintext workspace).
 /// - The metadata is unreadable (vault not enabled / corrupt).
 /// - The keychain has no VMK for this workspace (vault is locked on this machine).
 /// - Any error in keychain access or base64 decoding.
@@ -290,7 +290,7 @@ pub enum VaultCommandError {
     /// disabled until every file has been decrypted via `vault_decrypt_all`.
     FilesStillEncrypted(String),
     /// `vault_create` was called for a workspace that already has a
-    /// `.keepance-vault.json`. Creating again would overwrite the existing master
+    /// `.lantern-vault.json`. Creating again would overwrite the existing master
     /// key and permanently orphan already-encrypted files; disable first.
     AlreadyEnabled(String),
 }
@@ -344,7 +344,7 @@ impl From<keepance_vault::recovery::RecoveryError> for VaultCommandError {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VaultStatus {
-    /// `true` when a `.keepance-vault.json` metadata file exists in the workspace.
+    /// `true` when a `.lantern-vault.json` metadata file exists in the workspace.
     pub enabled: bool,
     /// `true` when `enabled` and the VMK is absent from the keychain
     /// (vault needs to be unlocked before files can be read/written).
@@ -369,7 +369,7 @@ pub struct VaultCreated {
 
 /// Return the current status of the vault for a workspace.
 ///
-/// - `enabled`  = `.keepance-vault.json` exists.
+/// - `enabled`  = `.lantern-vault.json` exists.
 /// - `locked`   = enabled but no VMK in the OS keychain.
 /// - `has_escrow` = metadata contains a firm-admin escrow section.
 /// - `vault_id` = the stable workspace identifier recorded in the metadata.
@@ -408,7 +408,7 @@ pub async fn vault_status(workspace: String) -> Result<VaultStatus, VaultCommand
 /// 1. Generate 32 random bytes as the VMK.
 /// 2. Build the BIP39 recovery wrap (`create_recovery`).
 /// 3. Build a verifier blob (`make_verifier`).
-/// 4. Write `.keepance-vault.json` (atomic write via the crate).
+/// 4. Write `.lantern-vault.json` (atomic write via the crate).
 /// 5. Store the VMK in the OS keychain.
 /// 6. Return the 24-word recovery phrase **once** — it is never stored.
 ///
@@ -648,7 +648,7 @@ pub async fn vault_export_vmk_for_escrow(
 ///
 /// Called by the TypeScript `provisionEscrow` function after it has wrapped the VMK
 /// to each admin device's public key. This command atomically writes the new escrow
-/// section to `.keepance-vault.json`. It does NOT require the vault to be unlocked —
+/// section to `.lantern-vault.json`. It does NOT require the vault to be unlocked —
 /// the wrapped keys are opaque blobs that the JS side produced; we just persist them.
 ///
 /// `epoch` is a monotonically increasing counter (start at 1; increment on key rotation).
@@ -678,7 +678,7 @@ pub async fn vault_set_escrow_wraps(
 
 /// Encrypt every eligible file in a workspace under the VMK (migration command).
 ///
-/// Walks the workspace root recursively (skipping `.keepance/`, `.keepance-vault.json`,
+/// Walks the workspace root recursively (skipping `.keepance/`, `.lantern-vault.json`,
 /// `.kpv-tmp-*`) and encrypts each plain file atomically. Already-encrypted files
 /// (KPV1 magic) are skipped — the walk is resumable.
 ///
@@ -745,12 +745,12 @@ pub async fn vault_decrypt_all(
 /// Disable the encrypted vault for a workspace.
 ///
 /// SAFETY: this command REFUSES with `files_still_encrypted` if any file in the
-/// workspace (excluding `.keepance/`, `.keepance-vault.json`, `.kpv-tmp-*`) still
+/// workspace (excluding `.keepance/`, `.lantern-vault.json`, `.kpv-tmp-*`) still
 /// has the KPV1 magic header. This ensures we never orphan ciphertext that cannot
 /// be recovered after the VMK is deleted.
 ///
 /// When the workspace is clean (all files decrypted):
-/// 1. Delete `.keepance-vault.json`.
+/// 1. Delete `.lantern-vault.json`.
 /// 2. Delete the keychain VMK entry.
 ///
 /// The operation is intentionally NOT gated on the vault being unlocked —
@@ -803,8 +803,8 @@ fn emit_progress(app: &tauri::AppHandle, done: usize, total: usize) {
 
 /// Count eligible files under `root` for the `total` in progress events.
 ///
-/// Uses the same exclusion rules as the crate walk: skip `.keepance/` dir,
-/// skip `.keepance-vault.json` and `.kpv-tmp-*` by filename.
+/// Uses the same exclusion rules as the crate walk: skip `.lantern/` dir,
+/// skip `.lantern-vault.json` and `.kpv-tmp-*` by filename.
 /// Returns 0 on any I/O error (best-effort; the walk itself will surface errors).
 fn count_eligible_files(root: &Path) -> usize {
     fn count_dir(dir: &Path) -> usize {

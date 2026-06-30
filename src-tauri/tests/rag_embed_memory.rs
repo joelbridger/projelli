@@ -9,7 +9,7 @@
 //! e5-small — same prerequisite as rag_matter_scope.rs / leg 1). Heavy:
 //! run explicitly with `-- --ignored`.
 
-use keepance_lib::commands::rag::{chunker, embedder};
+use lantern_lib::commands::rag::{chunker, embedder};
 
 fn peak_rss_gib() -> Option<f64> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;

@@ -1,11 +1,11 @@
 # 2026-06-22 — Next-session handoff (paste the block below into a fresh session)
 
 ```
-You are continuing work on Keepance (~/keepance). Read this whole block first, then read the
+You are continuing work on Advisor Prep Hero (~/keepance). Read this whole block first, then read the
 two pointer docs it names before doing anything.
 
 CONTEXT / WHY
-Keepance is repositioning to "private client intelligence" with a bottoms-up "start on your own"
+Advisor Prep Hero is repositioning to "private client intelligence" with a bottoms-up "start on your own"
 wedge (a solo professional can download and safely use it alone, then bring it into their firm).
 Two work missions were handed off by a marketing session. A reconciliation + plan was written and
 Jameson approved a HYBRID approach: build the wedge in the foreground; run the leftover Windows
@@ -64,7 +64,7 @@ EXECUTION METHOD + KEY FILES
 - Use superpowers:subagent-driven-development. The progress ledger is .superpowers/sdd/progress.md
   (gitignored scratch, present locally) — read it to see exactly what's done; per-task brief/report
   files are in .superpowers/sdd/ too.
-- Implementation subagents: model "sonnet" per the Keepance token policy; Opus (you) orchestrates +
+- Implementation subagents: model "sonnet" per the Advisor Prep Hero token policy; Opus (you) orchestrates +
   reviews. Use Codex (codex-task / codex-review / codex-collab skill) for independent adversarial review
   before shipping — it caught real bugs this session.
 

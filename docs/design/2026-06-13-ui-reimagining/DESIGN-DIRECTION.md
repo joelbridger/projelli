@@ -1,4 +1,4 @@
-# Keepance UI Reimagining — Design Direction (Phase 2 / Gate 2)
+# Advisor Prep Hero UI Reimagining — Design Direction (Phase 2 / Gate 2)
 
 **Date:** 2026-06-13 · **Status:** Gate 2 review artifact · **Prototype:** live on `feature/ui-reimagining`
 **View it:** run the dev server and open **`/?reimagined`** (Tailscale: `http://100.68.20.52:5173/?reimagined`). The production app is untouched at `/`.
@@ -9,7 +9,7 @@ Everything here traces to the Phase 1 capstone (`docs/research/2026-06-13-ui-rei
 
 ## 1. Aesthetic direction — brand-matched to keepance.com
 
-The app wears the website's brand so the two read as one product: navy + bone + white with the signature pink→blue gradient, the Satoshi typeface, and the Keepance keep-mark. Calm, dense, professional, where verifiable facts *look* verifiable.
+The app wears the website's brand so the two read as one product: navy + bone + white with the signature pink→blue gradient, the Satoshi typeface, and the Advisor Prep Hero keep-mark. Calm, dense, professional, where verifiable facts *look* verifiable.
 
 - **Navy is the spine.** The left rail is the website's navy (`#0A2540`) carrying the keep-mark + Satoshi wordmark, a signature gradient edge rule, and the faint hero glows; matters hang off it.
 - **Bone + white surfaces.** The canvas is the website's bone (`#F5F5F0`); documents and answers sit on it as white pages. Clean and flat, like the site.
@@ -48,7 +48,7 @@ Control/input borders target ≥3:1 (1.4.11); decorative hairlines are intention
 | **The Trust Bar** (every screen) | The hero. Always-visible matter scope + a legible 3-state egress indicator ("On your machine · Nothing leaves"). | A+C convergence; F-120 |
 | **Ask** (the wedge) | One unified surface; a cited answer with inline mono citation chips → click any chip → the exact source passage on the right, "Verified." Never an uncited answer. | Job 1; F-117; B (Copilot/Harvey) |
 | **The litigation associate** | "Find where the witness contradicts himself." Numbered candidates, each cited on **both sides** (deposition vs prior statement), a "you verify, you decide" banner, Export to Word. | Job 2; propose-don't-decide |
-| **Document editor** | A demand letter on **letterhead**; tracked changes attributed to **Diane Marchetti** (never "Keepance AI"); accept/reject + Reviewing pane; AI redline inserts "under your name." | Job 3; B (Word/Spellbook) |
+| **Document editor** | A demand letter on **letterhead**; tracked changes attributed to **Diane Marchetti** (never "Advisor Prep Hero AI"); accept/reject + Reviewing pane; AI redline inserts "under your name." | Job 3; B (Word/Spellbook) |
 | **Trust Map** | Per-document, plain-English data handling. Printable, client-shareable. | Non-negotiable 3; the Data Map |
 | **Your defense file** | The audit trail framed as protective, not surveillance; mono timestamps; export for a privilege log. | Audit-as-defense framing |
 | **Data Map dialog** | The one-sentence "where your data goes," reachable from the Trust Bar on any screen. | Non-negotiable 3 |

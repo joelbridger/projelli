@@ -17,7 +17,7 @@
 //!   cargo test --test rag_workspace_stress -- --ignored --nocapture
 //! Tunable via env: KP_STRESS_FILES (default 300), KP_STRESS_PARAS (default 8).
 
-use keepance_lib::commands::rag::{chunker, embedder};
+use lantern_lib::commands::rag::{chunker, embedder};
 use std::time::Instant;
 
 fn peak_rss_gib() -> Option<f64> {

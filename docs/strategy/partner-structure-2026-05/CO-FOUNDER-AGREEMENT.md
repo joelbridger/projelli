@@ -1,16 +1,16 @@
-# Keepance Co-Founder Agreement
+# Advisor Prep Hero Co-Founder Agreement
 
 **Date:** May 2026
 
 **Between:**
-- **Jameson Samuel Daines** ("Jameson"), founder of Keepance
+- **Jameson Samuel Daines** ("Jameson"), founder of Advisor Prep Hero
 - **Matthan William Daines** ("Matthan"), incoming co-founder
 
 ---
 
 ## 1. What This Agreement Is
 
-This is the agreement between Jameson and Matthan about how they will work together on Keepance, how the money gets split, and what happens if either of them decides to stop.
+This is the agreement between Jameson and Matthan about how they will work together on Advisor Prep Hero, how the money gets split, and what happens if either of them decides to stop.
 
 Both parties agree to everything written below by signing at the bottom.
 
@@ -18,7 +18,7 @@ Both parties agree to everything written below by signing at the bottom.
 
 ## 2. What Matthan Will Do
 
-Matthan joins Keepance as Co-Founder. His primary responsibilities are:
+Matthan joins Advisor Prep Hero as Co-Founder. His primary responsibilities are:
 
 - Marketing: running launch campaigns, social media, community outreach
 - Market research: understanding what customers want and what competitors are doing
@@ -31,7 +31,7 @@ This role can grow over time by mutual agreement between Jameson and Matthan.
 
 ## 3. Matthan's Ownership of the Company
 
-**Matthan owns 25% of Keepance.**
+**Matthan owns 25% of Advisor Prep Hero.**
 
 This is not handed over all at once. He earns it gradually over 4 years, as follows:
 
@@ -42,15 +42,15 @@ This is not handed over all at once. He earns it gradually over 4 years, as foll
 
 **Simple example:** If Matthan stops after 2 years, he has earned roughly half of his 25%, which is about 12.5% of the company. The other half goes back to Jameson.
 
-**Important note about the legal structure:** Keepance is currently a sole proprietorship. This ownership agreement is binding between both parties, but to make the 25% fully official and legally protected, Keepance should be converted to an LLC or corporation within 12 months of signing this agreement. Both parties commit to doing that together. Until then, this document serves as the written record of Matthan's ownership stake.
+**Important note about the legal structure:** Advisor Prep Hero is currently a sole proprietorship. This ownership agreement is binding between both parties, but to make the 25% fully official and legally protected, Advisor Prep Hero should be converted to an LLC or corporation within 12 months of signing this agreement. Both parties commit to doing that together. Until then, this document serves as the written record of Matthan's ownership stake.
 
 ---
 
 ## 4. Matthan's Cut of Every Sale
 
-**Until Keepance has made $25,000 in total sales, Matthan receives 50% of every sale.**
+**Until Advisor Prep Hero has made $25,000 in total sales, Matthan receives 50% of every sale.**
 
-- Every time a customer buys Keepance, Matthan gets half of what they paid.
+- Every time a customer buys Advisor Prep Hero, Matthan gets half of what they paid.
 - Jameson keeps the other half.
 - This applies to every sale: the $29 Founder tier, the $49 Pro tier, and the $99 Lifetime tier.
 
@@ -62,7 +62,7 @@ This is not handed over all at once. He earns it gradually over 4 years, as foll
 
 ## 5. What Happens When Sales Hit $25,000
 
-When Keepance's total cumulative sales reach $25,000, two things happen:
+When Advisor Prep Hero's total cumulative sales reach $25,000, two things happen:
 
 **First:** The 50% sales cut stops. From that point on, Matthan earns money through his 25% ownership only, not through a cut of individual sales.
 
@@ -73,43 +73,43 @@ When Keepance's total cumulative sales reach $25,000, two things happen:
 - Whether a salary or regular payment should be introduced
 - Any changes to responsibilities as the product grows
 
-Reaching $25,000 in sales is a milestone worth celebrating. It means the business has traction and both parties should update this agreement to reflect where Keepance is at that point, not where it was when it started.
+Reaching $25,000 in sales is a milestone worth celebrating. It means the business has traction and both parties should update this agreement to reflect where Advisor Prep Hero is at that point, not where it was when it started.
 
 Neither party is obligated to agree to any specific terms during that renegotiation. But both parties are obligated to show up to the conversation in good faith and complete it within 30 days of hitting the milestone.
 
 ---
 
-## 6. Everything Built for Keepance Belongs to Keepance
+## 6. Everything Built for Advisor Prep Hero Belongs to Advisor Prep Hero
 
-Anything Matthan creates while working on Keepance belongs to Keepance, not to Matthan personally. This includes:
+Anything Matthan creates while working on Advisor Prep Hero belongs to Advisor Prep Hero, not to Matthan personally. This includes:
 
 - Marketing copy, ads, and campaign materials
-- Social media accounts created for Keepance
-- Email lists and contact databases built for Keepance
+- Social media accounts created for Advisor Prep Hero
+- Email lists and contact databases built for Advisor Prep Hero
 - Research documents, competitive analyses, and strategy documents
-- Any designs, videos, or creative assets made for Keepance
+- Any designs, videos, or creative assets made for Advisor Prep Hero
 
-This means if Matthan ever steps away from Keepance, he does not take any of these things with him. They stay with the company.
+This means if Matthan ever steps away from Advisor Prep Hero, he does not take any of these things with him. They stay with the company.
 
 ---
 
 ## 7. Keeping Things Private
 
-Both Jameson and Matthan agree to keep the following things private, and not share them with anyone outside of Keepance without the other's permission:
+Both Jameson and Matthan agree to keep the following things private, and not share them with anyone outside of Advisor Prep Hero without the other's permission:
 
-- How much money Keepance makes
+- How much money Advisor Prep Hero makes
 - The customer list and any customer data
 - The product roadmap and future plans
 - Any business strategies discussed between them
 - Pricing details and business decisions
 
-This confidentiality continues even after either party stops working on Keepance.
+This confidentiality continues even after either party stops working on Advisor Prep Hero.
 
 ---
 
 ## 8. Not Working for a Competitor
 
-While working on Keepance, and for 12 months after stopping, Matthan agrees not to build, co-found, or work in a marketing role for a product that is directly competing with Keepance. A competing product means a local-first AI workspace desktop app targeting indie founders.
+While working on Advisor Prep Hero, and for 12 months after stopping, Matthan agrees not to build, co-found, or work in a marketing role for a product that is directly competing with Advisor Prep Hero. A competing product means a local-first AI workspace desktop app targeting indie founders.
 
 This clause is narrow on purpose. It does not stop Matthan from doing other work, having other jobs, or working in marketing in any other industry.
 
@@ -136,15 +136,15 @@ This clause is narrow on purpose. It does not stop Matthan from doing other work
 - Matthan keeps whatever ownership he has already earned.
 - Matthan receives a final sales payment for any sales in the pipeline.
 
-**If Keepance is sold:**
+**If Advisor Prep Hero is sold:**
 - Matthan receives his ownership percentage of whatever the sale price is, based on how much he has vested at the time of sale.
-- Example: if Keepance sells for $400,000 and Matthan has earned his full 25%, he receives $100,000.
+- Example: if Advisor Prep Hero sells for $400,000 and Matthan has earned his full 25%, he receives $100,000.
 
 ---
 
 ## 11. What This Agreement Does Not Cover
 
-This agreement does not cover salary. Neither Jameson nor Matthan is paying the other a regular wage right now. The 50% sales cut is Matthan's only regular income from Keepance until ownership becomes valuable. Both parties understand and accept this.
+This agreement does not cover salary. Neither Jameson nor Matthan is paying the other a regular wage right now. The 50% sales cut is Matthan's only regular income from Advisor Prep Hero until ownership becomes valuable. Both parties understand and accept this.
 
 If either party wants to introduce a salary in the future, that would be a separate conversation and a separate written agreement.
 

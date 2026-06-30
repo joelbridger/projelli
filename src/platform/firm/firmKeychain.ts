@@ -5,9 +5,9 @@
  * never `localStorage` (this is the explicit fix the backend README + the old
  * `useLicense` TODO call out):
  *
- *   - the access + refresh tokens   -> service `com.keepance.user.<user_id>`
- *   - the signed Ed25519 seat token -> service `com.keepance.user.<user_id>`
- *   - the per-matter AES content key -> service `com.keepance.matter.<matter_id>`
+ *   - the access + refresh tokens   -> service `com.lantern.user.<user_id>`
+ *   - the signed Ed25519 seat token -> service `com.lantern.user.<user_id>`
+ *   - the per-matter AES content key -> service `com.lantern.matter.<matter_id>`
  *
  * On the desktop (Tauri) these go to the real OS keychain via the existing
  * `keychain_*` commands (macOS Keychain / Windows Credential Manager / Linux

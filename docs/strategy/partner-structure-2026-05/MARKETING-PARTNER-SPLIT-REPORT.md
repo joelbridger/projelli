@@ -1,11 +1,11 @@
 # Bringing In a Marketing Partner: How to Structure the Split
-**Keepance — CEO Report, May 2026**
+**Advisor Prep Hero — CEO Report, May 2026**
 
 ---
 
 ## Executive Summary
 
-You are considering bringing your brother in to own marketing, outreach, and market research for Keepance. This is the right move at the right time: v2.0 is shipping, the product is strong, and sustained marketing execution is the primary bottleneck to hitting $10K MRR. But the structure matters enormously, especially when the other person is family.
+You are considering bringing your brother in to own marketing, outreach, and market research for Advisor Prep Hero. This is the right move at the right time: v2.0 is shipping, the product is strong, and sustained marketing execution is the primary bottleneck to hitting $10K MRR. But the structure matters enormously, especially when the other person is family.
 
 This report answers every question you need to answer before having that conversation, in the order you need to answer them.
 
@@ -16,7 +16,7 @@ This report answers every question you need to answer before having that convers
 ## Table of Contents
 
 1. The Five Models and When Each Fits
-2. What Equity Percentage Is Right for Keepance's Stage
+2. What Equity Percentage Is Right for Advisor Prep Hero's Stage
 3. Vesting Schedule: Best Practices for a Mid-Stream Co-Founder
 4. Tax, Legal, and Entity Implications
 5. Valuing Your Prior Work: The "Head Start" Discount
@@ -36,7 +36,7 @@ There are five structures worth understanding before you choose one. Each makes 
 
 ### Model A: Equity Co-Founder (5-20%)
 
-He gets a permanent ownership stake in Keepance, subject to vesting. This is the highest-trust, highest-commitment model. It is appropriate when:
+He gets a permanent ownership stake in Advisor Prep Hero, subject to vesting. This is the highest-trust, highest-commitment model. It is appropriate when:
 - He is going to own marketing for the next 3-5 years, not just the v2.0 launch
 - He is willing to take below-market or zero compensation in the near term
 - You are building toward an eventual exit or significant scale where equity has real value
@@ -46,12 +46,12 @@ The downside is that equity is permanent and hard to unwind. If he gives six mon
 
 ### Model B: Revenue Share Contractor (10-30% of gross revenue)
 
-He gets a percentage of every dollar Keepance earns for as long as the agreement is in force. This requires no equity dilution and is appropriate if he is not quitting his day job or taking on genuine founding-level risk. It is appropriate when:
+He gets a percentage of every dollar Advisor Prep Hero earns for as long as the agreement is in force. This requires no equity dilution and is appropriate if he is not quitting his day job or taking on genuine founding-level risk. It is appropriate when:
 - His contribution is primarily execution (campaigns, outreach, research) rather than strategy or equity-level ownership
 - You want a clean off-ramp if things do not work out
 - You are not raising outside capital (investors dislike perpetual revenue share arrangements)
 
-The downside: with Keepance's one-time pricing, his monthly payout is erratic. A quiet month generates almost nothing; a Product Hunt spike generates a windfall. The math is hard to plan around for both parties. This model is covered in depth in Section 8.
+The downside: with Advisor Prep Hero's one-time pricing, his monthly payout is erratic. A quiet month generates almost nothing; a Product Hunt spike generates a windfall. The math is hard to plan around for both parties. This model is covered in depth in Section 8.
 
 ### Model C: Hybrid (Small Equity + Revenue Share)
 
@@ -60,7 +60,7 @@ He gets a modest equity stake (5-15%, vested) plus a smaller revenue share (8-15
 - You want him on the cap table for alignment purposes but cannot offer full co-founder-level equity
 - You expect to convert to subscription or raise a small round eventually
 
-This is the recommended model for Keepance. See Section 11 for specifics.
+This is the recommended model for Advisor Prep Hero. See Section 11 for specifics.
 
 ### Model D: Contractor/Consultant (Cash-Only)
 
@@ -81,7 +81,7 @@ He gets a small options grant governed by the Founder Institute FAST agreement, 
 
 ---
 
-## 2. What Equity Percentage Is Right for Keepance's Stage
+## 2. What Equity Percentage Is Right for Advisor Prep Hero's Stage
 
 The range in research is wide but patterned. Here is how to read it:
 
@@ -122,7 +122,7 @@ The standard in venture-backed startups is 4 years with a 1-year cliff. For a bo
 
 The vesting schedule is not punitive. It is protective for both of you. If the relationship is going well, vesting accelerates automatically. If it is not, neither party is trapped with an outcome they did not earn.
 
-**One additional mechanism worth considering:** a milestone-accelerated vest. Include a clause that if Keepance crosses a specific revenue threshold (e.g., $50K in total cumulative sales), a bonus percentage vests immediately regardless of time. This rewards marketing outcomes directly, not just time served.
+**One additional mechanism worth considering:** a milestone-accelerated vest. Include a clause that if Advisor Prep Hero crosses a specific revenue threshold (e.g., $50K in total cumulative sales), a bonus percentage vests immediately regardless of time. This rewards marketing outcomes directly, not just time served.
 
 ---
 
@@ -132,17 +132,17 @@ This is the area where getting it wrong is expensive and hard to fix. The key va
 
 ### Entity Structure
 
-**If Keepance is currently a sole proprietorship or single-member LLC:** Adding a co-founder automatically converts a single-member LLC to a multi-member LLC, which is taxed as a partnership by default. This changes your tax filing from Schedule C to Form 1065, with K-1s issued to each member. This is real administrative overhead. Get a CPA involved before signing anything.
+**If Advisor Prep Hero is currently a sole proprietorship or single-member LLC:** Adding a co-founder automatically converts a single-member LLC to a multi-member LLC, which is taxed as a partnership by default. This changes your tax filing from Schedule C to Form 1065, with K-1s issued to each member. This is real administrative overhead. Get a CPA involved before signing anything.
 
-**If you intend to raise outside capital eventually:** A C-Corp (Delaware C-Corp) is the only structure that supports SAFE notes, preferred equity, and QSBS benefits. If Keepance stays bootstrapped forever, this is not urgent. But if there is any chance of outside investment, convert to C-Corp before issuing equity.
+**If you intend to raise outside capital eventually:** A C-Corp (Delaware C-Corp) is the only structure that supports SAFE notes, preferred equity, and QSBS benefits. If Advisor Prep Hero stays bootstrapped forever, this is not urgent. But if there is any chance of outside investment, convert to C-Corp before issuing equity.
 
-**QSBS (Section 1202):** If Keepance is or becomes a C-Corp, both your equity and your brother's equity may qualify for Qualified Small Business Stock treatment, which excludes up to $10M in gains from federal capital gains tax at exit. Requirements: C-Corp structure, holding stock for 5+ years, company had less than $50M in gross assets at time of issuance. At Keepance's current scale, you almost certainly qualify. This is a legitimate long-term tax planning consideration worth discussing with a CPA.
+**QSBS (Section 1202):** If Advisor Prep Hero is or becomes a C-Corp, both your equity and your brother's equity may qualify for Qualified Small Business Stock treatment, which excludes up to $10M in gains from federal capital gains tax at exit. Requirements: C-Corp structure, holding stock for 5+ years, company had less than $50M in gross assets at time of issuance. At Advisor Prep Hero's current scale, you almost certainly qualify. This is a legitimate long-term tax planning consideration worth discussing with a CPA.
 
 ### The 83(b) Election (Critical)
 
 If your brother receives restricted stock (equity subject to vesting), he must file an 83(b) election with the IRS within **30 days of the grant date**. No exceptions. No extensions.
 
-**Without an 83(b) election:** He pays ordinary income tax on the fair market value of each tranche of equity as it vests. If Keepance grows significantly between grant date and vest date, he could face a large tax bill in year 3 or 4 on equity he cannot yet sell.
+**Without an 83(b) election:** He pays ordinary income tax on the fair market value of each tranche of equity as it vests. If Advisor Prep Hero grows significantly between grant date and vest date, he could face a large tax bill in year 3 or 4 on equity he cannot yet sell.
 
 **With an 83(b) election:** He pays taxes on the total equity at the current (low) value on grant date. At early stage, this is often close to zero. Then when he eventually sells, he pays long-term capital gains rates instead of ordinary income. The rate difference matters: ordinary income up to 37% versus long-term capital gains at 20%.
 
@@ -160,13 +160,13 @@ Revenue share payments to your brother are treated as contractor income (1099-NE
 
 There is no universal formula here, but the logic is clear and widely applied.
 
-Your prior contributions to Keepance include: the original product concept, all engineering work, all design work, all initial marketing and validation, the existing customer base, all existing revenue, the brand, and multiple years of personal financial and opportunity-cost risk. This is the baseline asset that your brother is stepping into.
+Your prior contributions to Advisor Prep Hero include: the original product concept, all engineering work, all design work, all initial marketing and validation, the existing customer base, all existing revenue, the brand, and multiple years of personal financial and opportunity-cost risk. This is the baseline asset that your brother is stepping into.
 
 **The Slicing Pie framework** values contributions at fair market rate times a multiplier (2x for non-cash work like time, 4x for cash invested). If you spent two years building a product at even a conservative $75/hr fair market value, working 5-10 hrs/week, that is $39,000-$78,000 in imputed contribution before he joins. Any equity split should reflect that existing foundation.
 
 **The practical implication:** A 12% grant to your brother is not "he gets 12% of what you built." It is "he earns 12% of the future company value by completing four years of vesting." Your existing contributions are already baked into your majority 88% stake. They do not need to be separately valued unless you are formalizing capital accounts in an LLC operating agreement.
 
-**The "head start discount" rule of thumb** from the ICanPitch framework and Stripe's equity guide: a marketing co-founder at inception would command 25-35% of a standard two-founder split. The same person joining after a live product with paying customers exists commands roughly 35-55% of that at-inception value. For Keepance, that math produces a range of roughly 9-17%.
+**The "head start discount" rule of thumb** from the ICanPitch framework and Stripe's equity guide: a marketing co-founder at inception would command 25-35% of a standard two-founder split. The same person joining after a live product with paying customers exists commands roughly 35-55% of that at-inception value. For Advisor Prep Hero, that math produces a range of roughly 9-17%.
 
 ---
 
@@ -193,7 +193,7 @@ If you lend him cash to cover a marketing spend, document it as a reimbursement,
 What happens if he steps back at month 8? What if the relationship becomes strained? What if he gets a promotion or new job that consumes his time? These conversations are much easier to have before any documents are signed. Have them explicitly. The specific question to answer together: "If in 18 months neither of us is happy with this arrangement, what does the exit look like?"
 
 **Mistake 7: No role clarity.**
-Define precisely what "own marketing" means. Does he have budget authority? Signing authority for tools? Authority to represent Keepance publicly in interviews or communities? Who has final say on messaging? Ambiguity in role definition corrodes co-founder relationships faster than almost anything else.
+Define precisely what "own marketing" means. Does he have budget authority? Signing authority for tools? Authority to represent Advisor Prep Hero publicly in interviews or communities? Who has final say on messaging? Ambiguity in role definition corrodes co-founder relationships faster than almost anything else.
 
 **Mistake 8: Hiring for availability rather than qualification.**
 The research on family businesses is consistent: hiring unqualified family members because they are available and trustworthy rather than because they are the right person leads to resentment and often product/market damage. Be honest with yourself: is your brother the right person for this role, or is he convenient and trustworthy? Those are different questions, and both deserve an honest answer.
@@ -210,7 +210,7 @@ Whether you structure this as equity or revenue share, the legal agreement needs
 
 **2. Vesting schedule.** All terms in one place: total duration, cliff period, monthly vesting rate after cliff, what happens on voluntary departure (unvested shares revert to company at nominal price), what happens on involuntary termination or death.
 
-**3. IP assignment.** Everything he creates in connection with Keepance marketing — brand assets, copy, campaign materials, research documents, email list ownership, social accounts — belongs to Keepance the company, not to him personally. This clause is non-negotiable and any future investor will require it.
+**3. IP assignment.** Everything he creates in connection with Advisor Prep Hero marketing — brand assets, copy, campaign materials, research documents, email list ownership, social accounts — belongs to Advisor Prep Hero the company, not to him personally. This clause is non-negotiable and any future investor will require it.
 
 **4. Role definition.** Title (e.g., "Co-Founder, Head of Marketing"), responsibilities, and the explicit scope of decision-making authority.
 
@@ -222,7 +222,7 @@ Whether you structure this as equity or revenue share, the legal agreement needs
 
 **8. Buyback / repurchase right.** The company has the right (not obligation) to repurchase unvested shares at nominal price if he departs for any reason. This is your protection against a cap table with a passive ghost owner.
 
-**9. Drag-along / tag-along.** If you sell Keepance, he cannot block the sale (drag-along protects you). If you sell your stake, he has the right to sell his proportionally (tag-along protects him). Both clauses are standard and non-controversial.
+**9. Drag-along / tag-along.** If you sell Advisor Prep Hero, he cannot block the sale (drag-along protects you). If you sell your stake, he has the right to sell his proportionally (tag-along protects him). Both clauses are standard and non-controversial.
 
 **10. Dispute resolution.** Specify mediation before litigation, and specify jurisdiction (your state). This matters especially for family: you want a structured process before anyone files a lawsuit.
 
@@ -250,11 +250,11 @@ Whether you structure this as equity or revenue share, the legal agreement needs
 
 ## 8. One-Time Pricing Math: Why This Changes the Calculus
 
-This is where Keepance's model creates a specific wrinkle that most co-founder guides do not address.
+This is where Advisor Prep Hero's model creates a specific wrinkle that most co-founder guides do not address.
 
 **Subscription SaaS revenue share math is predictable.** If a product has $5,000 MRR and grows, a 15% revenue share means $750/month growing over time. The partner can model their income. The founder can model their cost. Both are smooth and plannable.
 
-**One-time pricing revenue share math is lumpy.** Keepance's revenue depends entirely on new customer acquisition. A Product Hunt launch week might generate $8,000 in 72 hours. The following six weeks might generate $400 total. A 15% revenue share means $1,200 at launch and $60 per week in quiet periods. This makes revenue share a poor standalone incentive for sustained marketing effort between spikes.
+**One-time pricing revenue share math is lumpy.** Advisor Prep Hero's revenue depends entirely on new customer acquisition. A Product Hunt launch week might generate $8,000 in 72 hours. The following six weeks might generate $400 total. A 15% revenue share means $1,200 at launch and $60 per week in quiet periods. This makes revenue share a poor standalone incentive for sustained marketing effort between spikes.
 
 The implication is important: **pure revenue share is a worse structure for one-time pricing products than for subscription products**, and the overall structure should weight toward equity (deferred upside that compounds as the product grows) rather than immediate revenue share.
 
@@ -263,22 +263,22 @@ The implication is important: **pure revenue share is a worse structure for one-
 - Plus a commission percentage (8-12%) on sales above a threshold
 - The retainer covers quiet periods; the commission rewards launches and spikes
 
-**The equity vs. revenue share NPV comparison for Keepance specifically:**
+**The equity vs. revenue share NPV comparison for Advisor Prep Hero specifically:**
 
 Run these scenarios:
 
 *Scenario A: 12% equity, no revenue share*
 - Vests fully in year 4
-- If Keepance sells for $300K in year 5: his share = $36,000
-- If Keepance sells for $1M in year 5: his share = $120,000
-- If Keepance sells for $3M in year 7: his share = $360,000
+- If Advisor Prep Hero sells for $300K in year 5: his share = $36,000
+- If Advisor Prep Hero sells for $1M in year 5: his share = $120,000
+- If Advisor Prep Hero sells for $3M in year 7: his share = $360,000
 
 *Scenario B: No equity, 15% revenue share in perpetuity*
-- Keepance generates $60K/year in average sales (modest growth)
+- Advisor Prep Hero generates $60K/year in average sales (modest growth)
 - That is $9,000/year to him
 - Over 4 years: $36,000 total with zero upside on any exit premium
 
-The math strongly favors equity for any scenario where the company has meaningful exit value. Revenue share only "wins" for him if the company stays small and he exits the relationship early. This means if your brother genuinely believes in Keepance's trajectory, equity is the better deal for him too. Both of you benefit from the equity model in the long run.
+The math strongly favors equity for any scenario where the company has meaningful exit value. Revenue share only "wins" for him if the company stays small and he exits the relationship early. This means if your brother genuinely believes in Advisor Prep Hero's trajectory, equity is the better deal for him too. Both of you benefit from the equity model in the long run.
 
 **One-time pricing and revenue share caps:** If you do use revenue share, make it time-limited. A suggested structure: 10% of gross sales for months 1-24, declining to 5% for months 25-48, then converting to equity-only (assuming he is still active). This prevents revenue share from becoming a permanent lien on the business.
 
@@ -317,7 +317,7 @@ If yes to all: proceed to formal equity agreement. If not: you part ways cleanly
 
 Even the 90-day trial should have a simple 1-2 page letter of engagement specifying:
 - This is a trial period; no equity is granted during this period
-- IP created during this period belongs to Keepance
+- IP created during this period belongs to Advisor Prep Hero
 - Confidentiality applies from day one
 - The trial can be ended by either party with 7 days' notice
 
@@ -348,7 +348,7 @@ The definitive text on dynamic equity splits for bootstrapped businesses. If you
 Research-backed analysis of how founding team decisions (equity splits, role assignments, family involvement) predict startup outcomes. Dense but concrete, and the family business section is directly relevant.
 
 **Venture Deals** by Brad Feld
-If Keepance ever goes toward investor capital, this is the definitive primer on term sheet mechanics. Not immediately needed, but worth reading before any investor conversation.
+If Advisor Prep Hero ever goes toward investor capital, this is the definitive primer on term sheet mechanics. Not immediately needed, but worth reading before any investor conversation.
 
 ### Frameworks and Calculators
 
@@ -378,7 +378,7 @@ The best free legal resource library for early-stage founders. Covers 83(b) elec
 ### Cap Table Management
 
 **Carta** (carta.com)
-The standard for equity management. Has a free tier for early-stage companies. Manages vesting schedules, cap tables, and 409A valuations. At Keepance's stage, the free tier is sufficient.
+The standard for equity management. Has a free tier for early-stage companies. Manages vesting schedules, cap tables, and 409A valuations. At Advisor Prep Hero's stage, the free tier is sufficient.
 
 **Pulley** (pulley.com)
 Carta alternative, more founder-friendly pricing at early stages. Worth comparing.
@@ -392,7 +392,7 @@ The definitive resource on lifetime deal mechanics and the economics of one-time
 
 ## 11. The Opinionated Recommendation
 
-Given everything above, here is what the research points toward for Keepance specifically:
+Given everything above, here is what the research points toward for Advisor Prep Hero specifically:
 
 ### Structure
 
@@ -424,7 +424,7 @@ This gives him a near-term income signal, motivates him to drive launches, and i
 
 ### Entity and Legal
 
-If Keepance is currently a sole prop or single-member LLC, convert to a multi-member LLC or Delaware C-Corp before issuing equity. Talk to a CPA and startup attorney before the equity agreement is signed. Budget $1,500-3,000 for this step. It is not optional.
+If Advisor Prep Hero is currently a sole prop or single-member LLC, convert to a multi-member LLC or Delaware C-Corp before issuing equity. Talk to a CPA and startup attorney before the equity agreement is signed. Budget $1,500-3,000 for this step. It is not optional.
 
 ### 83(b) Election
 
@@ -441,9 +441,9 @@ Use the Promise Legal or PandaDoc template as a starting draft. Have a startup a
 Before the conversation with your brother, make sure you have answers to these questions:
 
 **Questions you should answer before the conversation:**
-- [ ] What is Keepance's current legal entity? (sole prop, LLC, etc.)
+- [ ] What is Advisor Prep Hero's current legal entity? (sole prop, LLC, etc.)
 - [ ] Have you consulted a CPA about entity conversion?
-- [ ] What is Keepance's total revenue to date?
+- [ ] What is Advisor Prep Hero's total revenue to date?
 - [ ] What is the current estimated valuation (even a rough one, for 83(b) purposes)?
 - [ ] What specific marketing outcomes do you need in the next 90 days?
 - [ ] What is your budget for a marketing retainer or revenue share in year one?

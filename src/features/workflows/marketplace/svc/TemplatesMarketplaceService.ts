@@ -21,7 +21,7 @@ export interface CreateTemplatesMarketplaceOptions {
  * Build a `MarketplaceService` configured for the community templates repo.
  *
  * Cache lives at `<workspaceRoot>/.keepance/cache/templates.json` so multiple
- * Keepance windows pointed at the same workspace see the same cached catalog.
+ * Advisor Prep Hero windows pointed at the same workspace see the same cached catalog.
  * Installs land under `<workspaceRoot>/.keepance/templates/<id>/`.
  */
 export function createTemplatesMarketplaceService(

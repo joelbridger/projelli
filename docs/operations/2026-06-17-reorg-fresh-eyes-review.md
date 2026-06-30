@@ -1,4 +1,4 @@
-# Keepance 3.0 Reorg — Fresh-Eyes Review (2026-06-17)
+# Advisor Prep Hero 3.0 Reorg — Fresh-Eyes Review (2026-06-17)
 
 > **What this is:** an independent, CEO-level review of the feature-first
 > reorganization, requested after the reorg was declared complete. Every

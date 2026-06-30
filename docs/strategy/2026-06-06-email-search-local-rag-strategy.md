@@ -1,9 +1,9 @@
-# Email Intelligence for Keepance: Strategy and Architecture
+# Email Intelligence for Advisor Prep Hero: Strategy and Architecture
 
 **Date:** 2026-06-06
 **Author:** CEO / lead research (for Jameson)
 **Status:** Recommendation for decision
-**Origin:** A practicing CFP (Jameson's wife) reported that Outlook search "basically doesn't work" and that this pain is shared across every Keepance vertical (legal, tax, consulting, advisory). This document tests that claim, surveys what exists to solve it, and recommends how Keepance should.
+**Origin:** A practicing CFP (Jameson's wife) reported that Outlook search "basically doesn't work" and that this pain is shared across every Advisor Prep Hero vertical (legal, tax, consulting, advisory). This document tests that claim, surveys what exists to solve it, and recommends how Advisor Prep Hero should.
 
 ---
 
@@ -11,11 +11,11 @@
 
 **The insight is real, and Microsoft's own documentation proves it.** Outlook search is broken by default, not by accident: it caps results at 250, silently hides older matches, can't reliably search the archive, and (in the standard configuration) only keeps the last 1 to 12 months of mail on the machine at all. Older client correspondence is effectively unfindable. This is documented "expected behavior" that Microsoft says it does "not expect to fix."
 
-**This is a wedge, not a feature.** Every professional we sell to lives in their inbox and loses time hunting it. Whoever makes their email actually findable owns a daily-use beachhead. And the one way to do it that a privilege-bound lawyer or a Reg S-P-bound advisor can actually adopt is the one thing only Keepance is built for: doing it entirely on their own machine.
+**This is a wedge, not a feature.** Every professional we sell to lives in their inbox and loses time hunting it. Whoever makes their email actually findable owns a daily-use beachhead. And the one way to do it that a privilege-bound lawyer or a Reg S-P-bound advisor can actually adopt is the one thing only Advisor Prep Hero is built for: doing it entirely on their own machine.
 
-**The competitors can't follow us here.** Microsoft 365 Copilot, Shortwave, and Superhuman all process your email in their cloud. Superhuman's AI assistant was shown, in a documented security report, leaking financial, privileged-legal, and medical content out of dozens of emails in a single response. The genuinely local tools (MailStore, X1) are dumb archivers, not AI workspaces. Nobody occupies "local-first + AI + bring-your-own-key." That is open ground, and it is exactly where Keepance already stands.
+**The competitors can't follow us here.** Microsoft 365 Copilot, Shortwave, and Superhuman all process your email in their cloud. Superhuman's AI assistant was shown, in a documented security report, leaking financial, privileged-legal, and medical content out of dozens of emails in a single response. The genuinely local tools (MailStore, X1) are dumb archivers, not AI workspaces. Nobody occupies "local-first + AI + bring-your-own-key." That is open ground, and it is exactly where Advisor Prep Hero already stands.
 
-**We are roughly 80% of the way there already.** Keepance ships a fully on-device engine that reads documents, understands their meaning, remembers facts, and answers questions with citations, with nothing sent to anyone's cloud. Email is just another document. The missing 20% is a connector that pulls email onto the machine and saves each message as a file. Once it's a file, the machinery we already built takes over automatically.
+**We are roughly 80% of the way there already.** Advisor Prep Hero ships a fully on-device engine that reads documents, understands their meaning, remembers facts, and answers questions with citations, with nothing sent to anyone's cloud. Email is just another document. The missing 20% is a connector that pulls email onto the machine and saves each message as a file. Once it's a file, the machinery we already built takes over automatically.
 
 **My recommendation:** Build local email ingestion feeding our existing local index. Pull email down via the readable Microsoft Graph / Gmail / IMAP paths plus `.pst`/`.ost` import, normalize each message to a local Markdown file in the workspace, and let our existing on-device search, memory, and chat answer questions over it. Keep every byte on the user's machine. Start with one mail provider, ingest read-only, prove it with real mailboxes, then widen.
 
@@ -35,13 +35,13 @@ This is not a user-error story or a "they should reconfigure it" story. The defa
 | Old mail isn't even on the machine | In Cached Exchange Mode (the default), "Outlook caches email messages only from the last 12 months and removes anything older from the local cache." On smaller drives it's the last **1 or 3 months**. | Microsoft Learn, *Cached Exchange Mode* |
 | So local search can't find it | Older items "reside only in your mailbox on the server." A local search shows "recent results," and you must click "More" for a separate online round-trip to the server. Microsoft labels this "expected behavior." | Microsoft Learn, *Only a subset of items synchronized* |
 
-**The takeaway for our architecture:** the local mail store is incomplete *by design*, so any tool that piggybacks on Outlook's own index inherits the same blind spot. To actually fix the pain, Keepance has to pull the mail down itself and keep a complete local copy. That single fact rules out the "just query Outlook live" shortcut and points directly at full local ingestion. (Honest caveat: these are defaults, not hard ceilings. A power user *can* reconfigure cached-mode and result caps. The point is that the people we sell to are running the broken defaults, not that Outlook is incapable.)
+**The takeaway for our architecture:** the local mail store is incomplete *by design*, so any tool that piggybacks on Outlook's own index inherits the same blind spot. To actually fix the pain, Advisor Prep Hero has to pull the mail down itself and keep a complete local copy. That single fact rules out the "just query Outlook live" shortcut and points directly at full local ingestion. (Honest caveat: these are defaults, not hard ceilings. A power user *can* reconfigure cached-mode and result caps. The point is that the people we sell to are running the broken defaults, not that Outlook is incapable.)
 
 ---
 
 ## 2. The competitive landscape splits cleanly along our moat line
 
-Everything in this market falls into one of three buckets, and the dividing line is exactly the one Keepance was built on: does your client's email leave their machine?
+Everything in this market falls into one of three buckets, and the dividing line is exactly the one Advisor Prep Hero was built on: does your client's email leave their machine?
 
 **Bucket A: Cloud AI email tools (powerful, but disqualified for our buyers).**
 - **Microsoft 365 Copilot** routes your prompts, the email it retrieves, and its responses to Azure-OpenAI (with Anthropic as a named subprocessor) in regional datacenters. It stays "within the Microsoft 365 service boundary," but that boundary is Microsoft's cloud, not your machine.
@@ -55,11 +55,11 @@ For a lawyer under privilege, a CPA under IRC §7216, or an advisor under Reg S-
 - **X1** markets "AI in-place," but its claim to do *all* AI processing locally did not survive fact-checking (our verifiers refuted it 3-to-0; it's a hybrid model with vendor-only sourcing). Treat X1 as unproven, not as evidence that local AI search is a solved problem.
 
 **Bucket C: Local-first + AI + bring-your-own-key. Empty. This is us.**
-No shipping product combines a complete local copy of your email, real AI understanding over it, and the keys-stay-with-you model. That combination is open whitespace, and Keepance is the only product already architected for it.
+No shipping product combines a complete local copy of your email, real AI understanding over it, and the keys-stay-with-you model. That combination is open whitespace, and Advisor Prep Hero is the only product already architected for it.
 
 ---
 
-## 3. What Keepance already has (the reason this is achievable)
+## 3. What Advisor Prep Hero already has (the reason this is achievable)
 
 This is the part that turns a daunting "build an AI email client" project into a focused one. I went through our own codebase. We already ship the hard, expensive 80%:
 
@@ -101,7 +101,7 @@ The research surfaced one question it called possibly "more ethically load-beari
 
 > When you build the index, *where does the email text get turned into searchable form?* If you use a cloud provider's embedding API to do it, you've just sent every client email to a third party at indexing time, which re-opens the exact §7216 / Reg S-P / privilege problem you were trying to avoid, even if the later chat is careful.
 
-**Keepance already does this the safe way.** Our embedding model runs *on the user's machine*, offline. Building the index sends nothing anywhere. The only moment anything leaves the machine is when the user asks the AI a question, and even then only the handful of retrieved passages go out, to the user's *own* chosen provider under their *own* key, and that provider can even be a fully local model. We are already on the correct side of the one fork that sinks most "private email AI" attempts.
+**Advisor Prep Hero already does this the safe way.** Our embedding model runs *on the user's machine*, offline. Building the index sends nothing anywhere. The only moment anything leaves the machine is when the user asks the AI a question, and even then only the handful of retrieved passages go out, to the user's *own* chosen provider under their *own* key, and that provider can even be a fully local model. We are already on the correct side of the one fork that sinks most "private email AI" attempts.
 
 **The ethics picture is favorable and citable.** The ABA's first formal opinion on generative AI (Formal Opinion 512, July 29, 2024) and Model Rule 1.6 require lawyers to keep client information confidential and tie the need for client *consent* specifically to feeding that information into self-learning or third-party-disclosing tools. A local-first index that never discloses to a third party and never self-trains is the lowest-burden path under that rule. The same logic maps to §7216 (tax) and Reg S-P (advisors), which likewise turn on whether client data is disclosed to a third party. One design answers all four regimes. (Honest flag: the legal analysis is rock-solid for lawyers; for CPAs and RIAs it's strong by analogy but I have not found explicit published authority blessing a local AI index specifically. We position carefully, not overclaim.)
 
@@ -118,7 +118,7 @@ The temptation is to "index my entire 15-year mailbox." That's the wrong v1, for
 - **Read-only.** Pull and index. No sending or replying yet. Lower risk, faster to ship, and it's where the pain is.
 - **Bounded ingest.** Let the user choose what to bring in (a date range, specific folders, or per-client/per-matter folders), rather than boiling the ocean on first run. This also reinforces good privilege hygiene (Client A's mail stays separate from Client B's).
 - **Reuse everything.** Pipe ingested mail straight into the existing index, memory, search, and cited chat. Almost no new AI code, mostly connector and normalization.
-- **The demo:** "Connect your mail, then ask Keepance 'what did I tell the Hendersons about their closing date?' and get the answer with the actual email cited, fully offline." That is the thing no competitor can show a regulated buyer.
+- **The demo:** "Connect your mail, then ask Advisor Prep Hero 'what did I tell the Hendersons about their closing date?' and get the answer with the actual email cited, fully offline." That is the thing no competitor can show a regulated buyer.
 
 **v2 and beyond (deepen):** incremental background sync to stay current; more connectors (IMAP, Gmail); attachment-aware retrieval; link emails to matters/clients and to the templates we already ship; eventually, *drafting* replies (with the same "AI proposes, you approve" discipline that's already core to the product).
 

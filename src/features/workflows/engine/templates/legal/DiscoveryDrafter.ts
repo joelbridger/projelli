@@ -110,7 +110,7 @@ Note the interrogatory limit for {{jurisdiction}} if known. Flag any jurisdictio
 
 ---
 
-*This discovery draft was produced by Keepance AI and requires attorney review before serving. Verify compliance with all applicable court rules, local rules, and standing orders.*`;
+*This discovery draft was produced by Advisor Prep Hero AI and requires attorney review before serving. Verify compliance with all applicable court rules, local rules, and standing orders.*`;
 
 export const DiscoveryDrafter: WorkflowTemplate = {
   id: 'discovery-drafter',

@@ -7,7 +7,7 @@
  *   Ask AI  — MemoryService.retrieve() scoped to mail: sourceIds; results
  *             ranked by similarity score.
  *
- * Per-row actions: Open (dispatches keepance:open-email), File to matter
+ * Per-row actions: Open (dispatches lantern:open-email), File to matter
  * (popover with matter picker — calls mailRetagMessageMatter per message),
  * Privilege (dropdown), Export (mailGetMessage + onSaveToWorkspace).
  *

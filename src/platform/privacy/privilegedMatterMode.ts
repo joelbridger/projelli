@@ -34,7 +34,7 @@ import type { ConfidentialityMode } from '@/platform/privacy/egress';
 
 /**
  * Settings key the manual toggle persists under. Stored in the settings store
- * (localStorage `keepance:settings`) like every other setting, so it survives
+ * (localStorage `lantern:settings`) like every other setting, so it survives
  * reloads. A boolean: `true` means the user has manually turned the mode on.
  */
 export const PRIVILEGED_MATTER_MODE_SETTING_KEY = 'privilegedMatterMode';

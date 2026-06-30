@@ -1,9 +1,9 @@
 # START HERE — "Start on your own": the bottoms-up wedge
 
-This folder is a complete, self-contained handoff for a fresh Claude Code instance to implement Keepance's bottoms-up individual-adoption motion. It came out of a 2026-06-18 meeting with a Utah pre-seed investor (Sam Andersen, Element Ventures) who steered Keepance toward "let an individual download and use it on their own, without the firm having to approve it first."
+This folder is a complete, self-contained handoff for a fresh Claude Code instance to implement Advisor Prep Hero's bottoms-up individual-adoption motion. It came out of a 2026-06-18 meeting with a Utah pre-seed investor (Sam Andersen, Element Ventures) who steered Advisor Prep Hero toward "let an individual download and use it on their own, without the firm having to approve it first."
 
 ## What this is, in one paragraph
-Make Keepance something a single lawyer can download and safely use on their own, that also becomes the way Keepance gets into their firm. The core move is **safe-by-default**: a personal install can't send client text to a cloud AI until the user makes an explicit, informed choice. On top of that: an honest first-run trust moment, a one-click "security pack" PDF the user hands to their firm's IT/GC, a solo-to-firm bridge, and frictionless paid-trial packaging. Keepance never claims to make anyone "firm-compliant" — it handles data safety and gives the user an honest, defensible story.
+Make Advisor Prep Hero something a single lawyer can download and safely use on their own, that also becomes the way Advisor Prep Hero gets into their firm. The core move is **safe-by-default**: a personal install can't send client text to a cloud AI until the user makes an explicit, informed choice. On top of that: an honest first-run trust moment, a one-click "security pack" PDF the user hands to their firm's IT/GC, a solo-to-firm bridge, and frictionless paid-trial packaging. Advisor Prep Hero never claims to make anyone "firm-compliant" — it handles data safety and gives the user an honest, defensible story.
 
 ## Read in this order
 1. **`01-design-spec.md`** — the approved design. The "core insight" (§1) and the ethical guardrail (§6) are the soul of this; read them carefully.
@@ -14,7 +14,7 @@ Make Keepance something a single lawyer can download and safely use on their own
 ## Hard rules (violating any of these is a defect, not a style nit)
 - **No silent cloud fallback.** Personal installs never auto-egress.
 - **Firm installs unchanged.** Always branch on `isFirm` (`useFirm`).
-- **Never claim "guaranteed/fully compliant."** Keepance handles data safety; the firm owns policy. There are tests that assert this phrase never ships.
+- **Never claim "guaranteed/fully compliant."** Advisor Prep Hero handles data safety; the firm owns policy. There are tests that assert this phrase never ships.
 - **Voice rules on every user-facing string.** No em dashes (there's a test), no AI tells, first-person, concrete. The security pack reads as honest legal-grade prose.
 - **Do not cut a build or deploy.** Commercial boundary — Jameson's explicit go only. Build + ship are the one place to stop and ask.
 - **Jameson is not a developer.** If you report to him, translate; never dump stack traces.
@@ -34,7 +34,7 @@ Subagent-driven (the repo's default): one fresh subagent per task, Opus reviews 
 ### Copy-paste bootstrap prompt for the implementation session
 
 ```
-Implement the Keepance "Start on your own" bottoms-up wedge.
+Implement the Advisor Prep Hero "Start on your own" bottoms-up wedge.
 
 Read first, in order:
 1. docs/superpowers/specs/2026-06-18-bottoms-up-wedge/README.md

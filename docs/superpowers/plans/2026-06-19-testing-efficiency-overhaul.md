@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Turn Keepance's already-strong-but-mostly-manual test suite into an automatic safety net that actually runs on every change, protects the expensive signed build, and closes the highest-risk coverage gaps — without slowing down day-to-day work.
+**Goal:** Turn Advisor Prep Hero's already-strong-but-mostly-manual test suite into an automatic safety net that actually runs on every change, protects the expensive signed build, and closes the highest-risk coverage gaps — without slowing down day-to-day work.
 
 **Architecture:** Three lanes. (1) **Cloud CI** (GitHub Actions) runs the fast, hermetic checks on every push to the real working branch and gates the signed-release build. (2) A **nightly server cron** (systemd --user timer on this box) runs the heavy/flaky-on-this-box suites (full browser E2E, the real-desktop harness, full Rust suite) where RAM is fresh and minutes are free, and notifies on failure. (3) **Local one-command gate** + a pre-push hook so neither a human nor an AI session has to remember the sequence. Plus targeted new tests and a post-ship crash-reporting safety net.
 
@@ -12,7 +12,7 @@
 
 ## Context for a fresh session (read this first — it IS the analysis)
 
-You are picking up a testing-infrastructure overhaul. **Keepance's test material is genuinely strong** (do not rip anything out): ~3,460 Vitest cases, ~672 Rust `cargo` tests, ~345 Playwright browser tests, ~159 visual "campaign" tests, ~210 Bun backend tests, a custom "drive the real desktop app" harness (`tests/desktop/`, 12 specs), security tests, and an architecture-boundary guard. Conventions are good (1,115 `data-testid`s; `getByTestId` only; no `waitForTimeout`).
+You are picking up a testing-infrastructure overhaul. **Advisor Prep Hero's test material is genuinely strong** (do not rip anything out): ~3,460 Vitest cases, ~672 Rust `cargo` tests, ~345 Playwright browser tests, ~159 visual "campaign" tests, ~210 Bun backend tests, a custom "drive the real desktop app" harness (`tests/desktop/`, 12 specs), security tests, and an architecture-boundary guard. Conventions are good (1,115 `data-testid`s; `getByTestId` only; no `waitForTimeout`).
 
 **The problem is that almost none of it runs automatically.** The evaluation found:
 
@@ -500,7 +500,7 @@ cd "$HOME/keepance"
 LOG="/tmp/keepance-nightly-tests-$(date +%Y%m%d).log"
 exec > >(tee "$LOG") 2>&1
 
-echo "=== Keepance nightly tests $(date -u) on branch $(git rev-parse --abbrev-ref HEAD) ==="
+echo "=== Advisor Prep Hero nightly tests $(date -u) on branch $(git rev-parse --abbrev-ref HEAD) ==="
 git pull --ff-only origin keepance-3.0 || echo "(pull skipped/failed — testing local tree)"
 
 fail=0
@@ -518,8 +518,8 @@ echo ""
 if [ "$fail" -ne 0 ]; then
   echo "RESULT: FAIL"
   notify-jameson \
-    --subject "[Keepance] NEED YOU: nightly tests failed" \
-    --body "Project: Keepance (~/keepance, branch keepance-3.0)
+    --subject "[Advisor Prep Hero] NEED YOU: nightly tests failed" \
+    --body "Project: Advisor Prep Hero (~/keepance, branch keepance-3.0)
 Task: Automatic nightly test run on the server
 Result: One or more test groups failed. Full log: $LOG
 Next: A Claude session should read the log and fix the failing tests." \
@@ -542,7 +542,7 @@ git commit -m "test: nightly full-gate runner (cargo+vitest+bun+L1+L2) with fail
 
 ```ini
 [Unit]
-Description=Keepance nightly full test gate
+Description=Advisor Prep Hero nightly full test gate
 
 [Service]
 Type=oneshot
@@ -555,7 +555,7 @@ TimeoutStartSec=7200
 
 ```ini
 [Unit]
-Description=Run Keepance nightly tests at 03:30 UTC
+Description=Run Advisor Prep Hero nightly tests at 03:30 UTC
 
 [Timer]
 OnCalendar=*-*-* 03:30:00
@@ -589,7 +589,7 @@ Expected: the run completes; log ends with `RESULT: PASS` (or a real failure to 
 
 **Files:** Create `scripts/nightly-bench-tests.sh`; call it from `scripts/nightly-tests.sh` (a `run` step, non-fatal/reported like the others).
 
-**Why (plain):** we now have two always-on real-OS test machines — the Legion (Windows) and the M1 (Mac). The nightly run should also build + test Keepance on BOTH, so Windows/Mac-only breakage is caught automatically, not just on the Linux server. **Read `docs/operations/2026-06-19-test-bench-operations-guide.md` first and heed its gotchas** (esp. §5: never wrap a long remote job in a short `timeout` — it orphans the remote process; the OS keychain can't be tested over SSH).
+**Why (plain):** we now have two always-on real-OS test machines — the Legion (Windows) and the M1 (Mac). The nightly run should also build + test Advisor Prep Hero on BOTH, so Windows/Mac-only breakage is caught automatically, not just on the Linux server. **Read `docs/operations/2026-06-19-test-bench-operations-guide.md` first and heed its gotchas** (esp. §5: never wrap a long remote job in a short `timeout` — it orphans the remote process; the OS keychain can't be tested over SSH).
 
 - [ ] **Step 1:** Sync the current source to each bench before testing (the benches hold a synced *copy*, not a git checkout): tar the repo excluding `node_modules/target/.git/dist/...`, `scp` over Tailscale, extract into the bench's keepance dir. (Reuse the pattern in the ops guide §4.1.)
 - [ ] **Step 2:** Windows (Legion, `ssh james@100.127.67.22`): in PowerShell set `$env:Path="$env:USERPROFILE\.cargo\bin;C:\Strawberry\perl\bin;C:\Strawberry\c\bin;"+$env:Path`, then `Set-Location C:\keepance\src-tauri; cargo test`. Capture pass/fail. Run it as a non-killed background command or with a generous timeout — NOT a short one.
@@ -889,7 +889,7 @@ git commit -m "test(desktop): upgrade WebdriverIO to 9.19.1+ (auto-Xvfb)"
 
 ## Phase 8 — Post-ship safety net (bigger; privacy-critical; do last)
 
-> **Privacy is non-negotiable here.** Keepance holds confidential legal data. Any crash/usage data leaving the machine must contain ZERO document/email content and ZERO personal data. Scrub aggressively; prefer opt-in. Building/publishing a release that includes this needs Jameson's explicit go (commercial boundary) — implement + test locally, do NOT ship without sign-off.
+> **Privacy is non-negotiable here.** Advisor Prep Hero holds confidential legal data. Any crash/usage data leaving the machine must contain ZERO document/email content and ZERO personal data. Scrub aggressively; prefer opt-in. Building/publishing a release that includes this needs Jameson's explicit go (commercial boundary) — implement + test locally, do NOT ship without sign-off.
 
 ### Task 14: Sentry crash reporting with strict content scrubbing
 

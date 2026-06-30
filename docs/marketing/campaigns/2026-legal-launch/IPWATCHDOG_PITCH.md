@@ -30,7 +30,7 @@ There's a specific risk in the way most patent attorneys are using AI tools righ
 
 The piece would explain the technical mechanics of what happens when data goes to a cloud AI service, map that against the absolute-novelty doctrine, and cover what practitioners should be asking before they use any AI tool on pre-filing material. I'd also cover local-first tools as the cleanest solution to the problem: if the data never leaves your machine, the disclosure question doesn't arise.
 
-I'm the developer of Keepance, one of those local-first tools. I'll be completely transparent about that. But the article would be genuinely educational, not a product pitch, and I'm happy to have you vet the legal framing before anything goes live. I'll be working with a patent attorney co-author [name TBD] to make sure the practice-side analysis is accurate.
+I'm the developer of Advisor Prep Hero, one of those local-first tools. I'll be completely transparent about that. But the article would be genuinely educational, not a product pitch, and I'm happy to have you vet the legal framing before anything goes live. I'll be working with a patent attorney co-author [name TBD] to make sure the practice-side analysis is accurate.
 
 Happy to send a full draft if the angle sounds worth pursuing.
 

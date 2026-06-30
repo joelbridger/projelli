@@ -1,4 +1,4 @@
-# Keepance surfaces — "one app, web demo = it, video last" (organizing principle)
+# Advisor Prep Hero surfaces — "one app, web demo = it, video last" (organizing principle)
 
 There is ONE product codebase (`src/` React + `src-tauri/` Rust). Everything users or prospects see is a build/view of that one codebase. Keep this straight so work never diverges again.
 

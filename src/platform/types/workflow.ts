@@ -232,7 +232,7 @@ export type TemplateProviderId = 'claude' | 'openai' | 'gemini' | 'ollama';
 /**
  * M7 — A named output produced by a template. The `id` is stable and used
  * for chain wiring; the `name` is human-readable for UI; `schema` is a free-
- * form JSON-schema-ish hint (optional — Keepance chains only require the id).
+ * form JSON-schema-ish hint (optional — Advisor Prep Hero chains only require the id).
  */
 export interface NamedOutput {
   id: string;

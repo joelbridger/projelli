@@ -53,7 +53,7 @@ export function AddeparSourcePanel() {
           </blockquote>
         )}
         <p className="text-xs text-slate-400">
-          Keepance imported this citation from Addepar as read-only text. Full portfolio detail is a fast-follow.
+          Advisor Prep Hero imported this citation from Addepar as read-only text. Full portfolio detail is a fast-follow.
         </p>
       </div>
     </div>

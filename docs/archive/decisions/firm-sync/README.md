@@ -1,4 +1,4 @@
-# firm-sync — Keepance 3.0 de-risking spike (P0 gate 3 / WS-F)
+# firm-sync — Advisor Prep Hero 3.0 de-risking spike (P0 gate 3 / WS-F)
 
 Standalone Rust crate proving the **riskiest firm-platform assumption: conflict-free
 collaborative editing of a shared "matter document"** — two clients make concurrent,
@@ -50,7 +50,7 @@ RESULT: PASS — conflict-free convergence with no central coordination.
 
 | File | Role |
 |---|---|
-| `src/lib.rs` | `MatterDoc` — a Keepance client replica of one shared matter document, modeling Spike 1's paragraphs→runs OOXML-DOM tree directly on a `yrs` CRDT (body `Array<Map>` of paragraphs; each paragraph a `Map` with a `runs` `Array<Map>`; tracked-change runs carry `author`/`date`). Plus the no-coordinator sync primitives (`state_vector` / `diff_since` / `apply`) and `sync_pair`. |
+| `src/lib.rs` | `MatterDoc` — a Advisor Prep Hero client replica of one shared matter document, modeling Spike 1's paragraphs→runs OOXML-DOM tree directly on a `yrs` CRDT (body `Array<Map>` of paragraphs; each paragraph a `Map` with a `runs` `Array<Map>`; tracked-change runs carry `author`/`date`). Plus the no-coordinator sync primitives (`state_vector` / `diff_since` / `apply`) and `sync_pair`. |
 | `src/bin/demo.rs` | Deterministic, asserted convergence demo (the conflict case + tracked change). |
 | `tests/convergence.rs` | The 5-test proof above. |
 

@@ -1,4 +1,4 @@
-# Keepance UX — ROUND 3 plan: the matter hub + the "bigger ideas" (2026-06-14)
+# Advisor Prep Hero UX — ROUND 3 plan: the matter hub + the "bigger ideas" (2026-06-14)
 
 Jameson greenlit implementing the bigger ideas #1, #3-#6 + all smaller consistency items, with #2 reframed:
 **NOT a matter-first nav rewrite — instead an in-Matters-tab HUB**, layout = **Overview command-center**

@@ -24,7 +24,7 @@
 
 I'm a product designer, not an attorney. I want to say that upfront because it's relevant to what I'm asking.
 
-I've been building a desktop app called Keepance for about a year. The premise is that professionals who work under confidentiality obligations (attorneys, CPAs, consultants) shouldn't have to choose between using AI and keeping their clients' information private. The product runs entirely on your machine. No server I control ever sees your files. Your API key goes direct from your computer to Anthropic/OpenAI/Google. Nothing passes through me.
+I've been building a desktop app called Advisor Prep Hero for about a year. The premise is that professionals who work under confidentiality obligations (attorneys, CPAs, consultants) shouldn't have to choose between using AI and keeping their clients' information private. The product runs entirely on your machine. No server I control ever sees your files. Your API key goes direct from your computer to Anthropic/OpenAI/Google. Nothing passes through me.
 
 I just shipped a Legal Practice template pack: a Deposition Contradiction Finder, Evidence Gap Analyzer, Case Timeline Builder, Privilege Log Drafter, Discovery Document Triage tool, Client Intake Synthesizer, and a Patent Disclosure Draft template for IP attorneys. These were reviewed by [attorney advisor name] before shipping, but I'm sure there are things I got wrong or framed in a way that doesn't match how practitioners actually work.
 

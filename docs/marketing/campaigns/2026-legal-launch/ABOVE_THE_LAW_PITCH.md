@@ -33,7 +33,7 @@ The column I'd propose is roughly 900 words:
 3. What "competent precautions" looks like in practice for a solo attorney with no IT staff
 4. Local-first AI as one option in the decision tree (disclosure: I make one)
 
-I'd disclose my connection to Keepance at the top and keep the piece neutral on the product question — the argument stands regardless of what tool any attorney uses.
+I'd disclose my connection to Advisor Prep Hero at the top and keep the piece neutral on the product question — the argument stands regardless of what tool any attorney uses.
 
 Is this the kind of column ATL runs in the legal tech track? Happy to send a draft.
 
@@ -64,7 +64,7 @@ the spend).
 - The editorial pitch is better ROI than sponsored if it lands; sponsored is more predictable.
 - Note: Heppner citation is now VERIFIED (*United States v. Heppner*, No. 1:25-cr-00503-JSR, S.D.N.Y. Feb. 17, 2026). You may include it with proper framing — "consumer AI without attorney direction did not preserve privilege." ABA Opinion 512 remains the stronger editorial hook for Above the Law; Heppner reinforces it.
 - ATL audience skews BigLaw-aware but has significant solo/small-firm readership in the comments.
-  The pitch should acknowledge the BigLaw context without targeting them — Keepance doesn't fit
+  The pitch should acknowledge the BigLaw context without targeting them — Advisor Prep Hero doesn't fit
   BigLaw's procurement process.
 - If ATL passes, try the Legal Technology Resource Center (LTRC) blog at the ABA — same audience,
   less competitive placement.

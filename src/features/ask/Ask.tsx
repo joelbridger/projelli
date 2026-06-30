@@ -287,7 +287,7 @@ export function Ask(props: UseAskProps) {
                   Answers here are cited to your files — Ask only answers from these documents, never the open internet, and you can click any citation to open the source. For drafting documents, use Workflows, and check current-year figures before you send.
                 </span>
                 <span>
-                  Keepance isn't a CRM or a note-taker. It sits beside your tools and reads across your files.
+                  Advisor Prep Hero isn't a CRM or a note-taker. It sits beside your tools and reads across your files.
                 </span>
                 {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                 {/* Suggested questions — one click each. The last one is about

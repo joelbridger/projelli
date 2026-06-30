@@ -1,4 +1,4 @@
-# Keepance — Reorientation Execution Summary (2026-06-17)
+# Advisor Prep Hero — Reorientation Execution Summary (2026-06-17)
 
 > ⚠️ **ARCHIVED / SUPERSEDED — kept for history.** Part of the 2026-06-17 "product is mature, stop building" cluster, overturned by 2026-06-20 Windows testing and the 2026-06-23/29 advisor re-aim. Current direction: `docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md`. See this folder's `README.md`.
 
@@ -31,7 +31,7 @@ All on `keepance-3.0`, pushed, full suite green throughout (ended at 280 files /
 
 - **GTM is the real work now** (the eval's whole point): pick the one litigation job-to-be-done, manufacture credibility (Ambrogi/LawSites, ABA TECHSHOW, a CLE), recruit 3–5 design-partner lawyers, and hand-sell the first 10. The product is now built to serve that; the constraint is reach + trust, not features.
 - **The kill-criterion** (master plan §6): set a fixed hand-selling window; if it yields no customers + no testimonials, pivot the wedge (CPA/§7216) or accept lifestyle scale. Your call to set the window.
-- **The `projelli` checkout store:** keepance.com's Subscribe buttons still point at `projelli.lemonsqueezy.com` (the shared store). A lawyer sees "projelli" at checkout. Needs its own Keepance store before scaling — a money/vendor decision I left for you.
+- **The `projelli` checkout store:** keepance.com's Subscribe buttons still point at `projelli.lemonsqueezy.com` (the shared store). A lawyer sees "projelli" at checkout. Needs its own Advisor Prep Hero store before scaling — a money/vendor decision I left for you.
 - **Deferred (minor):** the dead `FirstRunWizard` (live onboarding is `GuidedOnboarding`); some pre-3.0 SEO/blog content left as historical; the broader WS8 stop-list (firm-tier depth, Wave 5 connectors) intentionally not built per the reorientation.
 
 ## Where to look

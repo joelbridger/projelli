@@ -86,7 +86,7 @@ interface OpenTab {
   // UX-21: 'ai-assistant' is a new sentinel type for the AI Assistant
   // main-panel tab. Reusing the existing 'file' → extension routing in
   // MainPanel doesn't work here because the tab has no file on disk.
-  // 'email' is the Keepance 3.0 read-only mail viewer (no file on disk; the
+  // 'email' is the Advisor Prep Hero 3.0 read-only mail viewer (no file on disk; the
   // message id rides in `metadata.mailSourceId`).
   type?: 'file' | 'browser' | 'ai-assistant' | 'workflow-execution' | 'email';
   metadata?: {

@@ -18,7 +18,7 @@ Every task's requirements implicitly include all of these. Copied from the spec'
 - **User edits are sovereign:** any item with `origin: 'user'` is NEVER overwritten by an AI pass.
 - **Everything is sourced:** every AI-origin item carries `sources: SourceRef[]`, or is explicitly marked `isAssumption: true`.
 - **Firm installs unchanged:** v1 adds no firm behavior; where firm state is read, branch on `isFirm`/`useFirm` and leave the firm path untouched.
-- **Never claim "compliant"/"guaranteed":** there are tests asserting this. No user-facing string may imply Keepance makes a user compliant.
+- **Never claim "compliant"/"guaranteed":** there are tests asserting this. No user-facing string may imply Advisor Prep Hero makes a user compliant.
 - **Voice:** NO em dashes in any user-facing string (there is a repo-wide test). No AI tells ("leverage/seamless/transform/empower/elevate/unlock"). First-person, concrete nouns. Keep microcopy minimal; the marketing session owns final wording.
 - **Single-matter only:** a Client Map is always scoped to exactly one matter; no cross-matter map.
 - **No build/deploy** without Jameson's explicit go.

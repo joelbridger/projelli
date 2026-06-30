@@ -1,6 +1,6 @@
 # AdvisorTech News & AI-Feature Digest — 2022-2024 (from Kitces monthly roundups)
 
-*Source: Michael Kitces' "The Latest In Financial #AdvisorTech" monthly columns, January 2022 – December 2024 (36 issues). Compiled as positioning research for Keepance (private, local-first AI that reads across an advisor's files/email/tools and answers with citations).*
+*Source: Michael Kitces' "The Latest In Financial #AdvisorTech" monthly columns, January 2022 – December 2024 (36 issues). Compiled as positioning research for Advisor Prep Hero (private, local-first AI that reads across an advisor's files/email/tools and answers with citations).*
 
 ---
 

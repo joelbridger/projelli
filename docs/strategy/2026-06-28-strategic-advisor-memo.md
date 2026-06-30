@@ -1,6 +1,6 @@
-# Keepance — Strategic Advisor Memo
+# Advisor Prep Hero — Strategic Advisor Memo
 
-**An elite, skeptical founder/operator/investor read of the real Keepance — built to test whether this becomes a real company that creates meaningful wealth in five years.**
+**An elite, skeptical founder/operator/investor read of the real Advisor Prep Hero — built to test whether this becomes a real company that creates meaningful wealth in five years.**
 
 *Date: 2026-06-28 · Author: strategy session (Claude, with an independent Codex adversarial pass) · Audience: Jameson (Board) · Status: internal, private*
 
@@ -10,7 +10,7 @@
 
 ## 1. One-sentence verdict
 
-**Keepance is an unusually good product chasing an unproven need: the advisor pivot is the soundest of its five re-aims, but it rests on a single anecdotal pain signal and a privacy wedge that is a trust-accelerator, not a must-buy — so the only correct move is to NARROW to one bulletproof job and run a hard 60-day demand test (10–15 advisor conversations → 5 live demos → 3 real-data pilots → 3–5 weekly-active, 1–2 paying or signed LOIs, zero speculative features); if that fails, do NOT re-pivot to a sixth ICP — park it or convert to a services/concierge motion.**
+**Advisor Prep Hero is an unusually good product chasing an unproven need: the advisor pivot is the soundest of its five re-aims, but it rests on a single anecdotal pain signal and a privacy wedge that is a trust-accelerator, not a must-buy — so the only correct move is to NARROW to one bulletproof job and run a hard 60-day demand test (10–15 advisor conversations → 5 live demos → 3 real-data pilots → 3–5 weekly-active, 1–2 paying or signed LOIs, zero speculative features); if that fails, do NOT re-pivot to a sixth ICP — park it or convert to a services/concierge motion.**
 
 *An independent Codex adversarial pass (instructed to argue the opposite) reached the same call — NARROW, not kill and not proceed-harder — and sharpened it: lead with pain (privacy is the permission to try, not the reason to buy), say "less to vet" not "nothing to vet," and keep one sales-enabling integration in scope even during the feature freeze.*
 
@@ -24,7 +24,7 @@
 
 **2) Who's affected?** The sharp answer is **the small independent/fee-only RIA (roughly 1–20 people) where client context is scattered and nobody owns it** — the solo who is their own paraplanner, OR the 3–20 person firm where several people touch a household and context falls through the cracks. (Codex's pushback, which I accept: do not define the buyer as a "privacy purist solo." The real buyer is *drowning in scattered client context and likes that privacy lets them try it* — pain first, privacy as the permission. The 3–20 person firms may feel the synthesis/coordination pain *more* acutely than solos, while still having a short decision path.) The buyer is on Windows, and at the small end is the buyer + user + compliance owner in one person (a one-day cycle). NOT "financial advisors" broadly; NOT wirehouse advisors (their firm dictates the stack); NOT big RIAs (staff + enterprise tools). The market backs the small end: **76% of state-registered RIAs have 0–2 employees and 98.5% have ≤10** ([NASAA 2025](https://www.nasaa.org/wp-content/uploads/2025/09/IA-Section-2025-Report-FINAL.pdf)). The micro-and-small-RIA tail is large and genuinely under-served.
 
-**3) How much do they currently pay?** A small RIA spends **~3.8–6% of revenue on technology** ([Kitces / InvestmentNews benchmarks](https://www.kitces.com/blog/kitces-wealthtech-advisortech-trends-adoption-satisfaction-disruption/)), which builds up to roughly **$300–600 per advisor per month (~$3,600–7,200/yr)** for the core stack: a CRM (Wealthbox $59–99/mo, Redtail), planning software (eMoney/RightCapital/MoneyGuide, the "big three" ≈ 80% share), portfolio/reporting (Orion), and increasingly an AI notetaker (Jump/Zocks **$75–120/advisor/mo**; Wealthbox's native notetaker just **$49/mo**). **The honest read: there IS a real budget, and Keepance at ~$468–1,548/yr is cheap inside it — but that budget is already fully allocated, and "AI that knows my client" is starting to arrive bundled into tools they already pay for at $49/mo.** Keepance is competing for net-new budget against a falling price floor.
+**3) How much do they currently pay?** A small RIA spends **~3.8–6% of revenue on technology** ([Kitces / InvestmentNews benchmarks](https://www.kitces.com/blog/kitces-wealthtech-advisortech-trends-adoption-satisfaction-disruption/)), which builds up to roughly **$300–600 per advisor per month (~$3,600–7,200/yr)** for the core stack: a CRM (Wealthbox $59–99/mo, Redtail), planning software (eMoney/RightCapital/MoneyGuide, the "big three" ≈ 80% share), portfolio/reporting (Orion), and increasingly an AI notetaker (Jump/Zocks **$75–120/advisor/mo**; Wealthbox's native notetaker just **$49/mo**). **The honest read: there IS a real budget, and Advisor Prep Hero at ~$468–1,548/yr is cheap inside it — but that budget is already fully allocated, and "AI that knows my client" is starting to arrive bundled into tools they already pay for at $49/mo.** Advisor Prep Hero is competing for net-new budget against a falling price floor.
 
 **4) What's the unique promise?** **"One private, cited brief of everything you know about a household — built automatically from your own files, that never leaves your computer."** Two words carry it: **synthesis** (across document types, not per-document like Holistiplan/Vanilla, not just-the-meeting like Jump/Zocks) and **local** (the data physically stays on the machine). No competitor today credibly says both. FutureVault says the first in the cloud; Jump says a narrower version in the cloud; nobody leads with "on your own machine." **That is a real, defensible sentence.** The risk is that "synthesis + local" is a *founder's* favorite sentence, not yet proven to be a *buyer's* deciding sentence.
 
@@ -38,7 +38,7 @@
 
 ## 2. The strongest version of the idea
 
-Sharpened, the strongest Keepance is **not** "a private AI workspace for advisors." It is: **"The thing that reads the pile of files you already have on a household and hands you back one cited brief you can trust in a meeting — and because it runs on your machine, your compliance officer has nothing to vet."** One person, one job, one trust story. It wins by being the *deepest* at synthesis-across-documents (the least-crowded angle in the whole landscape) and the *only* one that is truly local. It expands later — from "knows the client" to "drafts the client's review note" to "the firm's shared brain" — but only after one advisor can't live without the first job.
+Sharpened, the strongest Advisor Prep Hero is **not** "a private AI workspace for advisors." It is: **"The thing that reads the pile of files you already have on a household and hands you back one cited brief you can trust in a meeting — and because it runs on your machine, your compliance officer has nothing to vet."** One person, one job, one trust story. It wins by being the *deepest* at synthesis-across-documents (the least-crowded angle in the whole landscape) and the *only* one that is truly local. It expands later — from "knows the client" to "drafts the client's review note" to "the firm's shared brain" — but only after one advisor can't live without the first job.
 
 The strongest version is **demo-led and founder-sold**, priced as a serious tool ($1,500–3,000/yr, not $99), aimed at the solo RIA who is their own staff, distributed through Kitces/XYPN/peer-referral, and ruthlessly NOT a notetaker.
 
@@ -49,7 +49,7 @@ The version that fails is **"a privacy-first AI assistant for financial advisors
 ## ★ Reconciliation: where the prompt, the docs, and the code disagree
 
 My brief, the planning docs, and the running code do not agree, and the gaps matter:
-- **Prompt vs. reality:** the original analysis prompt treats *lawyers* as the ICP. **Reality: Keepance pivoted to financial advisors ~2026-06-23.** Reality wins.
+- **Prompt vs. reality:** the original analysis prompt treats *lawyers* as the ICP. **Reality: Advisor Prep Hero pivoted to financial advisors ~2026-06-23.** Reality wins.
 - **"Staged connectors" overstated:** the brief lists Box/ShareFile/Jotform/Zocks/Addepar as "staged." In code (`keepance-3.0`), **only Addepar is even a placeholder logo; the other four do not exist at all.** OneDrive and Wealthbox are genuinely built; Salesforce/Redtail/DocuSign are code-complete but gated on missing credentials.
 - **Source-of-truth drift (the most important conflict):** advisor is **real in the app engine** (`professionStore.ts` defaults to `'advisor'`; the Client Map, label facade, advisor demo + sample household are built), and the *live* keepance.com is reportedly already advisor-positioned (the re-aim deployed the public site from a separate worktree). But several surfaces still disagree: `src/config/pricing.ts` audience strings still say "a single attorney," "litigator," "5 to 50 attorneys"; the **in-repo** `website/index.html` still reads "The private intelligence layer for your law practice"; `docs/reference/FEATURES.md` is two pivots stale (describes a "founder tool"). **The risk isn't only first-impression credibility — it's that the app, the repo website, the live website, the pricing config, and the docs tell different stories. And `pricing.ts` is the one that reaches the in-app checkout — so the law copy + the $99-vs-$948 inconsistency are live where it counts.**
 - **Nothing advisor-polished has shipped.** The Client Map + advisor re-aim are finished in code but **not packaged into an installer a customer can download.** The last published build predates the advisor work.
@@ -68,7 +68,7 @@ My brief, the planning docs, and the running code do not agree, and the gaps mat
 | 2 | **Small fee-only RIA, 4–10 advisors (XYPN-type)** | Reachable via XYPN/NAPFA; real budget; still founder-sellable; slightly longer cycle | Fast-follow |
 | 3 | **Estate-planning-heavy / multi-doc advisors** | Most documents per household = most synthesis pain; but Vanilla/FP Alpha already there | Niche expansion |
 | 4 | **Solo CPAs / tax pros / EAs** | Adjacent, doc-heavy, privacy-minded; but Holistiplan owns tax-doc reading | Adjacent later |
-| 5 | **Multi-family offices / larger RIAs** | Real money, real synthesis pain | **Avoid early** — demands SOC 2/DPA/entity Keepance lacks |
+| 5 | **Multi-family offices / larger RIAs** | Real money, real synthesis pain | **Avoid early** — demands SOC 2/DPA/entity Advisor Prep Hero lacks |
 | 6 | **Wirehouse / BD advisors** | Largest headcount | **Avoid** — firm dictates the stack; can't buy |
 | — | **Solo attorneys / estate / family-law / immigration / PI attorneys** | The old ICP | **Deprioritized** — never validated; legal AI is 10x more capitalized (Harvey $11B) |
 
@@ -80,11 +80,11 @@ My brief, the planning docs, and the running code do not agree, and the gaps mat
 - **Real but nice-to-have:** "Auto-draft my review note / Reg BI rationale." Useful, but ChatGPT already does the blank-page job; not a switch-driver alone.
 - **Fake-but-sounds-good:** "Advisors are desperate for a privacy-first AI." They are *cautious* about cloud AI (real), but desperation is the founder's projection — most are adopting cloud Copilot/ChatGPT and accepting the SOC-2-plus-contract model.
 - **Already solved (don't fight):** meeting capture/notes (Jump/Zocks/Wealthbox own it), tax-return reading (Holistiplan), estate-doc reading (Vanilla).
-- **Won't-trust-AI-with-yet:** anything that *acts* on client data autonomously, or that touches account/custodial systems. Keepance's "AI proposes, human decides, everything cited" posture is correctly conservative here.
+- **Won't-trust-AI-with-yet:** anything that *acts* on client data autonomously, or that touches account/custodial systems. Advisor Prep Hero's "AI proposes, human decides, everything cited" posture is correctly conservative here.
 
 ## 6. Wedge recommendation
 
-**Narrowest initial wedge:** *the solo fee-only RIA's pre-meeting prep.* Target user: a 1–3 person RIA on Windows who does their own prep. Painful job: "be fully prepared for tomorrow's review in 5 minutes, not Sunday night." Trigger event: an annual-review meeting on the calendar. Existing workaround: re-reading the plan + scrolling the CRM + a broken Outlook search. Why Keepance is 10x better: it *reads the household's own files* and produces a **cited** brief plus answers any pre-meeting question with a clickable source — no migration, point it at the folder they already have. Why it expands: once it "knows the client," drafting the review note, then the Reg BI rationale, then a shared firm brain are natural next jobs. **The wedge is the Client Map. Everything else is later.**
+**Narrowest initial wedge:** *the solo fee-only RIA's pre-meeting prep.* Target user: a 1–3 person RIA on Windows who does their own prep. Painful job: "be fully prepared for tomorrow's review in 5 minutes, not Sunday night." Trigger event: an annual-review meeting on the calendar. Existing workaround: re-reading the plan + scrolling the CRM + a broken Outlook search. Why Advisor Prep Hero is 10x better: it *reads the household's own files* and produces a **cited** brief plus answers any pre-meeting question with a clickable source — no migration, point it at the folder they already have. Why it expands: once it "knows the client," drafting the review note, then the Reg BI rationale, then a shared firm brain are natural next jobs. **The wedge is the Client Map. Everything else is later.**
 
 ## 7. Product strategy — what to be FIRST
 
@@ -100,8 +100,8 @@ My brief, the planning docs, and the running code do not agree, and the gaps mat
 | Barrier | Severity | Read |
 |---|---|---|
 | No SOC 2, no DPA, no formed legal entity | **Fatal for firms / manageable for solos** | A CCO asks for these first. Solos often *are* the CCO and can self-approve. Form the LLC now; defer SOC 2 until a deal demands it. |
-| The "private" claim has a cloud asterisk | **Manageable → selling point if honest** | True only in local mode; BYOK-cloud sends query text to the provider (but never to a Keepance server). The trust sheet already states this; keep it scrupulously honest (SEC is fining "AI-washing"). |
-| Reg S-P vendor oversight (small-RIA deadline **June 3, 2026**) | **Selling point (stated honestly)** | Frame as "**less to vet**," not "nothing to vet": in BYOK-cloud mode the query still goes to the AI provider the advisor chose (never to a Keepance server); only in local-model mode does literally nothing leave. Either way it's a genuine *diligence-reducer* for no-CCO firms — but a *convenience*, not a legal mandate (Reg S-P assumes vendors and the SEC's predictive-analytics/cyber proposals were withdrawn June 2025; [SEC](https://www.sec.gov/newsroom/press-releases/2024-58)). |
+| The "private" claim has a cloud asterisk | **Manageable → selling point if honest** | True only in local mode; BYOK-cloud sends query text to the provider (but never to a Advisor Prep Hero server). The trust sheet already states this; keep it scrupulously honest (SEC is fining "AI-washing"). |
+| Reg S-P vendor oversight (small-RIA deadline **June 3, 2026**) | **Selling point (stated honestly)** | Frame as "**less to vet**," not "nothing to vet": in BYOK-cloud mode the query still goes to the AI provider the advisor chose (never to a Advisor Prep Hero server); only in local-model mode does literally nothing leave. Either way it's a genuine *diligence-reducer* for no-CCO firms — but a *convenience*, not a legal mandate (Reg S-P assumes vendors and the SEC's predictive-analytics/cyber proposals were withdrawn June 2025; [SEC](https://www.sec.gov/newsroom/press-releases/2024-58)). |
 | Recordkeeping Rule 204-2 (5-yr retention of AI work) | **Manageable, must-address** | Local must still log/retain/export AI work product ~5 yrs, or it trades one gap for another. Make export/audit first-class. |
 | "Looks like a one-person app" | **Real** | A fiduciary equates a polished, certified vendor with safety. Counter with design polish (already strong) + the design-partner case study + the entity. |
 | Fear of changing workflow | **Real** | Mitigated by "point at your existing folder / your Wealthbox" — no migration. This is why integration-first matters. |
@@ -113,26 +113,26 @@ My brief, the planning docs, and the running code do not agree, and the gaps mat
 
 - **Category:** *private client-intelligence* (not "AI assistant," not "notetaker," not "document vault"). Own "knows your whole household, on your machine."
 - **Homepage headline:** **"Walk into every meeting already knowing the whole household."**
-- **Subheadline:** "Keepance reads the files you already have and builds one cited brief of each client — on your own computer, so there's far less for compliance to vet (and in local mode, nothing leaves at all)."
+- **Subheadline:** "Advisor Prep Hero reads the files you already have and builds one cited brief of each client — on your own computer, so there's far less for compliance to vet (and in local mode, nothing leaves at all)."
 - **10-sec pitch:** "It turns the pile of files on a client into one trustworthy, cited brief you can ask anything — and it all stays on your machine."
-- **30-sec pitch:** add the trigger + proof: "Before a review, you used to dig through the plan, the CRM, and a useless email search. Point Keepance at the client's folder and it builds a cited map of the whole household — people, goals, accounts, what's open — and answers any question with a link to the exact source. No client data ever goes to us or to an AI vendor unless you choose it."
+- **30-sec pitch:** add the trigger + proof: "Before a review, you used to dig through the plan, the CRM, and a useless email search. Point Advisor Prep Hero at the client's folder and it builds a cited map of the whole household — people, goals, accounts, what's open — and answers any question with a link to the exact source. No client data ever goes to us or to an AI vendor unless you choose it."
 - **Skeptical-advisor pitch:** "You already have the documents. You already pay for a CRM. This isn't another system to migrate into — it reads what you have, runs on your machine, and your CCO has nothing new to approve."
 - **Language to avoid:** "compliant," "guaranteed," "secure" as a bare claim, "revolutionary/seamless/transform," "AI assistant," and anything implying it gives financial advice. (Per the voice guide and SEC AI-washing risk.)
 
-## 10. Competitive landscape — where Keepance can win, and can't
+## 10. Competitive landscape — where Advisor Prep Hero can win, and can't
 
 - **Do-nothing / ChatGPT-or-Copilot by hand** *(the real default competitor)*: 41% use ChatGPT, ~20% Copilot. **Win** on: cited, source-linked answers over *their own* files with no copy-paste, and local privacy. **Lose** if the advisor's firm already standardized on M365 Copilot with enterprise data protection (erodes the privacy argument).
-- **Notetakers (Jump ~$105M/~27k advisors; Zocks ~$65M; Zeplyn):** **Do not fight.** They own meeting capture and are becoming "agentic OS." Position as complementary (they capture the meeting; Keepance is the standing brief). The race for notes is over.
+- **Notetakers (Jump ~$105M/~27k advisors; Zocks ~$65M; Zeplyn):** **Do not fight.** They own meeting capture and are becoming "agentic OS." Position as complementary (they capture the meeting; Advisor Prep Hero is the standing brief). The race for notes is over.
 - **CRMs embedding AI (Wealthbox AI $49/mo, 25k advisors, $200M raised; Orion Denali; Practifi; Salesforce FSC+Agentforce):** **The most dangerous trend.** "Already in your stack, compliance done." **Win** only on depth-of-synthesis + local; **do not** duplicate Wealthbox's $49 notetaker. The Wealthbox *connector* is smart (ride the hub); competing with Wealthbox's *AI* is not.
 - **Doc-intelligence specialists (Holistiplan tax 20k advisors; Vanilla estate $85M+; FP Alpha; Powder):** They own *per-document-type*. **Win** on cross-document *synthesis into one brief* (the gap none of them fill). Powder marketing "data stays in the firm" proves residency sells.
-- **FutureVault (closest competitor):** same "documents → cited intelligence" promise (their "AI Advisor Insights Engine," launched ~March 2026), but **cloud, enterprise-only, SOC 2, blue-chip logos, ~$31M raised.** **Keepance's wedge vs. them:** runs on the advisor's own machine (privacy by architecture, not contract) and is solo-buyable today vs. their slow enterprise sale. **The one-sentence answer Jameson must be able to say:** *"FutureVault puts your clients' lives in their cloud; Keepance keeps them on your machine — and a solo can start this afternoon."*
+- **FutureVault (closest competitor):** same "documents → cited intelligence" promise (their "AI Advisor Insights Engine," launched ~March 2026), but **cloud, enterprise-only, SOC 2, blue-chip logos, ~$31M raised.** **Advisor Prep Hero's wedge vs. them:** runs on the advisor's own machine (privacy by architecture, not contract) and is solo-buyable today vs. their slow enterprise sale. **The one-sentence answer Jameson must be able to say:** *"FutureVault puts your clients' lives in their cloud; Advisor Prep Hero keeps them on your machine — and a solo can start this afternoon."*
 - **Honest "can't win":** any enterprise/multi-advisor deal that hinges on SOC 2 + signed DPA, and any race that's won with capital.
 
 ## 11. Defensibility — graded honestly
 
 - **Trust/architecture moat (the real one, moderate):** true local-first + in-house OOXML engine + the Client Map synthesis is genuinely hard for cloud incumbents to copy *because it fights their business model*. Real, but a moat of *positioning*, not patents.
-- **Workflow lock-in (weak today, strong later):** once an advisor's institutional memory of their book lives in Keepance's Client Maps, switching cost is high. Doesn't exist until they use it weekly.
-- **Data moat (none):** the data is the *customer's* and stays local — by design Keepance never aggregates it. Privacy and data-network-effects are in tension; accept it.
+- **Workflow lock-in (weak today, strong later):** once an advisor's institutional memory of their book lives in Advisor Prep Hero's Client Maps, switching cost is high. Doesn't exist until they use it weekly.
+- **Data moat (none):** the data is the *customer's* and stays local — by design Advisor Prep Hero never aggregates it. Privacy and data-network-effects are in tension; accept it.
 - **Distribution moat (none — the gap):** no Kitces presence, no XYPN, no custodian integration, no brand. This is the weakness that decides everything.
 - **Switching cost / integrations (emerging):** the Wealthbox + OneDrive connectors start "fits your stack" lock-in.
 - **Founder insight (real):** an in-household CFP + a designer who can ship. Durable while it's a solo effort.
@@ -194,7 +194,7 @@ My brief, the planning docs, and the running code do not agree, and the gaps mat
 - **Unfair advantage:** design/UX taste + AI-leveraged build speed + a live in-household CFP. Jameson ships product quality a normal solo can't, and has a permanent translator for the customer.
 - **Biggest weakness (name it):** **the build trap.** Five re-aims is the tell — each pivot was a *new build*, not a new set of customers. A designer's instinct under uncertainty is to make the thing better; the job now is to make *someone buy it*. Codex named this pattern bluntly: "write a compelling new story, find no traction, rewrite the story."
 - **The structural risk in the warm path:** the wife is design partner #1, but her firm "can't be first to buy" (her career depends on it). So the warmest asset is *compromised as a validation source* — she'll be kind, and her firm can't be the proof. **The first paying customer must be a stranger.** That said (Codex's fair point), she is far from useless: she's the right source for *workflow truth, the real vocabulary, realistic sample data, and warm introductions to peers at other firms*. Use her for discovery and demo calibration; do not count her as validation.
-- **The fix:** Jameson commits ≥50% of Keepance time to *customers* (discovery, demos, pilots) and lets Claude/Codex do the building. The one thing only he can do is sell; the one thing he'll be tempted to do instead is build.
+- **The fix:** Jameson commits ≥50% of Advisor Prep Hero time to *customers* (discovery, demos, pilots) and lets Claude/Codex do the building. The one thing only he can do is sell; the one thing he'll be tempted to do instead is build.
 
 ## 17. Brutal risks — top 10
 
@@ -219,7 +219,7 @@ My brief, the planning docs, and the running code do not agree, and the gaps mat
 - **Best first product shape:** the existing desktop app, advisor-default, the one loop bulletproof, OneDrive + Wealthbox as the only connectors.
 - **Best pricing hypothesis:** $1,800/yr solo (test the flinch); kill the $99 line.
 - **The 60-day funnel (the scoreboard):** 10–15 advisor conversations → 5 live demos → 3 real-data pilots → 3–5 weekly-active users → 1–2 paying or signed LOIs. Measure your *selling behavior* (conversations booked, demos run) as closely as the market's response.
-- **If the test fails:** do NOT re-pivot to a sixth ICP. Either **park** Keepance (it's a strong asset to return to) or **convert to the services/concierge motion** (sell the outcome done-for-you). A new positioning doc is the failure mode, not the answer.
+- **If the test fails:** do NOT re-pivot to a sixth ICP. Either **park** Advisor Prep Hero (it's a strong asset to return to) or **convert to the services/concierge motion** (sell the outcome done-for-you). A new positioning doc is the failure mode, not the answer.
 - **Next 7 days:** fix the source-of-truth drift; form the LLC; line up 10 discovery calls. **Next 30:** run discovery + 2–3 paid real-data pilots (≥1 stranger). **Next 90:** hit 3–5 weekly-active + 1–2 paying/LOI, or park/services.
 
 ## 19. Concrete action plan

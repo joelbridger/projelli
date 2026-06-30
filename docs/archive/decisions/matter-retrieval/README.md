@@ -1,4 +1,4 @@
-# matter-retrieval — Keepance 3.0 de-risking spike (P0 gate 2)
+# matter-retrieval — Advisor Prep Hero 3.0 de-risking spike (P0 gate 2)
 
 Standalone Rust crate proving **matter-scoped, exact-source cited retrieval over
 a mixed documents + email corpus** using the SAME stack the app ships

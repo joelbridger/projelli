@@ -202,7 +202,7 @@ export function BYOKKeyInput() {
           <AlertDialogHeader>
             <AlertDialogTitle>Store your API key in this browser?</AlertDialogTitle>
             <AlertDialogDescription>
-              Your key is stored only in your browser. The Keepance demo never
+              Your key is stored only in your browser. The Advisor Prep Hero demo never
               sees it. AI requests go straight from this tab to Anthropic.
             </AlertDialogDescription>
           </AlertDialogHeader>

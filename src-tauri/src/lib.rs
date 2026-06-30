@@ -1,7 +1,7 @@
 // Business OS - Tauri Backend
 // Local-first workspace for solo founders
 
-// `pub` so the `keepance-mcp` sidecar binary (see `src/bin/mcp.rs`) can
+// `pub` so the `lantern-mcp` sidecar binary (see `src/bin/mcp.rs`) can
 // reuse the `commands::rag::{store, embedder, extractor}` helpers without
 // duplicating code. The binary only touches the pure, Tauri-agnostic
 // sub-modules; the `#[tauri::command]` wrapper fns stay host-only in
@@ -50,7 +50,7 @@ pub fn run() {
             commands::keychain::keychain_set,
             commands::keychain::keychain_get,
             commands::keychain::keychain_delete,
-            // Keepance 3.0 — encrypted, append-only audit store (the "defense file").
+            // Advisor Prep Hero 3.0 — encrypted, append-only audit store (the "defense file").
             commands::audit::audit_set_workspace,
             commands::audit::audit_append,
             commands::audit::audit_list,
@@ -79,7 +79,7 @@ pub fn run() {
             // first-run download + status (the feature itself is default-OFF).
             commands::rag::reranker_download::reranker_status,
             commands::rag::reranker_download::reranker_ensure,
-            // Keepance Local AI — visible first-run GGUF download and lazy
+            // Advisor Prep Hero Local AI — visible first-run GGUF download and lazy
             // llama.cpp server sidecar lifecycle.
             commands::local_llm::model_download::local_llm_model_status,
             commands::local_llm::model_download::local_llm_model_ensure,
@@ -132,7 +132,7 @@ pub fn run() {
             commands::mail::mail_disconnect,
             commands::mail::mail_sync_all,
             commands::mail::mail_cancel_sync,
-            // Keepance 3.0 email viewer — fetch + decrypt one stored message.
+            // Advisor Prep Hero 3.0 email viewer — fetch + decrypt one stored message.
             commands::mail::mail_get_message,
             // Mail browse/search surface — metadata-only, never decrypts a blob.
             commands::mail::mail_list_messages,
@@ -282,7 +282,7 @@ pub fn run() {
             // cancellation flag for the workspace indexer). Required by all
             // `rag_*` commands.
             commands::rag::manage_state(app);
-            // Keepance Local AI sidecar state is empty at startup; the
+            // Advisor Prep Hero Local AI sidecar state is empty at startup; the
             // llama-server process remains lazy until explicitly started.
             commands::local_llm::manage_state(app);
             // Phase 1 email — manage mail state (active workspace + cancel flag).
@@ -305,7 +305,7 @@ pub fn run() {
             commands::addepar::commands::manage_state(app);
             // Calendly connector — manage workspace, single-flight sync, and progress.
             commands::calendly::commands::manage_state(app);
-            // Keepance 3.0 — manage encrypted audit-store state (active workspace).
+            // Advisor Prep Hero 3.0 — manage encrypted audit-store state (active workspace).
             commands::audit::manage_state(app);
             // Onboarding/setup progress — register the aggregator state + the
             // listeners that bridge the five per-source events into one

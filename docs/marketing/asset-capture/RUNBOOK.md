@@ -56,7 +56,7 @@ The dev server must be running on `localhost:5173` with `VITE_MARKETING_CAPTURE=
 | V04 | `workflow-templates.mp4` | 30s | Heavy DOM injection — workflow execution UI is React-local |
 | V05 | `feature-document-suite-15s.mp4` | 15s | Tab switching across .md / .xlsx / .pptx |
 | V06 | `byok-setup.mp4` | 15s | Settings → API keys → typed key animation |
-| V07 | `local-first.mp4` | 12s | File appears in Keepance, then reveals in Sequoia Finder mockup |
+| V07 | `local-first.mp4` | 12s | File appears in Advisor Prep Hero, then reveals in Sequoia Finder mockup |
 | V08 | `version-history.mp4` | 18s | DOM-injected history panel — version history UI may not be wired up in browser mode |
 
 ---

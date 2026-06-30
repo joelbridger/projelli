@@ -1,4 +1,4 @@
-// SQLCipher-encrypted, append-only audit store for Keepance 3.0.
+// SQLCipher-encrypted, append-only audit store for Advisor Prep Hero 3.0.
 //
 // The audit log is the user's "defense file": an append-only record of every
 // AI action (what was searched, which matter it was confined to, whether

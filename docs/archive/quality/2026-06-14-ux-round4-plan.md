@@ -1,4 +1,4 @@
-# Keepance UX — ROUND 4 plan: re-imagine Documents + speak every vertical (2026-06-14)
+# Advisor Prep Hero UX — ROUND 4 plan: re-imagine Documents + speak every vertical (2026-06-14)
 
 Two efforts from Jameson, in his order. Branch `feature/ux-round4-2026-06-14`, backup tag
 `pre-ux-round4-2026-06-14`. NOT deployed.
@@ -27,7 +27,7 @@ folders don't show, it looks messy. His chosen layout: **"Files" as a pinned tab
   the cleanest; do not break the editor/tab system or the email-open advance.
 
 ## R4-2 — Speak every vertical (multi-vertical)
-Today Keepance is functionally multi-vertical (tax/consulting/advisor each have real template packs
+Today Advisor Prep Hero is functionally multi-vertical (tax/consulting/advisor each have real template packs
 [13/9/7], profession-aware samples, the onboarding profession picker, founder-surface gating) but
 LINGUISTICALLY legal-only. Jameson chose: **make it speak every vertical.**
 

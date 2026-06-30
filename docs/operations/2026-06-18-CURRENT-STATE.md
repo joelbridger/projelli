@@ -1,4 +1,4 @@
-# Keepance — Current State (2026-06-18)
+# Advisor Prep Hero — Current State (2026-06-18)
 
 > **Read this first.** Supersedes `2026-06-13-CURRENT-STATE.md` for the email-connector
 > work. Companion: memory `reference_keepance_email_oauth.md` (the fast validation loop
@@ -91,7 +91,7 @@ Last PUBLISHED release is still **v3.3.0**; v3.3.4 remains a superseded draft.
    Fix: `EmailWorkspace` re-queries the list on window focus AND on the sync 'done' event.
 5. **Installer/uninstaller still said "Projelli"** — `src-tauri/icons/installer-{header,sidebar}.bmp`
    were pre-rebrand artwork (no text to grep; baked into the NSIS bitmaps). Fix: regenerated both
-   as Keepance (navy shield + wordmark), verified visually, correct 24-bit BMP dimensions.
+   as Advisor Prep Hero (navy shield + wordmark), verified visually, correct 24-bit BMP dimensions.
 
 ## TL;DR (round 3 — live validation + 3 more fixes, still v3.3.5)
 Jameson asked me to actually USE it, not just unit-test. I imported BOTH his real
@@ -153,7 +153,7 @@ Full details + gotchas: memory `reference_keepance_email_oauth.md`.
 ## Config done (no code)
 - **Azure** app `845ddba0-...` (tenant microsoft@projelli.com): `http://localhost` registered;
   the bad `oauth20_desktop.srf` removed; "Allow public client flows" on.
-- **Google** OAuth ("Keepance Mail" project, Desktop client): consent screen in **Testing**
+- **Google** OAuth ("Advisor Prep Hero Mail" project, Desktop client): consent screen in **Testing**
   mode -> only `jamesondaines4@gmail.com` can connect Gmail; the "unverified app" screen needs
   Google verification (restricted Gmail scopes) for GA.
 - **Gmail creds** are GitHub Actions secrets `KEEPANCE_GMAIL_CLIENT_ID` / `_SECRET`, injected at
@@ -167,7 +167,7 @@ Full details + gotchas: memory `reference_keepance_email_oauth.md`.
    auto-updater `latest.json`); tag `v3.3.5` on `keepance-3.0` when ready.
 2. **Test v3.3.5** on Windows: Outlook connects and imports; Gmail connects and imports AND the
    mail appears in the Email tab; the two panels never show each other's count/error; the count
-   doesn't restart; the installer/uninstaller say "Keepance".
+   doesn't restart; the installer/uninstaller say "Advisor Prep Hero".
 3. **On his "publish"** (commercial deploy boundary — needs explicit go):
    - `gh release edit v3.3.5 --draft=false`
    - update keepance.com download links v3.3.0 -> v3.3.5 in `website/*.html`, then `bash infra/deploy.sh`

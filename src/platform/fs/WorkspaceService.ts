@@ -442,7 +442,7 @@ export class WorkspaceService {
    */
   private async listRecursive(path: string): Promise<FileNode[]> {
     // path here is already a relative path from backend.list().
-    // Keepance's internal config folder is never shown anywhere in the tree
+    // Advisor Prep Hero's internal config folder is never shown anywhere in the tree
     // (so every fileTree consumer — not just FileTree/FileGridView — is covered).
     const items = (await this.backend!.list(path)).filter(
       (i) => i.name !== '.keepance',

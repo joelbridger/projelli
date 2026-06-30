@@ -2,7 +2,7 @@
 
 > Parent: `docs/strategy/2026-06-17-keepance-master-plan.md` (WS2). Niche: litigation solo/small-firm. Recon map (read for exact signatures): the WS2 reconnaissance captured the egress logic, Data Map, confidentiality modes, audit log, and shell-routing patterns. Execute subagent-driven; gates per task: `npm run typecheck` (0) + `npx vitest run` (green). No production deploy without explicit go (already granted for this program).
 
-**Goal:** Turn the trust story from a feature into a screenshot-worthy, demo-able product surface: (a) a full-screen **"Where your data is" Privacy Center**, and (b) a one-click, printable, per-matter **"Confidentiality Report"** a lawyer can keep in the client file ("this matter's AI ran locally / under your own key; nothing was disclosed to a third-party Keepance server").
+**Goal:** Turn the trust story from a feature into a screenshot-worthy, demo-able product surface: (a) a full-screen **"Where your data is" Privacy Center**, and (b) a one-click, printable, per-matter **"Confidentiality Report"** a lawyer can keep in the client file ("this matter's AI ran locally / under your own key; nothing was disclosed to a third-party Advisor Prep Hero server").
 
 **Architecture:** Reuse the existing, tested primitives — `resolveEgress` (`src/platform/privacy/egress.ts`), `DATA_MAP_ROWS`/`DataMapContent` (`src/platform/privacy/ui/DataMapDialog.tsx`), the audit log (`src/platform/audit/AuditService.ts`), and the matter store. Add (1) matter scope to the `egress` audit event, (2) a pure report-assembler, (3) a printable report component, (4) a new `privacy` shell surface following the `AuditHome` pattern.
 
@@ -31,8 +31,8 @@
 
 ### Task 3: The printable Confidentiality Report artifact
 **Files:** Create `src/platform/privacy/ui/ConfidentialityReportDialog.tsx`; test `tests/unit/privacy/ConfidentialityReportDialog.test.tsx`.
-- [ ] A dialog/printable that renders a `ConfidentialityReport`: matter name, generated date, the attestation sentence, the per-call table, and a footer referencing the architecture (Florida Bar Op. 24-1 / no third-party-Keepance). Reuse the DataMapDialog hidden-iframe `handlePrint` pattern (printableId `keepance-confidentiality-report-printable`). `data-testid="confidentiality-report"`.
-- [ ] Honest copy: if any call left the machine (BYOK-direct/assured), say so plainly (to the user's own provider under their key, no Keepance content server); only claim "nothing left this machine" when all calls were local-only.
+- [ ] A dialog/printable that renders a `ConfidentialityReport`: matter name, generated date, the attestation sentence, the per-call table, and a footer referencing the architecture (Florida Bar Op. 24-1 / no third-party-Advisor Prep Hero). Reuse the DataMapDialog hidden-iframe `handlePrint` pattern (printableId `keepance-confidentiality-report-printable`). `data-testid="confidentiality-report"`.
+- [ ] Honest copy: if any call left the machine (BYOK-direct/assured), say so plainly (to the user's own provider under their key, no Advisor Prep Hero content server); only claim "nothing left this machine" when all calls were local-only.
 - [ ] Test: render with each fixture, assert the attestation + row count. Green. Commit.
 
 ### Task 4: The "Where your data is" Privacy Center surface (closes Gap 3)

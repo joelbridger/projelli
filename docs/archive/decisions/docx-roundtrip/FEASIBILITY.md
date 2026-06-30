@@ -1,6 +1,6 @@
 # Spike: In-house Word track-changes round-trip — FEASIBILITY REPORT
 
-**Program gate:** Keepance 3.0 WS-A document engine.
+**Program gate:** Advisor Prep Hero 3.0 WS-A document engine.
 **Question:** Can we faithfully round-trip Microsoft Word `.docx` files *with track
 changes* — import a lawyer's redline, let the AI add its own tracked edits, export a
 `.docx` the recipient opens in Word with every revision intact and individually
@@ -27,7 +27,7 @@ the end-to-end loop for the three highest-value revision features:
 
 All three survive a parse → model → serialize round-trip with author, date, id, and
 text intact; the document stays a structurally valid `.docx`; and a **new
-`w:author="Keepance AI"` revision can be inserted alongside the originals**, each
+`w:author="Advisor Prep Hero AI"` revision can be inserted alongside the originals**, each
 revision keeping a unique `w:id` (which is how Word groups accept/reject).
 
 **Independent confirmation (vendor-free):** `soffice` is not available here, so we
@@ -38,7 +38,7 @@ three independent parsers:
    resolution),
 2. **Python `python-docx` + lxml** (a genuinely third-party OOXML reader) — opens
    both the fixture and the AI-authored file, reads the runs, and sees all
-   `w:ins`/`w:del` with the right authors (`Opposing Counsel` + `Keepance AI`),
+   `w:ins`/`w:del` with the right authors (`Opposing Counsel` + `Advisor Prep Hero AI`),
 3. Python stdlib `minidom` pretty-print — confirms the byte structure matches what
    Word emits.
 
@@ -174,7 +174,7 @@ choices needed when it moves.
   signal, but it means a naive python-docx reader is **not** sufficient to verify
   revision *content* — you must walk the element tree (which our validator does).
 - **Determinism is cheap and worth it.** A deterministic serializer makes the
-  round-trip idempotent, which gives stable diffs and plays well with Keepance's
+  round-trip idempotent, which gives stable diffs and plays well with Advisor Prep Hero's
   existing version-history feature — a nice unplanned alignment.
 - **The existing TS path (`src/utils/docx-io.ts`) can't be incrementally fixed**
   for this. Mammoth → HTML → `docx` npm is fundamentally lossy and has no revision

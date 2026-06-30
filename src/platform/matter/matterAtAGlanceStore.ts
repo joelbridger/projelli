@@ -5,7 +5,7 @@
  * now live as the `cache` slice of `useMatterStore`; this module keeps the entry
  * type and re-exports the store as `useMatterAtAGlanceStore` so existing
  * importers are unchanged. Persistence is unchanged: the merged store's
- * multi-key adapter still writes localStorage `keepance:matter-at-a-glance`.
+ * multi-key adapter still writes localStorage `lantern:matter-at-a-glance`.
  *
  * Keyed by matter id; stores the generated result and timestamp so the hub does
  * not regenerate on every open. A manual Refresh invalidates the entry for the

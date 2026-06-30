@@ -10,11 +10,11 @@
  *   2. Shared — no BYOK key. We instantiate a thin DemoProxyProvider that
  *      POSTs to `/api/demo-chat`, routed by Caddy to the on-server Bun proxy
  *      (`~/services/keepance-demo-proxy`). The proxy enforces rate limits,
- *      monthly spend caps, and uses Keepance's shared Anthropic key.
+ *      monthly spend caps, and uses Advisor Prep Hero's shared Anthropic key.
  *
  * Limit-hit detection: when the proxy returns 429 (rate-limited) or 503/502
  * (budget exhausted / upstream failure), the provider dispatches a
- * `keepance:demo-limit-hit` window event with `{ reason }`. Group IV's
+ * `lantern:demo-limit-hit` window event with `{ reason }`. Group IV's
  * DemoLimitGate listens for this event and opens the DemoExitModal.
  *
  * No toasts are imported from the rest of the app: the demo bundle is the
@@ -120,7 +120,7 @@ class DemoProxyProvider implements Provider {
 
   getMetadata(): ProviderMetadata {
     return {
-      name: 'Keepance Demo (shared key)',
+      name: 'Advisor Prep Hero Demo (shared key)',
       providerId: 'keepance-demo-proxy',
       model: this.modelHint,
       capabilities: { streaming: false, vision: false, functionCalling: false },

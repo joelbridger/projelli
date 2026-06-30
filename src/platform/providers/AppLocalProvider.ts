@@ -1,4 +1,4 @@
-// Keepance Local AI provider — the embedded llama.cpp engine ("Keepance Local AI").
+// Advisor Prep Hero Local AI provider — the embedded llama.cpp engine ("Advisor Prep Hero Local AI").
 //
 // Unlike OllamaProvider (which talks to a daemon the USER installed), this talks
 // to the `llama-server` sidecar that KEEPANCE itself bundles, downloads a model
@@ -41,7 +41,7 @@ export const KEEPANCE_LOCAL_DEFAULT_MODEL = 'qwen3-4b-instruct-2507';
  *  not the model's theoretical 256K maximum. */
 export const KEEPANCE_LOCAL_CONTEXT_WINDOW = 16384;
 
-export interface KeepanceLocalProviderConfig {
+export interface AppLocalProviderConfig {
   model?: string;
   aiRules?: string;
   timeout?: number;
@@ -107,10 +107,10 @@ export function parseSseChunk(buffer: string): {
 }
 
 /**
- * KeepanceLocalProvider implements the Provider interface against the embedded
+ * AppLocalProvider implements the Provider interface against the embedded
  * llama-server sidecar. All calls are $0 and fully on-device.
  */
-export class KeepanceLocalProvider implements Provider {
+export class AppLocalProvider implements Provider {
   private readonly model: string;
   private readonly aiRules: string | undefined;
   private readonly requestTimeoutMs: number;
@@ -118,7 +118,7 @@ export class KeepanceLocalProvider implements Provider {
   /** Cached endpoint once the sidecar is up, e.g. http://127.0.0.1:18089. */
   private endpoint: string | null = null;
 
-  constructor(config: KeepanceLocalProviderConfig = {}) {
+  constructor(config: AppLocalProviderConfig = {}) {
     this.model = config.model ?? KEEPANCE_LOCAL_DEFAULT_MODEL;
     this.aiRules = config.aiRules;
     this.requestTimeoutMs = config.timeout ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS;
@@ -137,7 +137,7 @@ export class KeepanceLocalProvider implements Provider {
     if (this.endpoint) return this.endpoint;
     const endpoint = (await this.startSidecar()).replace(/\/+$/, '');
     if (endpoint.length === 0) {
-      throw new Error('Keepance Local AI did not return a local endpoint');
+      throw new Error('Advisor Prep Hero Local AI did not return a local endpoint');
     }
     this.endpoint = endpoint;
     return endpoint;
@@ -208,7 +208,7 @@ export class KeepanceLocalProvider implements Provider {
         signal: controlled.signal,
       });
       if (!resp.ok) {
-        throw new Error(`Keepance Local AI error: HTTP ${String(resp.status)}`);
+        throw new Error(`Advisor Prep Hero Local AI error: HTTP ${String(resp.status)}`);
       }
       return resp;
     } finally {
@@ -255,12 +255,12 @@ export class KeepanceLocalProvider implements Provider {
     }
     if (!resp.ok) {
       controlled.cleanup();
-      throw new Error(`Keepance Local AI error: HTTP ${String(resp.status)}`);
+      throw new Error(`Advisor Prep Hero Local AI error: HTTP ${String(resp.status)}`);
     }
     const reader = resp.body?.getReader();
     if (!reader) {
       controlled.cleanup();
-      throw new Error('Keepance Local AI stream returned no body');
+      throw new Error('Advisor Prep Hero Local AI stream returned no body');
     }
 
     const decoder = new TextDecoder();
@@ -332,14 +332,14 @@ IMPORTANT: Respond ONLY with the JSON object.`;
       return JSON.parse(cleaned) as T;
     } catch (err) {
       throw new Error(
-        `Failed to parse Keepance Local AI response as JSON: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        `Failed to parse Advisor Prep Hero Local AI response as JSON: ${err instanceof Error ? err.message : 'Unknown error'}`,
       );
     }
   }
 
   getMetadata(): ProviderMetadata {
     return {
-      name: 'Keepance Local AI',
+      name: 'Advisor Prep Hero Local AI',
       providerId: 'keepance-local',
       model: this.model,
       costPerInputToken: 0,
@@ -371,12 +371,12 @@ IMPORTANT: Respond ONLY with the JSON object.`;
         },
       } satisfies TextExtractBlock;
     }
-    throw new Error(`Unsupported attachment type for Keepance Local AI: ${att.type}`);
+    throw new Error(`Unsupported attachment type for Advisor Prep Hero Local AI: ${att.type}`);
   }
 
   supportsAttachment(att: ChatAttachment, _model: string): true | string {
     if (att.type === 'image') {
-      return 'Keepance Local AI is text-only and cannot read images. Use a cloud model for images.';
+      return 'Advisor Prep Hero Local AI is text-only and cannot read images. Use a cloud model for images.';
     }
     // pdf — read locally via text extraction.
     return true;
@@ -387,9 +387,9 @@ IMPORTANT: Respond ONLY with the JSON object.`;
   }
 }
 
-/** Create a KeepanceLocalProvider instance. */
-export function createKeepanceLocalProvider(
-  config: KeepanceLocalProviderConfig = {},
-): KeepanceLocalProvider {
-  return new KeepanceLocalProvider(config);
+/** Create a AppLocalProvider instance. */
+export function createAppLocalProvider(
+  config: AppLocalProviderConfig = {},
+): AppLocalProvider {
+  return new AppLocalProvider(config);
 }

@@ -162,8 +162,8 @@ async fn await_sso_redirect(
     listener: tokio::net::TcpListener,
     timeout: Duration,
 ) -> anyhow::Result<String> {
-    let body_ok = b"<html><body>Signed in. You can close this tab and return to Keepance.</body></html>";
-    let body_err = b"<html><body>Sign-in failed. Return to Keepance and try again.</body></html>";
+    let body_ok = b"<html><body>Signed in. You can close this tab and return to Advisor Prep Hero.</body></html>";
+    let body_err = b"<html><body>Sign-in failed. Return to Advisor Prep Hero and try again.</body></html>";
 
     tokio::time::timeout(timeout, async move {
         let (mut socket, _peer) = listener.accept().await?;

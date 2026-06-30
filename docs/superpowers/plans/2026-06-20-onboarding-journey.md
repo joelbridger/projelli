@@ -1,18 +1,18 @@
-# Keepance Onboarding Journey — Build Plan
+# Advisor Prep Hero Onboarding Journey — Build Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
 > **For Jameson:** Read **Part A** to approve the experience (the words, the pictures, the feel). Part B is the technical build for the engineers and Codex. You only need Part A to say "yes, build this" or "change this."
 
-**Goal:** Replace Keepance's static, drop-off-prone first-run setup with one flowing, animated "journey" that teaches a complete beginner what Keepance is and how AI works inside it, using simple metaphor pictures, while getting them fully set up.
+**Goal:** Replace Advisor Prep Hero's static, drop-off-prone first-run setup with one flowing, animated "journey" that teaches a complete beginner what Advisor Prep Hero is and how AI works inside it, using simple metaphor pictures, while getting them fully set up.
 
-**Architecture:** A new event-driven "journey engine" (advances when the user acts, not on a timer) renders eight chapters. Each chapter pairs a metaphor animation (built with Jameson's proven lightweight React + CSS "house technique," no heavy animation library) with a real setup action that resolves the metaphor into the actual Keepance UI. Built on the existing `src/ui/kp` design system and brand tokens; reuses the existing good AI-setup pieces (key tester, provider tutorials, mail connectors, data-map dialog).
+**Architecture:** A new event-driven "journey engine" (advances when the user acts, not on a timer) renders eight chapters. Each chapter pairs a metaphor animation (built with Jameson's proven lightweight React + CSS "house technique," no heavy animation library) with a real setup action that resolves the metaphor into the actual Advisor Prep Hero UI. Built on the existing `src/ui/kp` design system and brand tokens; reuses the existing good AI-setup pieces (key tester, provider tutorials, mail connectors, data-map dialog).
 
 **Tech Stack:** React 19 + Vite + Tailwind v4 + TypeScript (Tauri desktop app). CSS `@keyframes` + transitions for motion (matches the marketing-site technique). `tailwindcss-animate` (already present). No new heavy animation dependency by default. Existing services: `KeychainService`, `providerFactory`, `OllamaProvider`, RAG model download, mail connectors.
 
 ## Global Constraints
 
-- **No new heavy animation library by default.** CSS-first, matching the Healthful/BehaviorUX house technique. `framer-motion` may be added ONLY if a specific transition is impractical in CSS, and only with an explicit note in the task. (Keepance's repo rule is "no new libs.")
+- **No new heavy animation library by default.** CSS-first, matching the Healthful/BehaviorUX house technique. `framer-motion` may be added ONLY if a specific transition is impractical in CSS, and only with an explicit note in the task. (Advisor Prep Hero's repo rule is "no new libs.")
 - **Light theme only.** Build on existing brand tokens in `src/styles/globals.css` (`--kp-navy`, `--kp-pink`, `--kp-blue`, `--kp-grad`).
 - **On-screen copy rules:** plain language a non-technical person can follow; define any term the first time it appears; **no em dashes in any on-screen string** (use periods/commas); no jargon, no file paths, no code shown to the user.
 - **Accessibility:** fully keyboard navigable; respect `prefers-reduced-motion` (static "final frame" per chapter); each metaphor scene carries `role="img"` + one plain `aria-label` describing the idea, inner decorative DOM `aria-hidden`.
@@ -27,11 +27,11 @@
 
 ## The one-line vision
 
-> A single, flowing, animated onboarding journey that teaches a complete beginner what Keepance is and how AI works inside it, using simple, charming metaphor pictures (a house for your files, a brain you plug in, a paper plane for your questions), while quietly getting them fully set up along the way.
+> A single, flowing, animated onboarding journey that teaches a complete beginner what Advisor Prep Hero is and how AI works inside it, using simple, charming metaphor pictures (a house for your files, a brain you plug in, a paper plane for your questions), while quietly getting them fully set up along the way.
 
 ## The five locked decisions
 
-1. **Scope:** explain all of Keepance and how AI works, not just the AI-choice screen.
+1. **Scope:** explain all of Advisor Prep Hero and how AI works, not just the AI-choice screen.
 2. **Structure:** one woven journey, where learning and doing blend together.
 3. **Visual style:** a "metaphor world" of simple shapes, which resolves into the real app whenever it is time to actually do something.
 4. **Sound:** on-screen words, no voice (we keep an "add narration" option for later).
@@ -59,7 +59,7 @@ The mood: calm, warm, premium, your pink-to-blue gradient. Never childish, even 
 
 ## How a chapter works
 
-Every chapter does two things at once: it **shows a little picture that teaches one idea**, and it **lets you do one real thing**. When it is time to do the real thing (pick a folder, paste a key, connect email), the metaphor shapes gracefully dissolve into the actual Keepance controls, so you never feel a jarring switch between "the cute intro" and "the real app." They are one thing.
+Every chapter does two things at once: it **shows a little picture that teaches one idea**, and it **lets you do one real thing**. When it is time to do the real thing (pick a folder, paste a key, connect email), the metaphor shapes gracefully dissolve into the actual Advisor Prep Hero controls, so you never feel a jarring switch between "the cute intro" and "the real app." They are one thing.
 
 A slim progress strip shows the eight chapters so people know where they are and that there is an end. A quiet "Skip setup" sits in the corner the whole time.
 
@@ -69,10 +69,10 @@ A slim progress strip shows the eight chapters so people know where they are and
 
 ### Chapter 1 — Your private workroom
 
-**Teaches:** what Keepance even is.
+**Teaches:** what Advisor Prep Hero even is.
 **Picture:** on a soft gradient, a little house fades in with a warm light on. A few papers drift in and settle inside it. A lock clicks shut. Calm, one breath.
 **Words on screen:**
-- Title: **"Welcome to Keepance."**
+- Title: **"Welcome to Advisor Prep Hero."**
 - Body: "A private workroom where powerful AI helps with your real work, and nothing ever leaves your computer."
 - Small: "Let's set it up together. It takes about three minutes."
 - Button: **"Start"**
@@ -84,7 +84,7 @@ A slim progress strip shows the eight chapters so people know where they are and
 **Picture:** the house gets a small nameplate by the door.
 **Words on screen:**
 - Title: **"What kind of work do you do?"**
-- Body: "So Keepance can speak your language."
+- Body: "So Advisor Prep Hero can speak your language."
 - Choices (cards): "Legal practice", "Tax and accounting", "Consulting and strategy", "Financial advisor or wealth", "Something else."
 - Then: **"What should we call you?"** with a name box and an optional photo.
 - Small under the name: "This is just for your own sidebar. It stays on your computer."
@@ -93,12 +93,12 @@ A slim progress strip shows the eight chapters so people know where they are and
 
 ### Chapter 3 — Your files stay home
 
-**Teaches:** Keepance is "local-first," meaning your files live on your machine, not on our servers.
+**Teaches:** Advisor Prep Hero is "local-first," meaning your files live on your machine, not on our servers.
 **Picture:** the house with your papers inside. A big cloud floats far away with a dotted line reaching toward the house, but the line stops short and a shield appears. The lock stays on. The point lands instantly: your stuff does not go up to the cloud.
 **Words on screen:**
 - Title: **"Your files stay home."**
-- Body: "Most apps copy your work up to their servers. Keepance keeps your files right here, on your own computer. We never get a copy."
-- Then: **"Where should Keepance keep your workspace?"** with real choices: "My Documents folder", "A synced folder (like Dropbox or iCloud)", "Choose another folder."
+- Body: "Most apps copy your work up to their servers. Advisor Prep Hero keeps your files right here, on your own computer. We never get a copy."
+- Then: **"Where should Advisor Prep Hero keep your workspace?"** with real choices: "My Documents folder", "A synced folder (like Dropbox or iCloud)", "Choose another folder."
 - If they pick a synced folder, a gentle note appears: "That works. Just know a synced folder copies files to that service too. Your most private work is happiest in a folder that stays on this computer."
 - Button: **"Continue"**
 **You do:** actually choose your real workspace folder. *(Fix: today these buttons look like they pick the folder but do not. We wire them up for real.)*
@@ -109,7 +109,7 @@ A slim progress strip shows the eight chapters so people know where they are and
 **Picture:** an empty socket appears on the side of the house. A glowing brain floats in and plugs in. A paper plane (a question) flies to the brain; an answer card floats back with little receipt tags pinned to it, and a faint line connects each tag back to a specific page in the papers.
 **Words on screen:**
 - Title: **"Meet the AI."**
-- Body: "Think of AI as a brain you plug in. Keepance does not come with one. You choose yours, and you can change it any time."
+- Body: "Think of AI as a brain you plug in. Advisor Prep Hero does not come with one. You choose yours, and you can change it any time."
 - Second line: "Whatever you ask, the AI reads your own files to answer. And it always shows its receipts. Every answer points back to the exact page it came from, so you can check it yourself."
 - Button: **"Show me my choices"**
 **You do:** nothing yet. This is a pure "aha" beat that sets up the big choice next.
@@ -134,27 +134,27 @@ A slim progress strip shows the eight chapters so people know where they are and
 
 **You do:**
 - **If "your own account":** pick a provider (Claude / OpenAI / Gemini). A friendly explainer says, in plain words, "You will copy a short code called an account key. It is like a password that lets your computer talk straight to the AI company. You make it on their site, paste it here once, and it is stored in your computer's secure keychain, never on a server." A button opens the provider's site. You paste the key, press "Test this key" (green check or a plain-English fix), then "Save and continue." *(We keep the existing key tester and per-provider step-by-steps, which already test well.)*
-- **If "keep it on your computer":** *(Fix the dead-end.)* Instead of telling you to open a terminal and type commands, Keepance offers a **"Set it up for me"** button that downloads and installs the local AI tool and its model for you, with a friendly progress bar. If your computer already has it, we just say "Ready" and move on.
+- **If "keep it on your computer":** *(Fix the dead-end.)* Instead of telling you to open a terminal and type commands, Advisor Prep Hero offers a **"Set it up for me"** button that downloads and installs the local AI tool and its model for you, with a friendly progress bar. If your computer already has it, we just say "Ready" and move on.
 - **If "decide later":** we move on, and a gentle reminder will appear later so you can connect one when ready. *(Fix: this reminder exists in the code but is not currently shown. We wire it up.)*
 
 **The 465 MB reassurance (folded in here):** right as this chapter wraps, a calm aside appears so the big background download never feels scary:
-- "One more thing, and it is good news. Keepance is quietly building a private search index of your files, a one-time setup of about 465 MB, so it can find anything in a blink. Like the AI, this happens on your computer and never leaves it."
+- "One more thing, and it is good news. Advisor Prep Hero is quietly building a private search index of your files, a one-time setup of about 465 MB, so it can find anything in a blink. Like the AI, this happens on your computer and never leaves it."
 - Pictured as the house tidying its own filing cabinet. *(Fix: today this download happens silently with no explanation right when we have promised "nothing leaves your computer.")*
 
 ### Chapter 6 — Bring in your email (optional)
 
-**Teaches:** Keepance can read and search your email privately, right next to your files.
+**Teaches:** Advisor Prep Hero can read and search your email privately, right next to your files.
 **Picture:** an envelope flies into the house and files itself neatly among the papers. The lock stays on.
 **Words on screen:**
 - Title: **"Bring in your email (optional)."**
-- Body: "Keepance can read and search your email right alongside your files, all on your computer. No more fighting with slow inbox search."
+- Body: "Advisor Prep Hero can read and search your email right alongside your files, all on your computer. No more fighting with slow inbox search."
 - Choices (tabs): "Microsoft 365", "Gmail", "Other (IMAP)."
 - Button: **"Connect later"** (always available)
 **You do:** connect an account (opens a secure sign-in) or skip. *(Reuses the existing mail connectors.)*
 
 ### Chapter 7 — Just you, or a team?
 
-**Teaches:** Keepance can be solo or shared across a firm, with a shared locked vault.
+**Teaches:** Advisor Prep Hero can be solo or shared across a firm, with a shared locked vault.
 **Picture:** one house, then a few houses on a shared street with a single shared lockbox between them (the encrypted firm vault).
 **Words on screen:**
 - Title: **"Just you, or a team?"**
@@ -166,7 +166,7 @@ A slim progress strip shows the eight chapters so people know where they are and
 ### Chapter 8 — See it work, you're set
 
 **Teaches:** the payoff. The metaphor world fully becomes the real app, and you watch a real, cited answer appear.
-**Picture:** the shapes resolve into the actual Keepance screen. A sample question is asked and a cited answer appears, receipts and all.
+**Picture:** the shapes resolve into the actual Advisor Prep Hero screen. A sample question is asked and a cited answer appears, receipts and all.
 **Words on screen:**
 - Title: **"You're set."**
 - Toggle: "Add a sample case so I can try things before using real client work."
@@ -178,7 +178,7 @@ A slim progress strip shows the eight chapters so people know where they are and
 
 ## The fixes we fold in along the way
 
-1. **The home-AI dead-end is gone.** No more "open a terminal and type a command." Keepance sets up the local AI for the user with a one-click button and a progress bar (Chapter 5).
+1. **The home-AI dead-end is gone.** No more "open a terminal and type a command." Advisor Prep Hero sets up the local AI for the user with a one-click button and a progress bar (Chapter 5).
 2. **The 465 MB download is explained, not silent.** It becomes a reassuring beat in the story instead of a scary surprise (Chapter 5).
 3. **The folder buttons actually work.** Choosing where your workspace lives really sets the folder now (Chapter 3).
 4. **The "no shame, decide later" reminder actually shows up.** People who skip the AI step get the gentle nudge the code already promises but never displays (Chapter 5 follow-through).

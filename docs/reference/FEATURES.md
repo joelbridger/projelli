@@ -1,20 +1,20 @@
-# Keepance Feature Reference
+# Advisor Prep Hero Feature Reference
 
 For the authoritative latest changes see CHANGELOG.md; for connectors see docs/reference/CONNECTORS.md; for code structure see the repo-root ARCHITECTURE.md.
 
 _Last updated: 2026-06-29 · v3.3.5_
 
-Canonical "what can Keepance do" reference. This is grounded in the current `src/` and `src-tauri/` code on this branch. If this file disagrees with code, the code wins.
+Canonical "what can Advisor Prep Hero do" reference. This is grounded in the current `src/` and `src-tauri/` code on this branch. If this file disagrees with code, the code wins.
 
 ## Overview
 
-Keepance is a local-first desktop workspace for financial advisors first: solo advisors, small RIAs, wealth managers, and financial planners who need private, cited answers across client documents and email. Law, tax, and consulting are secondary verticals with their own template packs.
+Advisor Prep Hero is a local-first desktop workspace for financial advisors first: solo advisors, small RIAs, wealth managers, and financial planners who need private, cited answers across client documents and email. Law, tax, and consulting are secondary verticals with their own template packs.
 
 The user-facing unit is a client or household. Internally, the isolation engine still uses `matter` and `matter_id`; don't rename those code or wire identifiers. The main product surface is the Client Map: a cited, client-scoped picture of a household built from local files, email, and connected sources.
 
 Word is the primary document format. The active document editor is the in-house OOXML `.docx` engine backed by TipTap, with tracked changes, comments, accept/reject, and AI redline. CodeMirror remains for Markdown, plain text, and JSON utility files.
 
-Keepance ships as signed desktop installers for Windows, signed and notarized macOS builds, and Linux packages. Auto-updates use GitHub Releases and signed update metadata.
+Advisor Prep Hero ships as signed desktop installers for Windows, signed and notarized macOS builds, and Linux packages. Auto-updates use GitHub Releases and signed update metadata.
 
 ## Product Surfaces
 
@@ -41,7 +41,7 @@ Other routable surfaces still exist, but they are reached through the Client Map
 
 - **Client-scoped work.** A client or household owns its documents, email mappings, Client Map, and activity. The engine stores this as `matter` data.
 - **Local-first workspace.** A workspace is a folder the user chooses. Documents stay in real files. Native desktop features go through Tauri commands.
-- **BYOK and local AI.** Cloud AI keys are the user's own Anthropic, OpenAI, or Google keys. Local AI can run through the embedded Keepance Local AI llama.cpp sidecar or the user's own Ollama.
+- **BYOK and local AI.** Cloud AI keys are the user's own Anthropic, OpenAI, or Google keys. Local AI can run through the embedded Advisor Prep Hero Local AI llama.cpp sidecar or the user's own Ollama.
 - **Key storage.** In desktop builds, AI keys are stored in the operating system keychain through `KeychainService` and Tauri keychain commands: macOS Keychain, Windows Credential Manager, and Linux Secret Service. Legacy `apiKey_*` browser entries are migrated into the keychain.
 - **Approval before destructive AI changes.** AI file writes use approval controls and audit events rather than silent destructive edits.
 - **Inspectable trust.** The app has an always-visible egress model, Privacy Center, Data Map, encrypted audit store, and confidentiality modes: Local-only, Direct, and Assured.
@@ -100,7 +100,7 @@ Ask and AI chat use the provider layer in `src/platform/providers/`:
 | Provider path | Status |
 |---|---|
 | Anthropic, OpenAI, Google | BYOK cloud providers. API keys are loaded through `KeychainService`. |
-| Keepance Local AI | Embedded llama.cpp sidecar via `KeepanceLocalProvider` and `src-tauri/src/sidecars/llama_server.rs`. |
+| Advisor Prep Hero Local AI | Embedded llama.cpp sidecar via `Advisor Prep HeroLocalProvider` and `src-tauri/src/sidecars/llama_server.rs`. |
 | Ollama | User-run local daemon through `OllamaProvider`. |
 
 Current recall stack:
@@ -234,7 +234,7 @@ Version `3.3.5` is present in `package.json`, `src-tauri/Cargo.toml`, and `src-t
 - `.odt`, `.ods`, `.pages`, and `.numbers` are listed as binary file types but do not have first-class editable document surfaces.
 - Legacy `.doc` files require conversion before using the Word-native path.
 - `.pptx` and `.ppt` are preview-focused, not editable presentation documents.
-- Keepance Local AI is text-only; use a cloud model for image inputs.
+- Advisor Prep Hero Local AI is text-only; use a cloud model for image inputs.
 - Local OCR quality depends on scan quality. Low-confidence scanned pages can be skipped rather than indexed as bad text.
 - The detailed connector roadmap lives in `docs/reference/CONNECTORS.md`, not here.
 

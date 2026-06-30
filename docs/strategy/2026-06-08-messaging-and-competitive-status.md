@@ -8,8 +8,8 @@ Working notes from the messaging conversation, plus an evaluation of whether the
 - **Current positioning:** the local-first AI workspace for confidential client work
   (solo/small-firm attorneys, CPAs/EAs, consultants, RIAs). A "where your work lives" story.
 - **New wedge (shipped in v2.5.0, 2026-06-08):** multi-provider **email** imported INTO
-  Keepance, kept on your machine, searchable, encrypted at rest, never routed through a
-  Keepance server. This is the one capability the cloud-AI incumbents (M365 Copilot,
+  Advisor Prep Hero, kept on your machine, searchable, encrypted at rest, never routed through a
+  Advisor Prep Hero server. This is the one capability the cloud-AI incumbents (M365 Copilot,
   Shortwave, Superhuman) structurally cannot copy.
 - **Felt pain it maps to:** "Outlook/Gmail search is broken, I can't find anything," and
   "I can't pipe privileged/confidential mail into a cloud AI."
@@ -33,7 +33,7 @@ The instructions referenced `docs/strategy/2026-06-06-vertical-competitive-lands
 and `...-competitive-build-handoff.md`. Both are **UNTRACKED / never committed**, and the
 deliverables are not on the live site:
 
-1. **Per-vertical "How Keepance compares to the AI you already have"** on /legal, /tax,
+1. **Per-vertical "How Advisor Prep Hero compares to the AI you already have"** on /legal, /tax,
    /consulting, /financial-advisors: **NOT built** (grep for "the AI you already have" /
    "Clio Duo" / "CoCounsel" / "Intuit Assist" across `website/` returns zero hits).
 2. **/vs/ profession-incumbent pages** (Clio Duo, CoCounsel, Jump, Intuit Assist, Gamma,

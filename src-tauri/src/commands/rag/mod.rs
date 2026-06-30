@@ -3574,7 +3574,7 @@ mod tests {
     /// A vaulted file (KPV1 magic) is decrypted when the VMK is provided.
     ///
     /// This is the "destructive item 12" spec test: encrypt the plaintext,
-    /// write it to a temp workspace with `.keepance-vault.json`, then drive the
+    /// write it to a temp workspace with `.lantern-vault.json`, then drive the
     /// decrypt_if_vaulted seam and assert the plaintext is recovered.
     #[test]
     fn vaulted_file_decrypts_to_plaintext_with_vmk() {

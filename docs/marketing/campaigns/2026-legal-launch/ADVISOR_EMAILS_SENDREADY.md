@@ -24,7 +24,7 @@ Hey [Name],
 
 I'm Jameson Daines. I found you through [Lawyerist / r/LawFirm / your firm site], and this is a cold ask, so I'll keep it short.
 
-I'm building a desktop app called Keepance. It's an AI workspace for attorneys who can't paste client work into ChatGPT. Everything stays on your machine, your API key talks straight to the model, and nothing routes through a server I control. Basically the anti-cloud version of Notion AI.
+I'm building a desktop app called Advisor Prep Hero. It's an AI workspace for attorneys who can't paste client work into ChatGPT. Everything stays on your machine, your API key talks straight to the model, and nothing routes through a server I control. Basically the anti-cloud version of Notion AI.
 
 I built a pack of templates for solo and small-firm practice: a Deposition Contradiction Finder, a Privilege Log Drafter, a Case Timeline Builder, a Discovery Document Triage tool, a Client Intake Synthesizer, and a couple more. Here's my problem. I have decent product instincts, but I'm genuinely not a lawyer, and I'd rather have someone who actually practices tell me where I got it wrong before any of this reaches an attorney who'll spot it in two seconds.
 
@@ -48,7 +48,7 @@ Hey [Name],
 
 I'm Jameson Daines. I found you through [r/taxpros / the NAEA directory / LinkedIn], and this is a cold ask, so I'll be quick.
 
-I'm building a desktop app called Keepance, an AI workspace for tax pros who can't drop client returns into ChatGPT. Your clients' SSNs and financials never leave your machine. Your API key goes straight to the model, and nothing passes through a server I run. It's built for the §6713 and §7216 problem, basically.
+I'm building a desktop app called Advisor Prep Hero, an AI workspace for tax pros who can't drop client returns into ChatGPT. Your clients' SSNs and financials never leave your machine. Your API key goes straight to the model, and nothing passes through a server I run. It's built for the §6713 and §7216 problem, basically.
 
 I put together a tax pack: a §7216 Consent Template, an Engagement Letter Builder, a Tax Research Memo, an Audit Defense File Builder, a Quarterly Estimate Reminder, and a few more. Here's the thing. I'm a product designer, not a CPA or an EA, and the §7216 consent language especially needs a real practitioner's eyes before it goes anywhere near someone's clients.
 

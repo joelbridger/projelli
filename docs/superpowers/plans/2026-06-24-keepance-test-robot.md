@@ -1,10 +1,10 @@
-# Keepance Test Robot — Implementation Plan
+# Advisor Prep Hero Test Robot — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Consolidate our scattered, run-by-hand Legion driving scripts into ONE persistent, deterministic "test robot" — a long-running service that holds a live connection to the real Windows app, exposes high-level verbs (reset, sweep, ask, verify-isolation), replays a fake AI for repeatable results, and returns a clean machine-readable pass/fail "proof packet" with an evidence bundle for every action.
 
-**Architecture:** A Node service that runs **on the Linux server** and connects to the real Keepance desktop app on the Legion Windows bench over a **persistent SSH tunnel** to the WebView2 CDP port (server `:9444` → bench `:9223`), holding **one** Playwright `connectOverCDP` session (with auto-reconnect) instead of a fresh SSH round-trip per action. Each verb is a pure function `(page, args) -> ProofPacket`, ported from the existing `scripts/demo/legion-*.mjs` scripts. Deterministic AI is achieved with Playwright `page.route()` interception replaying recorded SSE fixtures (generalizing the existing `scripts/marketing-capture/lib/mock-ai.ts`) — this works cross-machine because interception runs in the server-side Node process, not the browser. Bench OS operations (full reset: kill/restart/delete-index, seed copy) shell out over SSH, reusing the logic already in `scripts/demo/legion-clean-reset.sh`.
+**Architecture:** A Node service that runs **on the Linux server** and connects to the real Advisor Prep Hero desktop app on the Legion Windows bench over a **persistent SSH tunnel** to the WebView2 CDP port (server `:9444` → bench `:9223`), holding **one** Playwright `connectOverCDP` session (with auto-reconnect) instead of a fresh SSH round-trip per action. Each verb is a pure function `(page, args) -> ProofPacket`, ported from the existing `scripts/demo/legion-*.mjs` scripts. Deterministic AI is achieved with Playwright `page.route()` interception replaying recorded SSE fixtures (generalizing the existing `scripts/marketing-capture/lib/mock-ai.ts`) — this works cross-machine because interception runs in the server-side Node process, not the browser. Bench OS operations (full reset: kill/restart/delete-index, seed copy) shell out over SSH, reusing the logic already in `scripts/demo/legion-clean-reset.sh`.
 
 **Tech Stack:** Node (ESM `.mjs`), Playwright (`connectOverCDP`), Node `http` for the control API and the SSE replay server, SSH/scp to the bench, Vitest for pure-logic unit tests.
 
@@ -128,7 +128,7 @@ async function connect(port) {
   const pages = browser.contexts().flatMap((c) => c.pages());
   const picked = pickPage(pages.map((p) => ({ url: p.url(), _p: p })));
   const page = picked ? picked._p : null;
-  if (!page) { await browser.close().catch(() => {}); throw new Error('No Keepance webview page found'); }
+  if (!page) { await browser.close().catch(() => {}); throw new Error('No Advisor Prep Hero webview page found'); }
   return { browser, page };
 }
 

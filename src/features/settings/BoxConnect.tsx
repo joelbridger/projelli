@@ -161,7 +161,7 @@ export function BoxConnect() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Box</h3>
             <p className="mt-1 max-w-xl text-xs text-slate-500">
-              Import supported documents from Box into encrypted local search. Keepance only reads Box files.
+              Import supported documents from Box into encrypted local search. Advisor Prep Hero only reads Box files.
             </p>
           </div>
         </div>

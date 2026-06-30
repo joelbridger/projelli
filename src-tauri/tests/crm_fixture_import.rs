@@ -1,7 +1,7 @@
 use arrow_array::RecordBatchIterator;
-use keepance_lib::commands::rag::chunker::chunk_text;
-use keepance_lib::commands::rag::embedder::EMBEDDING_DIM;
-use keepance_lib::commands::rag::store::{self, PRIVILEGE_NONE};
+use lantern_lib::commands::rag::chunker::chunk_text;
+use lantern_lib::commands::rag::embedder::EMBEDDING_DIM;
+use lantern_lib::commands::rag::store::{self, PRIVILEGE_NONE};
 
 const VEC_KEY: [u8; 32] = [0x5Au8; 32];
 const CRM_MATTER: &str = "matter-northcrest-advisory";
@@ -44,7 +44,7 @@ fn decrypted_hit_path(hit: &store::StoredHit) -> String {
         .expect("crm hit should carry path_enc");
     let blob = hex::decode(path_enc).expect("path_enc should be hex");
     String::from_utf8(
-        keepance_lib::commands::mail::crypto::decrypt_with_key(&blob, &VEC_KEY)
+        lantern_lib::commands::mail::crypto::decrypt_with_key(&blob, &VEC_KEY)
             .expect("decrypt path_enc"),
     )
     .expect("path_enc should decrypt to UTF-8")
@@ -53,7 +53,7 @@ fn decrypted_hit_path(hit: &store::StoredHit) -> String {
 fn decrypted_hit_text(hit: &store::StoredHit) -> String {
     let blob = hex::decode(&hit.text).expect("crm hit text should be hex ciphertext");
     String::from_utf8(
-        keepance_lib::commands::mail::crypto::decrypt_with_key(&blob, &VEC_KEY)
+        lantern_lib::commands::mail::crypto::decrypt_with_key(&blob, &VEC_KEY)
             .expect("decrypt hit text"),
     )
     .expect("hit text should decrypt to UTF-8")
@@ -113,8 +113,8 @@ async fn fixture_crm_chunk_round_trips_encrypted_and_is_retrievable() {
 /// then confirms neither survives a vector search in that matter scope.
 #[tokio::test]
 async fn delete_source_type_removes_all_crm_chunks() {
-    use keepance_lib::commands::rag::embedder::EMBEDDING_DIM;
-    use keepance_lib::commands::rag::store;
+    use lantern_lib::commands::rag::embedder::EMBEDDING_DIM;
+    use lantern_lib::commands::rag::store;
 
     let workspace = tempfile::tempdir().expect("workspace tempdir");
     let conn = store::open_connection(workspace.path())
@@ -192,11 +192,11 @@ async fn delete_source_type_removes_all_crm_chunks() {
 #[tokio::test]
 async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
     use arrow_array::RecordBatchIterator;
-    use keepance_lib::commands::crm::commands::{crm_disconnect_logic, CrmState};
-    use keepance_lib::commands::crm::store::CrmStore;
-    use keepance_lib::commands::rag::chunker::chunk_text;
-    use keepance_lib::commands::rag::embedder::EMBEDDING_DIM;
-    use keepance_lib::commands::rag::store::{self, build_batch_crm, PRIVILEGE_NONE};
+    use lantern_lib::commands::crm::commands::{crm_disconnect_logic, CrmState};
+    use lantern_lib::commands::crm::store::CrmStore;
+    use lantern_lib::commands::rag::chunker::chunk_text;
+    use lantern_lib::commands::rag::embedder::EMBEDDING_DIM;
+    use lantern_lib::commands::rag::store::{self, build_batch_crm, PRIVILEGE_NONE};
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
 

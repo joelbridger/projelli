@@ -1,4 +1,4 @@
-# Keepance Live-Demo Setup — Build State (updated 2026-06-25, session 2)
+# Advisor Prep Hero Live-Demo Setup — Build State (updated 2026-06-25, session 2)
 
 Goal: a repeatable demo control panel on the Legion bench (`james@100.127.67.22`, Tailscale)
 so Jameson can show people the product. Bench is a **dedicated testing bench** (do NOT use it
@@ -66,9 +66,9 @@ functional first, THEN a dedicated UI pass** (hold all UI changes until the end)
   gmail), and DATES are "today" (Brevo can't backdate). Brevo first lands them in **Junk** — fixed by
   adding `jamesondaines.com` to Sarah's Safe-senders list (Outlook web → Settings → Mail → Junk email);
   after that all 15 go straight to Inbox. Verified all 15 in Sarah's Inbox.
-- **Connect in Keepance on the bench — did NOT use the in-app browser OAuth** (the connector opens the
+- **Connect in Advisor Prep Hero on the bench — did NOT use the in-app browser OAuth** (the connector opens the
   bench's *system* browser, which we can't drive). Instead:
-  1. Got a **Graph refresh token** for Keepance's own connector client (`845ddba0-70ab-4f90-88ba-e3522157e37a`,
+  1. Got a **Graph refresh token** for Advisor Prep Hero's own connector client (`845ddba0-70ab-4f90-88ba-e3522157e37a`,
      scopes `offline_access openid User.Read Mail.Read Mail.Send`, redirect `http://localhost`) via the
      always-on Chrome (Sarah already logged in → no password). Auth-code+PKCE, no secret. Scripts in
      scratchpad: `oauth_url_graph.py` + `oauth_exchange_graph.py`. Verified the token reads all 15 via Graph.
@@ -125,10 +125,10 @@ functional first, THEN a dedicated UI pass** (hold all UI changes until the end)
    fully rehearsed end-to-end, drive the wizard once and confirm.
 
 3. **Self-serve desktop shortcuts — ✅ DONE (bench-local).** 3 desktop shortcuts on the bench desktop
-   (`Keepance - 1 Loaded Demo`, `2 Blank Demo`, `3 Restart App`) → `.bat` files in `C:\demo-buttons\`.
+   (`Advisor Prep Hero - 1 Loaded Demo`, `2 Blank Demo`, `3 Restart App`) → `.bat` files in `C:\demo-buttons\`.
    They run the reset scripts **locally on the bench** (`set DESKTOP_CDP_PORT=9223` → `node
    scripts\demo\reset-loaded.mjs` / `reset-blank.mjs`); Restart App kills keepance/node/msedgewebview2
-   and re-runs `Start-ScheduledTask KeepanceDev`. Decision = **bench-local** (the bench already has
+   and re-runs `Start-ScheduledTask Advisor Prep HeroDev`. Decision = **bench-local** (the bench already has
    node v24 + playwright + the repo at `C:\keepance`; no SSH/tunnel needed). The current reset scripts
    + `seed-loaded.json` + `connection.mjs` were copied to the bench. Both Loaded + Blank buttons
    verified working bench-local. Self-serve via Parsec INTO the bench (host), not as a Parsec client.
@@ -148,7 +148,7 @@ functional first, THEN a dedicated UI pass** (hold all UI changes until the end)
   that import `connection.mjs` must run from inside the keepance tree (so `playwright` resolves).
 - If the tunnel dies: find the PID via `ss -tlnp | grep 9444`, `kill` it (NEVER `pkill -f`), restart.
 - If the app dies: kill `keepance,msedgewebview2,node` on the bench, then `Start-ScheduledTask
-  KeepanceDev`, wait for CDP 9223.
+  Advisor Prep HeroDev`, wait for CDP 9223.
 
 ## Verified UI mechanics (critical)
 - **Open a client hub reliably (avoids a stale-state bug):** go to the matters table (click
@@ -195,7 +195,7 @@ functional first, THEN a dedicated UI pass** (hold all UI changes until the end)
 - **App restart on the bench:** it runs `C:\run-dev.bat` = `vite preview --port 5173 --strictPort` (serves
   the PREBUILT dist; NOT tauri dev) + the prebuilt `keepance.exe`. To restart cleanly:
   `Stop-Process -Name keepance,node,msedgewebview2 -Force`, wait ~5s (strictPort needs 5173 free; leftover
-  node/vite holds it), then `Start-ScheduledTask -TaskName KeepanceDev`. NOTE: Vite binds **IPv6 `::1`**, so
+  node/vite holds it), then `Start-ScheduledTask -TaskName Advisor Prep HeroDev`. NOTE: Vite binds **IPv6 `::1`**, so
   a `127.0.0.1:5173` TCP check shows false-negative — the app still reaches it. CDP debug port is 9223.
 - **CDP drops on in-app `page.reload()`** (stale targets → scripts hang past the node timeout). Prefer a
   full app restart over reload: set the localStorage you need, then kill+Start-ScheduledTask; the picker

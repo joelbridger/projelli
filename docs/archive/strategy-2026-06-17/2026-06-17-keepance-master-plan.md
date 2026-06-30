@@ -1,12 +1,12 @@
-# Keepance Master Plan — From Build to Traction (2026-06-17)
+# Advisor Prep Hero Master Plan — From Build to Traction (2026-06-17)
 
-> ⚠️ **OUTDATED CONCLUSION — corrected 2026-06-20.** This plan's central claim — "the product is mature; stop building; the only binding constraint is distribution, not engineering" — was overturned by real hands-on Windows testing, which found MANY unfinished and broken areas. The traction analysis (≈zero users, distribution/trust gap) still holds, but **the product is NOT finished**: finishing and hardening it is real work, alongside (not after) distribution. For current truth, see the Keepance `CLAUDE.md` reality-check note and the board dashboard (board.jameworld.com).
+> ⚠️ **OUTDATED CONCLUSION — corrected 2026-06-20.** This plan's central claim — "the product is mature; stop building; the only binding constraint is distribution, not engineering" — was overturned by real hands-on Windows testing, which found MANY unfinished and broken areas. The traction analysis (≈zero users, distribution/trust gap) still holds, but **the product is NOT finished**: finishing and hardening it is real work, alongside (not after) distribution. For current truth, see the Advisor Prep Hero `CLAUDE.md` reality-check note and the board dashboard (board.jameworld.com).
 
 > **What this is.** A single integrated plan that fuses two independent reviews that landed on the same day:
 > 1. **The engineering review** (`docs/operations/2026-06-17-reorg-fresh-eyes-review.md`) — a fresh-eyes audit of the just-finished feature-first reorg.
 > 2. **The strategic evaluation** (a separate session, via the Venture OS tool): `docs/strategy/2026-06-17-build-session-handoff-and-product-recommendations.md` + its two cited companion memos (`…-keepance-evaluation-path-to-traction.md`, `…-email-search-standalone-viability.md`).
 >
-> **The headline.** These two reviews, done independently, **agree on the single most important thing**: Keepance's first job is not more features — it is *being trustworthy and being found*. The engineering review's #1 finding (public claims contradict each other) **is** the strategic evaluation's #1 recommendation (§5.1, "reconcile every claim — highest-ROI task you have"). This plan makes that convergence the spine.
+> **The headline.** These two reviews, done independently, **agree on the single most important thing**: Advisor Prep Hero's first job is not more features — it is *being trustworthy and being found*. The engineering review's #1 finding (public claims contradict each other) **is** the strategic evaluation's #1 recommendation (§5.1, "reconcile every claim — highest-ROI task you have"). This plan makes that convergence the spine.
 >
 > **One decision gates everything below — and it is Jameson's to make (see §1).**
 
@@ -55,7 +55,7 @@ Nothing below ships to production without the explicit per-release go that alrea
 Each workstream below names its source findings, concrete scope (with verified file paths), and the detailed implementation plan it should spawn (in `docs/superpowers/plans/`) once greenlit. **No production deploy without an explicit go.**
 
 ### WS1 — Truth & Trust Reconciliation `P0` · smallest effort, highest ROI in both reviews
-**Why:** to a lawyer, inconsistency reads as unreliability — and Keepance sells trust. Every contradictory surface is bleeding the one thing the product is supposed to have. This is the rare task where "clean up the docs" and "make the product sellable" are the *same work*.
+**Why:** to a lawyer, inconsistency reads as unreliability — and Advisor Prep Hero sells trust. Every contradictory surface is bleeding the one thing the product is supposed to have. This is the rare task where "clean up the docs" and "make the product sellable" are the *same work*.
 
 **Scope — one single-source-of-truth pass across every surface:**
 - **In-app, buyer-facing (P0a):** `src/config/pricing.ts:125` Firm tier sells *"The assurance package: DPA, trust center, SOC 2 readiness"* — verified contradiction against `website/vs/jump.html`, `website/vs/cocounsel.html`, `website/security/index.html`, `website/vs/clio-duo.html`, `website/press-kit/comparison-matrix.html`, which all admit these don't exist yet. **Fix: relabel as explicit roadmap ("planned," not delivered) or remove.** (Eng review P0 #1 + Eval §5.1.)
@@ -84,7 +84,7 @@ Each workstream below names its source findings, concrete scope (with verified f
 
 ### WS5 — Turnkey setup & honest model strategy `P1`
 **Why:** "local-first" invites the "IT burden" and "DIY is less secure" objections; and "nothing leaves the machine" is only literally true in local-model mode, which underperforms on legal work. (Eval §5.5, §5.6.)
-**Scope:** one-click install → first value, hardened security defaults, zero config homework; make the **BYOK-direct frontier path the recommended default** (frontier quality + data only to the user's own provider, no Keepance server), and present local-model mode honestly as the "maximum-paranoia, accept-the-quality-tradeoff" option — never imply local-model is the main experience if it underperforms.
+**Scope:** one-click install → first value, hardened security defaults, zero config homework; make the **BYOK-direct frontier path the recommended default** (frontier quality + data only to the user's own provider, no Advisor Prep Hero server), and present local-model mode honestly as the "maximum-paranoia, accept-the-quality-tradeoff" option — never imply local-model is the main experience if it underperforms.
 **Spawns:** `docs/superpowers/plans/2026-06-1X-turnkey-and-byok-default.md`.
 
 ### WS6 — Learning loop & pricing reality `P2`
@@ -133,7 +133,7 @@ Each parked with its reason, so "not now" is a decision, not a gap:
 
 ## 6. The kill-criterion (the eval insists on one; don't leave it implicit)
 
-Commit to a **fixed window of disciplined hand-selling to the chosen ICP** (Jameson sets the window). **If it yields no paying customers and no design-partner testimonials, the thesis "litigators will pay for local-first" is likely wrong** → the live options are to pivot the wedge (CPA/§7216) or accept Keepance as a solo/lifestyle product. Define the window + the bar explicitly so "keep building" can't be the escape hatch.
+Commit to a **fixed window of disciplined hand-selling to the chosen ICP** (Jameson sets the window). **If it yields no paying customers and no design-partner testimonials, the thesis "litigators will pay for local-first" is likely wrong** → the live options are to pivot the wedge (CPA/§7216) or accept Advisor Prep Hero as a solo/lifestyle product. Define the window + the bar explicitly so "keep building" can't be the escape hatch.
 
 ## 7. What changes vs. the current operating contract
 
@@ -167,4 +167,4 @@ The decision is "vision first, reorientation after." But the vision is already s
 - Email-as-product viability: `docs/strategy/2026-06-17-email-search-standalone-viability.md`
 - Trust-contradiction evidence (verified): `src/config/pricing.ts:125`, `website/vs/`, `website/security/`, `website/press-kit/comparison-matrix.html`
 
-*Compiled 2026-06-17 by the Keepance build session (Claude, Opus 4.8). The engineering findings are verified against artifacts; the strategic findings are the separate evaluation's, integrated here under the reorientation lens. This master plan needs Jameson's §9 decisions before execution; each workstream then spawns its own detailed implementation plan in `docs/superpowers/plans/`.*
+*Compiled 2026-06-17 by the Advisor Prep Hero build session (Claude, Opus 4.8). The engineering findings are verified against artifacts; the strategic findings are the separate evaluation's, integrated here under the reorientation lens. This master plan needs Jameson's §9 decisions before execution; each workstream then spawns its own detailed implementation plan in `docs/superpowers/plans/`.*

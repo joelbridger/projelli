@@ -11,7 +11,7 @@
 
 ## Do it in one clean pass when the LS dashboard is free + the store is approved
 
-1. **LS dashboard (Jameson or a clear CDP window):** in the **Keepance/projelli** store (switch store first; do NOT do this while another agent is in the Guesslet context), find Settings → Domains (or Store settings → Custom domain). Add `checkout.keepance.com`. LS will show a CNAME target (e.g. `cname.lemonsqueezy.com` or a store-specific host) and possibly a TXT verification record.
+1. **LS dashboard (Jameson or a clear CDP window):** in the **Advisor Prep Hero/projelli** store (switch store first; do NOT do this while another agent is in the Guesslet context), find Settings → Domains (or Store settings → Custom domain). Add `checkout.keepance.com`. LS will show a CNAME target (e.g. `cname.lemonsqueezy.com` or a store-specific host) and possibly a TXT verification record.
 
 2. **DNS (Cloudflare, keepance.com zone `b12c60acef16317a66994606f79792e2`):** add the CNAME LS gives you. **Set it DNS-only (grey cloud, `"proxied": false`)** so LS can provision its own SSL cert — a proxied (orange-cloud) record will break LS's cert issuance. Add any TXT record LS asks for. Example with the global key:
    ```bash

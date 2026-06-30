@@ -1,6 +1,6 @@
 # The Rust backend
 
-> A map of Keepance's native side: the Tauri command layer in
+> A map of Advisor Prep Hero's native side: the Tauri command layer in
 > [`src-tauri/src/`](../../src-tauri/src/) and the two pure crates under
 > [`src-tauri/crates/`](../../src-tauri/crates/) — `keepance-vault` (the
 > encrypted workspace vault) and `keepance-docx` (the in-house `.docx` engine) —
@@ -8,7 +8,7 @@
 > Identifiers below were verified against the source on 2026-06-28. If a detail
 > disagrees with the code, trust the code and fix this doc.
 
-Keepance is a Tauri 2 app: a React/TypeScript frontend (see
+Advisor Prep Hero is a Tauri 2 app: a React/TypeScript frontend (see
 [ARCHITECTURE.md](../../ARCHITECTURE.md)) talking over Tauri's IPC to a Rust
 backend that does the things a browser can't — real filesystem access, OS
 keychain, local AI model sidecars, encryption, the vector store, and faithful
@@ -137,7 +137,7 @@ Crate deps: `aes-gcm`, `sha2`, `hkdf`, `bip39`, `zeroize`, `rand`, `serde`/`serd
 ## `keepance-docx` — the OOXML / `.docx` engine
 
 [`src-tauri/crates/keepance-docx/`](../../src-tauri/crates/keepance-docx/).
-Word (`.docx`) is Keepance's first-class document format, so this in-house engine
+Word (`.docx`) is Advisor Prep Hero's first-class document format, so this in-house engine
 reads and writes real OOXML with **tracked changes and comments** as first-class
 DOM nodes — no Microsoft SDK, no SaaS. It's pure Rust over generic XML/ZIP crates
 (`quick-xml`, `zip`), so it round-trips faithfully and tests fast.
@@ -186,7 +186,7 @@ Crate deps: `zip`, `quick-xml`, `serde`/`serde_json`, `chrono`, `thiserror`.
 
 ## The audit log + SQLCipher store
 
-[`src-tauri/src/commands/audit/`](../../src-tauri/src/commands/audit/). Keepance's
+[`src-tauri/src/commands/audit/`](../../src-tauri/src/commands/audit/). Advisor Prep Hero's
 "defense file": an **append-only, hash-chained, encrypted** record of every AI
 action (model calls, retrievals, imports). It's what makes the product
 *auditable* — a user can prove what the AI did and that the record wasn't

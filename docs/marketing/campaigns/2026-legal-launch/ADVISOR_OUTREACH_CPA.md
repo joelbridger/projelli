@@ -14,7 +14,7 @@ Hey [Name],
 
 I'm Jameson. [One sentence of context.]
 
-I'm building a desktop app called Keepance, and I'm hoping you might be willing to spend about 30 minutes with me at some point this summer.
+I'm building a desktop app called Advisor Prep Hero, and I'm hoping you might be willing to spend about 30 minutes with me at some point this summer.
 
 The quick version: it's a local-first AI workspace for tax professionals and others where client data genuinely doesn't leave the machine. No cloud. No server I control. You bring your own API key and it goes direct from your computer to the provider. The §7216 angle is actually what makes the product story really concrete for this audience: "your clients' SSNs never leave your machine" is a different value proposition than "this AI is helpful."
 
@@ -38,7 +38,7 @@ Hey [Name],
 
 I'm Jameson Daines, a product designer. I found you through [NAEA / NATP / r/taxpros / your practice website] and I'm hoping this is a reasonable cold ask.
 
-I'm building a desktop app called Keepance for tax professionals who can't use cloud AI with client data. The whole value prop is that everything stays on your machine: your files, your API keys, your clients' information. Nothing goes through a server I control.
+I'm building a desktop app called Advisor Prep Hero for tax professionals who can't use cloud AI with client data. The whole value prop is that everything stays on your machine: your files, your API keys, your clients' information. Nothing goes through a server I control.
 
 I'm working on a Tax Practice template pack: an Engagement Letter Builder, a 1040 Pre-Review Checklist, a §7216 Disclosure Consent Template, an Audit Defense File Builder, and a few others. I want a practicing CPA or EA to read through the templates before I ship them, because tax practitioners will immediately know if the workflow framing is off.
 

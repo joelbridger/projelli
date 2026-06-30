@@ -1,6 +1,6 @@
 # 2026 Consulting Campaign
 
-> **Goal:** Establish Keepance as the tool for independent strategy consultants and boutique agencies
+> **Goal:** Establish Advisor Prep Hero as the tool for independent strategy consultants and boutique agencies
 > who work under NDA and can't use cloud AI with client work.
 >
 > **Timing:** Post-legal and post-tax campaigns. This is the "viral edge" audience — they post about

@@ -1,9 +1,9 @@
 /**
- * Voice catalog for Keepance TTS (Stream B).
+ * Voice catalog for Advisor Prep Hero TTS (Stream B).
  *
  * Bundled voice: en_US-amy-medium (ships with the installer).
  * Lazy-download voices: es_ES-mls-medium, de_DE-thorsten-medium.
- * Additional voices are downloaded on first use from Keepance's CDN.
+ * Additional voices are downloaded on first use from Advisor Prep Hero's CDN.
  *
  * CDN pattern: https://keepance.com/voices/<voice-id>.tar.gz
  * Each archive unpacks to <voice-id>.onnx + <voice-id>.onnx.json

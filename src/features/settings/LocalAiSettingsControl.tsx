@@ -1,5 +1,5 @@
 /**
- * LocalAiSettingsControl — the user-facing "Download Keepance Local AI" control.
+ * LocalAiSettingsControl — the user-facing "Download Advisor Prep Hero Local AI" control.
  *
  * This is the opt-in trigger for the embedded, fully-offline AI engine. It lives
  * in Settings → AI (and is mirrored in onboarding). The 2.4 GB model is never

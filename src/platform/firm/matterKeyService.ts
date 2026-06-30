@@ -2,7 +2,7 @@
  * matterKeyService — provision + load the per-matter content key.
  *
  * The per-matter AES-256 content key lives in the OS keychain
- * (`com.keepance.matter.<id>`). This service is the client-held key path for
+ * (`com.lantern.matter.<id>`). This service is the client-held key path for
  * THIS chunk:
  *
  *   - createLocalMatterKey(matterId): generate a fresh key the first time a

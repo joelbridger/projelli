@@ -1,6 +1,6 @@
 # The local RAG pipeline
 
-> How Keepance turns your documents, email, and connector data into **cited
+> How Advisor Prep Hero turns your documents, email, and connector data into **cited
 > answers** — entirely on your machine. This traces the path from "a file lands
 > in the workspace" all the way to "a verified citation appears in the Ask
 > panel." Written for humans and AI agents. If a detail here disagrees with the
@@ -10,7 +10,7 @@
 RAG = "retrieval-augmented generation": before the AI answers, we **retrieve**
 the most relevant slices of your own data and hand them to the model as
 reference material, so the answer is grounded in your files instead of the
-model's memory. Keepance's RAG is **local-first** (the search index lives on
+model's memory. Advisor Prep Hero's RAG is **local-first** (the search index lives on
 your disk, never a server), **encrypted at rest**, and **matter-scoped** (one
 client's data can never leak into another's answer — enforced in Rust, not the
 UI).

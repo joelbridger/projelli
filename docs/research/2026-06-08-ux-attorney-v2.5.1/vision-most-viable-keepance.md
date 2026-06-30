@@ -1,18 +1,18 @@
-# The Most Viable Keepance: A Vision
+# The Most Viable Advisor Prep Hero: A Vision
 
 **Prepared by:** Dr. Lena Whitfield, with the strategy hat on
 **Date:** 2026-06-08
 **Basis:** every finding in this research package (the synthetic interview and usability test, both deep-research reports, and the product map).
 
-> **The question this answers:** ignoring development difficulty entirely, and free to become a different product or even a different company, what is the single most viable version of Keepance? Viability means: real attorneys adopt it, pay for it, trust it with live client work, keep using it, tell other lawyers, and the result is a durable, defensible, growing business.
+> **The question this answers:** ignoring development difficulty entirely, and free to become a different product or even a different company, what is the single most viable version of Advisor Prep Hero? Viability means: real attorneys adopt it, pay for it, trust it with live client work, keep using it, tell other lawyers, and the result is a durable, defensible, growing business.
 >
-> **The rules I followed:** I ignored "how hard is this to build." I committed to answers instead of listing options, because you asked for the most viable version, not a menu. Where this changes a decision you have already made (the category, the customer, the local-only architecture, the business model), I say so on purpose. This is not the cheapest Keepance or the easiest Keepance. It is the one most likely to win.
+> **The rules I followed:** I ignored "how hard is this to build." I committed to answers instead of listing options, because you asked for the most viable version, not a menu. Where this changes a decision you have already made (the category, the customer, the local-only architecture, the business model), I say so on purpose. This is not the cheapest Advisor Prep Hero or the easiest Advisor Prep Hero. It is the one most likely to win.
 
 ---
 
-## 1. The most viable Keepance in one paragraph
+## 1. The most viable Advisor Prep Hero in one paragraph
 
-Keepance becomes **the private intelligence layer for a law practice**: the place a lawyer's entire body of confidential work lives (email, documents, prior matters, depositions, filings), kept provably private, that answers questions across all of it with AI you can actually trust, because every answer is cited and verifiable, and nothing is ever exposed to a vendor unless the lawyer chooses it. It wins the door with one universal, daily, painful job (find anything you have ever emailed or filed, instantly and privately), deepens into the expensive job that eats lawyers' weekends (deposition and discovery analysis), and finishes the loop by producing real Word and PDF deliverables on the firm's letterhead. Its moat is not a feature. It is the combination of a confidentiality architecture the big clouds cannot copy, the data gravity of having ingested your whole practice, and a brand built on telling lawyers the literal truth about where their data goes. It lands with the confidentiality-anxious solo and grows into the small and mid-size litigation firm, because in law, trust travels lawyer to lawyer.
+Advisor Prep Hero becomes **the private intelligence layer for a law practice**: the place a lawyer's entire body of confidential work lives (email, documents, prior matters, depositions, filings), kept provably private, that answers questions across all of it with AI you can actually trust, because every answer is cited and verifiable, and nothing is ever exposed to a vendor unless the lawyer chooses it. It wins the door with one universal, daily, painful job (find anything you have ever emailed or filed, instantly and privately), deepens into the expensive job that eats lawyers' weekends (deposition and discovery analysis), and finishes the loop by producing real Word and PDF deliverables on the firm's letterhead. Its moat is not a feature. It is the combination of a confidentiality architecture the big clouds cannot copy, the data gravity of having ingested your whole practice, and a brand built on telling lawyers the literal truth about where their data goes. It lands with the confidentiality-anxious solo and grows into the small and mid-size litigation firm, because in law, trust travels lawyer to lawyer.
 
 That is the thesis. The rest of this document is why the research says that is the most viable shape, and what it concretely looks like.
 
@@ -20,15 +20,15 @@ That is the thesis. The rest of this document is why the research says that is t
 
 ## 2. Start by changing the category
 
-Today Keepance is sold as a **"local-first AI workspace for confidential client work."** The research is consistent that this framing is the single biggest self-inflicted wound on viability.
+Today Advisor Prep Hero is sold as a **"local-first AI workspace for confidential client work."** The research is consistent that this framing is the single biggest self-inflicted wound on viability.
 
-- "Workspace" is abstract. The participant heard it as "something cloudy that belongs to the software company" until she discovered it just meant a folder. It also drops Keepance into a ring with Notion and Obsidian, where it competes on the wrong axis.
+- "Workspace" is abstract. The participant heard it as "something cloudy that belongs to the software company" until she discovered it just meant a folder. It also drops Advisor Prep Hero into a ring with Notion and Obsidian, where it competes on the wrong axis.
 - The magic was never "a workspace." Across all four sources, the moment the product became worth paying for was **confidential recall**: asking a plain-English question and getting the exact email back, with a citation, privately. The participant called it "the reason I'd actually pull out a credit card."
 - "AI workspace" describes the container. Viability comes from naming the **outcome**.
 
 **The most viable category is the private intelligence layer for confidential work.** Said in a lawyer's language:
 
-> Keepance is the private place your whole practice lives and answers you back. Your clients' data never leaves your control. Every answer is cited. It works beside the tools you already use.
+> Advisor Prep Hero is the private place your whole practice lives and answers you back. Your clients' data never leaves your control. Every answer is cited. It works beside the tools you already use.
 
 The enemy this positions against is concrete and felt every single day: **Outlook search that cannot find anything, the legal pad you carry into deposition prep, and the ChatGPT you are afraid to paste a client's name into.** Those three are the incumbents. Not Notion.
 
@@ -38,7 +38,7 @@ A direct consequence of this reframe: the lawyer should never see Markdown again
 
 In the most viable version, **Microsoft Office is the first-class, native format, and Word is the priority** (Word, then PDF, then Excel and PowerPoint). "Seamless" has a precise meaning here, because a half-working Word experience is worse than none: a redline that breaks is more dangerous than no redline. It means faithful, bidirectional round-trip with track changes, comments, styles, numbering, tables, tables of authorities, headers and footers, and letterhead intact, so a lawyer can import a Word document from opposing counsel, have the AI analyze and redline it, and send it back as a Word document the recipient can accept or reject. The AI operates on the real document structure, not a flattened copy, which is what lets it do clause-by-clause redlines, pin a contradiction to an exact line, or build a damages model in a real spreadsheet.
 
-Two things to keep straight. First, this is offense disguised as compatibility: working on the true document makes the associate smarter, not merely compatible. Second, the goal is not to out-Word Microsoft. Copilot lives inside Word and will always have more document features. Keepance matches Word-grade fidelity so it never forces a handoff, and wins on the one thing Microsoft structurally cannot offer: the document and the AI both stay private. Fidelity removes the dealbreaker; confidentiality is the differentiator.
+Two things to keep straight. First, this is offense disguised as compatibility: working on the true document makes the associate smarter, not merely compatible. Second, the goal is not to out-Word Microsoft. Copilot lives inside Word and will always have more document features. Advisor Prep Hero matches Word-grade fidelity so it never forces a handoff, and wins on the one thing Microsoft structurally cannot offer: the document and the AI both stay private. Fidelity removes the dealbreaker; confidentiality is the differentiator.
 
 What survives of the old model is the good part, expressed better: files you genuinely own, in your own folders, that open in the tools you already use. Lawyers understand a folder of Word and PDF files far better than a folder of .md files. If a plain-text layer persists at all, it is an invisible internal detail for AI notes and quick capture, never the legal deliverable and never a constraint on fidelity.
 
@@ -73,7 +73,7 @@ Confidential search and cited recall across the lawyer's email, documents, and p
 Deposition and discovery analysis: surface every contradiction across transcripts, statements, and emails; build the timeline; triage the document production; draft the privilege log; spot the issues. This is the "give me my weekends back" job. It is what turns a useful tool into one a litigator cannot work without, and it is what justifies a higher price. The framing the research demands: this is a **tireless first-year associate that flags things for you to verify, not an oracle that you trust blindly.** It proposes; the lawyer decides; every claim is cited.
 
 **Job 3, the close: "Real deliverables, in the lawyer's own format."**
-Draft, edit, redline, and ship in Microsoft Word and PDF, on the firm's letterhead, with full fidelity (track changes, comments, styles, numbering, tables), ready to file or send. The research is blunt: "If it isn't in Word with my letterhead, it isn't a real document," and both deep-research reports warn that anything which forces the lawyer to finish elsewhere is confined to early drafting. A tool that produces output the lawyer has to redo is a toy. This job, done with real Office fidelity, is what makes Keepance the place work gets finished, not just started. (See the format corollary in Section 2.)
+Draft, edit, redline, and ship in Microsoft Word and PDF, on the firm's letterhead, with full fidelity (track changes, comments, styles, numbering, tables), ready to file or send. The research is blunt: "If it isn't in Word with my letterhead, it isn't a real document," and both deep-research reports warn that anything which forces the lawyer to finish elsewhere is confined to early drafting. A tool that produces output the lawyer has to redo is a toy. This job, done with real Office fidelity, is what makes Advisor Prep Hero the place work gets finished, not just started. (See the format corollary in Section 2.)
 
 Each job deepens the relationship and the data, which sets up the moat.
 
@@ -81,15 +81,15 @@ Each job deepens the relationship and the data, which sets up the moat.
 
 ## 5. The moat: why this is defensible, not just good
 
-A viable product is one a funded competitor cannot easily copy. Keepance has access to a genuinely rare combination. The most viable version leans its whole weight on it.
+A viable product is one a funded competitor cannot easily copy. Advisor Prep Hero has access to a genuinely rare combination. The most viable version leans its whole weight on it.
 
 **Moat 1: confidentiality as a spectrum you control, not a dogma.**
 The current product treats "local-only desktop" as its identity. The most viable version keeps the **soul** (you control your confidentiality, and we prove it) and sheds the **dogma** (it must always be local-only), because the dogma caps viability for teams, mobility, and firms. Concretely, offer the full spectrum and let the user pick per matter:
 - **Local-only (Ollama):** nothing leaves the machine, ever. The "paranoid mode" for the most sensitive matter.
-- **BYOK direct-to-provider:** your key, your account, your data goes straight to Anthropic or OpenAI or Google and never through Keepance.
+- **BYOK direct-to-provider:** your key, your account, your data goes straight to Anthropic or OpenAI or Google and never through Advisor Prep Hero.
 - **Assured private deployment:** for firms, a zero-retention, single-tenant option with a signed DPA and real enterprise assurance, so a risk committee can say yes.
 
-The unfair advantage: **Microsoft 365 Copilot, Shortwave, and the other cloud assistants cannot credibly promise "we never see your data," because their entire architecture depends on seeing it.** Keepance can. That is a structural moat, not a feature race. The deep-research reports confirm no competitor occupies "local-first plus AI plus bring-your-own-key."
+The unfair advantage: **Microsoft 365 Copilot, Shortwave, and the other cloud assistants cannot credibly promise "we never see your data," because their entire architecture depends on seeing it.** Advisor Prep Hero can. That is a structural moat, not a feature race. The deep-research reports confirm no competitor occupies "local-first plus AI plus bring-your-own-key."
 
 **Moat 2: radical transparency, honesty as the brand.**
 The research found the central trust failure is that the lawyer cannot explain where her data goes, and that the current "nothing leaves your machine" claim quietly overclaims (the AI provider still sees the prompt unless you use a local model). The most viable version turns this weakness into the brand:
@@ -151,7 +151,7 @@ The shape of the economics: solos are cheap to serve and spread the word; firms 
 
 ## 9. What it is deliberately NOT
 
-Focus is a viability strategy. The most viable Keepance says no to several tempting things, on purpose.
+Focus is a viability strategy. The most viable Advisor Prep Hero says no to several tempting things, on purpose.
 
 - **Not a generic AI note-taking app or a Notion competitor.** That market is crowded and undifferentiated, and it throws away the confidentiality moat.
 - **Not a practice-management replacement.** It sits beside Clio, it does not try to be Clio. The research is clear the lawyer is not replacing their system of record.
@@ -166,7 +166,7 @@ Focus is a viability strategy. The most viable Keepance says no to several tempt
 
 The most viable version is also the most demanding. For it to win, four things have to hold, and each maps to a finding:
 
-1. **The confidentiality claims must be airtight and provable.** The moat is honesty; if Keepance is ever caught overclaiming, the moat inverts into the liability. This is why Section 6, rule 4 is inviolable.
+1. **The confidentiality claims must be airtight and provable.** The moat is honesty; if Advisor Prep Hero is ever caught overclaiming, the moat inverts into the liability. This is why Section 6, rule 4 is inviolable.
 2. **First run to first cited answer must be effortless.** The wedge dies at the API-key wall. The single most important onboarding outcome is a non-technical lawyer reaching a real, cited answer over their own email without help.
 3. **Proof must actually materialize.** Without named attorneys, CLE, and (for firms) assurance, neither solos nor firms will cross from interest to live client work. This is the slowest thing to build, so it starts first.
 4. **The company has to grow up to match the ambition.** A firm platform cannot be sold by a one-person vendor with a $100 liability cap. If firms are the destination, and for maximum viability they are, the entity, the assurance, and the support have to become real. That is a board-level commitment, not a product feature.
@@ -175,7 +175,7 @@ The most viable version is also the most demanding. For it to win, four things h
 
 ## 11. The one-sentence test
 
-If a senior litigator describes Keepance to the lawyer in the next office in one sentence and that sentence is **"it's the private place my whole practice lives, it finds anything I've ever emailed or filed in seconds, it helps me tear through depositions, and my clients' data never leaves my control,"** then it is the most viable version. Everything in this document is in service of making that the sentence lawyers actually say.
+If a senior litigator describes Advisor Prep Hero to the lawyer in the next office in one sentence and that sentence is **"it's the private place my whole practice lives, it finds anything I've ever emailed or filed in seconds, it helps me tear through depositions, and my clients' data never leaves my control,"** then it is the most viable version. Everything in this document is in service of making that the sentence lawyers actually say.
 
 ---
 

@@ -1,7 +1,7 @@
 /**
  * matterAtAGlance.ts
  *
- * AI at-a-glance generator for the Keepance matter hub. Given a matter id,
+ * AI at-a-glance generator for the Advisor Prep Hero matter hub. Given a matter id,
  * retrieves the matter's indexed content via MemoryService, builds a
  * workspace context block, and calls an AI provider for a structured summary
  * of open issues, deadlines, and next actions. Returns an empty result (no
@@ -155,7 +155,7 @@ export interface ResolvedGlanceProvider {
  * cloud whenever a cloud key exists, contradicting the "nothing leaves"
  * indicator. In Local-only, force the local model.
  *
- * F-503 — the local engine is the embedded Keepance Local AI when ready, else
+ * F-503 — the local engine is the embedded Advisor Prep Hero Local AI when ready, else
  * Ollama (the same on-device resolution Ask / Chat / Client Map use), so the
  * auto-summary works on a machine with the embedded model but no Ollama.
  */

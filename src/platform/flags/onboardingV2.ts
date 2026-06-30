@@ -11,7 +11,7 @@
  *
  * Resolution order (URL wins so a demo can force it without clearing state):
  *   1. `?onboardingV2=1` / `?onboardingV2=0` in the URL query string.
- *   2. localStorage `keepance:onboardingV2 === '1'`.
+ *   2. localStorage `lantern:onboardingV2 === '1'`.
  *   3. Default: false.
  *
  * SSR/test-safe: returns false when `window` is absent and never throws.

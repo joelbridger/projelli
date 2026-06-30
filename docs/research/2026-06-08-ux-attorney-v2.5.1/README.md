@@ -1,7 +1,7 @@
-# Keepance v2.5.1: Attorney UX Research Package
+# Advisor Prep Hero v2.5.1: Attorney UX Research Package
 
 **Created:** 2026-06-08
-**Owner:** Research (Dr. Lena Whitfield persona) for Keepance
+**Owner:** Research (Dr. Lena Whitfield persona) for Advisor Prep Hero
 **Segment:** Solo and small-firm attorneys (locked primary ICP)
 **Status:** Pass A (synthetic deep first pass) complete. Instruments ready for Pass B (real participants) on the 2.5.1 release.
 
@@ -9,7 +9,7 @@
 
 ## What this is
 
-A complete, research-grade UX study of Keepance 2.5.1 from the point of view of the target attorney, plus every reusable instrument needed to run it again with real, paid participants the moment the build ships.
+A complete, research-grade UX study of Advisor Prep Hero 2.5.1 from the point of view of the target attorney, plus every reusable instrument needed to run it again with real, paid participants the moment the build ships.
 
 It was run in two passes by design:
 
@@ -24,10 +24,10 @@ Pass A now also integrates two independent deep-research reports (a litigation-o
 
 ## The 60-second version of what we found
 
-Four independent sources now point the same way (two synthetic sessions and two deep-research reports), so the high-confidence findings are close to safe bets. Keepance has a strong wedge and an honest architecture, wrapped in a story that overclaims in one place, under-explains in another, and has not yet decided whether it is a tool for one lawyer or a platform for a firm.
+Four independent sources now point the same way (two synthetic sessions and two deep-research reports), so the high-confidence findings are close to safe bets. Advisor Prep Hero has a strong wedge and an honest architecture, wrapped in a story that overclaims in one place, under-explains in another, and has not yet decided whether it is a tool for one lawyer or a platform for a firm.
 
 1. **The email feature is the wedge. Lead with it.** "Find anything you have ever emailed, privately" was the moment it clicked, the thing she said would make her pay. The "AI workspace" framing buries it. (All four sources.)
-2. **The central promise has an asterisk you are not telling.** "Nothing leaves your machine" is true about Keepance's servers, not about the AI provider, who still sees the prompt unless the user runs a local model. Lawyers read fine print for a living. Tell the whole truth and add a visible "where is this going" indicator.
+2. **The central promise has an asterisk you are not telling.** "Nothing leaves your machine" is true about Advisor Prep Hero's servers, not about the AI provider, who still sees the prompt unless the user runs a local model. Lawyers read fine print for a living. Tell the whole truth and add a visible "where is this going" indicator.
 3. **The biggest usability failure: she cannot explain where her data goes.** For a lawyer, an uncertain answer is a disqualifying answer. The product does the right thing; she cannot tell. A communication fix, and the most valuable one.
 4. **The citation is the price of admission, not a feature.** A cited answer won her; an uncited one would have destroyed trust in every answer.
 5. **Trust, proof, and basic governance are missing, for an audience that does diligence for a living.** Zero attorney testimonials, no SOC 2 or DPA, a one-person vendor, and public documents that contradict each other on pricing, licensing, and versions.
@@ -52,8 +52,8 @@ Full findings, the four-source evidence matrix, the strategic forks, and recomme
 | [instruments/usability-test-protocol.md](instruments/usability-test-protocol.md) | The ~60-minute usability test: 5 tasks, success criteria, metrics, consent. |
 | [transcripts/interview-transcript.md](transcripts/interview-transcript.md) | Full interview transcript (~10,400 words). |
 | [transcripts/usability-test-transcript.md](transcripts/usability-test-transcript.md) | Full usability test transcript with think-aloud and observations (~15,300 words). |
-| [deep-research-reports/Attorney UX Review of Keepance.md](<deep-research-reports/Attorney UX Review of Keepance.md>) | Supplementary AI deep-research report. Evaluative UX and workflow analysis from a senior litigator's perspective, written as a simulated interview plus thematic analysis. Separate source from the Pass A package, kept for reference. |
-| [deep-research-reports/ChatGPT deep research attorney UX report Keepance.md](<deep-research-reports/ChatGPT deep research attorney UX report Keepance.md>) | Supplementary AI deep-research report (ChatGPT), grounded in the public record with inline citations. Senior-attorney review of the v2.x product. Separate source from the Pass A package, kept for reference. |
+| [deep-research-reports/Attorney UX Review of Advisor Prep Hero.md](<deep-research-reports/Attorney UX Review of Advisor Prep Hero.md>) | Supplementary AI deep-research report. Evaluative UX and workflow analysis from a senior litigator's perspective, written as a simulated interview plus thematic analysis. Separate source from the Pass A package, kept for reference. |
+| [deep-research-reports/ChatGPT deep research attorney UX report Advisor Prep Hero.md](<deep-research-reports/ChatGPT deep research attorney UX report Advisor Prep Hero.md>) | Supplementary AI deep-research report (ChatGPT), grounded in the public record with inline citations. Senior-attorney review of the v2.x product. Separate source from the Pass A package, kept for reference. |
 
 ---
 

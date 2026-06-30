@@ -1,11 +1,11 @@
-# How we test Keepance (method overview)
+# How we test Advisor Prep Hero (method overview)
 
 **Audience:** an AI/engineer helping us make this testing loop faster and more
 efficient. This is a candid, end-to-end description of how we currently test the
-Keepance desktop app — including the slow parts. It is deliberately specific about
+Advisor Prep Hero desktop app — including the slow parts. It is deliberately specific about
 mechanics and friction so you can find leverage. Written 2026-06-24.
 
-**TL;DR of the philosophy:** Keepance is a local-first **desktop** app (Tauri =
+**TL;DR of the philosophy:** Advisor Prep Hero is a local-first **desktop** app (Tauri =
 Rust backend + a WebView2 UI running React/TypeScript). Unit tests alone never catch
 the real bugs — the important failures only show up when you *drive the actual built
 app on real Windows like a user would*. So our highest-value testing is **AI-driven,

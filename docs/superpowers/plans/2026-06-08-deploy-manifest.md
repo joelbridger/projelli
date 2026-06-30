@@ -14,7 +14,7 @@ All six workstreams are built, staged, and the full test suite is green (**2148 
 | 2 | Competitive battlecards (9 cards) + reviewer-kit condensed | Internal, done (no gate) |
 | 3 | Public security/trust page + security FAQ + DPA draft + SOC 2 brief | Page deploy-gated; briefs escalated |
 | 4 | Competitor-watch baseline + routine spec | Baseline done; recurring cron escalated |
-| 5 | Press-kit "Keepance vs the field" matrix + reviewer-kit copy | Built, deploy-gated |
+| 5 | Press-kit "Advisor Prep Hero vs the field" matrix + reviewer-kit copy | Built, deploy-gated |
 
 ## Commits (in order)
 
@@ -35,12 +35,12 @@ Each `/vs/` page makes an honest comparison (states where the competitor wins), 
 
 | URL | Purpose | Key competitor claim | Regulatory citation |
 |-----|---------|----------------------|---------------------|
-| `/vs/copilot` | M365 Copilot, email-led | Copilot reads Outlook in Microsoft's cloud; Keepance imports/searches email locally. Copilot wins inside Office + real PPTX. | none |
-| `/vs/clio-duo` | Clio Duo (legal) | Clio Duo wins on matter/billing context + SOC 2; Keepance = local zero-egress + price | Heppner (Gibson Dunn link) + "not legal advice" |
-| `/vs/cocounsel` | CoCounsel (legal) | CoCounsel wins on Westlaw-grounded research; Keepance = local + price | Heppner (Gibson Dunn link) + "not legal advice" |
-| `/vs/jump` | Jump (advisor) | Jump wins on meeting notes + CRM + SOC 2; Keepance = zero Reg S-P vendor surface w/ local model | Reg S-P (Federal Register link) + "not compliance advice" |
-| `/vs/intuit-assist` | Intuit Assist (tax) | Intuit wins on return-data pull, bundled; Keepance = §7216-clean local + Drake companion | §7216 (IRS link) + "not tax advice" |
-| `/vs/gamma` | Gamma (consulting) | Gamma wins decisively on deck output; Keepance = the private thinking before the deck | none |
+| `/vs/copilot` | M365 Copilot, email-led | Copilot reads Outlook in Microsoft's cloud; Advisor Prep Hero imports/searches email locally. Copilot wins inside Office + real PPTX. | none |
+| `/vs/clio-duo` | Clio Duo (legal) | Clio Duo wins on matter/billing context + SOC 2; Advisor Prep Hero = local zero-egress + price | Heppner (Gibson Dunn link) + "not legal advice" |
+| `/vs/cocounsel` | CoCounsel (legal) | CoCounsel wins on Westlaw-grounded research; Advisor Prep Hero = local + price | Heppner (Gibson Dunn link) + "not legal advice" |
+| `/vs/jump` | Jump (advisor) | Jump wins on meeting notes + CRM + SOC 2; Advisor Prep Hero = zero Reg S-P vendor surface w/ local model | Reg S-P (Federal Register link) + "not compliance advice" |
+| `/vs/intuit-assist` | Intuit Assist (tax) | Intuit wins on return-data pull, bundled; Advisor Prep Hero = §7216-clean local + Drake companion | §7216 (IRS link) + "not tax advice" |
+| `/vs/gamma` | Gamma (consulting) | Gamma wins decisively on deck output; Advisor Prep Hero = the private thinking before the deck | none |
 | `/blog/what-us-v-heppner-means-for-your-ai` | Legal post | Heppner as evolving/leading case, not settled law | Gibson Dunn + ABA Op 512, "not legal advice" |
 | `/blog/is-your-ai-tax-tool-7216-clean` | Tax post | cloud key = §7216 third-party disclosure; local model removes it | IRS §7216 center, "not tax advice" |
 | `/blog/reg-s-p-changed-your-ai-vendor-list` | Advisor post | Reg S-P vendor-vetting; local model = no AI vendor in path | Federal Register + Holland & Knight, "not compliance advice" |

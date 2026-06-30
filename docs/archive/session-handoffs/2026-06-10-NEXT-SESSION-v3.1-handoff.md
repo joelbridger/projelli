@@ -1,4 +1,4 @@
-# Next session handoff — Keepance v3.1.0 publish + what's next
+# Next session handoff — Advisor Prep Hero v3.1.0 publish + what's next
 
 > **⚠️ SUPERSEDED (2026-06-10 evening).** STEP 1 below is DONE: v3.1.0 is published (signed installers live, updater serving 3.1.0) and keepance.com is deployed + smoke-tested. STEP 2 (Option B) is IN FLIGHT via `docs/superpowers/plans/2026-06-10-option-b-model-download.md`. STEP 3 is replaced by the board-ratified plan of record: **`docs/strategy/2026-06-10-vision-gap-closure-plan.md`** (100% vision completion, zero exceptions, board Q7 revised — includes SSO, encrypted vault, .docx co-editing, and all connectors; vendor access applications already filed, see `docs/operations/2026-06-10-vendor-access-track.md`). Start from the project memory + that plan, not this file.
 
@@ -10,9 +10,9 @@ The v3.1.0 tag is pushed; the signed CI build (`gh run view 27290737774`, workfl
 
 1. `gh run view 27290737774 --json status,conclusion` → confirm `completed / success`. If it failed, read the failing job logs (signing/cert issues are the usual suspect) and fix before publishing.
 2. `gh release view v3.1.0 --json isDraft,assets` → confirm the draft has all signed artifacts (Win .exe, mac .dmg arm+intel, Linux .deb/.rpm/.AppImage, `latest.json`).
-3. **Cross-check the download-page asset filenames** in `website/download/index.html` (bumped to `Keepance_3.1.0_*`) against the ACTUAL published asset names (`gh release view v3.1.0 --json assets -q '.assets[].name'`). The .rpm/.dmg naming scheme can differ; fix the page if so before deploying.
+3. **Cross-check the download-page asset filenames** in `website/download/index.html` (bumped to `Advisor Prep Hero_3.1.0_*`) against the ACTUAL published asset names (`gh release view v3.1.0 --json assets -q '.assets[].name'`). The .rpm/.dmg naming scheme can differ; fix the page if so before deploying.
 4. Edit the release notes from `CHANGELOG.md` `[3.1.0]`, then publish: `gh release edit v3.1.0 --draft=false`. Confirm the auto-update endpoint serves 3.1.0 (`releases/latest/download/latest.json`).
-5. Deploy the website (it has uncommitted-to-prod changes: SSO/email integrity fixes, 3.1.0 download links, Firm self-serve checkout, new og-image, Keepance favicons): `~/keepance/infra/deploy.sh` (rsync website/ → /var/www/keepance.com + CF cache purge). Do NOT deploy the site before the release is published (download links would 404).
+5. Deploy the website (it has uncommitted-to-prod changes: SSO/email integrity fixes, 3.1.0 download links, Firm self-serve checkout, new og-image, Advisor Prep Hero favicons): `~/keepance/infra/deploy.sh` (rsync website/ → /var/www/keepance.com + CF cache purge). Do NOT deploy the site before the release is published (download links would 404).
 6. Smoke-test: keepance.com loads, download buttons resolve to real v3.1.0 assets, no "Jameson"/"SSO" on the live Firm card.
 
 (Commercial deploy is pre-authorized by Jameson 2026-06-10 for publish + site. The firm backend is ALREADY deployed live, see below.)

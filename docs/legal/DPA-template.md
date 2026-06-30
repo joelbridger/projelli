@@ -1,4 +1,4 @@
-# Data Processing Agreement: Template (Keepance for firms)
+# Data Processing Agreement: Template (Advisor Prep Hero for firms)
 
 > **TEMPLATE, requires review by qualified counsel before use.**
 >
@@ -10,11 +10,11 @@
 
 This Data Processing Agreement ("DPA") is entered into between:
 
-**Keepance** ("Vendor"), a software product operated by [entity legal name, form, and jurisdiction of formation], with registered address at [address]; and
+**Advisor Prep Hero** ("Vendor"), a software product operated by [entity legal name, form, and jurisdiction of formation], with registered address at [address]; and
 
 **[Customer legal name]** ("Firm"), a [law firm / professional services entity] located at [address].
 
-This DPA supplements and is incorporated into the End User License Agreement, order form, or other agreement between the parties (the "Agreement") and governs the processing of Personal Data in connection with the Firm's use of Keepance.
+This DPA supplements and is incorporated into the End User License Agreement, order form, or other agreement between the parties (the "Agreement") and governs the processing of Personal Data in connection with the Firm's use of Advisor Prep Hero.
 
 ---
 
@@ -22,7 +22,7 @@ This DPA supplements and is incorporated into the End User License Agreement, or
 
 **"Personal Data"** means any information relating to an identified or identifiable natural person that is processed in connection with the Agreement.
 
-**"Client Data"** means the documents, email, notes, chat content, embeddings, and other material the Firm and its users create, import, or store in Keepance, which may contain Personal Data and material subject to legal professional privilege, the work-product doctrine, or professional confidentiality duties.
+**"Client Data"** means the documents, email, notes, chat content, embeddings, and other material the Firm and its users create, import, or store in Advisor Prep Hero, which may contain Personal Data and material subject to legal professional privilege, the work-product doctrine, or professional confidentiality duties.
 
 **"Processing"** means any operation performed on Personal Data, automated or not, including collection, recording, storage, retrieval, use, disclosure, transmission, erasure, or destruction.
 
@@ -32,9 +32,9 @@ This DPA supplements and is incorporated into the End User License Agreement, or
 
 **"AI Provider"** means a third-party large language model service (for example Anthropic, OpenAI, or Google) that the Firm chooses to send prompts to.
 
-**"BYOK"** ("bring your own key") means the mode in which the Firm supplies its own AI Provider API credentials and Keepance sends the Firm's prompts directly from the user's device to that AI Provider.
+**"BYOK"** ("bring your own key") means the mode in which the Firm supplies its own AI Provider API credentials and Advisor Prep Hero sends the Firm's prompts directly from the user's device to that AI Provider.
 
-**"Assured Inference Proxy"** means the optional Keepance-operated forwarding service described in Section 6 and Schedule C, available in the Firm tier, which is designed to be architecturally incapable of persisting request or response bodies.
+**"Assured Inference Proxy"** means the optional Advisor Prep Hero-operated forwarding service described in Section 6 and Schedule C, available in the Firm tier, which is designed to be architecturally incapable of persisting request or response bodies.
 
 **"Local Model"** means an AI model the Firm runs on its own hardware (for example via Ollama), where no prompt content leaves the device.
 
@@ -42,19 +42,19 @@ This DPA supplements and is incorporated into the End User License Agreement, or
 
 ## 2. Roles of the parties
 
-2.1 **The Firm is the Controller** of Client Data and Personal Data processed through Keepance. The Firm determines the purposes and means of that processing.
+2.1 **The Firm is the Controller** of Client Data and Personal Data processed through Advisor Prep Hero. The Firm determines the purposes and means of that processing.
 
-2.2 **Keepance's role depends on the operating mode**, and the parties acknowledge the following allocation:
+2.2 **Advisor Prep Hero's role depends on the operating mode**, and the parties acknowledge the following allocation:
 
-| Mode | What Keepance (Vendor) processes on its servers | Vendor's role |
+| Mode | What Advisor Prep Hero (Vendor) processes on its servers | Vendor's role |
 |---|---|---|
 | **Local / BYOK direct** (default) | License key and machine identifier only. Vendor does not receive Client Data, prompts, responses, or AI Provider keys. | Processor for license data only; not a processor of Client Data. |
 | **Local Model (Ollama)** | License key and machine identifier only. No prompt content leaves the device at all. | Processor for license data only. |
 | **Assured Inference Proxy** (optional, Firm tier) | Prompt and response bodies pass through Vendor infrastructure in transient memory only, under the zero-retention design in Schedule C. License/seat data is also processed. | Processor of the prompt/response content for the duration of forwarding, plus Processor for license/seat data. |
 
-2.3 **The AI Provider is the Firm's own Processor in BYOK mode.** When the Firm uses BYOK, prompts go directly from the user's device to the AI Provider under the Firm's own account and the AI Provider's terms. The AI Provider is engaged by, and is a sub-processor of, the Firm, not of Keepance. Keepance is not a party to that relationship and does not receive the prompt, the response, or the Firm's AI Provider credentials. The Firm is responsible for its own data processing terms with the AI Provider (for example a zero-data-retention / no-training arrangement on the Firm's provider account).
+2.3 **The AI Provider is the Firm's own Processor in BYOK mode.** When the Firm uses BYOK, prompts go directly from the user's device to the AI Provider under the Firm's own account and the AI Provider's terms. The AI Provider is engaged by, and is a sub-processor of, the Firm, not of Advisor Prep Hero. Advisor Prep Hero is not a party to that relationship and does not receive the prompt, the response, or the Firm's AI Provider credentials. The Firm is responsible for its own data processing terms with the AI Provider (for example a zero-data-retention / no-training arrangement on the Firm's provider account).
 
-2.4 **Architectural basis for this allocation.** Keepance is a local-first desktop application. Client Data (workspace documents, AI chat histories, imported email, the search/retrieval (vector) store, the audit log, and AI Provider keys) is created and stored on the Firm's own devices and is not transmitted to or stored on Vendor servers, except where the Firm elects to use the Assured Inference Proxy for inference forwarding only. The technical measures in Section 5 and the data-flow and retention maps in the accompanying security overview (`docs/trust/security-overview.md`) describe this in detail.
+2.4 **Architectural basis for this allocation.** Advisor Prep Hero is a local-first desktop application. Client Data (workspace documents, AI chat histories, imported email, the search/retrieval (vector) store, the audit log, and AI Provider keys) is created and stored on the Firm's own devices and is not transmitted to or stored on Vendor servers, except where the Firm elects to use the Assured Inference Proxy for inference forwarding only. The technical measures in Section 5 and the data-flow and retention maps in the accompanying security overview (`docs/trust/security-overview.md`) describe this in detail.
 
 ---
 
@@ -80,11 +80,11 @@ This DPA supplements and is incorporated into the End User License Agreement, or
 
 ## 4. Firm obligations as Controller
 
-4.1 The Firm warrants that it has the legal basis required under Data Protection Laws to process Personal Data through Keepance and to engage its chosen AI Provider in BYOK mode.
+4.1 The Firm warrants that it has the legal basis required under Data Protection Laws to process Personal Data through Advisor Prep Hero and to engage its chosen AI Provider in BYOK mode.
 
 4.2 The Firm is responsible for ensuring its instructions to Vendor comply with Data Protection Laws.
 
-4.3 The Firm acknowledges that Client Data is stored and processed on the Firm's own devices under the Firm's sole control, and that the Firm is responsible for device-level security (including full-disk encryption, operating-system access controls, device management, and backups) as the primary protection for Client Data. Keepance's at-rest encryption of certain stores (Section 5) supplements but does not replace these device-level measures.
+4.3 The Firm acknowledges that Client Data is stored and processed on the Firm's own devices under the Firm's sole control, and that the Firm is responsible for device-level security (including full-disk encryption, operating-system access controls, device management, and backups) as the primary protection for Client Data. Advisor Prep Hero's at-rest encryption of certain stores (Section 5) supplements but does not replace these device-level measures.
 
 4.4 In BYOK mode, the Firm is responsible for the terms governing its AI Provider account, including any data-retention, training, and regional-processing settings offered by that AI Provider.
 
@@ -114,12 +114,12 @@ The following measures reflect the product as built. They are described precisel
 
 5.7 **Append-only audit log with provenance.** The audit log records AI actions and provenance events, what was retrieved, which matter it was confined to, whether privileged material was excluded, citation-verification verdicts, and where each request was sent (including whether any data left the device). It is append-only and stored on the Firm's device for the Firm's own defense and oversight, not transmitted to Vendor.
 
-5.8 **No telemetry without consent.** Keepance sends no usage telemetry unless the Firm or user explicitly opts in. There is no default analytics call.
+5.8 **No telemetry without consent.** Advisor Prep Hero sends no usage telemetry unless the Firm or user explicitly opts in. There is no default analytics call.
 
 5.9 **Change management.** Source changes are version-controlled and built through continuous integration; releases are code-signed (Azure Trusted Signing on Windows, Apple Developer ID on macOS).
 
 5.10 **Honest residual exposures.** The parties acknowledge:
-- In **BYOK cloud mode**, the AI Provider receives the prompt content the user sends (this is inherent to using a cloud model and is governed by the Firm's own provider terms; Keepance is not in that path). The **Local Model** mode avoids this entirely.
+- In **BYOK cloud mode**, the AI Provider receives the prompt content the user sends (this is inherent to using a cloud model and is governed by the Firm's own provider terms; Advisor Prep Hero is not in that path). The **Local Model** mode avoids this entirely.
 - In the vector store, the **chunk text is encrypted, but `matter_id` and privilege labels are stored in plaintext** on the device because they must be queryable to enforce isolation; these labels can reveal the existence and names of matters to someone with raw access to the device file.
 - Certain metadata in the encrypted stores may be unencrypted for indexing.
 - These exposures are documented in `docs/trust/security-overview.md` and are the reason device-level full-disk encryption (Section 4.3) is required.
@@ -179,7 +179,7 @@ The AI Provider used in BYOK mode is the Firm's own sub-processor and is not lis
 | Nature of processing | License/seat validation; version manifest requests | Stateless request/response forwarding |
 | Purpose | Verify licenses; deliver updates | Provide single-vendor inference without each user holding provider keys |
 | Personal Data types | License key; machine identifier | Whatever the user includes in a prompt (controlled by the Firm) plus billing metadata |
-| Categories of data subjects | Licensed users of Keepance | The Firm's clients, contacts, and personnel referenced in prompts; Firm users |
+| Categories of data subjects | Licensed users of Advisor Prep Hero | The Firm's clients, contacts, and personnel referenced in prompts; Firm users |
 
 ---
 
@@ -199,8 +199,8 @@ The AI Provider used in BYOK mode is the Firm's own sub-processor and is not lis
 
 These must be resolved by a lawyer before this DPA is used with any Firm:
 
-1. **Entity.** Correct legal entity name, form, jurisdiction of formation, and registered address for Vendor. The EULA currently identifies Keepance as operated by an individual sole proprietor; confirm whether a firm-facing DPA requires a formed entity first.
-2. **Controller/Processor classification.** Confirm Keepance is correctly characterized as a Processor only for license data (and proxy content, if used), and that the Firm is the sole Controller of Client Data. This classification drives the whole structure and the correct SCC module.
+1. **Entity.** Correct legal entity name, form, jurisdiction of formation, and registered address for Vendor. The EULA currently identifies Advisor Prep Hero as operated by an individual sole proprietor; confirm whether a firm-facing DPA requires a formed entity first.
+2. **Controller/Processor classification.** Confirm Advisor Prep Hero is correctly characterized as a Processor only for license data (and proxy content, if used), and that the Firm is the sole Controller of Client Data. This classification drives the whole structure and the correct SCC module.
 3. **GDPR / UK GDPR applicability and lead authority.** Whether and how these apply given the local-first architecture; whether SCCs (and which module) are needed for EU/UK Firms.
 4. **CCPA/CPRA applicability.** Whether Vendor meets the thresholds and whether "service provider" contract terms are required.
 5. **AI Provider as the Firm's sub-processor.** Confirm the Section 2.3 framing is accurate for each supported provider and that the Firm, not Vendor, owns that DPA.

@@ -53,7 +53,7 @@ export function JotformSourcePanel() {
           </blockquote>
         )}
         <p className="text-xs text-slate-400">
-          Keepance imported this citation from Jotform as read-only text. Full submission detail is a fast-follow.
+          Advisor Prep Hero imported this citation from Jotform as read-only text. Full submission detail is a fast-follow.
         </p>
       </div>
     </div>

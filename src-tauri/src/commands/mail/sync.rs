@@ -171,7 +171,7 @@ where
 /// Differences from `apply_page`:
 ///   - Does NOT write Mail/*.md plaintext files.
 ///   - Writes each message body as an AES-256-GCM blob under
-///     `.keepance/mail/blobs/<sha256(provider,account,id)>.enc` using `key`.
+///     `.lantern/mail/blobs/<sha256(provider,account,id)>.enc` using `key`.
 ///   - After writing the blob, calls `index_callback(id, markdown_plaintext)`
 ///     so the caller can feed the decrypted text to the RAG indexer and keyword
 ///     index in memory without the text ever touching disk.
@@ -220,7 +220,7 @@ where
 /// Called once at the start of `mail_sync_all`. If a plaintext `Mail/` directory
 /// from Phase 1 exists under `workspace_root`, it is deleted entirely. The next
 /// sync will re-download and import all messages as encrypted blobs under
-/// `.keepance/mail/blobs/*.enc`. This is safe because:
+/// `.lantern/mail/blobs/*.enc`. This is safe because:
 ///   - Phase 1 data was only used on test accounts (no production mail yet).
 ///   - All data is re-downloadable from Microsoft Graph on the next sync.
 ///   - `EncryptedMailStore` uses `mail-enc.db`; the old `mail.db` (SqliteMailStore)

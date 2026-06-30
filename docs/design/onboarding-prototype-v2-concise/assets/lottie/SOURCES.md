@@ -20,7 +20,7 @@ raw Lottie JSON. All validated as Lottie (`"v"` + `"layers"` present).
 - **License:** Lottie Simple License (LottieFiles "Free to use") — no attribution legally required; crediting the author is courteous.
 - **Saved JSON size:** 9,291 bytes — Lottie v5.5.7, 8 layers — VALID
 
-## step2.json — "Keepance builds Client Maps"
+## step2.json — "Advisor Prep Hero builds Client Maps"
 
 - **Concept:** map / location (a clean deep-navy location pin that bounces — a focal location/map marker, same compact icon family as the chain-link and magnifier)
 - **Title:** "Location Pin" (Free Location Pin Animation) — page description: "Location pin animation for use on maps"

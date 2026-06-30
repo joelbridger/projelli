@@ -1,11 +1,11 @@
 # START HERE — current situation + your two missions (2026-06-22)
 
 This is the up-to-date entry brief for the **product / implementation** session
-working on Keepance. It supersedes the older `README.md` bootstrap prompt in this
+working on Advisor Prep Hero. It supersedes the older `README.md` bootstrap prompt in this
 folder for the purpose of "what should I be doing and why." Read this first, then
 follow the read-order it points to.
 
-**Why this exists:** Keepance is mid-repositioning (a brand change + a new
+**Why this exists:** Advisor Prep Hero is mid-repositioning (a brand change + a new
 go-to-market motion), and the website and the product are being built by two
 different sessions in parallel. This brief gets the product session up to speed
 and sets clean lanes so the two sessions never collide. The website + all
@@ -18,7 +18,7 @@ implementation session (existing or fresh) verbatim.
 ---
 
 ```
-You are a Claude Code session working in the Keepance repo (~/keepance, branch
+You are a Claude Code session working in the Advisor Prep Hero repo (~/keepance, branch
 keepance-3.0). You are the PRODUCT / IMPLEMENTATION engineer. Read this entire
 brief before doing anything. It gets you up to speed on a situation you do not
 yet know about, and it gives you TWO missions.
@@ -26,16 +26,16 @@ yet know about, and it gives you TWO missions.
 ================================================================================
 THE SITUATION (what just changed)
 ================================================================================
-Keepance is going through a repositioning driven by two new pieces of feedback:
+Advisor Prep Hero is going through a repositioning driven by two new pieces of feedback:
 
-1. A BRAND idea (from Jameson's product partner): move Keepance from "private AI
+1. A BRAND idea (from Jameson's product partner): move Advisor Prep Hero from "private AI
    search for professionals" to "private AI that actually knows your clients" —
    i.e. private client intelligence, with a "Client Map" for every client /
    matter / household. The Client Map is NOT built yet. Building it is your
    MISSION 2 below.
 
 2. A GO-TO-MARKET idea (from VC Sam Andersen, Element Ventures, 2026-06-18): a
-   "bottoms-up wedge" — let an individual download and safely use Keepance on
+   "bottoms-up wedge" — let an individual download and safely use Advisor Prep Hero on
    their own, without their firm approving it first, and turn that individual
    into the path into a firm sale. This is approved and fully specced. Building
    it is your MISSION 1 below.
@@ -90,7 +90,7 @@ a real commitment to ship, not a maybe.
 
 Run this kickoff verbatim when you begin Mission 2:
 
-  "Design and build Keepance's Client Map. Start by running
+  "Design and build Advisor Prep Hero's Client Map. Start by running
   superpowers:brainstorming WITH Jameson to design the feature — he is the
   product owner and needs to shape it. The brand and naming are ALREADY LOCKED;
   do not relitigate them. The umbrella is 'private client intelligence,' the
@@ -100,7 +100,7 @@ Run this kickoff verbatim when you begin Mission 2:
     - 'Guided Client Interview' — walks the professional through the questions
       that turn a folder of documents into a full client picture.
     - 'Firm Philosophy' — the firm stores its own way of serving clients and
-      Keepance applies it as context. Frame it as 'stores and applies,' NEVER as
+      Advisor Prep Hero applies it as context. Frame it as 'stores and applies,' NEVER as
       unsupervised 'learning' (this audience distrusts that).
   A Client Map is a living, structured profile of each client / matter /
   household, built from the user's OWN files, emails, notes, and the Guided
@@ -141,7 +141,7 @@ HARD RULES (apply to BOTH missions — violating any is a defect, not a style ni
 - Local-first, matter isolation, the confidentiality spectrum, and BYOK are
   inviolable. AI proposes; the professional decides (human-in-control).
 - Never claim "guaranteed compliant" / "fully compliant" / anything implying
-  Keepance makes a user compliant. There are tests that assert this. Keepance
+  Advisor Prep Hero makes a user compliant. There are tests that assert this. Advisor Prep Hero
   handles data safety; the firm and the lawyer own policy.
 - Voice rules on every user-facing string: NO em dashes (there is a test), no AI
   tells (no "leverage / seamless / transform / empower / elevate / unlock"),

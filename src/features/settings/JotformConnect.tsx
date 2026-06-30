@@ -139,7 +139,7 @@ export function JotformConnect() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Jotform</h3>
             <p className="mt-1 max-w-xl text-xs text-slate-500">
-              Import intake and KYC form submissions as read-only client records. Keepance indexes the submitted answers, not files.
+              Import intake and KYC form submissions as read-only client records. Advisor Prep Hero indexes the submitted answers, not files.
             </p>
           </div>
         </div>
@@ -157,7 +157,7 @@ export function JotformConnect() {
       {!connected ? (
         <div className="mt-4 space-y-3">
           <p className="text-xs text-slate-500">
-            Paste an API key from your Jotform account API settings. Keepance stores it in this computer's keychain.
+            Paste an API key from your Jotform account API settings. Advisor Prep Hero stores it in this computer's keychain.
           </p>
           <input
             type="password"

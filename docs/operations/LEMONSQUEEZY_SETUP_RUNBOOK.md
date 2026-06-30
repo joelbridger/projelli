@@ -39,7 +39,7 @@ later once the subscription plumbing is proven. Fewer moving parts to test on da
 ## Step 2 — Personal ($49, one-time)
 
 Products → New Product → **Single payment**, digital. Name **Personal**, price **$49**.
-Short description: "The full Keepance app. All core features, BYOK, local-first. No profession pack."
+Short description: "The full Advisor Prep Hero app. All core features, BYOK, local-first. No profession pack."
 
 ## Step 3 — Professional ($149/year, SUBSCRIPTION) ← the change
 

@@ -1106,7 +1106,7 @@ export function LibreOfficeHelpNotice({ onDismiss }: { onDismiss: () => void }) 
 
 ```json
 "pdf-needs-libreoffice-title": "PDF export needs LibreOffice",
-"pdf-needs-libreoffice-body": "Keepance converts Word to PDF locally using LibreOffice, a free program. Nothing leaves your machine. Install it, then run the export again.",
+"pdf-needs-libreoffice-body": "Advisor Prep Hero converts Word to PDF locally using LibreOffice, a free program. Nothing leaves your machine. Install it, then run the export again.",
 "pdf-libreoffice-copy": "Copy link",
 "pdf-libreoffice-copied": "Copied"
 ```
@@ -1302,7 +1302,7 @@ Fix any hit that implies a shipped integration (the /vs/ pages and llms.txt are 
 npx vitest run tests/unit/website-content-lint.test.ts 2>&1 | tail -5
 ```
 
-- [x] **Step 3: Commit.** NOTE: repo edit only — the site deploys with the next release deploy, which (Keepance = commercial) needs Jameson's explicit go. Do NOT run `infra/deploy.sh` in this wave.
+- [x] **Step 3: Commit.** NOTE: repo edit only — the site deploys with the next release deploy, which (Advisor Prep Hero = commercial) needs Jameson's explicit go. Do NOT run `infra/deploy.sh` in this wave.
 
 ```bash
 cd ~/keepance && git add website/ && git commit -m "fix(website): VG-5d Clio copy precision — no connector implied until one exists"
@@ -1431,7 +1431,7 @@ Until the v2 encrypted vault exists (Wave 3), document files rely on OS full-dis
 
 ```tsx
 /**
- * VG-6d-v1 — disk-encryption guidance. Keepance stores documents as normal
+ * VG-6d-v1 — disk-encryption guidance. Advisor Prep Hero stores documents as normal
  * files; at-rest protection comes from the OS's full-disk encryption. This
  * callout makes that explicit and tells the user how to CHECK it is on,
  * per platform. The encrypted workspace vault (VG-6d-v2) supersedes the
@@ -1475,7 +1475,7 @@ export function DiskEncryptionGuidance() {
 ```json
 "disk-encryption": {
   "title": "One thing to check: your disk encryption",
-  "body": "Keepance keeps your documents as normal files in your workspace folder, on your machine. If the laptop is lost or stolen, your operating system's full-disk encryption is what protects them. It takes a minute to confirm it is on.",
+  "body": "Advisor Prep Hero keeps your documents as normal files in your workspace folder, on your machine. If the laptop is lost or stolen, your operating system's full-disk encryption is what protects them. It takes a minute to confirm it is on.",
   "check-windows": "Windows: Settings, then Privacy & security, then Device encryption (or search for BitLocker). It should say On.",
   "check-macos": "Mac: System Settings, then Privacy & Security, then FileVault. It should say FileVault is turned on.",
   "check-linux": "Linux: most installers offer LUKS full-disk encryption. Check your distribution's disk settings, or run lsblk and look for a crypt entry."

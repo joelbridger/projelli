@@ -1,6 +1,6 @@
-# Keepance Marketing
+# Advisor Prep Hero Marketing
 
-This folder is the canonical home for **all ongoing marketing work** for Keepance — campaigns, channel-specific playbooks, action packs, copy, and operational marketing materials. Created 2026-04-22 during the docs reorganization that consolidated marketing files previously scattered across `docs/features/` and `docs/launch/`.
+This folder is the canonical home for **all ongoing marketing work** for Advisor Prep Hero — campaigns, channel-specific playbooks, action packs, copy, and operational marketing materials. Created 2026-04-22 during the docs reorganization that consolidated marketing files previously scattered across `docs/features/` and `docs/launch/`.
 
 > **Channel pivot — 2026-05-27:** As of the ICP pivot on 2026-05-27, the primary marketing channels are **bar associations (legal)**: ABA TECHSHOW, Lawyerist, Above the Law, IPWatchdog; **AICPA/NAEA (tax)**; and **Umbrex/Lenny (consulting)**. PH/HN/IH are not primary channels for the current ICP. Channel playbooks in `channels/` are retained as reference but are not the active distribution strategy.
 
@@ -76,7 +76,7 @@ campaigns/2026-05-relaunch/      ← example, name = YYYY-MM-<slug>
 - **Reference** (product features, competitive landscape, vision): `~/keepance/docs/reference/` — pull facts from here, don't restate
 - **Live website** (blog posts, press kit, /vs pages, templates gallery): `~/keepance/website/` → deploys to `/var/www/keepance.com/`. New blog posts go in `website/blog/`.
 - **Raw assets / screenshots** (images NOT yet in production):
-  - `~/keepance/Assets/` — raw working images (gitignored, local only). Includes Keepance logo SVG, install screenshots, error screenshots.
+  - `~/keepance/Assets/` — raw working images (gitignored, local only). Includes Advisor Prep Hero logo SVG, install screenshots, error screenshots.
   - `~/keepance/screenshots/` — ad-hoc Windows screenshots (gitignored, local only)
 - **Production press-kit assets** (images already published on the website): `~/keepance/website/press-kit/assets/`
 - **Sign-up data** (email lists, beta requests, bug reports): `~/keepance/sign-ups/` (gitignored)

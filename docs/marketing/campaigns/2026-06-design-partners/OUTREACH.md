@@ -10,7 +10,7 @@ Voice rules apply (no em dashes, first person, contractions). These are honest l
 
 > Hey [name], I've been building something for the last few months and you're exactly the person I want using it before I make any noise about it.
 >
-> It's called Keepance. It's a local-first AI workspace: you chat with Claude or GPT inside it, and every conversation becomes a real document in a folder on your own machine. Nothing routes through my servers, and you bring your own API key. I built it for the kind of work you can't really paste into someone else's cloud, which is basically your whole job.
+> It's called Advisor Prep Hero. It's a local-first AI workspace: you chat with Claude or GPT inside it, and every conversation becomes a real document in a folder on your own machine. Nothing routes through my servers, and you bring your own API key. I built it for the kind of work you can't really paste into someone else's cloud, which is basically your whole job.
 >
 > I'm putting together a small group of people who actually do this work to use it for real and tell me what's wrong with it. You'd get the full app free, a direct line to me, and real say over what ships next. The only thing I want back is honest use on real work and your honest read. If it turns out genuinely useful, I'd love to quote you on the site, but that's only if it earns it, no pressure either way.
 >
@@ -26,7 +26,7 @@ Use when reaching someone in the network-of-a-network, or a practitioner who's p
 
 > Hi [name], I saw [the specific thing: your post about not trusting AI with client files / your practice / the referral from X]. I'm building a tool for exactly that problem and I'd value your eyes on it.
 >
-> Keepance is an AI workspace that runs on your own machine. You chat with an AI and every conversation is saved as a plain file in a folder you control. Your API key stays in your keychain, the requests go straight to the provider, and nothing of yours ever touches a server of mine. For confidential client work, that's the whole point.
+> Advisor Prep Hero is an AI workspace that runs on your own machine. You chat with an AI and every conversation is saved as a plain file in a folder you control. Your API key stays in your keychain, the requests go straight to the provider, and nothing of yours ever touches a server of mine. For confidential client work, that's the whole point.
 >
 > I'm looking for a few practitioners to use it on real work and tell me honestly where it falls short. Full app, free, no clock. Direct line to me. If it earns it, I'd ask to quote you, with your name or just your role, whichever you're comfortable with.
 >

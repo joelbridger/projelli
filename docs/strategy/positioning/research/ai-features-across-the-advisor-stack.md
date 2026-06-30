@@ -1,14 +1,14 @@
 # AI Features Across the Advisor Stack (mid-2026) — Consolidated Reference
 
-**Purpose:** A single scannable answer to "what AI does each tool in a financial advisor's stack ship today?" — the input for assessing Keepance's positioning.
+**Purpose:** A single scannable answer to "what AI does each tool in a financial advisor's stack ship today?" — the input for assessing Advisor Prep Hero's positioning.
 **Built from:** the Kitces 2025 report, ~50 Kitces monthly #AdvisorTech roundups (2022-2026), Kitces's AI analysis pieces, and an independent Codex web-research pass. Full per-vendor sourcing lives in `codex-independent-ai-landscape.md`; news-by-month detail in `advisortech-news-digest-2025-2026.md` and `...-2022-2024.md`.
 **One-line takeaway:** **AI is now in every category of the stack, so "we have AI" is not a differentiator.** The race has split into three patterns (embedded-per-system AI, meeting-AI-becoming-an-OS, and a new contested "cross-source intelligence layer"). Trust is being won by **citations + privacy + human-in-the-loop**, not by automation.
 
 ---
 
-## The verified stack (matches Keepance's onboarding screen + Kitces data)
+## The verified stack (matches Advisor Prep Hero's onboarding screen + Kitces data)
 
-Keepance's onboarding shows: **Wealthbox (CRM), RightCapital (planning), Holistiplan (tax), Envestnet/Tamarac (portfolio), Charles Schwab (custodian), Outlook (email), OneDrive (files), Jump (meeting notes).** The research confirms this is an accurate, representative solo/small-RIA stack. The other commonly-present tools to be aware of (so the stack story is complete):
+Advisor Prep Hero's onboarding shows: **Wealthbox (CRM), RightCapital (planning), Holistiplan (tax), Envestnet/Tamarac (portfolio), Charles Schwab (custodian), Outlook (email), OneDrive (files), Jump (meeting notes).** The research confirms this is an accurate, representative solo/small-RIA stack. The other commonly-present tools to be aware of (so the stack story is complete):
 - **CRM alternatives:** Redtail (Orion), Salesforce, Advyzon
 - **Planning alternatives:** eMoney (market leader), MoneyGuidePro (Envestnet), Conquest
 - **Tax alternatives:** FP Alpha, TaxStatus
@@ -78,16 +78,16 @@ Keepance's onboarding shows: **Wealthbox (CRM), RightCapital (planning), Holisti
 ## The three patterns (how to read all of the above)
 
 1. **Embedded, single-system AI** (Wealthbox, RightCapital, Holistiplan, Orion, etc.): each tool added AI *over its own data*. Powerful inside that silo; blind to everything else. This is most of the market.
-2. **Meeting AI becoming an "operating system"** (Jump, Zocks, Zeplyn): the notetaker was a Trojan horse. Jump's AI Associate and Zocks' Client Queries now reach across the stack and take actions. **This is the most direct competitive pressure on Keepance's "client intelligence" promise** — but it is centered on the *meeting* and is cloud-based.
-3. **The contested cross-source intelligence layer** (Microsoft Copilot, Orion Denali, Advisor360 Unified Data Fabric, Dispatch, Milemarker, Advyzon all-in-one): well-funded players openly racing to be "the AI that reads across everything." **This is Keepance's exact architecture — the category is validated, but Keepance is late and out-funded in it.**
+2. **Meeting AI becoming an "operating system"** (Jump, Zocks, Zeplyn): the notetaker was a Trojan horse. Jump's AI Associate and Zocks' Client Queries now reach across the stack and take actions. **This is the most direct competitive pressure on Advisor Prep Hero's "client intelligence" promise** — but it is centered on the *meeting* and is cloud-based.
+3. **The contested cross-source intelligence layer** (Microsoft Copilot, Orion Denali, Advisor360 Unified Data Fabric, Dispatch, Milemarker, Advyzon all-in-one): well-funded players openly racing to be "the AI that reads across everything." **This is Advisor Prep Hero's exact architecture — the category is validated, but Advisor Prep Hero is late and out-funded in it.**
 
 ## What's winning trust (validated by the news + the survey)
 - **Citations / show-your-work** beat black-box generation. Wealth.com estate summaries link to sources; FP Alpha matches advisor-vetted strategies; TaxStatus uses IRS-verified data. (And a Janus Henderson survey: **80% of HNW clients would be upset if their advisor used AI without disclosing it.**)
 - **Privacy became concrete**, not slogan: a transcription vendor (Mobile Assistant) nearly **sold ~5M advisor-client meeting transcripts as AI training data** (Dec 2025) before Jump acquired and deleted them. Local-first is now a real fiduciary argument.
 - **Human-in-the-loop**: 57% of advisors want AI to *expedite*, only 28% want full automation; client-facing AI is rejected. Every serious tool now requires human confirmation before acting.
 
-## Relevance to Keepance (the honest read)
-- **"We use AI" is table stakes, not a wedge.** Every tool has it; tax-doc reading (Keepance's old hero feature) is now commodity (6+ tools do it).
-- **Keepance's bet (the cross-source cited layer) is validated — and crowded.** Keepance is not first; Jump (from meetings), Orion/Advisor360 (from the platform), and Copilot (from Microsoft) are building the same thing with distribution Keepance lacks.
+## Relevance to Advisor Prep Hero (the honest read)
+- **"We use AI" is table stakes, not a wedge.** Every tool has it; tax-doc reading (Advisor Prep Hero's old hero feature) is now commodity (6+ tools do it).
+- **Advisor Prep Hero's bet (the cross-source cited layer) is validated — and crowded.** Advisor Prep Hero is not first; Jump (from meetings), Orion/Advisor360 (from the platform), and Copilot (from Microsoft) are building the same thing with distribution Advisor Prep Hero lacks.
 - **The defensible wedge is the part incumbents structurally can't copy:** truly **local-first / no-vendor-server + BYOK** + **cross-source + cited + Word-native drafting**, aimed at the **solo/small RIA** who (a) is not inside one all-in-one, (b) distrusts cloud AI with client data, and (c) needs proof (citations) because "one mistake = a lawsuit." Copilot can't be advisor/household-native + local; Wealthbox AI can't see outside Wealthbox; Jump is meeting-centric and cloud.
 - **Positioning must avoid the "AI assistant" shelf** (low-importance, distrusted) and the "another tool" reflex. Lead as **the private, cited memory/answer layer over the stack you already have** — additive, reads from everything, switches you away from nothing.

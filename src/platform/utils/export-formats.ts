@@ -45,7 +45,7 @@ export const ALL_EXPORT_OPTIONS: Record<ExportFormat, ExportOption> = {
   },
 };
 
-/** Extensions that are editable markdown in Keepance. */
+/** Extensions that are editable markdown in Advisor Prep Hero. */
 const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown', 'txt']);
 
 /**

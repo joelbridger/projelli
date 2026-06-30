@@ -2,7 +2,7 @@
 //
 // Displayed in the MainPanel's "no file open" slot immediately after a user
 // picks a workspace folder when they still don't have an AI key saved.
-// Keepance's core value prop is AI + local files, and without a key the AI
+// Advisor Prep Hero's core value prop is AI + local files, and without a key the AI
 // side is dead. Silent dead-ends are the #1 first-run complaint, so this
 // card tells users exactly what's missing and gives them one click to fix it.
 //

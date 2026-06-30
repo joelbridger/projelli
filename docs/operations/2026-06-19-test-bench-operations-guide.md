@@ -1,4 +1,4 @@
-# Keepance AI Test-Bench — Operations Guide
+# Advisor Prep Hero AI Test-Bench — Operations Guide
 
 _2026-06-19. **Authoritative manual for using the always-on, AI-driven Windows + macOS test benches.** Read this first for any test-bench work._
 _Companions: `2026-06-19-ai-dev-velocity-strategy.md` (the WHY / strategy) · `2026-06-19-test-bench-setup-plan.md` (the original setup runbook) · `docs/quality/2026-06-19-linux-vs-windows-coverage.md` (what only real Windows/Mac can test)._
@@ -10,7 +10,7 @@ _Memory: `~/.claude/projects/-home-jameson/memory/project_keepance_dev_velocity.
 
 ## 1. Why these benches exist (the problem they solve)
 
-Keepance ships signed installers for Windows / macOS (arm+intel) / Linux. Cutting that signed cross-platform build takes **60–90 minutes** and is the explicit-go, commercial-ship step. It was being used as a *testing* loop — wait 60–90 min just to see if a Windows fix worked.
+Advisor Prep Hero ships signed installers for Windows / macOS (arm+intel) / Linux. Cutting that signed cross-platform build takes **60–90 minutes** and is the explicit-go, commercial-ship step. It was being used as a *testing* loop — wait 60–90 min just to see if a Windows fix worked.
 
 The fix is the **two-speed model + a real-OS test bench in the middle:**
 
@@ -89,7 +89,7 @@ Per OS, with the toolchain PATH set:
 
 ### 4.3 Run the app + screenshot it (GUI — needs an interactive desktop)
 A GUI app launched directly over SSH runs in a **non-interactive window station** and is invisible. To put it on the real screen and capture it, run via an **interactive scheduled task** (Windows) / the logged-in Aqua session (Mac):
-- **Windows (proven):** a Scheduled Task `KeepanceDev` (principal `james`, **LogonType Interactive**, RunLevel Highest) runs `C:\run-dev.bat` (= `npm run tauri:dev`). A second interactive task `BenchShot` runs `bench-shot.ps1`, which **brings the Keepance window to the front** (`user32!SetForegroundWindow` + `ShowWindow(…,3)` on the keepance process's MainWindowHandle) then captures the virtual screen to `~\shot.png`. `scp` it back and view. (The first capture caught the build terminals on top — focus the window first.)
+- **Windows (proven):** a Scheduled Task `Advisor Prep HeroDev` (principal `james`, **LogonType Interactive**, RunLevel Highest) runs `C:\run-dev.bat` (= `npm run tauri:dev`). A second interactive task `BenchShot` runs `bench-shot.ps1`, which **brings the Advisor Prep Hero window to the front** (`user32!SetForegroundWindow` + `ShowWindow(…,3)` on the keepance process's MainWindowHandle) then captures the virtual screen to `~\shot.png`. `scp` it back and view. (The first capture caught the build terminals on top — focus the window first.)
 - The interactive session must be **unlocked + auto-logged-in** for capture to work.
 
 ### 4.4 Run tests
@@ -133,7 +133,7 @@ These were learned the expensive way this session. Future AI: heed them to avoid
 - **First build:** ~15–20 min cold (across the Perl/Piper fixes); **incremental rebuild = 67 s.** App launched and **rendered correctly in WebView2** (screenshot captured).
 - **Windows test pass (continuing the prior session's handoff):** ran the Rust suite → 464 pass / 5 fail. **All 5 were test-only assumptions, zero product bugs.** Fixed, verified on Linux (470/0) + Windows (469/0), committed + pushed (`b6a139c`, `27c4c1d`).
 - **Mac bench stood up:** standard account (files isolated), user-local toolchain, Xcode CLT (Jameson), Piper auto-fetch. **Built v3.3.5 in 5m 12s.**
-- **Net:** two real-OS benches, both building Keepance from the server, no signed build. Test loop went from 60–90 min to ~1 min.
+- **Net:** two real-OS benches, both building Advisor Prep Hero from the server, no signed build. Test loop went from 60–90 min to ~1 min.
 
 ---
 

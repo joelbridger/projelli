@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-24 · **Audience:** the next human or AI who has to make the advisor demo run on real Windows, smoothly, every time.
 
-> **What this demo proves:** point Keepance at a real (fake) advisory firm's messy
+> **What this demo proves:** point Advisor Prep Hero at a real (fake) advisory firm's messy
 > folder of 374 files (statements, tax returns, financial plans, meeting notes,
 > emails, estate docs), and it (1) reads them into its private on-device index,
 > (2) builds a **Client Map** per household automatically, and (3) answers
@@ -42,7 +42,7 @@ ssh james@100.127.67.22 'cmd /c "cd /d C:\keepance && npm run build"'   # NOTE: 
 #    seeded localStorage + the workspace index carry over — no re-seed needed)
 ssh james@100.127.67.22 "Copy-Item C:\run-dev.bat C:\run-dev.bat.bak -Force"   # back up dev launcher
 scp scripts/demo/run-preview.bat james@100.127.67.22:C:/run-dev.bat
-ssh james@100.127.67.22 "Stop-Process -Name node,cargo,keepance,msedgewebview2 -Force -EA SilentlyContinue; Start-Sleep 7; Start-ScheduledTask KeepanceDev"
+ssh james@100.127.67.22 "Stop-Process -Name node,cargo,keepance,msedgewebview2 -Force -EA SilentlyContinue; Start-Sleep 7; Start-ScheduledTask Advisor Prep HeroDev"
 # Restore dev later: ssh james@... "Copy-Item C:\run-dev.bat.bak C:\run-dev.bat -Force"  (then restart)
 ```
 In this mode the Client Map renders, PDFs index, and **Ask returns cited,
@@ -66,7 +66,7 @@ Everything below works on either mode; the dev-specific landmines are called out
   ask Jameson for is to power it on.** Everything else is the AI's job.
 - App repo on the box: **`C:\keepance`** (a plain file copy, NOT a git checkout —
   sync via tarball, not `git pull`).
-- Dev app launched by the **`KeepanceDev`** scheduled task → `C:\run-dev.bat`
+- Dev app launched by the **`Advisor Prep HeroDev`** scheduled task → `C:\run-dev.bat`
   (`npm run tauri:dev`, log → `C:\tauri-dev.log`).
 - The WebView2 UI exposes **CDP on `127.0.0.1:9223`** (env var
   `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9223` is set).
@@ -136,9 +136,9 @@ It writes localStorage (preserving each store's persist wrapper):
 
 Then **restart** so the stores rehydrate (a localStorage write while the app is
 running is NOT picked up until restart; and **never `location.reload()`** the dev
-bench — it kills Vite. Always restart the `KeepanceDev` task instead):
+bench — it kills Vite. Always restart the `Advisor Prep HeroDev` task instead):
 ```bash
-ssh james@100.127.67.22 "Stop-Process -Name node,cargo,keepance,Keepance,msedgewebview2 -Force -EA SilentlyContinue; Start-Sleep 7; Start-ScheduledTask KeepanceDev"
+ssh james@100.127.67.22 "Stop-Process -Name node,cargo,keepance,Advisor Prep Hero,msedgewebview2 -Force -EA SilentlyContinue; Start-Sleep 7; Start-ScheduledTask Advisor Prep HeroDev"
 ```
 
 > ### 🔑 4.1 THE #1 LANDMINE: `folderPaths` format
@@ -216,7 +216,7 @@ Mitigations (both applied here):
   re-optimize. (Dev-only; ignored by production builds. Legit robustness fix.)
 - **Index PDFs immediately after a clean restart**, before anything else can
   trigger a reload: kill procs → `Remove-Item node_modules\.vite` → start
-  `KeepanceDev` → wait for 5173+9223 → open workspace → run `legion-indexpdfs.mjs`.
+  `Advisor Prep HeroDev` → wait for 5173+9223 → open workspace → run `legion-indexpdfs.mjs`.
   If Vite is dead (`5173` not listening), PDF indexing CANNOT work — restart first.
 
 **The clean fix is to demo on a production build** (no Vite, deps bundled).

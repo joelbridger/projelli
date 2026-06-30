@@ -2,7 +2,7 @@
  * useOpenEmailListener (WS-B/C) — open the read-only email viewer when an email
  * citation is clicked in chat.
  *
- * `AIChatViewer` dispatches a `keepance:open-email` window CustomEvent (with
+ * `AIChatViewer` dispatches a `lantern:open-email` window CustomEvent (with
  * `{ detail: { sourceId } }`) for any citation whose source is a `mail:<id>`
  * (email sources resolve to a message id, not a file on disk, so they can't go
  * through the editor's file-open pipeline). This hook listens for that event and

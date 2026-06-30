@@ -1,7 +1,7 @@
 # Lawyerist Guest Post Pitch
 
 > **About Lawyerist:** lawyerist.com. Run by Sam Glover. Covers solo and small-firm practice management,
-> technology, and business. Serious editorial standards. Audience is exactly Keepance's ICP.
+> technology, and business. Serious editorial standards. Audience is exactly Advisor Prep Hero's ICP.
 > Guest posts are accepted but competitive. Lead with the idea, not the product.
 >
 > **Submission contact:** Use the contact form at lawyerist.com/write-for-lawyerist/ or email
@@ -29,7 +29,7 @@ ABA Formal Opinion 512 gave practitioners the first formal guidance on AI use in
 
 The piece would walk through what happens technically when an attorney pastes a document into a cloud AI tool, what major providers' Terms of Service actually say (not what the sales pitch says), and what practitioners need to evaluate before they can honestly say they've done a competent confidentiality review under Opinion 512.
 
-The second half would cover local-first AI tools: how they work technically, why they sidestep the confidentiality analysis entirely, and what the tradeoffs are. I'm the developer of Keepance, which is one of those tools, and I'll be transparent about that. But the article would be genuinely informational, not a product pitch. Practitioners should walk away knowing what questions to ask about any AI tool, not just mine.
+The second half would cover local-first AI tools: how they work technically, why they sidestep the confidentiality analysis entirely, and what the tradeoffs are. I'm the developer of Advisor Prep Hero, which is one of those tools, and I'll be transparent about that. But the article would be genuinely informational, not a product pitch. Practitioners should walk away knowing what questions to ask about any AI tool, not just mine.
 
 **Why me:**
 

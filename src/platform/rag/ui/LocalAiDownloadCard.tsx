@@ -1,5 +1,5 @@
 /**
- * LocalAiDownloadCard — slim non-modal progress banner for the OPT-IN Keepance
+ * LocalAiDownloadCard — slim non-modal progress banner for the OPT-IN Advisor Prep Hero
  * Local AI model download. Mirrors ModelDownloadCard (the e5 search model), but
  * progress-only: it renders NOTHING when the model is absent/idle/ready, so the
  * big optional download never nags. The opt-in trigger lives in Settings /

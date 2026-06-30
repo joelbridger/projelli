@@ -1,5 +1,5 @@
 /**
- * Keepance — Local-first AI workspace for confidential client work.
+ * Advisor Prep Hero — Local-first AI workspace for confidential client work.
  *
  * Core Thesis: This is NOT a chat UI. It is an artifact-driven workspace
  * where AI proposes and the user approves all destructive actions.
@@ -150,7 +150,7 @@ function App() {
   // email connect entry points). Cleared when the window closes.
   const [accountWindowInitialTab, setAccountWindowInitialTab] = useState<string | undefined>(undefined);
   // Shared contract — "Ask from the matter hub prefills Search".
-  // MatterHub dispatches a keepance:matter-launch event with surface='search'
+  // MatterHub dispatches a lantern:matter-launch event with surface='search'
   // and a question string; App sets this state; Ask consumes it.
   const [askPrefill, setAskPrefill] = useState<{ question: string; autoSubmit?: boolean } | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
@@ -211,7 +211,7 @@ function App() {
   const workspaceServiceRef = useRef<WorkspaceService | null>(null);
   const fileSystemWatcherRef = useRef<FileSystemWatcher | null>(null);
 
-  // Keepance 3.0 — the audit "defense file" persistence layer. On the desktop
+  // Advisor Prep Hero 3.0 — the audit "defense file" persistence layer. On the desktop
   // this writes every AI-action audit entry to a SQLCipher-ENCRYPTED store at
   // rest; in the browser it falls back to (unencrypted) localStorage. Created
   // once and pointed at the active workspace in `handleWorkspaceSelected`. The
@@ -785,7 +785,7 @@ function App() {
   }, [openTab]);
 
   // WS-B/C — open the read-only email viewer when an email citation is clicked
-  // in chat. AIChatViewer dispatches `keepance:open-email` for `mail:<id>`
+  // in chat. AIChatViewer dispatches `lantern:open-email` for `mail:<id>`
   // sources; this hook turns that into an `email` tab. (Extracted to
   // useOpenEmailListener so the wiring is unit-tested.)
   //
@@ -811,7 +811,7 @@ function App() {
     ),
   );
 
-  // Shell-wide `keepance:*` CustomEvent wiring (matter manager, settings,
+  // Shell-wide `lantern:*` CustomEvent wiring (matter manager, settings,
   // account, matter launch). See src/app/lifecycle/useGlobalEventBus.ts.
   useGlobalEventBus({
     onOpenMatterManager: () => setMatterManagerOpen(true),
@@ -1189,7 +1189,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
   });
 
   // Show workspace selector if no workspace is open (unless in test mode).
-  // Keepance 3.0: the rebuilt first-run wizard is the live first-run surface.
+  // Advisor Prep Hero 3.0: the rebuilt first-run wizard is the live first-run surface.
   // It renders as a full-screen overlay (fixed inset-0 z-50) layered OVER
   // whatever is behind it — most often the WorkspaceSelector, since first run
   // happens before a workspace is chosen — so the existing path-input vs
@@ -1539,14 +1539,14 @@ This file contains rules and guidelines for AI assistants in this workspace.
         setShowWhatsNewModalDirect={setShowWhatsNewModalDirect}
       />
 
-      {/* Wealthbox CRM citation viewer — listens for keepance:open-crm events
+      {/* Wealthbox CRM citation viewer — listens for lantern:open-crm events
           dispatched when a `crm:` source link is clicked in a Client Map. */}
       <CrmSourcePanel />
       <OneDriveSourcePanel />
       <DocusignSourcePanel />
       <MeetingSourcePanel />
       {/* Bonus connector citation viewers — each listens for its
-          keepance:open-<connector> event dispatched from a Client Map source link. */}
+          lantern:open-<connector> event dispatched from a Client Map source link. */}
       <BoxSourcePanel />
       <SharefileSourcePanel />
       <JotformSourcePanel />

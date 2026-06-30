@@ -1173,7 +1173,7 @@ In `src/locales/en.json`, add a sibling section near the rag/memory strings (fin
 ```json
 "model-download": {
   "title": "Setting up private search",
-  "body": "Keepance is downloading its private search engine (about 465 MB), one time, from Hugging Face. You can keep working. Search and AI answers from your files switch on when it finishes.",
+  "body": "Advisor Prep Hero is downloading its private search engine (about 465 MB), one time, from Hugging Face. You can keep working. Search and AI answers from your files switch on when it finishes.",
   "verifying": "Checking the downloaded files",
   "progress": "{{done}} MB of {{total}} MB",
   "progress-unknown": "{{done}} MB so far",
@@ -1401,7 +1401,7 @@ cd ~/keepance && npx vitest run tests/unit/model-download-card.test.tsx 2>&1 | t
 
 - [x] **Step 5c: Stalled-state banner (amendments from the Task 2 + Task 4 quality reviews)**
 
-When `snap.stalled` is true (and state is checking/downloading/verifying), the card shows a distinct line instead of the normal body text: locale key `model-download.stalled` = "The download looks stuck. Restarting Keepance resumes it where it stopped." (hand-translate es/de + lock, same as the other keys). Keep the progress bar visible. **Do NOT render a Resume/retry button in the stalled state** — on a true TCP hang, `model_ensure` returns "downloading" via the single-flight guard without emitting events, so Resume would just reset the stall window and re-flag; restarting the app is the only honest remedy (the Rust flag resets and hf-hub Range-resumes the partial file). The Resume button belongs to the `error` state only. Add render tests: stalled snapshot shows the stalled text AND no resume button.
+When `snap.stalled` is true (and state is checking/downloading/verifying), the card shows a distinct line instead of the normal body text: locale key `model-download.stalled` = "The download looks stuck. Restarting Advisor Prep Hero resumes it where it stopped." (hand-translate es/de + lock, same as the other keys). Keep the progress bar visible. **Do NOT render a Resume/retry button in the stalled state** — on a true TCP hang, `model_ensure` returns "downloading" via the single-flight guard without emitting events, so Resume would just reset the stall window and re-flag; restarting the app is the only honest remedy (the Rust flag resets and hf-hub Range-resumes the partial file). The Resume button belongs to the `error` state only. Add render tests: stalled snapshot shows the stalled text AND no resume button.
 
 - [x] **Step 5d: Two cheap hook tests (from the Task 4 quality review; add to `tests/unit/model-status-hook.test.tsx`)**
 1. Error-then-retry: fire an `error` event carrying a message, call `retry()`, assert `state === 'checking'`, `message === null`, `stalled === false` (the error card's Resume depends on that clearing).
@@ -1652,7 +1652,7 @@ Under `## [Unreleased]` in `CHANGELOG.md`:
 
 ```markdown
 ### Added
-- **The one-time search engine download is now visible, resumable, and honest.** On first run Keepance shows a "Setting up private search" banner with live progress while it downloads its embedding model (about 465 MB, one time, from Hugging Face) instead of silently stalling the first search or index. A dropped connection shows a clear message with a Resume button that continues where it stopped (HTTP range resume). Until the model is present, workspace indexing defers itself and the AI says plainly that search isn't ready yet rather than failing cryptically; both start automatically the moment the download completes. Files: `src-tauri/src/commands/rag/model_download.rs`, `src-tauri/src/commands/rag/embedder.rs`, `src/hooks/useModelStatus.ts`, `src/components/memory/ModelDownloadCard.tsx`, `src/hooks/useMemoryWiring.ts`, `src/components/ai/AIChatViewer.tsx`.
+- **The one-time search engine download is now visible, resumable, and honest.** On first run Advisor Prep Hero shows a "Setting up private search" banner with live progress while it downloads its embedding model (about 465 MB, one time, from Hugging Face) instead of silently stalling the first search or index. A dropped connection shows a clear message with a Resume button that continues where it stopped (HTTP range resume). Until the model is present, workspace indexing defers itself and the AI says plainly that search isn't ready yet rather than failing cryptically; both start automatically the moment the download completes. Files: `src-tauri/src/commands/rag/model_download.rs`, `src-tauri/src/commands/rag/embedder.rs`, `src/hooks/useModelStatus.ts`, `src/components/memory/ModelDownloadCard.tsx`, `src/hooks/useMemoryWiring.ts`, `src/components/ai/AIChatViewer.tsx`.
 ```
 
 - [x] **Step 4: Commit + push**

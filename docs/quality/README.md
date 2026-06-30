@@ -1,6 +1,6 @@
-# Keepance — Testing Index (start here)
+# Advisor Prep Hero — Testing Index (start here)
 
-This is the map of **everything testing-related** in Keepance: how we prove the app works, where each piece lives, how to run it, and where we are right now. If you're picking up testing work, read this first.
+This is the map of **everything testing-related** in Advisor Prep Hero: how we prove the app works, where each piece lives, how to run it, and where we are right now. If you're picking up testing work, read this first.
 
 ## The one-paragraph picture
 We test in **layers**, cheapest first. Thousands of small automated tests run on every change (free, on the server). A headless copy of the real desktop app runs the trickier flows nightly. And — newest — **we now drive the actual desktop app on a real Windows laptop** to catch the things only real Windows can show (the Microsoft web engine, the OS keychain, real sign-ins, native file dialogs, the on-disk encrypted index, real mail). The first three layers are automated and green; the Windows-driving layer is where the active hands-on testing is happening now.

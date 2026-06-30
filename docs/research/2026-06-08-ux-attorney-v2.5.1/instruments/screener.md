@@ -1,4 +1,4 @@
-# Recruiting Screener: Keepance Attorney Study (Pass B)
+# Recruiting Screener: Advisor Prep Hero Attorney Study (Pass B)
 
 **Purpose:** Recruit 5-7 qualified attorneys for the live v2.5.1 study. Use as-is when the build ships. Target a mix; do not fill all slots with one practice area or firm size.
 **Incentive:** $200 honorarium per 60-minute session (two sessions = $400), or pro-rated. Attorneys value their time in real dollars; under-paying biases the sample toward the under-employed.

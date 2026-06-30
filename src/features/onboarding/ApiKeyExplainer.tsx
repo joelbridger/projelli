@@ -8,8 +8,8 @@
  *   - Shows by default in onboarding (where users need it most).
  *   - Collapsible in Settings (where returning users may not need it every time).
  *   - No em dashes, no jargon, honest framing: prompts go to the provider,
- *     not through Keepance's servers. We do NOT claim "never leaves your machine"
- *     (the AI call does leave), only that Keepance never sees your work.
+ *     not through Advisor Prep Hero's servers. We do NOT claim "never leaves your machine"
+ *     (the AI call does leave), only that Advisor Prep Hero never sees your work.
  */
 
 import { useState } from 'react';
@@ -67,12 +67,12 @@ export function ApiKeyExplainer({
           <p>
             An API key is like a password that lets your computer talk directly
             to an AI company (Anthropic, OpenAI, or Google). You create it on
-            their site, paste it here once, and Keepance stores it in your
+            their site, paste it here once, and Advisor Prep Hero stores it in your
             operating system's secure keychain.
           </p>
           <p>
-            That direct connection is what makes Keepance private: your prompts
-            go straight from your machine to the provider you chose. Keepance's
+            That direct connection is what makes Advisor Prep Hero private: your prompts
+            go straight from your machine to the provider you chose. Advisor Prep Hero's
             servers never see your work, your files, or your conversations.
           </p>
           <p>

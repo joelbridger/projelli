@@ -124,7 +124,7 @@ export function RedtailConnect() {
 
       const count = households.length;
       const confirmed = await confirm(
-        `Import ${String(count)} Redtail famil${count === 1 ? 'y' : 'ies'} into local encrypted storage on this device? Keepance imports only the contacts, notes, and activities this login can read.`,
+        `Import ${String(count)} Redtail famil${count === 1 ? 'y' : 'ies'} into local encrypted storage on this device? Advisor Prep Hero imports only the contacts, notes, and activities this login can read.`,
         {
           title: `Import ${String(count)} Redtail famil${count === 1 ? 'y' : 'ies'}`,
           confirmLabel: 'Import',
@@ -227,7 +227,7 @@ export function RedtailConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900">Redtail CRM</h3>
         <p className="mt-1 text-sm text-slate-600">
-          Connect Redtail CRM to bring families, contacts, notes, and activities into Client Maps. Requires the Keepance desktop app.
+          Connect Redtail CRM to bring families, contacts, notes, and activities into Client Maps. Requires the Advisor Prep Hero desktop app.
         </p>
         <p className="mt-3 text-xs text-slate-400 italic">Available in the desktop app only.</p>
       </section>
@@ -239,7 +239,7 @@ export function RedtailConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900">Redtail CRM</h3>
         <p className="mt-1 text-sm text-slate-600">
-          Read-only import for Redtail families, contacts, notes, and activities. Your password is used once to get a Redtail UserKey; Keepance stores the UserKey, not the password.
+          Read-only import for Redtail families, contacts, notes, and activities. Your password is used once to get a Redtail UserKey; Advisor Prep Hero stores the UserKey, not the password.
         </p>
 
         {!connected && (
@@ -265,7 +265,7 @@ export function RedtailConnect() {
               />
             </div>
             <p className="text-xs text-slate-500">
-              The vendor API key comes from Keepance configuration. If it is missing, Redtail will not connect yet.
+              The vendor API key comes from Advisor Prep Hero configuration. If it is missing, Redtail will not connect yet.
             </p>
             <button
               type="button"

@@ -1,7 +1,7 @@
 /**
  * PricingTiers - the in-app pricing display.
  *
- * Renders the three Keepance 3.0 tiers (Solo / Professional / Firm) straight
+ * Renders the three Advisor Prep Hero 3.0 tiers (Solo / Professional / Firm) straight
  * from the canonical config in `src/config/pricing.ts`, so the in-app prices
  * can never drift from the website or the docs. Shows per-tier features, the
  * BYOK transparency line, and the hard data-ownership guarantee.

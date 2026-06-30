@@ -2,7 +2,7 @@
  * Stream D-web Group IV · Task 4.3
  *
  * Full-screen modal shown when the demo session reaches its limit (5 messages,
- * 10 minutes elapsed, or a `keepance:demo-limit-hit` event from the proxy).
+ * 10 minutes elapsed, or a `lantern:demo-limit-hit` event from the proxy).
  *
  * The modal frames the moment as success, not failure: the user has explored
  * the product. Three OS-specific download buttons make conversion obvious.
@@ -81,7 +81,7 @@ export function DemoExitModal({
           {/* eslint-disable keepance-i18n/no-hardcoded-string */}
           <DialogTitle>What's one caught mistake worth?</DialogTitle>
           <DialogDescription>
-            You just watched Keepance catch a beneficiary designation still
+            You just watched Advisor Prep Hero catch a beneficiary designation still
             pointing at an ex-spouse — the kind of miss that surfaces years
             later, in front of a client or a regulator. Catching one of those
             pays for the tool many times over. On your own client files, the

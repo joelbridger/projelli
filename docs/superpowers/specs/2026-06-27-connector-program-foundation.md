@@ -9,7 +9,7 @@
 
 ## 0. Plain-language summary
 
-Keepance already has two working "connectors" — bridges that pull a client's data out of an outside tool and into Keepance so it becomes searchable and shows up in the Client Map: one for **email** and one for the **Wealthbox** CRM. We're adding **five more** (OneDrive documents, DocuSign signed agreements, Redtail CRM, Calendly meetings, Salesforce). To build five at once without them stepping on each other, we first lay down a small shared "foundation" — the common wiring all five need — **once**, so each connector after that only adds its own self-contained piece and never edits the shared wiring. That's this branch.
+Advisor Prep Hero already has two working "connectors" — bridges that pull a client's data out of an outside tool and into Advisor Prep Hero so it becomes searchable and shows up in the Client Map: one for **email** and one for the **Wealthbox** CRM. We're adding **five more** (OneDrive documents, DocuSign signed agreements, Redtail CRM, Calendly meetings, Salesforce). To build five at once without them stepping on each other, we first lay down a small shared "foundation" — the common wiring all five need — **once**, so each connector after that only adds its own self-contained piece and never edits the shared wiring. That's this branch.
 
 ---
 
@@ -18,7 +18,7 @@ Keepance already has two working "connectors" — bridges that pull a client's d
 - **The "external text → searchable encrypted chunks" bridge.** `index_crm_text_internal` (`crm/mod.rs`) → `build_batch_crm` (`rag/store.rs`) → LanceDB. Deletes stale chunks for a `source_id` before re-inserting; encrypts text at rest; tags every chunk with `matter_id`. Connector-agnostic.
 - **The durable encrypted local store** (`CrmStore`, SQLCipher `crm-enc.db`) — generic over object "kind"; holds raw records + content-hash + cursors + tombstones. Makes delta-sync + deletions correct.
 - **The Client Map fills itself in.** It is NOT a datastore an adapter writes to — it's an AI-generated, source-cited profile derived from RAG retrieval scoped to one `matter_id` (`platform/clientMap/generator.ts`, 5 sections, TOP_K=8). A connector only writes matter-tagged chunks; the map lights up automatically. **No connector touches Client Map code.**
-- **The Microsoft Graph login is reusable for OneDrive (verified).** Keepance's own multi-tenant public-client Azure app (`KEEPANCE_MS_CLIENT_ID` default `845ddba0-70ab-4f90-88ba-e3522157e37a`), full OAuth + refresh-token-in-keychain in `mail/oauth.rs` + `mail/mod.rs`, and a generic `GraphClient` (`mail/graph.rs`) that already does bearer auth + 429/Retry-After backoff against `https://graph.microsoft.com`. OneDrive = add a scope + new Graph paths, NOT a new OAuth flow.
+- **The Microsoft Graph login is reusable for OneDrive (verified).** Advisor Prep Hero's own multi-tenant public-client Azure app (`KEEPANCE_MS_CLIENT_ID` default `845ddba0-70ab-4f90-88ba-e3522157e37a`), full OAuth + refresh-token-in-keychain in `mail/oauth.rs` + `mail/mod.rs`, and a generic `GraphClient` (`mail/graph.rs`) that already does bearer auth + 429/Retry-After backoff against `https://graph.microsoft.com`. OneDrive = add a scope + new Graph paths, NOT a new OAuth flow.
 
 ### The honest gap
 The CRM connector's *plumbing* is reusable, but its *outer layer* is hardcoded to Wealthbox: the command layer instantiates `WealthboxClient` directly, the keychain slot is the literal string `keepance-wealthbox`, the models are `Wb*`, and there is **no provider-selection layer and no connector registry**. So Redtail/Salesforce can't "drop in" yet — that's what the CRM provider-ization (§3) fixes.
@@ -106,12 +106,12 @@ Pre-staging (Parts A/B) removes every painful semantic conflict. Remaining share
 - **Never rename `matter_id` / `Matter`.** `matter_id` + `privilege` are NON-NULL plaintext (LanceDB isolation prefilter). Pass a real id or the `"unassigned"` sentinel into `index_external_text_internal`.
 - **Never invent a Client/Household/Account entity** — everything maps onto the existing `Matter`.
 - Chunk text must be encrypted via `build_batch_*` (never write plaintext chunks). Cap bulk indexing concurrency. Respect Local-only mode (egress guard covers connector-derived content — client PII is Reg S-P data).
-- Real connectors today = files / email / Wealthbox. **Keepance is NOT SOC 2 certified** — no connector copy may imply a security certification we don't hold. Keep the "coming soon" integration logo grid honest.
+- Real connectors today = files / email / Wealthbox. **Advisor Prep Hero is NOT SOC 2 certified** — no connector copy may imply a security certification we don't hold. Keep the "coming soon" integration logo grid honest.
 
 ---
 
 ## 7. Open items flagged to coordinator
 - **CRM provider-ization (Part B)** touches the demo's Wealthbox path — recommend doing it behind the test net; coordinator may prefer the clone alternative.
-- **Redtail vendor key** — apply at `corporate.redtailtechnology.com/api` (Redtail/Orion partner program). Likely needs Keepance company/product info + a business contact (probably Jameson) + read-only use statement. Lead will draft the application text; live-test when granted.
-- **OneDrive Azure change** — add `Files.Read.All` (+ `Sites.Read.All` for SharePoint) delegated permission to the existing Keepance Azure app `845ddba0…` (one-time admin/Jameson click).
+- **Redtail vendor key** — apply at `corporate.redtailtechnology.com/api` (Redtail/Orion partner program). Likely needs Advisor Prep Hero company/product info + a business contact (probably Jameson) + read-only use statement. Lead will draft the application text; live-test when granted.
+- **OneDrive Azure change** — add `Files.Read.All` (+ `Sites.Read.All` for SharePoint) delegated permission to the existing Advisor Prep Hero Azure app `845ddba0…` (one-time admin/Jameson click).
 - **Salesforce FSC scope** — confirm exact v1 object subset once in the dev org.

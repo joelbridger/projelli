@@ -773,14 +773,14 @@ export function AssociateHome({
                   <span>
                     {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                     <strong>Local AI unreachable.</strong>
-                    {' Keepance Local AI is not responding. Make sure it has finished setting up, then try again.'}
+                    {' Advisor Prep Hero Local AI is not responding. Make sure it has finished setting up, then try again.'}
                     {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                   </span>
                 ) : (
                   <span>
                     {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                     <strong>No AI provider configured.</strong>
-                    {' Add an API key or set up Keepance Local AI to run workflows.'}
+                    {' Add an API key or set up Advisor Prep Hero Local AI to run workflows.'}
                     {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                   </span>
                 )}

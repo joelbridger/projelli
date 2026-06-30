@@ -1,4 +1,4 @@
-# Phase 5 Sweep Findings — Keepance 3.0
+# Phase 5 Sweep Findings — Advisor Prep Hero 3.0
 
 **Started:** 2026-06-10 (attempt 3, resumed after server restarts)
 **Branch:** keepance-3.0

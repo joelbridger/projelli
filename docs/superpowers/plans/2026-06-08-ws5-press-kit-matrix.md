@@ -9,7 +9,7 @@
 
 ## Goal
 
-A single honest "Keepance vs the field" matrix showing how Keepance compares across the four professional verticals and nine named incumbents. Two deliverables:
+A single honest "Advisor Prep Hero vs the field" matrix showing how Advisor Prep Hero compares across the four professional verticals and nine named incumbents. Two deliverables:
 
 1. `website/press-kit/comparison-matrix.html` — public press-kit page, deploy-gated
 2. `docs/marketing/campaigns/2026-06-reviewer-program/comparison-matrix.md` — condensed reviewer-kit copy
@@ -34,9 +34,9 @@ A single honest "Keepance vs the field" matrix showing how Keepance compares acr
 
 ## Matrix structure
 
-One master table. Rows = dimensions/features. Columns = Keepance + 9 incumbents.
+One master table. Rows = dimensions/features. Columns = Advisor Prep Hero + 9 incumbents.
 
-**Keepance's wedge columns to show:**
+**Advisor Prep Hero's wedge columns to show:**
 - Local/zero-egress option (with Ollama)
 - Own your files (Markdown on disk, portable)
 - Profession templates (legal, tax, consulting, advisor)
@@ -55,7 +55,7 @@ One master table. Rows = dimensions/features. Columns = Keepance + 9 incumbents.
 ## Guardrails
 
 - No em dashes. No AI-tell vocabulary.
-- Keepance price = $49 one-time / $149/yr / $499/yr (never "$499 one-time").
+- Advisor Prep Hero price = $49 one-time / $149/yr / $499/yr (never "$499 one-time").
 - Competitor pricing = approximate bands + "approximate, as of 2026; verify with vendor" note + outbound link.
 - "Nothing leaves your machine" claims scoped to local model only, in the same sentence.
 - Every incumbent gets a "where they win" indicator.

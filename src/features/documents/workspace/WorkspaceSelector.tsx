@@ -12,7 +12,7 @@ import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactor
 import { vaultStatus } from '@/platform/firm/vault/vaultClient';
 import { DEFAULT_WORKSPACE_FOLDERS } from '@/platform/fs/types';
 import { openExternal } from '@/platform/utils/openExternal';
-import { KeepanceLogo } from '@/ui/brand/KeepanceLogo';
+import { AppLogo } from '@/ui/brand/AppLogo';
 import { GradientGlow } from '@/ui/brand/GradientGlow';
 import { VaultLockedPrompt } from '@/features/firm/vault/VaultLockedPrompt';
 import { VaultEscapeHatchDialog } from '@/features/firm/vault/VaultEscapeHatchDialog';
@@ -230,8 +230,8 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         if (!WebFSBackend.isSupported()) {
           setError(
             typeof window !== 'undefined' && window.isSecureContext === false
-              ? 'Opening a folder from a browser needs a secure (https) connection. The desktop app does this natively. To use it in a browser, open Keepance over https or on localhost.'
-              : 'This browser does not support opening folders. Please use Chrome, Edge, or Opera, or use the Keepance desktop app.',
+              ? 'Opening a folder from a browser needs a secure (https) connection. The desktop app does this natively. To use it in a browser, open Advisor Prep Hero over https or on localhost.'
+              : 'This browser does not support opening folders. Please use Chrome, Edge, or Opera, or use the Advisor Prep Hero desktop app.',
           );
           setIsLoading(false);
           return;
@@ -295,8 +295,8 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         if (!WebFSBackend.isSupported()) {
           setError(
             typeof window !== 'undefined' && window.isSecureContext === false
-              ? 'Opening a folder from a browser needs a secure (https) connection. The desktop app does this natively. To use it in a browser, open Keepance over https or on localhost.'
-              : 'This browser does not support opening folders. Please use Chrome, Edge, or Opera, or use the Keepance desktop app.',
+              ? 'Opening a folder from a browser needs a secure (https) connection. The desktop app does this natively. To use it in a browser, open Advisor Prep Hero over https or on localhost.'
+              : 'This browser does not support opening folders. Please use Chrome, Edge, or Opera, or use the Advisor Prep Hero desktop app.',
           );
           setIsLoading(false);
           return;
@@ -435,7 +435,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         {/* Logo area with gradient glow */}
         <div className="relative flex flex-col items-center mb-8">
           <GradientGlow className="-translate-x-1/2 -translate-y-1/2 top-1/2 left-1/2" />
-          <KeepanceLogo iconSize={64} wordmarkHeight={28} />
+          <AppLogo iconSize={64} wordmarkHeight={28} />
         </div>
 
         {/* Tagline */}

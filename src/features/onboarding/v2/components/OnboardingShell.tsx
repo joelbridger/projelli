@@ -72,7 +72,7 @@ export function OnboardingShell({
       data-testid="onboarding-v2"
       role="dialog"
       aria-modal="true"
-      aria-label="Set up Keepance"
+      aria-label="Set up Advisor Prep Hero"
     >
       {/* Decorative background */}
       <div className="kp-onbv2-bg" aria-hidden="true">
@@ -83,8 +83,8 @@ export function OnboardingShell({
 
       {/* Corner logo (after intro) */}
       <img
-        src="/onboarding/keepance-logo.svg"
-        alt="Keepance"
+        src="/onboarding/app-logo.svg"
+        alt="Advisor Prep Hero"
         className={`absolute left-10 top-9 z-10 h-7 transition-opacity duration-500 ${
           showLogo ? 'opacity-100' : 'opacity-0'
         }`}

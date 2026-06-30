@@ -10,7 +10,7 @@
 
 What we sell here is the part that is true and shippable today:
 - Local-first: every chat becomes a real file in a folder you choose.
-- BYOK: your key lives in your OS keychain, requests go straight to the provider, nothing routes through a Keepance server.
+- BYOK: your key lives in your OS keychain, requests go straight to the provider, nothing routes through a Advisor Prep Hero server.
 - Works with Ollama for fully-local models, or Claude / GPT / Gemini with your own key.
 - Signed Win / notarized Mac / Linux. Solo $39/mo or $468/yr, 30-day trial, no card, no account.
 

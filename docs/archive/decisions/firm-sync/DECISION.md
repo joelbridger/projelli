@@ -1,4 +1,4 @@
-# Architecture Decision — Keepance 3.0 Firm Platform (WS-F)
+# Architecture Decision — Advisor Prep Hero 3.0 Firm Platform (WS-F)
 
 **Program gate:** P0 spike 3 of 3. Decide and de-risk the firm-platform architecture:
 collaboration/sync, identity/auth, per-org licensing, ethical walls/ACL, and the assured
@@ -118,7 +118,7 @@ risk — and is in the WS-F risk list below.
 ### Decision: **Optional firm identity layered on top of the existing accountless local model. Solos keep zero-account local-first; firm users get an org account used only for licensing, sync access, and ethical-wall membership — never to hold or see client data.**
 
 Today (verified in `src/hooks/useLicense.ts`, `src-tauri/src/commands/keychain.rs`):
-Keepance is per-machine and accountless. License = a JWT in `localStorage`; "identity" =
+Advisor Prep Hero is per-machine and accountless. License = a JWT in `localStorage`; "identity" =
 a random `machine_id` uuid; API keys live in the OS keychain under a single shared service
 `com.keepance.app`. There is no user concept and no org concept.
 
@@ -127,7 +127,7 @@ a random `machine_id` uuid; API keys live in the OS keychain under a single shar
 - **Three identity tiers, additive:**
   1. **Accountless local (unchanged default).** Solo users never make an account. Local-
      first, BYOK, machine_id only. 3.0 must not regress this.
-  2. **Firm member.** Authenticates to the firm's Keepance org to (a) prove a seat for
+  2. **Firm member.** Authenticates to the firm's Advisor Prep Hero org to (a) prove a seat for
      licensing, (b) get access to shared-matter CRDT sync, (c) carry ethical-wall
      membership. This is an *authorization* identity, not a data custodian — the org auth
      server never receives document content or AI prompts.
@@ -156,7 +156,7 @@ a random `machine_id` uuid; API keys live in the OS keychain under a single shar
   the assured backend. The two modes share all local-first machinery; firm mode only *adds*
   sync + authz.
 
-**Non-goal:** Keepance identity is never a data-bearing cloud account. We authenticate
+**Non-goal:** Advisor Prep Hero identity is never a data-bearing cloud account. We authenticate
 *people to entitlements*, not *documents to a server*.
 
 ---
@@ -282,10 +282,10 @@ The combination is what lets us tell a firm "screened means screened" with a str
 ### Decision: **Build an optional, in-house, stateless inference *proxy* that forwards prompts to the AI provider and is architecturally incapable of persisting request/response bodies. Treat "prove the no-logging claim" as the primary design requirement, not an afterthought. BYOK-direct stays the default and the strongest story; the assured proxy is the "one bill + a DPA + we-operate-it" option for firms that want it.**
 
 **Why it exists.** Today's moat is BYOK-direct: prompts go straight from the user's machine
-to Anthropic/OpenAI/Google, Keepance servers never in the path. That's the cleanest
+to Anthropic/OpenAI/Google, Advisor Prep Hero servers never in the path. That's the cleanest
 confidentiality story and it stays the default. But some firms want (a) a single vendor
 relationship + invoice instead of each attorney holding provider keys, and (b) a **DPA with
-Keepance** covering inference. The assured backend serves them *without* giving up the
+Advisor Prep Hero** covering inference. The assured backend serves them *without* giving up the
 confidentiality posture — by being a proxy that provably retains nothing.
 
 **Design (the proxy we operate):**
@@ -334,7 +334,7 @@ confidentiality posture — by being a proxy that provably retains nothing.
 5. **Contract backs the architecture.** A DPA with explicit no-retention + no-training-on-
    firm-data + breach-notification terms. The architecture makes the contract *credible*
    rather than aspirational.
-6. **Customer-verifiable runtime signal.** Per-request `X-Keepance-No-Retention: true` plus
+6. **Customer-verifiable runtime signal.** Per-request `X-Advisor Prep Hero-No-Retention: true` plus
    a documented way for the firm to confirm (e.g., the metadata-only log schema is published
    and the firm can request their own audit log to see it contains no bodies).
 

@@ -1,4 +1,4 @@
-# Keepance Repo Map — where the current code lives (CURRENT)
+# Advisor Prep Hero Repo Map — where the current code lives (CURRENT)
 
 > **Last updated: 2026-06-29** by the repo-hygiene cleanup.
 > **If you only read one line:** the live, current code is the **`keepance-3.0`** branch. To read/search current code, use **`/home/jameson/keepance`** (now pinned to the `keepance-3.0` tip). To do new work, make a fresh worktree off `keepance-3.0` (command below). **Never trust a random `kp-*` side folder to be current** — check what branch it's on first.

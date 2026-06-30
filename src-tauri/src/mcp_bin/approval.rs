@@ -10,7 +10,7 @@
 // Design
 // ------
 // 1. The server writes a request JSON to
-//      <temp>/keepance-mcp/approval-requests/<token>.json
+//      <temp>/lantern-mcp/approval-requests/<token>.json
 //    where <token> is a random UUID and the JSON carries the intended
 //    write (path + preview of content + old content when available).
 //
@@ -19,9 +19,9 @@
 //    (JSON so the parent can parse without regex; one line per request so
 //    line-buffering works cleanly.)
 //
-// 3. The Keepance desktop app tails stderr, shows the modal, and when the
+// 3. The Advisor Prep Hero desktop app tails stderr, shows the modal, and when the
 //    user picks a choice it writes the decision to
-//      <temp>/keepance-mcp/approval-responses/<token>.json
+//      <temp>/lantern-mcp/approval-responses/<token>.json
 //    as `{ "approved": true, "reason": "user approved" }` or
 //       `{ "approved": false, "reason": "user denied" }`.
 //
@@ -48,7 +48,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// Temp directory prefix used for both request and response files.
-const APPROVAL_PREFIX: &str = keepance_lib::identity::MCP_APPROVAL_TEMP_PREFIX;
+const APPROVAL_PREFIX: &str = lantern_lib::identity::MCP_APPROVAL_TEMP_PREFIX;
 
 /// Max time to wait for a user decision before returning `false`. Long
 /// enough for the user to walk away from the keyboard, short enough that
@@ -62,7 +62,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// Marker emitted on stderr immediately before the approval request is
 /// written. Parent processes grep for this to distinguish approval lines
 /// from regular log output.
-pub const APPROVAL_MARKER: &str = keepance_lib::identity::MCP_APPROVAL_MARKER;
+pub const APPROVAL_MARKER: &str = lantern_lib::identity::MCP_APPROVAL_MARKER;
 
 /// The payload mirrored into `<approval_dir>/requests/<token>.json`.
 ///
@@ -287,7 +287,7 @@ mod tests {
     fn wait_returns_true_when_response_file_says_approved() {
         let base = std::env::temp_dir().join(format!(
             "{}-test-{}",
-            keepance_lib::identity::MCP_APPROVAL_TEMP_PREFIX,
+            lantern_lib::identity::MCP_APPROVAL_TEMP_PREFIX,
             std::process::id()
         ));
         std::fs::create_dir_all(base.join("responses")).unwrap();
@@ -308,7 +308,7 @@ mod tests {
     fn wait_returns_false_when_response_file_says_denied() {
         let base = std::env::temp_dir().join(format!(
             "{}-test-deny-{}",
-            keepance_lib::identity::MCP_APPROVAL_TEMP_PREFIX,
+            lantern_lib::identity::MCP_APPROVAL_TEMP_PREFIX,
             std::process::id()
         ));
         std::fs::create_dir_all(base.join("responses")).unwrap();

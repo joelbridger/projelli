@@ -152,7 +152,7 @@ interface DocxEditorProps {
   /**
    * Author name stamped on USER-authored tracked changes (the secondary
    * track-changes-on path). Defaults to "You". AI edits are always attributed
-   * to "Keepance AI" regardless of this.
+   * to "Advisor Prep Hero AI" regardless of this.
    */
   authorName?: string;
   /** Optional audit hook — fired when an AI redline is applied. */

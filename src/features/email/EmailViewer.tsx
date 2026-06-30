@@ -1,5 +1,5 @@
 /**
- * EmailViewer (Keepance 3.0) — read-only viewer for ONE stored email.
+ * EmailViewer (Advisor Prep Hero 3.0) — read-only viewer for ONE stored email.
  *
  * Given a message id (or a `mail:<id>` citation source id), it calls the
  * `mail_get_message` Tauri command, which reads the encrypted blob, decrypts it,
@@ -19,7 +19,7 @@
  * TEXT content (never `dangerouslySetInnerHTML`), which React escapes.
  * `stripResidualTags` is a defensive second layer.
  *
- * Light theme, navy accent, lean — matches the rest of Keepance.
+ * Light theme, navy accent, lean — matches the rest of Advisor Prep Hero.
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -112,7 +112,7 @@ export async function buildProviderAsync(): Promise<Provider> {
   // BUG-021 (privacy): "Draft with AI" sends the email body to the provider, so
   // it must honour Local-only mode — force the local model instead of picking a
   // cloud key, so an email never leaves the machine when the indicator says so.
-  // F-503 — the local engine is the embedded Keepance Local AI when ready, else
+  // F-503 — the local engine is the embedded Advisor Prep Hero Local AI when ready, else
   // Ollama (the same on-device resolution Ask / Chat / Client Map use).
   if (isLocalOnlyMode()) {
     return (await resolveLocalGenerationProvider()).provider;

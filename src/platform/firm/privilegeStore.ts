@@ -4,7 +4,7 @@
  * Holds the per-source privilege map (source id → privilege) and the single
  * `includePrivileged` toggle that governs whether the NEXT chat query is allowed
  * to retrieve privileged content. Persisted to localStorage under
- * `keepance:privilege`.
+ * `lantern:privilege`.
  *
  * Two things this drives:
  *   1. Indexing / re-tagging — when a source is marked privileged, every chunk

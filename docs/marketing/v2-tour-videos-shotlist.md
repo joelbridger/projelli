@@ -34,7 +34,7 @@ These are the 5 remaining v2.0 tour videos that need a real Mac screen recording
 **Setup checklist before clicking record:**
 - [ ] Real Anthropic key already pasted in Settings, API Keys
 - [ ] Pick an image with obvious content. Suggestion: a screenshot of a dashboard mockup or a real product label. PNG, around 800 by 600. Save to `~/Desktop/demo-image.png`.
-- [ ] Open Keepance with a clean workspace (or `test-workspace`) and AI Assistant pane visible on the left
+- [ ] Open Advisor Prep Hero with a clean workspace (or `test-workspace`) and AI Assistant pane visible on the left
 - [ ] Start a new Claude chat (Sonnet 4.6 model). Empty messages.
 - [ ] Welcome onboarding dialogs dismissed
 

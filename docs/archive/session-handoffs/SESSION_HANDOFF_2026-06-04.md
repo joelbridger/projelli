@@ -28,7 +28,7 @@ The V2 overhaul is **substantially complete.** All 11 workstreams (A–K) have b
 - **Consulting page:** 6 templates named, deliverable honesty (Markdown → export, not auto-decks), multi-client folder note.
 - **Financial Advisors page:** honest "In Development" messaging, planned templates listed as forthcoming with Reg S-P caveat-first.
 - **Blog:** 5 new posts indexed (flat-rate, anthropic-open-source, obsidian-vs-keepance, byok-math, windsurf-cursor), 4 placeholder excerpts replaced with real leads, all em dashes removed, lint auto-discovers all blog/*.html.
-- **New pages:** `/fits-your-stack/` (positions Keepance alongside Clio/Drake/eMoney), `/local-model-setup/` (step-by-step Ollama guide for patent attorneys).
+- **New pages:** `/fits-your-stack/` (positions Advisor Prep Hero alongside Clio/Drake/eMoney), `/local-model-setup/` (step-by-step Ollama guide for patent attorneys).
 
 ### App
 - **Export pipeline:** Download button → "Export as" dropdown (Markdown, Word, PDF, PowerPoint). Existing docx/pptx utilities wired; PDF via browser print dialog.
@@ -61,7 +61,7 @@ The V2 overhaul is **substantially complete.** All 11 workstreams (A–K) have b
 ---
 
 ## Quick reference (unchanged)
-- LS store: `#340394` (slug: `projelli`, display: "Keepance")
+- LS store: `#340394` (slug: `projelli`, display: "Advisor Prep Hero")
 - Checkout URLs: Personal `4df43939`, Professional `78ee592e`, Practice `b4c6865f`
 - Founding: `FOUNDING` code → $99/yr (100-redemption cap)
 - Validator: `https://licenses.projelli.com/webhook` (port 5181)

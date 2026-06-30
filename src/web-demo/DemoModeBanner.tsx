@@ -48,7 +48,7 @@ export function DemoModeBanner() {
       }}
     >
       <span>
-        You are using the Keepance demo. Files live in your browser only and
+        You are using the Advisor Prep Hero demo. Files live in your browser only and
         are not synced anywhere.
       </span>
       <BYOKKeyInput />

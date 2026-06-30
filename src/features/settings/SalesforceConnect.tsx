@@ -133,7 +133,7 @@ export function SalesforceConnect() {
 
       const count = households.length;
       const confirmed = await confirm(
-        `Import ${String(count)} Salesforce household${count === 1 ? '' : 's'} into local encrypted storage on this device? Keepance imports only the households and contacts this Salesforce login can read.`,
+        `Import ${String(count)} Salesforce household${count === 1 ? '' : 's'} into local encrypted storage on this device? Advisor Prep Hero imports only the households and contacts this Salesforce login can read.`,
         {
           title: `Import ${String(count)} Salesforce household${count === 1 ? '' : 's'}`,
           confirmLabel: 'Import',
@@ -270,7 +270,7 @@ export function SalesforceConnect() {
         <h3 className="text-sm font-semibold text-slate-900">Salesforce FSC</h3>
         <p className="mt-1 text-sm text-slate-600">
           Connect Salesforce Financial Services Cloud to bring household and
-          contact data into Client Maps. Requires the Keepance desktop app.
+          contact data into Client Maps. Requires the Advisor Prep Hero desktop app.
         </p>
         <p className="mt-3 text-xs text-slate-400 italic">
           Available in the desktop app only.

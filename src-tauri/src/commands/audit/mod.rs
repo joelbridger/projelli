@@ -1,4 +1,4 @@
-// Encrypted audit store — Tauri command surface for Keepance 3.0.
+// Encrypted audit store — Tauri command surface for Advisor Prep Hero 3.0.
 //
 // The renderer's `AuditService` persists to this SQLCipher-encrypted,
 // append-only store on the desktop (and falls back to localStorage, clearly

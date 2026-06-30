@@ -6,8 +6,8 @@
 //! LanceDB delete path without the e5-small embedder (runs on CI too).
 
 use arrow_array::RecordBatchIterator;
-use keepance_lib::commands::rag::chunker::chunk_text;
-use keepance_lib::commands::rag::store::{self, SourceType, PRIVILEGE_NONE, UNASSIGNED_MATTER};
+use lantern_lib::commands::rag::chunker::chunk_text;
+use lantern_lib::commands::rag::store::{self, SourceType, PRIVILEGE_NONE, UNASSIGNED_MATTER};
 
 const VEC_KEY: [u8; 32] = [7u8; 32];
 const DIM: usize = 384; // e5-small embedding dimension (FixedSizeList<Float32, 384>)
@@ -32,7 +32,7 @@ async fn matter_ids(table: &lancedb::Table) -> std::collections::HashSet<String>
 }
 
 fn decrypt_hit_text(hit: &store::StoredHit) -> String {
-    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+    use lantern_lib::commands::mail::crypto::decrypt_with_key;
 
     assert!(hit.encrypted, "test rows should use encrypted WS-VEC text");
     let blob = hex::decode(&hit.text).expect("stored hit text should be hex ciphertext");

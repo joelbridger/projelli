@@ -1034,7 +1034,7 @@ export function SettingsContent({
               <SurfaceHeader
                 Icon={Settings}
                 title="Settings"
-                description="Everything about how Keepance works for you."
+                description="Everything about how Advisor Prep Hero works for you."
                 testId="settings-surface-header"
               />
             </div>

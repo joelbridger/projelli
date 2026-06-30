@@ -28,7 +28,7 @@ pub fn describe_tools() -> Vec<Value> {
     vec![
         json!({
             "name": "list_workspace_files",
-            "description": "List files in Keepance matters the user explicitly granted to this external client. Optionally filter by a glob pattern like '**/*.md'. Returns workspace-relative paths.",
+            "description": "List files in Advisor Prep Hero matters the user explicitly granted to this external client. Optionally filter by a glob pattern like '**/*.md'. Returns workspace-relative paths.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -41,7 +41,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "read_workspace_file",
-            "description": "Read a file from a Keepance matter the user explicitly granted to this external client. Path must be workspace-relative; absolute paths and '..' traversal are rejected.",
+            "description": "Read a file from a Advisor Prep Hero matter the user explicitly granted to this external client. Path must be workspace-relative; absolute paths and '..' traversal are rejected.",
             "inputSchema": {
                 "type": "object",
                 "required": ["path"],
@@ -55,7 +55,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "search_workspace",
-            "description": "Semantic search inside Keepance matters the user explicitly granted to this external client, using the same local embedding model the app uses for @workspace queries. Returns the top-k most relevant paragraphs with their source paths.",
+            "description": "Semantic search inside Advisor Prep Hero matters the user explicitly granted to this external client, using the same local embedding model the app uses for @workspace queries. Returns the top-k most relevant paragraphs with their source paths.",
             "inputSchema": {
                 "type": "object",
                 "required": ["query"],
@@ -75,7 +75,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "write_workspace_file",
-            "description": "Write (or overwrite) a file in a Keepance matter the user explicitly granted to this external client. The user must approve every write in an approval modal; there is no way to skip it.",
+            "description": "Write (or overwrite) a file in a Advisor Prep Hero matter the user explicitly granted to this external client. The user must approve every write in an approval modal; there is no way to skip it.",
             "inputSchema": {
                 "type": "object",
                 "required": ["path", "content"],
@@ -93,7 +93,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "get_memory_facts",
-            "description": "Return durable memory facts only when Keepance can safely expose a matter-scoped memory set. Global memory is denied by default for external clients.",
+            "description": "Return durable memory facts only when Advisor Prep Hero can safely expose a matter-scoped memory set. Global memory is denied by default for external clients.",
             "inputSchema": {
                 "type": "object",
                 "properties": {}
@@ -505,7 +505,7 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
             }),
         )?;
         return Ok(vec![super::text_content(
-            "Workspace hasn't been indexed yet. Open the workspace in Keepance to build the index.",
+            "Workspace hasn't been indexed yet. Open the workspace in Advisor Prep Hero to build the index.",
         )]);
     }
     let table = conn
@@ -542,7 +542,7 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
     // user-initiated decision only.
     // BUG-099 tombstone: the MCP sidecar is a SEPARATE process from the GUI, so
     // it cannot see the GUI's in-memory tombstone set. But the tombstone is also
-    // persisted DURABLY to `.keepance/.unsafe_tokens` as at-rest HMAC TOKENS (the
+    // persisted DURABLY to `.lantern/.unsafe_tokens` as at-rest HMAC TOKENS (the
     // `path` column value, never plaintext), so the sidecar reads them from disk
     // and applies the SAME fail-closed exclusion: a file whose cleanup delete
     // failed has its stale rows hidden from external MCP clients too. No key
@@ -568,7 +568,7 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
             )?;
             return Ok(vec![super::text_content(
                 "Search is unavailable: this workspace's memory integrity is uncertain. \
-                 Open the workspace in Keepance and re-index it, then try again.",
+                 Open the workspace in Advisor Prep Hero and re-index it, then try again.",
             )]);
         }
     };
@@ -906,18 +906,18 @@ use std::io::Write;
 // ---------------------------------------------------------------------------
 
 pub async fn get_memory_facts(ctx: &ServerCtx, _args: Value) -> Result<Vec<Value>, JsonRpcError> {
-    let state = load_access_state(ctx, "mcp_read", Some(keepance_lib::identity::MCP_MEMORY_PATH))?;
+    let state = load_access_state(ctx, "mcp_read", Some(lantern_lib::identity::MCP_MEMORY_PATH))?;
     deny_if_lockdown(
         ctx,
         &state,
         "mcp_read",
-        Some(keepance_lib::identity::MCP_MEMORY_PATH),
+        Some(lantern_lib::identity::MCP_MEMORY_PATH),
         UNASSIGNED_MATTER_ID,
     )?;
     deny_with_audit(
         ctx,
         "mcp_read",
-        Some(keepance_lib::identity::MCP_MEMORY_PATH),
+        Some(lantern_lib::identity::MCP_MEMORY_PATH),
         UNASSIGNED_MATTER_ID,
         "denied",
         "MCP access denied: durable memory is not matter-scoped yet.",
@@ -945,7 +945,7 @@ fn load_access_state(
                 }),
             )?;
             Err(JsonRpcError::internal(
-                "MCP access denied: Keepance has not granted this external client a matter scope."
+                "MCP access denied: Advisor Prep Hero has not granted this external client a matter scope."
                     .to_string(),
             ))
         }
@@ -1075,7 +1075,7 @@ fn recover_hit_real_path(hit: &store::StoredHit, enc_key: Option<&[u8; 32]>) -> 
                 hex::decode(enc)
                     .ok()
                     .and_then(|bytes| {
-                        keepance_lib::commands::mail::crypto::decrypt_with_key(&bytes, k).ok()
+                        lantern_lib::commands::mail::crypto::decrypt_with_key(&bytes, k).ok()
                     })
                     .and_then(|v| String::from_utf8(v).ok())
             })
@@ -1243,7 +1243,7 @@ mod tests {
     #[test]
     fn search_hit_under_keepance_internal_dir_is_dropped_even_when_root_matter_is_granted() {
         let tmp = tempfile::tempdir().expect("tmpdir");
-        let keepance_dir = tmp.path().join(keepance_lib::identity::WORKSPACE_DATA_DIR);
+        let keepance_dir = tmp.path().join(lantern_lib::identity::WORKSPACE_DATA_DIR);
         std::fs::create_dir_all(&keepance_dir).unwrap();
         let scope_path = keepance_dir.join("mcp-session-scope.json");
         std::fs::write(&scope_path, r#"{"client":"Other Client"}"#).unwrap();
@@ -1270,7 +1270,7 @@ mod tests {
 
         assert!(
             verified_file_search_hit(&ctx, &state, hit, None).is_none(),
-            "search must never return Keepance internal files, even when a granted matter is the workspace root"
+            "search must never return Advisor Prep Hero internal files, even when a granted matter is the workspace root"
         );
     }
 

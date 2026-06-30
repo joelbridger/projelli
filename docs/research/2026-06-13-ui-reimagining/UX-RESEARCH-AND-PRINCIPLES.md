@@ -1,4 +1,4 @@
-# Keepance UI Reimagining — UX Research & Principles (Capstone)
+# Advisor Prep Hero UI Reimagining — UX Research & Principles (Capstone)
 
 **Date:** 2026-06-13 · **Phase:** 1 (Deep UX Research) · **Status:** the Gate 1 review artifact — design begins only after sign-off
 **This is the synthesis** of the four research streams. It is the single reference every Phase 2 design and Phase 3 build decision must trace back to.
@@ -14,7 +14,7 @@
 
 ## 1. The through-line (what all four streams agree on)
 
-Keepance must stop being a *general local-AI workspace with law features bolted on* and become a **matter-centric, cited-answer-first, trust-on-screen** application that an attorney experiences as a native extension of Outlook + Word + Clio — so the software disappears.
+Advisor Prep Hero must stop being a *general local-AI workspace with law features bolted on* and become a **matter-centric, cited-answer-first, trust-on-screen** application that an attorney experiences as a native extension of Outlook + Word + Clio — so the software disappears.
 
 Three findings are **independently confirmed by two or more streams** (high confidence):
 
@@ -57,7 +57,7 @@ These are firm (well-grounded across streams). The *IA* in §3 is a hypothesis t
 | **Documents** | Cross-matter document view (conflict-check, cross-matter research). | Reframes "Files" |
 | **Your defense file** | The audit trail, framed as protective. | Renames "AI Audit" |
 | **Settings** (+ Data Map / Trust entry) | Trust surfaces reachable from a permanent labeled entry (Data Map is printable). | — |
-| *(Proof surface)* | A first-class "attorneys using Keepance" home (may start empty) — Stream A's proof-moat insight. | New |
+| *(Proof surface)* | A first-class "attorneys using Advisor Prep Hero" home (may start empty) — Stream A's proof-moat insight. | New |
 | **— removed —** | **Research** (founder SourceCards) and **Whiteboard** are absent from the law experience. | Per the reimagining |
 
 ### Within a matter (header: Matter name · Client · Matter # · Status · Responsible attorney · confidentiality mode)
@@ -67,7 +67,7 @@ These are firm (well-grounded across streams). The *IA* in §3 is a hypothesis t
 - **Email** — imported mail, searchable, per-message privilege tagging.
 - **Associate** (the litigation associate) — named actions in her words ("find where the witness contradicts himself," "spot the issues," "build a timeline") → tabular cited findings → `.docx`. Replaces the generic "Workflows."
 - **Drafts** — managed `.docx` with tracked-changes status; "Open in Word."
-- **Trust Map** — per-document data handling (storage · AI processing · last accessed · access log · privilege). No competitor surfaces this in-session; it is Keepance's UI moat.
+- **Trust Map** — per-document data handling (storage · AI processing · last accessed · access log · privilege). No competitor surfaces this in-session; it is Advisor Prep Hero's UI moat.
 
 **The three IA questions the prototype must answer:** (1) Does leading with Matters + a unified Ask match how she navigates, or does she look for "Search" / "Email" as top-level items? (2) Is the matter sub-nav (Overview/Ask/Documents/Email/Associate/Drafts/Trust Map) the right set and order? (3) Is the elevated Trust Bar legible and reassuring without being noisy?
 
@@ -77,7 +77,7 @@ These are firm (well-grounded across streams). The *IA* in §3 is a hypothesis t
 
 - **The unified Ask + citation.** Plain-English question → prose answer with **numbered superscript citations**; **hover → glance card** (source name + matter + excerpt); **click → side-by-side source panel** with the exact passage highlighted + document metadata + "open full document"; a **"Verified" state after click**. Citations stay visible (not hover-only). Full-text hits and AI answers coexist in one surface.
 - **The litigation associate (Review).** Pick a named action → **sortable/filterable table**, rows = documents, columns = findings, a **Citations column** with the exact source sentence on both sides of a contradiction; a "Verify" button opens both passages side by side; output is a `.docx` in the matter folder; exportable to `.xlsx`. Persistent "propose, don't decide" frame.
-- **Word redline.** AI edits as **standard Word tracked changes, attributed to the attorney's name**, per-change + bulk accept/reject, Reviewing-pane model. Never a separate diff view; never "Keepance AI" as the author of record.
+- **Word redline.** AI edits as **standard Word tracked changes, attributed to the attorney's name**, per-change + bulk accept/reject, Reviewing-pane model. Never a separate diff view; never "Advisor Prep Hero AI" as the author of record.
 - **The Trust Bar (hero).** Three always-visible states with plain-English copy; Direct mode must positively say "Going to [provider], directly from your device" (fixes F-120's silence); `role="status"` + label for assistive tech (fixes C's gap).
 - **First-run.** Profession defaults to legal; "Connect your AI account" (never "API key") with the training-opt-out guidance; the Data Map step (a confirmed strength) kept; "set this up later" everywhere.
 
@@ -127,7 +127,7 @@ These are firm (well-grounded across streams). The *IA* in §3 is a hypothesis t
 ## 8. What the redesign must NOT miss
 
 - **Egress → hero.** Treat the trust indicator as a primary element, not a status detail (the study's most powerful moment).
-- **A proof surface.** A first-class "attorneys using Keepance" home, even empty — adoption is 80-90% peer-proof; this moat hasn't started.
+- **A proof surface.** A first-class "attorneys using Advisor Prep Hero" home, even empty — adoption is 80-90% peer-proof; this moat hasn't started.
 - **The wedge demo is gated on a backend dependency.** The cited-answer-over-your-own-files promise can't be *demonstrated* until the e5-small embedder is bundled (the index populates on first run). UI proceeds, but copy must not claim "every answer is verifiable" until it is provable. Sequence the embedder bundling before the Phase 4 wedge demo.
 - **Never regress** F-106 (silent mock), F-112 (Markdown filenames), F-119 (personal name), the egress comprehension probe, or the Data Map.
 - **Propose-don't-decide and verify affordances** on every AI finding — non-negotiable for this audience.

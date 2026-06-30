@@ -1,10 +1,10 @@
 > ⚠️ **ARCHIVED / SUPERSEDED — kept for history.** Part of the 2026-06-17 "product is mature, stop building" cluster, overturned by 2026-06-20 Windows testing and the 2026-06-23/29 advisor re-aim. The traction analysis is still useful; the "stop building / retreat to a niche" conclusion is not. Current direction: `docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md`. See this folder's `README.md`.
 
-# Keepance — Evidence-Backed Evaluation & Shortest Path to Traction
+# Advisor Prep Hero — Evidence-Backed Evaluation & Shortest Path to Traction
 
 **Date:** 2026-06-17
 **Prepared by:** Claude (investment-committee lens, Claude-only research, no local models)
-**Lens (chosen by Jameson):** Assume Keepance continues. Focus on the real blockers and the fastest credible route to the first paying customers.
+**Lens (chosen by Jameson):** Assume Advisor Prep Hero continues. Focus on the real blockers and the fastest credible route to the first paying customers.
 **Companion memo:** `2026-06-17-email-search-standalone-viability.md`
 **Evidence base:** the live repo + server data (license validator, firm DB, GitHub releases, Plausible), the canonical pricing config, the strategy/UX-research docs, and four cited Claude web-research streams (legal-tech competition, legal GTM, prosumer email market, ethics/confidentiality).
 
@@ -14,15 +14,15 @@
 
 **The product is built and genuinely good. The business is pre-traction — effectively zero customers — and the binding constraint is no longer engineering. It is distribution and trust.**
 
-Keepance has, for a solo-built effort, a remarkably mature product: v3.2.0, signed on three platforms, deep features (Word-native editing, AI redline, matter-scoped cited recall across email and documents, SSO, an encrypted vault, live co-editing), a polished website, and a working in-browser demo. And it has, by every server-side signal, **no market validation at all**: zero real license activations, an empty firm database, ~225 total website visitors in ten weeks (almost all direct), and only founder-test orders. Commercially this is pre-seed/idea-validation stage, regardless of how finished the product feels.
+Advisor Prep Hero has, for a solo-built effort, a remarkably mature product: v3.2.0, signed on three platforms, deep features (Word-native editing, AI redline, matter-scoped cited recall across email and documents, SSO, an encrypted vault, live co-editing), a polished website, and a working in-browser demo. And it has, by every server-side signal, **no market validation at all**: zero real license activations, an empty firm database, ~225 total website visitors in ten weeks (almost all direct), and only founder-test orders. Commercially this is pre-seed/idea-validation stage, regardless of how finished the product feels.
 
 The thesis — "local-first, private AI for a law practice" — is **real but narrower and more contested than the marketing implies.** It is a genuine wedge, not a category-killer, and it is slowly narrowing as cloud vendors add BYOK and zero-retention.
 
-**The recommendation is uncomfortable but clear: stop building and start hand-selling.** Pick one litigation niche, fix the credibility contradictions that are actively bleeding trust, manufacture proof (named attorneys, earned media, one conference), and sell the first ten customers by hand. The single biggest risk to Keepance right now is continuing to treat a go-to-market-and-trust problem as an engineering problem — polishing a product that no one has yet bought.
+**The recommendation is uncomfortable but clear: stop building and start hand-selling.** Pick one litigation niche, fix the credibility contradictions that are actively bleeding trust, manufacture proof (named attorneys, earned media, one conference), and sell the first ten customers by hand. The single biggest risk to Advisor Prep Hero right now is continuing to treat a go-to-market-and-trust problem as an engineering problem — polishing a product that no one has yet bought.
 
 ---
 
-## 1. Where Keepance actually is (the hard evidence)
+## 1. Where Advisor Prep Hero actually is (the hard evidence)
 
 | Signal | Reality | Source |
 |---|---|---|
@@ -41,31 +41,31 @@ The thesis — "local-first, private AI for a law practice" — is **real but na
 
 **Yes — but it is a trust-multiplier and tiebreaker, not the thing that closes the sale, and it is narrowing.**
 
-**What's genuinely in Keepance's favor (well-evidenced):**
+**What's genuinely in Advisor Prep Hero's favor (well-evidenced):**
 - The confidentiality anxiety is real and quantified: data security is the **#1-2 barrier to legal AI adoption in every major survey** (ABA 2024: 47.2%, second only to reliability at 56%; Thomson Reuters 2023: 62% of lawyers / 80% of partners concerned; TR 2024: 68%). 79% of lawyers used AI in 2024 but only ~10% of firms have a usage policy — a wide-open risk gap.
 - **Florida Bar Op. 24-1 (Jan 2024)** is the single strongest, most product-specific ethics line available: *"If the use of a generative AI program does not involve the disclosure of confidential information to a third-party, a lawyer is not required to obtain a client's informed consent."* A fully-local/no-egress tool **removes the informed-consent burden that ABA Op. 512 imposes on cloud AI.** That is a true, citable, workflow-level advantage.
 - **U.S. v. Heppner (SDNY, Rakoff, Feb 17, 2026):** exchanges with consumer-grade GenAI are not privileged. Local means **no third party to subpoena, no waiver risk.** (Opinion text corroborated across multiple secondary sources and consistent with the project's own records; not independently pulled.)
 - Real bans (Mishcon de Reya banned staff ChatGPT) and the Samsung source-code leak make the fear concrete.
-- Keepance's hardest-to-copy specifics: **indexes everything across silos including email** (vs. siloed Clio Duo / Copilot), **Windows + litigation-specific** (vs. Mac-only, uncertified Elephas), and **verifiable by architecture** rather than by a security report you can't read.
+- Advisor Prep Hero's hardest-to-copy specifics: **indexes everything across silos including email** (vs. siloed Clio Duo / Copilot), **Windows + litigation-specific** (vs. Mac-only, uncertified Elephas), and **verifiable by architecture** rather than by a security report you can't read.
 
 **The honest counter-argument (this is where the marketing over-reaches):**
-- The market's default answer is **cloud-with-assurances, not local.** Every serious vendor now recites no-training + AES-256 + SOC 2 Type II + private/regional tenancy + zero-data-retention, increasingly plus **BYOK/customer-managed keys.** That stack rests on Azure's documented posture (data stays in the customer's tenant, not used to train, customer-managed-key option, ZDR opt-out) — so a small firm already on Microsoft 365 has a credible "our data stays in our tenant" story without Keepance.
+- The market's default answer is **cloud-with-assurances, not local.** Every serious vendor now recites no-training + AES-256 + SOC 2 Type II + private/regional tenancy + zero-data-retention, increasingly plus **BYOK/customer-managed keys.** That stack rests on Azure's documented posture (data stays in the customer's tenant, not used to train, customer-managed-key option, ZDR opt-out) — so a small firm already on Microsoft 365 has a credible "our data stays in our tenant" story without Advisor Prep Hero.
 - **BYOK is no longer unique to local-first.** LexisNexis Protégé shipped customer-held encryption keys + kill-switch in May 2026, "already deployed in AmLaw 100 firms." The high end of the privacy bar is being met by the cloud incumbents.
 - **The bar blesses the cloud.** Under the same "reasonable efforts, not perfect security" standard, 20-30 state bars already approved cloud storage/computing. Lawyers are migrating *to* the cloud (~75% adoption, up from 69% in 2023), not away from it.
 - **Local AI has real, conceded downsides:** a model-quality/hallucination gap (local models are ~"80% as good," and hallucination is *the* live malpractice risk), IT burden / no SLA, the "local LLM security paradox" (a DIY box can be *less* secure than hardened cloud), and **no SOC 2 on a self-hosted rig — which makes the "reasonable efforts" defense harder to demonstrate, not easier.**
 
-**Net:** the wedge is real and defensible, but it wins deals as the *reason a nervous lawyer trusts you to do the job*, not as a standalone reason to buy. Weight the pitch ~70% outcome ("does your work and won't waive privilege or leak client data"), ~30% architecture proof. And note the internal tension you must handle honestly: "nothing leaves the machine" is only literally true in **local-model mode** (which has the quality gap); the **BYOK-direct** path sends data to the user's own AI provider (no-training, no Keepance server, but still a third party). Keepance already frames this correctly as the Local-only / BYOK-direct / Assured spectrum — keep that honesty; it's an asset.
+**Net:** the wedge is real and defensible, but it wins deals as the *reason a nervous lawyer trusts you to do the job*, not as a standalone reason to buy. Weight the pitch ~70% outcome ("does your work and won't waive privilege or leak client data"), ~30% architecture proof. And note the internal tension you must handle honestly: "nothing leaves the machine" is only literally true in **local-model mode** (which has the quality gap); the **BYOK-direct** path sends data to the user's own AI provider (no-training, no Advisor Prep Hero server, but still a third party). Advisor Prep Hero already frames this correctly as the Local-only / BYOK-direct / Assured spectrum — keep that honesty; it's an asset.
 
 ## 3. The real blockers, in priority order
 
 **1. Distribution / no top-of-funnel (the binding constraint).** 225 visitors in 10 weeks, overwhelmingly direct, ~54 Google pageviews ever, negligible social/referral. There is no acquisition engine. Nobody is arriving to convert. Everything else is secondary to this.
 
 **2. The trust/proof-moat is empty *and self-contradicting*.** No named attorney references, no formed legal entity (sole proprietor "Jameson S Daines"), no DPA, no SOC 2, an EULA capping liability at the greater of fees or $100. For a **firm** risk committee that does diligence for a living, that is a hard stop; for a **solo** pilot it's acceptable *if stated plainly*. Worse, the public documents contradict each other:
-   - The **Firm pricing tier sells "The assurance package: DPA, trust center, SOC 2 readiness"** (`src/config/pricing.ts:125`) — while `vs/jump.html`, the press-kit comparison matrix, and the one-pagers all state plainly that Keepance has **no SOC 2 and no signed DPA yet** ("pursuing… does not have it yet… a real blocker for some buyers today").
+   - The **Firm pricing tier sells "The assurance package: DPA, trust center, SOC 2 readiness"** (`src/config/pricing.ts:125`) — while `vs/jump.html`, the press-kit comparison matrix, and the one-pagers all state plainly that Advisor Prep Hero has **no SOC 2 and no signed DPA yet** ("pursuing… does not have it yet… a real blocker for some buyers today").
    - Your own attorney-UX research already flagged this class of problem: public docs contradict each other on pricing, licensing, version numbers, and template counts (15 vs 18 vs 28), and *"to a lawyer, inconsistency reads as unreliability."*
    This actively undermines the one thing the product sells — trust — with exactly the buyer you most want.
 
-**3. The ICP has never been validated.** The strongest *real* pain signal in the entire record came from a CFP (Jameson's wife, an advisor), not a litigator. Keepance has never sold to, or seriously interviewed, the stated ICP (litigation solos/small firms). The pricing was set by a model built for a different, retired product.
+**3. The ICP has never been validated.** The strongest *real* pain signal in the entire record came from a CFP (Jameson's wife, an advisor), not a litigator. Advisor Prep Hero has never sold to, or seriously interviewed, the stated ICP (litigation solos/small firms). The pricing was set by a model built for a different, retired product.
 
 **4. Single-operator concentration + the build-treadmill.** Months of deep engineering (3.0 vision, vault, co-editing) have happened with zero customer contact. The risk is structural: building is the comfortable, controllable activity; selling is uncomfortable and uncontrollable, so the default keeps being "build more." That default is the thing to break.
 
@@ -97,13 +97,13 @@ Synthesized from the GTM and ethics research. This market buys on peer trust, re
 
 ## 6. The email question (cross-reference Memo B)
 
-The standalone email-search research reached, independently, the same place this evaluation does: a mass-market consumer email-search product is a *feature, not a venture* (incumbents are absorbing it for free; Apple shipped free on-device semantic Mail search at WWDC 2026), and **the engine's only defensible home is privacy-bound *professional* search — i.e. inside Keepance.** So email intelligence is correctly placed. It is also your best daily-use beachhead (broken Outlook search is a real, shared pain). **Lean into email as the wedge; do not spin it out.** Full reasoning in `2026-06-17-email-search-standalone-viability.md`.
+The standalone email-search research reached, independently, the same place this evaluation does: a mass-market consumer email-search product is a *feature, not a venture* (incumbents are absorbing it for free; Apple shipped free on-device semantic Mail search at WWDC 2026), and **the engine's only defensible home is privacy-bound *professional* search — i.e. inside Advisor Prep Hero.** So email intelligence is correctly placed. It is also your best daily-use beachhead (broken Outlook search is a real, shared pain). **Lean into email as the wedge; do not spin it out.** Full reasoning in `2026-06-17-email-search-standalone-viability.md`.
 
 ## 7. Honest risk & a real kill-criterion
 
 Even with flawless execution, this is a narrow, time-sensitive wedge against well-funded incumbents giving away good-enough bundled AI, sold on a privacy angle that is a tiebreaker rather than a driver, by a single non-developer operator with no sales motion. That can work at solo/lifestyle scale; it is unproven at venture scale, and nothing in the data yet says litigators specifically will pay for local-first.
 
-So set a test you'll actually honor, rather than letting "keep building" be the escape hatch: **commit to a fixed window of disciplined hand-selling to the stated ICP. If it yields no paying customers and no design-partner testimonials, the thesis (litigators will pay for local-first) is probably wrong** — and the live options are to pivot the wedge (CPAs/§7216, the cleanest regulatory fit and your strongest real signal) or to accept Keepance as a solo/lifestyle product rather than a company. Define that window and that bar explicitly; don't leave it implicit.
+So set a test you'll actually honor, rather than letting "keep building" be the escape hatch: **commit to a fixed window of disciplined hand-selling to the stated ICP. If it yields no paying customers and no design-partner testimonials, the thesis (litigators will pay for local-first) is probably wrong** — and the live options are to pivot the wedge (CPAs/§7216, the cleanest regulatory fit and your strongest real signal) or to accept Advisor Prep Hero as a solo/lifestyle product rather than a company. Define that window and that bar explicitly; don't leave it implicit.
 
 ## 8. Confidence & caveats
 

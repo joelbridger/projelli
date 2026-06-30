@@ -5,7 +5,7 @@
 // CDN (https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz) rather than the npm
 // `xlsx` package. The npm package is pinned at 0.18.5 and has known CVEs;
 // SheetJS now distributes secure releases exclusively via their CDN. This is
-// Apache-2.0 and safe for Keepance's commercial license.
+// Apache-2.0 and safe for Advisor Prep Hero's commercial license.
 
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';

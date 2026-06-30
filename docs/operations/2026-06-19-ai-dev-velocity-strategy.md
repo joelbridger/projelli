@@ -14,13 +14,13 @@ The signed build exists so customers' Windows/Mac machines will trust and instal
 2. **Test bench (minutes):** real Windows + Mac machines where the AI builds an **unsigned debug** app (`tauri build --debug`) and drives the real app to catch OS-specific bugs — *without* the signed build.
 3. **Release loop (60–90 min signed build):** only when cutting a real version to ship.
 
-Keepance already has lane 1 and lane 3. **Lane 2 is the gap.** Real Windows/Mac hardware fills it.
+Advisor Prep Hero already has lane 1 and lane 3. **Lane 2 is the gap.** Real Windows/Mac hardware fills it.
 
 ---
 
 ## 2. Are we doing it wrong? Mostly no.
 
-Keepance's test setup is strong and unusually mature for a solo project:
+Advisor Prep Hero's test setup is strong and unusually mature for a solo project:
 - Thousands of fast logic tests (Vitest + Rust crates: docx engine, RAG, mail, CRDT co-edit math).
 - Playwright driving the real React UI on the Vite dev server (~80% of journeys; Chromium ≈ Windows' WebView2 family).
 - A headless **real desktop app** suite — `tauri-driver` + `WebKitWebDriver` + `Xvfb` on Linux (`tests/desktop/`) — catches "real app" bugs without a signed build.
@@ -60,8 +60,8 @@ A Legion 5i Pro is a high-end gaming laptop: a powerful multi-core Intel H/HX-se
 An M1 MacBook is Apple Silicon (arm64). It can build + run the **Apple-Silicon** Mac version and is a fine machine for occasional manual Mac checks and even an occasional AI-driven Mac session.
 
 **Real cautions (Mac is the weaker option to lean on long-term):**
-- **It's someone else's personal machine.** Installing dev tools, remote access, and especially letting an AI agent operate it needs her clear okay — and for a *confidential-data product*, you don't want Keepance test data or an autonomous agent living on a family member's daily computer. Use it for clean, supervised spot-checks, not unattended runs.
-- **M1 only covers the Apple-Silicon build, not the Intel Mac build** Keepance also ships. (Intel share is shrinking; Rosetta can smoke-test, but native Intel coverage needs Intel hardware or CI.)
+- **It's someone else's personal machine.** Installing dev tools, remote access, and especially letting an AI agent operate it needs her clear okay — and for a *confidential-data product*, you don't want Advisor Prep Hero test data or an autonomous agent living on a family member's daily computer. Use it for clean, supervised spot-checks, not unattended runs.
+- **M1 only covers the Apple-Silicon build, not the Intel Mac build** Advisor Prep Hero also ships. (Intel share is shrinking; Rosetta can smoke-test, but native Intel coverage needs Intel hardware or CI.)
 - **Not always available** to you — bad for continuous loops.
 - Signing/notarization needs the Apple Developer account, which is independent of the machine (already set up).
 - Mac automated-testing tooling is immature anyway (see §8), so a human/visual spot-check is the realistic Mac method regardless of hardware.

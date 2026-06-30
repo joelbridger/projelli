@@ -6,9 +6,9 @@
 // specific email (a mail message id). Clicking it should land on that exact
 // item, not just the general Documents / Email surface.
 //
-//   - Email  -> the dedicated `keepance:open-email` action, which opens a
+//   - Email  -> the dedicated `lantern:open-email` action, which opens a
 //     self-fetching read-only email tab for the cited message id.
-//   - Document -> a `keepance:matter-launch` event carrying the exact path +
+//   - Document -> a `lantern:matter-launch` event carrying the exact path +
 //     snippet; the shell event bus (useGlobalEventBus) calls
 //     `openSourceDocument` to read and open that file, then scroll to the
 //     cited spot. This reuses the same primitives as the app's file-open
@@ -54,7 +54,7 @@ export const OPEN_ZOCKS_EVENT = EV_OPEN_ZOCKS;
 export const OPEN_ADDEPAR_EVENT = EV_OPEN_ADDEPAR;
 export const MATTER_LAUNCH_EVENT = EV_MATTER_LAUNCH;
 
-/** The document-source payload carried on a `keepance:matter-launch` event. */
+/** The document-source payload carried on a `lantern:matter-launch` event. */
 export interface MatterLaunchSource {
   kind: 'document';
   ref: string;

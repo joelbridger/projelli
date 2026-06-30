@@ -1,4 +1,4 @@
-# Keepance v1.6 Release Tracking
+# Advisor Prep Hero v1.6 Release Tracking
 
 > **Current state:** ✅ **SHIPPED 2026-04-27.** `v1.6.0` is the public
 > Latest release on GitHub. Mac (aarch64 + Intel) DMGs are notarized,
@@ -54,8 +54,8 @@
 ## What shipped in v1.6
 
 ### Installer (Windows)
-- **Silent install default.** Double-clicking `Keepance_1.6.0_x64-setup.exe` shows only a brief progress window, no wizard. Pass `/INTERACTIVE` for the full wizard.
-- **Portable `.exe`** (`Keepance_1.6.0_x64-portable.exe`) — Azure-signed single-file executable. See "Portable mode caveats" below.
+- **Silent install default.** Double-clicking `Advisor Prep Hero_1.6.0_x64-setup.exe` shows only a brief progress window, no wizard. Pass `/INTERACTIVE` for the full wizard.
+- **Portable `.exe`** (`Advisor Prep Hero_1.6.0_x64-portable.exe`) — Azure-signed single-file executable. See "Portable mode caveats" below.
 
 ### Onboarding
 - **10-step feature tour** after first-run wizard. Every step anchors to a visible UI element (sidebar tabs, Ctrl+K button, settings gear) with a coral highlight outline. Arrow keys + Enter, Escape to skip, auto-advances if target missing. Restartable from Settings → Onboarding → "Start tour".
@@ -127,7 +127,7 @@ All drag events use `dataTransfer.setData('text/plain', payload)`:
 Handlers branch on `payload.startsWith('group:')` vs `startsWith('tabgm:')` vs numeric.
 
 ### Bug-report dialog uses the shared form-handler service (rc.5+)
-The dialog's POST target (`https://keepance.com/api/forms/keepance/bug-report`) is reverse-proxied by Caddy to the Bun service at `~/services/form-handler/server.ts` (already used by healthful, heardify, behaviorux, and the Keepance email-list signup). The form-handler validates the form ID, sanitizes fields, stores a JSONL record in `~/keepance/sign-ups/`, and best-effort emails Jameson via Brevo. CORS headers are added to all `/api/forms/*` responses so the Tauri webview's `tauri://localhost` origin can read the response. The Tauri app uses `getCorsSafeFetch()` (from `src/modules/models/fetchUtils.ts`) which routes through `@tauri-apps/plugin-http` in production builds (CORS bypass via Rust) and native fetch in dev.
+The dialog's POST target (`https://keepance.com/api/forms/keepance/bug-report`) is reverse-proxied by Caddy to the Bun service at `~/services/form-handler/server.ts` (already used by healthful, heardify, behaviorux, and the Advisor Prep Hero email-list signup). The form-handler validates the form ID, sanitizes fields, stores a JSONL record in `~/keepance/sign-ups/`, and best-effort emails Jameson via Brevo. CORS headers are added to all `/api/forms/*` responses so the Tauri webview's `tauri://localhost` origin can read the response. The Tauri app uses `getCorsSafeFetch()` (from `src/modules/models/fetchUtils.ts`) which routes through `@tauri-apps/plugin-http` in production builds (CORS bypass via Rust) and native fetch in dev.
 
 Two Tauri allowlists must include `https://keepance.com`:
 1. `src-tauri/tauri.conf.json` → `app.security.csp` `connect-src` (covers Tauri-dev native fetch).
@@ -136,7 +136,7 @@ Two Tauri allowlists must include `https://keepance.com`:
 Failure path: dialog catches the error, shows "Open email client instead" link that triggers `openExternal()` with a pre-filled mailto. The user's typed message is preserved across the failure-to-fallback transition.
 
 ### Brand Coral in one place
-`src/styles/globals.css` defines `--color-primary: hsl(6 100% 72%)` for both light and dark themes. Any new surface that needs the accent should use `text-primary` / `bg-primary` Tailwind classes and inherit. Hard-coded hex `#FF7C6E` only appears in `FeatureTour.tsx` (highlight border) and `KeepanceLogo.tsx` (SVG fills).
+`src/styles/globals.css` defines `--color-primary: hsl(6 100% 72%)` for both light and dark themes. Any new surface that needs the accent should use `text-primary` / `bg-primary` Tailwind classes and inherit. Hard-coded hex `#FF7C6E` only appears in `FeatureTour.tsx` (highlight border) and `Advisor Prep HeroLogo.tsx` (SVG fills).
 
 ---
 
@@ -154,7 +154,7 @@ Failure path: dialog catches the error, shows "Open email client instead" link t
 
 Document these for release notes + docs + launch-day reply bank:
 
-- **Data still saves to `%APPDATA%\Keepance`.** The portable binary does NOT save config / workspaces next to itself. This is a Tauri limitation (`dirs::data_dir()` returns absolute paths). Users who move the portable `.exe` between drives should also copy `%APPDATA%\Keepance`. True self-contained portable data is a v1.7 item.
+- **Data still saves to `%APPDATA%\Advisor Prep Hero`.** The portable binary does NOT save config / workspaces next to itself. This is a Tauri limitation (`dirs::data_dir()` returns absolute paths). Users who move the portable `.exe` between drives should also copy `%APPDATA%\Advisor Prep Hero`. True self-contained portable data is a v1.7 item.
 - **Auto-updater is disabled in portable mode.** The updater requires a writable install dir + permission to replace the running binary. Portable users re-download manually.
 - **MCP `.mcpb` sidecar is NOT bundled.** The portable `.exe` is a single file; the MCP server binary is a separate artifact the `.mcpb` install flow fetches. Portable users can't use the MCP server unless they also download the installer version.
 - **First-run behavior is identical.** Welcome dialog, workspace picker, API key wizard, sample files, and the feature tour all work.

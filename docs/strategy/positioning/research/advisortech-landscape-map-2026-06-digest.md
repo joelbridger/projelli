@@ -2,7 +2,7 @@
 
 **Source:** Michael Kitces / kitces.com/fintechmap — the industry-standard one-page visual map of every advisor-software category and its vendors.
 **Raw file (this repo):** `docs/research/Advisor-FinTech-Landscape-June-2026.pdf` (1 page; it is a dense graphic — the PDF is the source of truth for exact logos/spelling).
-**What this is:** A single picture of how crowded the advisor software world is. It groups ~45 categories into five super-areas and shows the named vendors competing in each. For Keepance, the map's biggest message is visual: **the stack is enormous and fragmented — which is the "tech bloat" problem in one image — and there is no single category that is "a private layer that reads across everything."**
+**What this is:** A single picture of how crowded the advisor software world is. It groups ~45 categories into five super-areas and shows the named vendors competing in each. For Advisor Prep Hero, the map's biggest message is visual: **the stack is enormous and fragmented — which is the "tech bloat" problem in one image — and there is no single category that is "a private layer that reads across everything."**
 
 > Spelling/coverage caveat: vendor names below were read from the graphic; the major players are accurate, smaller logos may be approximate. Use the PDF to confirm any specific small vendor.
 
@@ -37,7 +37,7 @@ Performance Reporting (AssetBook, Vise, EZFol.io, PowerAdvisor) · Trading/Rebal
 **4. BUSINESS DEVELOPMENT**
 Prospecting (CatchLight, Cashmere AI, Wealthfeed, FINNY, Powerlytics, aidentified, amp, ReplyAssist, WealthReach) · Advisor Lead Gen (SmartAsset, Ramsey, WiserAdvisor, Datalign, Wealthramp, Indyfin, AdvisorFinder, FinanceHQ, Wealthtender, Unbiased, MoneyPickle, Harness Wealth) · Digital Marketing (FMG, HubSpot, AdvisorStream, Snappy Kraken, Levitate, Clearnomics, VettaFi, FMeX, Pageport, AcquireUp, Paladin, Hedgehog) · Proposal Generation/Sales Enablement (Nitrogen, CapIntel, Sherpas, Couplr AI, Powder, Exhibit A, equisoft/analyze, TIFIN Wealth) · 401(k) Proposals (PlanPro, Fiduciary, RetirementView Pro)
 
-**5. OPERATIONS** (the "system of record" + admin backbone — Keepance's adjacency)
+**5. OPERATIONS** (the "system of record" + admin backbone — Advisor Prep Hero's adjacency)
 - **CRM**: Wealthbox, Redtail, Salesforce, Advyzon, AdvisorEngine, Envestnet Tamarac, Practifi, Microsoft Dynamics 365, SmartOffice, Black Diamond, nexj, equisoft, ugru, Quivr, Altruist, Advisors Assistant
 - CRM Overlays: AdvisorCRM, LeadCenter AI, Avantos
 - Advisory Fee Billing: AdvicePay, BillFin, SmartRIA-billing, BillPro
@@ -56,10 +56,10 @@ Prospecting (CatchLight, Cashmere AI, Wealthfeed, FINNY, Powerlytics, aidentifie
 
 ---
 
-## Relevance to Keepance (interpretation)
+## Relevance to Advisor Prep Hero (interpretation)
 
 1. **The map IS the "tech bloat" argument.** Hundreds of vendors across ~45 categories. Any pitch to add a tool must immediately answer "why isn't this just one more box on this map?"
-2. **There is no category for "the private layer that reads across all of it."** Keepance is genuinely cross-category (it touches Document Management + Client File Sharing + Client Meeting Support + AI Assistant + CRM-adjacent context). That is both the opportunity (white space) and the danger (no obvious shelf to sit on → risk of being mis-filed as just an "AI Assistant").
-3. **The "AI Assistant" box is small, new, and crowded with unknowns (Vega, Parthean, Quivr).** Keepance should not want to be filed there (see Kitces report digest: lowest importance, <10% adoption, distrusted). It should position as "the layer over your existing boxes," not "a new box in the AI Assistant aisle."
-4. **The categories Keepance is closest to in Operations (Document Management, Client File Sharing) are dominated by Microsoft/Google + entrenched specialists** — confirming Keepance must complement (read from OneDrive/SharePoint), never try to replace document storage.
+2. **There is no category for "the private layer that reads across all of it."** Advisor Prep Hero is genuinely cross-category (it touches Document Management + Client File Sharing + Client Meeting Support + AI Assistant + CRM-adjacent context). That is both the opportunity (white space) and the danger (no obvious shelf to sit on → risk of being mis-filed as just an "AI Assistant").
+3. **The "AI Assistant" box is small, new, and crowded with unknowns (Vega, Parthean, Quivr).** Advisor Prep Hero should not want to be filed there (see Kitces report digest: lowest importance, <10% adoption, distrusted). It should position as "the layer over your existing boxes," not "a new box in the AI Assistant aisle."
+4. **The categories Advisor Prep Hero is closest to in Operations (Document Management, Client File Sharing) are dominated by Microsoft/Google + entrenched specialists** — confirming Advisor Prep Hero must complement (read from OneDrive/SharePoint), never try to replace document storage.
 5. **AI is now showing up inside many categories' tools**, plus its own category — so "we have AI" is not differentiating. The differentiator must be the cross-source reach + citations + data control, not "AI."

@@ -36,8 +36,8 @@ interface SpineProps {
   onCollapsedChange?: ((next: boolean) => void) | undefined;
 }
 
-/** The Keepance keep-mark from keepance.com — white keep + gradient sparkle. */
-function KeepanceMark() {
+/** The Advisor Prep Hero keep-mark from keepance.com — white keep + gradient sparkle. */
+function AppBrandMark() {
   return (
     <svg viewBox="0 99 651 652" width="22" height="22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={{ flex: 'none' }}>
       <defs>
@@ -125,8 +125,8 @@ export function Spine({
         style={{ width: 212, background: 'var(--kp-side-bg)', color: 'var(--kp-side-fg)', display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', flex: 'none' }}>
         <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 2, background: 'var(--kp-side-edge)', opacity: 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', padding: 'var(--kp-space-md) var(--kp-space-md) var(--kp-space-2xs)' }}>
-          <KeepanceMark />
-          <span style={{ fontWeight: 'var(--kp-weight-bold)', fontSize: 'var(--kp-font-xl)', letterSpacing: '-0.02em' }}>Keepance</span>
+          <AppBrandMark />
+          <span style={{ fontWeight: 'var(--kp-weight-bold)', fontSize: 'var(--kp-font-xl)', letterSpacing: '-0.02em' }}>Advisor Prep Hero</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: 'var(--kp-space-xs) 10px', flex: 'none' }}>
           {nav.map(({ id, label, Icon }) => {

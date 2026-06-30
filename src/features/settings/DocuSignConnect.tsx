@@ -122,7 +122,7 @@ export function DocuSignConnect() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900">DocuSign</h3>
             <p className="mt-1 max-w-xl text-xs text-slate-500">
-              Import completed envelopes, recipients, document names, and signing history. Keepance only reads DocuSign data.
+              Import completed envelopes, recipients, document names, and signing history. Advisor Prep Hero only reads DocuSign data.
             </p>
           </div>
         </div>

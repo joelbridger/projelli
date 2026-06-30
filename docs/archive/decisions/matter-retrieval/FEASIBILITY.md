@@ -1,4 +1,4 @@
-# FEASIBILITY — matter-scoped, verified-citation retrieval (Keepance 3.0, P0 gate 2)
+# FEASIBILITY — matter-scoped, verified-citation retrieval (Advisor Prep Hero 3.0, P0 gate 2)
 
 **Spike:** `spikes/matter-retrieval/` — standalone Rust crate exercising the same
 LanceDB 0.21 + fastembed e5-small (384-dim) path the app ships, plus a

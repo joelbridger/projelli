@@ -1,8 +1,8 @@
-# Keepance: Vertical Competitive Landscape (Legal, Tax, Consulting, Financial Advisors)
+# Advisor Prep Hero: Vertical Competitive Landscape (Legal, Tax, Consulting, Financial Advisors)
 
 **Date:** 2026-06-06
 **Author:** Independent competitive-intelligence pass commissioned by Jameson. Four parallel analysts (one per vertical) did live web research in June 2026 against a named competitor list, then this was synthesized into one strategic view.
-**Why it exists:** Keepance's prior competitive work (`docs/reference/COMPETITIVE_LANDSCAPE.md`, the April `market-assessment-2026-04/` deep dive) benchmarks against the PKM / general-AI-note world (Notion, Obsidian, ChatGPT, Reflect). That work largely predates the pivot to the four professional verticals. This document fills the missing piece: **what the four verticals are already using or being sold for AI, what they get bundled for free, and where the real gaps are.**
+**Why it exists:** Advisor Prep Hero's prior competitive work (`docs/reference/COMPETITIVE_LANDSCAPE.md`, the April `market-assessment-2026-04/` deep dive) benchmarks against the PKM / general-AI-note world (Notion, Obsidian, ChatGPT, Reflect). That work largely predates the pivot to the four professional verticals. This document fills the missing piece: **what the four verticals are already using or being sold for AI, what they get bundled for free, and where the real gaps are.**
 **Companion docs:** the 2026-06-04 [independent four-vertical review](./2026-06-04-independent-four-vertical-review.md) (what deters these buyers on our own site). Several recommendations there are reinforced by the competitive data below.
 
 > **Accuracy note.** AI product pricing and features move fast. Figures are mid-2026 best-effort, many cross-checked against vendor pages, some from third-party aggregators (flagged). Verify any specific number before using it in public marketing. Full source links are in each section and the appendix.
@@ -19,28 +19,28 @@ Every one of our four verticals now has incumbents actively pushing AI at them. 
 
 **The single most important finding:** across all four verticals, **essentially every serious competitor is cloud SaaS, and their entire privacy story is contractual** ("we don't train on your data," "zero retention," "SOC 2"). Not one of the category leaders offers a true local, nothing-leaves-the-machine option. The only tools that do are generic local-AI runners (Ollama, GPT4All, Msty, Jan, and one Mac-only legal note app, Elephas) that have no profession-specific structure.
 
-**That gap is Keepance's wedge, and it is getting more valuable right now because of regulatory forcing functions landing in 2026:**
+**That gap is Advisor Prep Hero's wedge, and it is getting more valuable right now because of regulatory forcing functions landing in 2026:**
 - **Legal:** *United States v. Heppner* (S.D.N.Y., Judge Rakoff, Feb 17 2026) held that consumer cloud-AI use without attorney direction destroyed privilege. The defendant was convicted May 7 2026. It is real, heavily covered, and it is the single best argument we have. (Note: later courts are already diverging toward a fact-specific approach, so cite it as a cautionary leading case, not settled black-letter law.)
-- **Advisor:** the SEC Reg S-P amendments' compliance deadline for smaller RIAs **passed June 3, 2026** (three days before this doc). Every small RIA now must document and monitor every vendor that touches client data. With Keepance on a local model, there is no vendor to monitor.
+- **Advisor:** the SEC Reg S-P amendments' compliance deadline for smaller RIAs **passed June 3, 2026** (three days before this doc). Every small RIA now must document and monitor every vendor that touches client data. With Advisor Prep Hero on a local model, there is no vendor to monitor.
 - **Tax:** IRC §7216/§6713 and the FTC Safeguards Rule. A cloud key is still a third-party disclosure of return data; only a local model removes it.
 - **Consulting:** NDAs increasingly carry explicit "no uploading work product to AI services" clauses. Only a local model honors that literally.
 
-**The durable point:** "contractual no-training" is not the same as "the data never left the building." Keepance plus a local model is the only product in any of these four markets that makes the absolute claim true.
+**The durable point:** "contractual no-training" is not the same as "the data never left the building." Advisor Prep Hero plus a local model is the only product in any of these four markets that makes the absolute claim true.
 
-**But Keepance has the same gaps in every vertical, and we should be honest about them:**
+**But Advisor Prep Hero has the same gaps in every vertical, and we should be honest about them:**
 - No proprietary research database (legal case law / Shepard's-KeyCite; tax primary authority). CoCounsel, Lexis+, Blue J win this outright. We cannot.
 - No deep system-of-record integration (Clio, Drake, eMoney, a CRM). The bundled incumbents own the workflow context.
 - No meeting-notes + CRM-sync workflow, which is the #1 thing advisors are actually buying (Jump, Zocks).
 - Weaker finished-deliverable output (consulting decks vs Gamma; branded advisor PDFs).
 - BYOK onboarding friction, and no SOC 2 / signed DPA / brand / track record, which formal vendor-approval processes ask for.
 
-**Strategic conclusion:** Do not position Keepance as a replacement for the incumbents. Position it as **the private workspace that sits beside them**, own the local/zero-egress + own-your-files + regulatory-forcing-function story, lead the most sensitive buyers with the local model, anchor price against the $1,200 to $3,000/yr incumbents, and refuse the battles we cannot win (research databases, meeting-notes/CRM sync). Close the trust-signal gaps (SOC 2, the gatekeeper one-pagers from the 2026-06-04 review, branded output).
+**Strategic conclusion:** Do not position Advisor Prep Hero as a replacement for the incumbents. Position it as **the private workspace that sits beside them**, own the local/zero-egress + own-your-files + regulatory-forcing-function story, lead the most sensitive buyers with the local model, anchor price against the $1,200 to $3,000/yr incumbents, and refuse the battles we cannot win (research databases, meeting-notes/CRM sync). Close the trust-signal gaps (SOC 2, the gatekeeper one-pagers from the 2026-06-04 review, branded output).
 
 ---
 
 ## 2. The four markets at a glance
 
-| | What they already pay for | The bundled AI threat | The hot purpose-built tool | What most actually use | The 2026 regulatory lever | Keepance's wedge | Our biggest gap |
+| | What they already pay for | The bundled AI threat | The hot purpose-built tool | What most actually use | The 2026 regulatory lever | Advisor Prep Hero's wedge | Our biggest gap |
 |---|---|---|---|---|---|---|---|
 | **Legal** | Clio, Westlaw/Lexis, M365 | **Clio Duo / Manage AI** ($49-59/mo add-on) | CoCounsel ($225-428/mo), Harvey (enterprise) | Free ChatGPT/Claude | **US v. Heppner** (privilege) | Local zero-egress; own files; $149/yr; post-Heppner story | No case-law DB / citation check |
 | **Tax** | Drake or Lacerte/ProConnect, TaxDome, SafeSend | **Intuit Assist** (free in Lacerte/ProConnect) | Blue J ($1,498/yr), TaxGPT, CoCounsel Tax | Consumer ChatGPT (52% of AI users) | **§7216/§6713 + Safeguards** | §7216-clean local model; Drake users have nothing; §7216+WISP templates | No primary-authority research; no prep integration |
@@ -56,7 +56,7 @@ Every one of our four verticals now has incumbents actively pushing AI at them. 
 
 ### The field
 
-| Tool | Deployment | Data posture | Price (solo) | Strength / where it beats us | Where Keepance wins |
+| Tool | Deployment | Data posture | Price (solo) | Strength / where it beats us | Where Advisor Prep Hero wins |
 |---|---|---|---|---|---|
 | **Clio Duo / Manage AI** (the key one: most already pay for Clio) | Cloud | Zero-retention with LLMs; no training; SOC 2 | **$49-59/mo add-on** to existing Clio (or bundled in Elite ~$159/mo) | Already in the workflow; knows the matter/client/deadline/billing; one click, no setup | Local zero-egress; own files; far deeper legal templates; 1/4 the price |
 | **CoCounsel** (Thomson Reuters) | Cloud | Contractual no-training; zero retention at LLM; SOC 2 | ~$225-428/mo (≈$2,700-5,000/yr) | Westlaw-grounded, **citeable research**; deep litigation coverage; brand | Price; zero-egress; own files; no vendor cloud holding client data |
@@ -72,16 +72,16 @@ Every one of our four verticals now has incumbents actively pushing AI at them. 
 ### The regulatory lever: *US v. Heppner*
 A federal court just held that putting your work into consumer cloud AI, without attorney direction, defeats privilege (no attorney involved; no confidentiality once shared with a third-party platform under its privacy policy; not at counsel's direction). The Kovel-style exception: it can be different if counsel *directs* the use. This is the strongest tailwind any of our verticals has, and it points directly at the local-model path. Cite it as a leading cautionary case (later courts are diverging to fact-specific analysis).
 
-### Where Keepance wins / loses, and the white space
+### Where Advisor Prep Hero wins / loses, and the white space
 - **Wins:** price (4x-20x cheaper than the purpose-built tools), the only zero-egress local option in the segment except generic Elephas, own-your-files longevity, and the cleanest post-Heppner privilege posture (local model = nothing left the machine).
 - **Loses:** no case-law database and no citation verification (CoCounsel/Lexis+/Paxton win this and it is table stakes for *research*), no Clio-grade practice-management context, BYOK onboarding friction, and brand.
 - **White space to own:** the privileged-local-AI slot is nearly empty (only Elephas, which is Mac-only and generic). A purpose-built, legal-template-equipped, local-capable desktop app is a defensible niche, and it is the literal instantiation of Heppner's attorney-directed-use carve-out.
-- **Table stakes we must respect:** be explicit that Keepance is **not** a legal-research tool. It sits beside Westlaw/Lexis. Burying that invites churn and bar complaints.
+- **Table stakes we must respect:** be explicit that Advisor Prep Hero is **not** a legal-research tool. It sits beside Westlaw/Lexis. Burying that invites churn and bar complaints.
 
 ### Talking points
-- vs free ChatGPT/Claude: "Heppner shows that's a privilege waiver waiting to happen. With Keepance on a local model, nothing leaves your machine, and your files stay yours forever."
-- vs Clio Duo: "Clio's AI is great for what Clio knows: matters, billing, deadlines. It's shallow on the actual legal work and your documents live on Clio's cloud. Keepance does the privilege log, the deposition contradiction finder, the evidence-gap analysis, for $149/yr, beside Clio, not instead of it."
-- vs CoCounsel: "Excellent if you need Westlaw-grounded research, and $2,700+/yr. If you already pay for Westlaw, you don't need CoCounsel just to draft a privilege log. Keepance is $149/yr and your data never leaves your machine."
+- vs free ChatGPT/Claude: "Heppner shows that's a privilege waiver waiting to happen. With Advisor Prep Hero on a local model, nothing leaves your machine, and your files stay yours forever."
+- vs Clio Duo: "Clio's AI is great for what Clio knows: matters, billing, deadlines. It's shallow on the actual legal work and your documents live on Clio's cloud. Advisor Prep Hero does the privilege log, the deposition contradiction finder, the evidence-gap analysis, for $149/yr, beside Clio, not instead of it."
+- vs CoCounsel: "Excellent if you need Westlaw-grounded research, and $2,700+/yr. If you already pay for Westlaw, you don't need CoCounsel just to draft a privilege log. Advisor Prep Hero is $149/yr and your data never leaves your machine."
 - **Use the incumbent instead when:** you need citation-verified case-law research (CoCounsel/Paxton), deep Clio matter integration (Clio Duo), or you're a 10+ attorney firm with IT (Harvey/CoCounsel).
 
 ---
@@ -93,7 +93,7 @@ AI adoption among tax firms roughly quadrupled (≈9% to ≈41%) in a year, but 
 
 ### The field
 
-| Tool | Deployment | Data posture | Price | Strength / where it beats us | Where Keepance wins |
+| Tool | Deployment | Data posture | Price | Strength / where it beats us | Where Advisor Prep Hero wins |
 |---|---|---|---|---|---|
 | **Intuit Assist** (bundled in Lacerte/ProConnect/ProSeries) | Cloud | Return data on Intuit cloud; **AI-training disclaimer unclear** | **$0 extra** (bundled) | Already paid for; pulls 60+ data points from the return; advisory planning | Privacy (their training policy is murky); breadth (it's planning-only); Drake users get nothing |
 | **Drake** (market leader, small firm) | Desktop/cloud | n/a | ~$1,800-2,600/yr | — (has **no** generative AI) | **Drake users have no AI at all**: our single largest, most underserved segment |
@@ -107,16 +107,16 @@ AI adoption among tax firms roughly quadrupled (≈9% to ≈41%) in a year, but 
 | **DIY Ollama (Qwen) for tax** (watch) | **Local** | Zero egress | ~$999 hardware | A real solo-CPA community runs this for §7216-clean work | No commercial product exists here: **pure white space for us** |
 
 ### The regulatory lever
-IRC §7216 (criminal) and §6713 (civil strict-liability) govern disclosure of return information; the FTC Safeguards Rule requires a WISP. The key point most vendors blur: a **cloud API key is still a disclosure to a third party** (the provider). Only a local model removes it. **No competitor markets a §7216-clean architecture, and none offers a §7216 consent template or a WISP builder.** Keepance can own all three.
+IRC §7216 (criminal) and §6713 (civil strict-liability) govern disclosure of return information; the FTC Safeguards Rule requires a WISP. The key point most vendors blur: a **cloud API key is still a disclosure to a third party** (the provider). Only a local model removes it. **No competitor markets a §7216-clean architecture, and none offers a §7216 consent template or a WISP builder.** Advisor Prep Hero can own all three.
 
-### Where Keepance wins / loses, and the white space
+### Where Advisor Prep Hero wins / loses, and the white space
 - **Wins:** the §7216-clean local model (no competitor can claim this), Drake compatibility (a third of the small-firm market has no AI from their vendor), transparent solo pricing, and §7216-consent + WISP templates no one else ships.
 - **Loses:** no primary-authority research (Blue J/CoCounsel/CCH win), no return-prep integration (TaxGPT/Black Ore/TR Ready-to-Review), and BYOK setup friction is fatal during filing season.
 - **White space to own:** the productized §7216-clean local workflow + the WISP/Safeguards module + Drake-companion positioning. The DIY-Ollama-for-tax community proves the demand; no commercial product serves it.
 
 ### Talking points
-- "Every other AI tax tool, even the best, routes your client's return data through a vendor cloud and an LLM API call. Under §7216 that's a third-party disclosure. With Keepance on a local model, nothing leaves your machine. It's the only §7216-clean architecture sold today."
-- "On Drake? Your vendor gives you zero AI. The research tools are $1,500-3,000/yr; ChatGPT is free but risky. Keepance is $149/yr with CP2000-response, §7216-consent, and research-memo templates built in."
+- "Every other AI tax tool, even the best, routes your client's return data through a vendor cloud and an LLM API call. Under §7216 that's a third-party disclosure. With Advisor Prep Hero on a local model, nothing leaves your machine. It's the only §7216-clean architecture sold today."
+- "On Drake? Your vendor gives you zero AI. The research tools are $1,500-3,000/yr; ChatGPT is free but risky. Advisor Prep Hero is $149/yr with CP2000-response, §7216-consent, and research-memo templates built in."
 - **Use the incumbent instead when:** you need citation-grounded research (Blue J/CoCounsel), you're already on Lacerte and just want advisory planning (Intuit Assist, free), or you want AI return prep (TaxGPT/Black Ore).
 - **Timing:** market and onboard tax pros in the May-November off-season; make BYOK setup near-frictionless or lead with local Ollama.
 
@@ -129,32 +129,32 @@ Very high AI use, very low governance. Most independent consultants use **ChatGP
 
 ### The field
 
-| Tool | Deployment | Data posture (key tiers) | Price | Strength / where it beats us | Where Keepance wins |
+| Tool | Deployment | Data posture (key tiers) | Price | Strength / where it beats us | Where Advisor Prep Hero wins |
 |---|---|---|---|---|---|
 | **ChatGPT** | Cloud | Free/Plus/Pro **train by default**; Business/Enterprise no-training | $0-20 indiv; $20-30/seat Business | Most capable; zero friction; what they already use | Plus/Pro can't honestly claim no-upload; no local; no per-client isolation |
-| **Claude** | Cloud | Free/Pro/Max train by default; Team/Enterprise no-training | $20 Pro; $25/seat Team | Long-context document analysis; same engine Keepance can BYOK | Consumer tiers risky; no local; no isolation |
+| **Claude** | Cloud | Free/Pro/Max train by default; Team/Enterprise no-training | $20 Pro; $25/seat Team | Long-context document analysis; same engine Advisor Prep Hero can BYOK | Consumer tiers risky; no local; no isolation |
 | **M365 Copilot** | Cloud (tenant) | No training; tenant-isolated | $18-30/mo add-on | In Word/PowerPoint/Outlook; **generates real PPTX files** | Still leaves the machine; output needs heavy cleanup; no local; no isolation |
 | **Notion AI** | Cloud (sends to OpenAI/Anthropic) | No training (all tiers); Enterprise zero-retention | $20/seat (Business) | Embedded in their KM; structured docs | **Routes data to external AI every call** (fails no-upload); no local |
 | **Gamma** (the deck king) | Cloud | Free/Plus train (opt-out); Team/Business no-training | $9-18/mo indiv | **Polished designed decks in minutes** (decisively beats our PPTX) | Cloud-only (fails no-upload); no per-client isolation; not a research/writing env |
 | **Beautiful.ai / Plus AI** | Cloud | No-training (contractual) | $12-40/mo | Branded slide design; Plus AI works inside PPT/Slides | Cloud; data leaves machine; deck-only |
 | **Perplexity** | Cloud | Enterprise Pro no-training | $20-40/mo | Real-time cited web research | Cloud; no local; research-only |
 | **Glean** | Cloud (single-tenant; on-prem option) | ZDR; permission-aware | ~$50/seat, ~100-seat min | Enterprise search across all data; on-prem option | Priced out of the boutique segment entirely |
-| **Local tools** (Msty, GPT4All/LocalDocs, Jan, Ollama) (watch) | **Local** | Zero egress | Free-$ | The privacy-purist alternative; GPT4All/Msty do local-folder RAG | Raw infrastructure with no consulting structure: **the gap Keepance fills** |
+| **Local tools** (Msty, GPT4All/LocalDocs, Jan, Ollama) (watch) | **Local** | Zero egress | Free-$ | The privacy-purist alternative; GPT4All/Msty do local-folder RAG | Raw infrastructure with no consulting structure: **the gap Advisor Prep Hero fills** |
 
 Note: **Tome shut down its presentation product in 2025**, so it is no longer a competitor.
 
 ### The regulatory/contract lever
 The NDA "no uploading work product to AI services" clause. The honest reading: a cloud key (even ChatGPT Enterprise or M365 Copilot) still uploads to a vendor; only a **local model** truly satisfies a strict no-upload clause. This is the precise wedge, and it is also the place our own site currently overclaims ("sidesteps the clause entirely"), per the 2026-06-04 review. Fix the claim to be local-model-specific and it becomes both accurate and more persuasive.
 
-### Where Keepance wins / loses, and the white space
+### Where Advisor Prep Hero wins / loses, and the white space
 - **Wins:** the only tool where a consultant can truthfully tell a client "nothing was uploaded to anyone's servers" (local model); per-client folder isolation (no competitor has this as a primitive); own-your-files; cost.
-- **Loses, badly, on the deliverable:** Gamma and Copilot-in-PowerPoint produce real, designed decks; Keepance produces an outline plus a basic PPTX. For a persona whose product *is* the deck, this is the gating gap.
+- **Loses, badly, on the deliverable:** Gamma and Copilot-in-PowerPoint produce real, designed decks; Advisor Prep Hero produces an outline plus a basic PPTX. For a persona whose product *is* the deck, this is the gating gap.
 - **White space to own:** (1) the client-facing "how I handle your data with AI" one-pager (the exact recommendation from the 2026-06-04 review, and a true differentiator: it turns AI use into a sales asset); (2) per-client isolation as a marketed feature; (3) wrapping local models in consulting-specific structure that raw Msty/GPT4All lack.
 
 ### Talking points
 - "ChatGPT Plus is paying $20/mo to train OpenAI on your client's strategy. The tools consultants actually use are the worst for confidentiality."
-- "Only a local model can truthfully honor a 'no AI upload' clause. Keepance is the only consulting tool with that architecture."
-- "Use Gamma for the final deck; use Keepance for everything that happens before it." (Honest, and it neutralizes our weakest point.)
+- "Only a local model can truthfully honor a 'no AI upload' clause. Advisor Prep Hero is the only consulting tool with that architecture."
+- "Use Gamma for the final deck; use Advisor Prep Hero for everything that happens before it." (Honest, and it neutralizes our weakest point.)
 - **Use the incumbent instead when:** you need a polished deck fast (Gamma/Copilot), real-time web research (Perplexity), or you have no sensitive data and want zero setup (ChatGPT Business).
 
 ---
@@ -166,7 +166,7 @@ The NDA "no uploading work product to AI services" clause. The honest reading: a
 
 ### The field
 
-| Tool | Deployment | Data posture | Price | Strength / where it beats us | Where Keepance wins |
+| Tool | Deployment | Data posture | Price | Strength / where it beats us | Where Advisor Prep Hero wins |
 |---|---|---|---|---|---|
 | **Jump** (category leader) | Cloud (AWS) | No training; SOC 2 Type II + HIPAA; **no public DPA** | **$75-175/advisor/mo** | Purpose-built meeting notes; 30+ CRM integrations; 27,000 advisors; T3 #1 | Client data in cloud; no local; no zero-egress; 6-14x our price |
 | **Zocks** (privacy-positioned) | Cloud | **No audio/video stored** (notes only); SOC 2 Type II; Smarsh/Global Relay archive integration | $67-184/mo | No-recording architecture; eMoney sync; books-records archiving | Still cloud (notes leave machine); no local; no DPA published |
@@ -175,23 +175,23 @@ The NDA "no uploading work product to AI services" clause. The honest reading: a
 | **eMoney / MoneyGuidePro** (bundled) | Cloud | Envestnet enterprise security | bundled (~$100-300/mo) | Already in the stack; AI data-import + note summarize | Narrow to planning data; no local; not general-purpose |
 | **Conquest Planning** | Cloud | "Compliance-first," auditable engine | per-plan/unlimited | Auditable planning AI; MCP server | Planning-only; cloud |
 | **M365 Copilot** | Cloud (tenant) | No training; **but a DLP-bypass bug (Jan-Feb 2026)** | $30/mo | In their Office stack | The DLP bug is a CCO red flag; no advisor depth; no local |
-| **Shadow ChatGPT/Claude** | Cloud | Consumer tier trains | $0-20/mo | What advisors already do ad hoc | The governance gap Keepance can close; no local |
-| **Smarsh / Global Relay** | Cloud | WORM archiving | quote | Books-records archiving (complementary, not a competitor) | Keepance local files sidestep archiving for non-shared content |
+| **Shadow ChatGPT/Claude** | Cloud | Consumer tier trains | $0-20/mo | What advisors already do ad hoc | The governance gap Advisor Prep Hero can close; no local |
+| **Smarsh / Global Relay** | Cloud | WORM archiving | quote | Books-records archiving (complementary, not a competitor) | Advisor Prep Hero local files sidestep archiving for non-shared content |
 | **(No local advisor tool exists)** | — | — | — | — | **The entire zero-egress slot is empty: our biggest white space** |
 
 (Morgan Stanley's "AI @ Morgan Stanley Debrief" proves advisor meeting-AI works at scale, but it is wirehouse-only and unavailable to independent RIAs. It is a benchmark, not a competitor.)
 
 ### The regulatory lever (strongest of all four, and time-sensitive)
-The **SEC Reg S-P amendments' compliance deadline for smaller RIAs passed June 3, 2026** (a written incident-response program, 30-day breach notification, and **service-provider oversight**, the duty to vet and monitor every vendor that touches client data). Plus books-and-records (Rule 204-2) retention questions around AI outputs, and active SEC **AI-washing** enforcement. The Keepance argument writes itself: **on a local model there is no AI vendor to vet, no covered data leaving the firm, and the files are plain records the firm already controls.**
+The **SEC Reg S-P amendments' compliance deadline for smaller RIAs passed June 3, 2026** (a written incident-response program, 30-day breach notification, and **service-provider oversight**, the duty to vet and monitor every vendor that touches client data). Plus books-and-records (Rule 204-2) retention questions around AI outputs, and active SEC **AI-washing** enforcement. The Advisor Prep Hero argument writes itself: **on a local model there is no AI vendor to vet, no covered data leaving the firm, and the files are plain records the firm already controls.**
 
-### Where Keepance wins / loses, and the white space
+### Where Advisor Prep Hero wins / loses, and the white space
 - **Wins:** zero Reg S-P vendor surface (with a local model there is no service provider to oversee), zero-egress for the most sensitive documents, own-your-files as latent 204-2 support, much lower cost, and general-purpose drafting beyond meeting notes.
-- **Loses:** Keepance is **not** a meeting-notes / CRM-sync tool, which is the #1 thing advisors are buying; no SOC 2 / signed DPA (a hard blocker in formal RIA vendor approval); no branded-PDF plan output; and no track record against Jump's 27,000-advisor "no one got fired for buying Jump" status.
-- **White space to own:** there is **no local, zero-egress advisor AI tool on the market at all.** Pair that with a CCO-facing "how Keepance fits your Reg S-P program" one-pager (the 2026-06-04 review's recommendation) and Keepance can own the "AI for advisors who won't put client data in someone else's cloud" position outright, especially for HNW/UHNW, family-office, and estate-heavy practices.
+- **Loses:** Advisor Prep Hero is **not** a meeting-notes / CRM-sync tool, which is the #1 thing advisors are buying; no SOC 2 / signed DPA (a hard blocker in formal RIA vendor approval); no branded-PDF plan output; and no track record against Jump's 27,000-advisor "no one got fired for buying Jump" status.
+- **White space to own:** there is **no local, zero-egress advisor AI tool on the market at all.** Pair that with a CCO-facing "how Advisor Prep Hero fits your Reg S-P program" one-pager (the 2026-06-04 review's recommendation) and Advisor Prep Hero can own the "AI for advisors who won't put client data in someone else's cloud" position outright, especially for HNW/UHNW, family-office, and estate-heavy practices.
 
 ### Talking points
-- "You just became obligated to vet every AI vendor for Reg S-P. With Keepance on a local model, there is no vendor to vet. The vendor surface is zero."
-- "Every advisor AI tool, even the privacy-positioned ones, is a cloud vendor receiving your clients' most sensitive financial data. Keepance on a local model routes nothing through anyone's server."
+- "You just became obligated to vet every AI vendor for Reg S-P. With Advisor Prep Hero on a local model, there is no vendor to vet. The vendor surface is zero."
+- "Every advisor AI tool, even the privacy-positioned ones, is a cloud vendor receiving your clients' most sensitive financial data. Advisor Prep Hero on a local model routes nothing through anyone's server."
 - "Your files are Markdown on your disk. When Jump raises prices or your firm changes CRMs, your records don't disappear."
 - **Use the incumbent instead when:** the primary pain is meeting-notes + CRM sync (Jump/Zocks, purpose-built, and we are not), you need document-to-planning analysis (FP Alpha), or your vendor-approval process strictly requires SOC 2 + a DPA (which we do not yet have).
 
@@ -199,18 +199,18 @@ The **SEC Reg S-P amendments' compliance deadline for smaller RIAs passed June 3
 
 ## 7. Cross-cutting synthesis
 
-**1. The real competition is "good enough and already paid for."** In three of four verticals, the most dangerous competitor is not the impressive purpose-built tool, it is the AI bundled into the system of record the practitioner already owns (Clio Duo, Intuit Assist, eMoney/MGP AI) plus M365 Copilot. These are cheap or free, frictionless, and have decent contractual privacy. Keepance cannot beat them on convenience or integration. It beats them on architecture (local/zero-egress), depth of profession-specific templates, and price-vs-the-premium-tier.
+**1. The real competition is "good enough and already paid for."** In three of four verticals, the most dangerous competitor is not the impressive purpose-built tool, it is the AI bundled into the system of record the practitioner already owns (Clio Duo, Intuit Assist, eMoney/MGP AI) plus M365 Copilot. These are cheap or free, frictionless, and have decent contractual privacy. Advisor Prep Hero cannot beat them on convenience or integration. It beats them on architecture (local/zero-egress), depth of profession-specific templates, and price-vs-the-premium-tier.
 
-**2. "Contractual privacy" vs "architectural privacy" is the one durable moat.** Every cloud competitor's privacy pitch is a promise (no training, zero retention, SOC 2). Keepance with a local model is the only one offering a *fact* (nothing leaves the machine). That distinction is abstract until a regulator or a court makes it concrete, and in 2026 they are: Heppner, Reg S-P, §7216, NDA clauses. This is the spine of the whole positioning.
+**2. "Contractual privacy" vs "architectural privacy" is the one durable moat.** Every cloud competitor's privacy pitch is a promise (no training, zero retention, SOC 2). Advisor Prep Hero with a local model is the only one offering a *fact* (nothing leaves the machine). That distinction is abstract until a regulator or a court makes it concrete, and in 2026 they are: Heppner, Reg S-P, §7216, NDA clauses. This is the spine of the whole positioning.
 
 **3. The regulatory tailwind is real and time-sensitive.** Heppner (Feb 2026), the Reg S-P small-RIA deadline (June 3 2026), and rising NDA AI clauses are all landing now. The local-model story should be the hero of every vertical page, not a footnote. (The 2026-06-04 review found we currently bury it and sometimes overclaim the cloud-key case; both should be fixed.)
 
-**4. Keepance has the same five gaps everywhere. Decide which to close and which to concede.**
+**4. Advisor Prep Hero has the same five gaps everywhere. Decide which to close and which to concede.**
 - *Concede (do not try to win):* proprietary research databases (legal case law, tax primary authority). Position around them ("sits beside Westlaw/Checkpoint"), never against them.
 - *Concede for now:* the advisor meeting-notes/CRM-sync category (Jump/Zocks own it) and the consulting designed-deck category (Gamma owns it). Position as the upstream private workspace, and integrate/handoff rather than compete.
 - *Close (these are winnable and gating):* (a) trust signals: SOC 2, a signed DPA, named reviewer testimonials; (b) the gatekeeper one-pagers (malpractice carrier / client GC / CCO Reg S-P / §7216), which the 2026-06-04 review already recommended and the competitive data strongly reinforces; (c) branded/letterhead output (advisor PDFs, tax letters, legal filings); (d) BYOK onboarding friction, ideally by leading the most sensitive buyers straight to local Ollama.
 
-**5. Price is a genuine advantage, used carefully.** Keepance at $149/yr + a few dollars of API is 4x to 20x cheaper than the purpose-built tools ($1,200-5,000/yr). Anchor against those, not against the $0 bundled tools or free ChatGPT (where price is not our edge, architecture is).
+**5. Price is a genuine advantage, used carefully.** Advisor Prep Hero at $149/yr + a few dollars of API is 4x to 20x cheaper than the purpose-built tools ($1,200-5,000/yr). Anchor against those, not against the $0 bundled tools or free ChatGPT (where price is not our edge, architecture is).
 
 **6. Closest direct threats to watch:**
 - **Elephas** (Mac-only local AI for lawyers via Ollama): the only marketed local competitor in any vertical. Generic, no profession packs, Mac-only. If it adds profession templates and Windows, it is the most direct threat. Monitor.
@@ -219,7 +219,7 @@ The **SEC Reg S-P amendments' compliance deadline for smaller RIAs passed June 3
 
 ---
 
-## 8. What this means for Keepance (recommendations)
+## 8. What this means for Advisor Prep Hero (recommendations)
 
 **Positioning, per vertical:**
 - *Legal:* "Private, local-capable AI for the work that has to stay privileged, beside Clio and Westlaw, not instead of them." Lead with Heppner and the local model.
@@ -247,7 +247,7 @@ This assessment is only worth the use we make of it. Concrete plays, by priority
 
 | # | Play | What it is | Why now | Owner |
 |---|---|---|---|---|
-| 1 | **Per-vertical comparison sections** on /legal/, /tax/, /consulting/, /financial-advisors/ | "How Keepance compares to the AI you already have" block + honest matrix on each landing page | Highest-conversion: the prospect is already on the page, already wondering "how is this different from Clio Duo / Jump / what I have?" | `auto` build, `deploy-gate` |
+| 1 | **Per-vertical comparison sections** on /legal/, /tax/, /consulting/, /financial-advisors/ | "How Advisor Prep Hero compares to the AI you already have" block + honest matrix on each landing page | Highest-conversion: the prospect is already on the page, already wondering "how is this different from Clio Duo / Jump / what I have?" | `auto` build, `deploy-gate` |
 | 2 | **A comparison hub + per-incumbent pages** under /vs/ | New /vs/ section for profession tools + dedicated pages (vs CoCounsel, Clio Duo, Jump, Intuit Assist, Gamma, etc.) | SEO capture for "private alternative to [incumbent]" intent; the /vs/ pattern already exists | `auto` build, `deploy-gate` |
 | 3 | **Regulatory-hook blog posts** | "What US v. Heppner means for your AI," "Is your AI tax tool §7216-clean?," "Reg S-P just changed your AI vendor list," "Your NDA probably bans the AI tool you're using" | The regulatory tailwind is time-sensitive and is the exact wedge; strong SEO + thought leadership + cold-outreach fuel | `auto` draft, `deploy-gate` |
 | 4 | **Sales / outreach battlecards** | Objection-handling: "I already have Clio Duo / Jump / Intuit Assist / ChatGPT" → the honest response, per vertical | Powers reviewer + cold outreach (the GTM motion); turns this doc into reps | `auto` |
@@ -256,7 +256,7 @@ This assessment is only worth the use we make of it. Concrete plays, by priority
 | 7 | **Trust signals: SOC 2 (Type II) + a standard DPA** | The recurring hard blocker for RIA / multi-lawyer-firm vendor approval | Without it, the regulated verticals can't formally approve us no matter how good the pitch | `Jameson` / `board` (spend + process) |
 | 8 | **Competitor-watch + quarterly refresh** | A living watch list (Elephas, Lexis+ BYOK, incumbents adding local/BYOK) and a quarterly price/feature re-check | Pricing and features move fast; this doc decays | `auto` (scheduled) |
 
-All of these plays are now handed to the Keepance build session in one place: **[Competitive Activation Master Handoff, 2026-06-08](./2026-06-08-competitive-activation-master-handoff.md)** (which references the build-ready website spec in [Competitive Build Handoff, 2026-06-06](./2026-06-06-competitive-build-handoff.md)). Play 7 (SOC 2 + DPA) stays a Jameson/board decision; the master handoff specs the buildable parts and a decision brief.
+All of these plays are now handed to the Advisor Prep Hero build session in one place: **[Competitive Activation Master Handoff, 2026-06-08](./2026-06-08-competitive-activation-master-handoff.md)** (which references the build-ready website spec in [Competitive Build Handoff, 2026-06-06](./2026-06-06-competitive-build-handoff.md)). Play 7 (SOC 2 + DPA) stays a Jameson/board decision; the master handoff specs the buildable parts and a decision brief.
 
 ---
 
@@ -265,7 +265,7 @@ All of these plays are now handed to the Keepance build session in one place: **
 - **High confidence:** the deployment model (essentially all leaders are cloud), the consumer-tier training defaults (ChatGPT/Claude train on free/Plus/Pro by default; Team/Enterprise do not), the regulatory facts (Heppner ruling + conviction; Reg S-P June 3 2026 deadline; §7216/§6713 structure; SEC AI-washing fines), and the existence/traction of the category leaders (Jump 27k advisors/$105M; Zocks 5k firms/$65M; Gamma scale; Drake has no genAI; Intuit Assist bundled).
 - **Medium confidence:** specific monthly pricing for tools that don't publish rate cards (CoCounsel, Harvey, TaxGPT, Zeplyn, Spellbook, Paxton). Treat the dollar figures as directional and verify before any public comparison.
 - **Lower confidence / verify:** whether specific vendors offer a standard signed Reg S-P DPA vs negotiated-only; exact training-data policies for FP Alpha and Intuit on uploaded client documents (both ambiguous in public materials); and Paxton's current headline price (a recent page showed $499/mo vs older $199/mo reports).
-- This complements, and does not replace, the PKM-focused `COMPETITIVE_LANDSCAPE.md`; that doc still covers the Notion/Obsidian/general-AI angle for the rare prospect who frames Keepance that way.
+- This complements, and does not replace, the PKM-focused `COMPETITIVE_LANDSCAPE.md`; that doc still covers the Notion/Obsidian/general-AI angle for the rare prospect who frames Advisor Prep Hero that way.
 
 ---
 

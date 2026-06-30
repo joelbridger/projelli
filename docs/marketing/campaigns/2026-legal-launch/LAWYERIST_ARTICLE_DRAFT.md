@@ -2,7 +2,7 @@
 
 *Draft for Lawyerist. Author: Jameson Daines, keepance.com.*
 
-*Disclosure: I'm the developer of Keepance, a local-first AI workspace for professionals with confidentiality obligations. I'll flag that clearly in the article itself. The analysis here applies to any tool in this category, not just mine.*
+*Disclosure: I'm the developer of Advisor Prep Hero, a local-first AI workspace for professionals with confidentiality obligations. I'll flag that clearly in the article itself. The analysis here applies to any tool in this category, not just mine.*
 
 > **Heppner citation status: VERIFIED.** *United States v. Heppner*, No. 1:25-cr-00503-JSR (S.D.N.Y. Feb. 17, 2026), Dkt. No. 27 (Rakoff, J.). You may now add the citation to this article. Suggested placement: in the privilege section, after the ABA Opinion 512 discussion. Frame as: "A February 2026 SDNY ruling illustrates the risk — a defendant who used consumer Claude without attorney direction saw no privilege protection. The court's analysis supports the view that counsel-directed, confidentiality-preserving use is the right fact pattern." Do not claim this as a holding about what guarantees privilege.
 
@@ -60,7 +60,7 @@ The data flow looks like this: your machine calls the AI provider's API directly
 
 This architecture sidesteps a meaningful portion of the confidentiality analysis. The question of "does sending this document to the provider constitute a disclosure?" still exists, but you've eliminated the additional layer of a software vendor in the middle. The analysis is simpler because the data path is simpler.
 
-I built one of these tools. It's called Keepance, and it's at keepance.com. I'm mentioning it because it would be strange not to, and because I want to be upfront about my perspective. But local-first tools aren't a category I invented. Enterprise on-premises deployments of AI models are another approach entirely, and for large firms they may be the right answer. The point isn't to pick a winner. It's that there are architectures that remove the third-party data question from your analysis.
+I built one of these tools. It's called Advisor Prep Hero, and it's at keepance.com. I'm mentioning it because it would be strange not to, and because I want to be upfront about my perspective. But local-first tools aren't a category I invented. Enterprise on-premises deployments of AI models are another approach entirely, and for large firms they may be the right answer. The point isn't to pick a winner. It's that there are architectures that remove the third-party data question from your analysis.
 
 Tradeoffs worth naming: local-first tools using external API providers still send data to those providers during inference. You're not air-gapped. What you've done is reduce the number of parties involved. If you need complete air-gapping (because your engagement letter requires it, or because the sensitivity of the matter demands it), you'd want a truly local model running on your hardware without any external API call. That's a more complex setup and genuinely outside what most solo practitioners need.
 
@@ -94,4 +94,4 @@ The tools exist. The analysis exists. You actually have what you need to make a 
 
 ---
 
-*Jameson Daines is a product designer and the developer of Keepance (keepance.com), a local-first AI workspace for attorneys, CPAs, and consultants working under confidentiality obligations. He is not an attorney. If you think he's gotten something wrong here, please let him know.*
+*Jameson Daines is a product designer and the developer of Advisor Prep Hero (keepance.com), a local-first AI workspace for attorneys, CPAs, and consultants working under confidentiality obligations. He is not an attorney. If you think he's gotten something wrong here, please let him know.*

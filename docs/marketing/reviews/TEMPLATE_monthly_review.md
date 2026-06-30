@@ -114,7 +114,7 @@ For each item in section 3:
 
 ## 6. The single sentence test
 
-> Is Keepance closer to being the answer when an indie founder asks "what's a local-first AI workspace I can actually buy and own", than it was last month?
+> Is Advisor Prep Hero closer to being the answer when an indie founder asks "what's a local-first AI workspace I can actually buy and own", than it was last month?
 
 [yes/no with one-line reason]
 

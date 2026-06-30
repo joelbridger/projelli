@@ -4,11 +4,11 @@
 
 ---
 
-# Design Doc: Keepance Local-AI Spreadsheet Facts Path
+# Design Doc: Advisor Prep Hero Local-AI Spreadsheet Facts Path
 
 ## Goal
 
-Keepance’s embedded local model is `Qwen3-4B-Instruct-2507`. It is good enough for cited writing over retrieved text, but small local models are not reliable at spreadsheet math. The fix is: **do spreadsheet math in Rust, then give the model already-computed, citable facts.**
+Advisor Prep Hero’s embedded local model is `Qwen3-4B-Instruct-2507`. It is good enough for cited writing over retrieved text, but small local models are not reliable at spreadsheet math. The fix is: **do spreadsheet math in Rust, then give the model already-computed, citable facts.**
 
 That means the model should not read raw rows and decide “the total is probably X.” Rust should produce facts like:
 
@@ -451,7 +451,7 @@ Scenario:
 
 1. Seed demo workspace with an advisor workbook.
 2. Re-index.
-3. Ask with Keepance Local AI:
+3. Ask with Advisor Prep Hero Local AI:
 
 ```text
 What is the client’s total portfolio value and allocation by asset class?
@@ -474,7 +474,7 @@ Rust should not try to become Excel in v1.
 Use cached numeric values only. If a formula cell has no cached value, skip it and include a warning fact if needed:
 
 ```text
-Summary!B8 formula cell has no cached value; Keepance did not compute it.
+Summary!B8 formula cell has no cached value; Advisor Prep Hero did not compute it.
 ```
 
 ### Header Detection
@@ -535,14 +535,14 @@ Implement v1 as:
 
 Do **not** add full formula evaluation, `.xls`, pivot tables, charts, or cross-sheet formula solving in Ticket 8. Those are later work. The valuable user promise is narrower and stronger:
 
-**Keepance does the arithmetic it can prove, cites the exact sheet/range, and refuses to make uncited spreadsheet claims.**
+**Advisor Prep Hero does the arithmetic it can prove, cites the exact sheet/range, and refuses to make uncited spreadsheet claims.**
 tokens used
 246,767
-# Design Doc: Keepance Local-AI Spreadsheet Facts Path
+# Design Doc: Advisor Prep Hero Local-AI Spreadsheet Facts Path
 
 ## Goal
 
-Keepance’s embedded local model is `Qwen3-4B-Instruct-2507`. It is good enough for cited writing over retrieved text, but small local models are not reliable at spreadsheet math. The fix is: **do spreadsheet math in Rust, then give the model already-computed, citable facts.**
+Advisor Prep Hero’s embedded local model is `Qwen3-4B-Instruct-2507`. It is good enough for cited writing over retrieved text, but small local models are not reliable at spreadsheet math. The fix is: **do spreadsheet math in Rust, then give the model already-computed, citable facts.**
 
 That means the model should not read raw rows and decide “the total is probably X.” Rust should produce facts like:
 
@@ -985,7 +985,7 @@ Scenario:
 
 1. Seed demo workspace with an advisor workbook.
 2. Re-index.
-3. Ask with Keepance Local AI:
+3. Ask with Advisor Prep Hero Local AI:
 
 ```text
 What is the client’s total portfolio value and allocation by asset class?
@@ -1008,7 +1008,7 @@ Rust should not try to become Excel in v1.
 Use cached numeric values only. If a formula cell has no cached value, skip it and include a warning fact if needed:
 
 ```text
-Summary!B8 formula cell has no cached value; Keepance did not compute it.
+Summary!B8 formula cell has no cached value; Advisor Prep Hero did not compute it.
 ```
 
 ### Header Detection
@@ -1069,4 +1069,4 @@ Implement v1 as:
 
 Do **not** add full formula evaluation, `.xls`, pivot tables, charts, or cross-sheet formula solving in Ticket 8. Those are later work. The valuable user promise is narrower and stronger:
 
-**Keepance does the arithmetic it can prove, cites the exact sheet/range, and refuses to make uncited spreadsheet claims.**
+**Advisor Prep Hero does the arithmetic it can prove, cites the exact sheet/range, and refuses to make uncited spreadsheet claims.**

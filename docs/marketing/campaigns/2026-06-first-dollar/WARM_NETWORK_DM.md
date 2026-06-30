@@ -8,7 +8,7 @@ Send to 15-20 warm contacts: consulting-side colleagues, ex-coworkers, friends w
 
 ## Short version (text / Slack / IG DM)
 
-> Hey [name], I built a thing and I genuinely want your honest take on it. It's called Keepance. Basically a local-first AI workspace: you chat with Claude or GPT inside it, and every conversation turns into a real file in a folder on your own machine. Nothing goes to my servers, and you bring your own API key. I made it for the kind of work you can't really paste into someone else's cloud. There's a free 30-day trial if you'd rather just poke at it: https://keepance.com. Would love to know what you think, good or not.
+> Hey [name], I built a thing and I genuinely want your honest take on it. It's called Advisor Prep Hero. Basically a local-first AI workspace: you chat with Claude or GPT inside it, and every conversation turns into a real file in a folder on your own machine. Nothing goes to my servers, and you bring your own API key. I made it for the kind of work you can't really paste into someone else's cloud. There's a free 30-day trial if you'd rather just poke at it: https://keepance.com. Would love to know what you think, good or not.
 
 ---
 
@@ -20,7 +20,7 @@ Send to 15-20 warm contacts: consulting-side colleagues, ex-coworkers, friends w
 >
 > It's been a minute. I've had my head down on something for the last few months, and you're one of the few people whose read on this stuff I actually trust, so I want to send it your way before I make any noise about it.
 >
-> It's called Keepance. The short version: it's an AI workspace that runs on your own machine. You chat with Claude, GPT, or Gemini inside it, and every conversation becomes a real Word document in a real folder on your hard drive. Not a database I control. Not my servers. The file is just there, yours, the way a Word doc is yours.
+> It's called Advisor Prep Hero. The short version: it's an AI workspace that runs on your own machine. You chat with Claude, GPT, or Gemini inside it, and every conversation becomes a real Word document in a real folder on your hard drive. Not a database I control. Not my servers. The file is just there, yours, the way a Word doc is yours.
 >
 > Two things make it different from the chat window you already have open. You bring your own API key, so requests go straight from your machine to Anthropic or OpenAI and never touch anything of mine. And the chats don't disappear into scrollback. They pile up as files you can link together, search, and edit later.
 >

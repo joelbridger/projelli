@@ -296,12 +296,12 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                 </span>
               )}
               {/* Client boundary — a persistent reminder that recall here is
-                  scoped to THIS household. Keepance never mixes one client's
+                  scoped to THIS household. Advisor Prep Hero never mixes one client's
                   files into another client's answers (matter isolation), and
                   making that visible is the trust story an advisor needs to see. */}
               <span
                 data-testid="hub-scope-badge"
-                title="Recall is scoped to this household. Keepance never mixes one client's files into another client's answers."
+                title="Recall is scoped to this household. Advisor Prep Hero never mixes one client's files into another client's answers."
               >
                 <Badge variant="neutral" size="sm" icon={Users}>
                   {(matter.name && matter.name.trim() ? matter.name : label)} only

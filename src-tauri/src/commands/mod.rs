@@ -8,7 +8,7 @@
 pub mod fs;
 pub mod http;
 pub mod keychain;
-// Keepance 3.0 — SQLCipher-encrypted, append-only audit "defense file" store.
+// Advisor Prep Hero 3.0 — SQLCipher-encrypted, append-only audit "defense file" store.
 pub mod audit;
 // Read-only Addepar portfolio connector — household holdings/performance into RAG.
 pub mod addepar;
@@ -32,12 +32,12 @@ pub mod onedrive;
 pub mod boxc;
 // Read-only ShareFile document connector.
 pub mod sharefile;
-// Phase 4 M4 (v1.5 Flag 2) — host-side bridge for the Keepance MCP sidecar:
+// Phase 4 M4 (v1.5 Flag 2) — host-side bridge for the Advisor Prep Hero MCP sidecar:
 // list pending write approvals, record the user's decision, resolve the
 // platform `.mcpb` bundle path.
 pub mod mcp;
 pub mod rag;
-// Keepance Local AI — bundled llama.cpp sidecar plus first-run GGUF download.
+// Advisor Prep Hero Local AI — bundled llama.cpp sidecar plus first-run GGUF download.
 pub mod local_llm;
 // Phase 4 M6 (v1.5 Flag 4) — voice capture & transcription via bundled
 // Parakeet/whisper.cpp sidecar. Frontend press-to-talk hotkey invokes

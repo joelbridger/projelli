@@ -1,4 +1,4 @@
-# docx-roundtrip — Keepance 3.0 de-risking spike
+# docx-roundtrip — Advisor Prep Hero 3.0 de-risking spike
 
 Standalone Rust crate proving **in-house Microsoft Word track-changes round-trip**
 (import a redline, AI adds its own tracked edits, export valid `.docx`) using only
@@ -29,7 +29,7 @@ python3 scripts/independent_validate.py fixtures/with-tracked-changes.docx
 | `src/parse.rs` | `document.xml` + `comments.xml` → model, preserving revision markup |
 | `src/serialize.rs` | model → valid `.docx` (deterministic, well-formed) |
 | `src/fixture.rs` | Programmatic minimal `.docx` with existing tracked changes + a comment |
-| `src/author.rs` | "AI authoring": add new `w:author="Keepance AI"` revisions |
+| `src/author.rs` | "AI authoring": add new `w:author="Advisor Prep Hero AI"` revisions |
 | `src/validate.rs` | Vendor-free structural validation (well-formedness, parts, schema-plausibility) |
 | `tests/roundtrip.rs` | TEST A (preservation) + TEST B (authoring) + fixture validity |
 | `tests/python_validate.rs` | Independent `python-docx` cross-check (auto-skips if absent) |

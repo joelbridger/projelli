@@ -1,4 +1,4 @@
-# Keepance Design Partner Program (Brief)
+# Advisor Prep Hero Design Partner Program (Brief)
 
 **Status:** DRAFT for Jameson's review. Recruiting materials for the 3.0 design-partner firms. The outreach messages are in `outreach-templates.md`.
 
@@ -8,7 +8,7 @@
 
 ## Why this program exists
 
-Keepance 3.0 is being rebuilt around what real attorneys actually need: find anything you have ever emailed or filed in seconds, privately; draft and redline in real Word with tracked changes; and never hand a client's data to an AI vendor. Before it ships, I want a small group of practicing attorneys shaping it on real work, so 3.0 is built for their day instead of my guesses. They also become the proof that other lawyers will trust ("a lawyer I'd have a drink with uses this"), which the research says is the single biggest thing that moves an attorney from interested to adopting.
+Advisor Prep Hero 3.0 is being rebuilt around what real attorneys actually need: find anything you have ever emailed or filed in seconds, privately; draft and redline in real Word with tracked changes; and never hand a client's data to an AI vendor. Before it ships, I want a small group of practicing attorneys shaping it on real work, so 3.0 is built for their day instead of my guesses. They also become the proof that other lawyers will trust ("a lawyer I'd have a drink with uses this"), which the research says is the single biggest thing that moves an attorney from interested to adopting.
 
 Recruiting these firms is the one launch-critical task that cannot be automated. It should start now, in parallel with the build.
 
@@ -38,7 +38,7 @@ The detailed screen is the research screener at `~/keepance/docs/research/2026-0
 
 ## The confidentiality answer (their first question)
 
-- Their files and their clients' data stay on their machine. I never see them, and neither does any Keepance server.
+- Their files and their clients' data stay on their machine. I never see them, and neither does any Advisor Prep Hero server.
 - They can run the AI fully local (nothing leaves the computer at all), or use their own AI account directly, with a clear indicator showing exactly where any request goes.
 - I will show them, in plain language they can repeat to a worried client, exactly where their data lives and who can see it.
 - They are never locked in. Their documents are real Word and PDF files in their own folders.

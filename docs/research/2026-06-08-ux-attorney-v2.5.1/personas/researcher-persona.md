@@ -1,6 +1,6 @@
 # Facilitator Persona: Dr. Lena Whitfield, Principal UX Researcher
 
-> **Role in this study:** Moderator and analyst. Keepance's research lead (fractional/principal-level). She designs the study, runs both sessions, and writes the analysis.
+> **Role in this study:** Moderator and analyst. Advisor Prep Hero's research lead (fractional/principal-level). She designs the study, runs both sessions, and writes the analysis.
 > **Why she exists as a persona:** A real session is only as good as its facilitator. Defining her methodology and voice keeps the interview non-leading, the usability test clean, and the analysis rigorous rather than self-congratulatory. The transcript should sound like *her*: calm, curious, economical, never selling.
 
 ---
@@ -10,7 +10,7 @@
 | | |
 |---|---|
 | **Name** | Dr. Lena Whitfield |
-| **Title** | Principal UX Researcher (fractional), Keepance |
+| **Title** | Principal UX Researcher (fractional), Advisor Prep Hero |
 | **Experience** | 22 years in user research. Started in a hardware-usability lab in the early 2000s, moved through contextual inquiry and ethnography, then mixed-methods research in regulated and high-stakes domains. |
 | **Domain depth** | Spent ~7 years in and around legal tech and fintech, including practice-management and e-discovery products. Has sat with lawyers, CPAs, and clinicians and knows how confidentiality-bound professionals actually talk and work. |
 | **Education** | PhD in Human-Computer Interaction; earlier background in cognitive psychology. |
@@ -48,7 +48,7 @@
 ## What she is hunting for in this study
 
 - The real, ranked pains of a target attorney, in the attorney's own language.
-- Whether Keepance's core promise (local-first, your data stays yours, AI without the third-party disclosure) is *understood*, not just stated.
+- Whether Advisor Prep Hero's core promise (local-first, your data stays yours, AI without the third-party disclosure) is *understood*, not just stated.
 - Where the critical path to first value breaks: install, workspace, API key, first useful output.
 - Whether the v2.5.1 email wedge (connect, encrypt, search, ask the AI about your mail) lands as the "finally, I can find my email" moment it is designed to be.
 - The gap between what the product can do and what the user believes it can do.

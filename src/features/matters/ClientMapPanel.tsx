@@ -92,7 +92,7 @@ const LABEL_SAVE_TEMPLATE = 'Save as template';
 const LABEL_REMOVE_BTN = 'Remove';
 const LABEL_ADD_SECTION_HEADING = 'Add a section';
 const LABEL_ADD_SECTION_BODY =
-  "Name a section and say what to track. Keepance fills it in from this client’s documents and email, with sources you can check.";
+  "Name a section and say what to track. Advisor Prep Hero fills it in from this client’s documents and email, with sources you can check.";
 const LABEL_SECTION_NAME = 'Section name';
 const LABEL_SECTION_NAME_PH = 'e.g. Insurance coverage';
 const LABEL_WHAT_TO_TRACK = 'What should I track here?';
@@ -517,7 +517,7 @@ function MissingPanel({
       </PanelHeader>
 
       {/* Coverage caveat — honest about what this map is. It's built only from
-          the files Keepance can read, so a clean map is a head-start for your
+          the files Advisor Prep Hero can read, so a clean map is a head-start for your
           review, not a guarantee the whole record is complete. Stated plainly so
           the catch (e.g. a stale beneficiary) never reads as "everything's been
           checked." */}
@@ -526,7 +526,7 @@ function MissingPanel({
         style={{ ...mutedTextStyle, marginBottom: 'var(--kp-space-md)' }}
       >
         {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-        Built from the files Keepance can read — a head-start for your review, not a guarantee the whole record is complete.
+        Built from the files Advisor Prep Hero can read — a head-start for your review, not a guarantee the whole record is complete.
         {/* eslint-enable keepance-i18n/no-hardcoded-string */}
       </div>
 
@@ -652,7 +652,7 @@ function AddSectionPanel({
             },
             {
               id: uuidv4(),
-              text: 'Keepance keeps this updated from new documents and email.',
+              text: 'Advisor Prep Hero keeps this updated from new documents and email.',
               origin: 'ai',
               isAssumption: false,
               sources: [],

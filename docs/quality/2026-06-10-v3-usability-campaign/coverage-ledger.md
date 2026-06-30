@@ -1,4 +1,4 @@
-# Coverage Ledger — Keepance 3.0 Usability Campaign
+# Coverage Ledger — Advisor Prep Hero 3.0 Usability Campaign
 
 **Date:** 2026-06-10
 **Campaign:** v3 usability campaign — `docs/quality/2026-06-10-v3-usability-campaign/`

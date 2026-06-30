@@ -157,7 +157,7 @@ export function AddeparConnect() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Addepar</h3>
             <p className="mt-1 max-w-xl text-xs text-slate-500">
-              Import household holdings, asset allocation, accounts, and performance summaries. Keepance only reads Addepar data.
+              Import household holdings, asset allocation, accounts, and performance summaries. Advisor Prep Hero only reads Addepar data.
             </p>
           </div>
         </div>

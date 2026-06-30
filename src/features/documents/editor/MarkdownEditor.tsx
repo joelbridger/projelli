@@ -407,7 +407,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     }, [filePath, readOnly]); // Recreate when filePath or readOnly changes
 
     // F-504 — bring the cited passage on screen. Citation clicks in the AI
-    // chat fire `keepance:scroll-to-paragraph` (App.tsx onOpenFileAtPath);
+    // chat fire `lantern:scroll-to-paragraph` (App.tsx onOpenFileAtPath);
     // the request resolves to a position by exact search for the cited
     // chunk's first searchable line, falling back to an approximate chunk
     // offset (resolveScrollPosition). Selects the landing line so the user

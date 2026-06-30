@@ -79,9 +79,9 @@ None of these are blockers — they just decide *how* we wire each box.
 - **B3 🤖 Install a screen tool that mirrors the real desktop** (a console-mode VNC such as TightVNC/RealVNC) so the visual AI can see + click the actual logged-in screen — not a separate locking session. ✅ (avoids the Remote-Desktop lock trap)
 - **B4 🤖 Install the build toolchain:** Microsoft C++ Build Tools ("Desktop development with C++"), Rust set to the MSVC toolchain (`rustup default stable-msvc`), the Edge WebView2 runtime, Node.js LTS, protoc. ✅
 - **B5 🤖 Install the AI agent on the box** (Claude Code) with admin rights, so it can build/run/test locally at full speed. 📋
-- **B6 🤖 (Optional now) Install a self-hosted GitHub Actions build runner** as an auto-start service, with the build cache kept warm on disk for fast repeat builds, labeled `windows`. ✅ (private repo only — Keepance is private ✓)
+- **B6 🤖 (Optional now) Install a self-hosted GitHub Actions build runner** as an auto-start service, with the build cache kept warm on disk for fast repeat builds, labeled `windows`. ✅ (private repo only — Advisor Prep Hero is private ✓)
 - **B7 🤖 Set "restart after power loss"** (a firmware setting, where remotely settable) + verify everything auto-starts at boot, so a power blip self-recovers. 📋
-- **B8 🤖 First real test:** clone Keepance, build the **unsigned debug** app, launch it, click through, confirm I can see the screen and read logs. Then we have a working Windows bench.
+- **B8 🤖 First real test:** clone Advisor Prep Hero, build the **unsigned debug** app, launch it, click through, confirm I can see the screen and read logs. Then we have a working Windows bench.
 
 ---
 
@@ -103,7 +103,7 @@ None of these are blockers — they just decide *how* we wire each box.
 - **D2 🤖 Key-based SSH in over the tunnel**, password-free, hardened. 📋
 - **D3 🤖 Build the sealed space:**
   - _If VM:_ install a free virtualizer (UTM or VirtualBuddy), create a macOS VM, set it to auto-start, and do everything below *inside* it. 📋
-  - _If separate login:_ create the standard "Keepance Test" account; work inside it. macOS already blocks it from her Documents/Desktop/Downloads. ✅
+  - _If separate login:_ create the standard "Advisor Prep Hero Test" account; work inside it. macOS already blocks it from her Documents/Desktop/Downloads. ✅
 - **D4 🤖 Install the toolchain** (Xcode Command Line Tools via `xcode-select --install`, Rust via rustup, Node LTS, protoc). ✅ (no full Xcode needed — desktop only)
 - **D5 🤖 Install the AI agent** (Claude Code) in that space. 📋
 - **D6 🤖 (Optional) GUI test driver:** built-in Screen Sharing mirrors the real session for a visual AI tester (no lock problem on Mac), plus — if we want scripted Mac tests — compile the new debug-only WebDriver plugin into the build. ✅(new/community — verify version before relying)
@@ -117,7 +117,7 @@ None of these are blockers — they just decide *how* we wire each box.
 - **Private tunnel only.** ✅ Never expose the terminal/screen to the open internet; everything rides Tailscale, ACL-restricted so *only the server* can reach the benches. Benches authenticated as tagged "server" devices, not as user devices.
 - **Disk encryption on** (BitLocker / FileVault) so a stolen laptop is unreadable. 📋
 - **Disposable + no real client data.** 📋 Treat both as wipe-able. Use **synthetic test data only** — never real client files — on these boxes. (Extra important on the Mac, where her real files live in a *different* sealed compartment from the AI's.)
-- **Self-hosted runners: private repo only.** ✅ Keepance's repo is private, which is the safe configuration. (Note: the scary "runners are backdoors" claim was *not* substantiated in verification — the real rule is simply "private repos only, isolated boxes.")
+- **Self-hosted runners: private repo only.** ✅ Advisor Prep Hero's repo is private, which is the safe configuration. (Note: the scary "runners are backdoors" claim was *not* substantiated in verification — the real rule is simply "private repos only, isolated boxes.")
 - **One honest risk, stated plainly:** maximum access = maximum blast radius if the AI errs or is tricked by something it reads while testing. The disposable-box + private-tunnel + encryption + synthetic-data combo is exactly what keeps that risk cheap (worst case = wipe and rebuild).
 
 ---
