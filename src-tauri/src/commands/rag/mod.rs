@@ -9,7 +9,7 @@
 //     (`chunker.rs`). Pure / unit-tested.
 //   - Extraction: text formats read as raw UTF-8; office documents
 //     (docx/xlsx/pptx/rtf) extracted natively Rust-side (VG-2b) — docx via
-//     the keepance-docx tree walk, the rest via `office.rs`. The
+//     the lantern-docx tree walk, the rest via `office.rs`. The
 //     `extractor::classify` dispatch in `index_one_file` covers BOTH the
 //     full walk and the watcher (the watcher funnels into `rag_index_file`).
 //     PDFs arrive pre-extracted from the renderer via `rag_index_pdf_chunks`.

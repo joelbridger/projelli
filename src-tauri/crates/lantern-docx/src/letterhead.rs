@@ -776,7 +776,7 @@ mod tests {
     use crate::{open_docx_bytes, serialize_docx_bytes, Package};
 
     /// Absolute path to a matter-corpus fixture. `CARGO_MANIFEST_DIR` points to
-    /// `src-tauri/crates/keepance-docx/` (same helper as `text.rs` /
+    /// `src-tauri/crates/lantern-docx/` (same helper as `text.rs` /
     /// `tests/campaign_fixtures.rs`).
     fn corpus_path(filename: &str) -> std::path::PathBuf {
         let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));

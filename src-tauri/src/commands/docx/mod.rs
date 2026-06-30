@@ -1,6 +1,6 @@
 //! Tauri command layer for the in-house OOXML document engine (WS-A / A1).
 //!
-//! These are **thin wrappers** over the `keepance-docx` crate. All real work —
+//! These are **thin wrappers** over the `lantern-docx` crate. All real work —
 //! parsing, serialization, the package/preserve-by-default logic, authoring —
 //! lives in the engine crate so it can be tested fast and in isolation. This
 //! module's job is just: marshal between the frontend (paths + JSON `Value`s)

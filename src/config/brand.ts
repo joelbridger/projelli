@@ -46,7 +46,20 @@ export const BRAND = {
     "site": "https://keepance.com",
     "docsBase": "https://keepance.com/docs",
     "supportEmail": "support@keepance.com",
-    "developersEmail": "developers@keepance.com"
+    "developersEmail": "developers@keepance.com",
+    "pricing": "https://keepance.com/#pricing",
+    "download": "https://keepance.com/#download",
+    "privacy": "https://keepance.com/privacy",
+    "terms": "https://keepance.com/terms",
+    "gettingStarted": "https://keepance.com/docs/getting-started",
+    "mobileDocsBase": "https://keepance.com/docs/mobile-access",
+    "voices": "https://keepance.com/voices",
+    "formsBugReport": "https://keepance.com/api/forms/keepance/bug-report",
+    "formsAiSetupHelp": "https://keepance.com/api/forms/keepance/ai-setup-help",
+    "formsTelemetry": "https://keepance.com/api/forms/keepance/app-event",
+    "formsDiagnostics": "https://keepance.com/api/forms/keepance/design-partner-event",
+    "licenseApi": "https://licenses.keepance.com",
+    "firmApi": "https://api.keepance.com"
   }
 } as const;
 

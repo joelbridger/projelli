@@ -1,6 +1,6 @@
 //! Tauri command layer for the encrypted workspace vault.
 //!
-//! This module is the thin glue between the pure `keepance-vault` crate (crypto,
+//! This module is the thin glue between the pure `lantern-vault` crate (crypto,
 //! format, atomic write, recovery, metadata) and Tauri. Its responsibilities:
 //!
 //! - Derive a stable `workspace_id` from the canonical workspace root path.
@@ -275,7 +275,7 @@ pub enum VaultCommandError {
     Keychain(String),
     /// I/O error on the workspace.
     Io(String),
-    /// Crypto / format error from the keepance-vault crate.
+    /// Crypto / format error from the lantern-vault crate.
     Crypto(String),
     /// Unexpected internal state.
     Internal(String),

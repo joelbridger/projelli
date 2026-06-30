@@ -18,8 +18,9 @@
 import { getInstallId } from './installId';
 import { getDesignPartnerConsent } from '@/platform/hooks/useDesignPartnerConsent';
 import { isLocalOnlyModeFailClosed } from '@/platform/privacy/localOnlyGuard';
+import { BRAND } from '@/config/brand';
 
-const ENDPOINT = 'https://keepance.com/api/forms/keepance/design-partner-event';
+const ENDPOINT = BRAND.urls.formsDiagnostics;
 
 /** Detect platform for the `platform` field. */
 function getPlatform(): string {

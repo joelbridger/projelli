@@ -65,6 +65,13 @@ advisor-packet/
 # Local screenshots/assets (not for public repo)
 Assets/
 
+# Generated build artifacts (copied from node_modules by scripts/copy-build-assets.mjs on predev/prebuild)
+public/pdf.worker.min.mjs
+public/ocr/tesseract-core.wasm
+public/ocr/tesseract-core-fallback.wasm
+public/ocr/tesseract-worker.js
+public/ocr/eng.traineddata
+
 # Local Claude Code config (but track shared project skills)
 .claude/*
 !.claude/skills/

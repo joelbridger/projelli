@@ -1,3 +1,4 @@
+import { BRAND } from '@/config/brand';
 /**
  * Voice catalog for Advisor Prep Hero TTS (Stream B).
  *
@@ -10,7 +11,7 @@
  * (the two files Piper requires).
  */
 
-export const TTS_CDN_BASE = 'https://keepance.com/voices';
+export const TTS_CDN_BASE = BRAND.urls.voices;
 
 export interface VoiceEntry {
   /** Piper voice ID, e.g. en_US-amy-medium */

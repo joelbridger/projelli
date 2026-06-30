@@ -38,6 +38,7 @@ import { Button } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { DataMapContent } from '@/platform/privacy/ui/DataMapDialog';
 import { resolveEgress } from '@/platform/privacy/egress';
+import { BRAND } from '@/config/brand';
 
 /* ---------------------------------------------------------------------------
  * Per-mode egress descriptions — derived from egress.ts, not hand-typed.
@@ -203,7 +204,7 @@ const SECTIONS: Section[] = [
       <div>
         <p>
           Questions for your security or ethics reviewer to send to{' '}
-          <a href="mailto:developers@keepance.com">developers@keepance.com</a>.
+          <a href={`mailto:${BRAND.urls.developersEmail}`}>{BRAND.urls.developersEmail}</a>.
           We will answer in writing.
         </p>
         <ul style={{ marginTop: '0.5rem', paddingLeft: '1.25rem' }}>

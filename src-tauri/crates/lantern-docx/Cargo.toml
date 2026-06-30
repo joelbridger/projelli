@@ -7,7 +7,7 @@ license = "MIT"
 publish = false
 
 # This crate is the production promotion of spikes/docx-roundtrip. It is a
-# workspace member of src-tauri so `cargo test -p keepance-docx` runs FAST and
+# workspace member of src-tauri so `cargo test -p lantern-docx` runs FAST and
 # in isolation — the Tauri host (tauri, lancedb, fastembed, ...) is NOT in this
 # crate's dependency graph, so the engine test suite compiles in seconds.
 #

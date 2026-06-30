@@ -20,13 +20,14 @@ import { Button } from '@/ui/button';
 import { useFirm } from '@/platform/hooks/useFirm';
 import { FirmSignIn } from '@/features/firm/FirmSignIn';
 import { CarryMattersStep } from '@/features/firm/CarryMattersStep';
+import { BRAND } from '@/config/brand';
 
 export interface UseWithFirmFlowProps {
   onClose: () => void;
 }
 
 /** Canonical firm-plan purchase link (matches LicenseSettings). */
-const FIRM_PLAN_URL = 'https://keepance.com/#pricing';
+const FIRM_PLAN_URL = BRAND.urls.pricing;
 
 type Stage = 'choose' | 'auth' | 'carry';
 type Door = 'create' | 'join';

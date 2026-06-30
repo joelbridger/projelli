@@ -1,3 +1,4 @@
+import { BRAND } from '@/config/brand';
 /**
  * Firm backend configuration — the ONE place the client decides which URL the
  * firm backend lives at and how to reach its WebSocket.
@@ -11,7 +12,7 @@
  * Solo/local mode never imports or calls any of this — it stays accountless.
  */
 
-const PROD_FIRM_API_BASE = 'https://api.keepance.com';
+const PROD_FIRM_API_BASE = BRAND.urls.firmApi;
 const DEV_FIRM_API_PROXY = '/api/firm';
 
 function envBase(): string | undefined {

@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs';
 import { Button } from '@/ui/button';
 import { ExternalLink } from 'lucide-react';
+import { BRAND } from '@/config/brand';
 
 type ProviderId = 'icloud' | 'dropbox' | 'syncthing' | 'gdrive';
 
@@ -52,7 +53,7 @@ const PROVIDERS: ProviderTab[] = [
     ],
     // Apple's documented Files app deep link. Opens straight into Files.
     deepLink: { href: 'shareddocuments://', label: 'Open Files on iPhone' },
-    docsHref: 'https://keepance.com/docs/mobile-access/icloud',
+    docsHref: `${BRAND.urls.mobileDocsBase}/icloud`,
   },
   {
     id: 'dropbox',
@@ -71,7 +72,7 @@ const PROVIDERS: ProviderTab[] = [
     ],
     // Documented Dropbox iOS scheme used to open the app.
     deepLink: { href: 'dbapi-2://1/connect', label: 'Open Dropbox on iPhone' },
-    docsHref: 'https://keepance.com/docs/mobile-access/dropbox',
+    docsHref: `${BRAND.urls.mobileDocsBase}/dropbox`,
   },
   {
     id: 'syncthing',
@@ -88,7 +89,7 @@ const PROVIDERS: ProviderTab[] = [
       'iOS does not have an official free Syncthing client. If you don\'t want to pay for Möbius Sync, the iCloud Drive tab is a better fit on iPhone.',
       'For nicer text file rendering on Android, install Markor and open .md files with that.',
     ],
-    docsHref: 'https://keepance.com/docs/mobile-access/syncthing',
+    docsHref: `${BRAND.urls.mobileDocsBase}/syncthing`,
   },
   {
     id: 'gdrive',
@@ -105,7 +106,7 @@ const PROVIDERS: ProviderTab[] = [
       'Free tier is 15 GB shared across Drive, Gmail, and Photos. Check your overall Google storage isn\'t already full.',
       'On Android, tap a .md file to pick a default reader app once. Markor is a solid free choice.',
     ],
-    docsHref: 'https://keepance.com/docs/mobile-access/google-drive',
+    docsHref: `${BRAND.urls.mobileDocsBase}/google-drive`,
   },
 ];
 

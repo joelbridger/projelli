@@ -112,6 +112,7 @@ import { SharefileSourcePanel } from '@/features/sharefile/SharefileSourcePanel'
 import { JotformSourcePanel } from '@/features/jotform/JotformSourcePanel';
 import { ZocksSourcePanel } from '@/features/zocks/ZocksSourcePanel';
 import { AddeparSourcePanel } from '@/features/addepar/AddeparSourcePanel';
+import { BRAND } from '@/config/brand';
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
@@ -1272,7 +1273,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
     } else if (actionId === 'open-whats-new') {
       setShowWhatsNewModalDirect(true);
     } else if (actionId === 'open-website') {
-      void openExternal('https://keepance.com');
+      void openExternal(BRAND.urls.site);
     } else if (actionId === 'open-github') {
       void openExternal('https://github.com/keepance/keepance');
     } else if (actionId === 'reset-feature-tour') {

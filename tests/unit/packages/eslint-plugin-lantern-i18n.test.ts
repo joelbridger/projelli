@@ -7,7 +7,7 @@ import tsParser from '@typescript-eslint/parser';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const rule = require('../../../packages/eslint-plugin-keepance-i18n/src/rules/no-hardcoded-string.js');
+const rule = require('../../../packages/eslint-plugin-lantern-i18n/src/rules/no-hardcoded-string.js');
 
 const ruleTester = new RuleTester({
   languageOptions: {

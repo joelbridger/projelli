@@ -52,7 +52,7 @@ pub mod tts;
 pub mod checksum;
 pub mod tarball;
 // WS-A / A1 (v3.0): in-house OOXML (.docx) document engine command layer.
-// Thin wrappers over the `keepance-docx` crate: open a .docx into the JSON DOM
+// Thin wrappers over the `lantern-docx` crate: open a .docx into the JSON DOM
 // the editor renders, save the DOM back preserving unmodeled parts, and author
 // AI tracked changes (the helper A4 calls).
 pub mod docx;

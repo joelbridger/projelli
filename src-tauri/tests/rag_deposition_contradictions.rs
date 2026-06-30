@@ -17,7 +17,7 @@
 //!       interview inputs, DepositionContradictionFinder.ts:64) at its own
 //!       topK = 12 surfaces both sides of all three contradictions.
 //!   OFFICE (VG-2b) — the corpus's .docx members index through the SAME
-//!       extraction production uses (keepance-docx parse + plain-text walk),
+//!       extraction production uses (lantern-docx parse + plain-text walk),
 //!       a contract clause retrieves with a VERIFYING citation, and the
 //!       matter-isolation invariants hold over the bigger corpus.
 //!   TRANSCRIPT (VG-3c) — the certified line-numbered Weston transcript
@@ -183,7 +183,7 @@ fn corpus() -> Vec<Source> {
 
 /// Load a corpus member's plain text + its store-level SourceType, branching
 /// on extension EXACTLY the way production's `index_one_file` dispatch does:
-/// `.docx` goes through keepance-docx's parse + plain-text tree walk joined
+/// `.docx` goes through lantern-docx's parse + plain-text tree walk joined
 /// with "\n\n" (VG-2b); everything else is raw UTF-8.
 fn load_source(src: &Source) -> (String, SourceType) {
     let path = format!("{FIXTURE_DIR}/{}", src.file);
@@ -557,7 +557,7 @@ async fn acme_query_scoped_to_johnson_returns_no_acme_content() {
 
 // ===========================================================================
 // OFFICE (VG-2b) — Word documents are in the index through the production
-// extraction (keepance-docx plain-text walk): a contract clause retrieves
+// extraction (lantern-docx plain-text walk): a contract clause retrieves
 // from the .docx with the right source, a content-addressed id, and a
 // citation that VERIFIES — and the office members obey matter isolation.
 // ===========================================================================

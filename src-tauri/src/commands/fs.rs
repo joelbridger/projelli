@@ -550,7 +550,7 @@ pub fn convert_ppt_to_pdf(input_path: String) -> Result<String, String> {
 /// needed); only PDF requires a real Office renderer, which on user machines is
 /// the bundled / expected LibreOffice. Mirrors [`convert_ppt_to_pdf`] exactly —
 /// same cache strategy (`<djb2(canonical_path)>_<mtime>` keyed PDF under
-/// `<tempdir>/keepance-docx-pdf-cache/`), same headless `soffice --convert-to
+/// `<tempdir>/lantern-docx-pdf-cache/`), same headless `soffice --convert-to
 /// pdf` invocation — differing only in the accepted input extension and the
 /// cache directory name.
 ///

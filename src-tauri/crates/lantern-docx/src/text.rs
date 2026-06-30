@@ -153,7 +153,7 @@ mod tests {
     use crate::model::{Paragraph, RevisionMeta};
 
     /// Absolute path to the matter-corpus fixture directory.
-    /// `CARGO_MANIFEST_DIR` points to `src-tauri/crates/keepance-docx/`
+    /// `CARGO_MANIFEST_DIR` points to `src-tauri/crates/lantern-docx/`
     /// (same helper as `tests/campaign_fixtures.rs`).
     fn corpus_path(filename: &str) -> std::path::PathBuf {
         let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));

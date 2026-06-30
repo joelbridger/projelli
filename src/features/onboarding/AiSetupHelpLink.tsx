@@ -38,10 +38,10 @@ import { cn } from '@/lib/utils';
 import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
 import { openExternal } from '@/platform/utils/openExternal';
 import { redactSecrets } from '@/platform/utils/redactSecrets';
+import { BRAND } from '@/config/brand';
 
-const AI_SETUP_HELP_URL =
-  'https://keepance.com/api/forms/keepance/ai-setup-help';
-const MAILTO_ADDRESS = 'support@keepance.com';
+const AI_SETUP_HELP_URL = BRAND.urls.formsAiSetupHelp;
+const MAILTO_ADDRESS = BRAND.urls.supportEmail;
 
 // Payload bounds (defense-in-depth; the server also caps + whitelists).
 const MAX_MESSAGE = 2000;
