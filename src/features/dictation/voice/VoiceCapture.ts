@@ -48,7 +48,7 @@ export function encodeWav16kMono(samples: Float32Array, sourceRate: number): Uin
 
   const pcm = new Int16Array(resampled.length);
   for (let i = 0; i < resampled.length; i++) {
-    let s = Math.max(-1, Math.min(1, resampled[i] ?? 0));
+    const s = Math.max(-1, Math.min(1, resampled[i] ?? 0));
     pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
   }
 

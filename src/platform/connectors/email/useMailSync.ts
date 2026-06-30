@@ -25,8 +25,8 @@ export function useMailSync({ onMailChunk }: UseMailSyncOptions = {}) {
       ? listen<MailIndexChunk>(MAIL_INDEX_CHUNK_EVENT, (e) => onMailChunk(e.payload))
       : Promise.resolve(() => {});
     return () => {
-      unProg.then((f) => f());
-      unChunk.then((f) => f());
+      void unProg.then((f) => f());
+      void unChunk.then((f) => f());
     };
   }, [setProgress, onMailChunk]);
 }

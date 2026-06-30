@@ -472,7 +472,7 @@ export function FileTree({
                   const targetFolder = selectedPath && fileTree.find(n => n.path === selectedPath && n.type === 'folder')
                     ? selectedPath
                     : rootPath;
-                  onUploadFiles(files, targetFolder || undefined);
+                  void onUploadFiles(files, targetFolder || undefined);
                 }
               };
               input.click();

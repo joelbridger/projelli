@@ -118,7 +118,7 @@ export function AudioRecorderModal({
         URL.revokeObjectURL(url);
       };
 
-      audio.play();
+      void audio.play();
       setIsPlaying(true);
     }
   }, [recordedBlob]);

@@ -209,7 +209,7 @@ export class SearchService {
     }
 
     // Build results
-    let results: SearchResult[] = [];
+    const results: SearchResult[] = [];
 
     for (const [id, score] of scores) {
       const doc = this.documents.get(id);

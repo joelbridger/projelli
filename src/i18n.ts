@@ -4,7 +4,7 @@ import en from './locales/en.json';
 import es from './locales/es.json';
 import de from './locales/de.json';
 
-i18n.use(initReactI18next).init({
+void i18n.use(initReactI18next).init({
   resources: {
     en: { translation: en },
     es: { translation: es },

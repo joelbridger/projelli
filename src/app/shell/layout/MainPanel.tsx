@@ -432,7 +432,7 @@ export function MainPanel({
 
           // Don't save if content hasn't changed significantly
           if (!lastVersion || lastVersion.content !== content) {
-            versionService.saveVersion(activeTabPath, content, 'Auto-saved version');
+            void versionService.saveVersion(activeTabPath, content, 'Auto-saved version');
           }
         }
       }
@@ -452,7 +452,7 @@ export function MainPanel({
           const lastVersion = existingVersions[0];
 
           if (!lastVersion || lastVersion.content !== content) {
-            versionService.saveVersion(secondaryTabPath, content, 'Auto-saved version');
+            void versionService.saveVersion(secondaryTabPath, content, 'Auto-saved version');
           }
         }
       }
@@ -600,7 +600,7 @@ export function MainPanel({
               {...(onWorkflowSaveAsFile ? { onSaveAsFile: onWorkflowSaveAsFile } : {})}
               {...(onWorkflowExportDocx ? { onExportDocx: onWorkflowExportDocx } : {})}
               {...(onWorkflowExportPptx ? { onExportPptx: onWorkflowExportPptx } : {})}
-              {...(onFileOpen ? { onFileOpen: (path: string, name: string) => { onFileOpen(path, name); } } : {})}
+              {...(onFileOpen ? { onFileOpen: (path: string, name: string) => { void onFileOpen(path, name); } } : {})}
               {...(workflowProviderError ? { providerError: workflowProviderError } : {})}
               {...(onOpenSettings ? { onOpenSettings } : {})}
               className="h-full"
@@ -971,7 +971,7 @@ export function MainPanel({
       if (activeTabPath) {
         updateContent(activeTabPath, content);
         // Save the restoration as a new version
-        versionService.saveVersion(activeTabPath, content, 'Restored from version history');
+        void versionService.saveVersion(activeTabPath, content, 'Restored from version history');
       }
     },
     [activeTabPath, updateContent, versionService]

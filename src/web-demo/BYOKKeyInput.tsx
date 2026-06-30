@@ -40,7 +40,7 @@ import {
 import { trackDemoByokUsed } from './demoPlausible';
 
 const BYOK_STORAGE_KEY = 'byokKey';
-const ANTHROPIC_KEY_PATTERN = /^sk-ant-[A-Za-z0-9_\-]{20,}$/;
+const ANTHROPIC_KEY_PATTERN = /^sk-ant-[A-Za-z0-9_-]{20,}$/;
 
 export function isValidAnthropicKey(value: string): boolean {
   return ANTHROPIC_KEY_PATTERN.test(value.trim());

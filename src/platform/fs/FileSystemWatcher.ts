@@ -34,7 +34,7 @@ export class FileSystemWatcher {
     console.log(`FileSystemWatcher started with ${this.pollInterval}ms poll interval`);
 
     // Initial snapshot
-    getFileTreeSnapshot().then(snapshot => {
+    void getFileTreeSnapshot().then(snapshot => {
       this.lastFileTreeSnapshot = snapshot;
     });
 

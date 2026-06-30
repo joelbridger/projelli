@@ -77,7 +77,7 @@ export function useModelStatus(): ModelStatusSnapshot {
     let stallTimer: ReturnType<typeof setInterval> | null = null;
     let cancelled = false;
 
-    (async () => {
+    void (async () => {
       try {
         const core = await import('@tauri-apps/api/core');
         if (!core.isTauri()) return;

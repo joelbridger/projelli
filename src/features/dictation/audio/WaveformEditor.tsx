@@ -148,7 +148,7 @@ export function WaveformEditor({
       plugins: [regions],
     });
 
-    wavesurfer.load(audioSrc);
+    void wavesurfer.load(audioSrc);
 
     wavesurfer.on('ready', () => {
       setDuration(wavesurfer.getDuration());
@@ -338,7 +338,7 @@ export function WaveformEditor({
       const idx = historyIndexRef.current;
       // Truncate redo tail at current index.
       const base = prev.slice(0, idx + 1);
-      let next = [...base, newBuffer];
+      const next = [...base, newBuffer];
 
       // Evict oldest until total <= cap.
       let total = next.reduce((sum, b) => sum + bufferBytes(b), 0);
@@ -382,7 +382,7 @@ export function WaveformEditor({
         wavesurferRef.current.pause();
         setIsPlaying(false);
       } else {
-        wavesurferRef.current.play();
+        void wavesurferRef.current.play();
         setIsPlaying(true);
       }
     }

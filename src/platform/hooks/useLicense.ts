@@ -362,9 +362,9 @@ export function useLicense() {
     // Skip server validation entirely when the QA bypass is active so the
     // fake license isn't rejected and immediately cleared.
     if (readFakeLicense()) return;
-    refresh(); // initial check
+    void refresh(); // initial check
     const interval = setInterval(() => {
-      refresh();
+      void refresh();
     }, 7 * 24 * 60 * 60 * 1000); // 1 week
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps

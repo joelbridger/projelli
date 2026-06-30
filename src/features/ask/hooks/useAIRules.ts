@@ -43,7 +43,7 @@ export function useAIRules(
       }
     };
 
-    loadAIRules();
+    void loadAIRules();
 
     return () => {
       isMounted = false;

@@ -184,7 +184,7 @@ export function VersionHistoryPanel({
                       className="h-7 w-7 p-0"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleRestore(version);
+                        void handleRestore(version);
                       }}
                       title="Restore this version"
                     >
@@ -197,7 +197,7 @@ export function VersionHistoryPanel({
                         className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDelete(version.id);
+                          void handleDelete(version.id);
                         }}
                         title="Delete this version"
                       >
