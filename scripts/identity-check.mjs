@@ -17,6 +17,8 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 
+const stripRustComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
 // ── Required TypeScript exports ───────────────────────────────────────────────
 
 const TS_PATH = resolve(ROOT, 'src/config/identity.ts');
@@ -160,7 +162,9 @@ if (!existsSync(RS_PATH)) {
 
   // --- Consistency check ---
   const tsContent = existsSync(TS_PATH) ? readFileSync(TS_PATH, 'utf8') : '';
-  const consistencyErrors = checkAppNsConsistency(tsContent, rs);
+  // Strip comments before the APP_NS regex — a stale doc comment with the old
+  // macro value would fool the lazy regex and produce a false pass.
+  const consistencyErrors = checkAppNsConsistency(tsContent, stripRustComments(rs));
   for (const err of consistencyErrors) {
     fail(`consistency: ${err}`);
   }

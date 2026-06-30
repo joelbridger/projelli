@@ -210,7 +210,9 @@ export function detectLockedDrift(root, locked = {}) {
       // Expand app_ns!() to the literal it holds so concat!() patterns resolve.
       let appNsValue = 'keepance'; // default; overridden if identity.rs uses macro form
       if (fs.existsSync(identityRsPath)) {
-        const identityRaw = fs.readFileSync(identityRsPath, 'utf8');
+        // Strip comments before searching — a stale doc comment containing the old
+        // macro form would fool the lazy regex and cause a false pass.
+        const identityRaw = stripRustComments(fs.readFileSync(identityRsPath, 'utf8'));
         // Match: macro_rules! app_ns { () => { "value" } }
         // Use lazy [\s\S]*? to skip the outer brace and find the arm body.
         const macroMatch = identityRaw.match(/macro_rules!\s+app_ns[\s\S]*?\(\s*\)\s*=>\s*\{\s*"([^"]+)"/);
