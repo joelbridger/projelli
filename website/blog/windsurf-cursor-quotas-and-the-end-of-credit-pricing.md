@@ -11,7 +11,7 @@ In March, [Windsurf killed its credit system](https://windsurf.com/blog/windsurf
 
 In April, [Cursor 3 launched](https://cursor.com/changelog/0-50) with a refreshed UI and an extended pricing structure. Pro at $20 still, Pro+ at $60, Ultra at $200, with each plan including a fixed dollar amount of "API usage credits" ($20 for Pro, $70 for Pro+, $400 for Ultra) on top of the subscription.
 
-I've been watching this market shift for two years now while building [Advisor Prep Hero](https://keepance.com), and I want to talk about what these two pricing moves mean, why they're happening at the same time, and what an attorney, CPA, or independent consultant should actually do about it. This is a follow-on to my earlier piece on [the hidden tokenizer tax](https://keepance.com/blog/claude-opus-47-tokenizer-cost-what-professionals-need-to-know). Some of the same dynamics. New evidence.
+I've been watching this market shift for two years now while building [Advisor Prep Hero](https://advisorprephero.com), and I want to talk about what these two pricing moves mean, why they're happening at the same time, and what an attorney, CPA, or independent consultant should actually do about it. This is a follow-on to my earlier piece on [the hidden tokenizer tax](https://advisorprephero.com/blog/claude-opus-47-tokenizer-cost-what-professionals-need-to-know). Some of the same dynamics. New evidence.
 
 ## What actually changed
 
@@ -27,7 +27,7 @@ These are opposite moves. Windsurf moved further from cost transparency. Cursor 
 
 Three forces, all accelerating:
 
-**Tokenizer changes are real and unannounced.** I wrote [a whole piece on this](https://keepance.com/blog/claude-opus-47-tokenizer-cost-what-professionals-need-to-know) when Anthropic shipped Opus 4.7 with up to 35% more tokens for the same input under the same headline price. If you're a vendor on a fixed margin, an event like that eats your quarter without warning. You either pass the cost through to users (Windsurf's quota tighten) or you make the user own the cost (Cursor's dollar budget).
+**Tokenizer changes are real and unannounced.** I wrote [a whole piece on this](https://advisorprephero.com/blog/claude-opus-47-tokenizer-cost-what-professionals-need-to-know) when Anthropic shipped Opus 4.7 with up to 35% more tokens for the same input under the same headline price. If you're a vendor on a fixed margin, an event like that eats your quarter without warning. You either pass the cost through to users (Windsurf's quota tighten) or you make the user own the cost (Cursor's dollar budget).
 
 **Premium-tier convergence at $200.** [Claude Code Max, Cursor Ultra, and Windsurf Max are all $200/month](https://www.nxcode.io/resources/news/ai-coding-tools-pricing-comparison-2026). This is not a coincidence. $200 is roughly the price floor at which the vendor can credibly absorb heavy frontier-model usage from a single power user without losing money on every interaction. The convergence tells you the marginal cost of inference for a heavy user is around $150 to $200 a month at current model prices and that the vendor margin is thin.
 
@@ -45,7 +45,7 @@ For attorneys and CPAs, there's a sharper version of this problem. When you're r
 
 ## The BYOK answer, in 2026 specifics
 
-I built [Advisor Prep Hero](https://keepance.com) on a BYOK model. You bring your own [Anthropic key](https://console.anthropic.com), [OpenAI key](https://platform.openai.com/), or [Google AI key](https://aistudio.google.com/), and the requests go directly to the provider on your account. Advisor Prep Hero doesn't see them. Advisor Prep Hero doesn't take a margin on them. The pricing is transparent on the provider's invoice at the end of the month.
+I built [Advisor Prep Hero](https://advisorprephero.com) on a BYOK model. You bring your own [Anthropic key](https://console.anthropic.com), [OpenAI key](https://platform.openai.com/), or [Google AI key](https://aistudio.google.com/), and the requests go directly to the provider on your account. Advisor Prep Hero doesn't see them. Advisor Prep Hero doesn't take a margin on them. The pricing is transparent on the provider's invoice at the end of the month.
 
 For professionals, this does two things at once. First, the cost transparency: you pay exactly what the provider charges, with no subscription markup. Second, the data chain: client information goes from your machine to Anthropic or OpenAI directly. No intermediary. No additional party in the chain. That's a data architecture you can describe clearly and defend professionally.
 
@@ -83,4 +83,4 @@ The honest pricing models put all four in front of the user. BYOK does this by d
 
 If you're a professional buying these tools, watch the layers between you and the cost. Each layer is a place where the math can change without you noticing — and for professionals with confidentiality obligations, each layer is also a party that may be touching your client's information.
 
-I'll keep the [Advisor Prep Hero pricing](https://keepance.com/#pricing) consistent with what I argue for: Professional at $149/year (one profession pack, BYOK, no markup on inference), Practice at $499 a year for up to five seats and all four packs. If you're running a different setup and seeing different math, or different compliance considerations, I'd like to hear about it.
+I'll keep the [Advisor Prep Hero pricing](https://advisorprephero.com/#pricing) consistent with what I argue for: Professional at $149/year (one profession pack, BYOK, no markup on inference), Practice at $499 a year for up to five seats and all four packs. If you're running a different setup and seeing different math, or different compliance considerations, I'd like to hear about it.

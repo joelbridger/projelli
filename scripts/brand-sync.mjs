@@ -154,6 +154,7 @@ const ASSET_COPIES = [
   ['faviconSvg', 'website/favicon.svg'],
   ['logoSvg', 'public/onboarding/keepance-logo.svg'],
   ['logoSvg', 'public/logo.svg'],
+  ['logoSvgWhite', 'website/logo-white.svg'],
   ['ogImage', 'website/og-image.png'],
   ['iconSource', 'src-tauri/icons/icon.png'],
 ];

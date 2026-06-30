@@ -2,7 +2,7 @@
  * seedWebDemoClientMap — public-demo-only seed of the Webb Household client and
  * its fully-filled, cited Client Map.
  *
- * The web demo (keepance.com/try, advisor pack) seeds the Webb Household FILES
+ * The web demo (advisorprephero.com/try, advisor pack) seeds the Webb Household FILES
  * into OPFS but no client record, so its Client Map tab would render empty. This
  * module creates a demo-only matter keyed to the seeded `/keepance-demo/Webb
  * Household` folder and seeds a hand-authored "solid" Client Map for it — no AI,

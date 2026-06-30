@@ -11,7 +11,7 @@ In April, [Cursor 3 launched](https://cursor.com/changelog/0-50) with background
 
 A background agent is, in plain terms, an AI process that runs on its own clock. You hand it a task. You walk away. You come back to a result. The agent's run might take 30 seconds (a small refactor) or 30 minutes (a multi-file feature) or 3 hours (a multi-step task with branches and decision points). [Anthropic published a strong piece on harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) that's worth reading if you want the technical version.
 
-I've been thinking about this for [Advisor Prep Hero](https://keepance.com), which is built for attorneys, CPAs, and independent consultants doing confidential client work — not a coding tool. I want to talk about what background agents are doing right and why the pattern matters for professional knowledge work too.
+I've been thinking about this for [Advisor Prep Hero](https://advisorprephero.com), which is built for attorneys, CPAs, and independent consultants doing confidential client work — not a coding tool. I want to talk about what background agents are doing right and why the pattern matters for professional knowledge work too.
 
 ## What "background" actually means
 
@@ -45,7 +45,7 @@ When [Anthropic writes about effective harnesses for long-running agents](https:
 
 Here's where this matters for attorneys, CPAs, and consultants — and for anyone building tools for that work.
 
-I built [Advisor Prep Hero](https://keepance.com) on a thesis that professional knowledge work is better served by files than by chats. Not as an aesthetic preference. As a structural one. Because the same dynamics that make background agents work in coding also work in drafting, analysis, research, and client matter management. And for professionals with confidentiality obligations, the files-vs-chats question has a dimension that doesn't exist for software engineers.
+I built [Advisor Prep Hero](https://advisorprephero.com) on a thesis that professional knowledge work is better served by files than by chats. Not as an aesthetic preference. As a structural one. Because the same dynamics that make background agents work in coding also work in drafting, analysis, research, and client matter management. And for professionals with confidentiality obligations, the files-vs-chats question has a dimension that doesn't exist for software engineers.
 
 If you're drafting a client memo, the memo is best stored as a file. Edits are changes to that file. You can review what changed, restore a prior version, share it with a colleague for review, or file it as a client record. None of this works if the memo lives in a chat thread, because the chat thread doesn't expose its state as a reviewable, versionable document.
 
@@ -79,7 +79,7 @@ This shift is most visible in coding because coding tools are the early adopter 
 
 The tools that win the next 18 months in professional AI workspaces are the ones that take this seriously. The ones that build the workflow around files, not around chat. The ones that keep client data out of vendor infrastructure. The ones that make the brief easy to write, the source material easy to attach, and the output easy to review, version, and retain as a client record.
 
-This is what [Advisor Prep Hero is built around](https://keepance.com). The product is files. The chat is a tool inside the file. The agent runs against the file. The output goes back into the file. There is no chat thread that lives outside the document and outside your machine. This is a deliberate decision and it's the one that makes Advisor Prep Hero defensible under [ABA Op 512](https://www.americanbar.org/content/dam/aba/administrative/professional_responsibility/aba-formal-op-512.pdf), [IRC §7216](https://www.irs.gov/irm/part20/irm_20-001-001r.htm), and standard NDA confidentiality obligations.
+This is what [Advisor Prep Hero is built around](https://advisorprephero.com). The product is files. The chat is a tool inside the file. The agent runs against the file. The output goes back into the file. There is no chat thread that lives outside the document and outside your machine. This is a deliberate decision and it's the one that makes Advisor Prep Hero defensible under [ABA Op 512](https://www.americanbar.org/content/dam/aba/administrative/professional_responsibility/aba-formal-op-512.pdf), [IRC §7216](https://www.irs.gov/irm/part20/irm_20-001-001r.htm), and standard NDA confidentiality obligations.
 
 ## Concrete advice if you're evaluating AI tools right now
 
