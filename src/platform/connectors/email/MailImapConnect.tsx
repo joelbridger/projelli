@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
-import { mailImapConnect, mailImapIsConnected, mailImapDisconnect } from '@/platform/utils/mail-commands';
+import { mailImapConnect, mailImapIsConnected, mailImapDisconnect, mailSyncAll, mailCancelSync } from '@/platform/utils/mail-commands';
+import { useMailSync } from '@/platform/connectors/email/useMailSync';
+import { useMailStore } from '@/platform/connectors/email/mailStore';
+import { getMatters } from '@/platform/matter/matterStore';
+import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 
 export function MailImapConnect() {
+  useMailSync();
+  // Read ONLY the IMAP provider's progress so a Microsoft/Gmail sync never shows
+  // its count or error on this panel.
+  const progress = useMailStore((s) => s.progressByProvider['imap']);
   const [connected, setConnected] = useState(false);
   const [host, setHost] = useState('');
   const [port, setPort] = useState(993);
@@ -20,11 +28,21 @@ export function MailImapConnect() {
     try {
       await mailImapConnect({ host, port, username, password });
       setConnected(true);
+      // Connect = IMPORT: start the mail sync immediately (scoped to "imap" so it
+      // never touches a Microsoft/Gmail token), the same way Gmail/Microsoft do.
+      // Without this, "Connect" only stored the credentials and never imported.
+      mailSyncAll(buildMailMatterMap(getMatters()), 'imap').catch((err: unknown) => {
+        setConnectError(err instanceof Error ? err.message : typeof err === 'string' ? err : 'Mail sync could not start. Please try again.');
+      });
     } catch (err) {
       setConnectError(typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not connect. Check your settings and try again.');
     } finally {
       setConnecting(false);
     }
+  }
+
+  function stopSync() {
+    mailCancelSync().catch(() => {});
   }
 
   async function disconnect() {
@@ -149,6 +167,23 @@ export function MailImapConnect() {
       {connected && (
         <div className="mt-3 text-sm text-slate-700">
           <p className="font-medium text-green-700">Connected.</p>
+          {progress && progress.status === 'syncing' && (
+            <div className="mt-1 flex items-center gap-3">
+              {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
+              <p>Importing… {progress.written.toLocaleString()} messages so far.</p>
+              <button onClick={stopSync}
+                className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                Stop
+              </button>
+            </div>
+          )}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
+          {progress && progress.status === 'done' && <p className="mt-1">All mail imported and searchable.</p>}
+          {progress && progress.status === 'error' && (
+            <p className="mt-1 text-red-700">Mail sync ran into a problem. Open this panel again to retry.</p>
+          )}
+          {connectError && <p className="mt-1 text-red-700">Something went wrong: {connectError}</p>}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           <button
             type="button"
             onClick={() => void disconnect()}

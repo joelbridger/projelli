@@ -65,13 +65,36 @@ export function ApiKeyTester({ provider, apiKey, className }: ApiKeyTesterProps)
 
     setState({ status: 'testing' });
 
-    const result = await validateApiKeyLive(provider, apiKey, ac.signal);
+    // Bound the live check so a hung/slow provider can't spin "Testing..."
+    // forever (mirrors AiScene's 15s guard). Use an object flag so the timeout
+    // mutation is visible to the post-await branch.
+    const guard = { timedOut: false };
+    const timer = setTimeout(() => {
+      guard.timedOut = true;
+      ac.abort();
+    }, 15_000);
 
-    // Ignore if aborted (component unmounted or key changed mid-flight).
-    if (ac.signal.aborted) return;
+    try {
+      const result = await validateApiKeyLive(provider, apiKey, ac.signal);
 
-    setState({ status: 'done', outcome: result.outcome, message: result.message });
-    abortRef.current = null;
+      // Ignore if aborted because the component unmounted or the key changed
+      // mid-flight (but NOT if we aborted it ourselves on timeout — that we want
+      // to surface).
+      if (ac.signal.aborted && !guard.timedOut) return;
+
+      if (guard.timedOut) {
+        setState({
+          status: 'done',
+          outcome: 'network',
+          message: "That took too long — I couldn't reach the provider. Check your connection and try again.",
+        });
+      } else {
+        setState({ status: 'done', outcome: result.outcome, message: result.message });
+      }
+    } finally {
+      clearTimeout(timer);
+      if (abortRef.current === ac) abortRef.current = null;
+    }
   }, [provider, apiKey]);
 
   const isTesting = state.status === 'testing';

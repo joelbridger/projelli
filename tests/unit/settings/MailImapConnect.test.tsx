@@ -4,12 +4,26 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 const mockMailImapConnect = vi.fn();
 const mockMailImapIsConnected = vi.fn();
 const mockMailImapDisconnect = vi.fn();
+const mockMailSyncAll = vi.fn();
+const mockMailCancelSync = vi.fn();
 
 vi.mock('@/platform/utils/mail-commands', () => ({
   get mailImapConnect() { return mockMailImapConnect; },
   get mailImapIsConnected() { return mockMailImapIsConnected; },
   get mailImapDisconnect() { return mockMailImapDisconnect; },
+  get mailSyncAll() { return mockMailSyncAll; },
+  get mailCancelSync() { return mockMailCancelSync; },
 }));
+
+// Connect = IMPORT: the panel now kicks off a sync after auth (mirroring
+// Gmail/Microsoft). Mock the sync wiring so the unit test stays focused.
+vi.mock('@/platform/connectors/email/useMailSync', () => ({ useMailSync: () => {} }));
+vi.mock('@/platform/connectors/email/mailStore', () => ({
+  useMailStore: (sel: (s: { progressByProvider: Record<string, unknown> }) => unknown) =>
+    sel({ progressByProvider: {} }),
+}));
+vi.mock('@/platform/matter/matterStore', () => ({ getMatters: () => [] }));
+vi.mock('@/platform/rag/matterResolver', () => ({ buildMailMatterMap: () => [] }));
 
 import { MailImapConnect } from '@/platform/connectors/email/MailImapConnect';
 
@@ -19,6 +33,8 @@ describe('MailImapConnect', () => {
     mockMailImapIsConnected.mockResolvedValue(false);
     mockMailImapConnect.mockResolvedValue(undefined);
     mockMailImapDisconnect.mockResolvedValue(undefined);
+    mockMailSyncAll.mockResolvedValue(undefined);
+    mockMailCancelSync.mockResolvedValue(undefined);
   });
 
   it('renders the connect form when not connected', async () => {
@@ -52,6 +68,8 @@ describe('MailImapConnect', () => {
       })
     );
     expect(await screen.findByText(/connected\./i)).toBeInTheDocument();
+    // Connect = IMPORT: a sync starts immediately, scoped to the IMAP provider.
+    await waitFor(() => expect(mockMailSyncAll).toHaveBeenCalledWith([], 'imap'));
   });
 
   it('shows error when mailImapConnect rejects (no unhandled rejection)', async () => {

@@ -56,8 +56,14 @@ import { useEditorStore, setBeforeTabClose } from '@/platform/state/editorStore'
 import { flushTabForClose } from '@/app/fileOps/flushDirtyTabs';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
+import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactory';
 import { useAiBatchReviewStore } from '@/platform/ai/aiBatchReviewStore';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
+import { writeSampleFiles } from '@/platform/matter/samples';
+import { seedSampleClientMap } from '@/platform/matter/samples/sampleClientMap';
+import { reportClientMap } from '@/platform/utils/setup-progress-commands';
+import { useProfessionStore } from '@/platform/profile/professionStore';
+import type { OnboardingStartMode, OnboardingStartResult } from '@/features/onboarding/onboardingTypes';
 import type { TrashedItem } from '@/platform/history/TrashService';
 
 import type { AuditEntry } from '@/platform/types/audit';
@@ -728,6 +734,90 @@ function App() {
     loadSourceCards, setSourceCards, loadChatFiles, setChatFiles,
   });
 
+  // First-run workspace-first step. The onboarding overlay (OnboardingV2) calls
+  // this BEFORE its connect/Client-Map steps so a workspace always exists by the
+  // time connectors/import/Client-Map need one (Cluster-3 "workspace must be
+  // step 0"). It reuses the same folder-pick + create flow the Workspace
+  // Selector uses; for the 'sample' mode it then writes the advisor sample and
+  // seeds a fully-cited Client Map so first-run lands in a populated practice
+  // instead of an empty app.
+  const handleOnboardingChooseStart = useCallback(
+    async (mode: OnboardingStartMode): Promise<OnboardingStartResult> => {
+      try {
+        // 1. Establish a workspace unless one is already open.
+        const existingService = workspaceServiceRef.current;
+        const existingRoot = useWorkspaceStore.getState().rootPath;
+        let service: WorkspaceService;
+        let root: string;
+        if (existingService && existingRoot) {
+          service = existingService;
+          root = existingRoot;
+        } else {
+          let backend;
+          let chosen: string;
+          if (isTauriEnvironment()) {
+            const { open } = await import('@tauri-apps/plugin-dialog');
+            const selected = await open({
+              directory: true,
+              multiple: false,
+              title:
+                mode === 'sample'
+                  ? 'Choose a folder for your sample practice'
+                  : 'Choose your practice folder',
+            });
+            if (!selected) return { ok: false, cancelled: true };
+            backend = await createFSBackend(selected);
+            chosen = selected;
+          } else {
+            const webBackend = createWebFSBackend();
+            const handle = await webBackend.openDirectoryPicker();
+            backend = webBackend;
+            chosen = '/' + handle.name;
+          }
+          const svc = createWorkspaceService();
+          await svc.initialize(backend, chosen, { createDefaultStructure: true });
+          // Wire the workspace into the app (sets rootPath, audit, file tree...).
+          await handleWorkspaceSelected(svc);
+          const opened = svc.getRootPath();
+          if (!opened) {
+            return { ok: false, error: "I couldn't open a workspace. Please try again." };
+          }
+          service = svc;
+          root = opened;
+        }
+
+        // 2. Sample path: write the Hendricks sample + seed its Client Map so
+        //    the Client Map tab is populated in minute one (no AI/network).
+        if (mode === 'sample') {
+          // Make the reactive profession 'advisor' so the sample matter is named
+          // "The Hendricks Household" and the right pack/copy is used.
+          useProfessionStore.getState().setProfession('advisor');
+          await writeSampleFiles(service, 'advisor');
+          const matter = getOrCreateSampleMatter(root);
+          seedSampleClientMap(matter.id);
+          setSidebarActiveTab('matters');
+          // Reflect the seeded Client Map as built (1/1) in the setup-progress
+          // surface so the "Building Client Maps" step reads honestly.
+          void reportClientMap(1, 1, 0).catch(() => {});
+        }
+        return { ok: true, mode };
+      } catch (err) {
+        // A cancelled browser folder picker throws AbortError — treat as cancel.
+        if (err instanceof Error && err.name === 'AbortError') {
+          return { ok: false, cancelled: true };
+        }
+        return {
+          ok: false,
+          error:
+            err instanceof Error
+              ? err.message
+              : 'Something went wrong opening your workspace.',
+        };
+      }
+    },
+    [handleWorkspaceSelected]
+  );
+
   // Demo build (keepance.com/try): auto-open the OPFS workspace that
   // WebDemoSeeder pre-populated, so the visitor lands inside the seeded
   // matter instead of the "pick a folder" screen. Mirrors the browser
@@ -1001,25 +1091,28 @@ function App() {
   const firstRunOverlay = showFirstRun ? (
     <FirstRunOverlay
       onSaveKey={handleSaveOnboardingApiKey}
+      onChooseStart={handleOnboardingChooseStart}
+      hasWorkspace={Boolean(rootPath)}
       {...(workspaceServiceRef.current
         ? { workspace: workspaceServiceRef.current }
         : {})}
       onComplete={(opts) => {
         setShowFirstRun(false);
+        // The workspace (and, for the sample, its files + active Client Map
+        // matter) was already established in the ChooseStart step. The legacy
+        // writeSamples branch remains as a fallback for any caller that didn't
+        // run ChooseStart (e.g. a workspace was already open).
         if (opts?.writeSamples && rootPath) {
           try {
             const sampleMatter = getOrCreateSampleMatter(rootPath);
             useMatterStore.getState().setActiveMatter(sampleMatter.id);
-            setSidebarActiveTab('search');
           } catch (err) {
             console.warn('[App] sample-matter post-onboarding setup failed:', err instanceof Error ? err.message : String(err));
-            // Landing on Matters ensures the Get-started card is visible.
-            setSidebarActiveTab('matters');
           }
-        } else {
-          // No samples written: land on Matters so the Get-started card is visible.
-          setSidebarActiveTab('matters');
         }
+        // Land on the matter-centric home (Client Map). The sample's Client Map
+        // hub is already active when the sample path ran.
+        setSidebarActiveTab('matters');
       }}
     />
   ) : null;

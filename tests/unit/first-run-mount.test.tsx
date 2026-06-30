@@ -55,6 +55,40 @@ vi.mock('@/features/onboarding/v2/LottiePlayer', () => ({
   LottiePlayer: () => <div data-testid="lottie-stub" />,
 }));
 
+// Workspace-first step: ChooseStartScene now sits between the intro and the AI
+// scene and must establish a workspace before advancing. Stub the workspace
+// machinery so the "Connect my own data" path resolves a fake workspace in
+// jsdom (no real folder picker / FS) without switching App into the full main
+// shell (we keep rootPath null so the overlay-over-selector layout is intact).
+const fakeWorkspaceService = {
+  initialize: vi.fn(async () => ({ rootPath: '/ws', name: 'ws' })),
+  getRootPath: () => '/ws',
+  writeFile: vi.fn(async () => {}),
+  exists: vi.fn(async () => false),
+};
+vi.mock('@/platform/fs/WorkspaceService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/fs/WorkspaceService')>();
+  return { ...actual, createWorkspaceService: () => fakeWorkspaceService };
+});
+vi.mock('@/platform/fs/WebFSBackend', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/fs/WebFSBackend')>();
+  return {
+    ...actual,
+    createWebFSBackend: () => ({
+      openDirectoryPicker: async () => ({ name: 'ws' }),
+      setRootHandle: () => {},
+    }),
+  };
+});
+// handleWorkspaceSelected does heavy real work (audit/templates/file tree); the
+// onboarding workspace-first step only needs it to not throw, so no-op it.
+vi.mock('@/app/lifecycle/useWorkspaceLifecycle', () => ({
+  useWorkspaceLifecycle: () => ({
+    handleWorkspaceSelected: vi.fn(async () => {}),
+    handleOpenRecentProject: vi.fn(async () => {}),
+  }),
+}));
+
 // Mock KeychainService so onSaveApiKey persistence is observable without a real
 // keychain. `createKeychainService()` is what App calls; we return a stub whose
 // setKey is a spy shared across the test via the module-level `setKeySpy`.
@@ -96,9 +130,14 @@ async function renderAppAndOpenOnboarding() {
   return utils;
 }
 
-/** Walk intro -> ai scene. */
-function advanceToAiScene() {
-  fireEvent.click(screen.getByTestId('onboarding-v2-go'));
+/** Walk intro -> choose-start (own data) -> ai scene. */
+async function advanceToAiScene() {
+  fireEvent.click(screen.getByTestId('onboarding-v2-go')); // intro -> choose-start
+  await screen.findByTestId('choose-start-own');
+  await act(async () => {
+    fireEvent.click(screen.getByTestId('choose-start-own')); // establish workspace -> ai
+  });
+  await screen.findByTestId('onboarding-v2-ai');
 }
 
 /** From the ai scene onward (no AI resolved): connect -> firm -> finish. */
@@ -120,7 +159,7 @@ describe('App — OnboardingV2 as live first-run surface', () => {
   it('completing onboarding sets the flag and does not re-show on next mount', async () => {
     const first = await renderAppAndOpenOnboarding();
 
-    advanceToAiScene();
+    await advanceToAiScene();
     finishWithoutAi();
 
     await waitFor(() => expect(hasCompletedOnboarding()).toBe(true));
@@ -140,7 +179,7 @@ describe('App — OnboardingV2 as live first-run surface', () => {
 
   it('finishing without resolving the AI step leaves the AI-setup reminder active', async () => {
     await renderAppAndOpenOnboarding();
-    advanceToAiScene();
+    await advanceToAiScene();
 
     // Continuing straight off the AI scene (no key, no local choice) marks AI
     // setup deferred.
@@ -153,7 +192,7 @@ describe('App — OnboardingV2 as live first-run surface', () => {
 
   it('saving a key during onboarding persists via the KeychainService path', async () => {
     await renderAppAndOpenOnboarding();
-    advanceToAiScene();
+    await advanceToAiScene();
 
     const validKey = 'sk-ant-api03-aaaaaaaaaaaaaaaaaaaaaaaa';
     fireEvent.change(screen.getByTestId('ai-key-input'), {

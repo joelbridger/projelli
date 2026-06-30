@@ -15,12 +15,14 @@
  * explainer copy.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, Info, X } from 'lucide-react';
 
 import { openExternal } from '@/platform/utils/openExternal';
 import type { KeyProvider } from '@/platform/providers/KeychainService';
 import { validateApiKeyLive } from '@/platform/providers/apiKeyValidation';
+import { markKeyVerified } from '@/platform/providers/keyVerification';
+import { detectOllama } from '@/platform/providers/OllamaProvider';
 import {
   useRecordConfidentialityChoice,
   snapshotConfidentialityChoice,
@@ -55,6 +57,9 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
   const [keyText, setKeyText] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
+  // Key was saved but a live verification couldn't complete (network/unreachable
+  // provider). We DON'T claim "connected/ready" for this — only "saved".
+  const [savedUnverified, setSavedUnverified] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [payOpen, setPayOpen] = useState(false);
   const [localOpen, setLocalOpen] = useState(false);
@@ -64,6 +69,20 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
   const localBusy = localLlm.state === 'downloading' || localLlm.state === 'checking';
   const localReady = localLlm.state === 'ready';
 
+  // Detect an already-installed Ollama (localhost:11434). If the user already
+  // runs Ollama with a model, we offer to USE it instead of downloading our
+  // 2.4 GB embedded model — no point making them wait for a second copy.
+  const [ollamaModels, setOllamaModels] = useState<string[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void detectOllama().then((r) => {
+      if (!cancelled && r.reachable && r.models.length > 0) {
+        setOllamaModels(r.models);
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   const tutorial = PROVIDER_TUTORIALS[provider];
   const providerLabel = PROVIDERS.find((p) => p.id === provider)?.label ?? 'your provider';
 
@@ -72,6 +91,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
     setKeyText('');
     setError(null);
     setConnected(false);
+    setSavedUnverified(false);
   }
 
   async function handleConnect() {
@@ -111,7 +131,19 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
       // 'ok' or 'network' (couldn't reach provider, but the key looks valid) — save it.
       await onSaveKey(provider, key);
       clearAiSetupDeferred();
-      setConnected(true);
+      if (result.outcome === 'ok') {
+        // A real live check passed — only NOW is the key genuinely "ready".
+        markKeyVerified(provider);
+        setConnected(true);
+        setSavedUnverified(false);
+      } else {
+        // 'network': the key looks valid but we couldn't reach the provider to
+        // verify it. Save it, but be honest — don't claim "connected/ready".
+        // It gets verified the first time it's actually used.
+        setSavedUnverified(true);
+        setConnected(false);
+      }
+      // Either way the user made a real AI choice, so onboarding wasn't skipped.
       onAiResolved?.();
     } catch (e) {
       restoreConfidentialityChoice(priorChoice);
@@ -126,6 +158,16 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
     // Start the real download (no-op off-desktop), record the local-only choice
     // (mode + choiceMade, same as GuidedOnboarding), then advance.
     localLlm.start();
+    recordChoice('local-only');
+    clearAiSetupDeferred();
+    onAiResolved?.();
+    onAdvance();
+  }
+
+  function handleUseOllama() {
+    // The user already has Ollama running — record the local-only choice and
+    // advance WITHOUT downloading the embedded model. They'll pick their Ollama
+    // model in the chat model picker; local-only keeps everything on-device.
     recordChoice('local-only');
     clearAiSetupDeferred();
     onAiResolved?.();
@@ -223,6 +265,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
               onChange={(e) => {
                 setKeyText(e.target.value);
                 setConnected(false);
+                setSavedUnverified(false);
                 setError(null);
               }}
               placeholder={`Paste your ${providerLabel} key`}
@@ -236,7 +279,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
               data-testid="ai-connect"
               className="rounded-xl bg-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px disabled:opacity-50"
             >
-              {connecting ? 'Connecting...' : connected ? 'Connected' : C.cloud.connect}
+              {connecting ? 'Connecting...' : connected ? 'Connected' : savedUnverified ? 'Saved' : C.cloud.connect}
             </button>
           </div>
 
@@ -252,6 +295,16 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
               data-testid="ai-connected"
             >
               <Check className="h-4 w-4" strokeWidth={3} /> Connected. You can continue.
+            </div>
+          ) : null}
+          {savedUnverified ? (
+            <div
+              className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800"
+              data-testid="ai-saved-unverified"
+              role="status"
+            >
+              I saved your key, but I couldn&apos;t reach {providerLabel} just now to check it. You
+              can continue — I&apos;ll verify it the first time you use it.
             </div>
           ) : null}
           {error ? (
@@ -291,15 +344,49 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
             {C.local.moreLink}
           </button>
 
-          <button
-            type="button"
-            onClick={handleTryLocal}
-            disabled={localBusy}
-            data-testid="ai-try-local"
-            className="mt-5 w-full rounded-xl bg-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px disabled:opacity-60"
-          >
-            {localReady ? 'Local AI ready, continue' : localBusy ? 'Starting download...' : C.local.tryLocal}
-          </button>
+          {ollamaModels ? (
+            <div
+              className="mt-5 rounded-xl border border-[#1fa971]/30 bg-[#1fa971]/[0.06] p-4"
+              data-testid="ai-ollama-detected"
+            >
+              <div className="text-sm font-bold text-[var(--kp-navy)]">
+                We found Ollama on this computer
+              </div>
+              <div className="mt-1 text-xs text-[#41506a]">
+                {ollamaModels.length === 1
+                  ? '1 model is installed'
+                  : `${String(ollamaModels.length)} models are installed`}
+                . You can use it now — no download needed.
+              </div>
+              <button
+                type="button"
+                onClick={handleUseOllama}
+                data-testid="ai-use-ollama"
+                className="mt-3 w-full rounded-xl bg-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px"
+              >
+                Use my Ollama
+              </button>
+              <button
+                type="button"
+                onClick={handleTryLocal}
+                disabled={localBusy}
+                data-testid="ai-try-local"
+                className="mt-2 w-full rounded-xl border border-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-[var(--kp-accent)] transition-transform active:translate-y-px disabled:opacity-60"
+              >
+                {localReady ? 'Local AI ready, continue' : localBusy ? 'Starting download...' : 'Or download the built-in model'}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleTryLocal}
+              disabled={localBusy}
+              data-testid="ai-try-local"
+              className="mt-5 w-full rounded-xl bg-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px disabled:opacity-60"
+            >
+              {localReady ? 'Local AI ready, continue' : localBusy ? 'Starting download...' : C.local.tryLocal}
+            </button>
+          )}
           <div className="mt-2 text-center text-xs text-[#8a93a3]">{C.local.switchNote}</div>
         </div>
       </div>

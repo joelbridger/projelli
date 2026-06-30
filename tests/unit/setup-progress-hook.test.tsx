@@ -9,7 +9,11 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SetupProgress } from '@/platform/utils/setup-progress-commands';
-import { EMPTY_SETUP_PROGRESS, deriveOverall } from '@/platform/utils/setup-progress-commands';
+import {
+  EMPTY_SETUP_PROGRESS,
+  deriveOverall,
+  retryFailedModelDownloads,
+} from '@/platform/utils/setup-progress-commands';
 
 // --- module-scoped test state driven into the mocks ---
 let isTauriShouldReturn = true;
@@ -17,6 +21,7 @@ let capturedListener: (() => void) | null = null;
 let unlistenCalled = false;
 let getCallCount = 0;
 let lastReportArgs: unknown = null;
+let invokedCommands: string[] = [];
 let snapshotToReturn: SetupProgress = makeSnapshot();
 
 function makeSnapshot(overrides: Partial<SetupProgress> = {}): SetupProgress {
@@ -34,6 +39,7 @@ vi.mock('@tauri-apps/api/core', () => ({
       lastReportArgs = args;
       return undefined;
     }
+    invokedCommands.push(cmd);
     return undefined;
   },
 }));
@@ -130,6 +136,21 @@ describe('deriveOverall', () => {
     ).toBe('inProgress');
   });
 
+  it('is partial after a model download fails', () => {
+    expect(
+      deriveOverall(
+        makeSnapshot({
+          ai: {
+            ...EMPTY_SETUP_PROGRESS.ai,
+            state: 'failed',
+            localLlm: { state: 'failed', percent: null },
+            searchModel: { state: 'failed', percent: null },
+          },
+        }),
+      ),
+    ).toBe('partial');
+  });
+
   it('is inProgress while Client Maps are building', () => {
     expect(
       deriveOverall(makeSnapshot({ clientMap: { total: 3, built: 1, building: 1, pending: 1 } })),
@@ -151,6 +172,44 @@ describe('deriveOverall', () => {
   });
 });
 
+describe('retryFailedModelDownloads', () => {
+  beforeEach(() => {
+    isTauriShouldReturn = true;
+    invokedCommands = [];
+  });
+
+  it('retries each failed model slot', async () => {
+    await retryFailedModelDownloads(
+      makeSnapshot({
+        ai: {
+          ...EMPTY_SETUP_PROGRESS.ai,
+          state: 'failed',
+          localLlm: { state: 'failed', percent: null },
+          searchModel: { state: 'failed', percent: null },
+        },
+      }),
+    );
+
+    expect(invokedCommands).toEqual(['local_llm_model_ensure', 'model_ensure']);
+  });
+
+  it('does nothing outside Tauri', async () => {
+    isTauriShouldReturn = false;
+    await retryFailedModelDownloads(
+      makeSnapshot({
+        ai: {
+          ...EMPTY_SETUP_PROGRESS.ai,
+          state: 'failed',
+          localLlm: { state: 'failed', percent: null },
+          searchModel: { state: 'failed', percent: null },
+        },
+      }),
+    );
+
+    expect(invokedCommands).toEqual([]);
+  });
+});
+
 describe('useSetupProgress', () => {
   beforeEach(() => {
     isTauriShouldReturn = true;
@@ -158,6 +217,7 @@ describe('useSetupProgress', () => {
     unlistenCalled = false;
     getCallCount = 0;
     lastReportArgs = null;
+    invokedCommands = [];
     snapshotToReturn = makeSnapshot();
   });
 

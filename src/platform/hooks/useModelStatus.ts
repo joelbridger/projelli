@@ -128,6 +128,8 @@ export function useModelStatus(): ModelStatusSnapshot {
           // Reflect the in-flight download right away instead of waiting
           // up to ~4 MB of transfer for the next throttled event.
           setSnap((s) => ({ ...s, state: 'downloading', stalled: false }));
+        } else if (status === 'error') {
+          setSnap((s) => ({ ...s, state: 'error', stalled: false }));
         }
       } catch {
         // Tauri APIs unavailable (browser / test) — stay idle.

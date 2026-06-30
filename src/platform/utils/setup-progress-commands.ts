@@ -16,7 +16,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 export const SETUP_PROGRESS_CHANGED_EVENT = 'setup-progress-changed';
 
 /** A single model's download/readiness state. */
-export type ModelState = 'none' | 'downloading' | 'ready';
+export type ModelState = 'none' | 'downloading' | 'failed' | 'ready';
 
 /** Which "brain" the user is set up to use. */
 export type AiMode = 'cloud' | 'local' | 'none';
@@ -159,4 +159,22 @@ export async function reportClientMap(
 ): Promise<void> {
   if (!isTauri()) return;
   await invoke('setup_report_client_map', { total, built, building });
+}
+
+/** Retry whichever model downloads are currently failed. No-op in browser. */
+export async function retryFailedModelDownloads(progress: SetupProgress): Promise<void> {
+  if (!isTauri()) return;
+  const jobs: Array<Promise<unknown>> = [];
+  if (progress.ai.localLlm.state === 'failed') {
+    jobs.push(invoke('local_llm_model_ensure'));
+  }
+  if (progress.ai.searchModel.state === 'failed') {
+    jobs.push(invoke('model_ensure'));
+  }
+  if (jobs.length === 0) return;
+  const results = await Promise.allSettled(jobs);
+  const failed = results.find((result) => result.status === 'rejected');
+  if (failed?.status === 'rejected') {
+    throw failed.reason instanceof Error ? failed.reason : new Error(String(failed.reason));
+  }
 }
