@@ -189,4 +189,43 @@ describe('BUG-007: startup sync + manual Sync now', () => {
     expect(mockMailSyncAll).not.toHaveBeenCalled();
   });
 
+  // (e) A sync that never resolves no longer leaves "Syncing…" stuck forever:
+  // a stall warning appears first, then the hard timeout resets the button
+  // and surfaces a clear error.
+  it('(e) recovers from a sync that never resolves: stall warning, then hard-timeout reset', async () => {
+    mockMailSyncAll.mockImplementation(() => new Promise<void>(() => {})); // never resolves
+
+    render(<EmailWorkspace />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    const syncBtn = screen.getByTestId('email-sync-now');
+    expect(syncBtn).toBeDisabled();
+    expect(screen.queryByTestId('email-sync-stalled')).not.toBeInTheDocument();
+
+    // Before the 90s stall threshold: still syncing, no warning yet.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(89_000);
+    });
+    expect(screen.queryByTestId('email-sync-stalled')).not.toBeInTheDocument();
+    expect(syncBtn).toBeDisabled();
+
+    // Past the 90s stall threshold: warning shows, button still disabled
+    // (the sync may still legitimately finish).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(screen.getByTestId('email-sync-stalled')).toBeInTheDocument();
+    expect(screen.getByTestId('email-sync-now')).toBeDisabled();
+
+    // Past the hard timeout (5 min total): the button resets and a clear
+    // error is shown instead of spinning forever.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+    });
+    expect(screen.getByTestId('email-sync-now')).not.toBeDisabled();
+    expect(screen.getByTestId('email-sync-error')).toBeInTheDocument();
+  });
+
 });

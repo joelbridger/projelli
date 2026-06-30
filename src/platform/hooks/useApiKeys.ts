@@ -21,6 +21,12 @@ import {
   type KeyProvider,
 } from '@/platform/providers/KeychainService';
 import { EGRESS_CONFIG_CHANGE_EVENT } from '@/platform/privacy/egressConfigEvents';
+import { withTimeout } from '@/lib/withTimeout';
+
+// A hung/erroring OS keychain must never silently look like "no AI key
+// configured" — that's what loadKeys() used to do (a bare `.then`, no
+// `.catch`). Bound each read so one bad provider can't block the others.
+const LOAD_KEY_TIMEOUT_MS = 10_000;
 
 /**
  * The slice of KeychainService this hook needs. Injectable so callers can share
@@ -83,15 +89,29 @@ export function useApiKeys(keychainService?: ApiKeyKeychain): UseApiKeysReturn {
 
   // Read the configured keys straight from the keychain (never plain
   // localStorage). KeychainService.getKey also covers env-var keys.
+  //
+  // Each provider is read independently (timeout + catch) so a hung or
+  // erroring OS keychain for one provider can't (a) block the others behind
+  // it, or (b) throw out of loadKeys() entirely and leave the app silently
+  // believing no AI key is configured at all. A read that fails is logged
+  // and treated as "not available" for that provider only.
   const loadKeys = useCallback(async (): Promise<APIKey[]> => {
-    const loaded: APIKey[] = [];
-    for (const provider of PROVIDERS) {
-      const key = await keychain.getKey(provider);
-      if (key) {
-        loaded.push({ provider, key, isValid: true });
-      }
-    }
-    return loaded;
+    const results = await Promise.all(
+      PROVIDERS.map(async (provider): Promise<APIKey | null> => {
+        try {
+          const key = await withTimeout(
+            keychain.getKey(provider),
+            LOAD_KEY_TIMEOUT_MS,
+            `Reading the ${provider} key`,
+          );
+          return key ? { provider, key, isValid: true } : null;
+        } catch (err) {
+          console.error(`[useApiKeys] could not read the ${provider} key from the keychain:`, err);
+          return null;
+        }
+      }),
+    );
+    return results.filter((k): k is APIKey => k !== null);
   }, [keychain]);
 
   // Load on mount AND reload whenever the keychain changes — a key added or
@@ -108,11 +128,17 @@ export function useApiKeys(keychainService?: ApiKeyKeychain): UseApiKeysReturn {
     let cancelled = false;
     const reload = () => {
       const id = ++reloadIdRef.current;
-      void loadKeys().then((loaded) => {
-        if (!cancelled && id === reloadIdRef.current) {
-          setApiKeys(loaded);
-        }
-      });
+      void loadKeys()
+        .then((loaded) => {
+          if (!cancelled && id === reloadIdRef.current) {
+            setApiKeys(loaded);
+          }
+        })
+        .catch((err: unknown) => {
+          // loadKeys() catches per-provider, so this is a true defense-in-depth
+          // backstop. Never throw out of the effect or leave state hanging.
+          console.error('[useApiKeys] failed to reload keys', err);
+        });
     };
     reload();
     window.addEventListener(EGRESS_CONFIG_CHANGE_EVENT, reload);

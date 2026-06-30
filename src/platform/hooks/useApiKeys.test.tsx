@@ -12,7 +12,7 @@
  *   - keys are loaded from the keychain on mount (not from `apiKey_`);
  *   - deleting a key removes it from the keychain and from in-memory state.
  */
-import { describe, beforeEach, it, expect, vi } from 'vitest';
+import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 
 const { invokeMock, isTauriMock } = vi.hoisted(() => ({
@@ -146,6 +146,64 @@ describe('useApiKeys — load on mount', () => {
     // Give the mount load a chance to run; it must find nothing.
     await act(async () => { await Promise.resolve(); });
     expect(result.current.apiKeys).toEqual([]);
+  });
+});
+
+describe('useApiKeys — hung/erroring keychain reads (BUG: silently looked like no key)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('a keychain read that never resolves does not crash the load or hang forever', async () => {
+    const keychain = {
+      getKey: () => new Promise<string | null>(() => {}), // hangs forever
+      setKey: vi.fn().mockResolvedValue(undefined),
+      deleteKey: vi.fn().mockResolvedValue(undefined),
+    };
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { result } = renderHook(() => useApiKeys(keychain));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+
+    // Resolved to "no keys" rather than leaving state perpetually unset, and
+    // the hang was logged rather than swallowed.
+    expect(result.current.apiKeys).toEqual([]);
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it('one provider erroring does not block other providers from loading', async () => {
+    const keychain = {
+      getKey: (provider: string) => {
+        if (provider === 'anthropic') return Promise.reject(new Error('keychain locked'));
+        if (provider === 'openai') return Promise.resolve(VALID_KEY);
+        return Promise.resolve(null);
+      },
+      setKey: vi.fn().mockResolvedValue(undefined),
+      deleteKey: vi.fn().mockResolvedValue(undefined),
+    };
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { result } = renderHook(() => useApiKeys(keychain));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(result.current.apiKeys).toEqual([
+      expect.objectContaining({ provider: 'openai', key: VALID_KEY, isValid: true }),
+    ]);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('anthropic'),
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
   });
 });
 

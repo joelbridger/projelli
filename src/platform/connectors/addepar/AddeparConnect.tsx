@@ -23,6 +23,20 @@ import {
   normalizeClientName,
 } from '@/platform/rag/matterResolver';
 import { Button } from '@/ui/kp';
+import { withTimeout } from '@/lib/withTimeout';
+
+// The Rust reqwest client now caps each individual HTTP request (60s + 15s
+// connect), but the Tauri IPC call from here still has no deadline of its
+// own — these are an outer safety net so "Connecting…"/"Syncing…" can never
+// hang forever even if something upstream of the per-request cap deadlocks.
+// Connect is a single fast call; entity listing paginates but is normally
+// quick. Sync can legitimately run long for a big book of households (each
+// network call is bounded, but there can be many of them), so its ceiling is
+// generous — a true safety net, not an expected duration — and the user
+// already has an explicit Stop button for it.
+const ADDEPAR_CONNECT_TIMEOUT_MS = 45_000;
+const ADDEPAR_LIST_ENTITIES_TIMEOUT_MS = 120_000;
+const ADDEPAR_SYNC_TIMEOUT_MS = 15 * 60_000;
 
 export function AddeparConnect() {
   const [connected, setConnected] = useState(false);
@@ -73,11 +87,10 @@ export function AddeparConnect() {
     }
     setBusy(true);
     try {
-      const connectedInfo = await addeparConnect(
-        apiKey.trim(),
-        apiSecret.trim(),
-        subdomain.trim(),
-        firmId.trim(),
+      const connectedInfo = await withTimeout(
+        addeparConnect(apiKey.trim(), apiSecret.trim(), subdomain.trim(), firmId.trim()),
+        ADDEPAR_CONNECT_TIMEOUT_MS,
+        'Connecting to Addepar',
       );
       setInfo(connectedInfo);
       setConnected(true);
@@ -103,11 +116,19 @@ export function AddeparConnect() {
     setUnmatched([]);
     setSyncing(true);
     try {
-      const entities = await addeparListEntities();
+      const entities = await withTimeout(
+        addeparListEntities(),
+        ADDEPAR_LIST_ENTITIES_TIMEOUT_MS,
+        'Listing Addepar households',
+      );
       const matched = linkExactHouseholdMatches(entities, addAddeparKey);
       setLinkedCount(matched.linked);
       setUnmatched(matched.unmatched);
-      const result = await addeparSync(buildAddeparMatterMap(getMatters()));
+      const result = await withTimeout(
+        addeparSync(buildAddeparMatterMap(getMatters())),
+        ADDEPAR_SYNC_TIMEOUT_MS,
+        'Addepar sync',
+      );
       setReport(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

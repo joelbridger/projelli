@@ -31,12 +31,20 @@ import {
 import { Button } from '@/ui/button';
 import { Key, Plus, Trash2, CheckCircle, XCircle, Loader2, ShieldQuestion } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { withTimeout } from '@/lib/withTimeout';
 import type { KeyProvider, StoredKey } from '@/platform/providers/KeychainService';
 import {
   validateApiKeyLive,
   type ValidationProvider,
 } from '@/platform/providers/apiKeyValidation';
 import { markKeyVerified, markKeyInvalid, clearKeyStatus } from '@/platform/providers/keyVerification';
+
+// Both the list load and the per-row "Check" call go through the OS keychain
+// and/or a live network request — neither has a built-in deadline, so a
+// hung keychain or a provider that never answers must not leave the dialog
+// stuck on "Loading…"/"Checking" forever.
+const LOAD_ROWS_TIMEOUT_MS = 15_000;
+const CHECK_KEY_TIMEOUT_MS = 20_000;
 
 /** The subset of KeychainService this surface needs. */
 export interface ApiKeyManagerKeychain {
@@ -76,6 +84,7 @@ interface KeyRow {
   provider: KeyProvider;
   masked: string;
   status: RowStatus;
+  checkError?: string;
 }
 
 export function ApiKeyManager({
@@ -86,22 +95,33 @@ export function ApiKeyManager({
   onKeyRemoved,
 }: ApiKeyManagerProps) {
   const [rows, setRows] = useState<KeyRow[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   // Aborts any in-flight per-row checks when the dialog closes / unmounts.
   const abortRefs = useRef<Map<KeyProvider, AbortController>>(new Map());
 
   const loadRows = useCallback(async () => {
-    const stored = keychainService.getStoredKeys();
-    const next = await Promise.all(
-      stored.map(async (entry): Promise<KeyRow> => {
-        const masked = await keychainService.getMaskedKey(entry.provider);
-        return {
-          provider: entry.provider,
-          masked: masked ?? `${entry.keyPrefix}...`,
-          status: 'unverified',
-        };
-      }),
-    );
-    setRows(next);
+    setLoadError(null);
+    try {
+      const stored = keychainService.getStoredKeys();
+      const next = await withTimeout(
+        Promise.all(
+          stored.map(async (entry): Promise<KeyRow> => {
+            const masked = await keychainService.getMaskedKey(entry.provider);
+            return {
+              provider: entry.provider,
+              masked: masked ?? `${entry.keyPrefix}...`,
+              status: 'unverified',
+            };
+          }),
+        ),
+        LOAD_ROWS_TIMEOUT_MS,
+        'Loading your saved keys',
+      );
+      setRows(next);
+    } catch (err) {
+      setRows(null);
+      setLoadError(err instanceof Error ? err.message : 'Could not load your saved keys.');
+    }
   }, [keychainService]);
 
   // (Re)load the list each time the dialog opens so it always reflects reality.
@@ -128,9 +148,15 @@ export function ApiKeyManager({
     };
   }, []);
 
-  const setRowStatus = useCallback((provider: KeyProvider, status: RowStatus) => {
+  const setRowStatus = useCallback((provider: KeyProvider, status: RowStatus, checkError?: string) => {
     setRows((prev) =>
-      prev ? prev.map((r) => (r.provider === provider ? { ...r, status } : r)) : prev,
+      prev
+        ? prev.map((r) => {
+            if (r.provider !== provider) return r;
+            const { checkError: _drop, ...rest } = r;
+            return checkError ? { ...rest, status, checkError } : { ...rest, status };
+          })
+        : prev,
     );
   }, []);
 
@@ -147,23 +173,40 @@ export function ApiKeyManager({
       abortRefs.current.set(provider, ac);
       setRowStatus(provider, 'checking');
 
-      const result = await validateApiKeyLive(provider as ValidationProvider, key, ac.signal);
-      if (ac.signal.aborted) return;
-      abortRefs.current.delete(provider);
+      try {
+        const result = await withTimeout(
+          validateApiKeyLive(provider as ValidationProvider, key, ac.signal),
+          CHECK_KEY_TIMEOUT_MS,
+          'Checking key',
+          { controller: ac },
+        );
+        if (ac.signal.aborted) return;
+        abortRefs.current.delete(provider);
 
-      // 'rejected'/'malformed' = the key does not work. 'ok' = working.
-      // 'network' = couldn't reach the provider, so we can't claim either way:
-      // leave it unverified rather than mislabel a possibly-good key as invalid.
-      if (result.outcome === 'ok') {
-        setRowStatus(provider, 'working');
-        // Remember this provider is verified so a new chat prefers it.
-        markKeyVerified(provider);
-      } else if (result.outcome === 'rejected' || result.outcome === 'malformed') {
-        setRowStatus(provider, 'invalid');
-        // The stored key is bad, so a new chat must never default to it.
-        markKeyInvalid(provider);
-      } else {
-        setRowStatus(provider, 'unverified');
+        // 'rejected'/'malformed' = the key does not work. 'ok' = working.
+        // 'network' = couldn't reach the provider, so we can't claim either way:
+        // leave it unverified rather than mislabel a possibly-good key as invalid.
+        if (result.outcome === 'ok') {
+          setRowStatus(provider, 'working');
+          // Remember this provider is verified so a new chat prefers it.
+          markKeyVerified(provider);
+        } else if (result.outcome === 'rejected' || result.outcome === 'malformed') {
+          setRowStatus(provider, 'invalid');
+          // The stored key is bad, so a new chat must never default to it.
+          markKeyInvalid(provider);
+        } else {
+          setRowStatus(provider, 'unverified');
+        }
+      } catch (err) {
+        // Aborted because the dialog closed/unmounted — that path already
+        // tears down state elsewhere, so don't fight it with a stale update.
+        if (ac.signal.aborted && !(err instanceof Error && err.name === 'TimeoutError')) return;
+        abortRefs.current.delete(provider);
+        setRowStatus(
+          provider,
+          'unverified',
+          err instanceof Error ? err.message : 'Could not check this key. Try again.',
+        );
       }
     },
     [keychainService, loadRows, setRowStatus],
@@ -200,7 +243,24 @@ export function ApiKeyManager({
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto py-4">
-          {rows === null ? (
+          {rows === null && loadError ? (
+            <div
+              data-testid="api-key-manager-load-error"
+              className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-4 py-6 text-center"
+            >
+              <p className="text-sm font-medium text-destructive">{loadError}</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-3"
+                onClick={() => void loadRows()}
+                data-testid="api-key-manager-load-retry"
+              >
+                Retry
+              </Button>
+            </div>
+          ) : rows === null ? (
             <p className="text-sm text-muted-foreground py-6 text-center">Loading...</p>
           ) : rows.length === 0 ? (
             <div
@@ -232,6 +292,14 @@ export function ApiKeyManager({
                       <StatusBadge status={row.status} />
                     </div>
                     <code className="mt-1 block text-xs text-muted-foreground">{row.masked}</code>
+                    {row.checkError && (
+                      <p
+                        data-testid={`api-key-manager-check-error-${row.provider}`}
+                        className="mt-1 text-xs text-destructive"
+                      >
+                        {row.checkError}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <Button

@@ -10,6 +10,17 @@ import {
 } from '@/platform/utils/mail-commands';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 import { getMatters } from '@/platform/matter/matterStore';
+import { withTimeout } from '@/lib/withTimeout';
+
+// A sync that genuinely never returns (backend deadlock, dropped IPC reply)
+// used to leave "Syncing…" greyed out forever, with `syncing` only ever
+// cleared by the `.finally` of a promise that never settled. This hard caps
+// it so the button always becomes usable again. The stall warning fires much
+// sooner, mirroring the 90s threshold the m365/Gmail connector panels already
+// use (MailConnect.tsx), so the user gets an early heads-up before the hard
+// timeout forces a reset.
+const SYNC_STALL_WARNING_MS = 90_000;
+const SYNC_HARD_TIMEOUT_MS = 5 * 60_000;
 
 // Deduplicates connected accounts by (provider, account) key.
 function sanitizeConnectedAccounts(accounts: ConnectedAccount[]): ConnectedAccount[] {
@@ -39,15 +50,34 @@ interface UseAccountSyncOptions {
 
 export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptions): {
   syncing: boolean;
+  /** True once a sync has been running for SYNC_STALL_WARNING_MS with no resolution. */
+  syncStalled: boolean;
+  /** Set when a sync hard-times-out or otherwise fails to start; cleared on the next attempt. */
+  syncError: string | null;
   accounts: ConnectedAccount[];
   accountsLoaded: boolean;
   hasConnectedMail: boolean;
   handleSyncNow: () => void;
 } {
   const [syncing, setSyncing] = useState(false);
+  const [syncStalled, setSyncStalled] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const hasConnectedMail = accountsLoaded && accounts.length > 0;
+
+  // Stall watchdog: warn well before the hard timeout below forces a reset,
+  // so a slow-but-alive sync doesn't look identical to a genuinely hung one.
+  // Deferred to a microtask so the setState doesn't fire synchronously in the
+  // effect body (satisfies react-hooks/set-state-in-effect).
+  useEffect(() => {
+    if (!syncing) {
+      void Promise.resolve().then(() => { setSyncStalled(false); });
+      return;
+    }
+    const timer = setTimeout(() => { setSyncStalled(true); }, SYNC_STALL_WARNING_MS);
+    return () => { clearTimeout(timer); };
+  }, [syncing]);
 
   // Hold latest callbacks in a ref so effects with [] deps always call the
   // current version without needing to re-register listeners on every render.
@@ -101,10 +131,22 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
     if (accounts.length === 0) return;
     if (startupSyncFiredRef.current) return;
     startupSyncFiredRef.current = true;
-    setSyncing(true);
-    mailSyncAll(buildMailMatterMap(getMatters()))
-      .catch(() => { /* surfaced via the MAIL_SYNC_EVENT error status */ })
-      .finally(() => { setSyncing(false); });
+    // Deferred to a microtask so the setState calls below don't fire
+    // synchronously in the effect body (satisfies react-hooks/set-state-in-effect).
+    void Promise.resolve().then(() => {
+      setSyncing(true);
+      setSyncError(null);
+      withTimeout(mailSyncAll(buildMailMatterMap(getMatters())), SYNC_HARD_TIMEOUT_MS, 'Email sync')
+        .catch((err: unknown) => {
+          // A real backend error is surfaced via the MAIL_SYNC_EVENT error
+          // status already; a hard timeout means no such event is coming, so
+          // that case needs its own message here.
+          if (err instanceof Error && err.name === 'TimeoutError') {
+            setSyncError('Email sync is taking too long and was stopped. Try again.');
+          }
+        })
+        .finally(() => { setSyncing(false); });
+    });
   }, [accountsLoaded, accounts.length]);
 
   // Re-query the message list when a sync finishes or this window regains focus.
@@ -142,10 +184,18 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
     if (!isTauri()) return;
     if (syncing) return;
     setSyncing(true);
-    mailSyncAll(buildMailMatterMap(getMatters()))
-      .catch(() => { /* error status surfaced via MAIL_SYNC_EVENT listener */ })
+    setSyncError(null);
+    withTimeout(mailSyncAll(buildMailMatterMap(getMatters())), SYNC_HARD_TIMEOUT_MS, 'Email sync')
+      .catch((err: unknown) => {
+        // A real backend error is surfaced via the MAIL_SYNC_EVENT error
+        // status already; a hard timeout means no such event is coming, so
+        // that case needs its own message here.
+        if (err instanceof Error && err.name === 'TimeoutError') {
+          setSyncError('Email sync is taking too long and was stopped. Try again.');
+        }
+      })
       .finally(() => { setSyncing(false); });
   }, [syncing]);
 
-  return { syncing, accounts, accountsLoaded, hasConnectedMail, handleSyncNow };
+  return { syncing, syncStalled, syncError, accounts, accountsLoaded, hasConnectedMail, handleSyncNow };
 }
