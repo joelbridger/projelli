@@ -2,7 +2,7 @@
  * Browser-demo retrieval backend.
  *
  * The desktop app retrieves with the native Tauri RAG command (LanceDB + local
- * embeddings). The browser web-demo (keepance.com/try, the tailnet preview) has
+ * embeddings). The browser web-demo (advisorprephero.com/try, the tailnet preview) has
  * no Tauri backend, so `ragRetrieve` throws "RAG is only available in the
  * desktop app." and Ask used to fail before it ever reached the AI ("I couldn't
  * search your files yet").

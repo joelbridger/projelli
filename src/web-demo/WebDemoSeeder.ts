@@ -82,7 +82,7 @@ interface SampleWorkspace {
  * Read the `profession` URL parameter to determine which demo workspace to
  * seed. Accepts `advisor` (default — financial advisors are the lead ICP),
  * `legal`, `tax`, or `consulting`. Any unrecognised value falls back to
- * `advisor`, so a plain keepance.com/try shows advisor content.
+ * `advisor`, so a plain advisorprephero.com/try shows advisor content.
  */
 export function getDemoProfession(): DemoProfession {
   if (typeof window === 'undefined') return 'advisor';

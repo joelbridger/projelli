@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Sudo-free deploy. Requires: jameson is in www-data group AND /var/www/keepance.com
+# Sudo-free deploy. Requires: jameson is in www-data group AND /var/www/advisorprephero.com
 # has the setgid bit on directories. Run setup-claude-deploy.sh ONCE to set both up.
 #
 # What this does:
-#   1. rsync website/ → /var/www/keepance.com/  (no sudo; jameson can write because
+#   1. rsync website/ → /var/www/advisorprephero.com/  (no sudo; jameson can write because
 #      jameson is in www-data group and the dir is group-writable)
 #   2. New files inherit www-data group via setgid, so Caddy can still serve them
 #   3. Optional Cloudflare cache purge if token + zone are configured
@@ -17,7 +17,7 @@ set -e
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WEBSITE_DIR="$REPO_DIR/website"
-WEB_ROOT="/var/www/keepance.com"
+WEB_ROOT="/var/www/advisorprephero.com"
 WEB_DEMO_DIR="$REPO_DIR/dist-web-demo"
 WEB_DEMO_ROOT="$WEB_ROOT/try"
 TOKEN_FILE="$HOME/.cloudflare-keepance-token"
@@ -106,7 +106,7 @@ else
 fi
 
 if [[ -f "$TOKEN_FILE" && -n "$ZONE_ID" ]]; then
-  echo "==> Purging Cloudflare cache for keepance.com"
+  echo "==> Purging Cloudflare cache for advisorprephero.com"
   TOKEN=$(cat "$TOKEN_FILE")
   # Token starting with "cfk_" is the global API key (uses X-Auth-Email + X-Auth-Key);
   # any other prefix is treated as a scoped Bearer token.
@@ -130,4 +130,4 @@ elif [[ -z "$ZONE_ID" ]]; then
   echo "    To enable: export KEEPANCE_CF_ZONE_ID=<zone-id-from-cloudflare>"
 fi
 
-echo "==> Done. Live at https://keepance.com"
+echo "==> Done. Live at https://advisorprephero.com"

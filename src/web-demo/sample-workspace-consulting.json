@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Pre-seeded demo workspace for keepance.com/try?profession=consulting. A fictional consulting engagement (Meridian Growth Partners, a PE-backed manufacturer) so the demo shows the consultant story. All names and facts are invented for illustration. Bump version to re-seed.",
+  "description": "Pre-seeded demo workspace for advisorprephero.com/try?profession=consulting. A fictional consulting engagement (Meridian Growth Partners, a PE-backed manufacturer) so the demo shows the consultant story. All names and facts are invented for illustration. Bump version to re-seed.",
   "files": [
     {
       "path": "/README.md",
@@ -20,7 +20,7 @@
     },
     {
       "path": "/About this demo.md",
-      "content": "# About this demo\n\nThis is the in-browser version of Advisor Prep Hero, pre-loaded with a fictional consulting engagement so you have something real to look at.\n\nThe client, the names, and the situations are all made up for illustration. Nothing here is consulting advice, and the AI's job in the real app is to help you produce a first synthesis or draft you review, not to replace your judgment.\n\nWhat's different from the real app: this demo uses a shared, rate-limited key so you can try the AI without setting anything up. On your own machine you bring your own key (Anthropic, OpenAI, Google, or a local model through Ollama). Your files and your key never leave your computer. Client interview notes and strategy work never touch a server you do not control.\n\nWhen you're ready, download the 30-day trial at keepance.com.\n"
+      "content": "# About this demo\n\nThis is the in-browser version of Advisor Prep Hero, pre-loaded with a fictional consulting engagement so you have something real to look at.\n\nThe client, the names, and the situations are all made up for illustration. Nothing here is consulting advice, and the AI's job in the real app is to help you produce a first synthesis or draft you review, not to replace your judgment.\n\nWhat's different from the real app: this demo uses a shared, rate-limited key so you can try the AI without setting anything up. On your own machine you bring your own key (Anthropic, OpenAI, Google, or a local model through Ollama). Your files and your key never leave your computer. Client interview notes and strategy work never touch a server you do not control.\n\nWhen you're ready, download the 30-day trial at advisorprephero.com.\n"
     }
   ]
 }

@@ -79,25 +79,25 @@ Auto-updates land via GitHub Releases with minisign-signed update bundles.
 - Email and documents encrypted at rest on the user's machine
 - An egress indicator shows where each action goes ("your machine only" or "Anthropic, directly from you")
 - With a local model, nothing leaves the machine; with a cloud key, the prompt goes directly to that provider and never through Advisor Prep Hero
-- See https://keepance.com/legal/privacy for the full Privacy Policy and https://keepance.com/security for data handling
+- See https://advisorprephero.com/legal/privacy for the full Privacy Policy and https://advisorprephero.com/security for data handling
 
 ## Documentation
 
-- Getting Started: https://keepance.com/docs/getting-started
-- API Keys Guide: https://keepance.com/docs/api-keys
-- FAQ: https://keepance.com/docs/faq
+- Getting Started: https://advisorprephero.com/docs/getting-started
+- API Keys Guide: https://advisorprephero.com/docs/api-keys
+- FAQ: https://advisorprephero.com/docs/faq
 - Changelog: https://github.com/keepance/keepance/blob/master/CHANGELOG.md
-- Press Kit: https://keepance.com/press-kit
+- Press Kit: https://advisorprephero.com/press-kit
 
 ## Comparison pages
 
-Per-competitor comparison pages: https://keepance.com/vs/ (Microsoft 365 Copilot, ChatGPT, Notion, Obsidian, and more)
+Per-competitor comparison pages: https://advisorprephero.com/vs/ (Microsoft 365 Copilot, ChatGPT, Notion, Obsidian, and more)
 
 ## Contact
 
 - Support: support@keepance.com
 - Source code: https://github.com/keepance/keepance
-- Founder: Jameson Daines (https://keepance.com/press-kit for full bio)
+- Founder: Jameson Daines (https://advisorprephero.com/press-kit for full bio)
 
 ## Last updated
 

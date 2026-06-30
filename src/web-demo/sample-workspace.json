@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "description": "Pre-seeded demo workspace for keepance.com/try. A fictional solo-attorney matter (Halvorsen Estate) so the demo shows the confidential-client-work story, not founder content. All names and facts are invented for illustration. Bump version to re-seed.",
+  "description": "Pre-seeded demo workspace for advisorprephero.com/try. A fictional solo-attorney matter (Halvorsen Estate) so the demo shows the confidential-client-work story, not founder content. All names and facts are invented for illustration. Bump version to re-seed.",
   "files": [
     {
       "path": "/README.md",
@@ -28,7 +28,7 @@
     },
     {
       "path": "/About this demo.md",
-      "content": "# About this demo\n\nThis is the in-browser version of Advisor Prep Hero. It runs the same editor, file tree, and AI chat the desktop app uses, just pre-loaded with a fictional matter so you have something to look at.\n\nThe matter, the names, and the facts are all made up for illustration. Nothing here is legal advice, and the AI's job in the real app is to produce a first draft you review, not to practice law.\n\nWhat's different from the real app: this demo uses a shared, rate-limited key so you can try the AI without setting anything up. On your own machine you bring your own key (Anthropic, OpenAI, Google, or a local model through Ollama), and your files and your key never leave your computer.\n\nWhen you're ready, download the 30-day trial at keepance.com.\n"
+      "content": "# About this demo\n\nThis is the in-browser version of Advisor Prep Hero. It runs the same editor, file tree, and AI chat the desktop app uses, just pre-loaded with a fictional matter so you have something to look at.\n\nThe matter, the names, and the facts are all made up for illustration. Nothing here is legal advice, and the AI's job in the real app is to produce a first draft you review, not to practice law.\n\nWhat's different from the real app: this demo uses a shared, rate-limited key so you can try the AI without setting anything up. On your own machine you bring your own key (Anthropic, OpenAI, Google, or a local model through Ollama), and your files and your key never leave your computer.\n\nWhen you're ready, download the 30-day trial at advisorprephero.com.\n"
     }
   ]
 }

@@ -2,8 +2,8 @@
 # One-time setup so Claude (running as jameson, no sudo) can deploy directly.
 #
 # What this does:
-#   1. Adds jameson to the www-data group so it can write to /var/www/keepance.com/
-#   2. Sets the setgid bit on /var/www/keepance.com/ so new files inherit www-data group
+#   1. Adds jameson to the www-data group so it can write to /var/www/advisorprephero.com/
+#   2. Sets the setgid bit on /var/www/advisorprephero.com/ so new files inherit www-data group
 #   3. Ensures group-write permissions are correct
 #
 # After this runs ONCE (with sudo), Claude can run ~/keepance-marketing/infra/deploy.sh
@@ -24,7 +24,7 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-WEB_ROOT=/var/www/keepance.com
+WEB_ROOT=/var/www/advisorprephero.com
 USER=jameson
 
 if [[ ! -d "$WEB_ROOT" ]]; then

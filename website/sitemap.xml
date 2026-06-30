@@ -1,66 +1,66 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 
-  <url><loc>https://keepance.com/</loc><lastmod>2026-05-29</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://keepance.com/tour</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://advisorprephero.com/</loc><lastmod>2026-05-29</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://advisorprephero.com/tour</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>
 
   <!-- Profession landing pages -->
-  <url><loc>https://keepance.com/legal/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://keepance.com/tax/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://keepance.com/consulting/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://advisorprephero.com/legal/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://advisorprephero.com/tax/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://advisorprephero.com/consulting/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>
 
   <!-- Cornerstone / SEO pages -->
-  <url><loc>https://keepance.com/ai-workspace-privacy</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://keepance.com/local-first-ai-workspace</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://keepance.com/byok-ai</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://keepance.com/local-first-vs-cloud-ai</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://keepance.com/markdown-for-ai</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://keepance.com/mcp-explained</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://keepance.com/api-key-setup-guide</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://keepance.com/ai-cost-calculator</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://advisorprephero.com/ai-workspace-privacy</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://advisorprephero.com/local-first-ai-workspace</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://advisorprephero.com/byok-ai</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://advisorprephero.com/local-first-vs-cloud-ai</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://advisorprephero.com/markdown-for-ai</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://advisorprephero.com/mcp-explained</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://advisorprephero.com/api-key-setup-guide</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://advisorprephero.com/ai-cost-calculator</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
 
   <!-- Comparison pages -->
-  <url><loc>https://keepance.com/vs/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://keepance.com/vs/chatgpt</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://keepance.com/vs/notion</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://keepance.com/vs/obsidian</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://keepance.com/vs/claude-projects</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://keepance.com/vs/reflect</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://keepance.com/vs/mem-ai</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://keepance.com/vs/tana</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://keepance.com/vs/cursor-for-writing</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://keepance.com/vs/logseq</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://keepance.com/vs/heyday</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://advisorprephero.com/vs/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://advisorprephero.com/vs/chatgpt</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://advisorprephero.com/vs/notion</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://advisorprephero.com/vs/obsidian</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://advisorprephero.com/vs/claude-projects</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://advisorprephero.com/vs/reflect</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://advisorprephero.com/vs/mem-ai</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://advisorprephero.com/vs/tana</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://advisorprephero.com/vs/cursor-for-writing</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://advisorprephero.com/vs/logseq</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://advisorprephero.com/vs/heyday</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
 
   <!-- Blog -->
-  <url><loc>https://keepance.com/blog/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://keepance.com/blog/keepance-v2-announce</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://keepance.com/blog/byok-actual-cost-after-60-days</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://keepance.com/blog/chat-shouldnt-disappear-when-you-close-the-tab</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://keepance.com/blog/keepance-1-5-announce</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://keepance.com/blog/how-i-built-keepance-in-8-weeks</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://keepance.com/blog/the-hidden-tokenizer-tax</loc><lastmod>2026-04-18</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://keepance.com/blog/why-i-built-keepance-on-markdown-not-a-database</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://keepance.com/blog/why-local-first-ai-for-founders</loc><lastmod>2026-04-17</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://keepance.com/blog/picking-the-15-founder-templates</loc><lastmod>2026-04-17</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://keepance.com/blog/the-15-founder-templates-and-why-these</loc><lastmod>2026-04-17</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://keepance.com/blog/the-mcp-play-indie-tools-are-missing</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://advisorprephero.com/blog/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://advisorprephero.com/blog/keepance-v2-announce</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://advisorprephero.com/blog/byok-actual-cost-after-60-days</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://advisorprephero.com/blog/chat-shouldnt-disappear-when-you-close-the-tab</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://advisorprephero.com/blog/keepance-1-5-announce</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://advisorprephero.com/blog/how-i-built-keepance-in-8-weeks</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://advisorprephero.com/blog/the-hidden-tokenizer-tax</loc><lastmod>2026-04-18</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://advisorprephero.com/blog/why-i-built-keepance-on-markdown-not-a-database</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://advisorprephero.com/blog/why-local-first-ai-for-founders</loc><lastmod>2026-04-17</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://advisorprephero.com/blog/picking-the-15-founder-templates</loc><lastmod>2026-04-17</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://advisorprephero.com/blog/the-15-founder-templates-and-why-these</loc><lastmod>2026-04-17</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://advisorprephero.com/blog/the-mcp-play-indie-tools-are-missing</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
 
   <!-- Docs -->
-  <url><loc>https://keepance.com/docs/getting-started</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://keepance.com/docs/api-keys</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://keepance.com/docs/faq</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://keepance.com/docs/plugins/</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.4</priority></url>
-  <url><loc>https://keepance.com/docs/mobile-access/</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://advisorprephero.com/docs/getting-started</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://advisorprephero.com/docs/api-keys</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://advisorprephero.com/docs/faq</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://advisorprephero.com/docs/plugins/</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://advisorprephero.com/docs/mobile-access/</loc><lastmod>2026-04-27</lastmod><changefreq>monthly</changefreq><priority>0.4</priority></url>
 
   <!-- Press kit, changelog, roadmap -->
-  <url><loc>https://keepance.com/press-kit/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://keepance.com/changelog/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.4</priority></url>
-  <url><loc>https://keepance.com/roadmap/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://advisorprephero.com/press-kit/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://advisorprephero.com/changelog/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://advisorprephero.com/roadmap/</loc><lastmod>2026-05-29</lastmod><changefreq>monthly</changefreq><priority>0.4</priority></url>
 
   <!-- Legal -->
-  <url><loc>https://keepance.com/legal/eula</loc><lastmod>2026-05-29</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://keepance.com/legal/privacy</loc><lastmod>2026-05-29</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://keepance.com/legal/terms</loc><lastmod>2026-05-29</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://advisorprephero.com/legal/eula</loc><lastmod>2026-05-29</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://advisorprephero.com/legal/privacy</loc><lastmod>2026-05-29</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://advisorprephero.com/legal/terms</loc><lastmod>2026-05-29</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
 
 </urlset>
