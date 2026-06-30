@@ -1,5 +1,10 @@
 /**
- * GuidedOnboarding — premium 8-step first-run experience.
+ * GuidedOnboarding — ARCHIVED 9-step first-run experience.
+ *
+ * Retired 2026-06-30: superseded by the live 4-step flow at
+ * `../v2/OnboardingV2.tsx`, which `FirstRunOverlay` now renders
+ * unconditionally. Kept here, out of the live app path, for reference /
+ * recoverability — nothing in the running app imports this file.
  *
  * Replaces FirstRunWizard as the full-screen onboarding overlay.  Keeps the
  * same trigger condition and completion semantics; adds the branded
@@ -27,8 +32,9 @@ import { readImageAsDataUrl } from '@/platform/utils/imageUpload';
 import { BRAND } from '@/config/brand';
 
 import { OnboardingStepFrame, type StepInfo } from './OnboardingStepFrame';
-import { markOnboardingComplete, setOnboardingProgressStep } from './onboardingState';
-import { AiSetupStep } from './AiSetupStep';
+import { markOnboardingComplete, setOnboardingProgressStep } from '../onboardingState';
+import { AiSetupStep } from '../AiSetupStep';
+import type { OnboardingWorkspace, GuidedOnboardingProps } from '../onboardingTypes';
 
 import { MailConnect } from '@/platform/connectors/email/MailConnect';
 import { MailGmailConnect } from '@/platform/connectors/email/MailGmailConnect';
@@ -90,32 +96,10 @@ const PROFESSION_OPTIONS: ProfessionOption[] = [
 
 type EmailTab = 'm365' | 'gmail' | 'imap';
 
-/**
- * Minimal duck-typed workspace handle for sample-file writes.
- * Mirrors FirstRunWizardProps.workspace so callers can pass the same object.
- */
-export interface OnboardingWorkspace {
-  writeFile: (path: string, content: string) => Promise<void>;
-  exists: (path: string) => Promise<boolean>;
-}
-
-export interface GuidedOnboardingProps {
-  /**
-   * Persist a connected cloud API key.  Route through KeychainService.setKey,
-   * then mirror into live API-key state so the AI pane sees it immediately.
-   */
-  onSaveKey: (provider: KeyProvider, key: string) => void | Promise<void>;
-  /**
-   * Called when the user clicks "Open Advisor Prep Hero" on the Done step, or when they
-   * skip the entire flow.  opts.writeSamples signals whether sample files
-   * should be written (the caller owns the workspace handle).
-   */
-  onComplete: (opts?: { writeSamples?: boolean }) => void;
-  /** Already-connected API keys (provider -> key string). */
-  apiKeys?: Record<string, string>;
-  /** Optional workspace for writing sample files on Done. */
-  workspace?: OnboardingWorkspace;
-}
+// OnboardingWorkspace / GuidedOnboardingProps now live in ../onboardingTypes
+// (shared with the live OnboardingV2 flow) — re-exported here for any
+// remaining direct importers of this archived module.
+export type { OnboardingWorkspace, GuidedOnboardingProps };
 
 // ---------------------------------------------------------------------------
 // Step definitions

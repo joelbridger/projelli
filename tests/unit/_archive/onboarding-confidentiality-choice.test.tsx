@@ -1,5 +1,8 @@
 /**
- * Task 2.1 — Explicit informed confidentiality choice in first-run onboarding.
+ * Confidentiality choice screen inside the ARCHIVED GuidedOnboarding flow.
+ *
+ * Retired 2026-06-30 (superseded by OnboardingV2's AiScene). Moved here
+ * alongside `src/features/onboarding/_archive/GuidedOnboarding.tsx`.
  *
  * Tests that the personal-install confidentiality choice screen:
  *   1. Choosing Local-only records mode 'local-only' + choiceMade=true and advances.
@@ -103,7 +106,7 @@ import { CONFIDENTIALITY_CHOICE_MADE_KEY } from '@/platform/privacy/resolvePerso
 // ---------------------------------------------------------------------------
 // Import the component under test AFTER mocks
 // ---------------------------------------------------------------------------
-import { GuidedOnboarding } from '@/features/onboarding/GuidedOnboarding';
+import { GuidedOnboarding } from '@/features/onboarding/_archive/GuidedOnboarding';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -1,5 +1,10 @@
 /**
- * GuidedOnboarding — unit tests.
+ * GuidedOnboarding — unit tests for the ARCHIVED 9-step flow.
+ *
+ * Retired 2026-06-30 (superseded by OnboardingV2 / tests/unit/onboarding-v2.test.tsx).
+ * Moved here alongside `src/features/onboarding/_archive/GuidedOnboarding.tsx`
+ * — kept passing so the archived component doesn't bitrot, but no longer part
+ * of the live first-run surface.
  *
  * Each step is rendered in isolation via mocked dependencies so the tests
  * run entirely in jsdom without a Tauri runtime.
@@ -103,7 +108,7 @@ vi.mock('@/features/onboarding/aiSetupState', () => ({
 // ---------------------------------------------------------------------------
 // Import the component under test AFTER mocks are set up.
 // ---------------------------------------------------------------------------
-import { GuidedOnboarding } from '@/features/onboarding/GuidedOnboarding';
+import { GuidedOnboarding } from '@/features/onboarding/_archive/GuidedOnboarding';
 import * as onboardingState from '@/features/onboarding/onboardingState';
 
 // ---------------------------------------------------------------------------

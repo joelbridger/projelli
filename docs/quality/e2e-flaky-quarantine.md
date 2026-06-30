@@ -29,7 +29,6 @@ config comment (state / onboarding / timing / visual), not a confirmed diagnosis
 |---|---|---|---|
 | `workflows-panel.spec.ts` | workflow-panel state/timing on cold CI start | unassigned | 2026-07-31 |
 | `web-demo.spec.ts` | demo-route load + route-mock timing | unassigned | 2026-07-31 |
-| `onboarding-card.spec.ts` | onboarding state seeded inconsistently on CI | unassigned | 2026-07-31 |
 | `file-tree.spec.ts` | file-tree render/expand timing | unassigned | 2026-07-31 |
 | `citation-persistence.spec.ts` | citation state across reload (persisted-state timing) | unassigned | 2026-07-31 |
 | `app-layout.spec.ts` | layout/visual sensitivity to CI rendering | unassigned | 2026-07-31 |

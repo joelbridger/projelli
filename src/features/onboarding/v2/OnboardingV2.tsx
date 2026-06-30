@@ -7,19 +7,20 @@
  *   2  Connect    — real data connectors (ConnectScene)
  *   3  Firm setup — live setup-progress bars (FirmSetupScene)
  *
- * Drop-in compatible with GuidedOnboardingProps so FirstRunOverlay can pick
- * between the two by flag with identical wiring. "Continue to the app" marks
- * onboarding complete and calls onComplete; imports keep running in the
- * background (driven by the real setup-progress backend).
+ * Drop-in compatible with GuidedOnboardingProps so FirstRunOverlay's wiring
+ * stays unchanged. "Continue to the app" marks onboarding complete and calls
+ * onComplete; imports keep running in the background (driven by the real
+ * setup-progress backend).
  *
- * Gated behind the default-OFF `onboardingV2` flag; flag-OFF leaves today's
- * GuidedOnboarding behavior untouched.
+ * This is now the ONLY first-run flow — FirstRunOverlay renders it
+ * unconditionally. The old 9-step GuidedOnboarding is archived at
+ * `../_archive/GuidedOnboarding.tsx`.
  */
 
 import { useRef, useState } from 'react';
 import './onboardingV2.css';
 
-import type { GuidedOnboardingProps } from '../GuidedOnboarding';
+import type { GuidedOnboardingProps } from '../onboardingTypes';
 import { markOnboardingComplete } from '../onboardingState';
 import { markAiSetupDeferred } from '../aiSetupState';
 

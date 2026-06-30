@@ -1,4 +1,10 @@
 /// <reference types="@testing-library/jest-dom" />
+/**
+ * Firm-join flow inside the ARCHIVED GuidedOnboarding flow.
+ *
+ * Retired 2026-06-30 (superseded by OnboardingV2's FirmSetupScene). Moved
+ * here alongside `src/features/onboarding/_archive/GuidedOnboarding.tsx`.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 
@@ -78,7 +84,7 @@ vi.mock('@/features/onboarding/aiSetupState', () => ({
   markAiSetupDeferred: vi.fn(),
 }));
 
-import { GuidedOnboarding } from '@/features/onboarding/GuidedOnboarding';
+import { GuidedOnboarding } from '@/features/onboarding/_archive/GuidedOnboarding';
 
 function navigateToFirmStep() {
   fireEvent.click(screen.getByTestId('onboarding-next-welcome'));

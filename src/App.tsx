@@ -37,10 +37,7 @@ import { Button } from '@/ui/button';
 import { Command, Moon, Monitor, Sun } from 'lucide-react';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
-// FirstRunOverlay picks GuidedOnboarding (default) or the flag-gated
-// OnboardingV2 (prototype-matched, wired to real setup) by the onboardingV2
-// flag. Keeping the branch in FirstRunOverlay keeps this entry file's edit to a
-// single component-name swap.
+// FirstRunOverlay renders the live 4-step OnboardingV2 flow.
 import { FirstRunOverlay } from '@/features/onboarding/FirstRunOverlay';
 import {
   createKeychainService,
