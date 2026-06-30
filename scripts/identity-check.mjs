@@ -88,15 +88,24 @@ function checkAppNsConsistency(tsContent, rsContent) {
     errors.push('TS: cannot find `const APP_NS = \'...\';`');
   }
 
-  // RS: APP_NS must be a single const
-  const rsAppNsMatch = rsContent.match(/pub const APP_NS:\s*&str\s*=\s*"([^"]+)"/);
-  if (!rsAppNsMatch) {
-    errors.push('RS: cannot find `pub const APP_NS: &str = "...";`');
+  // RS: APP_NS must be a single source of truth.
+  // Accept either a direct literal (`pub const APP_NS: &str = "value"`) or
+  // the macro form (`macro_rules! app_ns { () => { "value" } }` + `app_ns!()`).
+  let rsAppNsValue = null;
+  // Form 1: direct const literal
+  const rsConstMatch = rsContent.match(/pub const APP_NS:\s*&str\s*=\s*"([^"]+)"/);
+  if (rsConstMatch) rsAppNsValue = rsConstMatch[1];
+  // Form 2: macro_rules! app_ns { () => { "value" } } + pub const APP_NS: &str = app_ns!()
+  const rsMacroMatch = rsContent.match(/macro_rules!\s+app_ns\s*\{[^}]*\(\s*\)\s*=>\s*\{\s*"([^"]+)"\s*\}/s);
+  const rsMacroConstMatch = rsContent.match(/pub const APP_NS:\s*&str\s*=\s*app_ns!\s*\(\s*\)/);
+  if (rsMacroMatch && rsMacroConstMatch) rsAppNsValue = rsMacroMatch[1];
+  if (!rsAppNsValue) {
+    errors.push('RS: cannot find APP_NS as a literal const or as `macro_rules! app_ns + pub const APP_NS = app_ns!()`');
   }
 
-  if (tsAppNsMatch && rsAppNsMatch && tsAppNsMatch[1] !== rsAppNsMatch[1]) {
+  if (tsAppNsMatch && rsAppNsValue && tsAppNsMatch[1] !== rsAppNsValue) {
     errors.push(
-      `APP_NS mismatch: TS has '${tsAppNsMatch[1]}', RS has '${rsAppNsMatch[1]}'`
+      `APP_NS mismatch: TS has '${tsAppNsMatch[1]}', RS has '${rsAppNsValue}'`
     );
   }
 

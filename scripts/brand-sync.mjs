@@ -194,11 +194,44 @@ export function detectLockedDrift(root, locked = {}) {
     // array (bare `"svc",` elements aren't preceded by `=`/`(`), comments, and
     // tests — so a genuine change at the call site fails even if a stale copy
     // lingers in the allowlist/a comment/a test.
-    const isTestFile = (f) => { const p = f.replace(/\\/g, '/'); return /\/tests?\//.test(p) || /(^|\/)(test|tests)\.rs$/.test(p) || /_tests?\.rs$/.test(p); };
-    const realCode = walk(kcRoot, (f) => f.endsWith('.rs'))
-      .filter((f) => !isTestFile(f))
-      .map((f) => stripRustTestModules(stripRustComments(fs.readFileSync(f, 'utf8'))))
-      .join('\n');
+    //
+    // concat!() expansion: identity.rs may define constants as
+    //   pub const X: &str = concat!(app_ns!(), "-suffix");
+    // rather than literal strings.  Read the macro value from identity.rs and
+    // inline it before pattern-matching so the check remains meaningful.
+    const identityRsPath = path.join(kcRoot, 'identity.rs');
+    let realCode;
+    {
+      const isTestFile = (f) => { const p = f.replace(/\\/g, '/'); return /\/tests?\//.test(p) || /(^|\/)(test|tests)\.rs$/.test(p) || /_tests?\.rs$/.test(p); };
+      const rawCode = walk(kcRoot, (f) => f.endsWith('.rs'))
+        .filter((f) => !isTestFile(f))
+        .map((f) => stripRustTestModules(stripRustComments(fs.readFileSync(f, 'utf8'))))
+        .join('\n');
+      // Expand app_ns!() to the literal it holds so concat!() patterns resolve.
+      let appNsValue = 'keepance'; // default; overridden if identity.rs uses macro form
+      if (fs.existsSync(identityRsPath)) {
+        const identityRaw = fs.readFileSync(identityRsPath, 'utf8');
+        // Match: macro_rules! app_ns { () => { "value" } }
+        // Use lazy [\s\S]*? to skip the outer brace and find the arm body.
+        const macroMatch = identityRaw.match(/macro_rules!\s+app_ns[\s\S]*?\(\s*\)\s*=>\s*\{\s*"([^"]+)"/);
+        // Also match: pub const APP_NS: &str = "value";
+        const constMatch = identityRaw.match(/pub const APP_NS:\s*&str\s*=\s*"([^"]+)"/);
+        appNsValue = (macroMatch && macroMatch[1]) || (constMatch && constMatch[1]) || appNsValue;
+      }
+      // Expand identity macros so the brand:check can find the assembled
+      // service strings as simple literals (= "...").
+      // Step 1: replace every app_ns!() call with the quoted literal value.
+      // Step 2: collapse concat!("a", "b", "c") → "abc".
+      // After step 1, concat!() no longer has nested parens, so [^)]+ works.
+      const step1 = rawCode.replace(/app_ns!\s*\(\s*\)/g, `"${appNsValue}"`);
+      realCode = step1.replace(
+        /concat!\s*\(([^)]+)\)/g,
+        (_, args) => {
+          const strs = args.split(',').map((p) => { const m = p.trim().match(/^"([^"]*)"$/); return m ? m[1] : ''; });
+          return `"${strs.join('')}"`;
+        }
+      );
+    }
     const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const missing = services.filter((s) => {
       // A service ending in `.` or `-` is a PREFIX (used like `"<prefix>{id}"`),
