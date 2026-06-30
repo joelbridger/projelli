@@ -61,7 +61,6 @@ import { useAiBatchReviewStore } from '@/platform/ai/aiBatchReviewStore';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
 import { writeSampleFiles } from '@/platform/matter/samples';
 import { seedSampleClientMap } from '@/platform/matter/samples/sampleClientMap';
-import { reportClientMap } from '@/platform/utils/setup-progress-commands';
 import { useProfessionStore } from '@/platform/profile/professionStore';
 import type { OnboardingStartMode, OnboardingStartResult } from '@/features/onboarding/onboardingTypes';
 import type { TrashedItem } from '@/platform/history/TrashService';
@@ -796,9 +795,11 @@ function App() {
           const matter = getOrCreateSampleMatter(root);
           seedSampleClientMap(matter.id);
           setSidebarActiveTab('matters');
-          // Reflect the seeded Client Map as built (1/1) in the setup-progress
-          // surface so the "Building Client Maps" step reads honestly.
-          void reportClientMap(1, 1, 0).catch(() => {});
+          // NB: the setup-progress Client Map count intentionally EXCLUDES sample
+          // matters (see computeClientMapProgress), so we don't try to report the
+          // seeded sample as 1/1 there — it would be recomputed to 0/0 on mount.
+          // The Firm-setup callout's honest "builds when you open each client"
+          // note covers this; the user lands directly on the seeded map anyway.
         }
         return { ok: true, mode };
       } catch (err) {

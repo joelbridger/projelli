@@ -119,7 +119,13 @@ export function OnboardingV2({ onSaveKey, onComplete, onChooseStart, hasWorkspac
       onContinue={isLast ? finish : goNext}
       dotCount={isIntro ? 0 : ACTION_SCENES}
       activeDot={isIntro ? -1 : scene - 1}
-      onDotClick={(i) => { goTo(i + 1); }}
+      onDotClick={(i) => {
+        const target = i + 1;
+        // Respect the OAuth-pending forward lock (same as Continue/arrow) so a
+        // dot click can't skip past a still-pending sign-in.
+        if (continueDisabled && target > scene) return;
+        goTo(target);
+      }}
       onArrowNav={(dir) => {
         // Respect the OAuth-pending lock on forward navigation too.
         if (dir === 1 && continueDisabled) return;

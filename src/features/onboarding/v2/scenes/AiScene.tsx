@@ -21,7 +21,7 @@ import { Check, Info, X } from 'lucide-react';
 import { openExternal } from '@/platform/utils/openExternal';
 import type { KeyProvider } from '@/platform/providers/KeychainService';
 import { validateApiKeyLive } from '@/platform/providers/apiKeyValidation';
-import { markKeyVerified } from '@/platform/providers/keyVerification';
+import { markKeyVerified, clearKeyStatus } from '@/platform/providers/keyVerification';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
 import {
   useRecordConfidentialityChoice,
@@ -139,7 +139,11 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
       } else {
         // 'network': the key looks valid but we couldn't reach the provider to
         // verify it. Save it, but be honest — don't claim "connected/ready".
-        // It gets verified the first time it's actually used.
+        // Clear any stale verified/invalid marker for this provider so a NEW,
+        // unverified key can't inherit a previous key's "verified" status (which
+        // would make Firm setup + the provider resolver treat it as ready). It
+        // gets verified the first time it's actually used.
+        clearKeyStatus(provider);
         setSavedUnverified(true);
         setConnected(false);
       }

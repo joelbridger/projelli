@@ -179,7 +179,12 @@ describe('AiScene real key wiring', () => {
     expect(isKeyVerified('anthropic')).toBe(true);
   });
 
-  it('on a NETWORK failure saves the key but does NOT mark it verified/connected', async () => {
+  it('on a NETWORK failure saves the key, does NOT mark verified, and clears a stale verified marker', async () => {
+    // A PRIOR key for this provider was verified; saving a new key that can't be
+    // live-checked must not let the new (unverified) key inherit that status.
+    markKeyVerified('anthropic');
+    expect(isKeyVerified('anthropic')).toBe(true);
+
     h.validate.mockResolvedValue({ outcome: 'network', message: 'could not reach provider' });
     const { onSaveKey } = renderFlow();
     goToAi();
@@ -189,10 +194,11 @@ describe('AiScene real key wiring', () => {
     });
     // The key is saved (it looks valid)...
     expect(onSaveKey).toHaveBeenCalledWith('anthropic', 'sk-ant-net');
-    // ...but we must NOT claim "connected" or mark it verified — it's only
-    // "saved, not verified" until a real check passes.
+    // ...but we must NOT claim "connected" — it's only "saved, not verified".
     expect(screen.queryByTestId('ai-connected')).toBeNull();
     expect(screen.getByTestId('ai-saved-unverified')).toBeTruthy();
+    // The stale verified marker is cleared so the new unverified key can't
+    // inherit it (Codex P2).
     expect(isKeyVerified('anthropic')).toBe(false);
   });
 
