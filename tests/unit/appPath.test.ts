@@ -35,9 +35,13 @@ describe('pathsEqual', () => {
     expect(pathsEqual('/home/jane/WS/', '/home/jane/WS')).toBe(true);
   });
 
-  it('is case-insensitive for Windows paths only', () => {
-    expect(pathsEqual('C:\\WS\\Acme', 'c:/ws/acme')).toBe(true);
-    // POSIX stays case-sensitive
+  it('folds ONLY the drive letter, NOT directory segments', () => {
+    // Drive letter is case-insensitive on Windows.
+    expect(pathsEqual('C:\\WS\\Acme', 'c:\\WS\\Acme')).toBe(true);
+    // Directory-segment case is significant (client boundary) → fail closed.
+    expect(pathsEqual('C:\\WS\\Acme', 'C:\\WS\\acme')).toBe(false);
+    expect(pathsEqual('C:\\WS\\Acme', 'c:/ws/acme')).toBe(false);
+    // POSIX stays fully case-sensitive
     expect(pathsEqual('/home/jane/Acme', '/home/jane/acme')).toBe(false);
   });
 });
@@ -53,19 +57,26 @@ describe('sameOrInside', () => {
     expect(sameOrInside(ROOT, '/home/jane/Other/doc.md')).toBe(false);
   });
 
-  it('handles Windows mixed slashes + case', () => {
-    expect(sameOrInside('C:\\WS', 'c:/ws/Acme/secret.docx')).toBe(true);
-    expect(sameOrInside('C:\\WS\\Acme', 'C:/WS/acme/sub/secret.docx')).toBe(true);
-    // boundary still respected under Windows folding
+  it('matches across separator + DRIVE case, but NOT across segment case', () => {
+    // Separator + drive-letter case differences are bridged (same physical path).
+    expect(sameOrInside('C:\\WS', 'c:/WS/Acme/secret.docx')).toBe(true);
+    expect(sameOrInside('C:\\WS\\Acme', 'c:\\WS\\Acme\\sub\\secret.docx')).toBe(true);
+    // A case-only SEGMENT difference is a DIFFERENT client → fail closed.
+    expect(sameOrInside('C:\\WS\\Acme', 'C:/WS/acme/sub/secret.docx')).toBe(false);
+    // boundary still respected
     expect(sameOrInside('C:\\WS\\Acme', 'C:/WS/Acme Corp/doc.docx')).toBe(false);
     // a different drive is never inside
     expect(sameOrInside('C:\\WS', 'D:/WS/Acme/doc.docx')).toBe(false);
   });
 
-  it('handles UNC roots', () => {
+  it('handles UNC roots (host+share folded, segments case-sensitive)', () => {
     expect(
-      sameOrInside('\\\\server\\share\\WS', '//server/share/WS/Acme/doc.docx'),
+      sameOrInside('\\\\Server\\Share\\WS', '//server/share/WS/Acme/doc.docx'),
     ).toBe(true);
+    // a case-only difference in a directory segment under the share fails closed
+    expect(
+      sameOrInside('\\\\server\\share\\WS\\Acme', '//server/share/WS/acme/doc.docx'),
+    ).toBe(false);
   });
 
   it('rejects empty inputs', () => {
@@ -76,9 +87,12 @@ describe('sameOrInside', () => {
 
 describe('relativeInside', () => {
   it('returns the original-case relative path or null', () => {
-    expect(relativeInside('C:\\WS', 'c:/ws/Acme/Sub/Doc.docx')).toBe('Acme/Sub/Doc.docx');
+    // drive + separator differences are bridged; segment case preserved
+    expect(relativeInside('C:\\WS', 'c:/WS/Acme/Sub/Doc.docx')).toBe('Acme/Sub/Doc.docx');
     expect(relativeInside('C:\\WS', 'C:/WS')).toBe('');
     expect(relativeInside('C:\\WS', 'D:/Other/x')).toBeNull();
+    // a case-only segment difference in the root path is NOT inside (fail closed)
+    expect(relativeInside('C:\\WS\\Acme', 'C:/WS/acme/x')).toBeNull();
   });
 });
 
@@ -87,7 +101,8 @@ describe('topLevelSegment', () => {
 
   it('returns the first folder below the root (original case)', () => {
     expect(topLevelSegment(ROOT, `${ROOT}/Acme/m1/doc.md`)).toBe('Acme');
-    expect(topLevelSegment('C:\\WS', 'c:/ws/Acme/doc.docx')).toBe('Acme');
+    // drive + separator bridged, segment case preserved
+    expect(topLevelSegment('C:\\WS', 'c:/WS/Acme/doc.docx')).toBe('Acme');
   });
 
   it('returns "" for a file directly in the root or the root itself', () => {

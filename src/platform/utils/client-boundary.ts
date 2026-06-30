@@ -20,11 +20,7 @@
  * unit-tested without mounting React.
  */
 
-import {
-  topLevelSegment,
-  sameOrInside,
-  joinWorkspacePath,
-} from '@/platform/fs/appPath';
+import { topLevelSegment } from '@/platform/fs/appPath';
 
 /** Sentinel label for files that live directly in the workspace root. */
 export const ROOT_LEVEL_SENTINEL = '<workspace root>';
@@ -140,12 +136,22 @@ export function filterByScope(
   scopedFolder: string | null | undefined,
 ): string[] {
   if (!scopedFolder || !workspaceRoot) return filePaths;
-  // A file is in scope when it IS, or lives inside, `<root>/<scopedFolder>`.
-  // sameOrInside is separator-, trailing-separator-, and (on Windows) case-
-  // robust, and it respects segment boundaries (so "Acme" never matches
-  // "Acme Corp"). This replaces the POSIX-only `startsWith` prefix match.
-  const scopeRoot = joinWorkspacePath(workspaceRoot, scopedFolder);
-  return filePaths.filter((p) => sameOrInside(scopeRoot, p));
+  // A file is in scope when its TOP-LEVEL folder under the workspace root equals
+  // `scopedFolder` EXACTLY — a case-SENSITIVE comparison of the client-folder
+  // name.
+  //
+  // The top-level folder is the client privacy boundary. On a case-SENSITIVE
+  // Windows-shaped volume (NTFS per-directory case sensitivity, a WSL/network
+  // share) `Acme` and `acme` are two DIFFERENT clients, so a case-only
+  // difference here must FAIL CLOSED (exclude) — a case-insensitive match would
+  // mix one client's files into another's scope (a cross-client leak the matter
+  // tie-guard does NOT cover, because this path-list filter has no matter set).
+  // getTopLevelFolder still normalises separators and folds the WORKSPACE-ROOT
+  // prefix (the root is not a client boundary, and the same physical folder may
+  // be spelled `C:\WS` or `c:/ws`); only the client-folder name is matched
+  // case-sensitively. scopedFolder is itself derived from getTopLevelFolderNames
+  // over the same on-disk paths, so a legitimate same-client file always matches.
+  return filePaths.filter((p) => getTopLevelFolder(p, workspaceRoot) === scopedFolder);
 }
 
 /**

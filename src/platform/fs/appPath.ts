@@ -15,9 +15,22 @@
  * kept out of — the WRONG client's scope on Windows. These helpers collapse all
  * of those shapes so the comparison is correct on every platform.
  *
- * Display vs comparison: the helpers compare on a folded/normalised form but,
- * where they return a slice of the input (the relative path, the folder name),
- * they return it with the ORIGINAL case preserved so the UI shows the real name.
+ * CASE POLICY (the confidentiality-critical part). Only the VOLUME ROOT is
+ * case-insensitive on Windows — the drive letter (`C:` ≡ `c:`) and a UNC
+ * host+share. DIRECTORY SEGMENTS are compared CASE-SENSITIVELY, because a path
+ * segment is the client privacy boundary: on a case-SENSITIVE Windows-shaped
+ * volume (NTFS per-directory case sensitivity, a WSL/network-backed share)
+ * `C:\WS\Acme` and `C:\WS\acme` are TWO DIFFERENT clients, and folding them
+ * would leak one client's files into the other's scope. So we FAIL CLOSED on a
+ * case-only segment difference. In practice every call path derives both sides
+ * from the same on-disk enumeration (the same workspace root + the same file
+ * tree), so segment casing is already consistent and legitimate same-client
+ * matches still succeed; the only thing that fails closed is genuine casing
+ * drift, which is the safe direction for an isolation check.
+ *
+ * Display vs comparison: the helpers compare on a normalised form but, where
+ * they return a slice of the input (the relative path, the folder name), they
+ * return it with the ORIGINAL case preserved so the UI shows the real name.
  *
  * Pure string functions — no fs, no React, no Zustand — so they unit-test
  * without any environment. Absolute-path detection is shared with
@@ -67,42 +80,54 @@ function normalizeForComparison(p: string): string {
   return s;
 }
 
-/** Lower-case only when comparing as Windows paths (case-insensitive FS). */
-function fold(s: string, caseInsensitive: boolean): string {
-  return caseInsensitive ? s.toLowerCase() : s;
-}
-
 /**
- * Whether the comparison of `a` and `b` should be case-insensitive. We treat it
- * as Windows (case-insensitive) when EITHER side looks like a Windows path, so a
- * stored root and an incoming file path that disagree on shape still compare
- * correctly.
+ * Fold ONLY the case-insensitive VOLUME ROOT, leaving directory segments
+ * untouched (case-sensitive). On Windows the drive letter (`C:` ≡ `c:`) and a
+ * UNC host+share are case-insensitive; every directory segment below them is the
+ * client boundary and must stay case-sensitive (see the CASE POLICY note at the
+ * top of the file). Lowercasing the drive/host does NOT change string length, so
+ * callers that slice by a prefix length (relativeInside) stay correct.
+ *
+ * Input is expected to be separator-normalised (forward slashes) already.
  */
-function comparesCaseInsensitively(a: string, b: string): boolean {
-  return isWindowsStylePath(a) || isWindowsStylePath(b);
+function caseNormalize(s: string): string {
+  // Drive-letter path: `X:/...` → lowercase just the drive letter.
+  if (/^[A-Za-z]:/.test(s)) {
+    return s.charAt(0).toLowerCase() + s.slice(1);
+  }
+  // UNC path: `//host/share/...` → lowercase host + share only.
+  if (s.startsWith('//')) {
+    const m = /^\/\/([^/]+)\/([^/]+)(.*)$/.exec(s);
+    if (m) return `//${m[1].toLowerCase()}/${m[2].toLowerCase()}${m[3]}`;
+    // `//host` with no share segment — fold the host.
+    return s.toLowerCase();
+  }
+  // POSIX or relative — fully case-sensitive.
+  return s;
 }
 
 /**
  * True when `a` and `b` denote the same path, ignoring separator style, trailing
- * separators, and (on Windows) case.
+ * separators, and (on Windows) the case of the drive/UNC volume root. Directory
+ * segments are compared case-sensitively.
  */
 export function pathsEqual(a: string, b: string): boolean {
   if (!a || !b) return false;
-  const ci = comparesCaseInsensitively(a, b);
-  return fold(normalizeForComparison(a), ci) === fold(normalizeForComparison(b), ci);
+  return caseNormalize(normalizeForComparison(a)) === caseNormalize(normalizeForComparison(b));
 }
 
 /**
  * True when `path` IS `root` or lives inside it, respecting path-segment
  * boundaries (so `/ws/Acme` never matches `/ws/Acme Corp`), separator style, and
- * (on Windows) case. This is the predicate every scope/boundary check should use
- * instead of a raw `startsWith`.
+ * the case-insensitive Windows volume root (drive/UNC). Directory segments are
+ * compared CASE-SENSITIVELY, so a case-only client-folder difference fails
+ * closed. This is the predicate every scope/boundary check should use instead of
+ * a raw `startsWith`.
  */
 export function sameOrInside(root: string, path: string): boolean {
   if (!root || !path) return false;
-  const ci = comparesCaseInsensitively(root, path);
-  const r = fold(normalizeForComparison(root), ci);
-  const f = fold(normalizeForComparison(path), ci);
+  const r = caseNormalize(normalizeForComparison(root));
+  const f = caseNormalize(normalizeForComparison(path));
   if (!r) return false;
   if (f === r) return true;
   const prefix = r.endsWith('/') ? r : `${r}/`;
@@ -112,17 +137,18 @@ export function sameOrInside(root: string, path: string): boolean {
 /**
  * If `path` is `root` or inside it, return the relative path from `root` to
  * `path` (forward slashes, ORIGINAL case). Returns `''` when `path` IS the root,
- * or `null` when `path` is outside `root`.
+ * or `null` when `path` is outside `root`. Containment uses the same volume-root-
+ * folded, segment-case-sensitive comparison as `sameOrInside`.
  */
 export function relativeInside(root: string, path: string): string | null {
   if (!root || !path) return null;
-  const ci = comparesCaseInsensitively(root, path);
   const rRaw = normalizeForComparison(root);
   const fRaw = normalizeForComparison(path);
-  const r = fold(rRaw, ci);
-  const f = fold(fRaw, ci);
+  const r = caseNormalize(rRaw);
+  const f = caseNormalize(fRaw);
   if (!r) return null;
   if (f === r) return '';
+  // caseNormalize never changes length, so a prefix length from rRaw is valid.
   const prefixLen = (rRaw.endsWith('/') ? rRaw : `${rRaw}/`).length;
   const prefix = r.endsWith('/') ? r : `${r}/`;
   if (!f.startsWith(prefix)) return null;

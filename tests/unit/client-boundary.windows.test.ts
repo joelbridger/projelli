@@ -28,8 +28,10 @@ describe('getTopLevelFolder — Windows paths', () => {
     expect(getTopLevelFolder('C:/Users/Jane/Advisor/Acme/doc.docx', ROOT)).toBe('Acme');
   });
 
-  it('matches across drive-letter case and folder case (preserving display case)', () => {
-    expect(getTopLevelFolder('c:\\users\\jane\\advisor\\Acme\\doc.docx', ROOT)).toBe('Acme');
+  it('matches across drive-letter case + separators (segments keep their case)', () => {
+    // Drive case + separator style are bridged; the directory segments carry the
+    // same on-disk casing on both sides, so the client folder still resolves.
+    expect(getTopLevelFolder('c:/Users/Jane/Advisor/Acme/doc.docx', ROOT)).toBe('Acme');
   });
 
   it('returns the sentinel for a root-level file', () => {
@@ -79,20 +81,39 @@ describe('cross-client detection — Windows case-insensitivity', () => {
 describe('filterByScope — Windows paths', () => {
   const ROOT = 'C:\\WS';
 
-  it('keeps only files inside the scoped client folder, across slash + case', () => {
+  it('keeps files inside the scoped client folder across SEPARATOR + root-case differences', () => {
     const paths = [
-      'C:\\WS\\Acme\\matter\\doc.docx',
-      'C:/WS/acme/other.docx', // same client, different case + slash
-      'C:\\WS\\Beta\\secret.docx', // different client — must be excluded
+      'C:\\WS\\Acme\\matter\\doc.docx', // backslashes
+      'C:/WS/Acme/other.docx', // forward slashes, same client folder "Acme"
+      'c:\\ws\\Acme\\third.docx', // differing ROOT case (root is not a client boundary)
+      'C:\\WS\\Beta\\secret.docx', // different client — excluded
     ];
     expect(filterByScope(paths, ROOT, 'Acme')).toEqual([
       'C:\\WS\\Acme\\matter\\doc.docx',
-      'C:/WS/acme/other.docx',
+      'C:/WS/Acme/other.docx',
+      'c:\\ws\\Acme\\third.docx',
     ]);
   });
 
   it('does not leak a sibling that shares a name prefix', () => {
     const paths = ['C:\\WS\\Acme Corp\\doc.docx'];
     expect(filterByScope(paths, ROOT, 'Acme')).toEqual([]);
+  });
+
+  // Coordinator P1 (2026-06-30): FAIL CLOSED on a case-only CLIENT-folder
+  // collision. On a case-sensitive Windows-shaped volume `Acme` and `acme` are
+  // two DIFFERENT clients; scoping to "Acme" must NEVER pull in "acme"'s files.
+  it('FAILS CLOSED — never mixes a case-only-different sibling client', () => {
+    const paths = [
+      'C:\\WS\\Acme\\own.docx', // the scoped client
+      'C:\\WS\\acme\\OTHER-CLIENT-secret.docx', // a DIFFERENT client (case-only diff)
+      'C:/WS/acme/another.docx', // same other client, forward slashes
+    ];
+    expect(filterByScope(paths, ROOT, 'Acme')).toEqual(['C:\\WS\\Acme\\own.docx']);
+    // …and the reverse: scoping to "acme" must not pull in "Acme"'s file.
+    expect(filterByScope(paths, ROOT, 'acme')).toEqual([
+      'C:\\WS\\acme\\OTHER-CLIENT-secret.docx',
+      'C:/WS/acme/another.docx',
+    ]);
   });
 });
