@@ -12,18 +12,25 @@ import { TabBar } from '@/features/documents/editor/TabBar';
 import { AutoSaveIndicator } from '@/features/documents/editor/AutoSaveIndicator';
 import { getFileIcon } from '@/platform/utils/fileIcons';
 import { MarkdownEditor, type MarkdownEditorRef } from '@/features/documents/editor/MarkdownEditor';
-import { MarkdownPreview } from '@/features/documents/editor/MarkdownPreview';
 import { FormattingToolbar, type ToolbarFileType } from '@/features/documents/editor/FormattingToolbar';
 import { SplitPane } from '@/features/documents/editor/SplitPane';
 import { OutlinePanel } from '@/features/documents/editor/OutlinePanel';
 import { ImageViewer, VideoViewer, isImageFile, isVideoFile } from '@/features/documents/media/MediaViewer';
 import { PDFViewer, isPDFFile, isSpreadsheetFile, isPresentationFile, isWordFile } from '@/features/documents/media/PDFViewer';
 
-// Heavy doc libraries (xlsx ~500KB, docx-preview ~300KB, mammoth ~200KB,
-// docx ~500KB) are lazy-loaded so markdown-only users don't download them up
-// front. DocxViewer is still exported for read-only contexts but MainPanel
-// uses DocxEditor (which also wraps viewer fallbacks) whenever the user can
-// edit the file.
+// Heavy doc libraries and feature modules are lazy-loaded so they don't land
+// in the startup bundle. Mermaid (~700KB) and KaTeX are pulled in via
+// MarkdownPreview; wavesurfer.js (~600KB) via WaveformEditor. xlsx, mammoth,
+// docx-preview, and docx are pulled in via the respective viewer/editor
+// components below. DocxViewer is still exported for read-only contexts but
+// MainPanel uses DocxEditor (which also wraps viewer fallbacks) whenever the
+// user can edit the file.
+const MarkdownPreview = lazy(() =>
+  import('@/features/documents/editor/MarkdownPreview').then((m) => ({ default: m.MarkdownPreview }))
+);
+const WaveformEditor = lazy(() =>
+  import('@/features/dictation/audio/WaveformEditor').then((m) => ({ default: m.WaveformEditor }))
+);
 const SpreadsheetViewer = lazy(() =>
   import('@/features/documents/media/SpreadsheetViewer').then((m) => ({ default: m.SpreadsheetViewer }))
 );
@@ -38,7 +45,6 @@ const PresentationViewer = lazy(() =>
 import { SourceFileEditor } from '@/features/ask/research/SourceFileEditor';
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import { FileGridView } from '@/features/documents/workspace/FileGridView';
-import { WaveformEditor } from '@/features/dictation/audio/WaveformEditor';
 import { VersionHistoryPanel } from '@/features/documents/version/VersionHistoryPanel';
 import { BinaryVersionHistoryPanel } from '@/features/documents/version/BinaryVersionHistoryPanel';
 import { BrowserPanel } from '@/features/workflows/BrowserPanel';
@@ -718,11 +724,13 @@ export function MainPanel({
       // gets the waveform + edit tools, not a bare HTML5 video player.
       if (isAudio) {
         return (
-          <WaveformEditor
-            audioSrc={tab.content}
-            filename={tab.name}
-            className="h-full"
-          />
+          <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
+            <WaveformEditor
+              audioSrc={tab.content}
+              filename={tab.name}
+              className="h-full"
+            />
+          </Suspense>
         );
       }
       if (isVideo) {
@@ -798,10 +806,12 @@ export function MainPanel({
 
       if (isPreviewMode && isMarkdown && !isSecondary) {
         return (
-          <MarkdownPreview
-            content={tab.content}
-            className="h-full"
-          />
+          <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
+            <MarkdownPreview
+              content={tab.content}
+              className="h-full"
+            />
+          </Suspense>
         );
       }
 

@@ -112,6 +112,27 @@ export default defineConfig({
     minify: !process.env['TAURI_DEBUG'] ? 'esbuild' : false,
     // Enable source maps for debugging
     sourcemap: !!process.env['TAURI_DEBUG'],
+    rollupOptions: {
+      output: {
+        // Split heavy, infrequently-changing deps into named chunks so the
+        // browser can cache them independently from app code. Lazy-imported
+        // modules that match are placed here; statically-imported ones that
+        // were already code-split (e.g. pdfjs via dynamic import in pdf-extract)
+        // get stable names instead of random hashes.
+        manualChunks(id) {
+          // PDF text extraction (pdfjs-dist ~450 kB) — dynamic in pdf-extract.ts
+          if (id.includes('/pdfjs-dist/')) return 'chunk-pdf';
+          // OCR engine (tesseract-wasm) — dynamic in ocrEngine.ts
+          if (id.includes('/tesseract-wasm/')) return 'chunk-ocr';
+          // Audio waveform editor (wavesurfer.js ~600 kB) — lazy WaveformEditor
+          if (id.includes('/wavesurfer.js/')) return 'chunk-audio';
+          // Diagram / markdown-math renderers — lazy MarkdownPreview
+          if (id.includes('/mermaid/') || id.includes('/katex/')) return 'chunk-diagrams';
+          // Lottie animations (onboarding v2) — already dynamic in LottiePlayer
+          if (id.includes('/lottie-web/')) return 'chunk-lottie';
+        },
+      },
+    },
   },
   // Clear screen on rebuild
   clearScreen: false,

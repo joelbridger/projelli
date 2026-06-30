@@ -34,7 +34,6 @@ import { cn } from '@/lib/utils';
 import { saveFile } from '@/platform/utils/saveFile';
 import { markdownToDocxBytes } from '@/platform/utils/docx-io';
 import { markdownToPptxBytes } from '@/platform/utils/pptx-io';
-import { exportMarkdownAsPdf } from '@/features/documents/pdf-export';
 import { availableExportFormats, replaceExtension } from '@/platform/utils/export-formats';
 import type { ExportFormat } from '@/platform/utils/export-formats';
 import type { MarkdownEditorRef } from './MarkdownEditor';
@@ -268,6 +267,8 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
         case 'pdf': {
           // PDF uses the print-to-PDF path: no binary file is produced by
           // Advisor Prep Hero; the OS print dialog handles writing the file.
+          // Dynamic import keeps mermaid + KaTeX out of the startup bundle.
+          const { exportMarkdownAsPdf } = await import('@/features/documents/pdf-export');
           await exportMarkdownAsPdf(fileContent, fileName);
           break;
         }
