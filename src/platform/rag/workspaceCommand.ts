@@ -30,7 +30,9 @@ import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import {
   recognizeProvenance,
   describeProvenanceForPrompt,
+  type RecognizedProvenance,
 } from '@/platform/rag/sourceProvenance';
+import { isExternalExportConsentGiven } from '@/platform/rag/exportConsent';
 
 /** The bare verdict string from citation verification (the `verdict` field of
  *  the backend's discriminated `CitationVerdict`). */
@@ -118,28 +120,41 @@ export function citationBasename(path: string): string {
  */
 export function buildWorkspaceContextBlock(hits: RagHit[]): string {
   if (hits.length === 0) return '';
-  // Connector-access: stamp a freshness/snapshot note on the source header of any
-  // hit recognized as the OUTPUT of an external tool (a RightCapital plan, a Jump
-  // meeting note) so the model can state the export date and treat it as a
-  // point-in-time snapshot rather than implying it read the tool live.
   const now = new Date();
-  const provenances = hits.map((hit) =>
-    recognizeProvenance({
+
+  // Connector-access: this is the SHARED choke-point every model send goes
+  // through (Ask, @workspace chat, Client Map, At-a-glance), so the
+  // export-consent gate is enforced HERE — not just on the Ask surface. When the
+  // advisor has NOT consented, recognized RightCapital/Jump EXPORT chunks are
+  // withheld from the model context entirely, honouring the promise that those
+  // reports are not AI-processed before consent. (The Ask surface additionally
+  // prompts for that consent; other surfaces simply fail closed until it's
+  // granted there or in Settings.)
+  const consentGiven = isExternalExportConsentGiven();
+  const kept: { hit: RagHit; provenance: RecognizedProvenance | null }[] = [];
+  for (const hit of hits) {
+    const provenance = recognizeProvenance({
       path: hit.path || hit.sourceId,
       text: hit.chunkText,
       sourceType: hit.sourceType,
-    }),
-  );
-  const hasRecognizedExport = provenances.some((p) => p !== null);
-  const sourceLines = hits
-    .map((hit, idx) => {
+    });
+    if (provenance && !consentGiven) continue; // withhold unconsented export
+    kept.push({ hit, provenance });
+  }
+  if (kept.length === 0) return '';
+
+  // Stamp a freshness/snapshot note on the source header of any kept hit
+  // recognized as the OUTPUT of an external tool, so the model states the export
+  // date and treats it as a point-in-time snapshot, never implying a live link.
+  const hasRecognizedExport = kept.some((k) => k.provenance !== null);
+  const sourceLines = kept
+    .map(({ hit, provenance }, idx) => {
       const n = idx + 1;
       // A3: for PDF hits, show "page N" instead of "paragraph N".
       const location =
         hit.sourceType === 'pdf' && hit.pageNumber != null
           ? `page ${hit.pageNumber}`
           : `paragraph ${hit.paragraphIndex}`;
-      const provenance = provenances[idx];
       const provNote = provenance
         ? ` (source: ${describeProvenanceForPrompt(provenance, now)})`
         : '';

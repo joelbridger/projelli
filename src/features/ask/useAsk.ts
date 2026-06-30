@@ -55,7 +55,10 @@ import {
   recognizeHit,
 } from './askHelpers';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
-import { EXTERNAL_EXPORT_CONSENT_KEY } from '@/platform/settings/schema';
+import {
+  isExternalExportConsentGiven,
+  grantExternalExportConsent,
+} from '@/platform/rag/exportConsent';
 
 /** localStorage key for the conversations-rail collapsed preference. */
 const ASK_RAIL_COLLAPSED_KEY = 'keepance:ask-rail-collapsed';
@@ -536,8 +539,7 @@ export function useAsk({
         ),
       ];
       if (recognizedTools.length > 0) {
-        const alreadyConsented =
-          useSettingsStore.getState().getSetting<boolean>(EXTERNAL_EXPORT_CONSENT_KEY);
+        const alreadyConsented = isExternalExportConsentGiven();
         if (!alreadyConsented) {
           const toolsLabel = formatToolList(recognizedTools);
           const consented = await confirmExportConsent(
@@ -559,7 +561,7 @@ export function useAsk({
             }),
           );
           if (consented) {
-            useSettingsStore.getState().setSetting(EXTERNAL_EXPORT_CONSENT_KEY, true);
+            grantExternalExportConsent();
           } else {
             // Fail closed: drop the recognized exports from this answer.
             hits = hits.filter((h) => recognizeHit(h) === null);

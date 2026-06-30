@@ -767,22 +767,31 @@ export function recognizeHit(hit: RagHit): RecognizedProvenance | null {
 }
 
 /**
- * Connector-access: collapse duplicate recognized exports that arrived through
- * two paths — e.g. the same Jump meeting note synced into Wealthbox AND saved
- * as a SharePoint PDF — so the same note is never indexed-as-evidence twice in
- * one answer. Keyed by tool + kind + date + matter (only artifacts with a
- * detectable date are merged; undated ones and all ordinary sources pass
- * through untouched). Keeps the FIRST occurrence (retrieval order = relevance).
+ * Connector-access: collapse a TRULY duplicate export chunk that arrived through
+ * two paths — e.g. the exact same plan PDF synced into two watched folders — so
+ * it is never used as evidence twice in one answer.
+ *
+ * Critically, this must NOT collapse different pages/sections of one report
+ * (that would silently drop later-page evidence). So the dedupe key is
+ * chunk-level: the artifact key (tool + kind + date + matter) PLUS the chunk's
+ * own locator (page/paragraph) PLUS a fingerprint of its text. Two hits collapse
+ * only when they are the same artifact, the same location, AND the same content
+ * — i.e. genuinely the same chunk via two arrival paths. Distinct chunks (and
+ * undated artifacts, and all ordinary sources) pass through untouched. Keeps the
+ * FIRST occurrence (retrieval order = relevance).
  */
 export function dedupeRecognizedHits(hits: RagHit[]): RagHit[] {
   const seen = new Set<string>();
   const out: RagHit[] = [];
   for (const hit of hits) {
     const prov = recognizeHit(hit);
-    const key = prov ? provenanceDedupeKey(prov, hit.matterId) : null;
-    if (key !== null) {
-      if (seen.has(key)) continue;
-      seen.add(key);
+    const artifactKey = prov ? provenanceDedupeKey(prov, hit.matterId) : null;
+    if (artifactKey !== null) {
+      const locator = hit.pageNumber ?? hit.paragraphIndex;
+      const textFingerprint = hit.chunkText.replace(/\s+/g, ' ').trim().slice(0, 200);
+      const chunkKey = `${artifactKey}|${String(locator)}|${textFingerprint}`;
+      if (seen.has(chunkKey)) continue;
+      seen.add(chunkKey);
     }
     out.push(hit);
   }
