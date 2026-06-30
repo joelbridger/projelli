@@ -35,9 +35,10 @@ export class WorkspaceService {
 
     console.log('[WorkspaceService] initialize() called with rootPath:', rootPath);
 
-    // Set up backend
+    // Set up backend. Pass createIfMissing so the create-new-workspace flow
+    // creates the root directory instead of throwing when it is absent.
     this.backend = backend;
-    await backend.setRootPath(rootPath);
+    await backend.setRootPath(rootPath, { createIfMissing });
 
     console.log('[WorkspaceService] Backend setRootPath completed');
 
@@ -50,7 +51,12 @@ export class WorkspaceService {
 
     if (!exists) {
       if (createIfMissing) {
-        await backend.mkdir(rootPath);
+        // Create the root itself. Pass '' (not the absolute rootPath): the
+        // backend resolves '' to the workspace root, whereas passing the
+        // absolute path would be re-joined under the root (e.g.
+        // `/root/<root>`). setRootPath above normally already created it when
+        // createIfMissing is set; this is a defensive fallback.
+        await backend.mkdir('');
       } else {
         throw new FileOperationError(
           `Workspace path does not exist: ${rootPath}`,

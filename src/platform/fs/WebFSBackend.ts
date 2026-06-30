@@ -2,7 +2,7 @@
 // Implements FSBackend using the File System Access API
 
 import type { FileNode } from '@/platform/types/workspace';
-import type { FSBackend, FileStat } from './types';
+import type { FSBackend, FileStat, SetRootPathOptions } from './types';
 import { FileOperationError } from './types';
 
 /**
@@ -54,9 +54,12 @@ export class WebFSBackend implements FSBackend {
     return this.rootPath;
   }
 
-  async setRootPath(path: string): Promise<void> {
-    // For Web FS, this is called after openDirectoryPicker sets the handle
-    // We just store the path for reference
+  async setRootPath(path: string, _options?: SetRootPathOptions): Promise<void> {
+    // For Web FS, this is called after openDirectoryPicker sets the handle, so
+    // the directory always exists already — there is nothing to create. The
+    // createIfMissing option is therefore a no-op here (the browser picker can
+    // only return a real, user-granted directory handle). We just store the
+    // path for reference.
     this.rootPath = path;
   }
 

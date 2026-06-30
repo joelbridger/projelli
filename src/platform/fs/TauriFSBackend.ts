@@ -1,7 +1,7 @@
 // Tauri File System Backend
 // Implements FSBackend using Tauri's fs plugin
 
-import type { FSBackend, FileStat } from './types';
+import type { FSBackend, FileStat, SetRootPathOptions } from './types';
 import { FileOperationError } from './types';
 import type { FileNode } from '@/platform/types/workspace';
 import { WORKSPACE_DATA_DIR } from '@/config/identity';
@@ -110,30 +110,42 @@ export class TauriFSBackend implements FSBackend {
     return this.rootPath;
   }
 
-  async setRootPath(path: string): Promise<void> {
+  async setRootPath(path: string, options?: SetRootPathOptions): Promise<void> {
     const fs = await this.ensureModule();
 
-    console.log('[TauriFSBackend] setRootPath called with:', path);
+    console.log('[TauriFSBackend] setRootPath called with:', path, 'options:', options);
 
     // Normalize path - keep backslashes on Windows
     const normalizedPath = path.replace(/\/$/, '');
 
     console.log('[TauriFSBackend] Normalized path:', normalizedPath);
 
-    // Verify the path exists
+    // Verify the path exists. In the create-new-workspace flow
+    // (createIfMissing), create the directory instead of throwing — this is the
+    // step that actually brings a brand-new workspace folder into being, and it
+    // must happen here because `initialize()` calls `setRootPath` before it can
+    // create anything. The open-existing flow leaves createIfMissing unset and
+    // stays strict, so a mistyped/missing path still surfaces a clear error.
     try {
       const pathExists = await fs.exists(normalizedPath);
       console.log('[TauriFSBackend] Path exists check:', pathExists);
 
       if (!pathExists) {
-        throw new FileOperationError(
-          `Workspace path does not exist: ${normalizedPath}`,
-          normalizedPath,
-          'stat'
-        );
+        if (options?.createIfMissing) {
+          // Recursive mkdir is idempotent: safe even if the folder actually
+          // exists but a platform fs.exists quirk wrongly reported it missing.
+          console.log('[TauriFSBackend] Path missing — creating (createIfMissing):', normalizedPath);
+          await fs.mkdir(normalizedPath, { recursive: true });
+        } else {
+          throw new FileOperationError(
+            `Workspace path does not exist: ${normalizedPath}`,
+            normalizedPath,
+            'stat'
+          );
+        }
       }
     } catch (err) {
-      console.error('[TauriFSBackend] Error checking path existence:', err);
+      console.error('[TauriFSBackend] Error preparing root path:', err);
       throw err;
     }
 

@@ -301,7 +301,12 @@ describe('Workspace Integration Tests', () => {
         createIfMissing: true,
       });
 
-      expect(mockBackend.mkdir).toHaveBeenCalledWith(newRoot);
+      // BUG-002: the root must be created via the workspace-relative root ('')
+      // — the backend resolves '' to the root. Passing the absolute rootPath
+      // (the old behavior) would be re-joined under the root (e.g.
+      // `/root/new/workspace/path`), creating the wrong folder.
+      expect(mockBackend.mkdir).toHaveBeenCalledWith('');
+      expect(mockBackend.mkdir).not.toHaveBeenCalledWith(newRoot);
       expect(workspaceService.isInitialized()).toBe(true);
     });
 
