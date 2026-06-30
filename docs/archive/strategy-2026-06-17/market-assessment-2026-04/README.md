@@ -1,3 +1,5 @@
+> **SUPERSEDED — history only.** Pre-advisor-reaim April 2026 market research.
+
 # Projelli Market Assessment — April 2026
 
 > A comprehensive competitive analysis for Projelli (v1.0.8), sourced from deep web research on 30+ competitors, founder-community voice-of-customer, AI innovation trend scanning, and a fresh codebase capability audit. Written as a CEO read with a tactical build list attached.

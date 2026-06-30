@@ -1,3 +1,5 @@
+> **SUPERSEDED — history only.** Pre-advisor-reaim April 2026 market research.
+
 # 07 — Roadmap (6-month calendar view)
 
 > How the recommendations in `06-RECOMMENDATIONS_BY_LOE.md` sequence against the existing 8-week launch ramp in `PROJELLI_BUSINESS_PLAN.md` and the next 6 months. Calibrated for Jameson's 5-10 hr/week side-project pace. Contains hard dates (launch day, WWDC) plus soft month-level buckets.

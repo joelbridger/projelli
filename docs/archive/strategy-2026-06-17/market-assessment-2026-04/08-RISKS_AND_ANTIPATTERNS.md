@@ -1,3 +1,5 @@
+> **SUPERSEDED — history only.** Pre-advisor-reaim April 2026 market research.
+
 # 08 — Risks and Anti-Patterns (what NOT to do)
 
 > The features that look appealing but would compromise Projelli's differentiator, the marketing moves that would backfire, and the strategic mistakes the product is structurally at risk of making. Equal-weight document to `06-RECOMMENDATIONS_BY_LOE.md` — what Projelli does not build is as strategic as what it does.

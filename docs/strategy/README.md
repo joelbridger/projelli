@@ -24,6 +24,11 @@ Read these four documents for the definitive direction of Advisor Prep Hero as o
 
 ## Archive
 
-All pre-June 23 strategy work, the May 2026 positioning/launch-readiness/pricing docs, and the April market assessment are in [`../archive/`](../archive/). They're kept for historical context but don't govern current decisions.
+Superseded strategy work is in [`../archive/strategy-2026-06-17/`](../archive/strategy-2026-06-17/). Specifically archived there:
+- The 2026-06-17 "product is mature, stop building" strategy cluster
+- May 2026 all-caps strategy docs (POSITIONING.md, GO_TO_MARKET, LAUNCH_READINESS, PRICING_*)
+- April 2026 market assessment (`market-assessment-2026-04/`) — pre-advisor-reaim
+- `2026-06-09-keepance-3.0-STATUS.md` — launch snapshot, superseded by the 2026-06-24 current-state
+- Two external AI research reports (`ChatGPT Deep Research…`, `Claude - Keepance_Research_Response`) — old brand/law focus, pre-advisor-reaim
 
-The 2026-06-17 "product is mature, stop building" strategy cluster is in [`../archive/strategy-2026-06-17/`](../archive/strategy-2026-06-17/) and is **explicitly superseded**.
+Kept in place (current reference): `VERTICAL_FINANCIAL_ADVISORS_2026-06.md`, `design-partner-program/`, `positioning/`, and all 2026-06-17+ dated strategy docs not listed above.

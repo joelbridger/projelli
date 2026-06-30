@@ -1,3 +1,5 @@
+> **SUPERSEDED — history only.** May 2026 external AI research response to the old Knowledge Gathering template; pre-advisor-reaim.
+
 # Advisor Prep Hero — Knowledge Gathering: Research Response
 
 **Prepared in response to:** Jameson Daines' "Advisor Prep Hero — Knowledge Gathering Document" (2026-05-28)

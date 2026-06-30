@@ -1,3 +1,5 @@
+> **SUPERSEDED — history only.** Pre-advisor-reaim April 2026 market research.
+
 # 03 — User Insights (April 2026)
 
 > Who the Projelli indie-founder ICP actually is, what they're saying in public, where their pain is, and what makes them pay. Sourced from HN threads, Indie Hackers posts, Reddit aggregators, X/Twitter founder community, ProductHunt review comments, and founder-tool substacks Oct 2025 – April 2026.

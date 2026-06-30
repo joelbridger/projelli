@@ -1,3 +1,5 @@
+> **SUPERSEDED — history only.** Pre-advisor-reaim April 2026 market research.
+
 # 05 — Differentiation Strategy (where to plant Projelli's flag)
 
 > The big question: of the 110 feature ideas in `04-FEATURE_BRAINSTORM.md` and the gaps in `02-COMPETITIVE_DEEP_DIVE.md`, which 3-5 differentiators should Projelli double down on to own a defensible position? This doc picks the hill. `06-RECOMMENDATIONS_BY_LOE.md` maps individual features to that hill.
