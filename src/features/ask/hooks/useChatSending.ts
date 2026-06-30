@@ -14,7 +14,7 @@
 
 import { useCallback, useRef } from 'react';
 import type { useTranslation } from 'react-i18next';
-import { AttachmentService } from '@/features/ask/attachments/AttachmentService';
+import { loadAttachmentBytes } from './loadAttachmentBytes';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { estimateImageTokens } from '@/features/ask/attachments/imageTokens';
 import { estimatePdfTokens } from '@/features/ask/attachments/pdfTokens';
@@ -24,7 +24,7 @@ import type { AuditEntry, AuditScope, CitationVerdict } from '@/platform/types/a
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
-import type { Provider, AttachmentBytes } from '@/platform/providers/Provider';
+import type { Provider } from '@/platform/providers/Provider';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
@@ -45,8 +45,12 @@ import { FILE_ACCESS_TOOLS } from '@/platform/tools/fileAccessTools';
 import type { useActiveMatter } from '@/platform/matter/matterStore';
 import { getActiveScope, useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
-import { useEditorStore, tabHasUnsavedEdits, isFileOpenInEditor, hasOpenDescendant } from '@/platform/state/editorStore';
+import {
+  pathInActiveMatter as pathInActiveMatterGuard,
+  assertInActiveMatter as assertInActiveMatterGuard,
+  assertNotOpenWithUnsavedEdits,
+  assertNoOpenDescendant,
+} from './fileAccessGuards';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { isBinaryFile } from '@/platform/utils/file-utils';
 import { moveToTrash } from '@/platform/history/trashFile';
@@ -72,18 +76,16 @@ import {
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import {
   DEFAULT_WORKSPACE_TOP_K,
-  buildWorkspaceContextBlock,
-  normalizeNumericCitations,
   parseWorkspaceCommand,
-  verifyCitations,
 } from '@/platform/rag/workspaceCommand';
+import { verifyCitationsInResponse } from './verifyCitationsInResponse';
+import { buildSystemPrompt } from './buildSystemPrompt';
 import {
   filterHitsForExportConsent,
   dropUnconsentedExports,
   isExternalExportConsentGiven,
 } from '@/platform/rag/exportConsent';
 import { recognizeProvenance } from '@/platform/rag/sourceProvenance';
-import { buildFactsMemoryBlock } from '@/platform/rag/FactsService';
 import { snapshotFactsForInjection } from '@/platform/rag/factsSingleton';
 import type { ChatSession, ChatCostEntry } from '@/platform/state/aiChatStore';
 // buildOpenFilesPromptBlock + refusalKeyForReason stay exported from AIChatViewer
@@ -92,7 +94,6 @@ import type { ChatSession, ChatCostEntry } from '@/platform/state/aiChatStore';
 import { buildOpenFilesPromptBlock, refusalKeyForReason } from '../AIChatViewer';
 import type { APIKey } from '../AIChatViewer';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
-import { getEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { EV_TRASH_CHANGED } from '@/config/identity';
 
 export interface UseChatSendingDeps {
@@ -861,51 +862,14 @@ export function useChatSending(deps: UseChatSendingDeps) {
         const toolActiveMatterId = retrievalScope.kind === 'matter' ? retrievalScope.matterId : null;
         const activeMatterName = activeMatter ? matterLabel(activeMatter) : null;
         const activeMatterFolders = activeMatter?.folderPaths ?? [];
+        // Matter-scope + open-editor guards (BUG-036/047/063) — bodies live in
+        // fileAccessGuards.ts; these thin closures bind THIS send's matter scope
+        // so every tool call site below stays byte-identical. assertNotOpenWithUnsavedEdits
+        // and assertNoOpenDescendant take no scope, so they're imported directly.
         const pathInActiveMatter = (absPath: string): boolean =>
-          pathInMatterScope(absPath, toolActiveMatterId, toolMatters);
+          pathInActiveMatterGuard(absPath, toolActiveMatterId, toolMatters);
         const assertInActiveMatter = (absPath: string, relativePath: string): void => {
-          if (pathInActiveMatter(absPath)) return;
-          // Distinguish a '..' traversal (rejected in any scope) from a genuine
-          // cross-matter access (only blocked when a specific matter is active).
-          if (relativePath.split(/[\\/]/).some((seg) => seg === '..')) {
-            throw new Error(`Access denied: path "${relativePath}" must not contain "..".`);
-          }
-          throw new Error(
-            `Access denied: "${relativePath}" is outside the active ${getEntityLabel().one} (${activeMatterName ?? 'none'}). ` +
-              `Switch the chat scope to "All ${getEntityLabel().other}" to work across ${getEntityLabel().other}.`,
-          );
-        };
-        // BUG-047: refuse to write/move/delete a file the user has OPEN with
-        // UNSAVED edits — otherwise the AI's write clobbers their unsaved work
-        // (or the next autosave clobbers the AI's write). Fail closed with a
-        // clear message so the model asks the user to save/close it first.
-        const assertNotOpenWithUnsavedEdits = (absPath: string, relativePath: string): void => {
-          const tabs = useEditorStore.getState().openTabs;
-          if (!isFileOpenInEditor(absPath, tabs)) return;
-          if (tabHasUnsavedEdits(absPath, tabs)) {
-            throw new Error(
-              `Cannot modify "${relativePath}": it's open in the editor with UNSAVED changes. ` +
-                `To avoid overwriting the user's work, ask them to save or close it first, then try again.`,
-            );
-          }
-          // BUG-047 #7: even a CLEAN open file is refused — the editor would show
-          // stale content after the write, and the user could then clobber it.
-          throw new Error(
-            `Cannot modify "${relativePath}": it's open in the editor. Ask the user to close it first ` +
-              `(or use the in-editor AI to edit an open document) so the editor doesn't show stale content.`,
-          );
-        };
-        // BUG-063 sibling: moving/deleting a FOLDER whose child file is open
-        // would leave that child tab on a now-invalid path, and the autosave
-        // could re-write its stale content back — resurrecting a deleted file or
-        // duplicating after a move. Refuse if any descendant is open.
-        const assertNoOpenDescendant = (absPath: string, relativePath: string): void => {
-          if (hasOpenDescendant(absPath, useEditorStore.getState().openTabs)) {
-            throw new Error(
-              `Cannot modify "${relativePath}": a file inside it is open in the editor. Ask the user to ` +
-                `close open files under this folder first, so the editor doesn't show (and can't re-save) stale content.`,
-            );
-          }
+          assertInActiveMatterGuard(absPath, relativePath, { toolActiveMatterId, toolMatters, activeMatterName });
         };
 
         // BUG-060: per-action approval. Before the AI overwrites/deletes/moves
@@ -1380,41 +1344,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // read is skipped gracefully (logged but not fatal).
         // Load bytes ONLY for sentAttachments — unconsented exports were already
         // excluded above, so their bytes are never read or handed to the provider.
-        let attachmentBytes: AttachmentBytes[] | undefined;
-        if (sentAttachments && sentAttachments.length > 0 && workspaceServiceRef?.current) {
-          const backend = workspaceServiceRef.current.getBackend();
-          const attService = backend ? new AttachmentService(backend) : null;
-          const loaded: AttachmentBytes[] = [];
-          for (const att of sentAttachments) {
-            if (!attService) continue;
-            try {
-              const bytes = await attService.read(att);
-              loaded.push({ att, bytes });
-            } catch (readErr) {
-              console.error(
-                `[AIChat] Failed to read attachment bytes for ${att.fileName}:`,
-                readErr,
-              );
-            }
-          }
-          if (loaded.length > 0) {
-            attachmentBytes = loaded;
-          }
-        }
-
-        // Build conversation history into system prompt
-        const conversationContext = messages.slice(0, -1).map(m =>
-          `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
-        ).join('\n\n');
+        const attachmentBytes = await loadAttachmentBytes(
+          sentAttachments,
+          workspaceServiceRef?.current?.getBackend() ?? null,
+        );
 
         const hasWorkspace = hasWorkspaceForTools;
-        const workspaceInstructions = hasWorkspace
-          ? `You are running inside Advisor Prep Hero, a local-first workspace app. The user's active workspace folder is "${rootPath}". You have direct access to this workspace via tools: read_file, write_file, create_folder, move_file, delete_file, list_files, search_files. When the user asks you to create, edit, organize, or look at files, USE THESE TOOLS directly — do not refuse, do not ask the user to create the file themselves, and do not pretend you can't access files. You CAN. All file paths should be relative to the workspace root. When creating .md files (documentation, notes, plans, etc.), just write them directly using write_file. After creating or modifying files, briefly confirm what you did.\n\n`
-          : '';
-
-        const baseRole = hasWorkspace
-          ? `${workspaceInstructions}You are a helpful AI assistant with full read/write access to the user's workspace.`
-          : 'You are a helpful AI assistant.';
 
         // Append any enabled open-file contexts BEFORE the conversation
         // history. This lets the AI treat the files as background material
@@ -1431,32 +1366,20 @@ export function useChatSending(deps: UseChatSendingDeps) {
         );
         const fileBlock = buildOpenFilesPromptBlock(consentedOpenFiles);
 
-        // M2 — workspace context block goes at the very top of the
-        // system prompt so the retrieval sources are the first thing
-        // the model sees. Empty string when no retrieval ran, so the
-        // non-workspace code path is byte-identical to pre-M2.
-        const workspaceBlock = buildWorkspaceContextBlock(
-          retrievedSources.map((s) => ({
-            path: s.path,
-            chunkText: s.chunkText,
-            score: s.score,
-            paragraphIndex: s.paragraphIndex,
-            ...(s.sourceType !== undefined ? { sourceType: s.sourceType } : {}),
-            ...(s.pageNumber !== undefined ? { pageNumber: s.pageNumber } : {}),
-          })),
-        );
-        const workspacePrefix = workspaceBlock ? `${workspaceBlock}\n\n` : '';
-
-        // M3 — facts memory block sits BEFORE the workspace context
-        // block. Facts are durable; retrieval is situational. Putting
-        // the memory first frames everything the model reads after.
+        // M3 — facts are durable memory; snapshot them (async I/O) before the
+        // pure string assembly. buildSystemPrompt does the layered composition
+        // (facts → workspace context → base role → open files → history) so the
+        // exact prefix order can't drift.
         const facts = await snapshotFactsForInjection();
-        const factsBlock = buildFactsMemoryBlock(facts);
-        const factsPrefix = factsBlock ? `${factsBlock}\n\n` : '';
-
-        const systemPrompt = (conversationContext
-          ? `${factsPrefix}${workspacePrefix}${baseRole}${fileBlock} Here is the conversation history so far:\n\n${conversationContext}\n\nPlease respond to the user's latest message.`
-          : `${factsPrefix}${workspacePrefix}${baseRole}${fileBlock}`) + withheldExportNote;
+        const systemPrompt = buildSystemPrompt({
+          messages,
+          hasWorkspace,
+          rootPath,
+          fileBlock,
+          retrievedSources,
+          facts,
+          withheldExportNote,
+        });
 
         // Use streaming if available (disabled in production Tauri builds
         // because tauri-plugin-http doesn't support ReadableStream/SSE)
@@ -1572,14 +1495,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
           // WS-B/C — verify citations against the local store now the full
           // answer is in. Update the streamed message's sources with the
-          // verification flags so unverified citations are surfaced.
-          // F-503 — repair number-keyed local-model citations BEFORE
-          // verification so the verify loop and chips see resolvable cites.
-          const normalizedAnswer = normalizeNumericCitations(accumulated, retrievedSources);
-          const verifiedStreamSources =
-            retrievedSources.length > 0
-              ? await verifyCitations(normalizedAnswer, retrievedSources, { onVerdict: emitCitationVerified, expectedMatterId: activeMatter ? activeMatter.id : null })
-              : retrievedSources;
+          // verification flags so unverified citations are surfaced. The
+          // normalize-then-verify step (incl. the per-citation audit callback)
+          // lives in verifyCitationsInResponse so it can't drift from the
+          // non-streaming path below.
+          const { normalized: normalizedAnswer, verified: verifiedStreamSources } =
+            await verifyCitationsInResponse(accumulated, retrievedSources, activeMatter, emitCitationVerified);
 
           const finalStreamingMessage: ChatMessage = {
             ...streamingMessage,
@@ -1639,14 +1560,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
           // WS-B/C — verify the citations in the answer against the local
           // store BEFORE presenting them. Verified sources are marked safe;
-          // any citation that doesn't verify flags its source in the UI.
-          // F-503 — repair number-keyed local-model citations BEFORE
-          // verification so the verify loop and chips see resolvable cites.
-          const normalizedContent = normalizeNumericCitations(response.content, retrievedSources);
-          const verifiedSources =
-            retrievedSources.length > 0
-              ? await verifyCitations(normalizedContent, retrievedSources, { onVerdict: emitCitationVerified, expectedMatterId: activeMatter ? activeMatter.id : null })
-              : retrievedSources;
+          // any citation that doesn't verify flags its source in the UI. Shares
+          // verifyCitationsInResponse with the streaming path so the two can't
+          // drift (same normalize-then-verify order + per-citation audit).
+          const { normalized: normalizedContent, verified: verifiedSources } =
+            await verifyCitationsInResponse(response.content, retrievedSources, activeMatter, emitCitationVerified);
 
           const assistantMessage: ChatMessage = {
             role: 'assistant',
