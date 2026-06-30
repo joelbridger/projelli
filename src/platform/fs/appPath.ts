@@ -98,12 +98,26 @@ function caseNormalize(s: string): string {
   // UNC path: `//host/share/...` → lowercase host + share only.
   if (s.startsWith('//')) {
     const m = /^\/\/([^/]+)\/([^/]+)(.*)$/.exec(s);
-    if (m) return `//${m[1].toLowerCase()}/${m[2].toLowerCase()}${m[3]}`;
+    if (m) {
+      const [, host = '', share = '', rest = ''] = m;
+      return `//${asciiLower(host)}/${asciiLower(share)}${rest}`;
+    }
     // `//host` with no share segment — fold the host.
-    return s.toLowerCase();
+    return asciiLower(s);
   }
   // POSIX or relative — fully case-sensitive.
   return s;
+}
+
+/**
+ * Lowercase ONLY ASCII A–Z. Windows drive letters and UNC host/share names are
+ * ASCII-case-insensitive; folding only ASCII keeps this provably LENGTH-
+ * PRESERVING (so relativeInside's prefix-length slice stays correct) and avoids
+ * locale-dependent Unicode case folding (e.g. Turkish dotted-I) that could both
+ * change length and mis-compare.
+ */
+function asciiLower(s: string): string {
+  return s.replace(/[A-Z]/g, (c) => c.toLowerCase());
 }
 
 /**

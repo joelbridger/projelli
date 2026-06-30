@@ -81,17 +81,17 @@ describe('cross-client detection — Windows case-insensitivity', () => {
 describe('filterByScope — Windows paths', () => {
   const ROOT = 'C:\\WS';
 
-  it('keeps files inside the scoped client folder across SEPARATOR + root-case differences', () => {
+  it('keeps files inside the scoped client folder across SEPARATOR + drive-case differences', () => {
     const paths = [
       'C:\\WS\\Acme\\matter\\doc.docx', // backslashes
       'C:/WS/Acme/other.docx', // forward slashes, same client folder "Acme"
-      'c:\\ws\\Acme\\third.docx', // differing ROOT case (root is not a client boundary)
+      'c:\\WS\\Acme\\third.docx', // differing DRIVE case (drive is case-insensitive)
       'C:\\WS\\Beta\\secret.docx', // different client — excluded
     ];
     expect(filterByScope(paths, ROOT, 'Acme')).toEqual([
       'C:\\WS\\Acme\\matter\\doc.docx',
       'C:/WS/Acme/other.docx',
-      'c:\\ws\\Acme\\third.docx',
+      'c:\\WS\\Acme\\third.docx',
     ]);
   });
 

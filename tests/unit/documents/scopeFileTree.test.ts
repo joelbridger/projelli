@@ -251,27 +251,33 @@ describe('scopeFileTreeToFolders', () => {
       expect(flat).not.toContain('Clients/acme');
     });
 
-    // The mirror of the above on WINDOWS: a drive-letter root is case-INSENSITIVE
-    // because the Windows filesystem is — `C:\...\Acme` and `c:\...\acme` are the
-    // SAME physical folder (they cannot coexist on Windows). Ownership must treat
-    // a mixed-case file path as belonging to its matter, or the client's own file
-    // would be locked out of (or mis-scoped within) its Documents tab.
-    it('treats a mixed-case Windows path as the same client folder', () => {
+    // On WINDOWS, ownership bridges drive-letter case + separator style (the
+    // volume root is case-insensitive) while keeping the client-FOLDER name
+    // case-sensitive. A matter mapped to `C:\…\Clients\Acme` surfaces its own
+    // `Clients/Acme` files (here the node paths carry the on-disk casing), and a
+    // case-only sibling `Clients/acme` (a DIFFERENT client on a case-sensitive
+    // volume) must NOT bleed in.
+    it('bridges drive/separator differences but keeps the client folder case-sensitive', () => {
       const WIN_ROOT = 'C:\\Users\\Jane\\Advisor';
       const tree: FileNode[] = [
         folder('Clients', [
-          // Same physical folder, spelled with a different case than the matter map.
-          folder('Clients/acme', [file('Clients/acme/report.pdf')]),
+          folder('Clients/Acme', [file('Clients/Acme/report.pdf')]),
+          folder('Clients/acme', [file('Clients/acme/OTHER-CLIENT.pdf')]),
         ]),
       ];
-      const matters = [matter('acme', [`${WIN_ROOT}\\Clients\\Acme`])];
+      // Matter folder uses forward slashes + lower-case drive — must still match
+      // the back-slash, upper-case-drive node paths for the SAME-cased folder.
+      const matters = [matter('acme-matter', ['c:/Users/Jane/Advisor/Clients/Acme'])];
       const out = scopeFileTreeToFolders(
-        tree, [`${WIN_ROOT}\\Clients\\Acme`], matters, 'acme', WIN_ROOT,
+        tree, ['c:/Users/Jane/Advisor/Clients/Acme'], matters, 'acme-matter', WIN_ROOT,
       );
       const flat: string[] = [];
       (function rec(ns: FileNode[]) { for (const n of ns) { flat.push(n.path); if (n.children) rec(n.children); } })(out);
-      // The client's own file is correctly surfaced despite the case difference.
-      expect(flat).toContain('Clients/acme/report.pdf');
+      // The client's own file is surfaced despite drive-case + separator drift…
+      expect(flat).toContain('Clients/Acme/report.pdf');
+      // …but the case-only sibling client never bleeds in.
+      expect(flat).not.toContain('Clients/acme/OTHER-CLIENT.pdf');
+      expect(flat).not.toContain('Clients/acme');
     });
   });
 });
