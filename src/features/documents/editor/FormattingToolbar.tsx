@@ -267,9 +267,18 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
         case 'pdf': {
           // PDF uses the print-to-PDF path: no binary file is produced by
           // Advisor Prep Hero; the OS print dialog handles writing the file.
-          // Dynamic import keeps mermaid + KaTeX out of the startup bundle.
+          //
+          // Dynamic import keeps mermaid + KaTeX out of the startup bundle,
+          // but window.open() must happen synchronously from the click handler
+          // or the browser popup-blocker will kill it. Open the print window
+          // first, then import + render into it.
+          const printWin = window.open(
+            'about:blank',
+            '_blank',
+            'width=800,height=600,menubar=no,toolbar=no,location=no,status=no',
+          );
           const { exportMarkdownAsPdf } = await import('@/features/documents/pdf-export');
-          await exportMarkdownAsPdf(fileContent, fileName);
+          await exportMarkdownAsPdf(fileContent, fileName, printWin);
           break;
         }
 
