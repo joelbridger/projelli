@@ -18,6 +18,11 @@ import { useDialogManager } from '@/app/dialogs/useDialogManager';
 import { useFileOperations } from '@/app/fileOps/useFileOperations';
 import { useDocumentCreation } from '@/app/fileOps/useDocumentCreation';
 import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
+import { useAudioRecording } from '@/app/lifecycle/useAudioRecording';
+import { useAIRulesFile } from '@/app/lifecycle/useAIRulesFile';
+import { useFileImport } from '@/app/fileOps/useFileImport';
+import { getSettingsActions } from '@/app/hooks/getSettingsActions';
+import { useTabOpening } from '@/app/lifecycle/useTabOpening';
 import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelector';
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
@@ -30,8 +35,6 @@ import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
 import { ProjectManager } from '@/features/documents/workspace/ProjectManager';
 import { Button } from '@/ui/button';
 import { Command, Moon, Monitor, Sun } from 'lucide-react';
-import { manualUpdateCheck } from '@/platform/updater/UpdateManager';
-import { openExternal } from '@/platform/utils/openExternal';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
 // FirstRunOverlay picks GuidedOnboarding (default) or the flag-gated
@@ -84,11 +87,6 @@ import {
 import { FileSystemWatcher, createFileTreeSnapshot } from '@/platform/fs/FileSystemWatcher';
 
 import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/platform/utils/file-utils';
-import { writeDroppedFiles, importPickedFiles } from '@/platform/utils/fileDrop';
-import { MemoryService } from '@/platform/rag/MemoryService';
-import { useSettingsStore } from '@/platform/settings/settingsStore';
-
-
 import { useTrash } from '@/platform/hooks/useTrash';
 import { useSourceCards } from '@/app/hooks/useSourceCards';
 import { useAIChatFiles } from '@/platform/hooks/useAIChatFiles';
@@ -98,7 +96,7 @@ import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMark
 import { useModelList } from '@/platform/hooks/useModelList';
 import { useContentIndex } from '@/platform/hooks/useContentIndex';
 import { useMailSync } from '@/features/email/useMailSync';
-import { useOpenEmailListener } from '@/platform/hooks/useOpenEmailListener';
+
 import type { MailIndexChunk } from '@/platform/utils/mail-commands';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
@@ -112,7 +110,6 @@ import { SharefileSourcePanel } from '@/features/sharefile/SharefileSourcePanel'
 import { JotformSourcePanel } from '@/features/jotform/JotformSourcePanel';
 import { ZocksSourcePanel } from '@/features/zocks/ZocksSourcePanel';
 import { AddeparSourcePanel } from '@/features/addepar/AddeparSourcePanel';
-import { BRAND } from '@/config/brand';
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
@@ -755,62 +752,13 @@ function App() {
   }, [IS_DEMO_MODE, rootPath, handleWorkspaceSelected]);
 
 
-  // Handle opening browser tab
-  const handleOpenBrowserTab = useCallback(
-    (url: string, title?: string) => {
-      // Generate a unique path for the browser tab
-      const tabPath = `__browser__${Date.now()}`;
-      const tabName = title || new URL(url).hostname;
-
-      openTab(tabPath, tabName, '', 'browser', { url });
-    },
-    [openTab]
-  );
-
-  // UX-21: open (or focus) the AI Assistant as a main-panel tab. We look
-  // for an existing `ai-assistant` tab first so Ctrl+Shift+A doesn't spam
-  // new tabs, then fall back to creating a fresh one. The sidebar AI pane
-  // keeps working independently — this is purely additive.
-  const openAIAssistantTab = useCallback(() => {
-    setDocumentsView('editor');
-    setSidebarActiveTab('files');
-    const existing = useEditorStore
-      .getState()
-      .openTabs.find((t) => t.type === 'ai-assistant');
-    if (existing) {
-      useEditorStore.getState().setActiveTab(existing.path);
-      return;
-    }
-    const tabPath = `__ai_assistant__${Date.now()}`;
-    openTab(tabPath, 'AI Assistant', '', 'ai-assistant');
-  }, [openTab]);
-
-  // WS-B/C — open the read-only email viewer when an email citation is clicked
-  // in chat. AIChatViewer dispatches `lantern:open-email` for `mail:<id>`
-  // sources; this hook turns that into an `email` tab. (Extracted to
-  // useOpenEmailListener so the wiring is unit-tested.)
-  //
-  // Bug 2 fix: wrap openTab so opening an email first navigates to the
-  // 'files' sidebar tab (where MainPanel + EmailViewer live). Without this,
-  // the tab is added while the full-page EmailWorkspace is active,
-  // so the email opens invisibly and the user sees nothing happen.
-  useOpenEmailListener(
-    useCallback(
-      (
-        id: string,
-        label: string,
-        content: string,
-        type: 'email',
-        meta: { mailSourceId: string },
-      ) => {
-        // Opening an email shows it in the Documents area editor, not the browser.
-        setDocumentsView('editor');
-        setSidebarActiveTab('files');
-        openTab(id, label, content, type, meta);
-      },
-      [openTab],
-    ),
-  );
+  // Tab opening: browser tabs, AI assistant tab, and email-listener wiring
+  // (extracted to useTabOpening)
+  const { handleOpenBrowserTab, openAIAssistantTab } = useTabOpening({
+    openTab,
+    setSidebarActiveTab,
+    setDocumentsView,
+  });
 
   // Shell-wide `lantern:*` CustomEvent wiring (matter manager, settings,
   // account, matter launch). See src/app/lifecycle/useGlobalEventBus.ts.
@@ -943,151 +891,24 @@ function App() {
   }, [addAuditEntry]);
 
 
-  // Handle save audio recording
-  const handleSaveAudioRecording = useCallback(
-    async (audioBlob: Blob, filename: string) => {
-      if (!workspaceServiceRef.current || !rootPath) return;
-
-      // Ensure Audio Recordings folder exists
-      const audioPath = `${rootPath}/Audio Recordings`;
-      const audioExists = await workspaceServiceRef.current.exists(audioPath);
-      if (!audioExists) {
-        await workspaceServiceRef.current.mkdir(audioPath);
-      }
-
-      const filePath = `${audioPath}/${filename}`;
-      try {
-        // Convert blob to array buffer
-        const arrayBuffer = await audioBlob.arrayBuffer();
-        await workspaceServiceRef.current.writeFileBinary(filePath, arrayBuffer);
-        const fileTree = await workspaceServiceRef.current.getFileTree();
-        setFileTree(fileTree);
-
-        // Open the audio file
-        await handleFileOpen(filePath, filename);
-      } catch (error) {
-        console.error('Failed to save audio recording:', error);
-      }
-    },
-    [rootPath, setFileTree, handleFileOpen]
-  );
+  // Handle save audio recording (extracted to useAudioRecording)
+  const { handleSaveAudioRecording } = useAudioRecording({
+    rootPath,
+    workspaceServiceRef,
+    setFileTree,
+    handleFileOpen,
+  });
 
 
-  // UX-19: Global drag-and-drop upload. Handles files dropped anywhere on
-  // the window. Target folder resolves to the nearest `data-folder-path`
-  // ancestor of the drop target, or workspace root if no folder was under
-  // the cursor. Newly-written files are opened in tabs after the write.
-  const handleGlobalFileDrop = useCallback(
-    async (files: File[], folderPath: string | null) => {
-      const service = workspaceServiceRef.current;
-      if (!service || !rootPath) return;
-      const targetFolder = folderPath ?? rootPath;
-      try {
-        const results = await writeDroppedFiles({
-          service,
-          targetFolder,
-          files,
-        });
-        // Refresh tree
-        const tree = await service.getFileTree();
-        setFileTree(tree);
-        // Open each written file in a tab. Opening sequentially keeps the
-        // tab order consistent with the drop order.
-        for (const r of results) {
-          await handleFileOpen(r.path, r.name);
-        }
-        // UX-33: activate the last-dropped file so the user lands on
-        // something they just dropped rather than the previously-active tab.
-        if (results.length > 0) {
-          const last = results.at(-1);
-          if (last) useEditorStore.getState().setActiveTab(last.path);
-        }
-      } catch (err) {
-        console.error('[App] Drag-drop upload failed:', err);
-      }
-    },
-    [rootPath, setFileTree, handleFileOpen]
-  );
-
-  // BUG-014 — "Add files" import. Opens the native file picker, copies the
-  // chosen files into the workspace, and EXPLICITLY indexes each (so search
-  // works without relying on the file-watcher). Surfaces per-file failures.
-  const handleImportFiles = useCallback(
-    async (folderPath?: string | null) => {
-      const service = workspaceServiceRef.current;
-      if (!service || !rootPath) return;
-      let selected: string | string[] | null = null;
-      try {
-        const { open } = await import('@tauri-apps/plugin-dialog');
-        selected = await open({
-          multiple: true,
-          directory: false,
-          title: 'Add files to your workspace',
-        });
-      } catch (err) {
-        console.error('[App] Add files: native picker unavailable', err);
-        return;
-      }
-      if (!selected) return;
-      const paths = Array.isArray(selected) ? selected : [selected];
-      if (paths.length === 0) return;
-
-      const { readFile } = await import('@tauri-apps/plugin-fs');
-      const readBinary = (p: string) =>
-        service.readFileBinary
-          ? service.readFileBinary(p)
-          : Promise.reject(new Error('binary read unsupported'));
-      const binaryWs = { readBinary };
-
-      const results = await importPickedFiles({
-        service,
-        targetFolder: folderPath ?? rootPath,
-        paths,
-        readBytes: async (p) => {
-          const u8 = await readFile(p);
-          const buf = new ArrayBuffer(u8.byteLength);
-          new Uint8Array(buf).set(u8);
-          return buf;
-        },
-        indexFile: (p) => MemoryService.indexFile(p),
-        indexPdf: async (p) => {
-          const r = await MemoryService.indexPdfFile(p, binaryWs);
-          return { indexed: r.indexed, ...(r.reason ? { reason: r.reason } : {}) };
-        },
-      });
-
-      const tree = await service.getFileTree();
-      setFileTree(tree);
-      for (const r of results) {
-        if (!r.error) {
-          await handleFileOpen(r.path, r.name);
-        }
-      }
-      if (results.length > 0) {
-        const last = results.at(-1);
-        if (last && !last.error) useEditorStore.getState().setActiveTab(last.path);
-      }
-      const failed = results.filter((r) => r.error);
-      if (failed.length > 0) {
-        console.error('[App] Add files: some files could not be imported', failed);
-      }
-      // BUG-015 — a PDF was imported but won't be searchable because PDF
-      // indexing is off (the default). Don't fail silently: tell the user and
-      // offer a one-tap enable (flipping the setting auto-triggers indexing).
-      const pdfUnindexed = results.some((r) => r.reason === 'pdf-indexing-disabled');
-      if (pdfUnindexed) {
-        undoToast.show({
-          message: 'Added — but PDF search is off, so this PDF will not be searchable yet.',
-          actionLabel: 'Turn on PDF search',
-          ttlMs: 15_000,
-          onUndo: () => {
-            useSettingsStore.getState().setSetting('includePdfsInWorkspaceIndex', true);
-          },
-        });
-      }
-    },
-    [rootPath, setFileTree, handleFileOpen, undoToast]
-  );
+  // File import handlers: global drag-and-drop + native file picker import
+  // (extracted to useFileImport)
+  const { handleGlobalFileDrop, handleImportFiles } = useFileImport({
+    rootPath,
+    workspaceServiceRef,
+    setFileTree,
+    handleFileOpen,
+    undoToast,
+  });
 
   const { isDragging: isFileDragging } = useGlobalFileDrop({
     onDrop: handleGlobalFileDrop,
@@ -1123,41 +944,13 @@ function App() {
     templatesMarketplaceServiceRef,
   });
 
-  // Handle opening AI Rules file
-  const handleOpenAIRules = useCallback(async () => {
-    if (!rootPath || !workspaceServiceRef.current) return;
-
-    const rulesPath = `${rootPath}/ai-rules.md`;
-
-    try {
-      // Check if file exists
-      const exists = await workspaceServiceRef.current.exists(rulesPath);
-
-      if (!exists) {
-        // Create default AI rules file
-        const defaultContent = `# AI Rules
-
-This file contains rules and guidelines for AI assistants in this workspace.
-
-## General Guidelines
-- Be helpful, accurate, and concise
-- Follow user instructions carefully
-- Ask for clarification when needed
-
-## Specific Rules
-- Add your custom rules here
-- AI will read and follow these rules in all chats
-`;
-        await workspaceServiceRef.current.writeFile(rulesPath, defaultContent);
-        refreshFileTree();
-      }
-
-      // Open the file
-      await handleFileOpen(rulesPath, 'ai-rules.md');
-    } catch (error) {
-      console.error('Failed to open AI rules file:', error);
-    }
-  }, [rootPath, handleFileOpen, refreshFileTree]);
+  // Handle opening AI Rules file (extracted to useAIRulesFile)
+  const { handleOpenAIRules } = useAIRulesFile({
+    rootPath,
+    workspaceServiceRef,
+    handleFileOpen,
+    refreshFileTree,
+  });
 
 
   // Autosave dirty tabs every 2 seconds. See src/app/lifecycle/useAutosave.ts.
@@ -1255,35 +1048,17 @@ This file contains rules and guidelines for AI assistants in this workspace.
     );
   }
 
-  // Shared Settings action handler — used by BOTH the quick Settings modal and
-  // the full-page Settings nav tab so every action link (Manage AI keys, Check
-  // for updates, Open website, …) behaves identically in either surface.
-  const handleSettingsAction = (actionId: string) => {
-    if (actionId === 'open-ai-keys') {
-      // "Manage AI Account Keys" now opens the manager (list + remove + add),
-      // not the add-only wizard. The manager's "Add a provider key" button
-      // opens the wizard from there.
-      setApiKeyManagerOpen(true);
-    } else if (actionId === 'open-api-key-tutorial') {
-      setApiKeyWizardOpen(true);
-    } else if (actionId === 'open-ai-rules') {
-      void handleOpenAIRules();
-    } else if (actionId === 'updater-check-now') {
-      void manualUpdateCheck();
-    } else if (actionId === 'open-whats-new') {
-      setShowWhatsNewModalDirect(true);
-    } else if (actionId === 'open-website') {
-      void openExternal(BRAND.urls.site);
-    } else if (actionId === 'open-github') {
-      void openExternal('https://github.com/keepance/keepance');
-    } else if (actionId === 'reset-feature-tour') {
-      featureTour.restart();
-      setTimeout(() => setTourOpen(true), 300);
-    }
-  };
-  const handleSettingsRestartOnboarding = () => {
-    setShowFirstRun(true);
-  };
+  // Shared Settings action handlers (extracted to getSettingsActions — plain
+  // factory, no hooks, safe after the WorkspaceSelector early return)
+  const { handleSettingsAction, handleSettingsRestartOnboarding } = getSettingsActions({
+    setApiKeyManagerOpen,
+    setApiKeyWizardOpen,
+    handleOpenAIRules,
+    featureTour,
+    setShowWhatsNewModalDirect,
+    setTourOpen,
+    setShowFirstRun,
+  });
 
   // Get current project name from root path
   const currentProjectName = rootPath?.split('/').pop() ?? 'Unnamed Project';
