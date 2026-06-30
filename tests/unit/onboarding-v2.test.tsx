@@ -15,6 +15,7 @@ import { EMPTY_SETUP_PROGRESS } from '@/platform/utils/setup-progress-commands';
 import type { SetupProgress } from '@/platform/utils/setup-progress-commands';
 import { hasDeferredAiSetup } from '@/features/onboarding/aiSetupState';
 import { markKeyVerified, isKeyVerified } from '@/platform/providers/keyVerification';
+import { useOAuthPendingStore } from '@/platform/connectors/oauthPending';
 
 const h = vi.hoisted(() => ({
   validate: vi.fn(),
@@ -113,6 +114,7 @@ describe('OnboardingV2 navigation', () => {
     h.progress = null;
     h.localState = 'absent';
     h.retryFailedModelDownloads.mockResolvedValue(undefined);
+    useOAuthPendingStore.setState({ count: 0 });
   });
 
   it('opens on the intro and advances to "1. Connect your AI" on Go', () => {
@@ -231,6 +233,30 @@ describe('AiScene real key wiring', () => {
     goToAi();
     fireEvent.click(screen.getByTestId('ai-open-console'));
     expect(h.openExternal).toHaveBeenCalledWith('https://console.anthropic.com/settings/keys');
+  });
+
+  it('a dot jump cannot skip past Connect while an OAuth sign-in is pending (even after Back)', () => {
+    renderFlow();
+    goToAi(); // intro -> choose-start(own) -> AI
+    fireEvent.click(screen.getByTestId('onboarding-v2-continue')); // AI -> Connect
+    expect(screen.getByTestId('onboarding-v2-connect')).toBeTruthy();
+
+    // A Microsoft/Gmail/OneDrive sign-in starts (pending)...
+    act(() => { useOAuthPendingStore.getState().begin(); });
+    // ...the user clicks Back to the AI scene...
+    fireEvent.click(screen.getByTestId('onboarding-v2-back')); // Connect -> AI
+    expect(screen.getByTestId('onboarding-v2-ai')).toBeTruthy();
+
+    // ...then tries to dot-jump straight to Firm setup (step 4). The forward
+    // lock must hold from this earlier scene too, NOT just on the Connect step.
+    fireEvent.click(screen.getByRole('button', { name: 'Go to step 4' }));
+    expect(screen.queryByTestId('onboarding-v2-firm')).toBeNull();
+    expect(screen.getByTestId('onboarding-v2-ai')).toBeTruthy();
+
+    // Once the sign-in settles, navigation is allowed again.
+    act(() => { useOAuthPendingStore.getState().end(); });
+    fireEvent.click(screen.getByRole('button', { name: 'Go to step 4' }));
+    expect(screen.getByTestId('onboarding-v2-firm')).toBeTruthy();
   });
 });
 

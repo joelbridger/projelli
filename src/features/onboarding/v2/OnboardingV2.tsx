@@ -48,6 +48,9 @@ const ACTION_SCENES = SCENE_COUNT - 1; // dots only for the 4 numbered steps
 const CHOOSE_START_SCENE = 1;
 /** Scene index of the AI step (used for the "AI setup deferred" reminder). */
 const AI_SCENE = 2;
+/** Scene index of the Connect step (where interactive OAuth sign-ins happen);
+ *  nothing past it may run while a sign-in is still pending. */
+const CONNECT_SCENE = 3;
 
 export type OnboardingV2Props = GuidedOnboardingProps;
 
@@ -62,8 +65,18 @@ export function OnboardingV2({ onSaveKey, onComplete, onChooseStart, hasWorkspac
   // so the existing in-app "set this up later" reminder still shows.
   const aiResolvedRef = useRef(false);
 
+  // True while an interactive Microsoft/Gmail/OneDrive sign-in is in flight.
+  const oauthPending = useOAuthPending();
+
   const goTo = (next: number) => {
     const target = Math.max(0, Math.min(SCENE_COUNT - 1, next));
+    // OAuth-pending forward lock: never let ANY forward move (Continue, arrow,
+    // OR a dot jump from an earlier scene) skip PAST the Connect step while a
+    // sign-in is still pending — otherwise a user could start a sign-in, go
+    // Back, then dot-jump to Firm setup and abandon it mid-flow.
+    if (oauthPending && target > CONNECT_SCENE && target > scene) {
+      return;
+    }
     // Workspace-first: never advance past the ChooseStart step until a
     // workspace is ready (connectors/import/Client Map all depend on it).
     if (target > CHOOSE_START_SCENE && !workspaceReady) {
@@ -96,13 +109,13 @@ export function OnboardingV2({ onSaveKey, onComplete, onChooseStart, hasWorkspac
   // Per-scene shell configuration.
   const isIntro = scene === 0;
   const isChooseStart = scene === CHOOSE_START_SCENE;
-  const isConnect = scene === 3;
+  const isConnect = scene === CONNECT_SCENE;
   const isLast = scene === SCENE_COUNT - 1;
   const continueLabel = isLast ? ONB_COPY.firm.cta : ONB_COPY.nav.continue;
-  // Don't let the user advance off the Connect step while an interactive OAuth
-  // sign-in (Microsoft/Gmail/OneDrive) is still pending — it can take minutes,
-  // and skipping past it would abandon the connection mid-flow.
-  const oauthPending = useOAuthPending();
+  // Visually disable Continue on the Connect step while a sign-in is pending.
+  // The real forward-navigation lock lives in goTo (covers dots/arrows/Continue
+  // from ANY scene), so it can't be bypassed via Back-then-dot-jump; this is the
+  // matching button state.
   const continueDisabled = isConnect && oauthPending;
 
   return (
@@ -119,16 +132,9 @@ export function OnboardingV2({ onSaveKey, onComplete, onChooseStart, hasWorkspac
       onContinue={isLast ? finish : goNext}
       dotCount={isIntro ? 0 : ACTION_SCENES}
       activeDot={isIntro ? -1 : scene - 1}
-      onDotClick={(i) => {
-        const target = i + 1;
-        // Respect the OAuth-pending forward lock (same as Continue/arrow) so a
-        // dot click can't skip past a still-pending sign-in.
-        if (continueDisabled && target > scene) return;
-        goTo(target);
-      }}
+      // goTo enforces the OAuth-pending forward lock for all of these.
+      onDotClick={(i) => { goTo(i + 1); }}
       onArrowNav={(dir) => {
-        // Respect the OAuth-pending lock on forward navigation too.
-        if (dir === 1 && continueDisabled) return;
         if (dir === 1 && isLast) finish();
         else goTo(scene + dir);
       }}
