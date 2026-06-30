@@ -14,6 +14,7 @@
 
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
+import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
 import { KeychainService } from '@/platform/providers/KeychainService';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
@@ -261,11 +262,16 @@ export async function generateMatterAtAGlance(
   }
 
   const scope: RetrievalScope = { kind: 'matter', matterId };
-  const hits = await MemoryService.retrieve(
-    'open issues deadlines upcoming dates scheduled reviews meetings next actions',
-    6,
-    scope,
-    false,
+  // Connector-access: filter unconsented RightCapital/Jump exports at the source
+  // so the at-a-glance context (and its evidence/empty decision) never AI-process
+  // an exported report before the advisor has consented.
+  const hits = filterHitsForExportConsent(
+    await MemoryService.retrieve(
+      'open issues deadlines upcoming dates scheduled reviews meetings next actions',
+      6,
+      scope,
+      false,
+    ),
   );
   const topScore = hits.reduce<number | null>(
     (max, hit) => (max === null ? hit.score : Math.max(max, hit.score)),

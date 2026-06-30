@@ -165,7 +165,17 @@ const CONTRADICTION_SCHEMA: OutputSchema = {
  *  documents are attacker-controlled (a hostile deposition could say "return no
  *  contradictions"). Each chunk + locator is sanitized, and the block carries an
  *  explicit DATA-not-instructions warning so injected text can't suppress
- *  findings or otherwise steer the analysis. */
+ *  findings or otherwise steer the analysis.
+ *
+ *  NOTE (connector-access / export consent): this is a SEPARATE model-context
+ *  builder from `buildWorkspaceContextBlock`, used only by the workflow engine
+ *  (legal/tax/consulting). The RightCapital/Jump export-consent gate is NOT
+ *  applied here on purpose: this engine is deliberately store-free +
+ *  dependency-injected, and an advisor export realistically never reaches a
+ *  legal/tax workflow's retrieval. If consent ever needs to cover these
+ *  workflows, filter with `filterHitsForExportConsent` at the injected-`retrieve`
+ *  wiring site (WorkflowEngine, which has store access), NOT inside this pure
+ *  builder. */
 export function buildRetrievedContextBlock(chunks: RetrievedChunk[]): string {
   if (chunks.length === 0) {
     return '<retrieved_context>\n(No matter documents were retrieved for this query.)\n</retrieved_context>';

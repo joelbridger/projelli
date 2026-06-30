@@ -13,6 +13,7 @@ import {
   bindAnswerCitations,
 } from '@/features/ask/askHelpers';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
+import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_CONSENT_KEY } from '@/platform/settings/schema';
 import type { RagHit } from '@/platform/utils/tauri-commands';
@@ -47,6 +48,15 @@ describe('dedupeRecognizedHits', () => {
     const out = dedupeRecognizedHits([a, b]);
     expect(out).toHaveLength(1);
     expect(out[0]).toBe(a); // keeps the first (most relevant) occurrence
+  });
+  it('keeps two same-page chunks that share a long header but differ later (Codex P2)', () => {
+    // >200-char shared boilerplate prefix; a prefix-only fingerprint would have
+    // wrongly merged these and dropped one section's evidence.
+    const header = 'RIGHTCAPITAL CONFIDENTIAL FINANCIAL PLAN PREPARED FOR THE CALDWELL HOUSEHOLD '.repeat(4);
+    const base = { path: 'RightCapital-Plan-2026-06-12.pdf', sourceType: 'pdf' as const, matterId: 'm1', pageNumber: 1, paragraphIndex: 0 };
+    const a = hit({ ...base, chunkText: `${header} Section A: retirement projection shows 87%.` });
+    const b = hit({ ...base, chunkText: `${header} Section B: recommended Roth conversion of 40k.` });
+    expect(dedupeRecognizedHits([a, b])).toHaveLength(2);
   });
   it('keeps recognized exports from different clients separate', () => {
     const a = hit({ path: 'Jump-Note-2026-06-01.pdf', sourceType: 'pdf', matterId: 'm1' });
@@ -117,5 +127,25 @@ describe('buildWorkspaceContextBlock — freshness annotation + consent gate', (
     ]);
     expect(block).toContain('CONFIDENTIAL plan figures');
     expect(block).toContain('source: RightCapital plan');
+  });
+});
+
+describe('filterHitsForExportConsent (P1: hits-level gate for every model-send surface)', () => {
+  // This is the gate the non-Ask surfaces (@workspace chat, Client Map,
+  // At-a-glance) apply to their RETRIEVED HITS so the prompt context, the
+  // citation/source list, and the evidence decision all use the same set.
+  afterEach(() => { useSettingsStore.getState().setSetting(EXTERNAL_EXPORT_CONSENT_KEY, false); });
+
+  it('drops recognized exports but keeps ordinary hits when consent is off', () => {
+    useSettingsStore.getState().setSetting(EXTERNAL_EXPORT_CONSENT_KEY, false);
+    const exp = hit({ path: 'RightCapital-Plan-2026-06-12.pdf', sourceType: 'pdf' });
+    const ord = hit({ path: 'memo.md' });
+    expect(filterHitsForExportConsent([exp, ord])).toEqual([ord]);
+  });
+  it('keeps everything once consent is given', () => {
+    useSettingsStore.getState().setSetting(EXTERNAL_EXPORT_CONSENT_KEY, true);
+    const exp = hit({ path: 'RightCapital-Plan-2026-06-12.pdf', sourceType: 'pdf' });
+    const ord = hit({ path: 'memo.md' });
+    expect(filterHitsForExportConsent([exp, ord])).toHaveLength(2);
   });
 });

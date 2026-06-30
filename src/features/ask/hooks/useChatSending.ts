@@ -77,6 +77,7 @@ import {
   parseWorkspaceCommand,
   verifyCitations,
 } from '@/platform/rag/workspaceCommand';
+import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
 import { buildFactsMemoryBlock } from '@/platform/rag/FactsService';
 import { snapshotFactsForInjection } from '@/platform/rag/factsSingleton';
 import type { ChatSession, ChatCostEntry } from '@/platform/state/aiChatStore';
@@ -393,12 +394,17 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // D1 — filter workspace retrieval results to the active folder scope
           // so @workspace searches don't surface documents from other client
           // folders when the chat is scoped to a specific folder.
-          const filteredHits = scopedFolder && rootPath
+          const scopedHits = scopedFolder && rootPath
             ? hits.filter((h) => {
                 const scopedPaths = filterByScope([h.path], rootPath, scopedFolder);
                 return scopedPaths.length > 0;
               })
             : hits;
+          // Connector-access: drop recognized RightCapital/Jump exports here when
+          // consent has not been given, so @workspace chat never AI-processes an
+          // exported report before consent — and the context, the citation/source
+          // list, and the empty-evidence check all use the same consented set.
+          const filteredHits = filterHitsForExportConsent(scopedHits);
           retrievedSources = filteredHits.map((h) => ({
             path: h.path,
             chunkText: h.chunkText,
