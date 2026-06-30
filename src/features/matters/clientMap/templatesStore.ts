@@ -1,9 +1,9 @@
 // src/platform/clientMap/templatesStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { CustomCategoryTemplate } from './types';
+import type { CustomCategoryTemplate } from '@/platform/clientMap/types';
 import { buildCustomSection } from './customSection';
-import { useClientMapStore } from './clientMapStore';
+import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { SK_CLIENT_MAP_TEMPLATES } from '@/config/identity';
 
 interface TemplatesState {

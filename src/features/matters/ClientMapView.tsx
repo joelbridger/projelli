@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import { Card, Eyebrow, Chip, Button } from '@/ui/kp';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
 import type { ClientMap, ClientMapItem, SourceRef, CompletenessLevel, GapQuestion } from '@/platform/clientMap/types';
-import { flagForClient } from '@/platform/clientMap/guidedInterview';
+import { flagForClient } from '@/features/matters/clientMap/guidedInterview';
 
 const LEVEL_LABEL: Record<CompletenessLevel, string> = {
   thin: 'Thin',

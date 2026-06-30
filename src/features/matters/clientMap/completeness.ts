@@ -1,5 +1,5 @@
 // src/platform/clientMap/completeness.ts
-import type { ClientMapSection, ClientMapItem, ContextCompleteness, CompletenessLevel, GapQuestion } from './types';
+import type { ClientMapSection, ClientMapItem, ContextCompleteness, CompletenessLevel, GapQuestion } from '@/platform/clientMap/types';
 
 export function deriveCompleteness(sections: ClientMapSection[], ask: GapQuestion[]): ContextCompleteness {
   const all: ClientMapItem[] = sections.flatMap((s) => s.items);

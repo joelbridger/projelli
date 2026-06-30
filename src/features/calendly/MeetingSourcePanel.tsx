@@ -1,7 +1,7 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { CalendarClock, X } from 'lucide-react';
-import { OPEN_MEETING_EVENT } from '@/platform/clientMap/openSource';
+import { EV_OPEN_MEETING } from '@/config/identity';
 
 interface MeetingSourceState {
   sourceId: string;
@@ -18,8 +18,8 @@ export function MeetingSourcePanel() {
       if (!sourceId) return;
       setSource({ sourceId, snippet: detail.snippet });
     };
-    window.addEventListener(OPEN_MEETING_EVENT, handler);
-    return () => { window.removeEventListener(OPEN_MEETING_EVENT, handler); };
+    window.addEventListener(EV_OPEN_MEETING, handler);
+    return () => { window.removeEventListener(EV_OPEN_MEETING, handler); };
   }, []);
 
   if (!source) return null;

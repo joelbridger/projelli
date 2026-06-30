@@ -1,6 +1,6 @@
 // tests/unit/clientMap/templatesStore.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useTemplatesStore } from '@/platform/clientMap/templatesStore';
+import { useTemplatesStore } from '@/features/matters/clientMap/templatesStore';
 
 beforeEach(() => { useTemplatesStore.setState({ templates: {} }); });
 

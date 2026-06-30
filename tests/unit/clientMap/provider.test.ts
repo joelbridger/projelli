@@ -49,7 +49,7 @@ vi.mock('@/platform/providers/GeminiProvider', () => ({
 }));
 vi.mock('@/platform/providers/OllamaProvider', () => ({ OllamaProvider: class { getMetadata() { return { model: 'llama3' }; } } }));
 
-import { buildProviderForClientMap, hasCloudKeyForClientMap } from '@/platform/clientMap/provider';
+import { buildProviderForClientMap, hasCloudKeyForClientMap } from '@/features/matters/clientMap/provider';
 
 beforeEach(() => {
   cmode.mode = 'direct';

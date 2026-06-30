@@ -12,7 +12,7 @@
  */
 import { useEffect, useState } from 'react';
 import { X, Database } from 'lucide-react';
-import { OPEN_CRM_EVENT } from '@/platform/clientMap/openSource';
+import { EV_OPEN_CRM } from '@/config/identity';
 
 interface CrmSourceState {
   sourceId: string;
@@ -29,8 +29,8 @@ export function CrmSourcePanel() {
       if (!sourceId) return;
       setSource({ sourceId, snippet: detail.snippet });
     };
-    window.addEventListener(OPEN_CRM_EVENT, handler);
-    return () => { window.removeEventListener(OPEN_CRM_EVENT, handler); };
+    window.addEventListener(EV_OPEN_CRM, handler);
+    return () => { window.removeEventListener(EV_OPEN_CRM, handler); };
   }, []);
 
   if (!source) return null;

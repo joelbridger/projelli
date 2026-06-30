@@ -1,7 +1,7 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { LineChart, X } from 'lucide-react';
-import { OPEN_ADDEPAR_EVENT } from '@/platform/clientMap/openSource';
+import { EV_OPEN_ADDEPAR } from '@/config/identity';
 
 interface AddeparSourceState {
   sourceId: string;
@@ -17,8 +17,8 @@ export function AddeparSourcePanel() {
       if (!detail?.sourceId) return;
       setSource({ sourceId: detail.sourceId, snippet: detail.snippet });
     };
-    window.addEventListener(OPEN_ADDEPAR_EVENT, handler);
-    return () => { window.removeEventListener(OPEN_ADDEPAR_EVENT, handler); };
+    window.addEventListener(EV_OPEN_ADDEPAR, handler);
+    return () => { window.removeEventListener(EV_OPEN_ADDEPAR, handler); };
   }, []);
 
   if (!source) return null;

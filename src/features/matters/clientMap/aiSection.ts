@@ -2,8 +2,8 @@
 // Shared helpers extracted from generator.ts so customSection.ts can reuse them
 // without duplication (DRY refactor — Task E1).
 import type { RagHit } from '@/platform/utils/tauri-commands';
-import { sourceRefFromRagHit } from './types';
-import type { ClientMapItem } from './types';
+import { sourceRefFromRagHit } from '@/platform/clientMap/types';
+import type { ClientMapItem } from '@/platform/clientMap/types';
 
 export interface RawItem { text: string; sourceNumbers: number[]; assumption: boolean }
 

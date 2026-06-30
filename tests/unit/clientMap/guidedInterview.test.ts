@@ -1,6 +1,6 @@
 // tests/unit/clientMap/guidedInterview.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { interviewQuestions, answerQuestion, flagForClient } from '@/platform/clientMap/guidedInterview';
+import { interviewQuestions, answerQuestion, flagForClient } from '@/features/matters/clientMap/guidedInterview';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
 import type { GapQuestion } from '@/platform/clientMap/types';

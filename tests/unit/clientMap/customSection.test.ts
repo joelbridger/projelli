@@ -5,14 +5,14 @@ const retrieveMock = vi.hoisted(() => vi.fn());
 const sendMock = vi.hoisted(() => vi.fn());
 vi.mock('@/platform/rag/MemoryService', () => ({ MemoryService: { retrieve: retrieveMock }, isMemoryEnabled: () => true }));
 vi.mock('@/platform/rag/workspaceCommand', () => ({ buildWorkspaceContextBlock: (h: RagHit[]) => (h.length ? '<workspace_context>c</workspace_context>' : '') }));
-vi.mock('@/platform/clientMap/provider', () => ({
+vi.mock('@/features/matters/clientMap/provider', () => ({
   buildResolvedProviderForClientMap: async () => ({
     provider: { sendMessage: sendMock, getMetadata: () => ({ model: 't', providerId: 'ollama' }) },
     providerId: 'ollama',
     model: 't',
   }),
 }));
-import { buildCustomSection } from '@/platform/clientMap/customSection';
+import { buildCustomSection } from '@/features/matters/clientMap/customSection';
 
 beforeEach(() => { retrieveMock.mockReset(); sendMock.mockReset(); });
 

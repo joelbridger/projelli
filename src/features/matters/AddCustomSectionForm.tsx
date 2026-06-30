@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Button } from '@/ui/kp';
-import { buildCustomSection } from '@/platform/clientMap/customSection';
+import { buildCustomSection } from '@/features/matters/clientMap/customSection';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 
 const LABEL_ERROR = 'Could not fill this section. Your AI provider may be unavailable, or no account key is set. Nothing was added. Try again.';

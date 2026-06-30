@@ -1,6 +1,6 @@
 // src/platform/clientMap/guidedInterview.ts
-import type { ClientMap, GapQuestion } from './types';
-import { useClientMapStore } from './clientMapStore';
+import type { ClientMap, GapQuestion } from '@/platform/clientMap/types';
+import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 
 function normalizeGap(text: string): string {
   return text.trim().toLowerCase().replace(/\s+/g, ' ');

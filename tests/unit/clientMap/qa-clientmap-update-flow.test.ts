@@ -23,7 +23,7 @@ vi.mock('@/platform/rag/MemoryService', () => ({
 
 import { proposeUpdates, computeSourceFingerprint } from '@/platform/clientMap/updater';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
-import { interviewQuestions, answerQuestion } from '@/platform/clientMap/guidedInterview';
+import { interviewQuestions, answerQuestion } from '@/features/matters/clientMap/guidedInterview';
 import { emptyClientMap } from '@/platform/clientMap/types';
 import type { ClientMap, ClientMapItem } from '@/platform/clientMap/types';
 

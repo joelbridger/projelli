@@ -24,10 +24,10 @@ import type {
   CompletenessLevel,
   GapQuestion,
 } from '@/platform/clientMap/types';
-import { flagForClient } from '@/platform/clientMap/guidedInterview';
+import { flagForClient } from '@/features/matters/clientMap/guidedInterview';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
-import { buildCustomSection } from '@/platform/clientMap/customSection';
-import { useTemplatesStore, applyTemplateToMatter } from '@/platform/clientMap/templatesStore';
+import { buildCustomSection } from '@/features/matters/clientMap/customSection';
+import { useTemplatesStore, applyTemplateToMatter } from '@/features/matters/clientMap/templatesStore';
 import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
 import { SourcePanel } from '@/features/ask/SourcePanel';
 import type { AnswerCitation } from '@/features/ask/askHelpers';

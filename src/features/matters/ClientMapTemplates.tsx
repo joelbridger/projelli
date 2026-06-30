@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { BookTemplate, Trash2 } from 'lucide-react';
 import { Button, EmptyState } from '@/ui/kp';
-import { useTemplatesStore, applyTemplateToMatter } from '@/platform/clientMap/templatesStore';
+import { useTemplatesStore, applyTemplateToMatter } from '@/features/matters/clientMap/templatesStore';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 

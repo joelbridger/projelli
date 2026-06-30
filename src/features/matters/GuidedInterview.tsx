@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Card, Eyebrow, Button } from '@/ui/kp';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
-import { interviewQuestions, answerQuestion, flagForClient } from '@/platform/clientMap/guidedInterview';
+import { interviewQuestions, answerQuestion, flagForClient } from '@/features/matters/clientMap/guidedInterview';
 
 const LABEL_ANSWER_PLACEHOLDER = 'Type your answer here...';
 const LABEL_SUBMIT = 'I know this';
