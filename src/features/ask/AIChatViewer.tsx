@@ -630,6 +630,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     scopedOpenFiles,
     inputValue,
     pendingAttachments,
+    pdfExtractions,
     previewUrls,
     chatContextTokenLimit,
     keepRecentTurns,

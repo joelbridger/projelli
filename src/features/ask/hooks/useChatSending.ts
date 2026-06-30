@@ -129,6 +129,10 @@ export interface UseChatSendingDeps {
   scopedOpenFiles: ExtractedContext[];
   inputValue: string;
   pendingAttachments: ChatAttachment[];
+  /** Connector-access: cached PDF text per attachment id, so a recognized export
+   *  attached under a renamed/generic filename is still caught by its branding
+   *  content (not just its name) before its bytes are sent. */
+  pdfExtractions: Record<string, PdfExtractionResult>;
   previewUrls: Record<string, string>;
   chatContextTokenLimit: number;
   keepRecentTurns: number;
@@ -176,6 +180,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
     scopedOpenFiles,
     inputValue,
     pendingAttachments,
+    pdfExtractions,
     previewUrls,
     chatContextTokenLimit,
     keepRecentTurns,
@@ -574,6 +579,76 @@ export function useChatSending(deps: UseChatSendingDeps) {
       ? [...pendingAttachments]
       : undefined;
 
+    // Connector-access: a chat attachment is another way file content reaches the
+    // model. When consent is off, an attachment recognized (by filename) as a
+    // RightCapital/Jump export is withheld from the provider. `sentAttachments`
+    // is the subset that is ACTUALLY sent — used for loading bytes, token
+    // estimates, AND the "sent to provider" audit, so the audit never claims a
+    // withheld file left the device. `messageAttachments` (all of them) still
+    // records what the user attached on their own message. Withheld filenames are
+    // sanitized before going anywhere near the prompt (prompt-injection guard).
+    const withheldExportAttachments: ChatAttachment[] =
+      messageAttachments && !isExternalExportConsentGiven()
+        ? messageAttachments.filter(
+            (a) =>
+              recognizeProvenance({
+                path: a.fileName || a.pathInWorkspace,
+                // Catch a renamed export by its branding content too (not just the
+                // filename), using the PDF text already extracted in the composer.
+                // Images / scanned PDFs have no text — those fall back to filename.
+                text: pdfExtractions[a.id]?.pages.join('\n'),
+              }) !== null,
+          )
+        : [];
+    const sentAttachments: ChatAttachment[] | undefined = messageAttachments
+      ? messageAttachments.filter((a) => !withheldExportAttachments.includes(a))
+      : undefined;
+    // Generic note ONLY — never put the withheld filename in the prompt. Advisor
+    // filenames can carry client names / report details, so sending them to the
+    // model would itself leak metadata about a file we deliberately withheld (and
+    // a crafted name could attempt prompt injection). The user sees which file in
+    // their own message UI; the model only needs the count.
+    const withheldExportNote =
+      withheldExportAttachments.length > 0
+        ? `\n\nNOTE (system): ${withheldExportAttachments.length === 1 ? 'One attachment the user added was' : `${String(withheldExportAttachments.length)} attachments the user added were`} recognized as exported report(s) from an outside tool (for example RightCapital or Jump) and ${withheldExportAttachments.length === 1 ? 'was' : 'were'} NOT included, because using exported reports with AI needs the advisor's one-time confirmation (Settings > AI & Privacy, or the Ask tab). Tell the user this plainly; do not pretend to have read ${withheldExportAttachments.length === 1 ? 'it' : 'them'}.`
+        : '';
+
+    // Connector-access: attachment-only send where EVERY attachment was a withheld
+    // export and there's no typed question. The provider would get an empty user
+    // message and reject it, so answer LOCALLY with the consent explanation. This
+    // runs BEFORE the context-limit/compression check and the attachment-clearing
+    // below, so it still fires in a long, over-limit thread.
+    if (
+      rawContent === '' &&
+      withheldExportAttachments.length > 0 &&
+      (sentAttachments?.length ?? 0) === 0
+    ) {
+      addMessage(chatId, {
+        role: 'user',
+        content: rawContent,
+        timestamp: new Date().toISOString(),
+        ...(messageAttachments ? { attachments: messageAttachments } : {}),
+      });
+      // Reset the composer (mirrors the normal send path's cleanup).
+      setPendingAttachments([]);
+      for (const url of Object.values(previewUrls)) {
+        URL.revokeObjectURL(url);
+      }
+      setPreviewUrls({});
+      setPdfExtractions({});
+      setInputValue('');
+      clearDraftInput(chatId);
+      addMessage(chatId, {
+        role: 'assistant',
+        content:
+          withheldExportAttachments.length === 1
+            ? 'I didn’t use that attachment. It looks like an exported report from an outside tool (for example RightCapital or Jump), and using exported reports with AI needs your one-time confirmation first. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy (or ask in the Ask tab, where you’ll be prompted), then send it again.'
+            : 'I didn’t use those attachments. They look like exported reports from outside tools (for example RightCapital or Jump), and using exported reports with AI needs your one-time confirmation first. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy (or ask in the Ask tab, where you’ll be prompted), then send them again.',
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
     // Clear pending attachments, preview URLs, and PDF extraction cache.
     setPendingAttachments([]);
     for (const url of Object.values(previewUrls)) {
@@ -710,7 +785,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
         };
 
         const emitSuccessfulAttachmentAudits = () => {
-          for (const att of messageAttachments ?? []) {
+          // Only attachments actually sent — a withheld unconsented export must
+          // NOT be audited as "sent to provider".
+          for (const att of sentAttachments ?? []) {
             onAuditLog?.({
               action: 'user_action',
               description: `Attachment sent to provider: ${att.fileName}`,
@@ -723,14 +800,15 @@ export function useChatSending(deps: UseChatSendingDeps) {
           }
         };
 
-        // Stream A1 — estimate image token overhead for cost meter.
-        const imageTokenOverhead = (messageAttachments ?? []).reduce(
+        // Stream A1 — estimate image token overhead for cost meter (only what is
+        // actually sent; a withheld export contributes no tokens).
+        const imageTokenOverhead = (sentAttachments ?? []).reduce(
           (sum, att) => sum + estimateImageTokens(chatProvider, att),
           0
         );
 
         // Stream A2 — estimate PDF token overhead for cost meter.
-        const pdfTokenOverhead = (messageAttachments ?? []).reduce((sum, att) => {
+        const pdfTokenOverhead = (sentAttachments ?? []).reduce((sum, att) => {
           if (att.type !== 'pdf') return sum;
           const mode = att.metadata.extractionMode ?? 'text-extract';
           // Use cached extraction result if available (for text-extract length).
@@ -1287,12 +1365,14 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // are stored on disk; we read them now so the async I/O is done
         // before we hand off to the provider. Any attachment that fails to
         // read is skipped gracefully (logged but not fatal).
+        // Load bytes ONLY for sentAttachments — unconsented exports were already
+        // excluded above, so their bytes are never read or handed to the provider.
         let attachmentBytes: AttachmentBytes[] | undefined;
-        if (messageAttachments && messageAttachments.length > 0 && workspaceServiceRef?.current) {
+        if (sentAttachments && sentAttachments.length > 0 && workspaceServiceRef?.current) {
           const backend = workspaceServiceRef.current.getBackend();
           const attService = backend ? new AttachmentService(backend) : null;
           const loaded: AttachmentBytes[] = [];
-          for (const att of messageAttachments) {
+          for (const att of sentAttachments) {
             if (!attService) continue;
             try {
               const bytes = await attService.read(att);
@@ -1361,9 +1441,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
         const factsBlock = buildFactsMemoryBlock(facts);
         const factsPrefix = factsBlock ? `${factsBlock}\n\n` : '';
 
-        const systemPrompt = conversationContext
+        const systemPrompt = (conversationContext
           ? `${factsPrefix}${workspacePrefix}${baseRole}${fileBlock} Here is the conversation history so far:\n\n${conversationContext}\n\nPlease respond to the user's latest message.`
-          : `${factsPrefix}${workspacePrefix}${baseRole}${fileBlock}`;
+          : `${factsPrefix}${workspacePrefix}${baseRole}${fileBlock}`) + withheldExportNote;
 
         // Use streaming if available (disabled in production Tauri builds
         // because tauri-plugin-http doesn't support ReadableStream/SSE)
@@ -1613,7 +1693,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               mode: getConfidentialityMode(),
               destination: egress.destination,
               dataLeaves: egress.dataLeaves,
-              attachmentCount: messageAttachments?.length ?? 0,
+              attachmentCount: sentAttachments?.length ?? 0,
             },
             outputs: {
               success: false,
@@ -1702,7 +1782,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
       setLoading(chatId, false);
       useAiBatchReviewStore.getState().openReview();
     });
-  }, [inputValue, pendingAttachments, previewUrls, messages, chatData, localAvailability, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
+  }, [inputValue, pendingAttachments, pdfExtractions, previewUrls, messages, chatData, localAvailability, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
 
   const handleSendAnyway = useCallback(() => {
     bypassNextContextLimitRef.current = true;
