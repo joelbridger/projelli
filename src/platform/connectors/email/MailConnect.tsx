@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { outlookConnect, mailIsConnected, mailDisconnect, mailSyncAll, mailCancelSync, mailFdeStatus } from '@/platform/utils/mail-commands';
-import { useMailSync } from '@/features/email/useMailSync';
-import { useMailStore } from '@/features/email/mailStore';
+import { useMailSync } from '@/platform/connectors/email/useMailSync';
+import { useMailStore } from '@/platform/connectors/email/mailStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 

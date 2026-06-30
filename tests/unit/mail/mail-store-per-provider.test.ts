@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useMailStore } from '@/features/email/mailStore';
+import { useMailStore } from '@/platform/connectors/email/mailStore';
 
 // Regression: a single global `progress` object meant the Microsoft 365 and Gmail
 // connector panels (rendered together) both read the same status/count, so one

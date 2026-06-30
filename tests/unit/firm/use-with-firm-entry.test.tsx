@@ -25,9 +25,9 @@ vi.mock('@/features/firm/FirmSignIn', () => ({ FirmSignIn: () => <div data-testi
 vi.mock('@/features/firm/FirmAdminConsole', () => ({ FirmAdminConsole: () => <div data-testid="firm-admin" /> }));
 vi.mock('@/features/settings/LicenseSettings', () => ({ LicenseSettings: () => <div /> }));
 vi.mock('@/platform/analysis/ui/CostMetrics', () => ({ CostMetrics: () => <div /> }));
-vi.mock('@/features/settings/MailConnect', () => ({ MailConnect: () => <div /> }));
-vi.mock('@/features/settings/MailImapConnect', () => ({ MailImapConnect: () => <div /> }));
-vi.mock('@/features/settings/MailGmailConnect', () => ({ MailGmailConnect: () => <div /> }));
+vi.mock('@/platform/connectors/email/MailConnect', () => ({ MailConnect: () => <div /> }));
+vi.mock('@/platform/connectors/email/MailImapConnect', () => ({ MailImapConnect: () => <div /> }));
+vi.mock('@/platform/connectors/email/MailGmailConnect', () => ({ MailGmailConnect: () => <div /> }));
 vi.mock('@/features/settings/McpSettingsSection', () => ({ McpSettingsSection: () => <div /> }));
 vi.mock('@/features/settings/OllamaSettingsSection', () => ({ OllamaSettingsSection: () => <div /> }));
 vi.mock('@/platform/profile/profileStore', () => ({

@@ -39,16 +39,11 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'documents->firm',      // file navigator shows privilege/vault affordances
   'firm->matters',        // solo-to-firm bridge reuses the matters promote-to-shared routine
   'matters->ask',         // Client Map reuses Ask's Sources column (SourcePanel + AnswerCitation) so the cited-sources card design is identical across both surfaces
-  'matters->crm',         // Matter Hub's Client Map recovers live when a Wealthbox sync completes
   'onboarding->firm',     // onboarding explains firm/SSO setup
   'onboarding->settings', // onboarding hands off to settings sections
   'privacy->firm',        // Privacy Center hosts the vault enable/disable control
   'settings->ask',        // AI/model settings touch Ask config
-  'settings->calendly',   // Calendly connect panel uses the calendly sync hook/store
-  'settings->crm',        // Wealthbox connect panel uses the crm sync hook/store
   'settings->dictation',  // voice-output settings
-  'settings->email',      // mail-account settings
-  'settings->onedrive',   // OneDrive document connector settings
   'settings->onboarding', // settings can relaunch onboarding flows
   'settings->workflows',  // settings hosts the templates marketplace tab
 ]);

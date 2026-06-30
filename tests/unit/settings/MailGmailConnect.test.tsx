@@ -16,16 +16,16 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   // Pure helper used to choose info-note vs error tone (UX-22).
   isDesktopOnlyMailError: (m: string | null | undefined) => !!m && /desktop app/i.test(m),
 }));
-vi.mock('@/features/email/useMailSync', () => ({ useMailSync: () => {} }));
+vi.mock('@/platform/connectors/email/useMailSync', () => ({ useMailSync: () => {} }));
 
 // useMailStore — mock so we can control progress in stall-watchdog tests.
 let mockProgress: { status: string; written: number; provider?: string } | undefined = undefined;
-vi.mock('@/features/email/mailStore', () => ({
+vi.mock('@/platform/connectors/email/mailStore', () => ({
   useMailStore: (selector: (s: { progressByProvider: Record<string, unknown> }) => unknown) =>
     selector({ progressByProvider: mockProgress ? { gmail: mockProgress } : {} }),
 }));
 
-import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
+import { MailGmailConnect } from '@/platform/connectors/email/MailGmailConnect';
 
 describe('MailGmailConnect', () => {
   beforeEach(() => {

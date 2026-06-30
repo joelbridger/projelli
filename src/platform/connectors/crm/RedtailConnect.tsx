@@ -11,8 +11,8 @@ import {
   type CrmConnectInfo,
   type CrmDisconnectResult,
 } from '@/platform/utils/wealthbox-commands';
-import { useCrmSync } from '@/features/crm/useCrmSync';
-import { useCrmStore } from '@/features/crm/crmStore';
+import { useCrmSync } from '@/platform/connectors/crm/useCrmSync';
+import { useCrmStore } from '@/platform/connectors/crm/crmStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import {

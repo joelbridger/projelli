@@ -30,9 +30,9 @@ import { OnboardingStepFrame, type StepInfo } from './OnboardingStepFrame';
 import { markOnboardingComplete, setOnboardingProgressStep } from './onboardingState';
 import { AiSetupStep } from './AiSetupStep';
 
-import { MailConnect } from '@/features/settings/MailConnect';
-import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
-import { MailImapConnect } from '@/features/settings/MailImapConnect';
+import { MailConnect } from '@/platform/connectors/email/MailConnect';
+import { MailGmailConnect } from '@/platform/connectors/email/MailGmailConnect';
+import { MailImapConnect } from '@/platform/connectors/email/MailImapConnect';
 import { FirmAdminConsole } from '@/features/firm/FirmAdminConsole';
 import { FirmSignIn } from '@/features/firm/FirmSignIn';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';

@@ -9,8 +9,8 @@ import {
   calendlySyncAll,
   type CalendlyConnectInfo,
 } from '@/platform/utils/calendly-commands';
-import { useCalendlySync } from '@/features/calendly/useCalendlySync';
-import { useCalendlyStore } from '@/features/calendly/calendlyStore';
+import { useCalendlySync } from '@/platform/connectors/calendly/useCalendlySync';
+import { useCalendlyStore } from '@/platform/connectors/calendly/calendlyStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { buildMeetingMatterMap } from '@/platform/rag/matterResolver';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';

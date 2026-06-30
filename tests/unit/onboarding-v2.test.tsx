@@ -28,19 +28,19 @@ const h = vi.hoisted(() => ({
 vi.mock('@/features/onboarding/v2/LottiePlayer', () => ({
   LottiePlayer: () => <div data-testid="lottie-stub" />,
 }));
-vi.mock('@/features/settings/MailConnect', () => ({
+vi.mock('@/platform/connectors/email/MailConnect', () => ({
   MailConnect: () => <div data-testid="mail-connect-stub" />,
 }));
-vi.mock('@/features/settings/MailGmailConnect', () => ({
+vi.mock('@/platform/connectors/email/MailGmailConnect', () => ({
   MailGmailConnect: () => <div data-testid="mail-gmail-stub" />,
 }));
-vi.mock('@/features/settings/MailImapConnect', () => ({
+vi.mock('@/platform/connectors/email/MailImapConnect', () => ({
   MailImapConnect: () => <div data-testid="mail-imap-stub" />,
 }));
-vi.mock('@/features/settings/OneDriveConnect', () => ({
+vi.mock('@/platform/connectors/onedrive/OneDriveConnect', () => ({
   OneDriveConnect: () => <div data-testid="onedrive-stub" />,
 }));
-vi.mock('@/features/settings/WealthboxConnect', () => ({
+vi.mock('@/platform/connectors/crm/WealthboxConnect', () => ({
   WealthboxConnect: () => <div data-testid="wealthbox-stub" />,
 }));
 vi.mock('@/features/onboarding/AiSetupHelpLink', () => ({

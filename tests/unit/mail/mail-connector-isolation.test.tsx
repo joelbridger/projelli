@@ -19,11 +19,11 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   MAIL_SYNC_EVENT: 'mail-sync-progress',
 }));
 // Drive the store directly rather than through the Tauri event listener.
-vi.mock('@/features/email/useMailSync', () => ({ useMailSync: () => {} }));
+vi.mock('@/platform/connectors/email/useMailSync', () => ({ useMailSync: () => {} }));
 
-import { MailConnect } from '@/features/settings/MailConnect';
-import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
-import { useMailStore } from '@/features/email/mailStore';
+import { MailConnect } from '@/platform/connectors/email/MailConnect';
+import { MailGmailConnect } from '@/platform/connectors/email/MailGmailConnect';
+import { useMailStore } from '@/platform/connectors/email/mailStore';
 
 describe('mail connector panels are isolated per provider', () => {
   beforeEach(() => {

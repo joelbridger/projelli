@@ -17,11 +17,11 @@
 import { useState } from 'react';
 import { Lock, Monitor, EyeOff, ChevronDown, FileDown } from 'lucide-react';
 
-import { MailConnect } from '@/features/settings/MailConnect';
-import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
-import { MailImapConnect } from '@/features/settings/MailImapConnect';
-import { OneDriveConnect } from '@/features/settings/OneDriveConnect';
-import { WealthboxConnect } from '@/features/settings/WealthboxConnect';
+import { MailConnect } from '@/platform/connectors/email/MailConnect';
+import { MailGmailConnect } from '@/platform/connectors/email/MailGmailConnect';
+import { MailImapConnect } from '@/platform/connectors/email/MailImapConnect';
+import { OneDriveConnect } from '@/platform/connectors/onedrive/OneDriveConnect';
+import { WealthboxConnect } from '@/platform/connectors/crm/WealthboxConnect';
 
 import { SecurityPill } from '../components/SecurityPill';
 import { ONB_COPY, ONB_COMING_SOON_LOGOS } from '../copy';

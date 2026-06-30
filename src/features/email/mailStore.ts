@@ -1,40 +1,7 @@
-import { create } from 'zustand';
-import type { MailSyncProgress } from '@/platform/utils/mail-commands';
-import { SK_EMAIL_FIRST_CONNECT_CALLOUT } from '@/config/identity';
-
-// localStorage key for the first-connect TTV callout dismissal.
-const FIRST_CONNECT_CALLOUT_KEY = SK_EMAIL_FIRST_CONNECT_CALLOUT;
-
-interface MailState {
-  connected: boolean;
-  /** Latest sync-progress for each provider, keyed by provider id ("m365" |
-   *  "imap" | "gmail"). The Microsoft 365 and Gmail connector panels are rendered
-   *  together, so a single shared progress object made one provider's count/error
-   *  appear on the other. Keying by provider lets each panel read only its own. */
-  progressByProvider: Record<string, MailSyncProgress>;
-  /** True once the user has dismissed the first-connect TTV callout. Persisted
-   *  to localStorage so the callout shows exactly once across sessions. */
-  firstConnectCalloutSeen: boolean;
-  setConnected: (v: boolean) => void;
-  setProgress: (p: MailSyncProgress) => void;
-  dismissFirstConnectCallout: () => void;
-}
-
-export const useMailStore = create<MailState>((set) => ({
-  connected: false,
-  progressByProvider: {},
-  firstConnectCalloutSeen:
-    typeof localStorage !== 'undefined' &&
-    localStorage.getItem(FIRST_CONNECT_CALLOUT_KEY) === '1',
-  setConnected: (v) => set({ connected: v }),
-  setProgress: (p) =>
-    set((s) => ({
-      progressByProvider: { ...s.progressByProvider, [p.provider || 'unknown']: p },
-    })),
-  dismissFirstConnectCallout: () => {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(FIRST_CONNECT_CALLOUT_KEY, '1');
-    }
-    set({ firstConnectCalloutSeen: true });
-  },
-}));
+// Re-export shim (Wave 5c). The mail store was promoted to
+// `@/platform/connectors/email/mailStore` so the Settings connector panels can
+// live in the platform layer. This shim keeps the in-flight email feature files
+// (EmailWorkspace.tsx, App.tsx) importing the old path until they migrate to the
+// platform path directly. Safe to delete once no `@/features/email/mailStore`
+// importers remain.
+export * from '@/platform/connectors/email/mailStore';

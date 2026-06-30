@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { gmailConnect, gmailIsConnected, gmailDisconnect, mailSyncAll, mailCancelSync, isDesktopOnlyMailError } from '@/platform/utils/mail-commands';
-import { useMailSync } from '@/features/email/useMailSync';
-import { useMailStore } from '@/features/email/mailStore';
+import { useMailSync } from '@/platform/connectors/email/useMailSync';
+import { useMailStore } from '@/platform/connectors/email/mailStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 

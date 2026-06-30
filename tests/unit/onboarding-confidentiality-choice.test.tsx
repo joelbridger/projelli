@@ -38,13 +38,13 @@ vi.mock('@/features/onboarding/AiSetupStep', () => ({
   ),
 }));
 
-vi.mock('@/features/settings/MailConnect', () => ({
+vi.mock('@/platform/connectors/email/MailConnect', () => ({
   MailConnect: () => <div data-testid="mail-connect-stub" />,
 }));
-vi.mock('@/features/settings/MailGmailConnect', () => ({
+vi.mock('@/platform/connectors/email/MailGmailConnect', () => ({
   MailGmailConnect: () => <div data-testid="mail-gmail-connect-stub" />,
 }));
-vi.mock('@/features/settings/MailImapConnect', () => ({
+vi.mock('@/platform/connectors/email/MailImapConnect', () => ({
   MailImapConnect: () => <div data-testid="mail-imap-connect-stub" />,
 }));
 vi.mock('@/features/firm/FirmAdminConsole', () => ({

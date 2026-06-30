@@ -13,7 +13,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 import { listen } from '@tauri-apps/api/event';
-import { useMailSync } from '@/features/email/useMailSync';
+import { useMailSync } from '@/platform/connectors/email/useMailSync';
 
 describe('useMailSync', () => {
   beforeEach(() => vi.clearAllMocks());

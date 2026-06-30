@@ -29,7 +29,7 @@ import { GuidedInterview } from '@/features/matters/GuidedInterview';
 import { ClientMapUpdatesTray } from '@/features/matters/ClientMapUpdatesTray';
 import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
-import { useCrmStore } from '@/features/crm/crmStore';
+import { useCrmStore } from '@/platform/connectors/crm/crmStore';
 import { answerQuestion, flagForClient } from '@/features/matters/clientMap/guidedInterview';
 import { dispatchOpenSource } from '@/features/matters/clientMap/openSource';
 import type { SourceRef } from '@/platform/clientMap/types';
