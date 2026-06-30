@@ -69,7 +69,7 @@ docs/
 | [DEVELOPER_ONBOARDING.md](operations/DEVELOPER_ONBOARDING.md) | New-developer runbook: clone → install → run dev → tests → the gate → PR/CI. |
 | [DEVELOPMENT_WORKFLOW.md](operations/DEVELOPMENT_WORKFLOW.md) | Older day-to-day dev/release workflow (v1.0-era; superseded for the dev loop by DEVELOPER_ONBOARDING.md). |
 | `BOARD_ACTION_ITEMS.md` | Engineering/financial/identity work that needs Jameson's hands (Azure signing, Apple Developer, LemonSqueezy, etc.). |
-| `*-CURRENT-STATE.md`, `*-NEXT-SESSION-*.md` | Dated state snapshots and session handoffs — each is superseded by the next; trust the newest. |
+| `*-CURRENT-STATE.md`, `*-NEXT-SESSION-*.md` | Dated state snapshots and session handoffs — older ones are archived in `archive/session-handoffs/`; trust the 2026-06-24 snapshot above. |
 
 ## Quality & QA — `quality/` + `qa/`
 

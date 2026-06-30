@@ -3,10 +3,7 @@
 
 ---
 
-> **CURRENT STATE: read `docs/operations/2026-06-19-CURRENT-STATE.md` first** (3.0 era,
-> branch `keepance-3.0`). It supersedes the older v2.x handoffs below for current state.
-> (Note: the 2026-06-03 banner that lived here was pre-3.0-launch and is stale — LemonSqueezy
-> subscriptions + the firm backend are live as of v3.0; see the current-state doc.)
+> **CURRENT STATE: read `docs/operations/2026-06-24-advisor-website-board-CURRENT-STATE.md`** (the latest current-state snapshot, supersedes the 2026-06-13/18/19 docs which are archived). Branch `keepance-3.0`. LemonSqueezy subscriptions + firm backend are live as of v3.0.
 
 ---
 

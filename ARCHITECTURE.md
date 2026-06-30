@@ -115,4 +115,4 @@ This structure landed in the 3.0 **feature-first reorganization** (2026-06): the
 codebase was migrated from layer-based folders (`components/`, `modules/`,
 `stores/`, `hooks/`, `utils/`, `types/`) to the surfaces-and-platform layout above,
 behavior-preserving, with all gates green at every commit. See the git history on
-`keepance-3.0` and `docs/operations/2026-06-16-NEXT-SESSION-reorg-handoff.md`.
+`keepance-3.0` (the session handoff doc is in `docs/archive/session-handoffs/`).

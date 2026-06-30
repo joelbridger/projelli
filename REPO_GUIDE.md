@@ -56,7 +56,7 @@
 
 **Historical / archived** — keep for reference, do NOT edit:
 - `docs/archive/` — superseded state snapshots, session handoffs, old build plans, and earlier strategy
-- `docs/superpowers/plans/` (pre-2026-06-25 build plans archived; later ones still live)
+- `docs/superpowers/plans/` (all build plans through 2026-06-25 archived to `docs/archive/build-plans/`; the plans directory is now empty — current plans live in `docs/superpowers/specs/` and `docs/superpowers/spikes/`)
 - `docs/archive/strategy-2026-06-17/` — the "product is mature, stop building" cluster (explicitly superseded)
 
 ## Locked identifiers — never rename

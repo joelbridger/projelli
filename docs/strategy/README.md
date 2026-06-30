@@ -1,6 +1,6 @@
 # Strategy — What's Current
 
-Read these four documents for the definitive direction of Advisor Prep Hero as of 2026-06-29. Everything older is in `docs/archive/`.
+Read these four documents for the definitive direction of Advisor Prep Hero as of 2026-06-29. Note: this folder still contains many older docs that are intentionally current reference material (see the "Reference" section below). Only the clearly superseded pre-advisor-reaim strategy docs (May 2026 pricing/positioning/launch-readiness, the old "law practice" era docs) were moved to `docs/archive/strategy-2026-06-17/`.
 
 ## Active strategy documents (read these first)
 
