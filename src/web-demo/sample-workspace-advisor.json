@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "description": "Pre-seeded demo workspace for advisorprephero.com/try (financial advisor pack — the default). A fictional advisory household (the Webbs) so the demo shows the confidential-client-work story for an RIA / wealth manager, not founder content. The client folder holds realistic files the way an advisor actually keeps them: Word documents (the plan, the meeting notes) and PDFs (a custodian beneficiary record, a client intake), NOT markdown. Word docs are generated from each file's `content` at seed time; PDFs are pre-built committed assets in ./sample-docs (regenerate with `node scripts/build-demo-pdfs.mjs`). The plain-text `content` here is also what the demo's Ask retriever indexes and cites, so it must stay in sync with the binary. All names, numbers, and facts are invented for illustration. Bump version to re-seed.",
   "files": [
     {

@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "description": "Pre-seeded demo workspace for advisorprephero.com/try. A fictional solo-attorney matter (Halvorsen Estate) so the demo shows the confidential-client-work story, not founder content. All names and facts are invented for illustration. Bump version to re-seed.",
   "files": [
     {

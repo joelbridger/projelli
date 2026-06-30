@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "description": "Pre-seeded demo workspace for advisorprephero.com/try?profession=tax. A fictional CPA scenario (Thornwood Landscaping LLC home-office deduction question) so the demo shows the tax-professional story. All names and facts are invented for illustration. Bump version to re-seed.",
   "files": [
     {

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "description": "Pre-seeded demo workspace for advisorprephero.com/try?profession=consulting. A fictional consulting engagement (Meridian Growth Partners, a PE-backed manufacturer) so the demo shows the consultant story. All names and facts are invented for illustration. Bump version to re-seed.",
   "files": [
     {
