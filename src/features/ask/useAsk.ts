@@ -53,7 +53,14 @@ import {
   filterHitsByScope,
   bindAnswerCitations,
   buildRecentAskSessions,
+  dedupeRecognizedHits,
+  recognizeHit,
 } from './askHelpers';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import {
+  isExternalExportConsentGiven,
+  grantExternalExportConsent,
+} from '@/platform/rag/exportConsent';
 
 /** localStorage key for the conversations-rail collapsed preference. */
 const ASK_RAIL_COLLAPSED_KEY = 'keepance:ask-rail-collapsed';
@@ -67,6 +74,13 @@ const ASK_RAIL_COLLAPSED_KEY = 'keepance:ask-rail-collapsed';
  * entirely. Persisted so the choice survives reloads.
  */
 const ASK_FILES_ONLY_KEY = 'keepance:ask-files-only';
+
+/** Join tool labels for prose: ["RightCapital"] -> "RightCapital";
+ *  ["RightCapital","Jump"] -> "RightCapital and Jump". */
+function formatToolList(items: string[]): string {
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1] ?? ''}`;
+}
 
 export interface UseAskProps {
   onSaveToDocument?: (content: string) => Promise<void>;
@@ -100,6 +114,11 @@ export function useAsk({
   // next query goes to the cloud. Drives both the EgressIndicator `mode` prop
   // (passed from Ask) and the activeProvider re-resolution effect below.
   const confidentialityMode = useConfidentialityMode();
+  // Connector-access: promise-based dialog used to ask, once, for firm consent
+  // before exported RightCapital/Jump reports are sent to the AI. The dialog
+  // itself is rendered by Ask.tsx from `exportConsentDialogProps`.
+  const { confirm: confirmExportConsent, dialogProps: exportConsentDialogProps } =
+    useConfirmDialog();
   const isSampleMatterActive = activeMatter?.id === SAMPLE_MATTER_ID;
   // Profession-aware demo questions: a tax user on the sample matter sees tax
   // questions; a consultant sees consulting questions; legal is the default.
@@ -490,6 +509,10 @@ export function useAsk({
         failedStage = 'post-retrieval';
         // Apply client-side type filter for Email/Documents scopes.
         hits = filterHitsByScope(rawHits, askScope);
+        // Connector-access: collapse the SAME recognized export that arrived via
+        // two paths (e.g. a Jump note synced to Wealthbox AND saved as a
+        // SharePoint PDF) so it is never used as evidence twice in one answer.
+        hits = dedupeRecognizedHits(hits);
         const auditScope = buildAuditScope(retrievalScope);
         const topScore = hits.reduce<number | null>(
           (max, hit) => (max === null ? hit.score : Math.max(max, hit.score)),
@@ -535,7 +558,7 @@ export function useAsk({
        * binds citations ONLY inside files blocks against real retrieved chunks,
        * so an empty context can never produce a green, fake-cited claim.
        */
-      if (filesOnly && memoryEnabled && hits.length === 0) {
+      const emitNoEvidenceDecline = (): void => {
         const declineTurn: AskTurn = {
           question: q,
           answer: NO_EVIDENCE_DECLINE,
@@ -548,7 +571,61 @@ export function useAsk({
         setTurns((prev) => [...prev, declineTurn]);
         setStreamingTurn(null);
         setStatus('done');
+      };
+
+      // Ask-smart (Decision 3): only files-only mode dead-ends on no evidence;
+      // smart mode proceeds and leads with an honest nothing-found block.
+      if (filesOnly && memoryEnabled && hits.length === 0) {
+        emitNoEvidenceDecline();
         return;
+      }
+
+      /* Connector-access: one-time firm consent before exported reports/notes
+       * recognized from outside tools (RightCapital, Jump) are sent to the AI.
+       * Storing and AI-processing another tool's exported output is the advisor's
+       * (firm's) call, so we ask ONCE, record the decision in the audit log, and
+       * make it revocable in Settings. Declining excludes those exports from THIS
+       * answer (fail closed) rather than blocking the whole question. */
+      const recognizedTools = [
+        ...new Set(
+          hits.map((h) => recognizeHit(h)?.toolLabel).filter((t): t is string => !!t),
+        ),
+      ];
+      if (recognizedTools.length > 0) {
+        const alreadyConsented = isExternalExportConsentGiven();
+        if (!alreadyConsented) {
+          const toolsLabel = formatToolList(recognizedTools);
+          const consented = await confirmExportConsent(
+            `Keepance found a report you exported or saved from ${toolsLabel} among the files it would use to answer. Keepance reads exported files; it is not connected to ${toolsLabel}. Confirm your firm permits you to store this exported report in Keepance and use your chosen AI on it.`,
+            {
+              title: `Use exported reports from ${toolsLabel}?`,
+              confirmLabel: 'Yes, my firm permits this',
+              cancelLabel: 'Not now',
+            },
+          );
+          // The user can switch questions while this dialog is open; bail if so.
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal flips via an external AbortController across the await (ESLint can't see it; same async pattern baselined elsewhere in this file).
+          if (abort.signal.aborted) return;
+          onAuditLog?.(
+            auditEventToEntry({
+              type: 'external_export_consent',
+              timestamp: new Date().toISOString(),
+              payload: { given: consented, tools: recognizedTools },
+            }),
+          );
+          if (consented) {
+            grantExternalExportConsent();
+          } else {
+            // Fail closed: drop the recognized exports from this answer.
+            hits = hits.filter((h) => recognizeHit(h) === null);
+            // Only files-only mode dead-ends when that empties the evidence;
+            // smart mode proceeds (leads with an honest nothing-found block).
+            if (filesOnly && memoryEnabled && hits.length === 0) {
+              emitNoEvidenceDecline();
+              return;
+            }
+          }
+        }
       }
 
       /* Step 2: call the AI provider */
@@ -856,7 +933,7 @@ export function useAsk({
       // on error we put it back.
       setQuestion(q);
     }
-  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope, profession, filesOnly, onAuditLog, buildAuditScope]);
+  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope, profession, filesOnly, onAuditLog, buildAuditScope, confirmExportConsent]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -915,5 +992,7 @@ export function useAsk({
     handleSaveToDocument,
     onOpenFileAtPath,
     isBusy,
+    // Connector-access: props for the one-time export-consent dialog.
+    exportConsentDialogProps,
   };
 }

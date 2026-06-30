@@ -109,6 +109,7 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   'salesforce.connect': Users2,
   'salesforce.sync': Users2,
   'salesforce.disconnect': Users2,
+  external_export_consent: ShieldCheck,
 };
 
 const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -153,6 +154,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   'salesforce.connect': 'Salesforce Connected',
   'salesforce.sync': 'Salesforce Synced',
   'salesforce.disconnect': 'Salesforce Disconnected',
+  external_export_consent: 'Exported-Report Consent',
 };
 
 const ACTION_COLORS: Record<AuditActionType, string> = {
@@ -197,6 +199,7 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   'salesforce.connect': 'text-emerald-600 dark:text-emerald-400',
   'salesforce.sync': 'text-sky-600 dark:text-sky-400',
   'salesforce.disconnect': 'text-orange-600 dark:text-orange-400',
+  external_export_consent: 'text-sky-600 dark:text-sky-400',
 };
 
 export function AuditLog({

@@ -646,6 +646,12 @@ function describeAuditEvent(event: AuditEvent): string {
       return `Matter key published to members${event.payload.detail ? `: ${event.payload.detail}` : ''}`;
     case 'seat_revoked':
       return `Seat revoked by admin${event.payload.detail ? `: ${event.payload.detail}` : ` (seat ${event.payload.seat_id.slice(0, 12)})`}`;
+    case 'external_export_consent': {
+      const tools = event.payload.tools.length > 0 ? event.payload.tools.join(', ') : 'outside tools';
+      return event.payload.given
+        ? `Allowed storing and using exported reports from ${tools}`
+        : `Declined storing exported reports from ${tools} for this answer`;
+    }
     default:
       return event.type;
   }

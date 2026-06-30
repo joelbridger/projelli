@@ -55,7 +55,11 @@ export type AuditActionType =
   | 'wealthbox.disconnect'
   | 'salesforce.connect'
   | 'salesforce.sync'
-  | 'salesforce.disconnect';
+  | 'salesforce.disconnect'
+  // Connector-access: the advisor's one-time decision on whether their firm
+  // permits storing + AI-processing exported reports/notes recognized from
+  // outside tools (RightCapital, Jump). A defensible, timestamped record.
+  | 'external_export_consent';
 
 /**
  * The verdict from citation verification (mirrors `CitationVerdict.verdict`
@@ -145,6 +149,12 @@ export type AuditEvent =
    * nothing was exfiltrated or modified by a network-capable MCP server.
    */
   | { type: 'mcp_blocked'; timestamp: string; payload: { path: string; reason: string } }
+  /**
+   * Connector-access: the advisor's one-time consent decision on storing and
+   * AI-processing exported reports/notes Keepance recognized from outside tools.
+   * `tools` lists which were present when the prompt fired (e.g. ["RightCapital"]).
+   */
+  | { type: 'external_export_consent'; timestamp: string; payload: { given: boolean; tools: string[] } }
   | {
       type: 'mcp_matter_access_granted';
       timestamp: string;

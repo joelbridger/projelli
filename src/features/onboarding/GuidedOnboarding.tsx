@@ -21,7 +21,7 @@
 
 import { useState, useRef, type ReactNode } from 'react';
 import { Button } from '@/ui/button';
-import { Check, Upload, User, Building2 } from 'lucide-react';
+import { Check, Upload, User, Building2, FileDown } from 'lucide-react';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { readImageAsDataUrl } from '@/platform/utils/imageUpload';
 import { BRAND } from '@/config/brand';
@@ -923,6 +923,29 @@ function EmailStep({ tab, onTabChange, onBack, onAdvance }: EmailStepProps) {
         {tab === 'm365' && <MailConnect />}
         {tab === 'gmail' && <MailGmailConnect />}
         {tab === 'imap' && <MailImapConnect />}
+      </div>
+
+      {/* Connector-access: honest "we read your exports" note. Keepance reads
+          the plan reports / meeting notes other tools export into your files,
+          email, or cloud folders — it is NOT an integration with those tools.
+          Wording verified against the 2026-06-29 connector-access strategy doc's
+          "what we can honestly claim" table (never "integration"). */}
+      <div
+        data-testid="onboarding-reads-exports"
+        style={{
+          display: 'flex', gap: 10, alignItems: 'flex-start',
+          marginBottom: 20, padding: '12px 14px', borderRadius: 10,
+          background: 'rgba(10,37,64,0.04)', border: '1px solid hsl(214.3 31.8% 90%)',
+        }}
+      >
+        <FileDown size={16} strokeWidth={1.75} style={{ marginTop: 2, flex: 'none', color: 'var(--kp-accent)' }} aria-hidden="true" />
+        <div style={{ fontSize: 13, lineHeight: 1.5, color: 'hsl(215.4 16.3% 36%)' }}>
+          <strong style={{ color: 'var(--kp-navy)', fontWeight: 600 }}>Already use RightCapital or Jump?</strong>{' '}
+          Keepance also reads the plan reports and meeting notes you export or save from tools like
+          RightCapital and Jump, once they land in your files, email, or cloud folders. It files each
+          to the right client and shows when it was exported. Keepance reads your exported files; it
+          is not an integration with those tools.
+        </div>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid hsl(214.3 31.8% 90%)' }}>

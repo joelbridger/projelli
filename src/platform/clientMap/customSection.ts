@@ -1,6 +1,7 @@
 // src/platform/clientMap/customSection.ts
 import { MemoryService } from '@/platform/rag/MemoryService';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
+import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
 import { buildResolvedProviderForClientMap } from './provider';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { parseItems, itemsFromRaw, aiSectionPrompt } from './aiSection';
@@ -12,7 +13,11 @@ export async function buildCustomSection(
   title: string,
   prompt: string,
 ): Promise<ClientMapSection> {
-  const hits = await MemoryService.retrieve(prompt, 8, { kind: 'matter', matterId }, false);
+  // Connector-access: drop unconsented RightCapital/Jump exports at the source so
+  // the prompt context and the section items' citations use the same set.
+  const hits = filterHitsForExportConsent(
+    await MemoryService.retrieve(prompt, 8, { kind: 'matter', matterId }, false),
+  );
   const base: ClientMapSection = {
     id: sectionId,
     kind: 'custom',

@@ -1,6 +1,7 @@
 // src/platform/clientMap/generator.ts
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
+import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
 import { buildResolvedProviderForClientMap } from './provider';
 import { deriveCompleteness } from './completeness';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
@@ -78,10 +79,14 @@ export async function buildClientMap(
   const scope = { kind: 'matter' as const, matterId };
 
   // Retrieve per section first; if everything is empty, short-circuit.
+  // Connector-access: filter recognized RightCapital/Jump exports at the
+  // retrieval source when consent has not been given, so the prompt context, the
+  // generated items' citations, and the "any content?" decision all use the same
+  // consented set (no withheld export surfaces as a cited source).
   const perSection = await Promise.all(
-    CORE_SECTION_ORDER.map(async (key) => ({ key, hits: await MemoryService.retrieve(SECTION_QUERIES[key], TOP_K, scope, false) })),
+    CORE_SECTION_ORDER.map(async (key) => ({ key, hits: filterHitsForExportConsent(await MemoryService.retrieve(SECTION_QUERIES[key], TOP_K, scope, false)) })),
   );
-  const askHits = await MemoryService.retrieve(ASK_QUERY, TOP_K, scope, false);
+  const askHits = filterHitsForExportConsent(await MemoryService.retrieve(ASK_QUERY, TOP_K, scope, false));
   const anyContent = perSection.some((p) => p.hits.length > 0) || askHits.length > 0;
   const totalHits = perSection.reduce((sum, p) => sum + p.hits.length, 0) + askHits.length;
   const topScore = [...perSection.flatMap((p) => p.hits), ...askHits].reduce<number | null>(

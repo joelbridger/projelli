@@ -75,6 +75,16 @@ export const ONB_COPY = {
     connect: 'Connect',
     connected: 'Connected',
     desktopOnly: 'Available in the desktop app',
+    // Connector-access: honest "we read your exports" line. Keepance is not
+    // integrated with RightCapital or Jump; it reads the files those tools
+    // export or sync into the places you just connected. Wording is verified
+    // against docs/strategy/2026-06-29-connector-access-options-rightcapital-jump.md
+    // (the "what we can honestly claim" table) — never "integration".
+    worksWith: {
+      title: 'Already use RightCapital or Jump?',
+      body: 'Keepance also reads the plan reports and meeting notes you export or save from tools like RightCapital and Jump, once they land in the files, email, or folders you just connected. It files each one to the right client, shows when it was exported, and cites it in answers.',
+      disclaimer: 'Keepance reads your exported files and saved notes. It is not an official integration with these tools, and their names belong to their owners.',
+    },
   },
 
   firm: {
@@ -122,10 +132,15 @@ export const ONB_EXAMPLE_QUESTIONS: readonly string[] = [
  * "Coming soon" connector logos for the data screen — grayed out, in order.
  * Files live under /public/onboarding/logos.
  */
+// NOTE (connector-access): RightCapital is intentionally NOT in this list. A
+// grayed-out "COMING SOON" logo implies an official integration is on the way,
+// which would overclaim — Keepance reads RightCapital's EXPORTED plan PDFs
+// today, it does not integrate with it. That capability is stated honestly in
+// the "Already use RightCapital or Jump?" callout on the connect screen instead.
+// Jump is likewise represented only as a recognized export, never as a logo.
 export const ONB_COMING_SOON_LOGOS: readonly { name: string; file: string }[] = [
   { name: 'Redtail', file: 'redtail.svg' },
   { name: 'Salesforce', file: 'salesforce.svg' },
-  { name: 'RightCapital', file: 'rightcapital.svg' },
   { name: 'eMoney', file: 'emoney.svg' },
   { name: 'MoneyGuidePro', file: 'moneyguidepro.svg' },
   { name: 'Holistiplan', file: 'holistiplan.png' },
