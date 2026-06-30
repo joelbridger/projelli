@@ -58,6 +58,7 @@
     "_readme": "Source images, relative to brand/. Drop replacements here with the SAME filenames, then run sync — it copies them to every destination and regenerates the derived favicon/app-icon sizes.",
     "faviconSvg": "assets/favicon.svg",
     "logoSvg": "assets/logo.svg",
+    "logoSvgWhite": "assets/logo-white.svg",
     "wordmarkSvg": "assets/wordmark.svg",
     "iconSource": "assets/icon-source.png",
     "ogImage": "assets/og-image.png"
