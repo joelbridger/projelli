@@ -422,7 +422,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     }
 
     extractionInFlightRef.current = true;
-    (async () => {
+    void (async () => {
       try {
         let provider: Provider;
         switch (chatProvider) {
@@ -802,7 +802,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      void handleSendMessage();
     }
   }, [handleSendMessage]);
 

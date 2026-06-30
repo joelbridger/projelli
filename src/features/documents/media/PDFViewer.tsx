@@ -89,7 +89,7 @@ export function PDFViewer({ src, fileName = 'document.pdf', className, initialPa
 
   const handleOpenExternal = useCallback(() => {
     const url = blobUrl || src;
-    openExternal(url);
+    void openExternal(url);
   }, [blobUrl, src]);
 
   return (

@@ -152,7 +152,7 @@ export function ProjectManager({
               placeholder="Project name"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                  handleRename();
+                  void handleRename();
                 }
               }}
             />

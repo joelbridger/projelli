@@ -118,7 +118,7 @@ export function SourceFileEditor({
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         if (hasChanges && !isSaving) {
-          handleSave();
+          void handleSave();
         }
       }
     };

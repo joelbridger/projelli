@@ -93,7 +93,7 @@ export function useModelList(apiKeys: ApiKeyEntry[]): UseModelListReturn {
       }
     };
 
-    fetchAll();
+    void fetchAll();
 
     return () => { cancelled = true; };
   }, [apiKeys, confidentialityMode]);

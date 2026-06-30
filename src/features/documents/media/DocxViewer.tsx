@@ -51,7 +51,7 @@ export function DocxViewer({ src, fileName, className }: DocxViewerProps) {
     container.style.minHeight = '100%';
     shadow.appendChild(container);
 
-    (async () => {
+    void (async () => {
       try {
         const bytes = await parseDocxForPreview(src);
         if (cancelled) return;

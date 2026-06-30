@@ -312,7 +312,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   const handleMiddleClick = useCallback(
     (e: React.MouseEvent, path: string) => {
       if (e.button === 1) {
-        handleTabClose(e, path);
+        void handleTabClose(e, path);
       }
     },
     [handleTabClose]

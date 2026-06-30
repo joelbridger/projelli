@@ -360,7 +360,8 @@ function App() {
   const handleSaveApiKey = useCallback(
     async (provider: 'anthropic' | 'openai' | 'google', key: string) => {
       await rawSaveApiKey(provider, key);
-      refreshProvider(provider, key);
+      // Fire-and-forget: refreshing the model list shouldn't block the save.
+      void refreshProvider(provider, key);
     },
     [rawSaveApiKey, refreshProvider]
   );

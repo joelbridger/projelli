@@ -138,7 +138,7 @@ export function CommandPalette({
   const executeCommand = useCallback(
     (command: PaletteCommand) => {
       onOpenChange(false);
-      command.action();
+      void command.action();
       onExecute?.(command.id);
     },
     [onOpenChange, onExecute]

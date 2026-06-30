@@ -237,7 +237,7 @@ export function FileGridView({
                   if (node.type === 'folder') {
                     handleFolderClick(node.name);
                   } else {
-                    handleFileClick(node);
+                    void handleFileClick(node);
                   }
                 }}
                 className={cn(

@@ -60,7 +60,7 @@ export function useRagStatus(): RagStatusSnapshot {
     let unlisten: (() => void) | null = null;
     let cancelled = false;
 
-    (async () => {
+    void (async () => {
       try {
         const core = await import('@tauri-apps/api/core');
         if (!core.isTauri()) return;

@@ -267,7 +267,7 @@ export function MarkdownPreview({ content, className }: MarkdownPreviewProps) {
     ensureMermaidInit(isDark ? 'dark' : 'default');
 
     let cancelled = false;
-    (async () => {
+    void (async () => {
       for (const block of mermaidBlocks) {
         const target = root.querySelector<HTMLElement>(`[data-mermaid-id="${block.id}"]`);
         if (!target) continue;

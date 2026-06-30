@@ -146,7 +146,7 @@ function ProviderKeyCard({
   }, [keychainService, provider.id]);
 
   useEffect(() => {
-    loadKeyStatus();
+    void loadKeyStatus();
   }, [loadKeyStatus]);
 
   const handleSave = useCallback(async () => {

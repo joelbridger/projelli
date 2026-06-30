@@ -81,7 +81,7 @@ export function AudioPlayer({
         const normalized = filteredData.map(val => val / max);
         setWaveformData(normalized);
 
-        audioContext.close();
+        void audioContext.close();
       } catch (error) {
         console.error('Failed to generate waveform:', error);
         // Fallback to empty waveform
@@ -89,7 +89,7 @@ export function AudioPlayer({
       }
     };
 
-    generateWaveform();
+    void generateWaveform();
   }, [audioSrc]);
 
   // Draw waveform on canvas
@@ -146,7 +146,7 @@ export function AudioPlayer({
         audioRef.current.pause();
         setIsPlaying(false);
       } else {
-        audioRef.current.play();
+        void audioRef.current.play();
         setIsPlaying(true);
       }
     }

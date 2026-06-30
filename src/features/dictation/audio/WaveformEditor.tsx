@@ -148,7 +148,7 @@ export function WaveformEditor({
       plugins: [regions],
     });
 
-    wavesurfer.load(audioSrc);
+    void wavesurfer.load(audioSrc);
 
     wavesurfer.on('ready', () => {
       setDuration(wavesurfer.getDuration());
@@ -382,7 +382,7 @@ export function WaveformEditor({
         wavesurferRef.current.pause();
         setIsPlaying(false);
       } else {
-        wavesurferRef.current.play();
+        void wavesurferRef.current.play();
         setIsPlaying(true);
       }
     }

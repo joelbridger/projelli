@@ -163,12 +163,12 @@ export function SpreadsheetViewer({
           onDeleteRow={() => {
             const next = deleteRow(model, activeSheetIndex, selected);
             if (!next) return;
-            commitModel(next);
+            void commitModel(next);
           }}
           onDeleteCol={() => {
             const next = deleteCol(model, activeSheetIndex, selected);
             if (!next) return;
-            commitModel(next);
+            void commitModel(next);
           }}
         />
       )}
@@ -198,7 +198,7 @@ export function SpreadsheetViewer({
         }}
         onCommitEdit={(pos, value, nextMove) => {
           const nextModel = setCellValue(model, activeSheetIndex, pos, value);
-          commitModel(nextModel);
+          void commitModel(nextModel);
           setEditingValue(null);
           if (nextMove === 'down') {
             setSelected({ row: Math.min(pos.row + 1, activeSheet.rows.length - 1), col: pos.col });
@@ -211,7 +211,7 @@ export function SpreadsheetViewer({
         onCancelEdit={() => setEditingValue(null)}
         onDeleteCell={(pos) => {
           const nextModel = setCellValue(model, activeSheetIndex, pos, '');
-          commitModel(nextModel);
+          void commitModel(nextModel);
         }}
         onMoveSelection={(dir) => {
           if (!selected) return;
