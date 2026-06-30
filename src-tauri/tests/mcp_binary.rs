@@ -127,7 +127,7 @@ fn write_scope_state_with_updated_at(
             }
         ]
     });
-    let dir = workspace.join(".keepance");
+    let dir = workspace.join(".lantern");
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("mcp-session-scope.json"),
@@ -154,7 +154,7 @@ fn write_root_scope_state(workspace: &std::path::Path, network_lockdown: bool) {
             }
         ]
     });
-    let dir = workspace.join(".keepance");
+    let dir = workspace.join(".lantern");
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("mcp-session-scope.json"),
@@ -172,7 +172,7 @@ fn write_deny_all_scope_state(workspace: &std::path::Path) {
         "networkLockdown": true,
         "matters": []
     });
-    let dir = workspace.join(".keepance");
+    let dir = workspace.join(".lantern");
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("mcp-session-scope.json"),
@@ -224,7 +224,7 @@ fn initialize_returns_server_info_and_protocol_version() {
     assert_eq!(parsed["id"], 1);
     // Server-info + protocol version + capabilities are mandatory.
     let info = &parsed["result"]["serverInfo"];
-    assert_eq!(info["name"], "keepance");
+    assert_eq!(info["name"], "lantern");
     assert!(info["version"].is_string(), "got {info:?}");
     assert_eq!(parsed["result"]["protocolVersion"], "2025-03-26");
     assert!(parsed["result"]["capabilities"]["tools"].is_object());
@@ -619,7 +619,7 @@ fn root_granted_matter_still_denies_keepance_internal_files() {
 
     let read_resp = exchange(
         &mut child,
-        r#"{"jsonrpc":"2.0","id":331,"method":"tools/call","params":{"name":"read_workspace_file","arguments":{"path":".keepance/mcp-session-scope.json"}}}"#,
+        r#"{"jsonrpc":"2.0","id":331,"method":"tools/call","params":{"name":"read_workspace_file","arguments":{"path":".lantern/mcp-session-scope.json"}}}"#,
     );
     let read_parsed: serde_json::Value = serde_json::from_str(&read_resp).expect("valid JSON");
     assert_eq!(read_parsed["id"], 331);
@@ -646,7 +646,7 @@ fn root_granted_matter_still_denies_keepance_internal_files() {
         .as_str()
         .unwrap();
     assert!(list_text.contains("visible.md"), "got: {list_text}");
-    assert!(!list_text.contains(".keepance"), "got: {list_text}");
+    assert!(!list_text.contains(".lantern"), "got: {list_text}");
     assert!(
         !list_text.contains("mcp-session-scope.json"),
         "got: {list_text}"
@@ -656,7 +656,7 @@ fn root_granted_matter_still_denies_keepance_internal_files() {
     assert!(
         actions.iter().any(|(a, payload)| {
             a == "mcp_read"
-                && payload["metadata"]["path"] == ".keepance/mcp-session-scope.json"
+                && payload["metadata"]["path"] == ".lantern/mcp-session-scope.json"
                 && payload["metadata"]["result"] == "denied"
                 && payload["metadata"]["reason"] == "invalid_path"
         }),
