@@ -67,6 +67,7 @@ import { AskHitCard } from './AskHitCard';
 import { NoAccountsState } from './NoAccountsState';
 import { MailRow } from './MailRow';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
+import { useScrollPersistence } from './useScrollPersistence';
 import { EV_OPEN_SETTINGS } from '@/config/identity';
 
 // ── Props ──────────────────────────────────────────────────────────────────
@@ -574,23 +575,7 @@ export function EmailWorkspace({
     : items;
 
   // Fix 7: persist list scroll position per-matter in sessionStorage
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const scrollKey = `email-scroll-${activeMatter?.id ?? 'all'}`;
-
-  // Restore scroll on mount
-  useEffect(() => {
-    const saved = sessionStorage.getItem(scrollKey);
-    if (saved && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = Number(saved);
-    }
-    // Save scroll on unmount
-    const el = scrollContainerRef.current;
-    return () => {
-      if (el) {
-        sessionStorage.setItem(scrollKey, String(el.scrollTop));
-      }
-    };
-  }, [scrollKey]);
+  const { scrollContainerRef } = useScrollPersistence(activeMatter);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
