@@ -338,7 +338,7 @@ export function WaveformEditor({
       const idx = historyIndexRef.current;
       // Truncate redo tail at current index.
       const base = prev.slice(0, idx + 1);
-      let next = [...base, newBuffer];
+      const next = [...base, newBuffer];
 
       // Evict oldest until total <= cap.
       let total = next.reduce((sum, b) => sum + bufferBytes(b), 0);

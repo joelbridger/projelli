@@ -95,7 +95,7 @@ export class TauriFSBackend implements FSBackend {
     const separator = isWindows ? '\\' : '/';
 
     // Normalize the relative path to use the same separator as rootPath
-    let normalized = relativePath.replace(/[\/\\]/g, separator);
+    let normalized = relativePath.replace(/[/\\]/g, separator);
 
     // Remove leading separator if present
     if (normalized.startsWith(separator)) {

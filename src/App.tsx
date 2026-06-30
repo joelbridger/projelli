@@ -340,11 +340,16 @@ function App() {
   // consistent across all of them. KeychainService.setKey/getKey/deleteKey use
   // the OS keychain in Tauri and obfuscated localStorage in browser-only dev —
   // the raw key is NEVER written to plain localStorage.
-  const keychainRef = useRef(createKeychainService());
+  // Lazy useState (not useRef): this singleton is created exactly once and never
+  // reassigned, so reading it during render is safe — and lazy init avoids the
+  // wasteful per-render `new KeychainService()` (whose constructor runs
+  // loadMetadata) that useRef(createKeychainService()) incurred. Satisfies
+  // react-hooks/refs (no ref read during render).
+  const [keychainService] = useState(() => createKeychainService());
 
   // API key management — all persistence routes through the shared keychain.
   const { apiKeys, handleSaveApiKey: rawSaveApiKey, handleDeleteApiKey } = useApiKeys(
-    keychainRef.current
+    keychainService
   );
 
   // Model list auto-fetching
@@ -1297,7 +1302,7 @@ function App() {
         handleSaveOnboardingApiKey={handleSaveOnboardingApiKey}
         apiKeyManagerOpen={apiKeyManagerOpen}
         setApiKeyManagerOpen={setApiKeyManagerOpen}
-        apiKeyKeychain={keychainRef.current}
+        apiKeyKeychain={keychainService}
         onApiKeyRemoved={handleRemoveApiKey}
         showShortcutsOverlay={showShortcutsOverlay}
         setShowShortcutsOverlay={setShowShortcutsOverlay}

@@ -120,7 +120,7 @@ Keep this section direct and practitioner-facing.]
 
 ---
 
-*This checklist is tailored to the information provided. Review for any items specific to this client\'s situation that were not captured above. Verify all figures against source documents before filing.*`;
+*This checklist is tailored to the information provided. Review for any items specific to this client's situation that were not captured above. Verify all figures against source documents before filing.*`;
 
 export const PreReviewChecklist: WorkflowTemplate = {
   id: 'tax-pre-review-checklist',

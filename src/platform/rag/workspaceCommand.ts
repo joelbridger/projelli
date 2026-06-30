@@ -224,7 +224,7 @@ export interface ParsedCitation {
  *  context block (buildWorkspaceContextBlock), so the parser must accept it or
  *  a legitimate scanned-PDF answer would render uncited (BUG-016 review). */
 const CITATION_RE =
-  /\[([^\[\]\n]+?)\s+(?:paragraph\s+|page\s+|§\s*)(\d+)\]/gi;
+  /\[([^[\]\n]+?)\s+(?:paragraph\s+|page\s+|§\s*)(\d+)\]/gi;
 
 /**
  * Scan a message for inline citations. Returns them in source order,
