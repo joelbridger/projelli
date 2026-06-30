@@ -19,6 +19,7 @@ import { useFileOperations } from '@/app/fileOps/useFileOperations';
 import { useDocumentCreation } from '@/app/fileOps/useDocumentCreation';
 import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
 import { useAudioRecording } from '@/app/lifecycle/useAudioRecording';
+import { useAIRulesFile } from '@/app/lifecycle/useAIRulesFile';
 import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelector';
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
@@ -1103,41 +1104,13 @@ function App() {
     templatesMarketplaceServiceRef,
   });
 
-  // Handle opening AI Rules file
-  const handleOpenAIRules = useCallback(async () => {
-    if (!rootPath || !workspaceServiceRef.current) return;
-
-    const rulesPath = `${rootPath}/ai-rules.md`;
-
-    try {
-      // Check if file exists
-      const exists = await workspaceServiceRef.current.exists(rulesPath);
-
-      if (!exists) {
-        // Create default AI rules file
-        const defaultContent = `# AI Rules
-
-This file contains rules and guidelines for AI assistants in this workspace.
-
-## General Guidelines
-- Be helpful, accurate, and concise
-- Follow user instructions carefully
-- Ask for clarification when needed
-
-## Specific Rules
-- Add your custom rules here
-- AI will read and follow these rules in all chats
-`;
-        await workspaceServiceRef.current.writeFile(rulesPath, defaultContent);
-        refreshFileTree();
-      }
-
-      // Open the file
-      await handleFileOpen(rulesPath, 'ai-rules.md');
-    } catch (error) {
-      console.error('Failed to open AI rules file:', error);
-    }
-  }, [rootPath, handleFileOpen, refreshFileTree]);
+  // Handle opening AI Rules file (extracted to useAIRulesFile)
+  const { handleOpenAIRules } = useAIRulesFile({
+    rootPath,
+    workspaceServiceRef,
+    handleFileOpen,
+    refreshFileTree,
+  });
 
 
   // Autosave dirty tabs every 2 seconds. See src/app/lifecycle/useAutosave.ts.
