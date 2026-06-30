@@ -45,8 +45,12 @@ import { FILE_ACCESS_TOOLS } from '@/platform/tools/fileAccessTools';
 import type { useActiveMatter } from '@/platform/matter/matterStore';
 import { getActiveScope, useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
-import { useEditorStore, tabHasUnsavedEdits, isFileOpenInEditor, hasOpenDescendant } from '@/platform/state/editorStore';
+import {
+  pathInActiveMatter as pathInActiveMatterGuard,
+  assertInActiveMatter as assertInActiveMatterGuard,
+  assertNotOpenWithUnsavedEdits,
+  assertNoOpenDescendant,
+} from './fileAccessGuards';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { isBinaryFile } from '@/platform/utils/file-utils';
 import { moveToTrash } from '@/platform/history/trashFile';
@@ -92,7 +96,6 @@ import type { ChatSession, ChatCostEntry } from '@/platform/state/aiChatStore';
 import { buildOpenFilesPromptBlock, refusalKeyForReason } from '../AIChatViewer';
 import type { APIKey } from '../AIChatViewer';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
-import { getEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { EV_TRASH_CHANGED } from '@/config/identity';
 
 export interface UseChatSendingDeps {
@@ -861,52 +864,14 @@ export function useChatSending(deps: UseChatSendingDeps) {
         const toolActiveMatterId = retrievalScope.kind === 'matter' ? retrievalScope.matterId : null;
         const activeMatterName = activeMatter ? matterLabel(activeMatter) : null;
         const activeMatterFolders = activeMatter?.folderPaths ?? [];
+        // Matter-scope + open-editor guards (BUG-036/047/063) — bodies live in
+        // fileAccessGuards.ts; these thin closures bind THIS send's matter scope
+        // so every tool call site below stays byte-identical. assertNotOpenWithUnsavedEdits
+        // and assertNoOpenDescendant take no scope, so they're imported directly.
         const pathInActiveMatter = (absPath: string): boolean =>
-          pathInMatterScope(absPath, toolActiveMatterId, toolMatters);
-        const assertInActiveMatter = (absPath: string, relativePath: string): void => {
-          if (pathInActiveMatter(absPath)) return;
-          // Distinguish a '..' traversal (rejected in any scope) from a genuine
-          // cross-matter access (only blocked when a specific matter is active).
-          if (relativePath.split(/[\\/]/).some((seg) => seg === '..')) {
-            throw new Error(`Access denied: path "${relativePath}" must not contain "..".`);
-          }
-          throw new Error(
-            `Access denied: "${relativePath}" is outside the active ${getEntityLabel().one} (${activeMatterName ?? 'none'}). ` +
-              `Switch the chat scope to "All ${getEntityLabel().other}" to work across ${getEntityLabel().other}.`,
-          );
-        };
-        // BUG-047: refuse to write/move/delete a file the user has OPEN with
-        // UNSAVED edits — otherwise the AI's write clobbers their unsaved work
-        // (or the next autosave clobbers the AI's write). Fail closed with a
-        // clear message so the model asks the user to save/close it first.
-        const assertNotOpenWithUnsavedEdits = (absPath: string, relativePath: string): void => {
-          const tabs = useEditorStore.getState().openTabs;
-          if (!isFileOpenInEditor(absPath, tabs)) return;
-          if (tabHasUnsavedEdits(absPath, tabs)) {
-            throw new Error(
-              `Cannot modify "${relativePath}": it's open in the editor with UNSAVED changes. ` +
-                `To avoid overwriting the user's work, ask them to save or close it first, then try again.`,
-            );
-          }
-          // BUG-047 #7: even a CLEAN open file is refused — the editor would show
-          // stale content after the write, and the user could then clobber it.
-          throw new Error(
-            `Cannot modify "${relativePath}": it's open in the editor. Ask the user to close it first ` +
-              `(or use the in-editor AI to edit an open document) so the editor doesn't show stale content.`,
-          );
-        };
-        // BUG-063 sibling: moving/deleting a FOLDER whose child file is open
-        // would leave that child tab on a now-invalid path, and the autosave
-        // could re-write its stale content back — resurrecting a deleted file or
-        // duplicating after a move. Refuse if any descendant is open.
-        const assertNoOpenDescendant = (absPath: string, relativePath: string): void => {
-          if (hasOpenDescendant(absPath, useEditorStore.getState().openTabs)) {
-            throw new Error(
-              `Cannot modify "${relativePath}": a file inside it is open in the editor. Ask the user to ` +
-                `close open files under this folder first, so the editor doesn't show (and can't re-save) stale content.`,
-            );
-          }
-        };
+          pathInActiveMatterGuard(absPath, toolActiveMatterId, toolMatters);
+        const assertInActiveMatter = (absPath: string, relativePath: string): void =>
+          assertInActiveMatterGuard(absPath, relativePath, { toolActiveMatterId, toolMatters, activeMatterName });
 
         // BUG-060: per-action approval. Before the AI overwrites/deletes/moves
         // (or, in "always" mode, before any change), pause and show the user a
