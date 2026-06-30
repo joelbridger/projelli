@@ -5,6 +5,7 @@
 
 import type { FSBackend } from '@/platform/fs/types';
 import { MarketplaceService } from './MarketplaceService';
+import { WORKSPACE_DATA_DIR } from '@/config/identity';
 
 export const TEMPLATES_REPO_URL =
   'https://raw.githubusercontent.com/keepance/community-templates/main';
@@ -33,8 +34,8 @@ export function createTemplatesMarketplaceService(
   return new MarketplaceService({
     repoUrl: opts.repoUrl ?? TEMPLATES_REPO_URL,
     catalogPath: opts.catalogPath ?? TEMPLATES_CATALOG_PATH,
-    cachePath: `${root}/.keepance/cache/templates.json`,
-    installRoot: `${root}/.keepance/templates`,
+    cachePath: `${root}/${WORKSPACE_DATA_DIR}/cache/templates.json`,
+    installRoot: `${root}/${WORKSPACE_DATA_DIR}/templates`,
     fs,
     provenance: 'community',
   });

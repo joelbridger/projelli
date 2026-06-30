@@ -97,3 +97,14 @@ export const EV_DESIGN_PARTNER_CONSENT_CHANGE    = `${APP_NS}:design-partner-con
 export const EV_TELEMETRY_CONSENT_CHANGE         = `${APP_NS}:telemetry-consent-change`;
 export const EV_DEMO_LIMIT_HIT                   = `${APP_NS}:demo-limit-hit`;
 export const EV_DEMO_MESSAGE_SENT                = `${APP_NS}:demo-message-sent`;
+
+// ── Workspace filesystem ───────────────────────────────────────────────────────
+
+/** Hidden directory inside a workspace root where app-internal stores live. */
+export const WORKSPACE_DATA_DIR = `.${APP_NS}`;
+
+/** Vault metadata filename hidden from file-tree listings. */
+export const VAULT_METADATA_FILENAME = `.${APP_NS}-vault.json`;
+
+/** Relative path of the MCP session scope file inside a workspace. */
+export const MCP_SESSION_SCOPE_REL_PATH = `${WORKSPACE_DATA_DIR}/mcp-session-scope.json`;

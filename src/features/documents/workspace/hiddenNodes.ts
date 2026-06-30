@@ -11,8 +11,10 @@
  * Display-only: the underlying files are untouched and still readable by the app.
  */
 
+import { WORKSPACE_DATA_DIR } from '@/config/identity';
+
 /** Advisor Prep Hero-internal entry names, hidden from the file UI regardless of settings. */
-const KEEPANCE_INTERNAL_NAMES = new Set(['.keepance']);
+const KEEPANCE_INTERNAL_NAMES = new Set([WORKSPACE_DATA_DIR]);
 
 /** True when a node is a Advisor Prep Hero-internal entry that must never be shown. */
 export function isHiddenNode(node: { name: string }): boolean {

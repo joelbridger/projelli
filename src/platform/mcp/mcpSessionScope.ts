@@ -1,7 +1,7 @@
 import type { Matter } from '@/platform/types/matter';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-
-export const MCP_SESSION_SCOPE_REL_PATH = '.keepance/mcp-session-scope.json';
+export { MCP_SESSION_SCOPE_REL_PATH } from '@/config/identity';
+import { MCP_SESSION_SCOPE_REL_PATH } from '@/config/identity';
 
 interface McpSessionMatter {
   id: string;

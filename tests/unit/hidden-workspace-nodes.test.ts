@@ -14,7 +14,7 @@ import {
 
 describe('hidden workspace nodes', () => {
   it('hides Keepance-internal entries (.keepance)', () => {
-    expect(isHiddenNode({ name: '.keepance' })).toBe(true);
+    expect(isHiddenNode({ name: '.lantern' })).toBe(true);
   });
 
   it('does NOT hide ordinary dotfiles — they keep their Show-Hidden behaviour', () => {
@@ -33,7 +33,7 @@ describe('hidden workspace nodes', () => {
   it('filters ONLY .keepance out of a listing, keeping order and the rest', () => {
     const nodes = [
       { name: 'docs' },
-      { name: '.keepance' },
+      { name: '.lantern' },
       { name: '.gitignore' },
       { name: 'clients' },
     ];
