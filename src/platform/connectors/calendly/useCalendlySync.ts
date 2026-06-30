@@ -5,7 +5,7 @@ import {
   CALENDLY_SYNC_EVENT,
   type CalendlySyncProgress,
 } from '@/platform/utils/calendly-commands';
-import { useCalendlyStore } from '@/features/calendly/calendlyStore';
+import { useCalendlyStore } from '@/platform/connectors/calendly/calendlyStore';
 
 export function useCalendlySync(): void {
   const setProgress = useCalendlyStore((s) => s.setProgress);

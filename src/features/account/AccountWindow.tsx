@@ -28,7 +28,7 @@ import { ShareFileConnect } from '@/platform/connectors/sharefile/ShareFileConne
 import { JotformConnect } from '@/platform/connectors/jotform/JotformConnect';
 import { ZocksConnect } from '@/platform/connectors/zocks/ZocksConnect';
 import { AddeparConnect } from '@/platform/connectors/addepar/AddeparConnect';
-import { CalendlyConnect } from '@/features/settings/CalendlyConnect';
+import { CalendlyConnect } from '@/platform/connectors/calendly/CalendlyConnect';
 import { SalesforceConnect } from '@/features/settings/SalesforceConnect';
 import { RedtailConnect } from '@/features/settings/RedtailConnect';
 import { McpSettingsSection } from '@/features/settings/McpSettingsSection';
