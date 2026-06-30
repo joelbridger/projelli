@@ -27,6 +27,10 @@ import type { RagHit, CitationVerdict } from '@/platform/utils/tauri-commands';
 import { ragVerifyCitation } from '@/platform/utils/tauri-commands';
 import type { WorkspaceSource } from '@/platform/types/ai';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
+import {
+  recognizeProvenance,
+  describeProvenanceForPrompt,
+} from '@/platform/rag/sourceProvenance';
 
 /** The bare verdict string from citation verification (the `verdict` field of
  *  the backend's discriminated `CitationVerdict`). */
@@ -114,6 +118,19 @@ export function citationBasename(path: string): string {
  */
 export function buildWorkspaceContextBlock(hits: RagHit[]): string {
   if (hits.length === 0) return '';
+  // Connector-access: stamp a freshness/snapshot note on the source header of any
+  // hit recognized as the OUTPUT of an external tool (a RightCapital plan, a Jump
+  // meeting note) so the model can state the export date and treat it as a
+  // point-in-time snapshot rather than implying it read the tool live.
+  const now = new Date();
+  const provenances = hits.map((hit) =>
+    recognizeProvenance({
+      path: hit.path || hit.sourceId,
+      text: hit.chunkText,
+      sourceType: hit.sourceType,
+    }),
+  );
+  const hasRecognizedExport = provenances.some((p) => p !== null);
   const sourceLines = hits
     .map((hit, idx) => {
       const n = idx + 1;
@@ -122,14 +139,31 @@ export function buildWorkspaceContextBlock(hits: RagHit[]): string {
         hit.sourceType === 'pdf' && hit.pageNumber != null
           ? `page ${hit.pageNumber}`
           : `paragraph ${hit.paragraphIndex}`;
+      const provenance = provenances[idx];
+      const provNote = provenance
+        ? ` (source: ${describeProvenanceForPrompt(provenance, now)})`
+        : '';
       // Sanitize chunk text before embedding — email is attacker-controlled.
       // sanitizeForPrompt escapes ``` delimiters, role prefixes (SYSTEM: etc.),
       // XML instruction tags, and control characters without altering the
       // [N] source header line or the citation numbering contract.
       const safeChunk = sanitizeForPrompt(hit.chunkText);
-      return `[${n}] ${hit.path} ${location}\n${safeChunk}`;
+      return `[${n}] ${hit.path} ${location}${provNote}\n${safeChunk}`;
     })
     .join('\n\n');
+  // When any source is a recognized external export, tell the model to be honest
+  // about it: state the export date, frame it as a snapshot (not live), and flag
+  // an old plan. This guidance lives in the context block (not the base prompt)
+  // so it only appears when relevant and the answer-quality eval exercises it.
+  const freshnessGuidance = hasRecognizedExport
+    ? '\n\nSome sources above are point-in-time exports from outside tools (for ' +
+      'example a RightCapital plan or a Jump meeting note), marked with "source:" ' +
+      'on their header. When you rely on one, state the export date in your answer ' +
+      '(for example "as of your RightCapital plan from Jun 12, 2026") and make clear ' +
+      'the figures are from that snapshot, not live. If such a plan is more than a ' +
+      'few months old, briefly note it may be out of date. Never imply Keepance is ' +
+      'connected to or integrated with these tools; it reads the files they export.'
+    : '';
   return (
     '<workspace_context>\n' +
     // Prompt-injection envelope: explicitly frame the following content as
@@ -151,7 +185,8 @@ export function buildWorkspaceContextBlock(hits: RagHit[]): string {
     'when possible. Cite sources inline using the format ' +
     '`[filename paragraph N]` where `filename` is the basename from the ' +
     'citation header and `N` is the paragraph number or page number. If the answer ' +
-    'cannot be found in the workspace context, say so plainly.'
+    'cannot be found in the workspace context, say so plainly.' +
+    freshnessGuidance
   );
 }
 

@@ -8,6 +8,11 @@ import {
   parseCitations,
   resolveCitationPath,
 } from '@/platform/rag/workspaceCommand';
+import {
+  recognizeProvenance,
+  provenanceDedupeKey,
+  type RecognizedProvenance,
+} from '@/platform/rag/sourceProvenance';
 import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
@@ -90,6 +95,14 @@ export interface AnswerCitation {
    * citations.
    */
   matterId?: string;
+  /**
+   * Connector-access: present when this source was recognized as the OUTPUT of
+   * an external advisor tool (a RightCapital plan PDF, a Jump meeting note). It
+   * drives the honest "exported from RightCapital" badge on the source card and
+   * the stale-plan freshness warning. Absent on every ordinary source. See
+   * `@/platform/rag/sourceProvenance`.
+   */
+  provenance?: RecognizedProvenance;
 }
 
 export interface AskTurn {
@@ -738,6 +751,44 @@ function findSourceForHit(sources: WorkspaceSource[], hit: RagHit): WorkspaceSou
   );
 }
 
+/**
+ * Connector-access: recognize whether a RAG hit is the OUTPUT of an external
+ * advisor tool (a RightCapital plan, a Jump meeting note). Pure adapter from a
+ * `RagHit` to the recognizer's input — uses the display path (falling back to
+ * the resolvable source id) for the filename signal and the chunk text for the
+ * branding/structure signal. Returns null for the ordinary majority of sources.
+ */
+export function recognizeHit(hit: RagHit): RecognizedProvenance | null {
+  return recognizeProvenance({
+    path: hit.path || hit.sourceId,
+    text: hit.chunkText,
+    sourceType: hit.sourceType,
+  });
+}
+
+/**
+ * Connector-access: collapse duplicate recognized exports that arrived through
+ * two paths — e.g. the same Jump meeting note synced into Wealthbox AND saved
+ * as a SharePoint PDF — so the same note is never indexed-as-evidence twice in
+ * one answer. Keyed by tool + kind + date + matter (only artifacts with a
+ * detectable date are merged; undated ones and all ordinary sources pass
+ * through untouched). Keeps the FIRST occurrence (retrieval order = relevance).
+ */
+export function dedupeRecognizedHits(hits: RagHit[]): RagHit[] {
+  const seen = new Set<string>();
+  const out: RagHit[] = [];
+  for (const hit of hits) {
+    const prov = recognizeHit(hit);
+    const key = prov ? provenanceDedupeKey(prov, hit.matterId) : null;
+    if (key !== null) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    out.push(hit);
+  }
+  return out;
+}
+
 function citationFromHit(
   hit: RagHit,
   n: number,
@@ -749,6 +800,7 @@ function citationFromHit(
     expectedMatterId === null ||
     hit.matterId === undefined ||
     hit.matterId === expectedMatterId;
+  const provenance = recognizeHit(hit);
 
   return {
     n,
@@ -760,6 +812,7 @@ function citationFromHit(
     paragraphIndex: hit.paragraphIndex,
     ...(hit.id !== undefined ? { id: hit.id } : {}),
     ...(hit.matterId !== undefined ? { matterId: hit.matterId } : {}),
+    ...(provenance ? { provenance } : {}),
   };
 }
 

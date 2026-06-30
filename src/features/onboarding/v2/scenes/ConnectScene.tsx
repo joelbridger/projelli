@@ -15,7 +15,7 @@
  */
 
 import { useState } from 'react';
-import { Lock, Monitor, EyeOff, ChevronDown } from 'lucide-react';
+import { Lock, Monitor, EyeOff, ChevronDown, FileDown } from 'lucide-react';
 
 import { MailConnect } from '@/features/settings/MailConnect';
 import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
@@ -77,6 +77,25 @@ export function ConnectScene() {
             </div>
           </div>
         ) : null}
+      </div>
+
+      {/* Connector-access: honest "we read your exports" line. Keepance reads
+          the plan reports / meeting notes other tools export into the places
+          just connected — it is NOT an integration with those tools. */}
+      <div
+        data-testid="connect-works-with-exports"
+        className="mt-8 w-full max-w-[760px] rounded-[20px] border border-[rgba(var(--kp-navy-rgb),0.10)] bg-[var(--kp-bg-soft,#f1f5f9)] p-6 text-left"
+      >
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-full bg-white shadow-sm">
+            <FileDown className="h-[18px] w-[18px] text-[var(--kp-accent)]" strokeWidth={1.75} aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-bold text-[var(--kp-navy)]">{C.worksWith.title}</div>
+            <p className="mt-1 text-sm leading-relaxed text-[#41506a]">{C.worksWith.body}</p>
+            <p className="mt-2 text-xs leading-relaxed text-[#6b7a90]">{C.worksWith.disclaimer}</p>
+          </div>
+        </div>
       </div>
 
       {/* Coming soon */}

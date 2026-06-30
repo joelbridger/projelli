@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import type { KeyboardEvent, MouseEvent } from 'react';
-import { FileText, ShieldCheck, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { FileText, ShieldCheck, CheckCircle2, AlertTriangle, Loader2, Clock, ExternalLink } from 'lucide-react';
 import type { AnswerCitation } from './askHelpers';
 import { ragVerifyCitation, type CitationVerdict } from '@/platform/utils/tauri-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import type { AuditEntry } from '@/platform/types/audit';
+import { provenanceBadgeLabel, isStalePlan } from '@/platform/rag/sourceProvenance';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
 
 /* -------------------------------------------------------------------------- */
 /* SourcePanel — the SOURCES column. A list of clean white numbered cards,     */
@@ -46,6 +49,56 @@ function problemMessage(v: CitationVerdict['verdict']): string {
     default:
       return 'Could not verify';
   }
+}
+
+/**
+ * Honest provenance chip for a recognized external export. Renders nothing for
+ * an ordinary source. For a recognized RightCapital plan / Jump note it shows
+ * "exported from RightCapital · Jun 12, 2026"; for a stale plan it switches to
+ * an amber "may be out of date" treatment so a snapshot is never mistaken for
+ * live data.
+ */
+function ProvenanceBadge({ cite }: { cite: AnswerCitation }) {
+  const staleDays = useSettingsStore(
+    (s) => s.getSetting<number>(EXTERNAL_EXPORT_STALE_DAYS_KEY),
+  );
+  const prov = cite.provenance;
+  if (!prov) return null;
+  const stale = isStalePlan(prov, new Date(), staleDays);
+  const Icon = stale ? Clock : ExternalLink;
+  return (
+    <div
+      data-testid="provenance-badge"
+      data-tool={prov.tool}
+      data-stale={stale ? 'true' : 'false'}
+      title={
+        stale
+          ? 'This plan is an exported snapshot and may be out of date. Re-export from the tool for the latest.'
+          : 'Keepance reads the file you exported or saved from this tool. It is a point-in-time snapshot, not a live connection.'
+      }
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        marginBottom: 7,
+        padding: '2px 8px',
+        borderRadius: 999,
+        fontSize: 11,
+        fontWeight: 600,
+        lineHeight: 1.4,
+        maxWidth: '100%',
+        background: stale ? 'var(--kp-direct-bg, #fef3c7)' : 'var(--kp-bg-soft, #f1f5f9)',
+        color: stale ? 'var(--kp-direct, #b45309)' : 'var(--kp-text-dim)',
+        border: `1px solid ${stale ? 'rgba(180,83,9,0.35)' : 'var(--kp-divider)'}`,
+      }}
+    >
+      <Icon size={11} strokeWidth={2} style={{ flex: 'none' }} />
+      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {provenanceBadgeLabel(prov)}
+        {stale ? ' · may be out of date' : ''}
+      </span>
+    </div>
+  );
 }
 
 function SourceCard({
@@ -165,6 +218,12 @@ function SourceCard({
           {cite.label}
         </span>
       </div>
+
+      {/* Connector-access: honest provenance badge for a recognized external
+          export (a RightCapital plan, a Jump meeting note). Says "exported from
+          RightCapital", never "integrated" — and turns amber when a plan
+          snapshot is older than the configured limit. */}
+      <ProvenanceBadge cite={cite} />
 
       {/* Grey quote with a quiet left rule */}
       <div

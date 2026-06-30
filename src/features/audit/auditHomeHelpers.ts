@@ -110,6 +110,7 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   'salesforce.connect': Users2,
   'salesforce.sync': Users2,
   'salesforce.disconnect': Users2,
+  external_export_consent: ShieldCheck,
 };
 
 export const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -152,6 +153,7 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   'salesforce.connect': 'Salesforce Connected',
   'salesforce.sync': 'Salesforce Synced',
   'salesforce.disconnect': 'Salesforce Disconnected',
+  external_export_consent: 'Exported-Report Consent',
 };
 
 /** Semantic category per action, drives colour + grouping in filters. */
@@ -197,6 +199,7 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   'salesforce.connect': 'system',
   'salesforce.sync': 'system',
   'salesforce.disconnect': 'system',
+  external_export_consent: 'privilege',
 };
 
 export const CATEGORY_COLOR: Record<ActionCategory, string> = {

@@ -222,6 +222,53 @@ exists for these on this branch.
 
 ---
 
+## Recognized exports (NOT connectors): RightCapital, Jump
+
+Some tools — notably **RightCapital** (financial plans) and **Jump** (AI meeting
+notes) — have no usable read API, but their valuable *output* already lands in
+places Keepance reads: a plan PDF the advisor exports into a OneDrive/SharePoint
+client folder, a Jump note synced into Wealthbox or saved as a SharePoint PDF.
+Per [`2026-06-29-connector-access-options-rightcapital-jump.md`](../strategy/2026-06-29-connector-access-options-rightcapital-jump.md),
+Keepance does **not** build branded connectors for these. Instead they are
+**recognized source types inside the generic ingester** — an honest, additive
+overlay, not a connector.
+
+This is implemented entirely in **TypeScript at retrieval/answer time** — there
+is **no Rust change, no new RAG `source_type`, and nothing touched in
+`connector/mod.rs`.** A recognized RightCapital plan is still a `pdf`/`onedrive`
+source; a recognized Jump note is still a `crm`/`pdf` source. Recognition is
+metadata computed *on top* of the existing hit, so it works uniformly for every
+arrival path (local watched folder, OneDrive/SharePoint, Wealthbox, email).
+
+| Piece | Where |
+|---|---|
+| Recognizer (pure, unit-tested) | [`src/platform/rag/sourceProvenance.ts`](../../src/platform/rag/sourceProvenance.ts) — `recognizeProvenance`, date extraction, `isStalePlan`, dedupe key, presentation helpers |
+| Hit adapter + dedupe | [`src/features/ask/askHelpers.ts`](../../src/features/ask/askHelpers.ts) — `recognizeHit`, `dedupeRecognizedHits`; `AnswerCitation.provenance` |
+| Model context annotation | [`src/platform/rag/workspaceCommand.ts`](../../src/platform/rag/workspaceCommand.ts) — recognized sources marked as dated snapshots |
+| Consent gate + dedupe wiring | [`src/features/ask/useAsk.ts`](../../src/features/ask/useAsk.ts) |
+| Citation badge + stale chip | [`src/features/ask/SourcePanel.tsx`](../../src/features/ask/SourcePanel.tsx) |
+| Stale-plan answer warning | [`src/features/ask/TurnBlock.tsx`](../../src/features/ask/TurnBlock.tsx) |
+| Consent setting + stale threshold | [`src/platform/settings/schema.ts`](../../src/platform/settings/schema.ts) — `externalExportConsent`, `externalExportStaleDays` |
+| Consent audit event | `external_export_consent` in [`src/platform/types/audit.ts`](../../src/platform/types/audit.ts) |
+| Onboarding line | `onboarding/v2/scenes/ConnectScene.tsx` + `GuidedOnboarding.tsx` |
+
+**Recognition is deliberately conservative** (better to miss than mislabel): a
+strong signal is required — the export filename (`RightCapital-Plan-…pdf`,
+`Jump-Note-…pdf`) OR the tool's own branding in the body *together with* the
+document's structure. An email or note that merely *mentions* a tool is never
+tagged; mail is never treated as an export.
+
+**Honesty rules baked in** (from the strategy doc's "what we can claim" table):
+- A recognized plan is a **point-in-time snapshot.** Its export date is shown in
+  the citation, stated in the answer, and a plan older than
+  `externalExportStaleDays` (default 90) is flagged. Meeting notes are dated but
+  never alarmed on age.
+- Copy says **"reads your exported files / saved notes,"** never "integrates
+  with" / "official partner" / "syncs live." RightCapital is NOT in the
+  onboarding "coming soon" connector logos (that implied an integration).
+- The first time a recognized export would be sent to the AI, Keepance asks for a
+  **one-time firm consent** (recorded in the audit log, revocable in Settings).
+
 ## Hard-won OneDrive learnings (personal Microsoft accounts)
 
 Personal Microsoft accounts (`@outlook.com`/`@hotmail.com`) behave very

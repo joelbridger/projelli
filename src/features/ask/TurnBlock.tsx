@@ -1,7 +1,10 @@
-import { Quote, Loader2, ShieldCheck, Save, AlertTriangle } from 'lucide-react';
+import { Quote, Loader2, ShieldCheck, Save, AlertTriangle, Clock } from 'lucide-react';
 import { Button, Callout } from '@/ui/kp';
 import type { AskTurn } from './askHelpers';
 import { CitationText } from './CitationText';
+import { stalePlanNotices, formatExportDate } from '@/platform/rag/sourceProvenance';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
 
 /* -------------------------------------------------------------------------- */
 /* TurnBlock — renders a single completed or streaming Q+A pair               */
@@ -36,6 +39,17 @@ export function TurnBlock({
 }) {
   const isThisTurnSelected = selectedTurnIdx === turnIdx;
   const selectedForThisTurn = isThisTurnSelected ? selected : null;
+
+  // Connector-access: surface a deterministic freshness warning (not just the
+  // model's prose) when this answer leaned on an exported plan snapshot that is
+  // older than the configured limit, so a stale RightCapital plan is never
+  // mistaken for live data.
+  const staleDays = useSettingsStore((s) => s.getSetting<number>(EXTERNAL_EXPORT_STALE_DAYS_KEY));
+  const stalePlans = stalePlanNotices(
+    turn.citations.map((c) => c.provenance),
+    new Date(),
+    staleDays,
+  );
 
   // BUG-016: the "Answered over your own files" attestation must reflect a
   // grounded, verifiable citation — not merely the presence of any citation.
@@ -139,6 +153,27 @@ export function TurnBlock({
             <Callout variant="warning" icon={AlertTriangle}>
               {/* eslint-disable keepance-i18n/no-hardcoded-string */}
               Not cited from your files. Verify this before relying on it.
+              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            </Callout>
+          </div>
+        )}
+
+        {/* Connector-access: stale exported-plan warning. Shown when a cited
+            source is a plan snapshot older than the limit. Treats a stale plan
+            like a stale lab result so the snapshot is never read as live. */}
+        {!isStreaming && turn.answer && stalePlans.length > 0 && (
+          <div data-testid="ask-stale-plan-warning">
+            <Callout variant="warning" icon={Clock}>
+              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+              This answer relies on exported plan snapshots that may be out of date:{' '}
+              {stalePlans.map((s, i) => (
+                <span key={`${s.toolLabel}-${s.exportedAt}`}>
+                  {i > 0 ? ', ' : ''}
+                  {s.toolLabel} plan from {formatExportDate(s.exportedAt)} ({s.ageDays} days ago)
+                </span>
+              ))}
+              . A plan is a point-in-time snapshot, so figures may be out of date. Re-export the
+              latest to refresh it.
               {/* eslint-enable keepance-i18n/no-hardcoded-string */}
             </Callout>
           </div>

@@ -42,6 +42,7 @@ import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { useAsk, type UseAskProps } from './useAsk';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
 /* -------------------------------------------------------------------------- */
 /* Main component                                                               */
@@ -81,6 +82,7 @@ export function Ask(props: UseAskProps) {
     handleSaveToDocument,
     onOpenFileAtPath,
     isBusy,
+    exportConsentDialogProps,
   } = useAsk(props);
 
   const isSampleMatter = activeMatter?.id === SAMPLE_MATTER_ID;
@@ -352,6 +354,10 @@ export function Ask(props: UseAskProps) {
           />
         </div>
       </div>
+
+      {/* Connector-access: one-time firm-consent prompt shown before an exported
+          RightCapital/Jump report is first used to answer. */}
+      <ConfirmDialog {...exportConsentDialogProps} />
     </div>
   );
 }
