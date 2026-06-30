@@ -205,6 +205,45 @@ describe('useApiKeys — hung/erroring keychain reads (BUG: silently looked like
     );
     errorSpy.mockRestore();
   });
+
+  it('a transient read failure on reload does not make an already-loaded key disappear', async () => {
+    let anthropicShouldFail = false;
+    const keychain = {
+      getKey: (provider: string) => {
+        if (provider === 'anthropic') {
+          if (anthropicShouldFail) return Promise.reject(new Error('keychain hiccup'));
+          return Promise.resolve(VALID_KEY);
+        }
+        return Promise.resolve(null);
+      },
+      setKey: vi.fn().mockResolvedValue(undefined),
+      deleteKey: vi.fn().mockResolvedValue(undefined),
+    };
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { result } = renderHook(() => useApiKeys(keychain));
+
+    // Initial load succeeds — anthropic is configured.
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(result.current.apiKeys).toEqual([
+      expect.objectContaining({ provider: 'anthropic', key: VALID_KEY, isValid: true }),
+    ]);
+
+    // A reload fires (e.g. another provider's key changed) while the
+    // keychain is having a transient hiccup reading anthropic specifically.
+    anthropicShouldFail = true;
+    await act(async () => {
+      window.dispatchEvent(new Event('storage'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    // The previously-known-good key must still be there — a transient read
+    // failure is not the same as the user removing the key.
+    expect(result.current.apiKeys).toEqual([
+      expect.objectContaining({ provider: 'anthropic', key: VALID_KEY, isValid: true }),
+    ]);
+    errorSpy.mockRestore();
+  });
 });
 
 describe('useApiKeys — delete', () => {

@@ -22,6 +22,7 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   mailRetagMessageMatter: vi.fn(),
   mailSend: vi.fn(),
   mailSyncAll: vi.fn(),
+  mailCancelSync: vi.fn().mockResolvedValue(undefined),
   MAIL_SYNC_EVENT: 'mail-sync-progress',
   MAIL_INDEX_CHUNK_EVENT: 'mail-index-chunk',
 }));
@@ -66,6 +67,7 @@ import {
   mailListMessages,
   mailConnectedAccounts,
   mailSyncAll,
+  mailCancelSync,
 } from '@/platform/utils/mail-commands';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 import { getMatters } from '@/platform/matter/matterStore';
@@ -76,6 +78,7 @@ import { EmailWorkspace } from '@/features/email/EmailWorkspace';
 const mockMailListMessages = mailListMessages as ReturnType<typeof vi.fn>;
 const mockMailConnectedAccounts = mailConnectedAccounts as ReturnType<typeof vi.fn>;
 const mockMailSyncAll = mailSyncAll as ReturnType<typeof vi.fn>;
+const mockMailCancelSync = mailCancelSync as ReturnType<typeof vi.fn>;
 const mockBuildMailMatterMap = buildMailMatterMap as ReturnType<typeof vi.fn>;
 const mockGetMatters = getMatters as ReturnType<typeof vi.fn>;
 
@@ -93,6 +96,7 @@ beforeEach(() => {
   mockMailListMessages.mockResolvedValue({ items: [], total: 0 });
   // mailSyncAll resolves immediately by default (simulates a fast sync)
   mockMailSyncAll.mockResolvedValue(undefined);
+  mockMailCancelSync.mockResolvedValue(undefined);
   mockBuildMailMatterMap.mockReturnValue([]);
   mockGetMatters.mockReturnValue([]);
 });
@@ -226,6 +230,11 @@ describe('BUG-007: startup sync + manual Sync now', () => {
     });
     expect(screen.getByTestId('email-sync-now')).not.toBeDisabled();
     expect(screen.getByTestId('email-sync-error')).toBeInTheDocument();
+
+    // The backend sync must actually be told to stop — otherwise it keeps
+    // holding the single-sync guard and the next click fails with "a sync
+    // is already in progress" even though the button looks idle again.
+    expect(mockMailCancelSync).toHaveBeenCalled();
   });
 
 });

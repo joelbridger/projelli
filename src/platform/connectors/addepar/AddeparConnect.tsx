@@ -132,6 +132,14 @@ export function AddeparConnect() {
       setReport(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      // The Tauri addepar_sync command holds a single-sync guard for as long
+      // as it runs. Giving up on it in React alone doesn't stop it backend
+      // side, so the guard would stay held and the next Sync click would
+      // fail with "a sync is already in progress" even though the button
+      // looks idle again. Tell the backend to actually stop.
+      if (err instanceof Error && err.name === 'TimeoutError') {
+        await addeparCancel().catch(() => { /* best-effort */ });
+      }
     } finally {
       setSyncing(false);
     }

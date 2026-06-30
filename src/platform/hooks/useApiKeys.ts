@@ -49,6 +49,13 @@ const PROVIDERS: KeyProvider[] = ['anthropic', 'openai', 'google'];
 
 export function useApiKeys(keychainService?: ApiKeyKeychain): UseApiKeysReturn {
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
+  // Mirrors `apiKeys` so loadKeys() (below) can fall back to "what we already
+  // had" for a provider whose read failed/timed out, instead of treating a
+  // transient keychain hiccup as "key removed".
+  const apiKeysRef = useRef<APIKey[]>([]);
+  useEffect(() => {
+    apiKeysRef.current = apiKeys;
+  }, [apiKeys]);
 
   // Use the injected keychain, or create one default instance for this hook.
   // Memoized so the load effect below doesn't re-run on every render.
@@ -94,7 +101,12 @@ export function useApiKeys(keychainService?: ApiKeyKeychain): UseApiKeysReturn {
   // erroring OS keychain for one provider can't (a) block the others behind
   // it, or (b) throw out of loadKeys() entirely and leave the app silently
   // believing no AI key is configured at all. A read that fails is logged
-  // and treated as "not available" for that provider only.
+  // and falls back to whatever this provider's last known-good value was
+  // (apiKeysRef) rather than treating "couldn't read it right now" the same
+  // as "not configured" — otherwise a transient/timed-out keychain hiccup on
+  // reload would make a working key silently vanish from a chat that was
+  // using it a moment ago. An explicit removal still works: deletion goes
+  // through handleDeleteApiKey, which updates state directly, not loadKeys().
   const loadKeys = useCallback(async (): Promise<APIKey[]> => {
     const results = await Promise.all(
       PROVIDERS.map(async (provider): Promise<APIKey | null> => {
@@ -107,7 +119,7 @@ export function useApiKeys(keychainService?: ApiKeyKeychain): UseApiKeysReturn {
           return key ? { provider, key, isValid: true } : null;
         } catch (err) {
           console.error(`[useApiKeys] could not read the ${provider} key from the keychain:`, err);
-          return null;
+          return apiKeysRef.current.find((k) => k.provider === provider) ?? null;
         }
       }),
     );

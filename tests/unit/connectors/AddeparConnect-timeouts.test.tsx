@@ -120,4 +120,31 @@ describe('AddeparConnect — syncNow() timeout', () => {
     expect(screen.getByText('Sync households')).toBeInTheDocument();
     expect(screen.getByText(/timed out/i)).toBeInTheDocument();
   });
+
+  it('cancels the backend sync when addeparSync itself never resolves', async () => {
+    mockAddeparListEntities.mockResolvedValue([]);
+    mockAddeparSync.mockImplementation(() => new Promise(() => {})); // never resolves
+
+    render(<AddeparConnect />);
+    await act(async () => { await Promise.resolve(); });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Sync households'));
+      await Promise.resolve();
+    });
+    expect(screen.getByText('Syncing...')).toBeInTheDocument();
+    expect(mockAddeparCancel).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15 * 60_000);
+    });
+
+    expect(screen.getByText('Sync households')).toBeInTheDocument();
+    expect(screen.getByText(/timed out/i)).toBeInTheDocument();
+    // The Tauri addepar_sync command holds a single-sync guard for as long as
+    // it runs — giving up on it in React alone doesn't stop it backend side,
+    // so the next Sync click would fail with "a sync is already in progress"
+    // unless the backend is actually told to cancel.
+    expect(mockAddeparCancel).toHaveBeenCalled();
+  });
 });
