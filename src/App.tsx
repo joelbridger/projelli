@@ -22,6 +22,7 @@ import { useAudioRecording } from '@/app/lifecycle/useAudioRecording';
 import { useAIRulesFile } from '@/app/lifecycle/useAIRulesFile';
 import { useFileImport } from '@/app/fileOps/useFileImport';
 import { useSettingsActions } from '@/app/hooks/useSettingsActions';
+import { useTabOpening } from '@/app/lifecycle/useTabOpening';
 import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelector';
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
@@ -95,7 +96,7 @@ import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMark
 import { useModelList } from '@/platform/hooks/useModelList';
 import { useContentIndex } from '@/platform/hooks/useContentIndex';
 import { useMailSync } from '@/features/email/useMailSync';
-import { useOpenEmailListener } from '@/platform/hooks/useOpenEmailListener';
+
 import type { MailIndexChunk } from '@/platform/utils/mail-commands';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
@@ -751,62 +752,13 @@ function App() {
   }, [IS_DEMO_MODE, rootPath, handleWorkspaceSelected]);
 
 
-  // Handle opening browser tab
-  const handleOpenBrowserTab = useCallback(
-    (url: string, title?: string) => {
-      // Generate a unique path for the browser tab
-      const tabPath = `__browser__${Date.now()}`;
-      const tabName = title || new URL(url).hostname;
-
-      openTab(tabPath, tabName, '', 'browser', { url });
-    },
-    [openTab]
-  );
-
-  // UX-21: open (or focus) the AI Assistant as a main-panel tab. We look
-  // for an existing `ai-assistant` tab first so Ctrl+Shift+A doesn't spam
-  // new tabs, then fall back to creating a fresh one. The sidebar AI pane
-  // keeps working independently — this is purely additive.
-  const openAIAssistantTab = useCallback(() => {
-    setDocumentsView('editor');
-    setSidebarActiveTab('files');
-    const existing = useEditorStore
-      .getState()
-      .openTabs.find((t) => t.type === 'ai-assistant');
-    if (existing) {
-      useEditorStore.getState().setActiveTab(existing.path);
-      return;
-    }
-    const tabPath = `__ai_assistant__${Date.now()}`;
-    openTab(tabPath, 'AI Assistant', '', 'ai-assistant');
-  }, [openTab]);
-
-  // WS-B/C — open the read-only email viewer when an email citation is clicked
-  // in chat. AIChatViewer dispatches `lantern:open-email` for `mail:<id>`
-  // sources; this hook turns that into an `email` tab. (Extracted to
-  // useOpenEmailListener so the wiring is unit-tested.)
-  //
-  // Bug 2 fix: wrap openTab so opening an email first navigates to the
-  // 'files' sidebar tab (where MainPanel + EmailViewer live). Without this,
-  // the tab is added while the full-page EmailWorkspace is active,
-  // so the email opens invisibly and the user sees nothing happen.
-  useOpenEmailListener(
-    useCallback(
-      (
-        id: string,
-        label: string,
-        content: string,
-        type: 'email',
-        meta: { mailSourceId: string },
-      ) => {
-        // Opening an email shows it in the Documents area editor, not the browser.
-        setDocumentsView('editor');
-        setSidebarActiveTab('files');
-        openTab(id, label, content, type, meta);
-      },
-      [openTab],
-    ),
-  );
+  // Tab opening: browser tabs, AI assistant tab, and email-listener wiring
+  // (extracted to useTabOpening)
+  const { handleOpenBrowserTab, openAIAssistantTab } = useTabOpening({
+    openTab,
+    setSidebarActiveTab,
+    setDocumentsView,
+  });
 
   // Shell-wide `lantern:*` CustomEvent wiring (matter manager, settings,
   // account, matter launch). See src/app/lifecycle/useGlobalEventBus.ts.
