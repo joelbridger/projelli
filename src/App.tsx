@@ -20,6 +20,7 @@ import { useDocumentCreation } from '@/app/fileOps/useDocumentCreation';
 import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
 import { useAudioRecording } from '@/app/lifecycle/useAudioRecording';
 import { useAIRulesFile } from '@/app/lifecycle/useAIRulesFile';
+import { useFileImport } from '@/app/fileOps/useFileImport';
 import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelector';
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
@@ -86,11 +87,6 @@ import {
 import { FileSystemWatcher, createFileTreeSnapshot } from '@/platform/fs/FileSystemWatcher';
 
 import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/platform/utils/file-utils';
-import { writeDroppedFiles, importPickedFiles } from '@/platform/utils/fileDrop';
-import { MemoryService } from '@/platform/rag/MemoryService';
-import { useSettingsStore } from '@/platform/settings/settingsStore';
-
-
 import { useTrash } from '@/platform/hooks/useTrash';
 import { useSourceCards } from '@/app/hooks/useSourceCards';
 import { useAIChatFiles } from '@/platform/hooks/useAIChatFiles';
@@ -954,121 +950,15 @@ function App() {
   });
 
 
-  // UX-19: Global drag-and-drop upload. Handles files dropped anywhere on
-  // the window. Target folder resolves to the nearest `data-folder-path`
-  // ancestor of the drop target, or workspace root if no folder was under
-  // the cursor. Newly-written files are opened in tabs after the write.
-  const handleGlobalFileDrop = useCallback(
-    async (files: File[], folderPath: string | null) => {
-      const service = workspaceServiceRef.current;
-      if (!service || !rootPath) return;
-      const targetFolder = folderPath ?? rootPath;
-      try {
-        const results = await writeDroppedFiles({
-          service,
-          targetFolder,
-          files,
-        });
-        // Refresh tree
-        const tree = await service.getFileTree();
-        setFileTree(tree);
-        // Open each written file in a tab. Opening sequentially keeps the
-        // tab order consistent with the drop order.
-        for (const r of results) {
-          await handleFileOpen(r.path, r.name);
-        }
-        // UX-33: activate the last-dropped file so the user lands on
-        // something they just dropped rather than the previously-active tab.
-        if (results.length > 0) {
-          const last = results.at(-1);
-          if (last) useEditorStore.getState().setActiveTab(last.path);
-        }
-      } catch (err) {
-        console.error('[App] Drag-drop upload failed:', err);
-      }
-    },
-    [rootPath, setFileTree, handleFileOpen]
-  );
-
-  // BUG-014 — "Add files" import. Opens the native file picker, copies the
-  // chosen files into the workspace, and EXPLICITLY indexes each (so search
-  // works without relying on the file-watcher). Surfaces per-file failures.
-  const handleImportFiles = useCallback(
-    async (folderPath?: string | null) => {
-      const service = workspaceServiceRef.current;
-      if (!service || !rootPath) return;
-      let selected: string | string[] | null = null;
-      try {
-        const { open } = await import('@tauri-apps/plugin-dialog');
-        selected = await open({
-          multiple: true,
-          directory: false,
-          title: 'Add files to your workspace',
-        });
-      } catch (err) {
-        console.error('[App] Add files: native picker unavailable', err);
-        return;
-      }
-      if (!selected) return;
-      const paths = Array.isArray(selected) ? selected : [selected];
-      if (paths.length === 0) return;
-
-      const { readFile } = await import('@tauri-apps/plugin-fs');
-      const readBinary = (p: string) =>
-        service.readFileBinary
-          ? service.readFileBinary(p)
-          : Promise.reject(new Error('binary read unsupported'));
-      const binaryWs = { readBinary };
-
-      const results = await importPickedFiles({
-        service,
-        targetFolder: folderPath ?? rootPath,
-        paths,
-        readBytes: async (p) => {
-          const u8 = await readFile(p);
-          const buf = new ArrayBuffer(u8.byteLength);
-          new Uint8Array(buf).set(u8);
-          return buf;
-        },
-        indexFile: (p) => MemoryService.indexFile(p),
-        indexPdf: async (p) => {
-          const r = await MemoryService.indexPdfFile(p, binaryWs);
-          return { indexed: r.indexed, ...(r.reason ? { reason: r.reason } : {}) };
-        },
-      });
-
-      const tree = await service.getFileTree();
-      setFileTree(tree);
-      for (const r of results) {
-        if (!r.error) {
-          await handleFileOpen(r.path, r.name);
-        }
-      }
-      if (results.length > 0) {
-        const last = results.at(-1);
-        if (last && !last.error) useEditorStore.getState().setActiveTab(last.path);
-      }
-      const failed = results.filter((r) => r.error);
-      if (failed.length > 0) {
-        console.error('[App] Add files: some files could not be imported', failed);
-      }
-      // BUG-015 — a PDF was imported but won't be searchable because PDF
-      // indexing is off (the default). Don't fail silently: tell the user and
-      // offer a one-tap enable (flipping the setting auto-triggers indexing).
-      const pdfUnindexed = results.some((r) => r.reason === 'pdf-indexing-disabled');
-      if (pdfUnindexed) {
-        undoToast.show({
-          message: 'Added — but PDF search is off, so this PDF will not be searchable yet.',
-          actionLabel: 'Turn on PDF search',
-          ttlMs: 15_000,
-          onUndo: () => {
-            useSettingsStore.getState().setSetting('includePdfsInWorkspaceIndex', true);
-          },
-        });
-      }
-    },
-    [rootPath, setFileTree, handleFileOpen, undoToast]
-  );
+  // File import handlers: global drag-and-drop + native file picker import
+  // (extracted to useFileImport)
+  const { handleGlobalFileDrop, handleImportFiles } = useFileImport({
+    rootPath,
+    workspaceServiceRef,
+    setFileTree,
+    handleFileOpen,
+    undoToast,
+  });
 
   const { isDragging: isFileDragging } = useGlobalFileDrop({
     onDrop: handleGlobalFileDrop,
