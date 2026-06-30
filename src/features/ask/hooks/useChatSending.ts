@@ -623,12 +623,21 @@ export function useChatSending(deps: UseChatSendingDeps) {
       withheldExportAttachments.length > 0 &&
       (sentAttachments?.length ?? 0) === 0
     ) {
-      addMessage(chatId, {
+      const consentUserMessage: ChatMessage = {
         role: 'user',
         content: rawContent,
         timestamp: new Date().toISOString(),
         ...(messageAttachments ? { attachments: messageAttachments } : {}),
-      });
+      };
+      const consentRefusalMessage: ChatMessage = {
+        role: 'assistant',
+        content:
+          withheldExportAttachments.length === 1
+            ? 'I didn’t use that attachment. It looks like an exported report from an outside tool (for example RightCapital or Jump), and using exported reports with AI needs your one-time confirmation first. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy (or ask in the Ask tab, where you’ll be prompted), then send it again.'
+            : 'I didn’t use those attachments. They look like exported reports from outside tools (for example RightCapital or Jump), and using exported reports with AI needs your one-time confirmation first. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy (or ask in the Ask tab, where you’ll be prompted), then send them again.',
+        timestamp: new Date().toISOString(),
+      };
+      addMessage(chatId, consentUserMessage);
       // Reset the composer (mirrors the normal send path's cleanup).
       setPendingAttachments([]);
       for (const url of Object.values(previewUrls)) {
@@ -638,14 +647,17 @@ export function useChatSending(deps: UseChatSendingDeps) {
       setPdfExtractions({});
       setInputValue('');
       clearDraftInput(chatId);
-      addMessage(chatId, {
-        role: 'assistant',
-        content:
-          withheldExportAttachments.length === 1
-            ? 'I didn’t use that attachment. It looks like an exported report from an outside tool (for example RightCapital or Jump), and using exported reports with AI needs your one-time confirmation first. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy (or ask in the Ask tab, where you’ll be prompted), then send it again.'
-            : 'I didn’t use those attachments. They look like exported reports from outside tools (for example RightCapital or Jump), and using exported reports with AI needs your one-time confirmation first. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy (or ask in the Ask tab, where you’ll be prompted), then send them again.',
-        timestamp: new Date().toISOString(),
-      });
+      addMessage(chatId, consentRefusalMessage);
+      // Persist to the .aichat file like every other send path — addMessage only
+      // updates the in-memory store, so build the final array explicitly (store
+      // updates are async) rather than relying on stale state.
+      if (onSave) {
+        onSave({
+          ...chatData,
+          updated: new Date().toISOString(),
+          messages: [...messages, consentUserMessage, consentRefusalMessage],
+        });
+      }
       return;
     }
 
