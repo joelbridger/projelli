@@ -40,7 +40,7 @@ import {
   buildSmartAskSystemPrompt,
   scopeHintForMatter,
 } from './askPrompt';
-import { bindAnswerBlocks } from './answerBlocks';
+import { bindAnswerBlocks } from './answerBlockHelpers';
 import {
   hasCloudKey,
   buildResolvedAskProvider,
