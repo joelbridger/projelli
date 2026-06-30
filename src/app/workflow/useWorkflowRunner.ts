@@ -45,6 +45,7 @@ import {
   PROFESSION_PROVIDER_STORAGE_KEY,
 } from '@/platform/profile/professionModel';
 import { MemoryService } from '@/platform/rag/MemoryService';
+import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
 import { getActiveScope } from '@/platform/matter/matterStore';
 import { ragVerifyCitation, type RetrievalScope } from '@/platform/utils/tauri-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
@@ -537,14 +538,21 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
                 useSettingsStore.getState().getSetting<boolean>('enableReranker');
               const enableHybridSearch =
                 useSettingsStore.getState().getSetting<boolean>('enableHybridSearch');
-              const hits = await MemoryService.retrieve(
-                query,
-                topK,
-                scope,
-                false,
-                perSourceCap,
-                enableReranker,
-                enableHybridSearch,
+              // Connector-access: gate recognized RightCapital/Jump EXPORT chunks
+              // here, at the workflow engine's injected retrieval, so a legal/tax/
+              // consulting `analyze` step never AI-processes an exported report
+              // before the advisor has consented. (legalAnalysis's own context
+              // builder stays store-free; this is the right place to gate it.)
+              const hits = filterHitsForExportConsent(
+                await MemoryService.retrieve(
+                  query,
+                  topK,
+                  scope,
+                  false,
+                  perSourceCap,
+                  enableReranker,
+                  enableHybridSearch,
+                ),
               );
               // Audit (3.0 provenance) — the litigation `analyze` step runs a
               // matter-scoped, privilege-EXCLUDED retrieval (the safe default on

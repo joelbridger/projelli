@@ -27,6 +27,12 @@ import type { RagHit, CitationVerdict } from '@/platform/utils/tauri-commands';
 import { ragVerifyCitation } from '@/platform/utils/tauri-commands';
 import type { WorkspaceSource } from '@/platform/types/ai';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
+import {
+  recognizeProvenance,
+  describeProvenanceForPrompt,
+  type RecognizedProvenance,
+} from '@/platform/rag/sourceProvenance';
+import { isExternalExportConsentGiven } from '@/platform/rag/exportConsent';
 
 /** The bare verdict string from citation verification (the `verdict` field of
  *  the backend's discriminated `CitationVerdict`). */
@@ -114,22 +120,65 @@ export function citationBasename(path: string): string {
  */
 export function buildWorkspaceContextBlock(hits: RagHit[]): string {
   if (hits.length === 0) return '';
-  const sourceLines = hits
-    .map((hit, idx) => {
+  const now = new Date();
+
+  // Connector-access: this is the SHARED choke-point every model send goes
+  // through (Ask, @workspace chat, Client Map, At-a-glance), so the
+  // export-consent gate is enforced HERE — not just on the Ask surface. When the
+  // advisor has NOT consented, recognized RightCapital/Jump EXPORT chunks are
+  // withheld from the model context entirely, honouring the promise that those
+  // reports are not AI-processed before consent. (The Ask surface additionally
+  // prompts for that consent; other surfaces simply fail closed until it's
+  // granted there or in Settings.)
+  const consentGiven = isExternalExportConsentGiven();
+  const kept: { hit: RagHit; provenance: RecognizedProvenance | null }[] = [];
+  for (const hit of hits) {
+    const provenance = recognizeProvenance({
+      path: hit.path || hit.sourceId,
+      text: hit.chunkText,
+      sourceType: hit.sourceType,
+    });
+    if (provenance && !consentGiven) continue; // withhold unconsented export
+    kept.push({ hit, provenance });
+  }
+  if (kept.length === 0) return '';
+
+  // Stamp a freshness/snapshot note on the source header of any kept hit
+  // recognized as the OUTPUT of an external tool, so the model states the export
+  // date and treats it as a point-in-time snapshot, never implying a live link.
+  const hasRecognizedExport = kept.some((k) => k.provenance !== null);
+  const sourceLines = kept
+    .map(({ hit, provenance }, idx) => {
       const n = idx + 1;
       // A3: for PDF hits, show "page N" instead of "paragraph N".
       const location =
         hit.sourceType === 'pdf' && hit.pageNumber != null
           ? `page ${hit.pageNumber}`
           : `paragraph ${hit.paragraphIndex}`;
+      const provNote = provenance
+        ? ` (source: ${describeProvenanceForPrompt(provenance, now)})`
+        : '';
       // Sanitize chunk text before embedding — email is attacker-controlled.
       // sanitizeForPrompt escapes ``` delimiters, role prefixes (SYSTEM: etc.),
       // XML instruction tags, and control characters without altering the
       // [N] source header line or the citation numbering contract.
       const safeChunk = sanitizeForPrompt(hit.chunkText);
-      return `[${n}] ${hit.path} ${location}\n${safeChunk}`;
+      return `[${n}] ${hit.path} ${location}${provNote}\n${safeChunk}`;
     })
     .join('\n\n');
+  // When any source is a recognized external export, tell the model to be honest
+  // about it: state the export date, frame it as a snapshot (not live), and flag
+  // an old plan. This guidance lives in the context block (not the base prompt)
+  // so it only appears when relevant and the answer-quality eval exercises it.
+  const freshnessGuidance = hasRecognizedExport
+    ? '\n\nSome sources above are point-in-time exports from outside tools (for ' +
+      'example a RightCapital plan or a Jump meeting note), marked with "source:" ' +
+      'on their header. When you rely on one, state the export date in your answer ' +
+      '(for example "as of your RightCapital plan from Jun 12, 2026") and make clear ' +
+      'the figures are from that snapshot, not live. If such a plan is more than a ' +
+      'few months old, briefly note it may be out of date. Never imply Keepance is ' +
+      'connected to or integrated with these tools; it reads the files they export.'
+    : '';
   return (
     '<workspace_context>\n' +
     // Prompt-injection envelope: explicitly frame the following content as
@@ -151,7 +200,8 @@ export function buildWorkspaceContextBlock(hits: RagHit[]): string {
     'when possible. Cite sources inline using the format ' +
     '`[filename paragraph N]` where `filename` is the basename from the ' +
     'citation header and `N` is the paragraph number or page number. If the answer ' +
-    'cannot be found in the workspace context, say so plainly.'
+    'cannot be found in the workspace context, say so plainly.' +
+    freshnessGuidance
   );
 }
 

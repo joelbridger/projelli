@@ -8,6 +8,11 @@ import {
   parseCitations,
   resolveCitationPath,
 } from '@/platform/rag/workspaceCommand';
+import {
+  recognizeProvenance,
+  provenanceDedupeKey,
+  type RecognizedProvenance,
+} from '@/platform/rag/sourceProvenance';
 import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
@@ -90,6 +95,14 @@ export interface AnswerCitation {
    * citations.
    */
   matterId?: string;
+  /**
+   * Connector-access: present when this source was recognized as the OUTPUT of
+   * an external advisor tool (a RightCapital plan PDF, a Jump meeting note). It
+   * drives the honest "exported from RightCapital" badge on the source card and
+   * the stale-plan freshness warning. Absent on every ordinary source. See
+   * `@/platform/rag/sourceProvenance`.
+   */
+  provenance?: RecognizedProvenance;
 }
 
 /**
@@ -784,6 +797,69 @@ function findSourceForHit(sources: WorkspaceSource[], hit: RagHit): WorkspaceSou
   );
 }
 
+/**
+ * Connector-access: recognize whether a RAG hit is the OUTPUT of an external
+ * advisor tool (a RightCapital plan, a Jump meeting note). Pure adapter from a
+ * `RagHit` to the recognizer's input — uses the display path (falling back to
+ * the resolvable source id) for the filename signal and the chunk text for the
+ * branding/structure signal. Returns null for the ordinary majority of sources.
+ */
+export function recognizeHit(hit: RagHit): RecognizedProvenance | null {
+  return recognizeProvenance({
+    path: hit.path || hit.sourceId,
+    text: hit.chunkText,
+    sourceType: hit.sourceType,
+  });
+}
+
+/**
+ * Connector-access: collapse a TRULY duplicate export chunk that arrived through
+ * two paths — e.g. the exact same plan PDF synced into two watched folders — so
+ * it is never used as evidence twice in one answer.
+ *
+ * Critically, this must NOT collapse different pages/sections of one report
+ * (that would silently drop later-page evidence). So the dedupe key is
+ * chunk-level: the artifact key (tool + kind + date + matter) PLUS BOTH the
+ * page number AND the paragraph index AND a hash of the chunk's FULL text. Two
+ * hits collapse only when they are the same artifact, the same exact location,
+ * AND byte-identical content — i.e. genuinely the same chunk via two arrival
+ * paths. Two different chunks on one page that merely share a long boilerplate
+ * header have different full text, so they survive (a 200-char prefix would have
+ * wrongly merged them). Distinct chunks, undated artifacts, and all ordinary
+ * sources pass through untouched. Keeps the FIRST occurrence (= relevance order).
+ */
+export function dedupeRecognizedHits(hits: RagHit[]): RagHit[] {
+  const seen = new Set<string>();
+  const out: RagHit[] = [];
+  for (const hit of hits) {
+    const prov = recognizeHit(hit);
+    const artifactKey = prov ? provenanceDedupeKey(prov, hit.matterId) : null;
+    if (artifactKey !== null) {
+      const normalized = hit.chunkText.replace(/\s+/g, ' ').trim();
+      // page AND paragraph (PDF uses pageNumber, text uses paragraphIndex; keep
+      // both so a same-page/different-paragraph chunk is never merged), plus a
+      // full-text hash + length so only byte-identical chunks ever collapse.
+      const chunkKey =
+        `${artifactKey}|p${String(hit.pageNumber ?? '')}|g${String(hit.paragraphIndex)}` +
+        `|${hashText(normalized)}:${String(normalized.length)}`;
+      if (seen.has(chunkKey)) continue;
+      seen.add(chunkKey);
+    }
+    out.push(hit);
+  }
+  return out;
+}
+
+/** Tiny, dependency-free 32-bit string hash (djb2) for dedupe fingerprints.
+ *  Not cryptographic — only needs to distinguish distinct chunk text. */
+function hashText(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = (Math.imul(h, 33) + s.charCodeAt(i)) | 0;
+  }
+  return (h >>> 0).toString(36);
+}
+
 function citationFromHit(
   hit: RagHit,
   n: number,
@@ -795,6 +871,7 @@ function citationFromHit(
     expectedMatterId === null ||
     hit.matterId === undefined ||
     hit.matterId === expectedMatterId;
+  const provenance = recognizeHit(hit);
 
   return {
     n,
@@ -806,6 +883,7 @@ function citationFromHit(
     paragraphIndex: hit.paragraphIndex,
     ...(hit.id !== undefined ? { id: hit.id } : {}),
     ...(hit.matterId !== undefined ? { matterId: hit.matterId } : {}),
+    ...(provenance ? { provenance } : {}),
   };
 }
 

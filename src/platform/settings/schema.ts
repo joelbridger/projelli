@@ -139,6 +139,21 @@ export function resolveSection(cat: string): SectionCategory {
   return CATEGORY_ALIAS_MAP[cat] ?? 'workspace';
 }
 
+/**
+ * Connector-access: one-time firm consent to store and AI-process the exported
+ * reports/notes Keepance recognizes from outside tools (RightCapital, Jump).
+ * Set the first time such an export would be used to answer (a deliberate
+ * checkbox, also recorded in the audit log) and revocable here in Settings.
+ * Lives in the schema (not free-form state) so it survives persistence — the
+ * settings store drops unknown keys. Mirrors `confidentialityChoiceMade`.
+ */
+export const EXTERNAL_EXPORT_CONSENT_KEY = 'externalExportConsent';
+
+/** Connector-access: a recognized plan snapshot older than this many days is
+ *  flagged stale in the Ask sources and the answer. Plans only; meeting notes
+ *  are never alarmed on age. */
+export const EXTERNAL_EXPORT_STALE_DAYS_KEY = 'externalExportStaleDays';
+
 export const SETTINGS_SCHEMA: SettingDefinition[] = [
   // ── Workspace: General ────────────────────────────────────────────────
   {
@@ -362,6 +377,30 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     defaultValue: 6,
     min: 2,
     max: 20,
+    step: 1,
+  },
+  {
+    // Connector-access: firm consent for storing + AI-processing recognized
+    // exports from outside tools. Default off; set via the one-time checkbox
+    // (or here). Shown so the choice is transparent and revocable.
+    key: EXTERNAL_EXPORT_CONSENT_KEY,
+    category: 'ai-privacy',
+    label: 'Allow exported reports from other tools',
+    description:
+      'When on, Keepance may store and use your chosen AI on the reports and notes you export or save from outside tools like RightCapital and Jump (recognized automatically from the files you import). Keepance reads these exported files; it is not connected to those tools. You are asked once before this is first used, and that choice is recorded in your audit log. Turn off to stop using them.',
+    type: 'toggle',
+    defaultValue: false,
+  },
+  {
+    key: EXTERNAL_EXPORT_STALE_DAYS_KEY,
+    category: 'ai-privacy',
+    label: 'Flag exported plans older than (days)',
+    description:
+      'A financial plan you export from a tool like RightCapital is a point-in-time snapshot. When a plan Keepance used to answer is older than this many days, it is flagged as possibly out of date in the sources and the answer. Meeting notes are never flagged on age.',
+    type: 'number',
+    defaultValue: 90,
+    min: 7,
+    max: 1000,
     step: 1,
   },
   {
