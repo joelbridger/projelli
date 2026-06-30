@@ -28,6 +28,6 @@ export interface TemplateManifest {
   tags: string[];
   screenshots?: string[];
   files: TemplateFileEntry[];
-  minAdvisor Prep HeroVersion: string;
-  maxAdvisor Prep HeroVersion?: string;
+  minAppVersion: string;
+  maxAppVersion?: string;
 }

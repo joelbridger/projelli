@@ -42,10 +42,10 @@ export const templateManifestSchema = z.object({
   tags: z.array(z.string()),
   screenshots: z.array(z.string().min(1)).optional(),
   files: z.array(templateFileEntrySchema).min(1, 'files must contain at least one entry'),
-  minAdvisor Prep HeroVersion: z.string().regex(semverRegex, 'minAdvisor Prep HeroVersion must be semver'),
-  maxAdvisor Prep HeroVersion: z
+  minAppVersion: z.string().regex(semverRegex, 'minAppVersion must be semver'),
+  maxAppVersion: z
     .string()
-    .regex(semverRegex, 'maxAdvisor Prep HeroVersion must be semver')
+    .regex(semverRegex, 'maxAppVersion must be semver')
     .optional(),
 });
 
@@ -89,16 +89,16 @@ export function compareSemver(a: string, b: string): number {
 }
 
 /**
- * Returns an error string if `manifest.minAdvisor Prep HeroVersion` is newer than the
+ * Returns an error string if `manifest.minAppVersion` is newer than the
  * current app version, otherwise null. Callers fail the install with the
  * returned message.
  */
-export function checkMinAdvisor Prep HeroVersion(
+export function checkMinAppVersion(
   manifest: TemplateManifest,
   currentAppVersion: string,
 ): string | null {
-  if (compareSemver(manifest.minAdvisor Prep HeroVersion, currentAppVersion) > 0) {
-    return `Template requires Advisor Prep Hero ${manifest.minAdvisor Prep HeroVersion} or newer (you have ${currentAppVersion}).`;
+  if (compareSemver(manifest.minAppVersion, currentAppVersion) > 0) {
+    return `Template requires Advisor Prep Hero ${manifest.minAppVersion} or newer (you have ${currentAppVersion}).`;
   }
   return null;
 }

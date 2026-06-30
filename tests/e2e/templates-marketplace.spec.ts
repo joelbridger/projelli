@@ -96,7 +96,7 @@ async function seedMarketplaceForTest(page: Page) {
         tags: ['kickoff', 'community'],
         installUrl: 'https://example.test/kickoff-lite-1.0.0.tar.gz',
         manifestUrl: 'https://example.test/kickoff-lite-1.0.0/manifest.json',
-        minKeepanceVersion: '2.0.0',
+        minAppVersion: '2.0.0',
         publishedAt: '2026-04-28T00:00:00.000Z',
         updatedAt: '2026-04-28T00:00:00.000Z',
         checksum: 'fakehash',
@@ -119,7 +119,7 @@ async function seedMarketplaceForTest(page: Page) {
           { path: 'manifest.json', type: 'markdown' },
           { path: 'workflow.json', type: 'workflow-definition' },
         ],
-        minKeepanceVersion: '2.0.0',
+        minAppVersion: '2.0.0',
       };
       const workflow = {
         name: templateName,

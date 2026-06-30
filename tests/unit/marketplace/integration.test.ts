@@ -11,7 +11,7 @@ describe('marketplace barrel exports', () => {
     const e: CatalogEntry = {
       id: 'x', name: 'X', description: '', version: '1.0.0',
       author: { name: 'a' }, category: 'misc', tags: [],
-      installUrl: '', manifestUrl: '', minKeepanceVersion: '2.0.0',
+      installUrl: '', manifestUrl: '', minAppVersion: '2.0.0',
       publishedAt: '', updatedAt: '',
     };
     expect(e.id).toBe('x');

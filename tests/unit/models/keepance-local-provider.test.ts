@@ -10,11 +10,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  KeepanceLocalProvider,
+  AppLocalProvider as KeepanceLocalProvider,
   parseSseChunk,
   KEEPANCE_LOCAL_DEFAULT_MODEL,
   KEEPANCE_LOCAL_CONTEXT_WINDOW,
-} from '@/platform/providers/KeepanceLocalProvider';
+} from '@/platform/providers/AppLocalProvider';
 
 const ENDPOINT = 'http://127.0.0.1:18089';
 const fakeStart = () => Promise.resolve(ENDPOINT);

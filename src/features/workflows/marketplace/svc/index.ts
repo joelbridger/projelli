@@ -40,7 +40,7 @@ export {
   templateManifestSchema,
   templateFileEntrySchema,
   templateManifestAuthorSchema,
-  checkMinAdvisor Prep HeroVersion,
+  checkMinAppVersion,
   compareSemver,
 } from './manifestValidator';
 export type { TemplateManifestValidationResult } from './manifestValidator';

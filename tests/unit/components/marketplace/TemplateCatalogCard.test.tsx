@@ -13,7 +13,7 @@ const SAMPLE: CatalogEntry = {
   tags: ['investor', 'update'],
   installUrl: 'https://example.test/x.tar.gz',
   manifestUrl: 'https://example.test/manifest.json',
-  minKeepanceVersion: '2.0.0',
+  minAppVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
 };

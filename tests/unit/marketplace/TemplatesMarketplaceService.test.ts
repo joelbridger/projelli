@@ -98,7 +98,7 @@ const SAMPLE_ENTRY: CatalogEntry = {
   tags: ['investor', 'update', 'monthly'],
   installUrl: 'https://example.test/investor.tar.gz',
   manifestUrl: 'https://example.test/manifest.json',
-  minKeepanceVersion: '2.0.0',
+  minAppVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
   checksum: 'deadbeefcafef00d',
@@ -118,7 +118,7 @@ const SAMPLE_MANIFEST: TemplateManifest = {
     { path: 'questions.json', type: 'interview-questions' },
     { path: 'workflow.json', type: 'workflow-definition' },
   ],
-  minKeepanceVersion: '2.0.0',
+  minAppVersion: '2.0.0',
 };
 
 function fakeStreamingResponse(chunks: Uint8Array[]): Response {
@@ -566,7 +566,7 @@ function makeInstalledEntry(id: string, version: string, overrides: Partial<Cata
     tags: [],
     installUrl: `https://example.test/${id}.tar.gz`,
     manifestUrl: `https://example.test/${id}.json`,
-    minKeepanceVersion: '2.0.0',
+    minAppVersion: '2.0.0',
     publishedAt: '2026-04-28T00:00:00.000Z',
     updatedAt: '2026-04-28T00:00:00.000Z',
     ...overrides,

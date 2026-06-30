@@ -15,7 +15,7 @@ const ENTRY_A: CatalogEntry = {
   tags: ['investor', 'update'],
   installUrl: 'https://example.test/a.tar.gz',
   manifestUrl: 'https://example.test/a.json',
-  minKeepanceVersion: '2.0.0',
+  minAppVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
 };
@@ -30,7 +30,7 @@ const ENTRY_B: CatalogEntry = {
   tags: ['launch', 'product'],
   installUrl: 'https://example.test/b.tar.gz',
   manifestUrl: 'https://example.test/b.json',
-  minKeepanceVersion: '2.0.0',
+  minAppVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
 };

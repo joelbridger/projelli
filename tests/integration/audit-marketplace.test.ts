@@ -97,7 +97,7 @@ const ENTRY_V1: CatalogEntry = {
   tags: [],
   installUrl: 'https://example.test/audit-template-1.0.0.tar.gz',
   manifestUrl: 'https://example.test/audit-template-1.0.0/manifest.json',
-  minKeepanceVersion: '2.0.0',
+  minAppVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
   checksum: 'goodhash',
@@ -120,7 +120,7 @@ function makeManifest(version: string): TemplateManifest {
     category: 'misc',
     tags: [],
     files: [{ path: 'manifest.json', type: 'markdown' }],
-    minKeepanceVersion: '2.0.0',
+    minAppVersion: '2.0.0',
   };
 }
 
