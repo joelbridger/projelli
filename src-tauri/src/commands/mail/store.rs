@@ -1342,7 +1342,7 @@ mod tests {
 
         assert_ne!(gmail, m365);
         assert_ne!(gmail, other_account);
-        assert!(gmail.starts_with(".keepance/mail/blobs/"));
+        assert!(gmail.starts_with(".lantern/mail/blobs/"));
         assert!(gmail.ends_with(".enc"));
     }
 

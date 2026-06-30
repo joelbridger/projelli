@@ -1418,11 +1418,11 @@ mod tests {
         std::fs::write(sub.join("c.txt"), b"ccc").unwrap();
 
         // Create excluded files/dirs.
-        std::fs::write(root.join(".keepance-vault.json"), b"{}").unwrap();
+        std::fs::write(root.join(".lantern-vault.json"), b"{}").unwrap();
         std::fs::write(root.join(".kpv-tmp-somefile"), b"tmp").unwrap();
-        let keepance_dir = root.join(".keepance");
-        std::fs::create_dir_all(&keepance_dir).unwrap();
-        std::fs::write(keepance_dir.join("vectors.db"), b"lancedb").unwrap();
+        let internal_dir = root.join(".lantern");
+        std::fs::create_dir_all(&internal_dir).unwrap();
+        std::fs::write(internal_dir.join("vectors.db"), b"lancedb").unwrap();
 
         let count = count_eligible_files(root);
         assert_eq!(count, 3, "eligible file count must be 3 (a, b, c only)");
