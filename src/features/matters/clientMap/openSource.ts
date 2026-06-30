@@ -18,6 +18,7 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
+import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { isBinaryFile, getMimeType, arrayBufferToDataUrl } from '@/platform/utils/file-utils';
 import { requestScrollToParagraph } from '@/platform/utils/scrollToParagraph';
 import {
@@ -132,8 +133,13 @@ export function dispatchOpenSource(matterId: string, ref: SourceRef): void {
 /** Resolve a workspace-relative-or-absolute retrieval path against the active
  *  workspace root, matching the app's file-open pipeline. */
 function resolveDocumentPath(rootPath: string | null, ref: string): string {
-  if (!rootPath || ref.startsWith(rootPath)) return ref;
-  return `${rootPath}/${ref}`.replace(/\/+/g, '/');
+  if (!rootPath) return ref;
+  // resolveWorkspacePath returns an already-absolute ref unchanged (POSIX,
+  // drive-letter, or UNC, regardless of `\` vs `/`), and otherwise joins a
+  // workspace-relative ref to the root — so a Windows absolute path whose
+  // separators differ from rootPath is no longer mistaken for a relative one
+  // and double-prefixed.
+  return resolveWorkspacePath(rootPath, ref);
 }
 
 /**

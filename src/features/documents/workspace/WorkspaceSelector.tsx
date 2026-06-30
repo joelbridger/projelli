@@ -184,24 +184,32 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
     }
 
     // Open-existing stays strict (no createIfMissing) — a missing/mistyped path
-    // surfaces an error rather than being silently created. The whole
-    // non-interactive sequence is time-bounded so it can never hang the UI.
+    // surfaces an error rather than being silently created. Only the native
+    // SETUP (backend creation + initialize, which does the existence/permission
+    // checks and any native handshakes) is time-bounded — those should settle
+    // quickly, and a hung one must never freeze the screen.
+    //
+    // The recursive file-tree SCAN is deliberately NOT time-bounded: a
+    // legitimately large advisor archive, or a slow OneDrive / network folder,
+    // can take well over 30s to walk, and rejecting it would both block a valid
+    // workspace AND prune it from recents. A slow-but-valid workspace must open.
+    //
     // IMPORTANT: do all the global-store mutations (setRootPath / setFileTree /
-    // addRecentWorkspace) and onWorkspaceSelected only AFTER the timed block
-    // fully succeeds — otherwise a timeout/throw mid-load would leave the store
-    // half-set (a non-empty rootPath with no active WorkspaceService), which
-    // App reads as a dismissible-but-broken first run.
-    const { service, workspace, fileTree } = await withTimeout(
+    // addRecentWorkspace) and onWorkspaceSelected only AFTER everything succeeds
+    // — otherwise a timeout/throw mid-load would leave the store half-set (a
+    // non-empty rootPath with no active WorkspaceService), which App reads as a
+    // dismissible-but-broken first run.
+    const { service, workspace } = await withTimeout(
       (async () => {
         const backend = await createFSBackend(workspacePath);
         const svc = createWorkspaceService();
         const ws = await svc.initialize(backend, workspacePath);
-        const tree = await svc.getFileTree();
-        return { service: svc, workspace: ws, fileTree: tree };
+        return { service: svc, workspace: ws };
       })(),
       WORKSPACE_INIT_TIMEOUT_MS,
       WORKSPACE_OPEN_TIMEOUT_MSG,
     );
+    const fileTree = await service.getFileTree();
 
     setRootPath(workspace.rootPath);
     setFileTree(fileTree);
@@ -343,23 +351,23 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
       }
 
       const service = createWorkspaceService();
-      // Bound the create work so a hung native call can't freeze the screen.
-      // Only mutate global-store state after the whole timed block succeeds —
-      // a timeout/throw mid-create must not leave the store half-set (a
-      // non-empty rootPath with no active WorkspaceService, which App would
-      // treat as a dismissible-but-broken first run).
-      const { workspace, fileTree } = await withTimeout(
-        (async () => {
-          const ws = await service.initialize(backend, rootPath, {
-            createIfMissing: true,
-            createDefaultStructure: true,
-          });
-          const tree = await service.getFileTree();
-          return { workspace: ws, fileTree: tree };
-        })(),
+      // Bound only the native SETUP (initialize creates the folder structure and
+      // does the native existence/permission checks) so a hung native call can't
+      // freeze the screen. The recursive file-tree SCAN runs AFTER, untimed — a
+      // newly-created workspace is small, but if the chosen folder is on a slow
+      // OneDrive/network location the walk must not be rejected for being slow.
+      // Only mutate global-store state after everything succeeds — a timeout/throw
+      // mid-create must not leave the store half-set (a non-empty rootPath with no
+      // active WorkspaceService, which App would treat as a broken first run).
+      const workspace = await withTimeout(
+        service.initialize(backend, rootPath, {
+          createIfMissing: true,
+          createDefaultStructure: true,
+        }),
         WORKSPACE_INIT_TIMEOUT_MS,
         WORKSPACE_CREATE_TIMEOUT_MSG,
       );
+      const fileTree = await service.getFileTree();
 
       setRootPath(workspace.rootPath);
       setFileTree(fileTree);

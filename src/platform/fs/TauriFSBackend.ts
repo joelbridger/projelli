@@ -115,8 +115,16 @@ export class TauriFSBackend implements FSBackend {
 
     console.log('[TauriFSBackend] setRootPath called with:', path, 'options:', options);
 
-    // Normalize path - keep backslashes on Windows
-    const normalizedPath = path.replace(/\/$/, '');
+    // Normalize path - keep backslashes on Windows, but strip a trailing
+    // separator of EITHER kind. A Windows folder pasted/picked as `C:\WS\` would
+    // otherwise keep its trailing `\`, and resolvePath would then build
+    // `C:\WS\\sub` (a doubled separator). A bare drive root (`C:\`) is preserved
+    // so we never turn it into `C:` (which means "current dir on C:").
+    let normalizedPath = path.replace(/[/\\]+$/, '');
+    if (/^[A-Za-z]:$/.test(normalizedPath)) {
+      // Was a drive root like `C:\` — keep one separator.
+      normalizedPath = `${normalizedPath}\\`;
+    }
 
     console.log('[TauriFSBackend] Normalized path:', normalizedPath);
 
@@ -126,10 +134,27 @@ export class TauriFSBackend implements FSBackend {
     // must happen here because `initialize()` calls `setRootPath` before it can
     // create anything. The open-existing flow leaves createIfMissing unset and
     // stays strict, so a mistyped/missing path still surfaces a clear error.
+    let pathExists: boolean;
     try {
-      const pathExists = await fs.exists(normalizedPath);
+      pathExists = await fs.exists(normalizedPath);
       console.log('[TauriFSBackend] Path exists check:', pathExists);
+    } catch (err) {
+      // `exists()` THREW — that is not the same as "the path is missing". The
+      // usual cause is the folder being unreadable (permission denied, a
+      // disconnected network/OneDrive location, a locked drive). Reporting
+      // "path does not exist" here would be misleading, so surface the access
+      // problem in plain language instead.
+      console.error('[TauriFSBackend] Error checking if root path exists:', err);
+      throw new FileOperationError(
+        `Cannot access the workspace folder: ${normalizedPath}. ` +
+          `It may be a permission issue, or a network/OneDrive location that is offline.`,
+        normalizedPath,
+        'stat',
+        err instanceof Error ? err : undefined
+      );
+    }
 
+    try {
       if (!pathExists) {
         if (options?.createIfMissing) {
           // Recursive mkdir is idempotent: safe even if the folder actually

@@ -20,6 +20,7 @@
  */
 
 import { UNASSIGNED_MATTER_ID, type Matter } from '@/platform/types/matter';
+import { sameOrInside } from '@/platform/fs/appPath';
 
 /** Normalise a path for comparison: backslashes to slashes, strip trailing slashes. */
 export function normalize(p: string): string {
@@ -64,10 +65,11 @@ export function canonicalFolderClaimKey(
  */
 export function isPathInFolder(filePath: string, folder: string): boolean {
   if (!filePath || !folder) return false;
-  const f = normalize(filePath);
-  const dir = normalize(folder);
-  if (f === dir) return true;
-  return f.startsWith(`${dir}/`);
+  // sameOrInside is the single cross-platform containment predicate: it handles
+  // `\` vs `/`, drive letters, UNC roots, trailing separators, AND (critically
+  // for matter isolation on Windows) case-insensitive comparison — so a file
+  // under `C:\WS\Acme` resolves to its matter even when typed `c:/ws/acme`.
+  return sameOrInside(folder, filePath);
 }
 
 /**
@@ -87,6 +89,17 @@ export function resolveMatterId(filePath: string, matters: Matter[]): string {
 
   let bestId = UNASSIGNED_MATTER_ID;
   let bestLen = -1;
+  // Fail-closed ambiguity guard (Codex P1, 2026-06-30). Because containment is
+  // case-insensitive for Windows-shaped paths, a file could match the folders of
+  // TWO DIFFERENT matters that differ ONLY by case (`C:\WS\Acme` vs `C:\WS\acme`)
+  // — possible if the workspace lives on a case-SENSITIVE Windows-shaped volume
+  // (NTFS per-directory case sensitivity, a WSL/network-backed share). On a
+  // normal case-insensitive Windows volume those two folders cannot coexist, so
+  // this never triggers there; but where it CAN, silently picking the first
+  // matter would surface one client's file under another's scope. So when the
+  // longest match is claimed by more than one distinct matter, resolve to
+  // UNASSIGNED (fail closed — the file is locked out of both, never leaked).
+  let bestIsAmbiguous = false;
   for (const matter of matters) {
     if (matter.id === UNASSIGNED_MATTER_ID) continue;
     for (const folder of matter.folderPaths) {
@@ -96,11 +109,16 @@ export function resolveMatterId(filePath: string, matters: Matter[]): string {
         if (len > bestLen) {
           bestLen = len;
           bestId = matter.id;
+          bestIsAmbiguous = false;
+        } else if (len === bestLen && matter.id !== bestId) {
+          // A second, distinct matter ties at the longest match — a case-only
+          // (or exact-duplicate) folder collision. Cannot safely attribute.
+          bestIsAmbiguous = true;
         }
       }
     }
   }
-  return bestId;
+  return bestIsAmbiguous ? UNASSIGNED_MATTER_ID : bestId;
 }
 
 /**
