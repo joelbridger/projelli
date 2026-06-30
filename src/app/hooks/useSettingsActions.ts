@@ -54,7 +54,7 @@ export function useSettingsActions({
       void openExternal('https://github.com/keepance/keepance');
     } else if (actionId === 'reset-feature-tour') {
       featureTour.restart();
-      setTimeout(() => setTourOpen(true), 300);
+      setTimeout(() => { setTourOpen(true); }, 300);
     }
   };
 
