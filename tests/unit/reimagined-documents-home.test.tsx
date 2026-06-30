@@ -555,11 +555,11 @@ describe('DocumentsHome — trust banner', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
-    localStorage.removeItem('keepance:first-file-trust-shown');
+    localStorage.removeItem('lantern:first-file-trust-shown');
   });
 
   afterEach(() => {
-    localStorage.removeItem('keepance:first-file-trust-shown');
+    localStorage.removeItem('lantern:first-file-trust-shown');
   });
 
   it('trust banner does NOT show before any file is imported', () => {
@@ -585,7 +585,7 @@ describe('DocumentsHome — trust banner', () => {
   });
 
   it('trust banner does not show again once localStorage flag is set', () => {
-    localStorage.setItem('keepance:first-file-trust-shown', '1');
+    localStorage.setItem('lantern:first-file-trust-shown', '1');
     render(<DocumentsHome {...buildDefaultProps()} />);
     const btn = screen.getByTestId('add-files-btn');
     fireEvent.click(btn);
@@ -594,9 +594,9 @@ describe('DocumentsHome — trust banner', () => {
 
   it('clicking "Add files" sets the localStorage flag', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    expect(localStorage.getItem('keepance:first-file-trust-shown')).toBeNull();
+    expect(localStorage.getItem('lantern:first-file-trust-shown')).toBeNull();
     fireEvent.click(screen.getByTestId('add-files-btn'));
-    expect(localStorage.getItem('keepance:first-file-trust-shown')).toBe('1');
+    expect(localStorage.getItem('lantern:first-file-trust-shown')).toBe('1');
   });
 });
 
@@ -744,11 +744,11 @@ describe('DocumentsHome — Tree | Grid toggle (R6-1)', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
-    localStorage.removeItem('keepance:docs-view');
+    localStorage.removeItem('lantern:docs-view');
   });
 
   afterEach(() => {
-    localStorage.removeItem('keepance:docs-view');
+    localStorage.removeItem('lantern:docs-view');
   });
 
   it('renders the Tree | Grid toggle with both options', () => {
@@ -786,7 +786,7 @@ describe('DocumentsHome — Tree | Grid toggle (R6-1)', () => {
   it('persists the chosen view to localStorage and restores it on remount', () => {
     const { unmount } = render(<DocumentsHome {...buildDefaultProps()} />);
     fireEvent.click(screen.getByTestId('docs-view-tree'));
-    expect(localStorage.getItem('keepance:docs-view')).toBe('tree');
+    expect(localStorage.getItem('lantern:docs-view')).toBe('tree');
     unmount();
     // Fresh mount reads the persisted choice → tree view is active.
     render(<DocumentsHome {...buildDefaultProps()} />);
@@ -827,7 +827,7 @@ describe('DocumentsHome — grid drag-and-drop (R6-1)', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
-    localStorage.removeItem('keepance:docs-view');
+    localStorage.removeItem('lantern:docs-view');
   });
 
   it('dropping a file card onto a FOLDER card calls onMove(source, folderPath)', async () => {
@@ -879,7 +879,7 @@ describe('DocumentsHome — create in current folder (R6-1)', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
-    localStorage.removeItem('keepance:docs-view');
+    localStorage.removeItem('lantern:docs-view');
   });
 
   it('at root, "New document" calls onCreateDefaultDocument with no parentPath (App falls back to docs/)', () => {
@@ -938,11 +938,11 @@ describe('DocumentsHome — documentsView landing (Fix 1)', () => {
     mockOpenTabs = [];
     mockSetActiveTab.mockClear();
     mockCloseTab.mockClear();
-    localStorage.removeItem('keepance:docs-view');
+    localStorage.removeItem('lantern:docs-view');
   });
 
   afterEach(() => {
-    localStorage.removeItem('keepance:docs-view');
+    localStorage.removeItem('lantern:docs-view');
   });
 
   it("documentsView='browser' shows the Files browser even with an active file tab", () => {

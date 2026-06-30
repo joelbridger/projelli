@@ -257,7 +257,7 @@ beforeEach(() => {
     localStorage.clear();
     // Non-private mode so the fail-closed cloud-send guard lets the engine run.
     localStorage.setItem(
-      'keepance:settings',
+      'lantern:settings',
       JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 }),
     );
   }

@@ -94,7 +94,7 @@ test.describe('v1.5 error paths + edge cases', () => {
     // slice, which is localStorage-backed. Corrupt it with invalid
     // JSON and verify Settings still loads.
     await page.evaluate(() => {
-      localStorage.setItem('keepance:settings', '{not valid json');
+      localStorage.setItem('lantern:settings', '{not valid json');
     });
     await page.reload();
     await waitForTestModeLoad(page);

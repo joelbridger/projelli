@@ -125,10 +125,10 @@ describe('Ask-smart (source-aware advisor agent)', () => {
     h.addMessage.mockReset();
     h.answer.text = '';
     h.retrieve.mockResolvedValue([]);
-    localStorage.removeItem('keepance:ask-files-only'); // smart by default
+    localStorage.removeItem('lantern:ask-files-only'); // smart by default
   });
   afterEach(() => {
-    localStorage.removeItem('keepance:ask-files-only');
+    localStorage.removeItem('lantern:ask-files-only');
   });
 
   it('empty retrieval no longer dead-ends — it leads with nothing-found + labelled general help', async () => {
@@ -259,7 +259,7 @@ describe('Ask-smart (source-aware advisor agent)', () => {
   });
 
   it('Files-only lock reverts to the strict decline on empty retrieval', async () => {
-    localStorage.setItem('keepance:ask-files-only', '1');
+    localStorage.setItem('lantern:ask-files-only', '1');
     h.retrieve.mockResolvedValue([]);
     h.answer.text = `${BLOCK_MARKERS.general}\nGeneral stuff that should never appear.`;
 

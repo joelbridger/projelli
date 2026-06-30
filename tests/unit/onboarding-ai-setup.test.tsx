@@ -94,7 +94,7 @@ describe('AiSetupStep — plain English before jargon', () => {
 
     // The simplified subtitle is present up front.
     expect(
-      screen.getByText(/Keepance connects to your own AI account/i),
+      screen.getByText(/Advisor Prep Hero connects to your own AI account/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/never through us/i)).toBeInTheDocument();
 

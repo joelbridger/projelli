@@ -4,7 +4,7 @@
  *
  * Asserted:
  *   - sign-in stores the access + refresh tokens in the OS KEYCHAIN
- *     (com.keepance.user.<id>) and NOT in localStorage;
+ *     (com.lantern.user.<id>) and NOT in localStorage;
  *   - seat activation stores the seat token in the keychain and verifies it
  *     OFFLINE against the fetched seat public key;
  *   - an active seat yields the Firm entitlement (AI on);
@@ -18,7 +18,7 @@ import { generateKeyPairSync, sign as edSign, type KeyObject } from 'node:crypto
 // ── Mock the OS keychain bridge: isTauri() === true, invoke() backed by a Map.
 const keychainStore = new Map<string, string>();
 const invokeMock = vi.fn(async (cmd: string, args: Record<string, unknown> = {}) => {
-  const svc = (args.service as string) ?? 'com.keepance.app';
+  const svc = (args.service as string) ?? 'com.lantern.app';
   const key = args.key as string;
   const id = `${svc}::${key}`;
   if (cmd === 'keychain_set') {
@@ -140,8 +140,8 @@ describe('firmStore sign-in', () => {
     expect(res.ok).toBe(true);
 
     // Keychain holds the tokens under the user namespace.
-    expect(keychainStore.get('com.keepance.user.user-1::access_token')).toBe('ACCESS_JWT');
-    expect(keychainStore.get('com.keepance.user.user-1::refresh_token')).toBe('REFRESH_TOKEN');
+    expect(keychainStore.get('com.lantern.user.user-1::access_token')).toBe('ACCESS_JWT');
+    expect(keychainStore.get('com.lantern.user.user-1::refresh_token')).toBe('REFRESH_TOKEN');
 
     // localStorage must NOT contain the secrets.
     const lsDump = JSON.stringify(
@@ -201,7 +201,7 @@ describe('firmStore seat activation', () => {
     expect(res.ok).toBe(true);
 
     // Seat token in keychain.
-    expect(keychainStore.get('com.keepance.user.user-1::seat_token')).toBe(seatToken);
+    expect(keychainStore.get('com.lantern.user.user-1::seat_token')).toBe(seatToken);
     // Offline verification succeeded against the fetched public key.
     expect(useFirmStore.getState().offlineSeatValid).toBe(true);
     expect(useFirmStore.getState().serverVerdict).toBe('valid');

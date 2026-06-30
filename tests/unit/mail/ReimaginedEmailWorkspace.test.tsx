@@ -274,13 +274,13 @@ describe('EmailWorkspace', () => {
 
     const dispatched: CustomEvent[] = [];
     const listener = (e: Event) => { dispatched.push(e as CustomEvent); };
-    window.addEventListener('keepance:open-email', listener);
+    window.addEventListener('lantern:open-email', listener);
 
     const rows = screen.getAllByTestId('mail-row');
     expect(rows[0]).toBeDefined();
     fireEvent.click(rows[0]!);
 
-    window.removeEventListener('keepance:open-email', listener);
+    window.removeEventListener('lantern:open-email', listener);
 
     expect(dispatched).toHaveLength(1);
     expect(dispatched[0]?.detail).toEqual({ sourceId: 'mail:msg-001' });

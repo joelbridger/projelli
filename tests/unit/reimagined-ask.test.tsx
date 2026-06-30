@@ -353,7 +353,7 @@ describe('Ask', () => {
     const addBtn = screen.getByTestId('sample-bridge-add-matter');
     fireEvent.click(addBtn);
     expect(dispatchSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'keepance:open-matter-manager' }),
+      expect.objectContaining({ type: 'lantern:open-matter-manager' }),
     );
     dispatchSpy.mockRestore();
   });
@@ -656,7 +656,7 @@ describe('Ask', () => {
     const btn = screen.getByRole('button', { name: /enable indexing/i });
     fireEvent.click(btn);
     expect(dispatchSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'keepance:open-settings' }),
+      expect.objectContaining({ type: 'lantern:open-settings' }),
     );
     dispatchSpy.mockRestore();
   });

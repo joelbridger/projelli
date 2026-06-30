@@ -85,10 +85,10 @@ describe('useDesignPartnerConsent', () => {
 
   it('fires a cross-tab custom event when consent changes', () => {
     const listener = vi.fn();
-    window.addEventListener('keepance:design-partner-consent-change', listener);
+    window.addEventListener('lantern:design-partner-consent-change', listener);
     setDesignPartnerConsent('enabled');
     expect(listener).toHaveBeenCalledOnce();
-    window.removeEventListener('keepance:design-partner-consent-change', listener);
+    window.removeEventListener('lantern:design-partner-consent-change', listener);
   });
 
   it('getDesignPartnerConsent returns correct tri-state', () => {
@@ -114,7 +114,7 @@ describe('sendDiagnosticEvent', () => {
   beforeEach(() => {
     store = setupLocalStorage();
     // Non-private mode so the fail-closed kill-switch doesn't skip the send.
-    store['keepance:settings'] = JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 });
+    store['lantern:settings'] = JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 });
     fetchCalls = [];
     fetchBodies = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {

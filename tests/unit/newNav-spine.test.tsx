@@ -48,11 +48,11 @@ describe('Spine — 3-tab shell', () => {
 
   it('exposes a "+ New client" affordance that opens the matter manager', () => {
     const spy = vi.fn();
-    window.addEventListener('keepance:open-matter-manager', spy);
+    window.addEventListener('lantern:open-matter-manager', spy);
     render(<Spine activeTab="matters" />);
     fireEvent.click(screen.getByTestId('spine-new-client'));
     expect(spy).toHaveBeenCalled();
-    window.removeEventListener('keepance:open-matter-manager', spy);
+    window.removeEventListener('lantern:open-matter-manager', spy);
   });
 
   it('collapsed mode shows the 3 primary tabs only', () => {

@@ -67,7 +67,7 @@ describe('Solo license recovery (Phase 5.1)', () => {
     const recovery = screen.getByTestId('license-recovery');
     const text = recovery.textContent ?? '';
 
-    expect(text).toMatch(/already bought keepance/i);
+    expect(text).toMatch(/already bought Advisor Prep Hero/i);
     expect(text).toMatch(/restore it on this computer/i);
     expect(text).toMatch(/no account/i);
     expect(text).not.toContain(EM_DASH);

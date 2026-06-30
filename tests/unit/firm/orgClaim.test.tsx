@@ -19,7 +19,7 @@ import React from 'react';
 // ── Mock OS keychain ──────────────────────────────────────────────────────────
 const keychainStore = new Map<string, string>();
 const invokeMock = vi.fn(async (cmd: string, args: Record<string, unknown> = {}) => {
-  const svc = (args.service as string) ?? 'com.keepance.app';
+  const svc = (args.service as string) ?? 'com.lantern.app';
   const key = args.key as string;
   const id = `${svc}::${key}`;
   if (cmd === 'keychain_set') {
@@ -138,9 +138,9 @@ describe('claimOrg store action', () => {
 
     // Access token + refresh token stored individually in the OS keychain (NOT in plain state).
     // firmKeychain stores each token as a separate key:
-    //   service = com.keepance.user.<userId>, key = access_token / refresh_token
-    const accessKey = `com.keepance.user.user-claim-1::access_token`;
-    const refreshKey = `com.keepance.user.user-claim-1::refresh_token`;
+    //   service = com.lantern.user.<userId>, key = access_token / refresh_token
+    const accessKey = `com.lantern.user.user-claim-1::access_token`;
+    const refreshKey = `com.lantern.user.user-claim-1::refresh_token`;
     expect(keychainStore.get(accessKey)).toBe('access-tok-claim');
     expect(keychainStore.get(refreshKey)).toBe('refresh-tok-claim');
 

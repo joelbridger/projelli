@@ -15,7 +15,7 @@ async function addThemePreferenceInitScript(
 ) {
   await page.addInitScript((nextTheme) => {
     localStorage.setItem(
-      'keepance:settings',
+      'lantern:settings',
       JSON.stringify({
         state: {
           values: { theme: nextTheme },
@@ -35,7 +35,7 @@ test.describe('Theme cycle (UX-25)', () => {
     // Clear any stored theme from previous runs so we hit the default branch.
     await page.addInitScript(() => {
       try {
-        localStorage.removeItem('keepance:settings');
+        localStorage.removeItem('lantern:settings');
         localStorage.removeItem('theme');
       } catch {
         /* no-op */
@@ -52,7 +52,7 @@ test.describe('Theme cycle (UX-25)', () => {
   test('clicking cycles system → light → dark → system', async ({ page }) => {
     await page.addInitScript(() => {
       try {
-        localStorage.removeItem('keepance:settings');
+        localStorage.removeItem('lantern:settings');
         localStorage.removeItem('theme');
       } catch {
         /* no-op */

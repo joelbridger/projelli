@@ -10,7 +10,7 @@
  *      real fixture text. (Render truth, not retrieval truth.) The
  *      passage-level half of click-through (formerly the F-504 expected-fail
  *      tripwire) is fixed in the Wave 1 fix wave — the editor now listens
- *      for `keepance:scroll-to-paragraph` and scrolls to the cited chunk by
+ *      for `lantern:scroll-to-paragraph` and scrolls to the cited chunk by
  *      snippet search — and is asserted as a normal test below.
  *   2. The F-116 refusal: "Ask my workspace" ON in a build without rag
  *      REFUSES instead of fabricating (the live send path up to the refusal
@@ -240,7 +240,7 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     page,
   }, testInfo) => {
     // F-504 — FIXED in the Wave 1 fix wave. This was the expected-fail
-    // tripwire: App.tsx dispatched `keepance:scroll-to-paragraph` but no
+    // tripwire: App.tsx dispatched `lantern:scroll-to-paragraph` but no
     // editor subscribed, so the file opened at the top and CodeMirror's
     // virtualized viewport never mounted the passage at fixture line 108.
     // Now the citation click chain carries the cited chunk's text

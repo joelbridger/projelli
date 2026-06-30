@@ -74,7 +74,7 @@ describe('settingsStore persisted privacy migration (BUG-089)', () => {
 
   it('fails closed when a stale persisted confidentiality mode is invalid', async () => {
     localStorage.setItem(
-      'keepance:settings',
+      'lantern:settings',
       JSON.stringify({
         state: {
           values: {

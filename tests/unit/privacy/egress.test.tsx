@@ -72,7 +72,7 @@ describe('resolveEgress (the single source of truth)', () => {
       expect(info.label).toMatch(/Sent to your/i);
       // The note is honest that the provider sees the prompt + that Keepance isn't in between.
       expect(info.note).toMatch(/receives the prompt/i);
-      expect(info.note).toMatch(/Keepance is not in between/i);
+      expect(info.note).toMatch(/Advisor Prep Hero is not in between/i);
     }
   });
 
@@ -87,7 +87,7 @@ describe('resolveEgress (the single source of truth)', () => {
     const info = resolveEgress({ provider: 'anthropic', mode: 'direct', isDemo: true, hasDemoByokKey: false });
     expect(info.destination).toBe('demo-proxy');
     expect(info.severity).toBe('warn');
-    expect(info.note).toMatch(/shared Keepance relay/i);
+    expect(info.note).toMatch(/shared Advisor Prep Hero relay/i);
     expect(info.label).toMatch(/do not use with client data/i);
   });
 
@@ -109,7 +109,7 @@ describe('resolveEgress (the single source of truth)', () => {
     expect(info.dataLeaves).toBe(false);
     expect(info.provider).toBe('keepance-local');
     // The honest note names the actual local engine, not Ollama.
-    expect(info.note).toMatch(/Keepance Local AI/);
+    expect(info.note).toMatch(/Advisor Prep Hero Local AI/);
     expect(info.note).not.toMatch(/Ollama/);
   });
 
@@ -128,7 +128,7 @@ describe('resolveEgress (the single source of truth)', () => {
     expect(isLocalProvider('keepance-local')).toBe(true);
     expect(isLocalProvider('ollama')).toBe(true);
     expect(isLocalProvider('anthropic')).toBe(false);
-    expect(providerDisplayName('keepance-local')).toBe('Keepance Local AI');
+    expect(providerDisplayName('keepance-local')).toBe('Advisor Prep Hero Local AI');
   });
 });
 
@@ -156,7 +156,7 @@ describe('EgressIndicator', () => {
     expect(el.getAttribute('data-destination')).toBe('local');
     expect(el.getAttribute('data-data-leaves')).toBe('false');
     const note = screen.getByTestId('egress-indicator-note').textContent || '';
-    expect(note).toMatch(/Keepance Local AI/);
+    expect(note).toMatch(/Advisor Prep Hero Local AI/);
     expect(note).not.toMatch(/Ollama/);
   });
 
@@ -258,7 +258,7 @@ describe('DataMapDialog', () => {
 
     // Files stay local.
     expect(screen.getByText(/stay on your machine/i)).toBeTruthy();
-    expect(screen.getByText(/no Keepance cloud holding copies/i)).toBeTruthy();
+    expect(screen.getByText(/no Advisor Prep Hero cloud holding copies/i)).toBeTruthy();
 
     // Keys in the OS keychain.
     expect(screen.getByText(/operating system keychain/i)).toBeTruthy();
@@ -276,14 +276,14 @@ describe('DataMapDialog', () => {
     expect(screen.getByText(/encrypted on your machine/i)).toBeTruthy();
 
     // Keepance servers: honest about the license check plus opt-in analytics + bug reports.
-    expect(screen.getByText(/only automatic contact with Keepance.s servers is a periodic license check/i)).toBeTruthy();
+    expect(screen.getByText(/only automatic contact with Advisor Prep Hero.s servers is a periodic license check/i)).toBeTruthy();
     expect(screen.getByText(/Neither analytics nor bug reports are on by default/i)).toBeTruthy();
 
     // Firm Assured-mode relay path is disclosed honestly.
     expect(screen.getByText(/For firm Assured mode/i)).toBeTruthy();
 
     // Desktop build (not demo): the affirmation shows, and the demo-relay caveat does not.
-    expect(screen.getByText(/using the Keepance desktop app/i)).toBeTruthy();
+    expect(screen.getByText(/using the Advisor Prep Hero desktop app/i)).toBeTruthy();
     expect(screen.queryByText(/never be used with confidential or client/i)).toBeNull();
 
     // Printable region + print control exist.

@@ -43,10 +43,10 @@ describe('dispatchOpenSource', () => {
   it('opens an email source through the dedicated open-email action (exact message id)', () => {
     const events: CustomEvent[] = [];
     const h = (e: Event) => events.push(e as CustomEvent);
-    window.addEventListener('keepance:open-email', h);
+    window.addEventListener('lantern:open-email', h);
     const ref: SourceRef = { kind: 'email', ref: 'mail:abc123', snippet: 's' };
     dispatchOpenSource('m1', ref);
-    window.removeEventListener('keepance:open-email', h);
+    window.removeEventListener('lantern:open-email', h);
     expect(events).toHaveLength(1);
     expect(events[0]!.detail.sourceId).toBe('mail:abc123');
   });
@@ -54,10 +54,10 @@ describe('dispatchOpenSource', () => {
   it('opens a document source through matter-launch carrying the exact path + snippet', () => {
     const events: CustomEvent[] = [];
     const h = (e: Event) => events.push(e as CustomEvent);
-    window.addEventListener('keepance:matter-launch', h);
+    window.addEventListener('lantern:matter-launch', h);
     const ref: SourceRef = { kind: 'document', ref: 'folder/lease.docx', snippet: 'rent is due' };
     dispatchOpenSource('m1', ref);
-    window.removeEventListener('keepance:matter-launch', h);
+    window.removeEventListener('lantern:matter-launch', h);
     expect(events).toHaveLength(1);
     expect(events[0]!.detail.matterId).toBe('m1');
     expect(events[0]!.detail.surface).toBe('files');
