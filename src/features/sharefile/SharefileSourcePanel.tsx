@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { FileText, X } from 'lucide-react';
 import { OPEN_SHAREFILE_EVENT } from '@/platform/clientMap/openSource';

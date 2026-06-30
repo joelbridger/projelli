@@ -191,9 +191,9 @@ export function ApiKeyManager({
         data-testid="api-key-manager"
       >
         <DialogHeader className="shrink-0">
-          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string -- matches the wizard's plain-literal copy; no locale key exists yet */}
+          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- matches the wizard's plain-literal copy; no locale key exists yet */}
           <DialogTitle>Manage AI Account Keys</DialogTitle>
-          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string -- matches the wizard's plain-literal copy; no locale key exists yet */}
+          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- matches the wizard's plain-literal copy; no locale key exists yet */}
           <DialogDescription>
             The provider keys saved on this computer. Remove one any time, or add another.
           </DialogDescription>
@@ -208,9 +208,9 @@ export function ApiKeyManager({
               className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-8 text-center"
             >
               <Key className="h-5 w-5 mx-auto text-muted-foreground" />
-              {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string -- matches the wizard's plain-literal copy; no locale key exists yet */}
+              {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- matches the wizard's plain-literal copy; no locale key exists yet */}
               <p className="mt-2 text-sm font-medium">No provider keys saved yet</p>
-              {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string -- matches the wizard's plain-literal copy; no locale key exists yet */}
+              {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- matches the wizard's plain-literal copy; no locale key exists yet */}
               <p className="mt-1 text-xs text-muted-foreground">
                 Add an Anthropic, OpenAI, or Google AI key to start using the assistant.
               </p>

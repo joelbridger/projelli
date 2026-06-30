@@ -427,7 +427,7 @@ function buildDemoAskProvider(): ResolvedAskProvider {
  *              provider call actually started (false => the failure was in the
  *              file-search/index stage, not the AI/key).
  */
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 export function friendlyErrorMessage(
   raw: string,
   opts?: { mode?: string; reachedProvider?: boolean; failedStage?: AskFailureStage },
@@ -486,7 +486,7 @@ export function friendlyErrorMessage(
     ? "The local AI couldn't answer, and your data stayed on your machine. Make sure your private AI finished setting up, then try again. You can also search by keyword instead."
     : "I couldn't get an answer from your AI. Try again in a moment, or search by keyword instead.";
 }
-/* eslint-enable keepance-i18n/no-hardcoded-string */
+/* eslint-enable lantern-i18n/no-hardcoded-string */
 
 /** Build conversation history block for system prompt (last N turns). */
 export function buildHistoryBlock(turns: AskTurn[], maxTurns = 6): string {

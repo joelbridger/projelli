@@ -408,7 +408,7 @@ export function TableHeader() {
 
 export function AuditEmptyState() {
   return (
-    /* eslint-disable keepance-i18n/no-hardcoded-string */
+    /* eslint-disable lantern-i18n/no-hardcoded-string */
     <div data-testid="audit-empty-state">
       <EmptyState
         icon={ShieldCheck}
@@ -416,7 +416,7 @@ export function AuditEmptyState() {
         body="Every AI request, file operation, workflow run, and governance action will appear here. This record stays on your machine and is yours to export whenever you need it."
       />
     </div>
-    /* eslint-enable keepance-i18n/no-hardcoded-string */
+    /* eslint-enable lantern-i18n/no-hardcoded-string */
   );
 }
 
@@ -428,7 +428,7 @@ export interface AuditNoMatchStateProps {
 
 export function AuditNoMatchState({ onClearFilters }: AuditNoMatchStateProps) {
   return (
-    /* eslint-disable keepance-i18n/no-hardcoded-string */
+    /* eslint-disable lantern-i18n/no-hardcoded-string */
     <div data-testid="audit-no-match-state">
       <EmptyState
         icon={Search}
@@ -447,7 +447,7 @@ export function AuditNoMatchState({ onClearFilters }: AuditNoMatchStateProps) {
         }
       />
     </div>
-    /* eslint-enable keepance-i18n/no-hardcoded-string */
+    /* eslint-enable lantern-i18n/no-hardcoded-string */
   );
 }
 

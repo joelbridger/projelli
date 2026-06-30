@@ -712,7 +712,7 @@ function AdvancedSection(props: SectionProps) {
           testid="subheader-extensions"
           containsMatch={extMatch}
         >
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           <div className="space-y-8">
             <div className="space-y-3">
               <Eyebrow primary>Browse and install</Eyebrow>
@@ -723,7 +723,7 @@ function AdvancedSection(props: SectionProps) {
               <TemplateModelSettings templates={props.templates ?? []} />
             </div>
           </div>
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </SubSection>
         <SubSection
           id="adv-updates"

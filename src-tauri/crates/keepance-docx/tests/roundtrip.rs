@@ -12,14 +12,14 @@
 //!   * DOM <-> JSON is stable (TEST J),
 //!   * properties (pPr/rPr) survive a round-trip (TEST PROPS).
 
-use keepance_docx::author::{delete_run_containing, insert_at_paragraph_end, AI_AUTHOR};
-use keepance_docx::fixture::{
+use lantern_docx::author::{delete_run_containing, insert_at_paragraph_end, AI_AUTHOR};
+use lantern_docx::fixture::{
     build_fixture_model, FIXTURE_COMMENT_ID, OPPOSING_COUNSEL, OPPOSING_DATE,
 };
-use keepance_docx::model::{BlockContent, Inline, RevisionKind};
-use keepance_docx::package::{Limits, Package};
-use keepance_docx::validate::validate_package;
-use keepance_docx::{
+use lantern_docx::model::{BlockContent, Inline, RevisionKind};
+use lantern_docx::package::{Limits, Package};
+use lantern_docx::validate::validate_package;
+use lantern_docx::{
     document_from_json, document_to_json, open_docx_bytes, parse_docx_bytes, resolve_all,
     resolve_revision, roundtrip_bytes, serialize_docx_bytes, Document, ResolveAction,
 };
@@ -688,7 +688,7 @@ fn test_edited_comment_is_regenerated() {
     // Add a brand-new comment to the model (anchored ids not required for this
     // serialization check; we only assert the comment body is emitted). Use the
     // existing comment id space; add id "2".
-    use keepance_docx::model::Comment;
+    use lantern_docx::model::Comment;
     opened.document.comments.insert(
         "2".to_string(),
         Comment {
@@ -884,7 +884,7 @@ fn body_ends_with_sectpr(doc_xml: &str) -> bool {
 
 #[test]
 fn test_paragraph_level_sectpr_does_not_suppress_body_sectpr() {
-    use keepance_docx::model::{BlockContent as BC, Inline as IL, Paragraph, Run};
+    use lantern_docx::model::{BlockContent as BC, Inline as IL, Paragraph, Run};
     // A document whose ONLY "sectPr" is paragraph-level: the last paragraph's
     // pPr carries a <w:sectPr> (this is how Word stores per-section breaks). The
     // body itself has NO trailing body-level sectPr block.
@@ -895,7 +895,7 @@ fn test_paragraph_level_sectpr_does_not_suppress_body_sectpr() {
         inlines: vec![IL::Run(Run::new("section one"))],
     };
     let doc = Document {
-        format_version: keepance_docx::model::DOM_FORMAT_VERSION,
+        format_version: lantern_docx::model::DOM_FORMAT_VERSION,
         body: vec![BC::Paragraph(para)],
         comments: Default::default(),
     };
@@ -968,7 +968,7 @@ fn test_save_rejects_dangling_comment_range_start() {
 #[test]
 fn test_save_rejects_orphaned_comment() {
     // A comment with NO body reference is orphaned and must be rejected.
-    use keepance_docx::model::Comment;
+    use lantern_docx::model::Comment;
     let mut doc = build_fixture_model();
     doc.comments.insert(
         "42".to_string(),
@@ -1378,7 +1378,7 @@ fn test_r_resolve_preserves_unmodeled_parts_via_opened_document() {
 //   * preserve-by-default still holds for every non-metadata part.
 // ===========================================================================
 
-use keepance_docx::scrub::{
+use lantern_docx::scrub::{
     app_props_are_clean, clean_copy_bytes, core_props_are_clean, scrub_package_metadata,
     ScrubOptions, APP_PROPS_PART, CORE_PROPS_PART,
 };
@@ -1399,8 +1399,8 @@ fn build_package_with_metadata_and_revisions() -> Vec<u8> {
     // Start from the fixture (has an insertion, a deletion, and a comment), then
     // inject docProps parts + an unmodeled styles.xml + the manifests/overrides.
     let doc = build_fixture_model();
-    let document_xml = keepance_docx::serialize::serialize_document(&doc).expect("serialize body");
-    let comments_xml = keepance_docx::serialize::serialize_comments(&doc).expect("serialize comments");
+    let document_xml = lantern_docx::serialize::serialize_document(&doc).expect("serialize body");
+    let comments_xml = lantern_docx::serialize::serialize_comments(&doc).expect("serialize comments");
 
     let content_types = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>"#;

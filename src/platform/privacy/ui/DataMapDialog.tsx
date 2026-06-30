@@ -21,7 +21,7 @@
  * intentionally NOT split into i18n keys; localising it is a separate, careful
  * effort. Disable the hardcoded-string rule for this file only.
  */
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useCallback, useState } from 'react';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import {

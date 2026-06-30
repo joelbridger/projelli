@@ -197,7 +197,7 @@ export function TemplateModelSettings({ templates }: TemplateModelSettingsProps)
       {/* Pinned override rows — only shown when at least one override exists */}
       {pinnedTemplates.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
           Your workflows use your default AI. Pin a specific model to any workflow below.
         </p>
       ) : (
@@ -295,7 +295,7 @@ export function TemplateModelSettings({ templates }: TemplateModelSettingsProps)
           }}
           className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-muted-foreground"
         >
-          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
           <option value="" disabled>
             Pin a model to a workflow...
           </option>

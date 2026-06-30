@@ -175,27 +175,27 @@ export function ClientMapView({
           </Card>
         ))}
       <Card variant="raised" data-testid="clientmap-completeness">
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
         <Eyebrow>What I'm missing</Eyebrow>
         <Chip data-testid="clientmap-completeness-level">
           {LEVEL_LABEL[c.level]}
         </Chip>
         <Eyebrow>What I know</Eyebrow>
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         <ul>
           {c.know.map((it) => (
             <Item key={it.id} item={it} onOpenSource={onOpenSource} />
           ))}
         </ul>
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
         <Eyebrow>What I'm assuming</Eyebrow>
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         <ul>
           {c.assuming.map((it) => (
             <Item key={it.id} item={it} onOpenSource={onOpenSource} />
           ))}
         </ul>
-        {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+        {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
         <Eyebrow>What to ask</Eyebrow>
         <ul>
           {c.ask.map((q, i) => (

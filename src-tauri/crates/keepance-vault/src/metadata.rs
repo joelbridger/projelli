@@ -1,4 +1,4 @@
-//! `.keepance-vault.json` metadata file: vault identity, recovery wrap, verifier,
+//! `.lantern-vault.json` metadata file: vault identity, recovery wrap, verifier,
 //! and optional firm-escrow wraps.
 //!
 //! Implements §4 + §14 of the encrypted-workspace-vault design spec.
@@ -6,7 +6,7 @@
 //! The metadata file is written crash-safely via `atomic::atomic_write` so a
 //! kill between stages never leaves a partially-written JSON file.
 //!
-//! File location: `<workspace_root>/.keepance-vault.json`
+//! File location: `<workspace_root>/.lantern-vault.json`
 //!
 //! JSON shape (all binary fields are standard base64-encoded):
 //! ```json
@@ -35,7 +35,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Filename written inside the workspace root.
-pub const METADATA_FILENAME: &str = ".keepance-vault.json";
+pub const METADATA_FILENAME: &str = ".lantern-vault.json";
 
 // ---------------------------------------------------------------------------
 // JSON structs
@@ -140,7 +140,7 @@ impl VaultMetadata {
         serde_json::from_str(s)
     }
 
-    /// Read the metadata file from `<dir>/.keepance-vault.json`.
+    /// Read the metadata file from `<dir>/.lantern-vault.json`.
     ///
     /// Returns `Err` if the file is absent, unreadable, or contains invalid JSON.
     pub fn read_from(dir: &Path) -> std::io::Result<Self> {
@@ -151,7 +151,7 @@ impl VaultMetadata {
         Self::from_json(&s).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 
-    /// Write the metadata file to `<dir>/.keepance-vault.json` crash-safely.
+    /// Write the metadata file to `<dir>/.lantern-vault.json` crash-safely.
     ///
     /// Uses `atomic::atomic_write` (temp + fsync + rename) so a kill mid-write
     /// leaves the previous metadata file fully intact.
@@ -222,7 +222,7 @@ mod tests {
 
         // The file must exist.
         let path = dir.path().join(METADATA_FILENAME);
-        assert!(path.exists(), ".keepance-vault.json must be written");
+        assert!(path.exists(), ".lantern-vault.json must be written");
 
         let back = VaultMetadata::read_from(dir.path()).unwrap();
         assert_eq!(back, m);

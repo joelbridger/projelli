@@ -1,5 +1,5 @@
 [package]
-name = "keepance-vault"
+name = "lantern-vault"
 version = "0.1.0"
 edition = "2021"
 description = "At-rest AES-256-GCM encryption for Keepance workspace document files. Pure crate: file format, atomic write, BIP39 recovery, metadata. No Tauri."

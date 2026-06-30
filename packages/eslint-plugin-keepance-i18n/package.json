@@ -1,5 +1,5 @@
 {
-  "name": "eslint-plugin-keepance-i18n",
+  "name": "eslint-plugin-lantern-i18n",
   "version": "0.1.0",
   "description": "Custom ESLint rule that flags hardcoded JSX strings so every user-facing string flows through i18next.",
   "license": "MIT",

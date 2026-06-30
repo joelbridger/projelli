@@ -182,9 +182,9 @@ function TrustBanner({ onDismiss }: TrustBannerProps) {
       }}
     >
       <Callout variant="info" icon={FileText} onDismiss={onDismiss}>
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
         Indexed on your machine. Nothing was uploaded.
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
       </Callout>
     </div>
   );
@@ -619,7 +619,7 @@ export function DocumentsHome({
       {/* ── Files toolbar — shown above the tab strip when Files tab is active */}
       {showFilesGrid && (
         <SurfaceToolbar data-testid="documents-toolbar">
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
 
           {/* 1. Action buttons — files view only */}
           {activeView === 'files' && (
@@ -742,7 +742,7 @@ export function DocumentsHome({
             />
           )}
 
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </SurfaceToolbar>
       )}
 

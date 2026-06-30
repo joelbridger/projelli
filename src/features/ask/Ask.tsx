@@ -282,14 +282,14 @@ export function Ask(props: UseAskProps) {
                   maxWidth: 680,
                 }}
               >
-                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                 <span>
                   Answers here are cited to your files — Ask only answers from these documents, never the open internet, and you can click any citation to open the source. For drafting documents, use Workflows, and check current-year figures before you send.
                 </span>
                 <span>
                   Advisor Prep Hero isn't a CRM or a note-taker. It sits beside your tools and reads across your files.
                 </span>
-                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                {/* eslint-enable lantern-i18n/no-hardcoded-string */}
                 {/* Suggested questions — one click each. The last one is about
                     something the files don't cover, so it shows Ask declining
                     ("I couldn't find anything…") instead of guessing. */}
@@ -325,9 +325,9 @@ export function Ask(props: UseAskProps) {
               >
                 <AlertTriangle size={14} strokeWidth={2} style={{ flex: 'none', color: 'var(--kp-direct, #b45309)' }} />
                 <span>
-                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                   Cited answers need your documents indexed on your machine.
-                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                  {/* eslint-enable lantern-i18n/no-hardcoded-string */}
                 </span>
                 <Button
                   variant="secondary"

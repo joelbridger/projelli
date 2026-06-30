@@ -525,9 +525,9 @@ function MissingPanel({
         data-testid="clientmap-coverage-caveat"
         style={{ ...mutedTextStyle, marginBottom: 'var(--kp-space-md)' }}
       >
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
         Built from the files Advisor Prep Hero can read — a head-start for your review, not a guarantee the whole record is complete.
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
       </div>
 
       {hasGaps && (

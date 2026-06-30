@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 /**
  * SetupChecklist — live setup status shown at the top of Settings, Onboarding.
  *

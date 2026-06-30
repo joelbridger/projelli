@@ -4785,36 +4785,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "keepance-docx"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "quick-xml 0.38.4",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 1.0.69",
- "zip",
-]
-
-[[package]]
-name = "keepance-vault"
-version = "0.1.0"
-dependencies = [
- "aes-gcm",
- "base64 0.22.1",
- "bip39",
- "hkdf",
- "rand 0.8.6",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tempfile",
- "thiserror 1.0.69",
- "zeroize",
-]
-
-[[package]]
 name = "keyboard-types"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5352,10 +5322,10 @@ dependencies = [
  "hex",
  "hf-hub",
  "hmac 0.12.1",
- "keepance-docx",
- "keepance-vault",
  "keyring",
  "lancedb",
+ "lantern-docx",
+ "lantern-vault",
  "lettre",
  "log",
  "mail-parser",
@@ -5387,6 +5357,36 @@ dependencies = [
  "wiremock",
  "zeroize",
  "zip",
+]
+
+[[package]]
+name = "lantern-docx"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "quick-xml 0.38.4",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "zip",
+]
+
+[[package]]
+name = "lantern-vault"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "base64 0.22.1",
+ "bip39",
+ "hkdf",
+ "rand 0.8.6",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 1.0.69",
+ "zeroize",
 ]
 
 [[package]]

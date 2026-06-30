@@ -11,7 +11,7 @@
  *
  * Light-theme first; no em dashes. No secrets ever rendered or logged.
  */
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';

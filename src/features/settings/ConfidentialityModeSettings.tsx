@@ -24,7 +24,7 @@
  * privacy/data story is a separate, careful effort. Disable the
  * hardcoded-string rule for this file only.
  */
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 
 import { useState, useRef } from 'react';
 import { Laptop, Cloud, ShieldCheck, ShieldOff, MapPin, Check } from 'lucide-react';

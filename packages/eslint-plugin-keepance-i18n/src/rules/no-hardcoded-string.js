@@ -39,7 +39,7 @@ module.exports = {
     },
     messages: {
       hardcoded:
-        'Hardcoded user-facing string ("{{snippet}}"). Wrap in t() or <Trans>, or add `// eslint-disable-next-line keepance-i18n/no-hardcoded-string` for an intentional exception.',
+        'Hardcoded user-facing string ("{{snippet}}"). Wrap in t() or <Trans>, or add `// eslint-disable-next-line lantern-i18n/no-hardcoded-string` for an intentional exception.',
     },
     schema: [],
   },

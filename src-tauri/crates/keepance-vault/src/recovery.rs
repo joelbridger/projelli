@@ -46,7 +46,7 @@ pub enum RecoveryError {
 
 /// The persisted blob that allows the VMK to be recovered from the phrase.
 ///
-/// Stored in `.keepance-vault.json`. Neither field is secret on its own;
+/// Stored in `.lantern-vault.json`. Neither field is secret on its own;
 /// the combination of (salt, wrapped) plus the recovery phrase is what recovers the VMK.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RecoveryWrap {

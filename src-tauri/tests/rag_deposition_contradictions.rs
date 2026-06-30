@@ -190,10 +190,10 @@ fn load_source(src: &Source) -> (String, SourceType) {
     if src.file.ends_with(".docx") {
         let bytes =
             std::fs::read(&path).unwrap_or_else(|e| panic!("read fixture {path}: {e}"));
-        let doc = keepance_docx::parse_docx_bytes(&bytes)
+        let doc = lantern_docx::parse_docx_bytes(&bytes)
             .unwrap_or_else(|e| panic!("parse fixture {path}: {e}"));
         (
-            keepance_docx::extract_paragraph_texts(&doc).join("\n\n"),
+            lantern_docx::extract_paragraph_texts(&doc).join("\n\n"),
             SourceType::Docx,
         )
     } else {

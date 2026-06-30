@@ -12,7 +12,7 @@
  *     deferred flag is cleared on save).
  */
 
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useState } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { Button } from '@/ui/button';

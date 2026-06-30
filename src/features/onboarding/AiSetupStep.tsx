@@ -27,7 +27,7 @@
  * Localising it is a separate, careful effort.
  */
 
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import {
   ArrowLeft,

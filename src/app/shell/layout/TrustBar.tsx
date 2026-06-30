@@ -14,7 +14,7 @@
  * explanation on demand (tooltip). The always-visible two-line paragraph is
  * removed; the meaning (three confidentiality states, color-coded) stays.
  */
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useState } from 'react';
 import { Briefcase, Globe, Map as MapIcon, Info, Lock } from 'lucide-react';
 import { useActiveMatter } from '@/platform/matter/matterStore';

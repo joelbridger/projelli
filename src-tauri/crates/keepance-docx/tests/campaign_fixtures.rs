@@ -11,10 +11,10 @@
 //! `tests/fixtures/matter-corpus/generators/`; they are the contractual
 //! assertion that a regenerated fixture still meets the engine's requirements.
 
-use keepance_docx::{open_docx_bytes, parse_docx_bytes};
-use keepance_docx::model::RevisionKind;
-use keepance_docx::package::Package;
-use keepance_docx::validate::validate_package;
+use lantern_docx::{open_docx_bytes, parse_docx_bytes};
+use lantern_docx::model::RevisionKind;
+use lantern_docx::package::Package;
+use lantern_docx::validate::validate_package;
 
 /// Absolute path to the matter-corpus fixture directory.
 /// `CARGO_MANIFEST_DIR` points to `src-tauri/crates/keepance-docx/`.
@@ -105,7 +105,7 @@ fn services_agreement_is_valid_docx_with_content() {
         .document
         .body
         .iter()
-        .filter(|b| matches!(b, keepance_docx::BlockContent::Paragraph(_)))
+        .filter(|b| matches!(b, lantern_docx::BlockContent::Paragraph(_)))
         .count();
     assert!(
         para_count >= 5,
@@ -137,7 +137,7 @@ fn unicode_filename_docx_parses_cleanly() {
         .document
         .body
         .iter()
-        .filter(|b| matches!(b, keepance_docx::BlockContent::Paragraph(_)))
+        .filter(|b| matches!(b, lantern_docx::BlockContent::Paragraph(_)))
         .count();
     assert!(para_count >= 1, "unicode docx must have at least one paragraph");
 }

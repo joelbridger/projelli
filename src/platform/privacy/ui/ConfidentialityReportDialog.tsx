@@ -7,7 +7,7 @@
  *
  * Uses the exact same hidden-iframe print pattern as DataMapDialog.
  */
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useCallback } from 'react';
 import { Printer, X, ShieldCheck } from 'lucide-react';
 import type { ConfidentialityReport } from '@/platform/privacy/confidentialityReport';

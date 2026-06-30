@@ -19,7 +19,7 @@
  * product (it is printed and handed to a firm's IT / GC). Disable the
  * hardcoded-string rule for this file only.
  */
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 
 import { useCallback, useState } from 'react';
 import {

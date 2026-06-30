@@ -149,7 +149,7 @@ function GetStartedCard() {
             ? <CheckCircle2 style={iconDone} />
             : <Circle style={iconTodo} />
           }
-          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
           <span style={stepLabel}>Create your first {entityLabel.one}</span>
           {!hasMatter && (
             <Button
@@ -171,7 +171,7 @@ function GetStartedCard() {
             ? <CheckCircle2 style={iconDone} />
             : <Circle style={iconTodo} />
           }
-          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
           <span style={stepLabel}>Connect an AI</span>
           {!aiConnected && (
             <Button
@@ -797,7 +797,7 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
                         textAlign: 'center',
                       }}
                     >
-                      {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+                      {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
                       No {entityLabel.other} match your search.
                     </div>
                   ) : (

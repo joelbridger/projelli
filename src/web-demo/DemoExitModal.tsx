@@ -78,7 +78,7 @@ export function DemoExitModal({
         }}
       >
         <DialogHeader>
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           <DialogTitle>What's one caught mistake worth?</DialogTitle>
           <DialogDescription>
             You just watched Advisor Prep Hero catch a beneficiary designation still
@@ -88,7 +88,7 @@ export function DemoExitModal({
             desktop app gives you unlimited AI with your own key, every answer
             cited to its source, and nothing leaving your machine.
           </DialogDescription>
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </DialogHeader>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">

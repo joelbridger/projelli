@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useRef, useState } from 'react';
 import { Upload, User, Building2, X } from 'lucide-react';
 import {

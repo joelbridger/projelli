@@ -40,7 +40,7 @@ function TierCard({ tier }: { tier: PricingTier }) {
             data-testid={`pricing-badge-${tier.code}`}
             className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-primary/15 text-primary"
           >
-            {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
+            {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
             Start here
           </span>
         )}
@@ -49,7 +49,7 @@ function TierCard({ tier }: { tier: PricingTier }) {
             data-testid={`pricing-badge-${tier.code}`}
             className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium text-muted-foreground border border-border"
           >
-            {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
+            {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
             More features
           </span>
         )}
@@ -63,10 +63,10 @@ function TierCard({ tier }: { tier: PricingTier }) {
         </span>
       </div>
       <p className="text-xs text-muted-foreground mt-0.5">
-        {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
+        {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
         ${tier.annualPerYear.toLocaleString('en-US')}/yr, billed annually
         {tier.minSeats > 1 ? ` · min ${String(tier.minSeats)} seats` : ''}
-        {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
+        {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
         {' · '}or ${tier.monthlyPerMonth}/mo month-to-month
       </p>
 
@@ -87,7 +87,7 @@ function TierCard({ tier }: { tier: PricingTier }) {
           data-testid="pricing-firm-sublabel"
           className="mt-3 text-xs text-muted-foreground border-t pt-2"
         >
-          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
+          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
           For growing firms; SSO and co-editing included, SOC 2 and DPA on the roadmap.
         </p>
       )}
@@ -114,7 +114,7 @@ export function PricingTiers() {
         className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground"
         data-testid="pricing-byok"
       >
-        {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
+        {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- product pricing copy, English-canonical */}
         <span className="font-medium text-foreground">You bring your own AI key.</span>{' '}
         {BYOK_FRAMING.short}
       </div>

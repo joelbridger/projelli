@@ -49,8 +49,8 @@ tauri-build = { version = "2.5.3", features = [] }
 # track-changes + comments + preserve-by-default. The `commands::docx` module
 # is a thin wrapper over this crate; all the real work lives here so it can be
 # tested in isolation. See crates/keepance-docx/.
-keepance-docx = { path = "crates/keepance-docx" }
-keepance-vault = { path = "crates/keepance-vault" }
+lantern-docx = { path = "crates/keepance-docx" }
+lantern-vault = { path = "crates/keepance-vault" }
 zeroize = "1"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }

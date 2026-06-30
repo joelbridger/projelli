@@ -343,9 +343,9 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
                     onClick={() => setStep('ai-setup')}
                     size="lg"
                   >
-                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                    {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                     Connect an AI provider
-                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                    {/* eslint-enable lantern-i18n/no-hardcoded-string */}
                   </Button>
                 </div>
               }

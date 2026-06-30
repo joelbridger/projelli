@@ -22,15 +22,15 @@
 //!     I/O. The `action` is a plain string `"accept"` / `"reject"` (see
 //!     [`resolve_revision_core`]).
 //!
-//! The JSON DOM shape is defined by `keepance_docx::Document` (serde,
+//! The JSON DOM shape is defined by `lantern_docx::Document` (serde,
 //! camelCase). See the engine crate for the authoritative schema.
 
 use std::path::Path;
 
 use base64::Engine;
-use keepance_docx::author;
-use keepance_docx::author::{Edit, EditResult};
-use keepance_docx::{
+use lantern_docx::author;
+use lantern_docx::author::{Edit, EditResult};
+use lantern_docx::{
     document_from_value, document_to_value, merge_into_template, open_docx_bytes, resolve_all,
     resolve_revision, serialize_docx_bytes, Document, OpenedDocument, ResolveAction,
 };
@@ -38,7 +38,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// The document DOM as a JSON `Value` — the exact serde serialization of
-/// `keepance_docx::Document` (camelCase, tag-discriminated). This is what the
+/// `lantern_docx::Document` (camelCase, tag-discriminated). This is what the
 /// `docx_*` commands hand to / take from the React editor; the engine crate
 /// owns the authoritative schema.
 pub type DocumentJson = Value;
@@ -361,7 +361,7 @@ pub async fn docx_save(path: String, document: Value) -> Result<(), String> {
         // truncates the existing file first — a crash mid-write would leave a
         // lawyer's Word file corrupt/empty. Reuses the vault crate's crash-safe,
         // Windows-safe atomic_write.
-        keepance_vault::atomic::atomic_write(p, &bytes)
+        lantern_vault::atomic::atomic_write(p, &bytes)
             .map_err(|e| format!("write {}: {e}", p.display()))
     })
     .await
@@ -392,11 +392,11 @@ pub async fn docx_author_revision(
     tokio::task::spawn_blocking(move || {
         let author_name = match author {
             Some(a) if !a.trim().is_empty() => a,
-            _ => keepance_docx::author::AI_AUTHOR.to_string(),
+            _ => lantern_docx::author::AI_AUTHOR.to_string(),
         };
         let date = match date {
             Some(d) if !d.trim().is_empty() => d,
-            _ => keepance_docx::author::now_iso(),
+            _ => lantern_docx::author::now_iso(),
         };
         author_revision_core(
             document,
@@ -439,11 +439,11 @@ pub async fn docx_author_revisions(
     tokio::task::spawn_blocking(move || {
         let author_name = match author {
             Some(a) if !a.trim().is_empty() => a,
-            _ => keepance_docx::author::AI_AUTHOR.to_string(),
+            _ => lantern_docx::author::AI_AUTHOR.to_string(),
         };
         let date = match date {
             Some(d) if !d.trim().is_empty() => d,
-            _ => keepance_docx::author::now_iso(),
+            _ => lantern_docx::author::now_iso(),
         };
         author_revisions_core(document, edits, &author_name, &date)
     })
@@ -514,7 +514,7 @@ pub async fn docx_resolve_all(document: Value, action: String) -> Result<Documen
 /// package. `generated` is the workflow deliverable's bytes; `template` is the
 /// firm letterhead `.docx` chosen in settings. The result carries the template's
 /// header/footer/styles/sectPr with the generated document's content blocks (see
-/// `keepance_docx::merge_into_template`). Pure bytes-in / bytes-out, no disk I/O.
+/// `lantern_docx::merge_into_template`). Pure bytes-in / bytes-out, no disk I/O.
 pub fn apply_letterhead_bytes(generated: &[u8], template: &[u8]) -> Result<Vec<u8>, String> {
     // Open BOTH as full packages: the merge copies the generated content's own
     // hyperlink/image relationships and numbering definitions into the template
@@ -559,7 +559,7 @@ pub fn export_clean_copy_bytes(src: &Path, accept_all_changes: bool) -> Result<V
     }
     let bytes = read_docx_capped(src)?; // BUG-049: cap in-memory read
     let opened = OpenedDocument::open_bytes(&bytes).map_err(|e| e.to_string())?;
-    let options = keepance_docx::ScrubOptions {
+    let options = lantern_docx::ScrubOptions {
         strip_document_metadata: true,
         accept_all_changes,
     };
@@ -636,8 +636,8 @@ pub async fn docx_apply_letterhead(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use keepance_docx::fixture::build_fixture_model;
-    use keepance_docx::{document_to_value, parse_docx_bytes};
+    use lantern_docx::fixture::build_fixture_model;
+    use lantern_docx::{document_to_value, parse_docx_bytes};
 
     /// Absolute path to a matter-corpus fixture. `CARGO_MANIFEST_DIR` is
     /// `src-tauri/`, so the corpus is at `tests/fixtures/matter-corpus/`.
@@ -668,7 +668,7 @@ mod tests {
         let merged = apply_letterhead_bytes(&generated, &template).expect("apply letterhead");
 
         // Re-opens cleanly through the full package path.
-        let reopened = keepance_docx::open_docx_bytes(&merged).expect("merged re-opens cleanly");
+        let reopened = lantern_docx::open_docx_bytes(&merged).expect("merged re-opens cleanly");
         assert!(
             reopened.package.contains("word/header1.xml"),
             "merged package must keep the template header part"
@@ -684,7 +684,7 @@ mod tests {
             "merged document must carry exactly one body-level sectPr (the template's)"
         );
         // Generated content present.
-        let texts = keepance_docx::text::extract_paragraph_texts(&reopened.document);
+        let texts = lantern_docx::text::extract_paragraph_texts(&reopened.document);
         assert!(
             texts
                 .join("\n\n")
@@ -709,7 +709,7 @@ mod tests {
         // Write a fixture .docx to a temp path.
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("matter.docx");
-        let bytes = keepance_docx::serialize_docx_bytes(&build_fixture_model()).unwrap();
+        let bytes = lantern_docx::serialize_docx_bytes(&build_fixture_model()).unwrap();
         std::fs::write(&path, &bytes).unwrap();
 
         // 1. open_to_json returns a JSON DOM with the existing revisions.
@@ -759,12 +759,12 @@ mod tests {
             "2026-06-09T00:00:00Z",
         )
         .expect("author deletion");
-        let doc = keepance_docx::document_from_value(out).unwrap();
+        let doc = lantern_docx::document_from_value(out).unwrap();
         assert!(doc
             .revisions()
             .iter()
             .any(|(m, k, runs)| m.author == "Advisor Prep Hero AI"
-                && *k == keepance_docx::RevisionKind::Deletion
+                && *k == lantern_docx::RevisionKind::Deletion
                 && runs.iter().any(|r| r.text.contains("resolve all"))));
     }
 
@@ -794,16 +794,16 @@ mod tests {
         // Distinct revision ids across the two edits.
         assert_ne!(out.results[0].revision_id, out.results[1].revision_id);
         // Reparse the DOM and confirm the tracked changes are present + attributed.
-        let doc = keepance_docx::document_from_value(out.document).unwrap();
+        let doc = lantern_docx::document_from_value(out.document).unwrap();
         let revs = doc.revisions();
         // replace = del+ins (2) + delete (1) = 3 revision elements.
         assert_eq!(revs.len(), 3);
         assert!(revs.iter().all(|(m, _, _)| m.author == "Advisor Prep Hero AI"));
-        assert!(revs.iter().any(|(_, k, r)| *k == keepance_docx::RevisionKind::Insertion
+        assert!(revs.iter().any(|(_, k, r)| *k == lantern_docx::RevisionKind::Insertion
             && r.iter().any(|x| x.text.contains("Vendor"))));
-        assert!(revs.iter().any(|(_, k, r)| *k == keepance_docx::RevisionKind::Deletion
+        assert!(revs.iter().any(|(_, k, r)| *k == lantern_docx::RevisionKind::Deletion
             && r.iter().any(|x| x.text == "Company")));
-        assert!(revs.iter().any(|(_, k, r)| *k == keepance_docx::RevisionKind::Deletion
+        assert!(revs.iter().any(|(_, k, r)| *k == lantern_docx::RevisionKind::Deletion
             && r.iter().any(|x| x.text == "for all losses")));
     }
 
@@ -835,7 +835,7 @@ mod tests {
     async fn async_command_author_revisions_smoke() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("matter.docx");
-        let bytes = keepance_docx::serialize_docx_bytes(&build_fixture_model()).unwrap();
+        let bytes = lantern_docx::serialize_docx_bytes(&build_fixture_model()).unwrap();
         std::fs::write(&path, &bytes).unwrap();
         let path_str = path.to_string_lossy().to_string();
 
@@ -854,7 +854,7 @@ mod tests {
             .await
             .expect("save");
         let reopened = super::docx_open(path_str).await.expect("reopen");
-        let doc = keepance_docx::document_from_value(reopened).unwrap();
+        let doc = lantern_docx::document_from_value(reopened).unwrap();
         assert_eq!(doc.revisions().len(), 3, "2 originals + 1 AI insertion");
         assert!(doc.revisions().iter().any(|(m, _, _)| m.author == "Advisor Prep Hero AI"));
         assert!(doc.comments.contains_key("1"), "comment preserved");
@@ -888,7 +888,7 @@ mod tests {
     async fn async_command_surface_open_author_save_smoke() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("matter.docx");
-        let bytes = keepance_docx::serialize_docx_bytes(&build_fixture_model()).unwrap();
+        let bytes = lantern_docx::serialize_docx_bytes(&build_fixture_model()).unwrap();
         std::fs::write(&path, &bytes).unwrap();
         let path_str = path.to_string_lossy().to_string();
 
@@ -918,7 +918,7 @@ mod tests {
 
         // 4. Re-open and confirm originals + the new AI revision survived.
         let reopened = super::docx_open(path_str).await.expect("reopen");
-        let doc = keepance_docx::document_from_value(reopened).unwrap();
+        let doc = lantern_docx::document_from_value(reopened).unwrap();
         let revs = doc.revisions();
         assert_eq!(revs.len(), 3, "expected 2 originals + 1 authored");
         assert!(revs.iter().any(|(m, _, _)| m.author == "Advisor Prep Hero AI"));
@@ -946,7 +946,7 @@ mod tests {
     fn resolve_revision_core_accept_insertion() {
         let json = document_to_value(&build_fixture_model()).unwrap();
         let out = resolve_revision_core(json, "101", "accept").expect("resolve");
-        let doc = keepance_docx::document_from_value(out).unwrap();
+        let doc = lantern_docx::document_from_value(out).unwrap();
         let revs = doc.revisions();
         assert_eq!(revs.len(), 1, "only the deletion remains");
         assert_eq!(revs[0].0.id, "102");
@@ -970,18 +970,18 @@ mod tests {
     fn resolve_all_core_accept_reject_and_noop() {
         let json = document_to_value(&build_fixture_model()).unwrap();
         let accepted = resolve_all_core(json.clone(), "accept").expect("accept all");
-        let doc = keepance_docx::document_from_value(accepted.clone()).unwrap();
+        let doc = lantern_docx::document_from_value(accepted.clone()).unwrap();
         assert!(doc.revisions().is_empty());
 
         let rejected = resolve_all_core(json, "reject").expect("reject all");
-        assert!(keepance_docx::document_from_value(rejected)
+        assert!(lantern_docx::document_from_value(rejected)
             .unwrap()
             .revisions()
             .is_empty());
 
         // Resolving the already-clean doc is fine (review pane calls it freely).
         let again = resolve_all_core(accepted, "accept").expect("noop accept all");
-        assert!(keepance_docx::document_from_value(again)
+        assert!(lantern_docx::document_from_value(again)
             .unwrap()
             .revisions()
             .is_empty());
@@ -994,7 +994,7 @@ mod tests {
     async fn async_command_surface_resolve_smoke() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("matter.docx");
-        let bytes = keepance_docx::serialize_docx_bytes(&build_fixture_model()).unwrap();
+        let bytes = lantern_docx::serialize_docx_bytes(&build_fixture_model()).unwrap();
         std::fs::write(&path, &bytes).unwrap();
         let path_str = path.to_string_lossy().to_string();
 
@@ -1004,7 +1004,7 @@ mod tests {
         let after_one = super::docx_resolve_revision(json, "101".to_string(), "accept".to_string())
             .await
             .expect("docx_resolve_revision");
-        let mid = keepance_docx::document_from_value(after_one.clone()).unwrap();
+        let mid = lantern_docx::document_from_value(after_one.clone()).unwrap();
         assert_eq!(mid.revisions().len(), 1, "deletion still pending");
 
         // Accept everything else via the async bulk command.
@@ -1017,7 +1017,7 @@ mod tests {
             .await
             .expect("save");
         let reopened = super::docx_open(path_str).await.expect("reopen");
-        let doc = keepance_docx::document_from_value(reopened).unwrap();
+        let doc = lantern_docx::document_from_value(reopened).unwrap();
         assert!(doc.revisions().is_empty(), "all revisions resolved");
         assert!(doc.comments.contains_key("1"), "comment preserved");
     }
@@ -1036,11 +1036,11 @@ mod tests {
     /// `docx_export_copy` / `docx_export_clean_copy` commands call.
     #[test]
     fn export_copy_and_clean_copy_cores() {
-        use keepance_docx::parse_docx_bytes;
+        use lantern_docx::parse_docx_bytes;
 
         let dir = tempfile::tempdir().unwrap();
         let src = dir.path().join("matter.docx");
-        let bytes = keepance_docx::serialize_docx_bytes(&build_fixture_model()).unwrap();
+        let bytes = lantern_docx::serialize_docx_bytes(&build_fixture_model()).unwrap();
         std::fs::write(&src, &bytes).unwrap();
 
         // Faithful Word copy: revisions + comment preserved.
@@ -1137,7 +1137,7 @@ mod tests {
         let abs_buf = std::env::temp_dir().join("kp_nonexistent_dir").join("matter.docx");
         let abs = abs_buf.as_path();
         // The body is valid JSON — only the path is tested here.
-        let json = keepance_docx::document_to_value(&keepance_docx::fixture::build_fixture_model()).unwrap();
+        let json = lantern_docx::document_to_value(&lantern_docx::fixture::build_fixture_model()).unwrap();
         let result = save_from_json(abs, json);
         // Must be Err (file doesn't exist → synthesize path, which may succeed
         // or error on write, but NOT on the relative-path guard).

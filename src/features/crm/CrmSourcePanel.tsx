@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 /**
  * CrmSourcePanel — v1 citation viewer for Wealthbox `crm:` source links.
  *

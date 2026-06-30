@@ -84,19 +84,19 @@ export function MailGmailConnect() {
 
       {!connected && (
         <div className="mt-3 space-y-3">
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           <p className="text-xs text-slate-500">
             A browser window will open to sign in to Google. Google will ask you to confirm
             access to Advisor Prep Hero. This is normal. Choose Continue.
           </p>
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
 
           {connectError &&
             (isDesktopOnlyMailError(connectError) ? (
               /* Expected limitation in the web preview — a calm info note, not a
                  red alarm (UX-22). */
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+                {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
                 <p>Email connects in the Advisor Prep Hero desktop app.</p>
               </div>
             ) : (

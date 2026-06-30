@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { Package, X } from 'lucide-react';
 import { OPEN_BOX_EVENT } from '@/platform/clientMap/openSource';

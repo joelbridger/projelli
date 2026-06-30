@@ -17,7 +17,7 @@
  *   8  Done            — sample-files toggle; Confirm marks complete
  */
 
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 
 import { useState, useRef, type ReactNode } from 'react';
 import { Button } from '@/ui/button';
