@@ -30,12 +30,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Mail,
   Search,
-  ChevronDown,
   Loader2,
   AlertTriangle,
-  Paperclip,
-  FolderInput,
-  X,
   PenLine,
   Sparkles,
   RefreshCw,
@@ -46,27 +42,20 @@ import { resolveMailMatter } from '@/platform/rag/matterResolver';
 import { useMailStore } from './mailStore';
 import {
   mailListMessages,
-  mailConnectedAccounts,
-  mailSend,
-  mailSyncAll,
-  MAIL_SYNC_EVENT,
   type MailListItem,
-  type ConnectedAccount,
-  type MailAttachmentInput,
-  type MailSyncProgress,
 } from '@/platform/utils/mail-commands';
-import { buildMailMatterMap } from '@/platform/rag/matterResolver';
-import { listen } from '@tauri-apps/api/event';
-import { isTauri } from '@tauri-apps/api/core';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { mapMailError, parseRecipients, filterInputStyle } from './emailWorkspaceHelpers';
-import { BulkMatterPicker } from './BulkMatterPicker';
+import { mapMailError, filterInputStyle } from './emailWorkspaceHelpers';
 import { AskHitCard } from './AskHitCard';
 import { NoAccountsState } from './NoAccountsState';
 import { MailRow } from './MailRow';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
+import { useScrollPersistence } from './useScrollPersistence';
+import { ComposeModal } from './ComposeModal';
+import { BulkActionBar } from './BulkActionBar';
+import { useAccountSync } from './useAccountSync';
 import { EV_OPEN_SETTINGS } from '@/config/identity';
 
 // ── Props ──────────────────────────────────────────────────────────────────
@@ -82,23 +71,6 @@ export interface EmailWorkspaceProps {
    * inbox as a destination is gone — global reach is Ctrl+P + Ask citations).
    */
   embedded?: boolean;
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-// (pure helpers moved to ./emailWorkspaceHelpers)
-
-function sanitizeConnectedAccounts(accounts: ConnectedAccount[]): ConnectedAccount[] {
-  const byKey = new Map<string, ConnectedAccount>();
-  for (const account of accounts) {
-    const provider = account.provider.trim();
-    const accountId = account.account.trim();
-    if (!provider || !accountId) continue;
-    const key = `${provider}:${accountId}`;
-    if (!byKey.has(key)) {
-      byKey.set(key, { ...account, provider, account: accountId });
-    }
-  }
-  return Array.from(byKey.values());
 }
 
 // ── No-accounts empty state ────────────────────────────────────────────────
@@ -122,9 +94,6 @@ export function EmailWorkspace({
   // First-connect TTV callout — shown once after the first account is connected.
   const { firstConnectCalloutSeen, dismissFirstConnectCallout } = useMailStore();
 
-  // Track whether a manual/startup sync is in flight (cross-provider aggregate).
-  const [syncing, setSyncing] = useState(false);
-
   // Scope toggle: "This matter" vs "All email" — only effective in Ask AI mode
   const [scopeAllEmail, setScopeAllEmail] = useState(false);
 
@@ -141,11 +110,6 @@ export function EmailWorkspace({
   const [dateTo, setDateTo] = useState('');
   const [hasAttachments, setHasAttachments] = useState(false);
 
-  // Connected accounts (loaded once on mount)
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
-  const [accountsLoaded, setAccountsLoaded] = useState(false);
-  const hasConnectedMail = accountsLoaded && accounts.length > 0;
-
   // Keyword results
   const [items, setItems] = useState<MailListItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -161,145 +125,35 @@ export function EmailWorkspace({
   const [askLoading, setAskLoading] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
 
+  // Account sync: load accounts, startup auto-sync, sync-done listener, handleSyncNow
+  const { syncing, accounts, accountsLoaded, hasConnectedMail, handleSyncNow } = useAccountSync({
+    onNoAccounts: useCallback(() => {
+      setItems([]);
+      setTotal(0);
+      setOffset(0);
+      setError(null);
+      setAskHits([]);
+      setAskLoading(false);
+      setAskError(null);
+    }, []),
+    onSyncDone: useCallback(() => { setRetryCount((c) => c + 1); }, []),
+  });
+
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkMatterOpen, setBulkMatterOpen] = useState(false);
 
-  // Compose state
+  // Compose open state — compose state/effects live in ComposeModal
   const [composeOpen, setComposeOpen] = useState(false);
-  const [composeProvider, setComposeProvider] = useState('');
-  const [composeAccount, setComposeAccount] = useState('');
-  const [composeTo, setComposeTo] = useState('');
-  const [composeCc, setComposeCc] = useState('');
-  const [composeBcc, setComposeBcc] = useState('');
-  const [composeSubject, setComposeSubject] = useState('');
-  const [composeBody, setComposeBody] = useState('');
-  const [composeCcBccOpen, setComposeCcBccOpen] = useState(false);
-  const [composeSending, setComposeSending] = useState(false);
-  const [composeSendResult, setComposeSendResult] = useState<'none' | 'success' | 'error' | 'scope_upgrade'>('none');
-  const [composeSendError, setComposeSendError] = useState<string | null>(null);
-  const [composeAttachments, setComposeAttachments] = useState<MailAttachmentInput[]>([]);
-  const attachFileRef = useRef<HTMLInputElement>(null);
 
   // Ref for focusing the search field from the first-connect callout CTA.
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Close the compose modal when Escape is pressed.
-  useEffect(() => {
-    if (!composeOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setComposeOpen(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [composeOpen]);
 
   // Debounce ref and request fingerprint tracking
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestQueryRef = useRef(0);
   // Fingerprint tracks query/filter params (not offset) to detect filter changes in Effect B
   const queryFingerprintRef = useRef('');
-
-  // Load connected accounts on mount and re-check on window focus so the view
-  // updates automatically after the user connects an account in the Account window.
-  useEffect(() => {
-    let cancelled = false;
-    const load = () => {
-      mailConnectedAccounts()
-        .then((accs) => {
-          if (!cancelled) {
-            const nextAccounts = sanitizeConnectedAccounts(accs);
-            setAccounts(nextAccounts);
-            if (nextAccounts.length === 0) {
-              setSyncing(false);
-              setItems([]);
-              setTotal(0);
-              setOffset(0);
-              setError(null);
-              setAskHits([]);
-              setAskLoading(false);
-              setAskError(null);
-            }
-            setAccountsLoaded(true);
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setAccounts([]);
-            setAccountsLoaded(true);
-          }
-        });
-    };
-    load();
-    window.addEventListener('focus', load);
-    return () => {
-      cancelled = true;
-      window.removeEventListener('focus', load);
-    };
-  }, []);
-
-  // BUG-007: Auto-sync on mount when already connected but no sync has run yet.
-  // `mail_sync_all` only fires at connect-time; after an app restart the account
-  // shows as Connected but the Email tab is empty with no way to refresh. This
-  // effect fires once after accounts are resolved: if there are connected accounts
-  // and we're running inside Tauri (desktop-only), kick off a background sync.
-  // Guard: skip if already syncing (prevents double-fire on HMR / strict-mode).
-  const startupSyncFiredRef = useRef(false);
-  useEffect(() => {
-    if (!isTauri()) return;
-    if (!accountsLoaded) return;
-    if (accounts.length === 0) return;
-    if (startupSyncFiredRef.current) return;
-    startupSyncFiredRef.current = true;
-    setSyncing(true);
-    mailSyncAll(buildMailMatterMap(getMatters()))
-      .catch(() => { /* surfaced via the MAIL_SYNC_EVENT error status */ })
-      .finally(() => { setSyncing(false); });
-  }, [accountsLoaded, accounts.length]);
-
-  // Re-query the message list when a sync finishes or this window regains focus.
-  // The connectors live in a SEPARATE window, so mail imported there lands in the
-  // shared encrypted store while this window's list still shows the pre-import
-  // state — without this, an import of hundreds of messages never appears here
-  // until a manual filter change. `setRetryCount` re-runs the keyword query
-  // (Effect A) from the first page. (`accounts` is intentionally not an Effect-A
-  // dependency, so updating it alone would not refresh the list.)
-  useEffect(() => {
-    const refresh = () => setRetryCount((c) => c + 1);
-    window.addEventListener('focus', refresh);
-    let unlisten: (() => void) | undefined;
-    let disposed = false;
-    if (isTauri()) {
-      listen<MailSyncProgress>(MAIL_SYNC_EVENT, (e) => {
-        if (e.payload.status === 'done') refresh();
-      })
-        .then((u) => {
-          if (disposed) u();
-          else unlisten = u;
-        })
-        .catch(() => {});
-    }
-    return () => {
-      disposed = true;
-      window.removeEventListener('focus', refresh);
-      if (unlisten) unlisten();
-    };
-  }, []);
-
-  // Auto-select first account when compose opens and accounts are available
-  useEffect(() => {
-    if (composeOpen && composeProvider === '' && accounts.length > 0) {
-      const first = accounts[0];
-      if (first) {
-        setComposeProvider(first.provider);
-        setComposeAccount(first.account);
-      }
-    }
-  }, [composeOpen, accounts, composeProvider]);
 
   // Effect A: fires on query/filter param changes (debounced 200ms, resets offset to 0)
   useEffect(() => {
@@ -524,17 +378,6 @@ export function EmailWorkspace({
     setRetryCount((c) => c + 1);
   }, []);
 
-  // BUG-007: Manual "Sync now" — calls mailSyncAll for all connected providers.
-  // Disabled while a sync is already in flight (syncing state) or outside Tauri.
-  const handleSyncNow = useCallback(() => {
-    if (!isTauri()) return;
-    if (syncing) return;
-    setSyncing(true);
-    mailSyncAll(buildMailMatterMap(getMatters()))
-      .catch(() => { /* error status surfaced via MAIL_SYNC_EVENT listener */ })
-      .finally(() => { setSyncing(false); });
-  }, [syncing]);
-
   const handleClearQuery = useCallback(() => {
     setQuery('');
     setOffset(0);
@@ -574,23 +417,7 @@ export function EmailWorkspace({
     : items;
 
   // Fix 7: persist list scroll position per-matter in sessionStorage
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const scrollKey = `email-scroll-${activeMatter?.id ?? 'all'}`;
-
-  // Restore scroll on mount
-  useEffect(() => {
-    const saved = sessionStorage.getItem(scrollKey);
-    if (saved && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = Number(saved);
-    }
-    // Save scroll on unmount
-    const el = scrollContainerRef.current;
-    return () => {
-      if (el) {
-        sessionStorage.setItem(scrollKey, String(el.scrollTop));
-      }
-    };
-  }, [scrollKey]);
+  const { scrollContainerRef } = useScrollPersistence(activeMatter);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -629,12 +456,7 @@ export function EmailWorkspace({
           size="md"
           iconLeft={PenLine}
           data-testid="compose-btn"
-          onClick={() => {
-            setComposeOpen(true);
-            setComposeSendResult('none');
-            setComposeSendError(null);
-            setComposeAttachments([]);
-          }}
+          onClick={() => { setComposeOpen(true); }}
         >
           New email
         </Button>
@@ -866,54 +688,13 @@ export function EmailWorkspace({
           <>
             {/* Bulk action bar */}
             {selectedIds.size > 0 && (
-              <div
-                data-testid="bulk-action-bar"
-                style={{
-                  margin: `var(--kp-space-md) var(--kp-gutter) var(--kp-space-xs)`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: 'var(--kp-space-xs) var(--kp-space-sm)',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid rgba(10,37,64,0.18)',
-                  background: 'rgba(10,37,64,0.04)',
-                  fontSize: 'var(--kp-font-xs)',
-                  color: 'var(--kp-navy)',
-                  fontWeight: 'var(--kp-weight-medium)',
-                }}
-              >
-                {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                <span style={{ flex: 1 }}>
-                  {selectedIds.size} selected
-                </span>
-                <div style={{ position: 'relative' }}>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    iconLeft={FolderInput}
-                    iconRight={ChevronDown}
-                    data-testid="bulk-file-to-matter"
-                    onClick={() => { setBulkMatterOpen((o) => !o); }}
-                  >
-                    File to matter
-                  </Button>
-                  <BulkMatterPicker
-                    selectedIds={selectedIds}
-                    open={bulkMatterOpen}
-                    onOpenChange={setBulkMatterOpen}
-                    onDone={handleClearSelection}
-                  />
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  iconLeft={X}
-                  onClick={handleClearSelection}
-                >
-                  Clear selection
-                </Button>
-                {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-              </div>
+              <BulkActionBar
+                selectedCount={selectedIds.size}
+                selectedIds={selectedIds}
+                onClearSelection={handleClearSelection}
+                bulkMatterOpen={bulkMatterOpen}
+                onBulkMatterOpenChange={setBulkMatterOpen}
+              />
             )}
 
             {/* Loading skeleton */}
@@ -1363,401 +1144,13 @@ export function EmailWorkspace({
         )}
       </div>
 
-      {/* Compose modal */}
-      {composeOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 100,
-            background: 'rgba(0,0,0,0.35)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setComposeOpen(false);
-            }
-          }}
-        >
-          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: 'var(--radius-lg)',
-              boxShadow: 'var(--kp-shadow-3)',
-              width: 560,
-              maxWidth: '95vw',
-              maxHeight: '80vh',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-            }}
-          >
-            {/* Modal header */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: `var(--kp-space-sm) var(--kp-card-pad) var(--kp-space-xs)`,
-                borderBottom: '1px solid var(--color-border)',
-              }}
-            >
-              <span style={{ fontSize: 'var(--kp-font-md)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)', fontFamily: 'var(--font-sans)' }}>
-                New email
-              </span>
-              <button
-                type="button"
-                data-testid="compose-close"
-                onClick={() => { setComposeOpen(false); }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: 4,
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--color-muted-foreground)',
-                  borderRadius: 4,
-                }}
-              >
-                <X style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
-              </button>
-            </div>
-
-            {/* Modal body (scrollable) */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: `var(--kp-space-sm) var(--kp-card-pad) var(--kp-card-pad)`, display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-xs)' }}>
-              {/* From selector */}
-              {accounts.length === 0 ? (
-                <div data-testid="compose-no-accounts" style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', padding: '8px 0' }}>
-                  Connect an account first in Settings.
-                </div>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
-                    From
-                  </span>
-                  <select
-                    value={`${composeProvider}::${composeAccount}`}
-                    onChange={(e) => {
-                      const [p = '', a = ''] = e.target.value.split('::');
-                      setComposeProvider(p);
-                      setComposeAccount(a);
-                    }}
-                    style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 'var(--kp-font-sm)', fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
-                  >
-                    {accounts.map((acc) => (
-                      <option key={`${acc.provider}::${acc.account}`} value={`${acc.provider}::${acc.account}`}>
-                        {acc.label} ({acc.account})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* To field */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
-                  To
-                </span>
-                <input
-                  type="text"
-                  data-testid="compose-to"
-                  value={composeTo}
-                  onChange={(e) => { setComposeTo(e.target.value); }}
-                  placeholder="recipient@example.com"
-                  style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 'var(--kp-font-sm)', fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
-                />
-                <button
-                  type="button"
-                  data-testid="compose-cc-bcc-toggle"
-                  onClick={() => { setComposeCcBccOpen((o) => !o); }}
-                  style={{ flexShrink: 0, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                >
-                  Cc / Bcc
-                </button>
-              </div>
-
-              {/* Cc / Bcc */}
-              {composeCcBccOpen && (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
-                      Cc
-                    </span>
-                    <input
-                      type="text"
-                      data-testid="compose-cc"
-                      value={composeCc}
-                      onChange={(e) => { setComposeCc(e.target.value); }}
-                      placeholder="cc@example.com"
-                      style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 'var(--kp-font-sm)', fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
-                      Bcc
-                    </span>
-                    <input
-                      type="text"
-                      data-testid="compose-bcc"
-                      value={composeBcc}
-                      onChange={(e) => { setComposeBcc(e.target.value); }}
-                      placeholder="bcc@example.com"
-                      style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 'var(--kp-font-sm)', fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Subject */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 50, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
-                  Subject
-                </span>
-                <input
-                  type="text"
-                  data-testid="compose-subject"
-                  value={composeSubject}
-                  onChange={(e) => { setComposeSubject(e.target.value); }}
-                  placeholder="Subject"
-                  style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 'var(--kp-font-sm)', fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
-                />
-              </div>
-
-              {/* Body */}
-              <textarea
-                data-testid="compose-body"
-                value={composeBody}
-                onChange={(e) => { setComposeBody(e.target.value); }}
-                placeholder="Write your message..."
-                rows={10}
-                style={{
-                  width: '100%',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 5,
-                  padding: '8px',
-                  fontSize: 'var(--kp-font-sm)',
-                  lineHeight: 'var(--kp-leading-normal)',
-                  fontFamily: 'var(--font-sans)',
-                  background: '#fff',
-                  color: 'var(--color-foreground)',
-                  resize: 'vertical',
-                  boxSizing: 'border-box',
-                }}
-              />
-
-              {/* Attachments */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button
-                    type="button"
-                    data-testid="compose-attach"
-                    onClick={() => { attachFileRef.current?.click(); }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      padding: '4px 10px',
-                      borderRadius: 5,
-                      fontSize: 'var(--kp-font-xs)',
-                      fontWeight: 'var(--kp-weight-medium)',
-                      background: 'transparent',
-                      color: 'var(--color-muted-foreground)',
-                      border: '1px solid var(--color-border)',
-                      cursor: 'pointer',
-                      fontFamily: 'var(--font-sans)',
-                    }}
-                  >
-                    <Paperclip style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
-                    Attach
-                  </button>
-                  <input
-                    ref={attachFileRef}
-                    type="file"
-                    multiple
-                    style={{ display: 'none' }}
-                    data-testid="compose-attach-input"
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files ?? []);
-                      files.forEach((file) => {
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                          const dataUrl = reader.result as string;
-                          // dataUrl is "data:<mime>;base64,<data>"
-                          const b64 = dataUrl.split(',')[1] ?? '';
-                          setComposeAttachments((prev) => [
-                            ...prev,
-                            { name: file.name, contentBase64: b64, contentType: file.type || 'application/octet-stream' },
-                          ]);
-                        };
-                        reader.readAsDataURL(file);
-                      });
-                      // Reset so the same file can be re-added after removal
-                      e.target.value = '';
-                    }}
-                  />
-                </div>
-                {composeAttachments.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {composeAttachments.map((att, idx) => (
-                      <div
-                        key={`${att.name}-${String(idx)}`}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          padding: '3px 8px',
-                          borderRadius: 4,
-                          fontSize: 'var(--kp-font-2xs)',
-                          background: '#f0f4ff',
-                          border: '1px solid var(--color-border)',
-                          color: 'var(--color-foreground)',
-                          fontFamily: 'var(--font-sans)',
-                        }}
-                      >
-                        <Paperclip style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, color: 'var(--color-muted-foreground)' }} />
-                        <span style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {att.name}
-                        </span>
-                        <button
-                          type="button"
-                          data-testid={`compose-remove-attachment-${String(idx)}`}
-                          onClick={() => {
-                            setComposeAttachments((prev) => prev.filter((_, i) => i !== idx));
-                          }}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: 0,
-                            display: 'flex',
-                            color: 'var(--color-muted-foreground)',
-                          }}
-                        >
-                          <X style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Send result states */}
-              {composeSendResult === 'success' && (
-                <div data-testid="compose-success" style={{ fontSize: 'var(--kp-font-xs)', color: '#047857' }}>
-                  Email sent
-                </div>
-              )}
-              {composeSendResult === 'error' && composeSendError && (
-                <div data-testid="compose-error" style={{ fontSize: 'var(--kp-font-xs)', color: '#b45309', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <AlertTriangle style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, flex: 'none' }} />
-                  {composeSendError}
-                </div>
-              )}
-              {composeSendResult === 'scope_upgrade' && (
-                <div data-testid="compose-scope-upgrade" style={{ fontSize: 'var(--kp-font-xs)', color: '#b45309' }}>
-                  Sending needs a one-time reconnect for the send permission. Go to Settings to reconnect your email.
-                  {onOpenSettings && (
-                    <button
-                      type="button"
-                      onClick={onOpenSettings}
-                      style={{
-                        display: 'block',
-                        marginTop: 6,
-                        padding: '4px 10px',
-                        borderRadius: 5,
-                        fontSize: 'var(--kp-font-2xs)',
-                        fontWeight: 'var(--kp-weight-semibold)',
-                        background: 'transparent',
-                        color: 'var(--kp-navy)',
-                        border: '1px solid var(--color-border)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Go to Settings
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Modal footer */}
-            <div
-              style={{
-                padding: `var(--kp-space-xs) var(--kp-card-pad)`,
-                borderTop: '1px solid var(--color-border)',
-                display: 'flex',
-                justifyContent: 'flex-end',
-              }}
-            >
-              <button
-                type="button"
-                data-testid="compose-send"
-                disabled={composeSending || accounts.length === 0}
-                onClick={() => {
-                  const toArr = parseRecipients(composeTo);
-                  const ccArr = parseRecipients(composeCc);
-                  const bccArr = parseRecipients(composeBcc);
-                  setComposeSending(true);
-                  setComposeSendResult('none');
-                  setComposeSendError(null);
-                  void mailSend(composeProvider, composeAccount, toArr, ccArr, bccArr, composeSubject, composeBody, undefined, composeAttachments.length > 0 ? composeAttachments : undefined)
-                    .then(() => {
-                      setComposeSending(false);
-                      setComposeSendResult('success');
-                      setTimeout(() => {
-                        setComposeOpen(false);
-                        setComposeTo('');
-                        setComposeCc('');
-                        setComposeBcc('');
-                        setComposeSubject('');
-                        setComposeBody('');
-                        setComposeCcBccOpen(false);
-                        setComposeSendResult('none');
-                        setComposeSendError(null);
-                        setComposeAttachments([]);
-                      }, 1500);
-                    })
-                    .catch((e: unknown) => {
-                      setComposeSending(false);
-                      const msg = e instanceof Error ? e.message : '';
-                      if (msg.includes('scope_upgrade_required')) {
-                        setComposeSendResult('scope_upgrade');
-                      } else {
-                        setComposeSendResult('error');
-                        setComposeSendError(mapMailError(e));
-                      }
-                    });
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 18px',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 'var(--kp-font-sm)',
-                  fontWeight: 'var(--kp-weight-semibold)',
-                  background: 'var(--kp-action-bg)',
-                  color: 'var(--kp-action-fg)',
-                  border: 'none',
-                  cursor: composeSending || accounts.length === 0 ? 'default' : 'pointer',
-                  opacity: composeSending || accounts.length === 0 ? 0.6 : 1,
-                  fontFamily: 'var(--font-sans)',
-                }}
-              >
-                {composeSending && (
-                  <Loader2 style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
-                )}
-                Send
-              </button>
-            </div>
-          </div>
-          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-        </div>
-      )}
+      {/* Compose modal — always mounted so draft text survives close/reopen */}
+      <ComposeModal
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        accounts={accounts}
+        onOpenSettings={onOpenSettings}
+      />
     </div>
   );
 }
