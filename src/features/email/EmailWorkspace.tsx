@@ -30,11 +30,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Mail,
   Search,
-  ChevronDown,
   Loader2,
   AlertTriangle,
-  FolderInput,
-  X,
   PenLine,
   Sparkles,
   RefreshCw,
@@ -59,13 +56,13 @@ import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { mapMailError, filterInputStyle } from './emailWorkspaceHelpers';
-import { BulkMatterPicker } from './BulkMatterPicker';
 import { AskHitCard } from './AskHitCard';
 import { NoAccountsState } from './NoAccountsState';
 import { MailRow } from './MailRow';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 import { useScrollPersistence } from './useScrollPersistence';
 import { ComposeModal } from './ComposeModal';
+import { BulkActionBar } from './BulkActionBar';
 import { EV_OPEN_SETTINGS } from '@/config/identity';
 
 // ── Props ──────────────────────────────────────────────────────────────────
@@ -806,54 +803,13 @@ export function EmailWorkspace({
           <>
             {/* Bulk action bar */}
             {selectedIds.size > 0 && (
-              <div
-                data-testid="bulk-action-bar"
-                style={{
-                  margin: `var(--kp-space-md) var(--kp-gutter) var(--kp-space-xs)`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: 'var(--kp-space-xs) var(--kp-space-sm)',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid rgba(10,37,64,0.18)',
-                  background: 'rgba(10,37,64,0.04)',
-                  fontSize: 'var(--kp-font-xs)',
-                  color: 'var(--kp-navy)',
-                  fontWeight: 'var(--kp-weight-medium)',
-                }}
-              >
-                {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                <span style={{ flex: 1 }}>
-                  {selectedIds.size} selected
-                </span>
-                <div style={{ position: 'relative' }}>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    iconLeft={FolderInput}
-                    iconRight={ChevronDown}
-                    data-testid="bulk-file-to-matter"
-                    onClick={() => { setBulkMatterOpen((o) => !o); }}
-                  >
-                    File to matter
-                  </Button>
-                  <BulkMatterPicker
-                    selectedIds={selectedIds}
-                    open={bulkMatterOpen}
-                    onOpenChange={setBulkMatterOpen}
-                    onDone={handleClearSelection}
-                  />
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  iconLeft={X}
-                  onClick={handleClearSelection}
-                >
-                  Clear selection
-                </Button>
-                {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-              </div>
+              <BulkActionBar
+                selectedCount={selectedIds.size}
+                selectedIds={selectedIds}
+                onClearSelection={handleClearSelection}
+                bulkMatterOpen={bulkMatterOpen}
+                onBulkMatterOpenChange={setBulkMatterOpen}
+              />
             )}
 
             {/* Loading skeleton */}
