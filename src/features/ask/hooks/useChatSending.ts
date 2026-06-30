@@ -77,7 +77,12 @@ import {
   parseWorkspaceCommand,
   verifyCitations,
 } from '@/platform/rag/workspaceCommand';
-import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
+import {
+  filterHitsForExportConsent,
+  dropUnconsentedExports,
+  isExternalExportConsentGiven,
+} from '@/platform/rag/exportConsent';
+import { recognizeProvenance } from '@/platform/rag/sourceProvenance';
 import { buildFactsMemoryBlock } from '@/platform/rag/FactsService';
 import { snapshotFactsForInjection } from '@/platform/rag/factsSingleton';
 import type { ChatSession, ChatCostEntry } from '@/platform/state/aiChatStore';
@@ -889,6 +894,22 @@ export function useChatSending(deps: UseChatSendingDeps) {
               assertInActiveMatter(filePath, relativePath); // BUG-036
               try {
                 const content = await workspaceServiceRef.current.readFile(filePath);
+                // Connector-access: read_file is a third way file content reaches
+                // the model. If this file is a recognized RightCapital/Jump export
+                // and the advisor hasn't consented, WITHHOLD its content (return a
+                // notice, not the report) so "read RightCapital-Plan.pdf" can't
+                // leak it. Consent is granted in the Ask tab or Settings.
+                if (
+                  !isExternalExportConsentGiven() &&
+                  recognizeProvenance({ path: relativePath, text: content }) !== null
+                ) {
+                  return {
+                    content:
+                      'This file is recognized as an exported report from an outside tool (for example RightCapital or Jump). Keepance needs your one-time confirmation before exported reports are used with AI. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy, or ask about it in the Ask tab where you will be prompted. The file content was not read.',
+                    path: relativePath,
+                    withheld: true,
+                  };
+                }
                 return { content, path: relativePath };
               } catch (error) {
                 throw new Error(`Failed to read file "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1307,7 +1328,15 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // that applies to every turn rather than a stale one-shot attachment.
         // D1 — use scopedOpenFiles so the prompt only contains files within
         // the active folder scope (identical to openFiles when no scope is set).
-        const fileBlock = buildOpenFilesPromptBlock(scopedOpenFiles);
+        // Connector-access: an open editor tab is another way file content reaches
+        // the model, so apply the SAME export-consent gate here — a recognized
+        // RightCapital/Jump export sitting in an open tab is withheld until the
+        // advisor consents (consistent with the @workspace retrieval gate above).
+        const consentedOpenFiles = dropUnconsentedExports(
+          scopedOpenFiles,
+          (f) => ({ path: f.path || f.fileName, text: f.extractedText }),
+        );
+        const fileBlock = buildOpenFilesPromptBlock(consentedOpenFiles);
 
         // M2 — workspace context block goes at the very top of the
         // system prompt so the retrieval sources are the first thing

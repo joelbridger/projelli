@@ -13,7 +13,7 @@
 
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_CONSENT_KEY } from '@/platform/settings/schema';
-import { recognizeProvenance } from '@/platform/rag/sourceProvenance';
+import { recognizeProvenance, type ProvenanceInput } from '@/platform/rag/sourceProvenance';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 
 /** Has the advisor consented to storing + AI-processing recognized exports? */
@@ -41,13 +41,25 @@ export function grantExternalExportConsent(): void {
  * Ordinary hits always pass; when consent is given, everything passes.
  */
 export function filterHitsForExportConsent(hits: RagHit[]): RagHit[] {
-  if (isExternalExportConsentGiven()) return hits;
-  return hits.filter(
-    (h) =>
-      recognizeProvenance({
-        path: h.path || h.sourceId,
-        text: h.chunkText,
-        sourceType: h.sourceType,
-      }) === null,
-  );
+  return dropUnconsentedExports(hits, (h) => ({
+    path: h.path || h.sourceId,
+    text: h.chunkText,
+    sourceType: h.sourceType,
+  }));
+}
+
+/**
+ * Generic form of the gate for NON-hit model inputs that can also carry export
+ * content — open-file (ambient) context and `read_file` tool results in the chat
+ * send. `toInput` maps each item to the recognizer's input (path + text). When
+ * consent is off, recognized RightCapital/Jump exports are dropped; ordinary
+ * items and (once consent is given) everything pass. Keeps every file-content
+ * path into a model consistent with the RAG-hits gate above.
+ */
+export function dropUnconsentedExports<T>(
+  items: T[],
+  toInput: (item: T) => ProvenanceInput,
+): T[] {
+  if (isExternalExportConsentGiven()) return items;
+  return items.filter((it) => recognizeProvenance(toInput(it)) === null);
 }

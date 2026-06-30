@@ -13,7 +13,7 @@ import {
   bindAnswerCitations,
 } from '@/features/ask/askHelpers';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
-import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
+import { filterHitsForExportConsent, dropUnconsentedExports } from '@/platform/rag/exportConsent';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_CONSENT_KEY } from '@/platform/settings/schema';
 import type { RagHit } from '@/platform/utils/tauri-commands';
@@ -147,5 +147,31 @@ describe('filterHitsForExportConsent (P1: hits-level gate for every model-send s
     const exp = hit({ path: 'RightCapital-Plan-2026-06-12.pdf', sourceType: 'pdf' });
     const ord = hit({ path: 'memo.md' });
     expect(filterHitsForExportConsent([exp, ord])).toHaveLength(2);
+  });
+});
+
+describe('dropUnconsentedExports (P1: gates non-hit model inputs — open files / read_file)', () => {
+  // Open editor tabs and read_file results are two other ways file content
+  // reaches the chat model; this generic gate covers them with the same rule.
+  interface OpenFile { path: string; extractedText: string }
+  const toInput = (f: OpenFile) => ({ path: f.path, text: f.extractedText });
+  afterEach(() => { useSettingsStore.getState().setSetting(EXTERNAL_EXPORT_CONSENT_KEY, false); });
+
+  it('withholds an open RightCapital export tab when consent is off', () => {
+    useSettingsStore.getState().setSetting(EXTERNAL_EXPORT_CONSENT_KEY, false);
+    const files: OpenFile[] = [
+      { path: 'clients/x/RightCapital-Plan-2026-06-12.pdf', extractedText: 'plan figures' },
+      { path: 'clients/x/notes.md', extractedText: 'meeting notes' },
+    ];
+    const out = dropUnconsentedExports(files, toInput);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.path).toBe('clients/x/notes.md');
+  });
+  it('keeps the open export tab once consent is given', () => {
+    useSettingsStore.getState().setSetting(EXTERNAL_EXPORT_CONSENT_KEY, true);
+    const files: OpenFile[] = [
+      { path: 'clients/x/RightCapital-Plan-2026-06-12.pdf', extractedText: 'plan figures' },
+    ];
+    expect(dropUnconsentedExports(files, toInput)).toHaveLength(1);
   });
 });
