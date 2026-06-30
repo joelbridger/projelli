@@ -21,7 +21,7 @@ import { MailConnect } from '@/features/settings/MailConnect';
 import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
 import { MailImapConnect } from '@/features/settings/MailImapConnect';
 import { OneDriveConnect } from '@/platform/connectors/onedrive/OneDriveConnect';
-import { WealthboxConnect } from '@/features/settings/WealthboxConnect';
+import { WealthboxConnect } from '@/platform/connectors/crm/WealthboxConnect';
 
 import { SecurityPill } from '../components/SecurityPill';
 import { ONB_COPY, ONB_COMING_SOON_LOGOS } from '../copy';

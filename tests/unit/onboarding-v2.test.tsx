@@ -40,7 +40,7 @@ vi.mock('@/features/settings/MailImapConnect', () => ({
 vi.mock('@/platform/connectors/onedrive/OneDriveConnect', () => ({
   OneDriveConnect: () => <div data-testid="onedrive-stub" />,
 }));
-vi.mock('@/features/settings/WealthboxConnect', () => ({
+vi.mock('@/platform/connectors/crm/WealthboxConnect', () => ({
   WealthboxConnect: () => <div data-testid="wealthbox-stub" />,
 }));
 vi.mock('@/features/onboarding/AiSetupHelpLink', () => ({

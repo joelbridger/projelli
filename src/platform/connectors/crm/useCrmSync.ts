@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { isTauri } from '@tauri-apps/api/core';
 import { CRM_SYNC_EVENT, type CrmSyncProgress } from '@/platform/utils/wealthbox-commands';
-import { useCrmStore } from '@/features/crm/crmStore';
+import { useCrmStore } from '@/platform/connectors/crm/crmStore';
 
 export function useCrmSync(): void {
   const setProgress = useCrmStore((s) => s.setProgress);
