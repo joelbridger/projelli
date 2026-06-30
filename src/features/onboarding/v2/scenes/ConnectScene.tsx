@@ -17,9 +17,9 @@
 import { useState } from 'react';
 import { Lock, Monitor, EyeOff, ChevronDown, FileDown } from 'lucide-react';
 
-import { MailConnect } from '@/features/settings/MailConnect';
-import { MailGmailConnect } from '@/features/settings/MailGmailConnect';
-import { MailImapConnect } from '@/features/settings/MailImapConnect';
+import { MailConnect } from '@/platform/connectors/email/MailConnect';
+import { MailGmailConnect } from '@/platform/connectors/email/MailGmailConnect';
+import { MailImapConnect } from '@/platform/connectors/email/MailImapConnect';
 import { OneDriveConnect } from '@/platform/connectors/onedrive/OneDriveConnect';
 import { WealthboxConnect } from '@/platform/connectors/crm/WealthboxConnect';
 

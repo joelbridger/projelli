@@ -54,7 +54,7 @@ vi.mock('@/platform/rag/matterResolver', () => ({
 // ── Imports after mocks ───────────────────────────────────────────────────────
 
 import { mailConnectedAccounts } from '@/platform/utils/mail-commands';
-import { useMailStore } from '@/features/email/mailStore';
+import { useMailStore } from '@/platform/connectors/email/mailStore';
 import { EmailWorkspace } from '@/features/email/EmailWorkspace';
 
 const FIXTURE_ACCOUNTS = [{ provider: 'm365', account: 'default', label: 'Work' }];

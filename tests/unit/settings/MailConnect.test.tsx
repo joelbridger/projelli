@@ -17,16 +17,16 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   get mailFdeStatus() { return mockMailFdeStatus; },
   MAIL_SYNC_EVENT: 'mail-sync-progress',
 }));
-vi.mock('@/features/email/useMailSync', () => ({ useMailSync: () => {} }));
+vi.mock('@/platform/connectors/email/useMailSync', () => ({ useMailSync: () => {} }));
 
 // useMailStore is a Zustand store — mock it so we can control progress in tests.
 let mockProgress: { status: string; written: number; provider?: string } | undefined = undefined;
-vi.mock('@/features/email/mailStore', () => ({
+vi.mock('@/platform/connectors/email/mailStore', () => ({
   useMailStore: (selector: (s: { progressByProvider: Record<string, unknown> }) => unknown) =>
     selector({ progressByProvider: mockProgress ? { m365: mockProgress } : {} }),
 }));
 
-import { MailConnect } from '@/features/settings/MailConnect';
+import { MailConnect } from '@/platform/connectors/email/MailConnect';
 
 describe('MailConnect (one-click M365 flow)', () => {
   beforeEach(() => {

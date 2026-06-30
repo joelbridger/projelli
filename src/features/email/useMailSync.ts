@@ -1,32 +1,7 @@
-// Subscribe to the `mail-sync-progress` Tauri event and push updates into
-// the mailStore. Mirror of useRagStatus.ts event-subscription pattern.
-//
-// G5: also accepts an optional `onMailChunk` callback. When provided, a
-// second listener subscribes to `mail-index-chunk` and calls the callback
-// with each payload. The callback is used by App.tsx to feed decrypted mail
-// text into the in-memory MiniSearch ContentIndex without persisting it.
-
-import { useEffect } from 'react';
-import { listen } from '@tauri-apps/api/event';
-import { isTauri } from '@tauri-apps/api/core';
-import { MAIL_SYNC_EVENT, MAIL_INDEX_CHUNK_EVENT, type MailSyncProgress, type MailIndexChunk } from '@/platform/utils/mail-commands';
-import { useMailStore } from '@/features/email/mailStore';
-
-interface UseMailSyncOptions {
-  onMailChunk?: (chunk: MailIndexChunk) => void;
-}
-
-export function useMailSync({ onMailChunk }: UseMailSyncOptions = {}) {
-  const setProgress = useMailStore((s) => s.setProgress);
-  useEffect(() => {
-    if (!isTauri()) return;
-    const unProg = listen<MailSyncProgress>(MAIL_SYNC_EVENT, (e) => setProgress(e.payload));
-    const unChunk = onMailChunk
-      ? listen<MailIndexChunk>(MAIL_INDEX_CHUNK_EVENT, (e) => onMailChunk(e.payload))
-      : Promise.resolve(() => {});
-    return () => {
-      unProg.then((f) => f());
-      unChunk.then((f) => f());
-    };
-  }, [setProgress, onMailChunk]);
-}
+// Re-export shim (Wave 5c). The mail-sync hook was promoted to
+// `@/platform/connectors/email/useMailSync` so the Settings connector panels can
+// live in the platform layer. This shim keeps the in-flight email feature files
+// (App.tsx) importing the old path until they migrate to the platform path
+// directly. Safe to delete once no `@/features/email/useMailSync` importers
+// remain.
+export * from '@/platform/connectors/email/useMailSync';
